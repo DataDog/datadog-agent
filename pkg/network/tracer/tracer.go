@@ -845,7 +845,7 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *net
 
 	if tracer.Type() != connection.TracerTypeKProbeRuntimeCompiled && tracer.Type() != connection.TracerTypeKProbeCORE {
 		if c.EnableGoTLSSupport {
-			log.Warnf("disabling USM goTLS support as goTLS requires kprobe runtime compilation or CO-RE")
+			log.Warn("disabling USM goTLS support as goTLS requires runtime compilation or CO-RE")
 			c.EnableGoTLSSupport = false
 		}
 	}
