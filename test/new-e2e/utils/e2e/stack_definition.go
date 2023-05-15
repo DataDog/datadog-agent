@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	ec2vm "github.com/DataDog/test-infra-definitions/aws/scenarios/vm/ec2VM"
+	"github.com/DataDog/test-infra-definitions/common/vm"
 	"github.com/DataDog/test-infra-definitions/datadog/agent"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -31,11 +32,20 @@ type VMEnv struct {
 }
 
 func EC2VMStackDef(options ...func(*ec2vm.Params) error) *StackDefinition[VMEnv] {
+	noop := func(vm.VM) (VMEnv, error) { return VMEnv{}, nil }
+	return CustomEC2VMStackDef(noop, options...)
+}
+
+func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...func(*ec2vm.Params) error) *StackDefinition[VMEnv] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*VMEnv, error) {
 		vm, err := ec2vm.NewEc2VM(ctx, options...)
 		if err != nil {
 			return nil, err
 		}
+		if _, err = fct(vm); err != nil {
+			return nil, err
+		}
+
 		return &VMEnv{
 			VM: client.NewVM(vm),
 		}, nil

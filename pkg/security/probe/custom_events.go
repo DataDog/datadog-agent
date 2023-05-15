@@ -121,7 +121,7 @@ func NewAbnormalEvent(id string, event *model.Event, probe *Probe, err error) (*
 		}
 		evt.FillCustomEventCommonFields()
 		// Overwrite common timestamp with event timestamp
-		evt.Timestamp = event.FieldHandlers.ResolveEventTimestamp(event)
+		evt.Timestamp = event.FieldHandlers.ResolveEventTime(event)
 
 		return evt
 	}

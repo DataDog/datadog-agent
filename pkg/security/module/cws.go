@@ -452,7 +452,7 @@ func (c *CWSConsumer) HandleEvent(event *model.Event) {
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
 func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	c.eventSender.SendEvent(rule, event, func() []string { return nil }, "")
+	c.eventSender.SendEvent(rule, event, nil, "")
 }
 
 // RuleMatch is called by the ruleset when a rule matches
@@ -465,8 +465,8 @@ func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 
 	if ev.ContainerContext.ID != "" && c.config.ActivityDumpTagRulesEnabled {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
@@ -481,7 +481,6 @@ func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 
 	extTagsCb := func() []string {
 		return c.probe.GetEventTags(ev)
-
 	}
 
 	// send if not selftest related events

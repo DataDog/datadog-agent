@@ -66,7 +66,7 @@ func (efr EventFilteringResult) toTag() string {
 }
 
 var (
-	allEventFilteringResults = []EventFilteringResult{NoProfile, InProfile, NotInProfile}
+	allEventFilteringResults = []EventFilteringResult{NoProfile, InProfile, NotInProfile, UnstableProfile}
 )
 
 // SecurityProfileManager is used to manage Security Profiles
@@ -490,6 +490,7 @@ func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
 func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	profile.loadedInKernel = true
+	profile.loadedNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
@@ -548,7 +549,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// create profile selector
-	event.FieldHandlers.ResolveContainerTags(event, &event.ContainerContext)
+	event.FieldHandlers.ResolveContainerTags(event, event.ContainerContext)
 	if len(event.ContainerContext.Tags) == 0 {
 		return
 	}
@@ -595,22 +596,19 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 // tryAutolearn tries to autolearn the input event. Returns true if the event was autolearned.
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, error) {
 	// have we reached the stable state time limit ?
-	if lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]; ok {
-		if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
-			return false, nil
-		}
-	} else {
-		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
+	lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]
+	if !ok {
+		profile.lastAnomalyNano[event.GetEventType()] = profile.loadedNano
+		lastAnomalyNano = profile.loadedNano
+	}
+	if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
+		return false, nil
 	}
 
 	// have we reached the unstable time limit ?
-	if firstAnomalyNano, ok := profile.firstAnomalyNano[event.GetEventType()]; ok {
-		if time.Duration(event.TimestampRaw-firstAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-			m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
-			return false, fmt.Errorf("unstable profile: time limit reached")
-		}
-	} else {
-		profile.firstAnomalyNano[event.GetEventType()] = event.TimestampRaw
+	if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+		return false, fmt.Errorf("unstable profile: time limit reached")
 	}
 
 	// check if the unstable size limit was reached

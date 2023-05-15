@@ -4,8 +4,8 @@
 // Copyright 2022-present Datadog, Inc.
 // Code generated - DO NOT EDIT.
 
-//go:build linux
-// +build linux
+//go:build unix
+// +build unix
 
 package model
 
@@ -60,15 +60,6 @@ func (m *Model) GetEventTypes() []eval.EventType {
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
-	case "async":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveAsync(ev)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
 	case "bind.addr.family":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -634,7 +625,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ContainerContext))
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -643,7 +634,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
+				return ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -652,7 +643,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
+				return ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 			},
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
@@ -721,6 +712,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "event.async":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveAsync(ev)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "event.timestamp":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveEventTimestamp(ev))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.args":
 		return &eval.StringEvaluator{
@@ -15166,7 +15175,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 }
 func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
-		"async",
 		"bind.addr.family",
 		"bind.addr.ip",
 		"bind.addr.port",
@@ -15238,6 +15246,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.name",
 		"dns.question.name.length",
 		"dns.question.type",
+		"event.async",
+		"event.timestamp",
 		"exec.args",
 		"exec.args_flags",
 		"exec.args_options",
@@ -16349,8 +16359,6 @@ func (ev *Event) GetFields() []eval.Field {
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
-	case "async":
-		return ev.FieldHandlers.ResolveAsync(ev), nil
 	case "bind.addr.family":
 		return int(ev.Bind.AddrFamily), nil
 	case "bind.addr.ip":
@@ -16478,11 +16486,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "chown.retval":
 		return int(ev.Chown.SyscallEvent.Retval), nil
 	case "container.created_at":
-		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ContainerContext)), nil
+		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)), nil
 	case "container.id":
-		return ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext), nil
+		return ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext), nil
 	case "container.tags":
-		return ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext), nil
+		return ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext), nil
 	case "dns.id":
 		return int(ev.DNS.ID), nil
 	case "dns.question.class":
@@ -16497,6 +16505,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return len(ev.DNS.Name), nil
 	case "dns.question.type":
 		return int(ev.DNS.Type), nil
+	case "event.async":
+		return ev.FieldHandlers.ResolveAsync(ev), nil
+	case "event.timestamp":
+		return int(ev.FieldHandlers.ResolveEventTimestamp(ev)), nil
 	case "exec.args":
 		return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exec.Process), nil
 	case "exec.args_flags":
@@ -20816,8 +20828,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 }
 func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
-	case "async":
-		return "*", nil
 	case "bind.addr.family":
 		return "bind", nil
 	case "bind.addr.ip":
@@ -20960,6 +20970,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "dns", nil
 	case "dns.question.type":
 		return "dns", nil
+	case "event.async":
+		return "*", nil
+	case "event.timestamp":
+		return "*", nil
 	case "exec.args":
 		return "exec", nil
 	case "exec.args_flags":
@@ -23179,8 +23193,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 }
 func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
-	case "async":
-		return reflect.Bool, nil
 	case "bind.addr.family":
 		return reflect.Int, nil
 	case "bind.addr.ip":
@@ -23322,6 +23334,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "dns.question.name.length":
 		return reflect.Int, nil
 	case "dns.question.type":
+		return reflect.Int, nil
+	case "event.async":
+		return reflect.Bool, nil
+	case "event.timestamp":
 		return reflect.Int, nil
 	case "exec.args":
 		return reflect.String, nil
@@ -25542,13 +25558,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
-	case "async":
-		rv, ok := value.(bool)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Async"}
-		}
-		ev.Async = rv
-		return nil
 	case "bind.addr.family":
 		rv, ok := value.(int)
 		if !ok {
@@ -25962,6 +25971,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Chown.SyscallEvent.Retval = int64(rv)
 		return nil
 	case "container.created_at":
+		if ev.ContainerContext == nil {
+			ev.ContainerContext = &ContainerContext{}
+		}
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.CreatedAt"}
@@ -25969,6 +25981,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.ContainerContext.CreatedAt = uint64(rv)
 		return nil
 	case "container.id":
+		if ev.ContainerContext == nil {
+			ev.ContainerContext = &ContainerContext{}
+		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.ID"}
@@ -25976,6 +25991,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.ContainerContext.ID = rv
 		return nil
 	case "container.tags":
+		if ev.ContainerContext == nil {
+			ev.ContainerContext = &ContainerContext{}
+		}
 		switch rv := value.(type) {
 		case string:
 			ev.ContainerContext.Tags = append(ev.ContainerContext.Tags, rv)
@@ -26028,6 +26046,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Type"}
 		}
 		ev.DNS.Type = uint16(rv)
+		return nil
+	case "event.async":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Async"}
+		}
+		ev.Async = rv
+		return nil
+	case "event.timestamp":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "TimestampRaw"}
+		}
+		ev.TimestampRaw = uint64(rv)
 		return nil
 	case "exec.args":
 		if ev.Exec.Process == nil {
