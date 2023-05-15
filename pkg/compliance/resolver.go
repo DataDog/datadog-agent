@@ -445,7 +445,8 @@ func (r *defaultResolver) resolveProcess(ctx context.Context, spec InputSpecProc
 			return nil, err
 		}
 		envs, err := p.Environ()
-		if err != nil {
+		// NOTE(pierre): security-agent may be executed without the capabilities to get /proc/<pid>/environ
+		if err != nil && !os.IsPermission(err) {
 			return nil, err
 		}
 		resolved = append(resolved, map[string]interface{}{
