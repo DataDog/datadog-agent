@@ -31,7 +31,7 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		return nil, nil
 	}
 
-	endpoints, context, err := command.NewLogContextCompliance(log)
+	endpoints, context, err := command.NewLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
