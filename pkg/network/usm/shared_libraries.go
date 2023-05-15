@@ -104,12 +104,15 @@ type soWatcher struct {
 	registry       *soRegistry
 }
 
+type pathIdentifierSet = map[pathIdentifier]struct{}
+
 type soRegistry struct {
-	byID  sync.Map // map[pathIdentifier]*soRegistration
-	byPID sync.Map // map[uint32]map[pathIdentifier]struct{}
+	m     sync.RWMutex
+	byID  map[pathIdentifier]*soRegistration
+	byPID map[uint32]pathIdentifierSet
 
 	// if we can't register a uprobe we don't try more than once
-	blocklistByID sync.Map // map[pathIdentifier]struct{}
+	blocklistByID pathIdentifierSet
 }
 
 func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
@@ -121,9 +124,9 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 		loadEvents:     perfHandler,
 		processMonitor: monitor.GetProcessMonitor(),
 		registry: &soRegistry{
-			byID:          sync.Map{},
-			byPID:         sync.Map{},
-			blocklistByID: sync.Map{},
+			byID:          make(map[pathIdentifier]*soRegistration),
+			byPID:         make(map[uint32]pathIdentifierSet),
+			blocklistByID: make(pathIdentifierSet),
 		},
 	}
 }
@@ -275,36 +278,40 @@ func (w *soWatcher) Start() {
 	}()
 }
 
-// cleanup removes all registrations
+// cleanup removes all registrations.
+// This function should be called in the termination, and after we're stopping all other goroutines.
 func (r *soRegistry) cleanup() {
-	r.byID.Range(func(key, value any) bool {
-		pathID := key.(pathIdentifier)
-		registry := value.(*soRegistration)
-		registry.unregisterPath(pathID)
-		return true
-	})
+	for pathID, reg := range r.byID {
+		reg.unregisterPath(pathID)
+	}
 }
 
 // unregister a pid if exists, unregisterCB will be called if his uniqueProcessesCount == 0
 func (r *soRegistry) unregister(pid uint32) {
-	paths, found := r.byPID.LoadAndDelete(pid)
+	r.m.RLock()
+	_, found := r.byPID[pid]
+	r.m.RUnlock()
 	if !found {
 		return
 	}
 
-	pathSet := paths.(*sync.Map)
-	pathSet.Range(func(key, _ any) bool {
-		pathID := key.(pathIdentifier)
-		loaded, found := r.byID.Load(pathID)
-		if found {
-			registry := loaded.(*soRegistration)
-			if registry.unregisterPath(pathID) {
-				// we need to clean up our entries as there are no more processes using this ELF
-				r.byID.Delete(pathID)
-			}
+	r.m.Lock()
+	defer r.m.Unlock()
+	paths, found := r.byPID[pid]
+	if !found {
+		return
+	}
+	for pathID := range paths {
+		reg, found := r.byID[pathID]
+		if !found {
+			continue
 		}
-		return true
-	})
+		if reg.unregisterPath(pathID) {
+			// we need to clean up our entries as there are no more processes using this ELF
+			delete(r.byID, pathID)
+		}
+	}
+	delete(r.byPID, pid)
 }
 
 // register a ELF library root/libPath as be used by the pid
@@ -319,22 +326,24 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 		return
 	}
 
-	if _, found := r.blocklistByID.Load(pathID); found {
+	r.m.Lock()
+	defer r.m.Unlock()
+	if _, found := r.blocklistByID[pathID]; found {
 		return
 	}
 
-	reg, found := r.byID.LoadOrStore(pathID, newRegistration(rule.unregisterCB))
-	if found {
-		registry := reg.(*soRegistration)
-		pathSetRaw, _ := r.byPID.LoadOrStore(pid, &sync.Map{})
-		pathSet := pathSetRaw.(*sync.Map)
-		if _, found := pathSet.LoadOrStore(pathID, struct{}{}); !found {
-			registry.uniqueProcessesCount.Inc()
+	if reg, found := r.byID[pathID]; found {
+		if _, found := r.byPID[pid][pathID]; !found {
+			reg.uniqueProcessesCount.Inc()
+			// Can happen if a new process opens the same so.
+			if len(r.byPID[pid]) == 0 {
+				r.byPID[pid] = pathIdentifierSet{}
+			}
+			r.byPID[pid][pathID] = struct{}{}
 		}
 		return
 	}
 
-	// We got here, only if the entry wasn't found, thus it's a new entry and we should try and register the hook.
 	if err := rule.registerCB(pathID, root, libPath); err != nil {
 		log.Debugf("error registering library (adding to blocklist) %s path %s by pid %d : %s", pathID.String(), hostLibPath, pid, err)
 		// we are calling unregisterCB here as some uprobes could be already attached, unregisterCB cleanup those entries
@@ -345,15 +354,15 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 		}
 		// save sentinel value, so we don't attempt to re-register shared
 		// libraries that are problematic for some reason
-		r.blocklistByID.Store(pathID, struct{}{})
-
-		// Deleting the temporary value we've put before.
-		r.byID.Delete(pathID)
+		r.blocklistByID[pathID] = struct{}{}
 		return
 	}
 
-	pidMapRaw, _ := r.byPID.LoadOrStore(pid, &sync.Map{})
-	pidMap := pidMapRaw.(*sync.Map)
-	pidMap.Store(pathID, struct{}{})
+	reg := newRegistration(rule.unregisterCB)
+	r.byID[pathID] = reg
+	if len(r.byPID[pid]) == 0 {
+		r.byPID[pid] = pathIdentifierSet{}
+	}
+	r.byPID[pid][pathID] = struct{}{}
 	log.Debugf("registering library %s path %s by pid %d", pathID.String(), hostLibPath, pid)
 }
