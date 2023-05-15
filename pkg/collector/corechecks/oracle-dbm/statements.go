@@ -270,7 +270,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	SQLCount := 0
 	totalSQLTextTimeUs := int64(0)
 	var oracleRows []OracleRow
-	//FQTSent := make(map[string]int)
+
 	if c.config.QueryMetrics.Enabled {
 		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 			var DDForceMatchingSignatures []string
