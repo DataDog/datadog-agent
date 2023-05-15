@@ -149,7 +149,7 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
 }
 
-// isJavaProcess is a simple method to return the process name for a given PID.
+// isJavaProcess checks if the given PID comm's name is java.
 // The method is much faster and efficient that using process.NewProcess(pid).Name().
 func isJavaProcess(pid int) bool {
 	content, err := os.ReadFile(filepath.Join(util.GetProcRoot(), strconv.Itoa(pid), "comm"))
@@ -220,7 +220,6 @@ func newJavaProcess(pid int) {
 	args := strings.Join(allArgs, ",")
 	if err := java.InjectAgent(pid, javaUSMAgentJarPath, args); err != nil {
 		log.Error(err)
-		return
 	}
 }
 

@@ -308,6 +308,7 @@ func (p *GoTLSProgram) Stop() {
 		p.procMonitor.monitor.Stop()
 	}
 
+	// Finally, remove all hooks.
 	for pid := range p.processes {
 		p.unregisterProcess(pid)
 	}

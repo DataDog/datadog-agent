@@ -10,7 +10,6 @@ package monitor
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"sync"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
