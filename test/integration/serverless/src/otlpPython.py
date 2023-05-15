@@ -28,4 +28,5 @@ def simple_test(event, context):
 
 # add lambda instrumentation, done last bc wraps handler func
 from opentelemetry.instrumentation.aws_lambda import AwsLambdaInstrumentor
+
 AwsLambdaInstrumentor().instrument()
