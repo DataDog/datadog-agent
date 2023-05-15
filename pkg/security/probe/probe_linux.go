@@ -19,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/hashicorp/go-multierror"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
@@ -28,6 +27,8 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -319,6 +320,7 @@ func (p *Probe) PlaySnapshot() {
 		event.ProcessContext = &entry.ProcessContext
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
+		event.ContainerContext = &model.ContainerContext{ID: entry.ContainerID}
 		events = append(events, event)
 	}
 	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
