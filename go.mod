@@ -569,7 +569,7 @@ require (
 require (
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
-	github.com/sijms/go-ora/v2 v2.7.4
+	github.com/sijms/go-ora/v2 v2.7.6
 )
 
 require (
