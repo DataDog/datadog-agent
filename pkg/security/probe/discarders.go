@@ -89,7 +89,8 @@ var (
 var (
 	dentryInvalidDiscarder = []interface{}{""}
 	eventZeroDiscarder     = &model.Event{
-		FieldHandlers: &model.DefaultFieldHandlers{},
+		FieldHandlers:    &model.DefaultFieldHandlers{},
+		ContainerContext: &model.ContainerContext{},
 	}
 )
 

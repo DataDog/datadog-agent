@@ -1038,7 +1038,7 @@ func TestProcessPIDVariable(t *testing.T) {
 	}
 }
 
-func TestProcessMutableVariable(t *testing.T) {
+func TestProcessScopedVariable(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_mutable_vars",
 		Expression: `open.file.path == "{{.Root}}/test-open"`,
