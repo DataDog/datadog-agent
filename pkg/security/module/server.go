@@ -609,7 +609,7 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 	destinationsCtx.Start()
 	// end
 
-	reporter, err := reporter.NewRuntimeReporter(runPath, stopper, "runtime-security-agent", "runtime-security", endpoints, destinationsCtx)
+	reporter, err := reporter.NewCWSReporter(runPath, stopper, endpoints, destinationsCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}

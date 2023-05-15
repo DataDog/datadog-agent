@@ -34,7 +34,11 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...stri
 	r.logChan <- msg
 }
 
-func NewRuntimeReporter(runPath string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
+func NewCWSReporter(runPath string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
+	return newReporter(runPath, stopper, "runtime-security-agent", "runtime-security", endpoints, context)
+}
+
+func newReporter(runPath string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
