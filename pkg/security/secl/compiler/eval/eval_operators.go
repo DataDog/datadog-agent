@@ -260,6 +260,148 @@ func IntXor(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, erro
 	}, nil
 }
 
+func IntPlus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error) {
+
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) + eb(ctx)
+		}
+
+		return &IntEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		ctx := NewContext(nil)
+		_ = ctx
+
+		return &IntEvaluator{
+			Value:           ea + eb,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) + eb
+		}
+
+		return &IntEvaluator{
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) int {
+		return ea + eb(ctx)
+	}
+
+	return &IntEvaluator{
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
+func IntMinus(a *IntEvaluator, b *IntEvaluator, state *State) (*IntEvaluator, error) {
+
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) - eb(ctx)
+		}
+
+		return &IntEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		ctx := NewContext(nil)
+		_ = ctx
+
+		return &IntEvaluator{
+			Value:           ea - eb,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) int {
+			return ea(ctx) - eb
+		}
+
+		return &IntEvaluator{
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) int {
+		return ea - eb(ctx)
+	}
+
+	return &IntEvaluator{
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
 func BoolEquals(a *BoolEvaluator, b *BoolEvaluator, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)

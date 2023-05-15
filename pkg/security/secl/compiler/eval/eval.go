@@ -473,8 +473,46 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		}
 		return unary, obj.Pos, nil
 
-	case *ast.Comparison:
+	case *ast.ArithmeticOperation:
 		unary, pos, err = nodeToEvaluator(obj.BitOperation, opts, state)
+		if err != nil {
+			return nil, pos, err
+		}
+		if obj.Op != nil {
+			currInt, ok := unary.(*IntEvaluator)
+			if !ok {
+				return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Int)
+			}
+			next, pos, err = nodeToEvaluator(obj.Next, opts, state)
+			if err != nil {
+				return nil, pos, err
+			}
+			nextInt, ok := next.(*IntEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Int)
+			}
+
+			switch *obj.Op {
+			case "+":
+				IntEvaluator, err := IntPlus(currInt, nextInt, state)
+				if err != nil {
+					return nil, pos, err
+				}
+				return IntEvaluator, obj.Pos, nil
+
+			case "-":
+				IntEvaluator, err := IntMinus(currInt, nextInt, state)
+				if err != nil {
+					return nil, pos, err
+				}
+				return IntEvaluator, obj.Pos, nil
+			}
+
+		}
+		return unary, obj.Pos, nil
+
+	case *ast.Comparison:
+		unary, pos, err = nodeToEvaluator(obj.ArithmeticOperation, opts, state)
 		if err != nil {
 			return nil, pos, err
 		}
