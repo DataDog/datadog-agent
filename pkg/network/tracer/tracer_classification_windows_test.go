@@ -12,10 +12,6 @@ import (
 	"testing"
 )
 
-func isTLSTag(staticTags uint64) bool {
-	return false
-}
-
 func TestProtocolClassification(t *testing.T) {
 	cfg := testConfig()
 	if !classificationSupported(cfg) {

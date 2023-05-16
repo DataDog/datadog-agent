@@ -21,8 +21,6 @@ const (
 	ServiceEnvVar = "DD_SERVICE"
 )
 
-var eventZero model.Event
-
 // NewModel returns a new model with some extra field validation
 func NewModel(probe *Probe) *model.Model {
 	return &model.Model{
@@ -47,6 +45,7 @@ func NewModel(probe *Probe) *model.Model {
 // NewEvent returns a new event
 func NewEvent(fh *FieldHandlers) *model.Event {
 	return &model.Event{
-		FieldHandlers: fh,
+		FieldHandlers:    fh,
+		ContainerContext: &model.ContainerContext{},
 	}
 }

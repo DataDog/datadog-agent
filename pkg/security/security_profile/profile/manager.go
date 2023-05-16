@@ -10,6 +10,7 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -46,6 +48,8 @@ const (
 	// UnstableProfile is used to count the events that didn't make it into a profile because their matching profile was
 	// unstable
 	UnstableProfile
+	// WorkloadWarmup is used to count the unmatched events with a profile skipped due to workload warm up time
+	WorkloadWarmup
 )
 
 // DefaultProfileName used as default profile name
@@ -66,7 +70,9 @@ func (efr EventFilteringResult) toTag() string {
 }
 
 var (
-	allEventFilteringResults = []EventFilteringResult{NoProfile, InProfile, NotInProfile}
+	allEventFilteringResults           = []EventFilteringResult{NoProfile, InProfile, NotInProfile, UnstableProfile}
+	errUnstableProfileSizeLimitReached = errors.New("unstable profile: size limit reached")
+	errUnstableProfileTimeLimitReached = errors.New("unstable profile: time limit reached")
 )
 
 // SecurityProfileManager is used to manage Security Profiles
@@ -103,6 +109,15 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
 		}
 		providers = append(providers, dirProvider)
+	}
+
+	// instantiate remote-config provider
+	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
+		rcProvider, err := rconfig.NewRCProfileProvider()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
+		}
+		providers = append(providers, rcProvider)
 	}
 
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
@@ -155,7 +170,6 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 	for _, p := range m.providers {
 		if err := p.Start(ctx); err != nil {
 			seclog.Errorf("couldn't start profile provider: %v", err)
-			return
 		}
 	}
 
@@ -549,7 +563,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// create profile selector
-	event.FieldHandlers.ResolveContainerTags(event, &event.ContainerContext)
+	event.FieldHandlers.ResolveContainerTags(event, event.ContainerContext)
 	if len(event.ContainerContext.Tags) == 0 {
 		return
 	}
@@ -566,61 +580,76 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		return
 	}
 
-	// check if the event should be injected in the profile automatically
-	autoLearned, autoLearnErr := m.tryAutolearn(profile, event)
-	if autoLearnErr != nil {
-		return
-	} else if autoLearned {
+	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, event.ContainerContext)
+
+	markEventAsInProfile := func(inProfile bool) {
 		// link the profile to the event only if it's a valid event for profile without any error
 		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
+
+		if inProfile {
+			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+			m.eventFiltering[event.GetEventType()][InProfile].Inc()
+		} else {
+			m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
+		}
+	}
+
+	// check if the event should be injected in the profile automatically
+	if autoLearned, err := m.tryAutolearn(profile, event); err != nil {
+		return
+	} else if autoLearned {
+		markEventAsInProfile(true)
 		return
 	}
 
 	// check if the event is in its profile
-	ok, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
+	found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
 	if err != nil {
 		// ignore, evaluation failed
 		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
 		return
 	}
-	// link the profile to the event only if it's a valid event for profile without any error
-	FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
-	if ok {
-		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
-		m.eventFiltering[event.GetEventType()][InProfile].Inc()
-	} else {
-		m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
-	}
+
+	markEventAsInProfile(found)
 }
 
-// tryAutolearn tries to autolearn the input event. Returns true if the event was autolearned.
+// tryAutolearn tries to autolearn the input event. The first return values is true if the event was autolearned,
+// in which case the second return value tells whether the node was already in the profile.
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, error) {
-	// have we reached the stable state time limit ?
-	lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]
-	if !ok {
-		profile.lastAnomalyNano[event.GetEventType()] = profile.loadedNano
-		lastAnomalyNano = profile.loadedNano
-	}
-	if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
-		return false, nil
-	}
-
-	// have we reached the unstable time limit ?
-	if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
-		return false, fmt.Errorf("unstable profile: time limit reached")
-	}
-
 	// check if the unstable size limit was reached
 	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
 		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
-		return false, fmt.Errorf("unstable profile: size limit reached")
+		return false, errUnstableProfileSizeLimitReached
+	}
+
+	var nodeType activity_tree.NodeGenerationType
+
+	// check if we are at the beginning of a workload lifetime
+	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
+		nodeType = activity_tree.WorkloadWarmup
+	} else {
+		// have we reached the stable state time limit ?
+		lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]
+		if !ok {
+			profile.lastAnomalyNano[event.GetEventType()] = profile.loadedNano
+			lastAnomalyNano = profile.loadedNano
+		}
+		if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
+			return false, nil
+		}
+
+		// have we reached the unstable time limit ?
+		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+			m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+			return false, errUnstableProfileTimeLimitReached
+		}
+
+		nodeType = activity_tree.ProfileDrift
 	}
 
 	// try to insert the event in the profile
-	newEntry, err := profile.ActivityTree.Insert(event, activity_tree.ProfileDrift)
+	newEntry, err := profile.ActivityTree.Insert(event, nodeType)
 	if err != nil {
-		// ignore, insertion failed
 		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
 		return false, err
 	}
@@ -630,9 +659,6 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 	if newEntry {
 		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
-		m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
-	} else {
-		m.eventFiltering[event.GetEventType()][InProfile].Inc()
 	}
 
 	return true, nil

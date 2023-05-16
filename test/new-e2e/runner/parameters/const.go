@@ -5,12 +5,15 @@
 
 package parameters
 
+type StoreKey string
+
 const (
-	Profile             = "profile"
-	APIKey              = "api_key"
-	APPKey              = "app_key"
-	SSHKey              = "ssh_key"
-	PulumiPassword      = "pulumi_password"
-	StackParameters     = "stack_params"
-	SkipDeleteOnFailure = "skip_delete_on_failure"
+	Profile             StoreKey = "profile"
+	APIKey              StoreKey = "api_key"
+	APPKey              StoreKey = "app_key"
+	PulumiPassword      StoreKey = "pulumi_password"
+	StackParameters     StoreKey = "stack_params"
+	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
+	KeyPairName         StoreKey = "key_pair_name"
+	PublicKeyPath       StoreKey = "public_key_path"
 )

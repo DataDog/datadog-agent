@@ -201,7 +201,7 @@ func (c *CWSConsumer) Start() error {
 
 	// add remote config as config provider if enabled
 	if c.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent", agentVersion)
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policy: %s", err)
 		} else {
@@ -465,8 +465,9 @@ func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
 
 	if ev.ContainerContext.ID != "" && c.config.ActivityDumpTagRulesEnabled {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))

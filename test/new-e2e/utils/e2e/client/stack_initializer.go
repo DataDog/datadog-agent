@@ -8,12 +8,13 @@ package client
 import (
 	"fmt"
 	"reflect"
+	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
 type stackInitializer interface {
-	setStack(stackResult auto.UpResult) error
+	setStack(t *testing.T, stackResult auto.UpResult) error
 }
 
 func CheckEnvStructValid[Env any]() error {
@@ -22,7 +23,7 @@ func CheckEnvStructValid[Env any]() error {
 	return err
 }
 
-func CallStackInitializers[Env any](env *Env, upResult auto.UpResult) error {
+func CallStackInitializers[Env any](t *testing.T, env *Env, upResult auto.UpResult) error {
 	fields, err := getFields(env)
 
 	for _, field := range fields {
@@ -31,7 +32,7 @@ func CallStackInitializers[Env any](env *Env, upResult auto.UpResult) error {
 			return fmt.Errorf("the field %v of %v is nil", field.name, reflect.TypeOf(env))
 		}
 
-		if err = initializer.setStack(upResult); err != nil {
+		if err = initializer.setStack(t, upResult); err != nil {
 			return err
 		}
 	}

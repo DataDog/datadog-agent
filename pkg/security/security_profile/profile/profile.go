@@ -123,10 +123,8 @@ func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode
 }
 
 // IsAnomalyDetectionEvent returns true if the provided event type is a kernel generated anomaly detection event type
-func IsAnomalyDetectionEvent(eventyType model.EventType) bool {
-	return slices.Contains([]model.EventType{
-		model.AnomalyDetectionSyscallEventType,
-	}, eventyType)
+func IsAnomalyDetectionEvent(eventType model.EventType) bool {
+	return model.AnomalyDetectionSyscallEventType == eventType
 }
 
 func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {

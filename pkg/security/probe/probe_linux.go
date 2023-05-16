@@ -311,8 +311,7 @@ func (p *Probe) PlaySnapshot() {
 		if entry.Source != model.ProcessCacheEntryFromProcFS {
 			return
 		}
-		event := &model.Event{}
-		event.FieldHandlers = p.fieldHandlers
+		event := NewEvent(p.fieldHandlers)
 		event.Type = uint32(model.ExecEventType)
 		event.TimestampRaw = uint64(time.Now().UnixNano())
 		event.ProcessCacheEntry = entry
@@ -347,7 +346,7 @@ func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
 
 	// first, check if the current event is a kernel generated anomaly detection event
 	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
-		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext), &event.SecurityProfileContext)
+		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
 		// check if the profile can generate anomalies for the current event type
 	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
 		return false
@@ -458,7 +457,7 @@ func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshale
 }
 
 func (p *Probe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.ContainerContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext)
 	if err != nil {
 		return 0, err
 	}
@@ -722,7 +721,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ContainerContext); err != nil {
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
 			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
 
 			var errResolution *path.ErrPathResolution
@@ -898,6 +897,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 	event.ProcessCacheEntry = entry
 
+	// resolve the container context
+	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
+
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
@@ -987,25 +989,61 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
 	}
 
+	type tag struct {
+		eventType    eval.EventType
+		approverType string
+	}
+	approverAddedMetricCounter := make(map[tag]float64)
+
 	for _, newApprover := range newApprovers {
-		seclog.Tracef("Applying approver %+v", newApprover)
+		seclog.Tracef("Applying approver %+v for event type %s", newApprover, eventType)
 		if err := newApprover.Apply(p.Manager); err != nil {
 			return err
 		}
+
+		approverType := getApproverType(newApprover.GetTableName())
+		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
 	if previousApprovers, exist := p.approvers[eventType]; exist {
 		previousApprovers.Sub(newApprovers)
 		for _, previousApprover := range previousApprovers {
-			seclog.Tracef("Removing previous approver %+v", previousApprover)
+			seclog.Tracef("Removing previous approver %+v for event type %s", previousApprover, eventType)
 			if err := previousApprover.Remove(p.Manager); err != nil {
 				return err
 			}
+
+			approverType := getApproverType(previousApprover.GetTableName())
+			approverAddedMetricCounter[tag{eventType, approverType}]--
+			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
+				delete(approverAddedMetricCounter, tag{eventType, approverType})
+			}
+		}
+	}
+
+	for tags, count := range approverAddedMetricCounter {
+		tags := []string{
+			fmt.Sprintf("approver_type:%s", tags.approverType),
+			fmt.Sprintf("event_type:%s", tags.eventType),
+		}
+
+		if err := p.StatsdClient.Gauge(metrics.MetricApproverAdded, count, tags, 1.0); err != nil {
+			seclog.Tracef("couldn't set MetricApproverAdded metric: %s", err)
 		}
 	}
 
 	p.approvers[eventType] = newApprovers
 	return nil
+}
+
+func getApproverType(approverTableName string) string {
+	approverType := "flag"
+
+	if approverTableName == kfilters.BasenameApproverKernelMapName {
+		approverType = "basename"
+	}
+
+	return approverType
 }
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
@@ -1230,7 +1268,8 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 
 		eventCtor := func() eval.Event {
 			return &model.Event{
-				FieldHandlers: p.fieldHandlers,
+				FieldHandlers:    p.fieldHandlers,
+				ContainerContext: &model.ContainerContext{},
 			}
 		}
 
@@ -1314,7 +1353,7 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid, ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)); err != nil {
+	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid, ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
@@ -1389,8 +1428,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		cancelFnc:            cancel,
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-
-		event: &model.Event{},
 		PlatformProbe: PlatformProbe{
 			approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
 			managerOptions:       ebpf.NewDefaultOptions(),
@@ -1400,6 +1437,9 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			anomalyDetectionSent: make(map[model.EventType]*atomic.Uint64),
 		},
 	}
+
+	p.event = NewEvent(p.fieldHandlers)
+
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		p.anomalyDetectionSent[i] = atomic.NewUint64(0)
 	}

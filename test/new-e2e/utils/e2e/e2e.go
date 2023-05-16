@@ -71,16 +71,6 @@ func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *St
 	suite.Run(t, e2eSuite)
 }
 
-// NewSuite creates a new Suite.
-// stackName is the name of the stack and should be unique across suites.
-// stackDef is the stack definition.
-// options are optional parameters for example [e2e.KeepEnv].
-func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
-	testSuite := Suite[Env]{}
-	testSuite.initSuite(stackName, stackDef, options...)
-	return &testSuite
-}
-
 func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
 	suite.stackName = stackName
 	suite.defaultStackDef = stackDef
@@ -140,9 +130,6 @@ func (suite *Suite[Env]) AfterTest(suiteName, testName string) {
 
 // SetupSuite method will run before the tests in the suite are run.
 // This function is called by [testify Suite].
-// Note: Having initialization code in this function allows `NewSuite` to not
-// return an error in order to write a single line for
-// `suite.Run(t, &vmSuite{Suite: e2e.NewSuite(...)})`
 func (suite *Suite[Env]) SetupSuite() {
 	skipDelete, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	if skipDelete {
@@ -205,7 +192,7 @@ func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
 		}
 		env, upResult, err := createEnv(suite, stackDef)
 		suite.Require().NoError(err)
-		err = client.CallStackInitializers(env, upResult)
+		err = client.CallStackInitializers(suite.T(), env, upResult)
 		suite.Require().NoError(err)
 		suite.env = env
 		suite.currentStackDef = stackDef

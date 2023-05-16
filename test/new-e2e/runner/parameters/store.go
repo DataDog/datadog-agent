@@ -11,7 +11,7 @@ import (
 )
 
 type valueStore interface {
-	get(key string) (string, error)
+	get(key StoreKey) (string, error)
 }
 
 type Store struct {
@@ -24,23 +24,23 @@ func newStore(vs valueStore) Store {
 	}
 }
 
-func (s Store) Get(key string) (string, error) {
+func (s Store) Get(key StoreKey) (string, error) {
 	return getAndConvert(s.vs, key, func(s string) (string, error) { return s, nil })
 }
 
-func (s Store) GetWithDefault(key, def string) (string, error) {
+func (s Store) GetWithDefault(key StoreKey, def string) (string, error) {
 	return getWithDefault(key, s.Get, def)
 }
 
-func (s Store) GetBool(key string) (bool, error) {
+func (s Store) GetBool(key StoreKey) (bool, error) {
 	return getAndConvert(s.vs, key, strconv.ParseBool)
 }
 
-func (s Store) GetBoolWithDefault(key string, def bool) (bool, error) {
+func (s Store) GetBoolWithDefault(key StoreKey, def bool) (bool, error) {
 	return getWithDefault(key, s.GetBool, def)
 }
 
-func getWithDefault[T any](key string, getFunc func(string) (T, error), defaultValue T) (T, error) {
+func getWithDefault[T any](key StoreKey, getFunc func(StoreKey) (T, error), defaultValue T) (T, error) {
 	val, err := getFunc(key)
 	if err != nil {
 		if errors.As(err, &ParameterNotFoundError{}) {
@@ -53,7 +53,7 @@ func getWithDefault[T any](key string, getFunc func(string) (T, error), defaultV
 	return val, nil
 }
 
-func getAndConvert[T any](vs valueStore, key string, convFunc func(string) (T, error)) (T, error) {
+func getAndConvert[T any](vs valueStore, key StoreKey, convFunc func(string) (T, error)) (T, error) {
 	var res T
 
 	v, err := vs.get(key)

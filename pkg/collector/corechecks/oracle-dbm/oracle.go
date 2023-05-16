@@ -6,6 +6,7 @@
 package oracle
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -79,6 +80,24 @@ func (c *Check) Run() error {
 	}
 
 	if c.dbmEnabled {
+		if c.config.CollectSysMetrics {
+			err := c.SysMetrics()
+			if err != nil {
+				return err
+			}
+		}
+		if c.config.CollectTablespaces {
+			err := c.Tablespaces()
+			if err != nil {
+				return err
+			}
+		}
+		if c.config.CollectProcessMemory {
+			err := c.ProcessMemory()
+			if err != nil {
+				return err
+			}
+		}
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
@@ -92,8 +111,19 @@ func (c *Check) Run() error {
 			}
 		}
 
+		if c.config.QuerySamples.Enabled {
+			err := c.SampleSession()
+			if err != nil {
+				return err
+			}
+			if c.config.QueryMetrics.Enabled {
+				_, err = c.StatementMetrics()
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
-
 	return nil
 }
 
@@ -241,4 +271,11 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 
 func (c *Check) getFullPDBName(pdb string) string {
 	return fmt.Sprintf("%s.%s", c.cdbName, pdb)
+}
+
+func appendPDBTag(tags []string, pdb sql.NullString) []string {
+	if !pdb.Valid {
+		return tags
+	}
+	return append(tags, "pdb:"+pdb.String)
 }

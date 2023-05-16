@@ -10,8 +10,18 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
+	infraaws "github.com/DataDog/test-infra-definitions/aws"
+	commonconfig "github.com/DataDog/test-infra-definitions/common/config"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+)
+
+const (
+	AgentAPIKey               = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPIKeyParamName
+	AgentAPPKey               = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
+	AwsKeyPairName            = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
+	AwsPublicKeyPath          = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDinfraDefaultPublicKeyPath
+	InfraEnvironmentVariables = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraEnvironment
 )
 
 type ConfigMap auto.ConfigMap
@@ -33,7 +43,7 @@ func (cm ConfigMap) ToPulumi() auto.ConfigMap {
 	return (auto.ConfigMap)(cm)
 }
 
-func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName, configMapKey string) error {
+func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
 	val, err := store.Get(paramName)
 	if err != nil {
 		return err
@@ -45,7 +55,7 @@ func SetConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName, 
 	return nil
 }
 
-func SetConfigMapFromSecret(secretStore parameters.Store, cm ConfigMap, paramName, configMapKey string) error {
+func SetConfigMapFromSecret(secretStore parameters.Store, cm ConfigMap, paramName parameters.StoreKey, configMapKey string) error {
 	val, err := secretStore.Get(paramName)
 	if err != nil {
 		return err
@@ -64,16 +74,24 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	// Inject profile variables
 	cm := ConfigMap{}
 	cm.Set("ddinfra:env", profile.EnvironmentNames(), false)
-	keyPair, err := profile.ParamStore().Get(parameters.GetDefaultKeyPairParamName())
+	keyPair, err := profile.ParamStore().Get(parameters.KeyPairName)
 	if err == nil {
-		cm.Set(parameters.GetDefaultKeyPairParamName(), keyPair, false)
+		cm.Set(AwsKeyPairName, keyPair, false)
 	} else {
 		if !errors.As(err, &parameters.ParameterNotFoundError{}) {
 			return nil, err
 		}
 	}
+	publicKeyPath, err := profile.ParamStore().Get(parameters.PublicKeyPath)
+	if err == nil {
+		cm.Set(AwsPublicKeyPath, publicKeyPath, false)
+	}
 
-	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, "ddagent:apiKey")
+	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, AgentAPIKey)
+	if err != nil {
+		return nil, err
+	}
+	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APPKey, AgentAPPKey)
 	if err != nil {
 		return nil, err
 	}
