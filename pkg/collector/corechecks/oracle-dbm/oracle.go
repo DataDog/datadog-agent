@@ -59,6 +59,7 @@ type Check struct {
 	dbVersion                               string
 	driver                                  string
 	statementsLastRun                       time.Time
+	filePath                                string
 	isRDS                                   bool
 }
 
@@ -138,10 +139,6 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
 		}
 		c.tags = append(c.tags, fmt.Sprintf("cdb:%s", c.cdbName))
-		if c.cdbName == "RDSCDB" {
-			c.isRDS = true
-		}
-
 	}
 
 	if c.dbHostname == "" || c.dbVersion == "" {
@@ -158,6 +155,18 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			c.dbHostname = dbHostname
 		}
 		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
+	}
+
+	if c.filePath == "" {
+		r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
+		var path string
+		err = r.Scan(&path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query path: %w", err)
+		}
+		if path == "/rdsdbdata" {
+			c.isRDS = true
+		}
 	}
 
 	return db, nil
