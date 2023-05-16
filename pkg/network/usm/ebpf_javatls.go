@@ -157,7 +157,7 @@ func isJavaProcess(pid int) bool {
 		return false
 	}
 
-	return bytes.HasPrefix(content, javaProcessName)
+	return bytes.HasPrefix(bytes.TrimSpace(content), javaProcessName)
 }
 
 // isAttachmentAllowed will return true if the pid can be attached
