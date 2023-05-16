@@ -103,11 +103,12 @@ func TestKafkaProtocolParsing(t *testing.T) {
 		if _, ok := ctx.extras["client"]; !ok {
 			return
 		}
-		client := ctx.extras["client"].(*kafka.Client)
-		defer client.Client.Close()
-		for k, value := range ctx.extras {
-			if strings.HasPrefix(k, "topic_name") {
-				_ = client.DeleteTopic(value.(string))
+		if client, ok := ctx.extras["client"].(*kafka.Client); ok {
+			defer client.Client.Close()
+			for k, value := range ctx.extras {
+				if strings.HasPrefix(k, "topic_name") {
+					_ = client.DeleteTopic(value.(string))
+				}
 			}
 		}
 	}
@@ -290,6 +291,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 
 				serverAddr := "localhost:8081"
 				srvDoneFn := testutil.HTTPServer(t, "localhost:8081", testutil.Options{})
+				t.Cleanup(srvDoneFn)
 				httpClient := nethttp.Client{}
 
 				req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)

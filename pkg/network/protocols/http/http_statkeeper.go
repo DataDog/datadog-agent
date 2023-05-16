@@ -79,6 +79,10 @@ func (h *HttpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
+func (h *HttpStatKeeper) Close() {
+	h.oversizedLogLimit.Close()
+}
+
 func (h *HttpStatKeeper) add(tx HttpTX) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
