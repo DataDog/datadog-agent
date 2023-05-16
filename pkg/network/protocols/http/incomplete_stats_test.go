@@ -69,3 +69,35 @@ func TestOrphanEntries(t *testing.T) {
 		assert.True(t, len(buffer.data) == 0)
 	})
 }
+
+func TestBufferLimit(t *testing.T) {
+	now := time.Now()
+	tel, err := newTelemetry()
+	require.NoError(t, err)
+
+	buffer := newIncompleteBuffer(config.New(), tel)
+
+	// Attempt to insert more data then allowed
+	// Since all incomplete parts share the same tuple, this will generate
+	// *one* map key, with many "parts" appended to it
+	//
+	// We're asserting here that our buffer counts the total number of entries
+	// included in the nested structures, and not only the map keys
+	for i := 0; i < 2*buffer.maxEntries; i++ {
+		request := &ebpfHttpTx{
+			Request_fragment: requestFragment([]byte("GET /foo/bar")),
+			Request_started:  uint64(now.UnixNano()),
+		}
+		request.Tup.Sport = 60000
+		buffer.Add(request)
+	}
+
+	// Count total entries
+	total := 0
+	for _, parts := range buffer.data {
+		total += len(parts.requests) + len(parts.responses)
+	}
+
+	// Assert that buffer honored the max number of entries allowed
+	assert.Equal(t, buffer.maxEntries, total)
+}

@@ -43,10 +43,11 @@ const defaultMinAge = 30 * time.Second
 // request segment at "t0" with response segment "t3". This is why we buffer data here for 30 seconds
 // and then sort all events by their timestamps before joining them.
 type incompleteBuffer struct {
-	data       map[types.ConnectionKey]*txParts
-	maxEntries int
-	telemetry  *telemetry
-	minAgeNano int64
+	data         map[types.ConnectionKey]*txParts
+	totalEntries int
+	maxEntries   int
+	telemetry    *telemetry
+	minAgeNano   int64
 }
 
 type txParts struct {
@@ -62,15 +63,26 @@ func newTXParts() *txParts {
 }
 
 func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
+	// Only set aside a fraction of MaxHTTPBuffered for incomplete data
+	// as this should only be used rarely (as described in the example below).
+	// If our telemetry indicates that this buffer is filling up often, we need
+	// to better understand what is going on and reassess our approach
+	maxEntries := c.MaxHTTPStatsBuffered / 10
+
 	return &incompleteBuffer{
 		data:       make(map[types.ConnectionKey]*txParts),
-		maxEntries: c.MaxHTTPStatsBuffered,
+		maxEntries: maxEntries,
 		telemetry:  telemetry,
 		minAgeNano: defaultMinAge.Nanoseconds(),
 	}
 }
 
 func (b *incompleteBuffer) Add(tx httpTX) {
+	if b.totalEntries >= b.maxEntries {
+		b.telemetry.dropped.Add(1)
+		return
+	}
+
 	connTuple := tx.ConnTuple()
 	key := types.ConnectionKey{
 		SrcIPHigh: connTuple.SrcIPHigh,
@@ -80,14 +92,10 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 
 	parts, ok := b.data[key]
 	if !ok {
-		if len(b.data) >= b.maxEntries {
-			b.telemetry.dropped.Add(1)
-			return
-		}
-
 		parts = newTXParts()
 		b.data[key] = parts
 	}
+	b.totalEntries++
 
 	// copy underlying httpTX value. this is now needed because these objects are
 	// now coming directly from pooled perf records
@@ -116,6 +124,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 	)
 
 	b.data = make(map[types.ConnectionKey]*txParts)
+	b.totalEntries = 0
 	for key, parts := range previous {
 		// TODO: in this loop we're sorting all transactions at once, but we could also
 		// consider sorting data during insertion time (using a tree-like structure, for example)
@@ -148,6 +157,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 				parts := newTXParts()
 				parts.requests = append(parts.requests, keep...)
 				b.data[key] = parts
+				b.totalEntries += len(parts.requests)
 				break
 			}
 			i++
