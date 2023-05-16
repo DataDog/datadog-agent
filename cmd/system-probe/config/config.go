@@ -26,6 +26,7 @@ const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace = "system_probe_config"
 	spNS      = Namespace
+	netNS     = "network_config"
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
 	diNS      = "dynamic_instrumentation"
@@ -154,6 +155,17 @@ func load() (*Config, error) {
 	if !cfg.IsSet("log_file") && cfg.IsSet(key(spNS, "log_file")) {
 		c.LogFile = cfg.GetString(key(spNS, "log_file"))
 		cfg.Set("log_file", c.LogFile)
+	}
+
+	// This code block handles the backward compatibility logic for the enable_http_monitoring configuration value
+	deprecatedEnableHttpMonitoringKey := key(netNS, "enable_http_monitoring")
+	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
+		enableHttpMonitoringKey := key(smNS, "enable_http_monitoring")
+		log.Infof("%q is deprecated, use %q instead",
+			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
+		if !cfg.IsSet(enableHttpMonitoringKey) {
+			cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
+		}
 	}
 
 	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {

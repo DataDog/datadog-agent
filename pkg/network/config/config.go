@@ -400,18 +400,6 @@ func New() *Config {
 
 	c.ServiceMonitoringEnabled = c.ServiceMonitoringEnabled || c.DataStreamsEnabled
 
-	// This code block handles the backward compatibility logic for the enable_http_monitoring configuration value
-	deprecatedEnableHttpMonitoringKey := join(netNS, "enable_http_monitoring")
-	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
-		enableHttpMonitoringKey := join(smNS, "enable_http_monitoring")
-		log.Infof("%q is deprecated, use %q instead",
-			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
-		if !cfg.IsSet(enableHttpMonitoringKey) {
-			cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
-			c.EnableHTTPMonitoring = cfg.GetBool(deprecatedEnableHttpMonitoringKey)
-		}
-	}
-
 	if c.ServiceMonitoringEnabled {
 		cfg.Set(join(smNS, "enable_http_monitoring"), true)
 		c.EnableHTTPMonitoring = true
