@@ -111,20 +111,6 @@ def gen_mocks(ctx):
     """
 
     interfaces = {
-        "./pkg/compliance": [
-            "AuditClient",
-            "Builder",
-            "Clients",
-            "Configuration",
-            "DockerClient",
-            "Env",
-            "Evaluatable",
-            "Iterator",
-            "KubeClient",
-            "RegoConfiguration",
-            "Reporter",
-            "Scheduler",
-        ],
         "./pkg/security/proto/api": [
             "SecurityModuleServer",
             "SecurityModuleClient",
