@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Upgrade go-ora to 2.7.6 to prevent agent crashes due to `nil pointer dereference` in case of database connection loss.
+    Upgrade go-ora to 2.7.6 to prevent Agent crashes due to `nil pointer dereference` in case of database connection loss.
