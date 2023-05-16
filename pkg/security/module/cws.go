@@ -201,7 +201,7 @@ func (c *CWSConsumer) Start() error {
 
 	// add remote config as config provider if enabled
 	if c.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider("security-agent", agentVersion)
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policy: %s", err)
 		} else {

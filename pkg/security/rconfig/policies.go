@@ -10,11 +10,11 @@ package rconfig
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
 	"github.com/skydive-project/go-debouncer"
 
@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,8 +45,13 @@ type RCPolicyProvider struct {
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
-func NewRCPolicyProvider(name string, agentVersion *semver.Version) (*RCPolicyProvider, error) {
-	c, err := remote.NewUnverifiedGRPCClient(name, agentVersion.String(), []data.Product{data.ProductCWSDD, data.ProductCWSCustom}, securityAgentRCPollInterval)
+func NewRCPolicyProvider() (*RCPolicyProvider, error) {
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse agent version: %v", err)
+	}
+
+	c, err := remote.NewUnverifiedGRPCClient(agentName, agentVersion.String(), []data.Product{data.ProductCWSDD, data.ProductCWSCustom}, securityAgentRCPollInterval)
 	if err != nil {
 		return nil, err
 	}
@@ -112,8 +118,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		policy, err := rules.LoadPolicy(id, "remote-config", reader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
-		}
-		if policy != nil && len(policy.Rules) > 0 {
+		} else {
 			normalize(policy)
 			policies = append(policies, policy)
 		}
