@@ -73,7 +73,7 @@ func (t *DefaultResolver) Resolve(id string) []string {
 }
 
 // ResolveImageMetadata returns the tags for the given container id
-func (t *Resolver) ResolveImageMetadata(id string) []string {
+func (t *DefaultResolver) ResolveImageMetadata(id string) []string {
 	tags, _ := t.tagger.Tag("container_image_metadata://"+id, collectors.OrchestratorCardinality)
 	return tags
 }
@@ -89,7 +89,7 @@ func (t *DefaultResolver) GetValue(id string, tag string) string {
 }
 
 // GetValueForImage return the tag value for the given id and tag name
-func (t *Resolver) GetValueForImage(id string, tag string) string {
+func (t *DefaultResolver) GetValueForImage(id string, tag string) string {
 	return utils.GetTagValue(tag, t.ResolveImageMetadata(id))
 }
 
@@ -116,7 +116,7 @@ func NewResolver(config *config.Config) Resolver {
 }
 
 // Resolove image_id
-func (t *Resolver) ResolveImageID(containerID string) string {
+func (t *DefaultResolver) ResolveImageID(containerID string) string {
 	imageID := t.GetValue(containerID, "image_id")
 	imageName := t.GetValueForImage(imageID, "image_name")
 	repoDigests := strings.Split(t.GetValueForImage(imageID, "image_repo_digests"), ",")
