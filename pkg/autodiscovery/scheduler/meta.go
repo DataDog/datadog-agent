@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -93,6 +94,7 @@ func (ms *MetaScheduler) Unschedule(configs []integration.Config) {
 	for _, scheduler := range ms.activeSchedulers {
 		scheduler.Unschedule(configs)
 	}
+	apiserver.ReCreateAPIClient()
 }
 
 // Stop handles clean stop of registered schedulers
