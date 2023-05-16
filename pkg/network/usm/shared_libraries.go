@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"go.uber.org/atomic"
 	"os"
 	"regexp"
 	"sync"
@@ -35,7 +36,6 @@ func toLibPath(data []byte) http.LibPath {
 
 func toBytes(l *http.LibPath) []byte {
 	return l.Buf[:l.Len]
-
 }
 
 // pathIdentifier is the unique key (system wide) of a file based on dev/inode
@@ -95,6 +95,8 @@ type soRule struct {
 
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
+	wg             sync.WaitGroup
+	done           chan struct{}
 	procRoot       string
 	rules          []soRule
 	loadEvents     *ddebpf.PerfHandler
@@ -115,6 +117,8 @@ type soRegistry struct {
 
 func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 	return &soWatcher{
+		wg:             sync.WaitGroup{},
+		done:           make(chan struct{}),
 		procRoot:       util.GetProcRoot(),
 		rules:          rules,
 		loadEvents:     perfHandler,
@@ -128,16 +132,21 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 }
 
 type soRegistration struct {
-	uniqueProcessesCount int
+	uniqueProcessesCount atomic.Int32
 	unregisterCB         func(pathIdentifier) error
 }
 
 // unregister return true if there are no more reference to this registration
-func (r *soRegistration) unregister(pathID pathIdentifier) bool {
-	r.uniqueProcessesCount--
-	if r.uniqueProcessesCount > 0 {
+func (r *soRegistration) unregisterPath(pathID pathIdentifier) bool {
+	currentUniqueProcessesCount := r.uniqueProcessesCount.Dec()
+	if currentUniqueProcessesCount > 0 {
 		return false
 	}
+	if currentUniqueProcessesCount < 0 {
+		log.Errorf("unregistered %+v too much (current counter %v)", pathID, currentUniqueProcessesCount)
+		return true
+	}
+	// currentUniqueProcessesCount is 0, thus we should unregister.
 	if r.unregisterCB != nil {
 		if err := r.unregisterCB(pathID); err != nil {
 			// Even if we fail here, we have to return true, as best effort methodology.
@@ -149,10 +158,17 @@ func (r *soRegistration) unregister(pathID pathIdentifier) bool {
 }
 
 func newRegistration(unregister func(pathIdentifier) error) *soRegistration {
+	uniqueCounter := atomic.Int32{}
+	uniqueCounter.Store(int32(1))
 	return &soRegistration{
 		unregisterCB:         unregister,
-		uniqueProcessesCount: 1,
+		uniqueProcessesCount: uniqueCounter,
 	}
+}
+
+func (w *soWatcher) Stop() {
+	close(w.done)
+	w.wg.Wait()
 }
 
 // Start consuming shared-library events
@@ -197,6 +213,7 @@ func (w *soWatcher) Start() {
 		log.Errorf("can't initialize process monitor %s", err)
 		return
 	}
+
 	cleanupExit, err := w.processMonitor.Subscribe(&monitor.ProcessCallback{
 		Event:    monitor.EXIT,
 		Metadata: monitor.ANY,
@@ -207,14 +224,23 @@ func (w *soWatcher) Start() {
 		return
 	}
 
+	w.wg.Add(1)
 	go func() {
-		defer cleanupExit()
-		defer w.processMonitor.Stop()
-		// cleanup all uprobes
-		defer w.registry.cleanup()
+		defer func() {
+			// Removing the registration of our hook.
+			cleanupExit()
+			// Stopping the process monitor (if we're the last instance)
+			w.processMonitor.Stop()
+			// Cleaning up all active hooks.
+			w.registry.cleanup()
+			// marking we're finished.
+			w.wg.Done()
+		}()
 
 		for {
 			select {
+			case <-w.done:
+				return
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
 					return
@@ -252,13 +278,11 @@ func (w *soWatcher) Start() {
 	}()
 }
 
-// cleanup removes all registrations
+// cleanup removes all registrations.
+// This function should be called in the termination, and after we're stopping all other goroutines.
 func (r *soRegistry) cleanup() {
-	r.m.Lock()
-	defer r.m.Unlock()
-
 	for pathID, reg := range r.byID {
-		reg.unregister(pathID)
+		reg.unregisterPath(pathID)
 	}
 }
 
@@ -282,7 +306,7 @@ func (r *soRegistry) unregister(pid uint32) {
 		if !found {
 			continue
 		}
-		if reg.unregister(pathID) {
+		if reg.unregisterPath(pathID) {
 			// we need to clean up our entries as there are no more processes using this ELF
 			delete(r.byID, pathID)
 		}
@@ -310,7 +334,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 
 	if reg, found := r.byID[pathID]; found {
 		if _, found := r.byPID[pid][pathID]; !found {
-			reg.uniqueProcessesCount++
+			reg.uniqueProcessesCount.Inc()
 			// Can happen if a new process opens the same so.
 			if len(r.byPID[pid]) == 0 {
 				r.byPID[pid] = pathIdentifierSet{}

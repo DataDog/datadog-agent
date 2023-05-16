@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -60,18 +61,28 @@ func (c *Collector) Init(cfg config.Config) error {
 	return nil
 }
 
-func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
 	dockerScanRequest, ok := request.(*ScanRequest)
 	if !ok {
-		return nil, fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)
+		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
 	}
 
-	return c.trivyCollector.ScanDockerImage(
+	if dockerScanRequest.ImageMeta != nil {
+		log.Infof("docker scan request [%v]: scanning image %v", dockerScanRequest.ID(), dockerScanRequest.ImageMeta.Name)
+	}
+
+	report, err := c.trivyCollector.ScanDockerImage(
 		ctx,
 		dockerScanRequest.ImageMeta,
 		dockerScanRequest.DockerClient,
 		opts,
 	)
+
+	return sbom.ScanResult{
+		Error:   err,
+		Report:  report,
+		ImgMeta: dockerScanRequest.ImageMeta,
+	}
 }
 
 func init() {

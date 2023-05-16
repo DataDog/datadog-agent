@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-//go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/offsetguess-test.c ../../../pkg/ebpf/bytecode/build/runtime/offsetguess-test.c ../../../pkg/ebpf/c ../../../pkg/ebpf/c/protocols ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
-//go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/offsetguess-test.c ../../../pkg/ebpf/bytecode/runtime/offsetguess-test.go runtime
+//go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/offsetguess-test.c pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
+//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/bytecode/runtime/offsetguess-test.go runtime
 
 type offsetT int
 
@@ -143,10 +143,12 @@ func TestOffsetGuess(t *testing.T) {
 	if kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
-	_consts, err := runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser)
+
+	offsetguess.TracerOffsets.Reset()
+	_consts, err := offsetguess.TracerOffsets.Offsets(cfg)
 	require.NoError(t, err)
-	cts, err := runOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
-		return offsetguess.NewConntrackOffsetGuesser(_consts)
+	cts, err := offsetguess.RunOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
+		return offsetguess.NewConntrackOffsetGuesser(cfg)
 	})
 	require.NoError(t, err)
 	_consts = append(_consts, cts...)

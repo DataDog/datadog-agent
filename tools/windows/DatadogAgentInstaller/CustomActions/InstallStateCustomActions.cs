@@ -180,8 +180,6 @@ namespace Datadog.CustomActions
                 _session.Log($"Storing installedUser={_session.Property("DDAGENTUSER_PROCESSED_NAME")}");
                 subkey.SetValue("installedUser", _session.Property("DDAGENTUSER_PROCESSED_NAME"),
                     RegistryValueKind.String);
-                _session.Log($"Storing AllowClosedSource={_session.Property("ALLOWCLOSEDSOURCE")}");
-                subkey.SetValue("AllowClosedSource", _session.Property("ALLOWCLOSEDSOURCE"), RegistryValueKind.DWord);
             }
             catch (Exception e)
             {

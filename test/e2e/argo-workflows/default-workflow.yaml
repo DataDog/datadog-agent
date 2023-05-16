@@ -121,6 +121,8 @@ spec:
                   value: "{{inputs.parameters.ci_job_id}}"
                 - name: remote_configuration_enabled
                   value: "false"
+                - name: networkmonitoring_enabled
+                  value: "false"
 
         - - name: wait-datadog-agent
             templateRef:

@@ -76,6 +76,12 @@ var (
 	// MetricEventDiscarded is the number of event discarded
 	// Tags: discarder_type, event_type
 	MetricEventDiscarded = newRuntimeMetric(".discarders.event_discarded")
+	// MetricApproverAdded is the number of approvers added
+	// Tags: approver_type, event_type
+	MetricApproverAdded = newRuntimeMetric(".approvers.approver_added")
+	// MetricEventApproved is the number of events approved
+	// Tags: approver_type, event_type
+	MetricEventApproved = newRuntimeMetric(".approvers.event_approved")
 
 	// Perf buffer metrics
 
