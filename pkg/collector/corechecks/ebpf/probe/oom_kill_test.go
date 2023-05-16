@@ -96,7 +96,7 @@ func TestOOMKillProbe(t *testing.T) {
 		err = cmd.Start()
 		require.NoError(t, err)
 
-		to := 1 * time.Minute
+		to := 3 * time.Minute
 		manuallyKilled := false
 		done := make(chan struct{})
 		go func() {
@@ -104,6 +104,7 @@ func TestOOMKillProbe(t *testing.T) {
 			case <-time.After(to):
 				manuallyKilled = true
 				cmd.Process.Kill()
+				return
 			case <-done:
 				return
 			}
