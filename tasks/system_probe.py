@@ -1544,7 +1544,7 @@ def test_microvms(
         "--destroy" if destroy else "",
         "--upload-dependencies" if upload_dependencies else "",
         f"--ssh-key-path {ssh_key_path}" if ssh_key_path is not None else "",
-        f"--ssh-key-name {ssh_key_name}" if ssh_key_name is not None else"",
+        f"--ssh-key-name {ssh_key_name}" if ssh_key_name is not None else "",
         f"--infra-env {infra_env}",
     ]
 
