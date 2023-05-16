@@ -287,11 +287,6 @@ func newEnvScanner(f *os.File) (*bufio.Scanner, error) {
 	return scanner, nil
 }
 
-var priorityEnvsPrefixes = []string{
-	"DD_SERVICE",
-	"LD_PRELOAD",
-}
-
 func matchesOnePrefix(text string, prefixes []string) bool {
 	for _, prefix := range prefixes {
 		if strings.HasPrefix(text, prefix) {
@@ -302,7 +297,7 @@ func matchesOnePrefix(text string, prefixes []string) bool {
 }
 
 // EnvVars returns a array with the environment variables of the given pid
-func EnvVars(pid int32) ([]string, bool, error) {
+func EnvVars(priorityEnvsPrefixes []string, pid int32) ([]string, bool, error) {
 	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
 
 	f, err := os.Open(filename)

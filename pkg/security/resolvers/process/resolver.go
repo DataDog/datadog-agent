@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -73,6 +74,7 @@ type Resolver struct {
 	userGroupResolver *usergroup.Resolver
 	timeResolver      *stime.Resolver
 	pathResolver      spath.ResolverInterface
+	envVarsResolver   *envvars.Resolver
 
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
@@ -394,7 +396,7 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	}
 
 	entry.EnvsEntry = &model.EnvsEntry{}
-	if envs, truncated, err := utils.EnvVars(proc.Pid); err == nil {
+	if envs, truncated, err := p.envVarsResolver.ResolveEnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry.Values = envs
 		entry.EnvsEntry.Truncated = truncated
 	}
