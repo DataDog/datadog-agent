@@ -73,7 +73,7 @@ var tracerTelemetry = struct {
 	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
 	nettelemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{}, "Counter measuring closed TCP connections"),
 	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
-	telemetry.NewGauge(tracerModuleName, "payload_size_per_client", []string{}, "Gauge measuring the size of the delta conns per clientID"),
+	telemetry.NewGauge(tracerModuleName, "conn_payload_size", []string{}, "Gauge measuring the number of connections in the system-probe payload"),
 }
 
 // Tracer implements the functionality of the network tracer
