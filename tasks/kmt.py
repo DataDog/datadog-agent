@@ -552,7 +552,7 @@ def download_kernel_packages(ctx, revert=False):
         raise Exit("Failed to extract kernel packages")
 
     # set permissions
-    res = ctx.run(f"find {KMT_PACKAGES_DIR} -name kernel-v* -type d -exec chmod 0766 {} \;")
+    res = ctx.run(f"find {KMT_PACKAGES_DIR} -name kernel-v* -type d -exec chmod 0766 {{}}/* \;")
     if not res.ok:
         if revert:
             revert_kernel_packages(ctx)
@@ -630,7 +630,7 @@ def download_rootfs(ctx, revert=False):
         raise Exit("Failed to extract rootfs")
 
     # set permissions
-    res = ctx.run(f"find {KMT_ROOTFS_DIR} -name *qcow* -type f -exec chmod 0766 {} \;")
+    res = ctx.run(f"find {KMT_ROOTFS_DIR} -name *qcow* -type f -exec chmod 0766 {{}} \;")
     if not res.ok:
         if revert:
             revert_rootfs(ctx)
