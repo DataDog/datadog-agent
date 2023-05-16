@@ -11,9 +11,10 @@ package http
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"syscall"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 
 	"github.com/cilium/ebpf"
 
@@ -256,8 +257,9 @@ func (m *Monitor) GetHTTPStats() map[Key]*RequestStats {
 		return nil
 	}
 
+	defer m.httpTelemetry.log()
+
 	m.httpConsumer.Sync()
-	m.httpTelemetry.log()
 	return m.statkeeper.GetAndResetAllStats()
 }
 
@@ -268,8 +270,9 @@ func (m *Monitor) GetHTTP2Stats() map[Key]*RequestStats {
 		return nil
 	}
 
+	defer m.http2Telemetry.log()
+
 	m.http2Consumer.Sync()
-	m.http2Telemetry.log()
 	return m.http2Statkeeper.GetAndResetAllStats()
 }
 
@@ -279,8 +282,9 @@ func (m *Monitor) GetKafkaStats() map[kafka.Key]*kafka.RequestStat {
 		return nil
 	}
 
+	defer m.kafkaTelemetry.Log()
+
 	m.kafkaConsumer.Sync()
-	m.kafkaTelemetry.Log()
 	return m.kafkaStatkeeper.GetAndResetAllStats()
 }
 
