@@ -14,7 +14,7 @@
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
         // A per-cpu buffer used to read domain string and avoid allocating a buffer on the stack.
         // Domain name can be up to 64 bytes which sometimes hits the limit of 512bytes on the stack
-        BPF_PERCPU_ARRAY_MAP(java_tls_peer __u32, connection_by_peer_key_t, 1)
+        BPF_PERCPU_ARRAY_MAP(java_tls_peer, __u32, connection_by_peer_key_t, 1)
     #else
         // Kernels < 4.7.0 do not know about the per-cpu array map used
         // in classification, preventing the program to load even though
