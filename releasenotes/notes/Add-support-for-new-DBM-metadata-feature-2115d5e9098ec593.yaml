@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    This change adds support for ingesting database settings, schemas, etc. as database "metadata", and forwarding this data to DBM intake
