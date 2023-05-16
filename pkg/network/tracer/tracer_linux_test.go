@@ -1621,7 +1621,7 @@ func TestKprobeAttachWithKprobeEvents(t *testing.T) {
 	require.True(t, ok)
 	fmt.Printf("p_tcp_sendmsg_hits = %d\n", p_tcp_sendmsg)
 
-	assert.Greater(t, p_tcp_sendmsg, int64(0))
+	assert.Greater(t, p_tcp_sendmsg, uint64(0))
 }
 
 func TestBlockingReadCounts(t *testing.T) {
