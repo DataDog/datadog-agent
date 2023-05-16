@@ -157,7 +157,7 @@ func isJavaProcess(pid int) bool {
 	if err != nil {
 		// Waiting a bit, as we might get the event of process creation before the directory was created.
 		for i := 0; i < 3; i++ {
-			time.Sleep(time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 			// reading again.
 			content, err = os.ReadFile(filePath)
 			if err == nil {
@@ -248,9 +248,7 @@ func (p *JavaTLSProgram) Start() {
 		}
 	}()
 
-	p.cleanupExec, err = p.processMonitor.SubscribeExec(&monitor.ProcessCallback{
-		Callback: newJavaProcess,
-	})
+	p.cleanupExec, err = p.processMonitor.SubscribeExec(newJavaProcess)
 	if err != nil {
 		log.Errorf("process monitor Subscribe() error: %s", err)
 		return

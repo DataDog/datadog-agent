@@ -70,9 +70,7 @@ type ProcessMonitor struct {
 	restartCounter atomic.Uint32
 }
 
-type ProcessCallback struct {
-	Callback func(pid int)
-}
+type ProcessCallback func(pid int)
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.
 //
@@ -112,7 +110,7 @@ func (pm *ProcessMonitor) handleProcessExec(pid int) {
 
 	for callback := range pm.processExecCallbacks {
 		temporaryCallback := callback
-		pm.callbackRunner <- func() { temporaryCallback.Callback(pid) }
+		pm.callbackRunner <- func() { (*temporaryCallback)(pid) }
 	}
 }
 
@@ -123,8 +121,8 @@ func (pm *ProcessMonitor) handleProcessExit(pid int) {
 	defer pm.processExitCallbacksMutex.RUnlock()
 
 	for callback := range pm.processExitCallbacks {
-		callback := callback
-		pm.callbackRunner <- func() { callback.Callback(pid) }
+		temporaryCallback := callback
+		pm.callbackRunner <- func() { (*temporaryCallback)(pid) }
 	}
 }
 
@@ -264,29 +262,29 @@ func (pm *ProcessMonitor) Initialize() error {
 //
 // A callback can be registered only once, callback with a filter type (not ANY) must be registered before the matching
 // Exit callback.
-func (pm *ProcessMonitor) SubscribeExec(callback *ProcessCallback) (func(), error) {
+func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) (func(), error) {
 	pm.processExecCallbacksMutex.Lock()
-	pm.processExecCallbacks[callback] = struct{}{}
+	pm.processExecCallbacks[&callback] = struct{}{}
 	pm.processExecCallbacksMutex.Unlock()
 
 	// UnSubscribe()
 	return func() {
 		pm.processExecCallbacksMutex.Lock()
-		delete(pm.processExecCallbacks, callback)
+		delete(pm.processExecCallbacks, &callback)
 		pm.processExecCallbacksMutex.Unlock()
 	}, nil
 }
 
 // SubscribeExit register an exit callback and returns unsubscribe function callback that removes the callback.
-func (pm *ProcessMonitor) SubscribeExit(callback *ProcessCallback) (func(), error) {
+func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) (func(), error) {
 	pm.processExitCallbacksMutex.Lock()
-	pm.processExitCallbacks[callback] = struct{}{}
+	pm.processExitCallbacks[&callback] = struct{}{}
 	pm.processExitCallbacksMutex.Unlock()
 
 	// UnSubscribe()
 	return func() {
 		pm.processExitCallbacksMutex.Lock()
-		delete(pm.processExitCallbacks, callback)
+		delete(pm.processExitCallbacks, &callback)
 		pm.processExitCallbacksMutex.Unlock()
 	}, nil
 }

@@ -245,17 +245,13 @@ func (p *GoTLSProgram) Start() {
 	}
 
 	p.procMonitor.monitor = monitor.GetProcessMonitor()
-	p.procMonitor.cleanupExec, err = p.procMonitor.monitor.SubscribeExec(&monitor.ProcessCallback{
-		Callback: p.handleProcessStart,
-	})
+	p.procMonitor.cleanupExec, err = p.procMonitor.monitor.SubscribeExec(p.handleProcessStart)
 
 	if err != nil {
 		log.Errorf("failed to subscribe Exec process monitor error: %s", err)
 		return
 	}
-	p.procMonitor.cleanupExit, err = p.procMonitor.monitor.SubscribeExit(&monitor.ProcessCallback{
-		Callback: p.handleProcessStop,
-	})
+	p.procMonitor.cleanupExit, err = p.procMonitor.monitor.SubscribeExit(p.handleProcessStop)
 
 	if err != nil {
 		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
