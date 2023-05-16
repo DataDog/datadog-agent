@@ -147,23 +147,27 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 	defer resolver.Close()
 
 	configDir := config.GetString("compliance_config.dir")
-	var ruleFilter compliance.RuleFilter
-	if len(checkArgs.args) != 0 {
-		ruleFilter = func(r *compliance.Rule) bool {
-			return r.ID == checkArgs.args[0]
-		}
-	}
-
 	var benchDir, benchGlob string
+	var ruleFilter compliance.RuleFilter
 	if checkArgs.file != "" {
 		benchDir, benchGlob = filepath.Dir(checkArgs.file), filepath.Base(checkArgs.file)
 	} else if checkArgs.framework != "" {
 		benchDir, benchGlob = configDir, fmt.Sprintf("%s.yaml", checkArgs.framework)
 	} else {
+		ruleFilter = compliance.DefaultRuleFilter
 		benchDir, benchGlob = configDir, "*.yaml"
 	}
+
 	log.Infof("Loading compliance rules from %s", benchDir)
-	benchmarks, err := compliance.LoadBenchmarks(benchDir, benchGlob, ruleFilter)
+	benchmarks, err := compliance.LoadBenchmarks(benchDir, benchGlob, func(r *compliance.Rule) bool {
+		if ruleFilter != nil && !ruleFilter(r) {
+			return false
+		}
+		if len(checkArgs.args) > 0 {
+			return r.ID == checkArgs.args[0]
+		}
+		return true
+	})
 	if err != nil {
 		return fmt.Errorf("could not load benchmark files %q: %w", filepath.Join(benchDir, benchGlob), err)
 	}

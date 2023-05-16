@@ -70,7 +70,7 @@ type Agent struct {
 	cancel context.CancelFunc
 }
 
-func defaultRuleFilter(r *Rule) bool {
+func DefaultRuleFilter(r *Rule) bool {
 	if config.IsKubernetes() {
 		if r.SkipOnK8s {
 			return false
@@ -79,6 +79,9 @@ func defaultRuleFilter(r *Rule) bool {
 		if r.HasScope(KubernetesNodeScope) || r.HasScope(KubernetesClusterScope) {
 			return false
 		}
+	}
+	if r.IsXCCDF() && !config.Datadog.GetBool("compliance_config.xccdf.enabled") {
+		return false
 	}
 	if len(r.Filters) > 0 {
 		ruleFilterModel := module.NewRuleFilterModel()
@@ -119,9 +122,9 @@ func NewAgent(opts AgentOptions) *Agent {
 		opts.EvalThrottling = 2 * time.Second
 	}
 	if ruleFilter := opts.RuleFilter; ruleFilter != nil {
-		opts.RuleFilter = func(r *Rule) bool { return defaultRuleFilter(r) && ruleFilter(r) }
+		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) && ruleFilter(r) }
 	} else {
-		opts.RuleFilter = func(r *Rule) bool { return defaultRuleFilter(r) }
+		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) }
 	}
 	return &Agent{
 		opts:     opts,
