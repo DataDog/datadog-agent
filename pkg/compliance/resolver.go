@@ -292,8 +292,6 @@ func (r *defaultResolver) pathRelativeToHostRoot(path string) string {
 	return path
 }
 
-var errIsDir = errors.New("is directory")
-
 func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
 	const maxFilesCached = 8
 	for _, f := range r.filesCache {
@@ -305,13 +303,13 @@ func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
 	if err != nil {
 		return nil, err
 	}
-	if info.IsDir() {
-		return nil, errIsDir
-	}
 	perms := uint64(info.Mode() & os.ModePerm)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+	var data []byte
+	if !info.IsDir() {
+		data, err = os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
 	}
 	file := &fileMeta{
 		path:  path,
@@ -343,8 +341,7 @@ func (r *defaultResolver) resolveFile(ctx context.Context, spec InputSpecFile) (
 	}
 	if errors.Is(err, os.ErrPermission) ||
 		errors.Is(err, os.ErrNotExist) ||
-		errors.Is(err, os.ErrClosed) ||
-		errors.Is(err, errIsDir) {
+		errors.Is(err, os.ErrClosed) {
 		result, err = nil, nil
 	}
 	return
@@ -357,24 +354,26 @@ func (r *defaultResolver) resolveFilePath(ctx context.Context, glob, path, parse
 		return nil, err
 	}
 	var content interface{}
-	switch parser {
-	case "yaml":
-		err = yamlv3.Unmarshal(file.data, &content)
+	if len(file.data) > 0 {
+		switch parser {
+		case "yaml":
+			err = yamlv3.Unmarshal(file.data, &content)
+			if err != nil {
+				err = yamlv2.Unmarshal(file.data, &content)
+			}
+			if err == nil {
+				content = jsonquery.NormalizeYAMLForGoJQ(content)
+			}
+		case "json":
+			err = json.Unmarshal(file.data, &content)
+		case "raw":
+			content = string(file.data)
+		default:
+			content = ""
+		}
 		if err != nil {
-			err = yamlv2.Unmarshal(file.data, &content)
+			return nil, err
 		}
-		if err == nil {
-			content = jsonquery.NormalizeYAMLForGoJQ(content)
-		}
-	case "json":
-		err = json.Unmarshal(file.data, &content)
-	case "raw":
-		content = string(file.data)
-	default:
-		content = ""
-	}
-	if err != nil {
-		return nil, err
 	}
 	return map[string]interface{}{
 		"path":        r.pathRelativeToHostRoot(path),
@@ -417,9 +416,10 @@ func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, name, 
 }
 
 func (r *defaultResolver) resolveFileGlob(ctx context.Context, glob, parser string) (interface{}, error) {
-	paths, _ := filepath.Glob(glob) // We ignore errors from Glob which are never I/O errors
+	paths, _ := filepath.Glob(r.pathNormalizeToHostRoot(glob)) // We ignore errors from Glob which are never I/O errors
 	var resolved []interface{}
 	for _, path := range paths {
+		path = r.pathRelativeToHostRoot(path)
 		file, err := r.resolveFilePath(ctx, glob, path, parser)
 		if err != nil {
 			continue
