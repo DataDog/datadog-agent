@@ -110,8 +110,8 @@ func (pm *ProcessMonitor) handleProcessExec(pid int) {
 	defer pm.processExecCallbacksMutex.RUnlock()
 
 	for callback := range pm.processExecCallbacks {
-		callback := callback
-		pm.callbackRunner <- func() { callback.Callback(pid) }
+		temporaryCallback := callback
+		pm.callbackRunner <- func() { temporaryCallback.Callback(pid) }
 	}
 }
 
