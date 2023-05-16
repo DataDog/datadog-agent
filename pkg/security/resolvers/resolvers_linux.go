@@ -252,6 +252,8 @@ func (r *Resolvers) snapshot() error {
 		r.NamespaceResolver.SyncCache(pid)
 	}
 
+	r.ProcessResolver.DebugLineage()
+
 	return nil
 }
 

@@ -1234,6 +1234,27 @@ func (p *Resolver) HasCompleteLineage(entry *model.ProcessCacheEntry) bool {
 	return entry.HasCompleteLineage()
 }
 
+func (p *Resolver) DebugLineage() {
+	p.Lock()
+	defer p.Unlock()
+
+	total := 0
+	brokenLineage := 0
+
+	for pid, entry := range p.entryCache {
+		fmt.Printf("--> pid: %d, entry: %v\n", pid, entry)
+
+		total += 1
+		if !entry.HasCompleteLineage() {
+			brokenLineage += 1
+		}
+	}
+
+	fmt.Printf("%d / %d\n", brokenLineage, total)
+
+	panic("stopping now")
+}
+
 // NewResolver returns a new process resolver
 func NewResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,

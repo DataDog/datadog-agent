@@ -30,7 +30,9 @@ func setEnv() {
 		if v := os.Getenv("HOST_SYS"); v == "" {
 			os.Setenv("HOST_SYS", "/host/sys")
 		}
+		log.Error("did some stuff")
 	}
+	log.Errorf("values: HOST_PROC=%s", os.Getenv("HOST_PROC"))
 }
 
 // Config defines a security config
