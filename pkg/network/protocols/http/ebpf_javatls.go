@@ -9,6 +9,7 @@
 package http
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"os"
@@ -35,6 +36,8 @@ const (
 )
 
 var (
+	javaProcessName = []byte("java")
+
 	// path to our java USM agent TLS tracer
 	javaUSMAgentJarPath = ""
 
@@ -145,6 +148,17 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
 }
 
+// isJavaProcess checks if the given PID comm's name is java.
+// The method is much faster and efficient that using process.NewProcess(pid).Name().
+func isJavaProcess(pid int) bool {
+	content, err := os.ReadFile(filepath.Join(util.GetProcRoot(), strconv.Itoa(pid), "comm"))
+	if err != nil {
+		return false
+	}
+
+	return bytes.HasPrefix(content, javaProcessName)
+}
+
 // isAttachmentAllowed will return true if the pid can be attached
 // The filter is based on the process command line matching javaAgentAllowRegex and javaAgentBlockRegex regex
 // javaAgentAllowRegex has a higher priority
@@ -153,7 +167,10 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 // /                 match  | not match
 // allowRegex only    true  | false
 // blockRegex only    false | true
-func isAttachmentAllowed(pid uint32) bool {
+func isAttachmentAllowed(pid int) bool {
+	if !isJavaProcess(pid) {
+		return false
+	}
 	allowIsSet := javaAgentAllowRegex != nil
 	blockIsSet := javaAgentBlockRegex != nil
 	// filter is disabled (default configuration)
@@ -186,7 +203,7 @@ func isAttachmentAllowed(pid uint32) bool {
 	return true
 }
 
-func newJavaProcess(pid uint32) {
+func newJavaProcess(pid int) {
 	if !isAttachmentAllowed(pid) {
 		log.Debugf("java pid %d attachment rejected", pid)
 		return
@@ -200,26 +217,43 @@ func newJavaProcess(pid uint32) {
 		allArgs = append(allArgs, "dd.trace.debug=true")
 	}
 	args := strings.Join(allArgs, ",")
-	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, args); err != nil {
+	if err := java.InjectAgent(pid, javaUSMAgentJarPath, args); err != nil {
 		log.Error(err)
 	}
 }
 
 func (p *JavaTLSProgram) Start() {
 	var err error
-	p.cleanupExec, err = p.processMonitor.Subscribe(&monitor.ProcessCallback{
-		Event:    monitor.EXEC,
-		Metadata: monitor.NAME,
-		Regex:    regexp.MustCompile("^java$"),
+	defer func() {
+		if err == nil {
+			return
+		}
+		// In case of an error, we should cleanup the callbacks.
+		if p.cleanupExec != nil {
+			p.cleanupExec()
+		}
+	}()
+
+	p.cleanupExec, err = p.processMonitor.SubscribeExec(&monitor.ProcessCallback{
 		Callback: newJavaProcess,
 	})
 	if err != nil {
 		log.Errorf("process monitor Subscribe() error: %s", err)
+		return
+	}
+
+	if err = p.processMonitor.Initialize(); err != nil {
+		log.Errorf("failed to initialize process monitor error: %s", err)
+		return
 	}
 }
 
 func (p *JavaTLSProgram) Stop() {
 	if p.cleanupExec != nil {
 		p.cleanupExec()
+	}
+
+	if p.processMonitor != nil {
+		p.processMonitor.Stop()
 	}
 }

@@ -190,6 +190,7 @@ func TestSameInodeRegression(t *testing.T) {
 
 		return int64(1) == registers.Load()
 	}, time.Second*10, time.Second, "")
+
 	require.Len(t, watcher.registry.byID, 1)
 	require.NoError(t, command1.Process.Kill())
 
@@ -433,7 +434,7 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 
 	probe := "do_sys_open"
 	excludeSysOpen := "do_sys_openat2"
-	if sysOpenAt2Supported(c) {
+	if sysOpenAt2Supported() {
 		probe = "do_sys_openat2"
 		excludeSysOpen = "do_sys_open"
 	}
