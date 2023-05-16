@@ -44,7 +44,9 @@ type Resolver interface {
 	Resolve(id string) []string
 	ResolveWithErr(id string) ([]string, error)
 	GetValue(id string, tag string) string
+	ResolveImageMetadata(id string) []string
 	ResolveImageID(id string) string
+	GetValueForImage(id string, tag string) string
 }
 
 type DefaultResolver struct {
@@ -73,7 +75,7 @@ func (t *DefaultResolver) Resolve(id string) []string {
 	return tags
 }
 
-// ResolveImageMetadata returns the tags for the given container id
+// ResolveImageMetadata returns the tags for the given image id
 func (t *DefaultResolver) ResolveImageMetadata(id string) []string {
 	tags, _ := t.tagger.Tag("container_image_metadata://"+id, collectors.OrchestratorCardinality)
 	return tags
@@ -116,7 +118,7 @@ func NewResolver(config *config.Config) Resolver {
 	}
 }
 
-// Resolove image_id
+// Resolve image_id
 func (t *DefaultResolver) ResolveImageID(containerID string) string {
 	imageID := t.GetValue(containerID, "image_id")
 	imageName := t.GetValueForImage(imageID, "image_name")
