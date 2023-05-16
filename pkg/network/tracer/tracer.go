@@ -15,9 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -477,8 +478,8 @@ func (t *Tracer) removeClient(clientID string) {
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {
 	kprobeStats := ddebpf.GetProbeTotals()
 	tm := map[network.ConnTelemetryType]int64{
-		network.MonotonicKprobesTriggered: kprobeStats.Hits,
-		network.MonotonicKprobesMissed:    kprobeStats.Misses,
+		network.MonotonicKprobesTriggered: int64(kprobeStats.Hits),
+		network.MonotonicKprobesMissed:    int64(kprobeStats.Misses),
 		network.ConnsBpfMapSize:           int64(mapSize),
 		network.MonotonicConnsClosed:      tracerTelemetry.closedConns.Load(),
 	}
