@@ -139,13 +139,13 @@ func readKprobeProfile(path string) (map[string]KprobeStats, error) {
 
 		hits, err := strconv.ParseUint(fields[1], 10, 64)
 		if err != nil {
-			log.Debugf("error parsing kprobe_profile output for hits (%s): %s", fields[1], err)
+			log.Debugf("error parsing kprobe_profile output for probe %s hits (%s): %s", fields[0], fields[1], err)
 			continue
 		}
 
 		misses, err := strconv.ParseUint(fields[2], 10, 64)
 		if err != nil {
-			log.Debugf("error parsing kprobe_profile output for miss (%s): %s", fields[2], err)
+			log.Debugf("error parsing kprobe_profile output for probe %s miss (%s): %s", fields[0], fields[2], err)
 			continue
 		}
 
