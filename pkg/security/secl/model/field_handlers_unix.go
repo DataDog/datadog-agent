@@ -20,10 +20,10 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
-	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ContainerContext)
-	_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
+	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
+	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
 	if !forADs {
-		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
+		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 	}
 	_ = ev.FieldHandlers.ResolveAsync(ev)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev)

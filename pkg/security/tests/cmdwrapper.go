@@ -124,6 +124,12 @@ func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T,
 	})
 }
 
+func (d *dockerCmdWrapper) RunTest(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+	t.Run(name, func(t *testing.T) {
+		fnc(t, d.Type(), d.Command)
+	})
+}
+
 func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }

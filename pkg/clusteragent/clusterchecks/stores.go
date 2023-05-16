@@ -84,7 +84,6 @@ type nodeStore struct {
 	sync.RWMutex
 	name             string
 	heartbeat        int64
-	lastStatus       types.NodeStatus
 	lastConfigChange int64
 	digestToConfig   map[string]integration.Config
 	clientIP         string

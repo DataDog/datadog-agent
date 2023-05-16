@@ -9,13 +9,14 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 )
 
 func TestAuditInput(t *testing.T) {
-	cl, err := audit.NewAuditClient()
+	cl, err := compliance.DefaultLinuxAuditProvider(context.Background())
 	if err != nil {
 		t.Skipf("could not create audit client: %v", err)
 	}

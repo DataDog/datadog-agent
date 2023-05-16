@@ -124,7 +124,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_, _ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
+		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
 	}
 	return nil
 }
@@ -223,5 +223,5 @@ func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port ui
 	}
 	evt.Bind.Addr.Port = port
 
-	_, _ = pn.InsertBindEvent(evt, Snapshot, stats, false)
+	_ = pn.InsertBindEvent(evt, Snapshot, stats, false)
 }
