@@ -209,13 +209,15 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 		}
 	}
 
+	var clusterID string
+
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	if pkgconfig.Datadog.GetBool("orchestrator_explorer.enabled") {
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 		// so we store it in a configmap that we try and read before generating a new one.
 		coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
-		_, err = apicommon.GetOrCreateClusterID(coreClient)
+		clusterID, err = apicommon.GetOrCreateClusterID(coreClient)
 		if err != nil {
 			pkglog.Errorf("Failed to generate or retrieve the cluster ID")
 		}
@@ -232,7 +234,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 	var rcClient *remote.Client
 	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
 		var err error
-		rcClient, err = initializeRemoteConfig(mainCtx)
+		rcClient, err = initializeRemoteConfig(mainCtx, clusterName, clusterID)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
@@ -414,7 +416,7 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	return handler, nil
 }
 
-func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
+func initializeRemoteConfig(ctx context.Context, clusterName string, clusterID string) (*remote.Client, error) {
 	configService, err := remoteconfig.NewService()
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
@@ -424,17 +426,8 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 		return nil, fmt.Errorf("unable to start remote-config service: %w", err)
 	}
 
-	clusterName := ""
-	hname, err := hostname.Get(ctx)
-	if err != nil {
-		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
-	} else {
-		clusterName = clustername.GetClusterName(context.TODO(), hname)
-	}
-
-	clusterID, err := clustername.GetClusterID()
-	if err != nil {
-		pkglog.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
+	if clusterID == "" {
+		pkglog.Warn("cluster ID is not set for remote config and will not be reported by the client")
 	}
 
 	rcClient, err := remote.NewClusterAgentClient("cluster-agent", configService, version.AgentVersion, clusterName, clusterID, []data.Product{data.ProductAPMTracing}, time.Second*5)
