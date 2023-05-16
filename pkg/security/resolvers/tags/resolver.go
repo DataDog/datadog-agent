@@ -44,6 +44,7 @@ type Resolver interface {
 	Resolve(id string) []string
 	ResolveWithErr(id string) ([]string, error)
 	GetValue(id string, tag string) string
+	ResolveImageID(id string) string
 }
 
 type DefaultResolver struct {
