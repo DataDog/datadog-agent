@@ -197,7 +197,6 @@ struct init_module_event_t {
     char args[128];
     u32 args_truncated;
     u32 loaded_from_memory;
-    u32 padding;
 };
 
 struct delete_module_event_t {

@@ -149,7 +149,7 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 			Mode:  uint16(fi.Mode),
 			CTime: fi.Ctime,
 			MTime: fi.Mtime,
-			PathKey: model.PathKey{
+			DentryKey: model.DentryKey{
 				MountID: fi.MountId,
 				Inode:   fi.Inode,
 			},

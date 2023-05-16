@@ -234,7 +234,7 @@ func (ev *Event) GetChmodFileInode() uint64 {
 	if ev.GetEventType().String() != "chmod" {
 		return zeroValue
 	}
-	return ev.Chmod.File.FileFields.PathKey.Inode
+	return ev.Chmod.File.FileFields.DentryKey.Inode
 }
 
 // GetChmodFileMode returns the value of the field, resolving if necessary
@@ -261,7 +261,7 @@ func (ev *Event) GetChmodFileMountId() uint32 {
 	if ev.GetEventType().String() != "chmod" {
 		return zeroValue
 	}
-	return ev.Chmod.File.FileFields.PathKey.MountID
+	return ev.Chmod.File.FileFields.DentryKey.MountID
 }
 
 // GetChmodFileName returns the value of the field, resolving if necessary
@@ -462,7 +462,7 @@ func (ev *Event) GetChownFileInode() uint64 {
 	if ev.GetEventType().String() != "chown" {
 		return zeroValue
 	}
-	return ev.Chown.File.FileFields.PathKey.Inode
+	return ev.Chown.File.FileFields.DentryKey.Inode
 }
 
 // GetChownFileMode returns the value of the field, resolving if necessary
@@ -489,7 +489,7 @@ func (ev *Event) GetChownFileMountId() uint32 {
 	if ev.GetEventType().String() != "chown" {
 		return zeroValue
 	}
-	return ev.Chown.File.FileFields.PathKey.MountID
+	return ev.Chown.File.FileFields.DentryKey.MountID
 }
 
 // GetChownFileName returns the value of the field, resolving if necessary
@@ -1056,7 +1056,7 @@ func (ev *Event) GetExecFileInode() uint64 {
 	if !ev.Exec.Process.IsNotKworker() {
 		return uint64(0)
 	}
-	return ev.Exec.Process.FileEvent.FileFields.PathKey.Inode
+	return ev.Exec.Process.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetExecFileMode returns the value of the field, resolving if necessary
@@ -1101,7 +1101,7 @@ func (ev *Event) GetExecFileMountId() uint32 {
 	if !ev.Exec.Process.IsNotKworker() {
 		return uint32(0)
 	}
-	return ev.Exec.Process.FileEvent.FileFields.PathKey.MountID
+	return ev.Exec.Process.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetExecFileName returns the value of the field, resolving if necessary
@@ -1437,7 +1437,7 @@ func (ev *Event) GetExecInterpreterFileInode() uint64 {
 	if !ev.Exec.Process.HasInterpreter() {
 		return uint64(0)
 	}
-	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetExecInterpreterFileMode returns the value of the field, resolving if necessary
@@ -1482,7 +1482,7 @@ func (ev *Event) GetExecInterpreterFileMountId() uint32 {
 	if !ev.Exec.Process.HasInterpreter() {
 		return uint32(0)
 	}
-	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+	return ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetExecInterpreterFileName returns the value of the field, resolving if necessary
@@ -2105,7 +2105,7 @@ func (ev *Event) GetExitFileInode() uint64 {
 	if !ev.Exit.Process.IsNotKworker() {
 		return uint64(0)
 	}
-	return ev.Exit.Process.FileEvent.FileFields.PathKey.Inode
+	return ev.Exit.Process.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetExitFileMode returns the value of the field, resolving if necessary
@@ -2150,7 +2150,7 @@ func (ev *Event) GetExitFileMountId() uint32 {
 	if !ev.Exit.Process.IsNotKworker() {
 		return uint32(0)
 	}
-	return ev.Exit.Process.FileEvent.FileFields.PathKey.MountID
+	return ev.Exit.Process.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetExitFileName returns the value of the field, resolving if necessary
@@ -2486,7 +2486,7 @@ func (ev *Event) GetExitInterpreterFileInode() uint64 {
 	if !ev.Exit.Process.HasInterpreter() {
 		return uint64(0)
 	}
-	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetExitInterpreterFileMode returns the value of the field, resolving if necessary
@@ -2531,7 +2531,7 @@ func (ev *Event) GetExitInterpreterFileMountId() uint32 {
 	if !ev.Exit.Process.HasInterpreter() {
 		return uint32(0)
 	}
-	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+	return ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetExitInterpreterFileName returns the value of the field, resolving if necessary
@@ -2846,7 +2846,7 @@ func (ev *Event) GetLinkFileDestinationInode() uint64 {
 	if ev.GetEventType().String() != "link" {
 		return zeroValue
 	}
-	return ev.Link.Target.FileFields.PathKey.Inode
+	return ev.Link.Target.FileFields.DentryKey.Inode
 }
 
 // GetLinkFileDestinationMode returns the value of the field, resolving if necessary
@@ -2873,7 +2873,7 @@ func (ev *Event) GetLinkFileDestinationMountId() uint32 {
 	if ev.GetEventType().String() != "link" {
 		return zeroValue
 	}
-	return ev.Link.Target.FileFields.PathKey.MountID
+	return ev.Link.Target.FileFields.DentryKey.MountID
 }
 
 // GetLinkFileDestinationName returns the value of the field, resolving if necessary
@@ -3020,7 +3020,7 @@ func (ev *Event) GetLinkFileInode() uint64 {
 	if ev.GetEventType().String() != "link" {
 		return zeroValue
 	}
-	return ev.Link.Source.FileFields.PathKey.Inode
+	return ev.Link.Source.FileFields.DentryKey.Inode
 }
 
 // GetLinkFileMode returns the value of the field, resolving if necessary
@@ -3047,7 +3047,7 @@ func (ev *Event) GetLinkFileMountId() uint32 {
 	if ev.GetEventType().String() != "link" {
 		return zeroValue
 	}
-	return ev.Link.Source.FileFields.PathKey.MountID
+	return ev.Link.Source.FileFields.DentryKey.MountID
 }
 
 // GetLinkFileName returns the value of the field, resolving if necessary
@@ -3242,7 +3242,7 @@ func (ev *Event) GetLoadModuleFileInode() uint64 {
 	if ev.GetEventType().String() != "load_module" {
 		return zeroValue
 	}
-	return ev.LoadModule.File.FileFields.PathKey.Inode
+	return ev.LoadModule.File.FileFields.DentryKey.Inode
 }
 
 // GetLoadModuleFileMode returns the value of the field, resolving if necessary
@@ -3269,7 +3269,7 @@ func (ev *Event) GetLoadModuleFileMountId() uint32 {
 	if ev.GetEventType().String() != "load_module" {
 		return zeroValue
 	}
-	return ev.LoadModule.File.FileFields.PathKey.MountID
+	return ev.LoadModule.File.FileFields.DentryKey.MountID
 }
 
 // GetLoadModuleFileName returns the value of the field, resolving if necessary
@@ -3470,7 +3470,7 @@ func (ev *Event) GetMkdirFileInode() uint64 {
 	if ev.GetEventType().String() != "mkdir" {
 		return zeroValue
 	}
-	return ev.Mkdir.File.FileFields.PathKey.Inode
+	return ev.Mkdir.File.FileFields.DentryKey.Inode
 }
 
 // GetMkdirFileMode returns the value of the field, resolving if necessary
@@ -3497,7 +3497,7 @@ func (ev *Event) GetMkdirFileMountId() uint32 {
 	if ev.GetEventType().String() != "mkdir" {
 		return zeroValue
 	}
-	return ev.Mkdir.File.FileFields.PathKey.MountID
+	return ev.Mkdir.File.FileFields.DentryKey.MountID
 }
 
 // GetMkdirFileName returns the value of the field, resolving if necessary
@@ -3662,7 +3662,7 @@ func (ev *Event) GetMmapFileInode() uint64 {
 	if ev.GetEventType().String() != "mmap" {
 		return zeroValue
 	}
-	return ev.MMap.File.FileFields.PathKey.Inode
+	return ev.MMap.File.FileFields.DentryKey.Inode
 }
 
 // GetMmapFileMode returns the value of the field, resolving if necessary
@@ -3689,7 +3689,7 @@ func (ev *Event) GetMmapFileMountId() uint32 {
 	if ev.GetEventType().String() != "mmap" {
 		return zeroValue
 	}
-	return ev.MMap.File.FileFields.PathKey.MountID
+	return ev.MMap.File.FileFields.DentryKey.MountID
 }
 
 // GetMmapFileName returns the value of the field, resolving if necessary
@@ -4025,7 +4025,7 @@ func (ev *Event) GetOpenFileInode() uint64 {
 	if ev.GetEventType().String() != "open" {
 		return zeroValue
 	}
-	return ev.Open.File.FileFields.PathKey.Inode
+	return ev.Open.File.FileFields.DentryKey.Inode
 }
 
 // GetOpenFileMode returns the value of the field, resolving if necessary
@@ -4052,7 +4052,7 @@ func (ev *Event) GetOpenFileMountId() uint32 {
 	if ev.GetEventType().String() != "open" {
 		return zeroValue
 	}
-	return ev.Open.File.FileFields.PathKey.MountID
+	return ev.Open.File.FileFields.DentryKey.MountID
 }
 
 // GetOpenFileName returns the value of the field, resolving if necessary
@@ -4708,7 +4708,7 @@ func (ev *Event) GetProcessAncestorsFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode
+		result := element.ProcessContext.Process.FileEvent.FileFields.DentryKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -4774,7 +4774,7 @@ func (ev *Event) GetProcessAncestorsFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID
+		result := element.ProcessContext.Process.FileEvent.FileFields.DentryKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5280,7 +5280,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -5346,7 +5346,7 @@ func (ev *Event) GetProcessAncestorsInterpreterFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6030,7 +6030,7 @@ func (ev *Event) GetProcessFileInode() uint64 {
 	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 		return uint64(0)
 	}
-	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode
+	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetProcessFileMode returns the value of the field, resolving if necessary
@@ -6066,7 +6066,7 @@ func (ev *Event) GetProcessFileMountId() uint32 {
 	if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
 		return uint32(0)
 	}
-	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID
+	return ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetProcessFileName returns the value of the field, resolving if necessary
@@ -6330,7 +6330,7 @@ func (ev *Event) GetProcessInterpreterFileInode() uint64 {
 	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 		return uint64(0)
 	}
-	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetProcessInterpreterFileMode returns the value of the field, resolving if necessary
@@ -6366,7 +6366,7 @@ func (ev *Event) GetProcessInterpreterFileMountId() uint32 {
 	if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
 		return uint32(0)
 	}
-	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+	return ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetProcessInterpreterFileName returns the value of the field, resolving if necessary
@@ -6914,7 +6914,7 @@ func (ev *Event) GetProcessParentFileInode() uint64 {
 	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 		return uint64(0)
 	}
-	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.Inode
+	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetProcessParentFileMode returns the value of the field, resolving if necessary
@@ -6968,7 +6968,7 @@ func (ev *Event) GetProcessParentFileMountId() uint32 {
 	if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
 		return uint32(0)
 	}
-	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.PathKey.MountID
+	return ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetProcessParentFileName returns the value of the field, resolving if necessary
@@ -7355,7 +7355,7 @@ func (ev *Event) GetProcessParentInterpreterFileInode() uint64 {
 	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 		return uint64(0)
 	}
-	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetProcessParentInterpreterFileMode returns the value of the field, resolving if necessary
@@ -7409,7 +7409,7 @@ func (ev *Event) GetProcessParentInterpreterFileMountId() uint32 {
 	if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 		return uint32(0)
 	}
-	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+	return ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetProcessParentInterpreterFileName returns the value of the field, resolving if necessary
@@ -8392,7 +8392,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode
+		result := element.ProcessContext.Process.FileEvent.FileFields.DentryKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -8467,7 +8467,7 @@ func (ev *Event) GetPtraceTraceeAncestorsFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID
+		result := element.ProcessContext.Process.FileEvent.FileFields.DentryKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9042,7 +9042,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9117,7 +9117,7 @@ func (ev *Event) GetPtraceTraceeAncestorsInterpreterFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -9936,7 +9936,7 @@ func (ev *Event) GetPtraceTraceeFileInode() uint64 {
 	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return uint64(0)
 	}
-	return ev.PTrace.Tracee.Process.FileEvent.FileFields.PathKey.Inode
+	return ev.PTrace.Tracee.Process.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetPtraceTraceeFileMode returns the value of the field, resolving if necessary
@@ -9981,7 +9981,7 @@ func (ev *Event) GetPtraceTraceeFileMountId() uint32 {
 	if !ev.PTrace.Tracee.Process.IsNotKworker() {
 		return uint32(0)
 	}
-	return ev.PTrace.Tracee.Process.FileEvent.FileFields.PathKey.MountID
+	return ev.PTrace.Tracee.Process.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetPtraceTraceeFileName returns the value of the field, resolving if necessary
@@ -10317,7 +10317,7 @@ func (ev *Event) GetPtraceTraceeInterpreterFileInode() uint64 {
 	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return uint64(0)
 	}
-	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetPtraceTraceeInterpreterFileMode returns the value of the field, resolving if necessary
@@ -10362,7 +10362,7 @@ func (ev *Event) GetPtraceTraceeInterpreterFileMountId() uint32 {
 	if !ev.PTrace.Tracee.Process.HasInterpreter() {
 		return uint32(0)
 	}
-	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+	return ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetPtraceTraceeInterpreterFileName returns the value of the field, resolving if necessary
@@ -11021,7 +11021,7 @@ func (ev *Event) GetPtraceTraceeParentFileInode() uint64 {
 	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return uint64(0)
 	}
-	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.PathKey.Inode
+	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetPtraceTraceeParentFileMode returns the value of the field, resolving if necessary
@@ -11084,7 +11084,7 @@ func (ev *Event) GetPtraceTraceeParentFileMountId() uint32 {
 	if !ev.PTrace.Tracee.Parent.IsNotKworker() {
 		return uint32(0)
 	}
-	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.PathKey.MountID
+	return ev.PTrace.Tracee.Parent.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetPtraceTraceeParentFileName returns the value of the field, resolving if necessary
@@ -11540,7 +11540,7 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileInode() uint64 {
 	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return uint64(0)
 	}
-	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetPtraceTraceeParentInterpreterFileMode returns the value of the field, resolving if necessary
@@ -11603,7 +11603,7 @@ func (ev *Event) GetPtraceTraceeParentInterpreterFileMountId() uint32 {
 	if !ev.PTrace.Tracee.Parent.HasInterpreter() {
 		return uint32(0)
 	}
-	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+	return ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetPtraceTraceeParentInterpreterFileName returns the value of the field, resolving if necessary
@@ -12101,7 +12101,7 @@ func (ev *Event) GetRemovexattrFileInode() uint64 {
 	if ev.GetEventType().String() != "removexattr" {
 		return zeroValue
 	}
-	return ev.RemoveXAttr.File.FileFields.PathKey.Inode
+	return ev.RemoveXAttr.File.FileFields.DentryKey.Inode
 }
 
 // GetRemovexattrFileMode returns the value of the field, resolving if necessary
@@ -12128,7 +12128,7 @@ func (ev *Event) GetRemovexattrFileMountId() uint32 {
 	if ev.GetEventType().String() != "removexattr" {
 		return zeroValue
 	}
-	return ev.RemoveXAttr.File.FileFields.PathKey.MountID
+	return ev.RemoveXAttr.File.FileFields.DentryKey.MountID
 }
 
 // GetRemovexattrFileName returns the value of the field, resolving if necessary
@@ -12302,7 +12302,7 @@ func (ev *Event) GetRenameFileDestinationInode() uint64 {
 	if ev.GetEventType().String() != "rename" {
 		return zeroValue
 	}
-	return ev.Rename.New.FileFields.PathKey.Inode
+	return ev.Rename.New.FileFields.DentryKey.Inode
 }
 
 // GetRenameFileDestinationMode returns the value of the field, resolving if necessary
@@ -12329,7 +12329,7 @@ func (ev *Event) GetRenameFileDestinationMountId() uint32 {
 	if ev.GetEventType().String() != "rename" {
 		return zeroValue
 	}
-	return ev.Rename.New.FileFields.PathKey.MountID
+	return ev.Rename.New.FileFields.DentryKey.MountID
 }
 
 // GetRenameFileDestinationName returns the value of the field, resolving if necessary
@@ -12476,7 +12476,7 @@ func (ev *Event) GetRenameFileInode() uint64 {
 	if ev.GetEventType().String() != "rename" {
 		return zeroValue
 	}
-	return ev.Rename.Old.FileFields.PathKey.Inode
+	return ev.Rename.Old.FileFields.DentryKey.Inode
 }
 
 // GetRenameFileMode returns the value of the field, resolving if necessary
@@ -12503,7 +12503,7 @@ func (ev *Event) GetRenameFileMountId() uint32 {
 	if ev.GetEventType().String() != "rename" {
 		return zeroValue
 	}
-	return ev.Rename.Old.FileFields.PathKey.MountID
+	return ev.Rename.Old.FileFields.DentryKey.MountID
 }
 
 // GetRenameFileName returns the value of the field, resolving if necessary
@@ -12668,7 +12668,7 @@ func (ev *Event) GetRmdirFileInode() uint64 {
 	if ev.GetEventType().String() != "rmdir" {
 		return zeroValue
 	}
-	return ev.Rmdir.File.FileFields.PathKey.Inode
+	return ev.Rmdir.File.FileFields.DentryKey.Inode
 }
 
 // GetRmdirFileMode returns the value of the field, resolving if necessary
@@ -12695,7 +12695,7 @@ func (ev *Event) GetRmdirFileMountId() uint32 {
 	if ev.GetEventType().String() != "rmdir" {
 		return zeroValue
 	}
-	return ev.Rmdir.File.FileFields.PathKey.MountID
+	return ev.Rmdir.File.FileFields.DentryKey.MountID
 }
 
 // GetRmdirFileName returns the value of the field, resolving if necessary
@@ -13022,7 +13022,7 @@ func (ev *Event) GetSetxattrFileInode() uint64 {
 	if ev.GetEventType().String() != "setxattr" {
 		return zeroValue
 	}
-	return ev.SetXAttr.File.FileFields.PathKey.Inode
+	return ev.SetXAttr.File.FileFields.DentryKey.Inode
 }
 
 // GetSetxattrFileMode returns the value of the field, resolving if necessary
@@ -13049,7 +13049,7 @@ func (ev *Event) GetSetxattrFileMountId() uint32 {
 	if ev.GetEventType().String() != "setxattr" {
 		return zeroValue
 	}
-	return ev.SetXAttr.File.FileFields.PathKey.MountID
+	return ev.SetXAttr.File.FileFields.DentryKey.MountID
 }
 
 // GetSetxattrFileName returns the value of the field, resolving if necessary
@@ -13789,7 +13789,7 @@ func (ev *Event) GetSignalTargetAncestorsFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode
+		result := element.ProcessContext.Process.FileEvent.FileFields.DentryKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -13864,7 +13864,7 @@ func (ev *Event) GetSignalTargetAncestorsFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID
+		result := element.ProcessContext.Process.FileEvent.FileFields.DentryKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -14439,7 +14439,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileInode() []uint64 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -14514,7 +14514,7 @@ func (ev *Event) GetSignalTargetAncestorsInterpreterFileMountId() []uint32 {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+		result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -15333,7 +15333,7 @@ func (ev *Event) GetSignalTargetFileInode() uint64 {
 	if !ev.Signal.Target.Process.IsNotKworker() {
 		return uint64(0)
 	}
-	return ev.Signal.Target.Process.FileEvent.FileFields.PathKey.Inode
+	return ev.Signal.Target.Process.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetSignalTargetFileMode returns the value of the field, resolving if necessary
@@ -15378,7 +15378,7 @@ func (ev *Event) GetSignalTargetFileMountId() uint32 {
 	if !ev.Signal.Target.Process.IsNotKworker() {
 		return uint32(0)
 	}
-	return ev.Signal.Target.Process.FileEvent.FileFields.PathKey.MountID
+	return ev.Signal.Target.Process.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetSignalTargetFileName returns the value of the field, resolving if necessary
@@ -15714,7 +15714,7 @@ func (ev *Event) GetSignalTargetInterpreterFileInode() uint64 {
 	if !ev.Signal.Target.Process.HasInterpreter() {
 		return uint64(0)
 	}
-	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetSignalTargetInterpreterFileMode returns the value of the field, resolving if necessary
@@ -15759,7 +15759,7 @@ func (ev *Event) GetSignalTargetInterpreterFileMountId() uint32 {
 	if !ev.Signal.Target.Process.HasInterpreter() {
 		return uint32(0)
 	}
-	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+	return ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetSignalTargetInterpreterFileName returns the value of the field, resolving if necessary
@@ -16418,7 +16418,7 @@ func (ev *Event) GetSignalTargetParentFileInode() uint64 {
 	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return uint64(0)
 	}
-	return ev.Signal.Target.Parent.FileEvent.FileFields.PathKey.Inode
+	return ev.Signal.Target.Parent.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetSignalTargetParentFileMode returns the value of the field, resolving if necessary
@@ -16481,7 +16481,7 @@ func (ev *Event) GetSignalTargetParentFileMountId() uint32 {
 	if !ev.Signal.Target.Parent.IsNotKworker() {
 		return uint32(0)
 	}
-	return ev.Signal.Target.Parent.FileEvent.FileFields.PathKey.MountID
+	return ev.Signal.Target.Parent.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetSignalTargetParentFileName returns the value of the field, resolving if necessary
@@ -16937,7 +16937,7 @@ func (ev *Event) GetSignalTargetParentInterpreterFileInode() uint64 {
 	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return uint64(0)
 	}
-	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode
+	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.DentryKey.Inode
 }
 
 // GetSignalTargetParentInterpreterFileMode returns the value of the field, resolving if necessary
@@ -17000,7 +17000,7 @@ func (ev *Event) GetSignalTargetParentInterpreterFileMountId() uint32 {
 	if !ev.Signal.Target.Parent.HasInterpreter() {
 		return uint32(0)
 	}
-	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID
+	return ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.DentryKey.MountID
 }
 
 // GetSignalTargetParentInterpreterFileName returns the value of the field, resolving if necessary
@@ -17489,7 +17489,7 @@ func (ev *Event) GetSpliceFileInode() uint64 {
 	if ev.GetEventType().String() != "splice" {
 		return zeroValue
 	}
-	return ev.Splice.File.FileFields.PathKey.Inode
+	return ev.Splice.File.FileFields.DentryKey.Inode
 }
 
 // GetSpliceFileMode returns the value of the field, resolving if necessary
@@ -17516,7 +17516,7 @@ func (ev *Event) GetSpliceFileMountId() uint32 {
 	if ev.GetEventType().String() != "splice" {
 		return zeroValue
 	}
-	return ev.Splice.File.FileFields.PathKey.MountID
+	return ev.Splice.File.FileFields.DentryKey.MountID
 }
 
 // GetSpliceFileName returns the value of the field, resolving if necessary
@@ -17704,7 +17704,7 @@ func (ev *Event) GetUnlinkFileInode() uint64 {
 	if ev.GetEventType().String() != "unlink" {
 		return zeroValue
 	}
-	return ev.Unlink.File.FileFields.PathKey.Inode
+	return ev.Unlink.File.FileFields.DentryKey.Inode
 }
 
 // GetUnlinkFileMode returns the value of the field, resolving if necessary
@@ -17731,7 +17731,7 @@ func (ev *Event) GetUnlinkFileMountId() uint32 {
 	if ev.GetEventType().String() != "unlink" {
 		return zeroValue
 	}
-	return ev.Unlink.File.FileFields.PathKey.MountID
+	return ev.Unlink.File.FileFields.DentryKey.MountID
 }
 
 // GetUnlinkFileName returns the value of the field, resolving if necessary
@@ -17923,7 +17923,7 @@ func (ev *Event) GetUtimesFileInode() uint64 {
 	if ev.GetEventType().String() != "utimes" {
 		return zeroValue
 	}
-	return ev.Utimes.File.FileFields.PathKey.Inode
+	return ev.Utimes.File.FileFields.DentryKey.Inode
 }
 
 // GetUtimesFileMode returns the value of the field, resolving if necessary
@@ -17950,7 +17950,7 @@ func (ev *Event) GetUtimesFileMountId() uint32 {
 	if ev.GetEventType().String() != "utimes" {
 		return zeroValue
 	}
-	return ev.Utimes.File.FileFields.PathKey.MountID
+	return ev.Utimes.File.FileFields.DentryKey.MountID
 }
 
 // GetUtimesFileName returns the value of the field, resolving if necessary

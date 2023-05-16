@@ -715,16 +715,16 @@ func newMountEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *Mo
 	mountSerializer := &MountEventSerializer{
 		MountPoint: &FileSerializer{
 			Path:    dst,
-			MountID: &e.Mount.ParentPathKey.MountID,
-			Inode:   &e.Mount.ParentPathKey.Inode,
+			MountID: &e.Mount.ParentDentryKey.MountID,
+			Inode:   &e.Mount.ParentDentryKey.Inode,
 		},
 		Root: &FileSerializer{
 			Path:    src,
-			MountID: &e.Mount.RootPathKey.MountID,
-			Inode:   &e.Mount.RootPathKey.Inode,
+			MountID: &e.Mount.RootDentryKey.MountID,
+			Inode:   &e.Mount.RootDentryKey.Inode,
 		},
 		MountID:         e.Mount.MountID,
-		ParentMountID:   e.Mount.ParentPathKey.MountID,
+		ParentMountID:   e.Mount.ParentDentryKey.MountID,
 		BindSrcMountID:  e.Mount.BindSrcMountID,
 		Device:          e.Mount.Device,
 		FSType:          e.Mount.GetFSType(),

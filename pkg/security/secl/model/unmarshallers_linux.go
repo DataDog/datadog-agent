@@ -148,7 +148,7 @@ func isValidTTYName(ttyName string) bool {
 
 // UnmarshalProcEntryBinary unmarshalls process_entry_t from process.h
 func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
-	const size = 160
+	const size = 184
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -197,26 +197,31 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
+	read += 8
 	e.PPid = ByteOrder.Uint32(data[8:12])
+	read += 4
 
 	// padding
+	read += 4
 
 	e.ForkTime = unmarshalTime(data[16:24])
+	read += 8
 	e.ExitTime = unmarshalTime(data[24:32])
+	read += 8
 
 	// Unmarshal the credentials contained in pid_cache_t
-	read, err := UnmarshalBinary(data[32:], &e.Credentials)
+	n, err := UnmarshalBinary(data[32:], &e.Credentials)
 	if err != nil {
 		return 0, err
 	}
-	read += 32
+	read += n
 
 	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 264 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 312 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -235,17 +240,25 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += n
 
 	// interpreter part
-	var pathKey PathKey
+	var dentryKey DentryKey
+	var pathRef PathRingBufferRef
 
-	n, err = pathKey.UnmarshalBinary(data[read:])
+	n, err = dentryKey.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
+	}
+	read += n
+
+	n, err = pathRef.UnmarshalBinary(data[read:])
 	if err != nil {
 		return 0, err
 	}
 	read += n
 
 	// TODO: Is there a better way to determine if there's no interpreter?
-	if e.FileEvent.Inode != pathKey.Inode || e.FileEvent.MountID != pathKey.MountID {
-		e.LinuxBinprm.FileEvent.PathKey = pathKey
+	if e.FileEvent.Inode != dentryKey.Inode || e.FileEvent.MountID != dentryKey.MountID {
+		e.LinuxBinprm.FileEvent.DentryKey = dentryKey
+		e.LinuxBinprm.FileEvent.PathRef = pathRef
 	}
 
 	if len(data[read:]) < 16 {
@@ -316,25 +329,39 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	return MaxArgEnvSize + 8, nil
 }
 
-// UnmarshalBinary unmarshals the given content
-func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (d *DentryKey) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	p.Inode = ByteOrder.Uint64(data[0:8])
-	p.MountID = ByteOrder.Uint32(data[8:12])
-	p.PathID = ByteOrder.Uint32(data[12:16])
+	d.Inode = ByteOrder.Uint64(data[0:8])
+	d.MountID = ByteOrder.Uint32(data[8:12])
+	d.PathID = ByteOrder.Uint32(data[12:16])
 
 	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (pr *PathRingBufferRef) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 24 {
+		return 0, ErrNotEnoughData
+	}
+	pr.Watermark = ByteOrder.Uint64(data[0:8])
+	pr.ReadCursor = ByteOrder.Uint32(data[8:12])
+	pr.Length = ByteOrder.Uint32(data[12:16])
+	pr.CPU = ByteOrder.Uint32(data[16:20])
+
+	// +4 for padding
+	return 20 + 4, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
+	if len(data) < 96 {
 		return 0, ErrNotEnoughData
 	}
 
-	n, err := e.PathKey.UnmarshalBinary(data)
+	n, err := e.DentryKey.UnmarshalBinary(data)
 	if err != nil {
 		return n, err
 	}
@@ -357,7 +384,14 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	timeNsec = ByteOrder.Uint64(data[48:56])
 	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
-	return 72, nil
+	data = data[56:]
+
+	n, err = e.PathRef.UnmarshalBinary(data)
+	if err != nil {
+		return n, err
+	}
+
+	return 96, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -388,32 +422,50 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	const size = 104
+	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
+	var read int
+	var err error
 
-	n, err := m.RootPathKey.UnmarshalBinary(data)
+	n, err := m.RootDentryKey.UnmarshalBinary(data[read:])
 	if err != nil {
 		return 0, err
 	}
-	data = data[n:]
+	read += n
 
-	n, err = m.ParentPathKey.UnmarshalBinary(data)
+	n, err = m.ParentDentryKey.UnmarshalBinary(data[read:])
 	if err != nil {
 		return 0, err
 	}
-	data = data[n:]
+	read += n
 
-	m.Device = ByteOrder.Uint32(data[0:4])
-	m.BindSrcMountID = ByteOrder.Uint32(data[4:8])
-	m.FSType, err = UnmarshalString(data[8:], 16)
+	n, err = m.RootStrPathRef.UnmarshalBinary(data[read:])
 	if err != nil {
 		return 0, err
 	}
+	read += n
 
-	m.MountID = m.RootPathKey.MountID
+	n, err = m.MountPointPathRef.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
+	}
+	read += n
 
-	return 56, nil
+	m.Device = ByteOrder.Uint32(data[read : read+4])
+	read += 4
+	m.BindSrcMountID = ByteOrder.Uint32(data[read : read+4])
+	read += 4
+	m.FSType, err = UnmarshalString(data[read:read+16], 16)
+	if err != nil {
+		return 0, err
+	}
+	read += 16
+
+	m.MountID = m.RootDentryKey.MountID
+
+	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

@@ -7,6 +7,7 @@
 #include "filter.h"
 #include "events_context.h"
 #include "process.h"
+#include "ring_buffer.h"
 
 struct syscall_monitor_entry_t {
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
@@ -87,10 +88,11 @@ struct syscall_cache_t {
             u32 bind_src_mount_id;
             // populated from collected
             const char *fstype;
-            struct path_key_t root_key;
-            struct path_key_t mountpoint_key;
+            struct dentry_key_t root_key;
+            struct dentry_key_t mountpoint_key;
+            struct ring_buffer_ref_t root_ref;
             dev_t device;
-         } mount;
+        } mount;
 
         struct {
             struct vfsmount *vfs;

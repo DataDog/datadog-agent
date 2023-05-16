@@ -42,14 +42,14 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     }
 
     syscall->init_module.dentry = get_file_dentry(f);
-    syscall->init_module.file.path_key.mount_id = get_file_mount_id(f);
+    syscall->init_module.file.dentry_key.mount_id = get_file_mount_id(f);
     set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, 0);
 
-    syscall->resolver.key = syscall->init_module.file.path_key;
+    syscall->resolver.key = syscall->init_module.file.dentry_key;
     syscall->resolver.dentry = syscall->init_module.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_INIT_MODULE : 0;
     syscall->resolver.iteration = 0;
-    syscall->resolver.callback = DR_NO_CALLBACK;
+    syscall->resolver.callback = DR_CALLBACK_INITMODULE;
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, dr_type);
@@ -60,8 +60,20 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     return 0;
 }
 
+TAIL_CALL_TARGET("dr_init_module_callback")
+int tail_call_target_dr_init_module_callback(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
+    if (!syscall) {
+        return 0;
+    }
+
+    fill_dr_ringbuf_ref_from_ctx(&syscall->init_module.file.path_ref);
+
+    return 0;
+}
+
 int __attribute__((always_inline)) fetch_mod_name_common(struct module *m) {
-	struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }

@@ -17,53 +17,53 @@ int hook_mnt_want_write(ctx_t *ctx) {
 
     switch (syscall->type) {
     case EVENT_UTIME:
-        if (syscall->setattr.file.path_key.mount_id > 0) {
+        if (syscall->setattr.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->setattr.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     case EVENT_CHMOD:
-        if (syscall->setattr.file.path_key.mount_id > 0) {
+        if (syscall->setattr.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->setattr.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     case EVENT_CHOWN:
-        if (syscall->setattr.file.path_key.mount_id > 0) {
+        if (syscall->setattr.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->setattr.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     case EVENT_RENAME:
-        if (syscall->rename.src_file.path_key.mount_id > 0) {
+        if (syscall->rename.src_file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->rename.src_file.path_key.mount_id = get_vfsmount_mount_id(mnt);
-        syscall->rename.target_file.path_key.mount_id = syscall->rename.src_file.path_key.mount_id;
+        syscall->rename.src_file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->rename.target_file.dentry_key.mount_id = syscall->rename.src_file.dentry_key.mount_id;
         break;
     case EVENT_RMDIR:
-        if (syscall->rmdir.file.path_key.mount_id > 0) {
+        if (syscall->rmdir.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->rmdir.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->rmdir.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     case EVENT_UNLINK:
-        if (syscall->unlink.file.path_key.mount_id > 0) {
+        if (syscall->unlink.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->unlink.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->unlink.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     case EVENT_SETXATTR:
-        if (syscall->xattr.file.path_key.mount_id > 0) {
+        if (syscall->xattr.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->xattr.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     case EVENT_REMOVEXATTR:
-        if (syscall->xattr.file.path_key.mount_id > 0) {
+        if (syscall->xattr.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->xattr.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     }
     return 0;
@@ -81,22 +81,22 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
 
     switch (syscall->type) {
     case EVENT_CHOWN:
-        if (syscall->setattr.file.path_key.mount_id > 0) {
+        if (syscall->setattr.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->setattr.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     case EVENT_SETXATTR:
-        if (syscall->xattr.file.path_key.mount_id > 0) {
+        if (syscall->xattr.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->xattr.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     case EVENT_REMOVEXATTR:
-        if (syscall->xattr.file.path_key.mount_id > 0) {
+        if (syscall->xattr.file.dentry_key.mount_id > 0) {
             return 0;
         }
-        syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->xattr.file.dentry_key.mount_id = get_vfsmount_mount_id(mnt);
         break;
     }
     return 0;
@@ -171,7 +171,7 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     syscall->resolver.key = syscall->mount.root_key;
     syscall->resolver.dentry = root_dentry;
     syscall->resolver.discarder_type = 0;
-    syscall->resolver.callback = select_dr_key(dr_type, DR_MOUNT_STAGE_ONE_CALLBACK_KPROBE_KEY, DR_MOUNT_STAGE_ONE_CALLBACK_TRACEPOINT_KEY);
+    syscall->resolver.callback = DR_CALLBACK_MOUNT_ROOT;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -186,10 +186,12 @@ int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, int dr
         return 0;
     }
 
+    fill_dr_ringbuf_ref_from_ctx(&syscall->mount.root_ref);
+
     syscall->resolver.key = syscall->mount.mountpoint_key;
     syscall->resolver.dentry = syscall->mount.mountpoint_dentry;
     syscall->resolver.discarder_type = 0;
-    syscall->resolver.callback = select_dr_key(dr_type, DR_MOUNT_STAGE_TWO_CALLBACK_KPROBE_KEY, DR_MOUNT_STAGE_TWO_CALLBACK_TRACEPOINT_KEY);
+    syscall->resolver.callback = DR_CALLBACK_MOUNT_MOUNTPOINT;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -211,6 +213,8 @@ int tracepoint_dr_mount_stage_one_callback(struct tracepoint_syscalls_sys_exit_t
 }
 
 void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *syscall, struct mount_fields_t *mfields) {
+    fill_dr_ringbuf_ref_from_ctx(&mfields->mountpoint_ref);
+    mfields->root_ref = syscall->mount.root_ref;
     mfields->root_key = syscall->mount.root_key;
     mfields->mountpoint_key = syscall->mount.mountpoint_key;
     mfields->device = syscall->mount.device;
@@ -383,6 +387,8 @@ int hook_propagate_mnt(ctx_t *ctx) {
 
     return 0;
 }
+
+// regular mount stuff
 
 int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_type) {
     if (retval) {

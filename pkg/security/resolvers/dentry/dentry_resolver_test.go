@@ -40,7 +40,7 @@ func TestComputeFilenameFromParts(t *testing.T) {
 
 	for _, entry := range entries {
 		t.Run(entry.name, func(t *testing.T) {
-			assert.Equal(t, entry.expected, computeFilenameFromParts(entry.parts))
+			assert.Equal(t, entry.expected, ComputeFilenameFromParts(entry.parts))
 		})
 	}
 }

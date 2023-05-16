@@ -59,6 +59,7 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
 
     if (syscall->mmap.dentry != NULL) {
         fill_file(syscall->mmap.dentry, &event.file);
+        fill_dr_ringbuf_ref_from_ctx(&event.file.path_ref);
     }
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
@@ -81,12 +82,13 @@ int rethook_fget(ctx_t *ctx) {
 
     struct file *f = (struct file*) CTX_PARMRET(ctx, 1);
     syscall->mmap.dentry = get_file_dentry(f);
-    syscall->mmap.file.path_key.mount_id = get_file_mount_id(f);
+    syscall->mmap.file.dentry_key.mount_id = get_file_mount_id(f);
     set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, 0);
 
-    syscall->resolver.key = syscall->mmap.file.path_key;
+    syscall->resolver.key = syscall->mmap.file.dentry_key;
     syscall->resolver.dentry = syscall->mmap.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_MMAP : 0;
+    syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 

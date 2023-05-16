@@ -39,8 +39,8 @@ static __attribute__((always_inline)) u32 get_path_id(u32 mount_id, int invalida
     return id;
 }
 
-static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int invalidate) {
-    path_key->path_id = get_path_id(path_key->mount_id, invalidate);
+static __attribute__((always_inline)) void update_path_id(struct dentry_key_t *dentry_key, int invalidate) {
+    dentry_key->path_id = get_path_id(dentry_key->mount_id, invalidate);
 }
 
 static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
@@ -113,17 +113,17 @@ void __attribute__((always_inline)) fill_file(struct dentry* dentry, struct file
     bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->i_mtime);
 }
 
-#define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
-#define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
+#define get_dentry_key_path(dentry, path) (struct dentry_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
+#define get_inode_key_path(inode, path) (struct dentry_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
 static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {
-    file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);
-    if (!file->path_key.ino) {
-        file->path_key.ino = get_dentry_ino(dentry);
+    file->dentry_key.path_id = get_path_id(file->dentry_key.mount_id, invalidate);
+    if (!file->dentry_key.ino) {
+        file->dentry_key.ino = get_dentry_ino(dentry);
     }
 
     if (is_overlayfs(dentry)) {
-        set_overlayfs_ino(dentry, &file->path_key.ino, &file->flags);
+        set_overlayfs_ino(dentry, &file->dentry_key.ino, &file->flags);
     }
 }
 

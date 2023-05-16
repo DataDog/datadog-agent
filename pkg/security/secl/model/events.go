@@ -115,8 +115,8 @@ const (
 	CustomRulesetLoadedEventType
 	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
 	CustomForkBombEventType
-	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
-	CustomTruncatedParentsEventType
+	// CustomTruncatedPathEventType is the custom event used to report that a path was truncated
+	CustomTruncatedPathEventType
 	// CustomSelfTestEventType is the custom event used to report the results of a self test run
 	CustomSelfTestEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
@@ -212,8 +212,8 @@ func (t EventType) String() string {
 		return "ruleset_loaded"
 	case CustomForkBombEventType:
 		return "fork_bomb"
-	case CustomTruncatedParentsEventType:
-		return "truncated_parents"
+	case CustomTruncatedPathEventType:
+		return "truncated_path"
 	case CustomSelfTestEventType:
 		return "self_test"
 	default:

@@ -116,9 +116,9 @@ func newPidDiscarders(erpc *erpc.ERPC) *pidDiscarders {
 
 // InodeDiscarderMapEntry describes a map entry
 type InodeDiscarderMapEntry struct {
-	PathKey model.PathKey
-	IsLeaf  uint32
-	Padding uint32
+	DentryKey model.DentryKey
+	IsLeaf    uint32
+	Padding   uint32
 }
 
 // InodeDiscarderEntry describes a map entry
@@ -401,7 +401,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	return true, nil
 }
 
-func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, pathKey model.PathKey, timestamp uint64) (bool, uint32, uint64, error) {
+func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, pathKey model.DentryKey, timestamp uint64) (bool, uint32, uint64, error) {
 	var discarderDepth int
 	var isDiscarder bool
 	var err error
@@ -469,13 +469,13 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 				return false, nil
 			}
 
-			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, fileEvent.PathKey, event.TimestampRaw)
+			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, fileEvent.DentryKey, event.TimestampRaw)
 			if !isDiscarded && !isDeleted && err == nil {
-				if !dentry.IsFakeInode(fileEvent.PathKey.Inode) {
-					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, fileEvent.PathKey.Inode, filename)
+				if !dentry.IsFakeInode(fileEvent.DentryKey.Inode) {
+					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, fileEvent.DentryKey.Inode, filename)
 
 					// not able to discard the parent then only discard the filename
-					_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, fileEvent.PathKey.MountID, fileEvent.PathKey.Inode, true)
+					_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, fileEvent.DentryKey.MountID, fileEvent.DentryKey.Inode, true)
 				}
 			} else if !isDeleted {
 				seclog.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
@@ -588,14 +588,14 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 		record := InodeDiscarderDump{
 			Index:                count,
 			InodeDiscarderParams: inodeParams,
-			Inode:                inodeEntry.PathKey.Inode,
-			MountID:              inodeEntry.PathKey.MountID,
+			Inode:                inodeEntry.DentryKey.Inode,
+			MountID:              inodeEntry.DentryKey.MountID,
 		}
 
-		path, err := resolver.Resolve(inodeEntry.PathKey, false)
-		if err == nil {
-			record.FilePath = path
-		}
+		// path, err := resolver.Resolve(inodeEntry.DentryKey, false)
+		// if err == nil {
+		// 	record.FilePath = path
+		// }
 
 		dumps = append(dumps, record)
 

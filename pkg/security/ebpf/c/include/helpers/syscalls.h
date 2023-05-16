@@ -200,16 +200,4 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_impersonat
     return syscall;
 }
 
-int __attribute__((always_inline)) fill_exec_context() {
-    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
-    if (!syscall) {
-        return 0;
-    }
-
-    // call it here before the memory get replaced
-    fill_span_context(&syscall->exec.span_context);
-
-    return 0;
-}
-
 #endif

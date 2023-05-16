@@ -24,7 +24,7 @@
 #include <errno.h>
 
 #define RPC_CMD 0xdeadc001
-#define REGISTER_SPAN_TLS_OP 6
+#define REGISTER_SPAN_TLS_OP 5
 
 #ifndef SYS_gettid
 #error "SYS_gettid unavailable on this system"

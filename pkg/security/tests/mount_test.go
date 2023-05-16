@@ -342,7 +342,7 @@ func TestMountSnapshot(t *testing.T) {
 			return
 		}
 		assert.Equal(t, uint32(mntInfo.ID), mount.MountID, "snapshot and model mount ID mismatch")
-		assert.Equal(t, uint32(mntInfo.Parent), mount.ParentPathKey.MountID, "snapshot and model parent mount ID mismatch")
+		assert.Equal(t, uint32(mntInfo.Parent), mount.ParentDentryKey.MountID, "snapshot and model parent mount ID mismatch")
 		assert.Equal(t, dev, mount.Device, "snapshot and model device mismatch")
 		assert.Equal(t, mntInfo.FSType, mount.FSType, "snapshot and model fstype mismatch")
 		assert.Equal(t, mntInfo.Root, mount.RootStr, "snapshot and model root mismatch")

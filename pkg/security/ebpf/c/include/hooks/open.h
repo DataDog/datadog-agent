@@ -77,7 +77,7 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
     struct dentry *dentry = get_path_dentry(path);
 
     syscall->open.dentry = dentry;
-    syscall->open.file.path_key = get_inode_key_path(inode, path);
+    syscall->open.file.dentry_key = get_inode_key_path(inode, path);
 
     set_file_inode(dentry, &syscall->open.file, 0);
 
@@ -108,7 +108,7 @@ int hook_vfs_truncate(ctx_t *ctx) {
     }
 
     syscall->open.dentry = dentry;
-    syscall->open.file.path_key = get_dentry_key_path(syscall->open.dentry, path);
+    syscall->open.file.dentry_key = get_dentry_key_path(syscall->open.dentry, path);
 
     set_file_inode(dentry, &syscall->open.file, 0);
 
@@ -195,16 +195,16 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     }
 
     // increase mount ref
-    inc_mount_ref(syscall->open.file.path_key.mount_id);
+    inc_mount_ref(syscall->open.file.dentry_key.mount_id);
     if (syscall->discarded) {
         pop_syscall(EVENT_OPEN);
         return 0;
     }
 
-    syscall->resolver.key = syscall->open.file.path_key;
+    syscall->resolver.key = syscall->open.file.dentry_key;
     syscall->resolver.dentry = syscall->open.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0;
-    syscall->resolver.callback = select_dr_key(dr_type, DR_OPEN_CALLBACK_KPROBE_KEY, DR_OPEN_CALLBACK_TRACEPOINT_KEY);
+    syscall->resolver.callback = DR_CALLBACK_OPEN;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
     syscall->resolver.sysretval = retval;
@@ -309,6 +309,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
     }
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
+    fill_dr_ringbuf_ref_from_ctx(&event.file.path_ref);
 
     send_event(ctx, EVENT_OPEN, event);
     return 0;

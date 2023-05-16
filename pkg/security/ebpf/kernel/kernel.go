@@ -285,7 +285,6 @@ func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) b
 // HaveMmapableMaps returns whether the kernel supports mmapable maps.
 func (k *Version) HaveMmapableMaps() bool {
 	return features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil
-
 }
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.

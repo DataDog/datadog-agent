@@ -3,6 +3,7 @@
 
 #include "constants/custom.h"
 #include "dentry_resolver.h"
+#include "ring_buffer.h"
 
 struct kevent_t {
     u64 cpu;
@@ -49,10 +50,11 @@ struct file_metadata_t {
 };
 
 struct file_t {
-    struct path_key_t path_key;
+    struct dentry_key_t dentry_key;
     u32 dev;
     u32 flags;
     struct file_metadata_t metadata;
+    struct ring_buffer_ref_t path_ref;
 };
 
 #endif

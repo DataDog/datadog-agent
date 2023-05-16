@@ -56,7 +56,7 @@ int hook_vfs_mkdir(ctx_t *ctx) {
         syscall->mkdir.dentry = (struct dentry *) CTX_PARM3(ctx);
     }
 
-    syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
+    syscall->mkdir.file.dentry_key.mount_id = get_path_mount_id(syscall->mkdir.path);
 
     if (filter_syscall(syscall, mkdir_approvers)) {
         return discard_syscall(syscall);
@@ -78,10 +78,10 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
     set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
 
-    syscall->resolver.key = syscall->mkdir.file.path_key;
+    syscall->resolver.key = syscall->mkdir.file.dentry_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0;
-    syscall->resolver.callback = select_dr_key(dr_type, DR_MKDIR_CALLBACK_KPROBE_KEY, DR_MKDIR_CALLBACK_TRACEPOINT_KEY);
+    syscall->resolver.callback = DR_CALLBACK_MKDIR;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
     syscall->resolver.sysretval = retval;
@@ -149,6 +149,7 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
     };
 
     fill_file(syscall->mkdir.dentry, &event.file);
+    fill_dr_ringbuf_ref_from_ctx(&event.file.path_ref);
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);

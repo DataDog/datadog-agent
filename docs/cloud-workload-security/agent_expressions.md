@@ -197,10 +197,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`process.ancestors.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`process.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.ancestors.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`process.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`process.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.ancestors.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -223,10 +223,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`process.ancestors.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`process.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.ancestors.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`process.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`process.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.ancestors.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -269,10 +269,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`process.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`process.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`process.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`process.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`process.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -295,10 +295,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`process.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`process.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`process.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`process.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`process.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -335,10 +335,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`process.parent.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`process.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.parent.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`process.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`process.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.parent.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -361,10 +361,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`process.parent.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`process.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.parent.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`process.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`process.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`process.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.parent.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -440,10 +440,10 @@ A file’s permissions were changed
 | [`chmod.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`chmod.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`chmod.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`chmod.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`chmod.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`chmod.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`chmod.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`chmod.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`chmod.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`chmod.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`chmod.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`chmod.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -472,10 +472,10 @@ A file’s owner was changed
 | [`chown.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`chown.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`chown.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`chown.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`chown.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`chown.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`chown.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`chown.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`chown.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`chown.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`chown.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`chown.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -541,10 +541,10 @@ A process was executed or forked
 | [`exec.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`exec.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exec.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`exec.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exec.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`exec.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`exec.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`exec.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exec.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`exec.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`exec.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -567,10 +567,10 @@ A process was executed or forked
 | [`exec.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`exec.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exec.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`exec.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exec.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`exec.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`exec.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`exec.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exec.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`exec.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exec.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`exec.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -622,10 +622,10 @@ A process was terminated
 | [`exit.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`exit.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exit.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`exit.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exit.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`exit.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`exit.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`exit.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exit.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`exit.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`exit.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -648,10 +648,10 @@ A process was terminated
 | [`exit.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`exit.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exit.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`exit.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exit.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`exit.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`exit.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`exit.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exit.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`exit.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exit.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`exit.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -684,10 +684,10 @@ Create a new name/alias for a file
 | [`link.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`link.file.destination.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`link.file.destination.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`link.file.destination.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`link.file.destination.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`link.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`link.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`link.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`link.file.destination.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`link.file.destination.name`](#common-fileevent-name-doc) | File's basename |
 | [`link.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`link.file.destination.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -703,10 +703,10 @@ Create a new name/alias for a file
 | [`link.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`link.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`link.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`link.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`link.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`link.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`link.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`link.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`link.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`link.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`link.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`link.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -734,10 +734,10 @@ A new kernel module was loaded
 | [`load_module.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`load_module.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`load_module.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`load_module.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`load_module.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`load_module.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`load_module.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`load_module.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`load_module.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`load_module.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`load_module.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`load_module.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -766,10 +766,10 @@ A directory was created
 | [`mkdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`mkdir.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`mkdir.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`mkdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`mkdir.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`mkdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`mkdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`mkdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`mkdir.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`mkdir.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`mkdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`mkdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -794,10 +794,10 @@ A mmap command was executed
 | [`mmap.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`mmap.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`mmap.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`mmap.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`mmap.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`mmap.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`mmap.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`mmap.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`mmap.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`mmap.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`mmap.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`mmap.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -848,10 +848,10 @@ A file was opened
 | [`open.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`open.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`open.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`open.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`open.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`open.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`open.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`open.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`open.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`open.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`open.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`open.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -897,10 +897,10 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`ptrace.tracee.ancestors.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`ptrace.tracee.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.ancestors.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`ptrace.tracee.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.ancestors.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -923,10 +923,10 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`ptrace.tracee.ancestors.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`ptrace.tracee.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`ptrace.tracee.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -969,10 +969,10 @@ A ptrace command was executed
 | [`ptrace.tracee.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`ptrace.tracee.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`ptrace.tracee.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`ptrace.tracee.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -995,10 +995,10 @@ A ptrace command was executed
 | [`ptrace.tracee.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`ptrace.tracee.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`ptrace.tracee.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`ptrace.tracee.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1035,10 +1035,10 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`ptrace.tracee.parent.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`ptrace.tracee.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.parent.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`ptrace.tracee.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.parent.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1061,10 +1061,10 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`ptrace.tracee.parent.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`ptrace.tracee.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.parent.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`ptrace.tracee.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`ptrace.tracee.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.parent.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1104,10 +1104,10 @@ Remove extended attributes
 | [`removexattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`removexattr.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`removexattr.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`removexattr.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`removexattr.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`removexattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`removexattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`removexattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`removexattr.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`removexattr.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`removexattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`removexattr.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1133,10 +1133,10 @@ A file/directory was renamed
 | [`rename.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`rename.file.destination.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`rename.file.destination.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`rename.file.destination.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`rename.file.destination.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`rename.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`rename.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`rename.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`rename.file.destination.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`rename.file.destination.name`](#common-fileevent-name-doc) | File's basename |
 | [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`rename.file.destination.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1152,10 +1152,10 @@ A file/directory was renamed
 | [`rename.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`rename.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`rename.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`rename.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`rename.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`rename.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`rename.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`rename.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`rename.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`rename.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`rename.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1180,10 +1180,10 @@ A directory was removed
 | [`rmdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`rmdir.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`rmdir.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`rmdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`rmdir.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`rmdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`rmdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`rmdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`rmdir.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`rmdir.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`rmdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`rmdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1247,10 +1247,10 @@ Set exteneded attributes
 | [`setxattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`setxattr.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`setxattr.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`setxattr.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`setxattr.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`setxattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`setxattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`setxattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`setxattr.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`setxattr.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`setxattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`setxattr.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1295,10 +1295,10 @@ A signal was sent
 | [`signal.target.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`signal.target.ancestors.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`signal.target.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.ancestors.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`signal.target.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.ancestors.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1321,10 +1321,10 @@ A signal was sent
 | [`signal.target.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`signal.target.ancestors.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`signal.target.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.ancestors.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`signal.target.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.ancestors.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1367,10 +1367,10 @@ A signal was sent
 | [`signal.target.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`signal.target.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`signal.target.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`signal.target.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`signal.target.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1393,10 +1393,10 @@ A signal was sent
 | [`signal.target.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`signal.target.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`signal.target.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`signal.target.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`signal.target.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1433,10 +1433,10 @@ A signal was sent
 | [`signal.target.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`signal.target.parent.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`signal.target.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.parent.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`signal.target.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`signal.target.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.parent.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1459,10 +1459,10 @@ A signal was sent
 | [`signal.target.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`signal.target.parent.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`signal.target.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.parent.interpreter.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`signal.target.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`signal.target.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`signal.target.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.parent.interpreter.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1501,10 +1501,10 @@ A splice command was executed
 | [`splice.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`splice.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`splice.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`splice.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`splice.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`splice.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`splice.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`splice.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`splice.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`splice.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`splice.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`splice.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1531,10 +1531,10 @@ A file was deleted
 | [`unlink.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`unlink.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`unlink.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`unlink.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`unlink.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`unlink.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`unlink.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`unlink.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`unlink.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`unlink.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`unlink.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`unlink.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1569,10 +1569,10 @@ Change file access/modification times
 | [`utimes.file.group`](#common-filefields-group-doc) | Group of the file's owner |
 | [`utimes.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`utimes.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
-| [`utimes.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`utimes.file.inode`](#common-dentrykey-inode-doc) | Inode of the file |
 | [`utimes.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`utimes.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
-| [`utimes.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`utimes.file.mount_id`](#common-dentrykey-mount_id-doc) | Mount ID of the file |
 | [`utimes.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`utimes.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`utimes.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
@@ -1927,7 +1927,7 @@ Definition: Indicator of the file layer, for example, in an OverlayFS
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
-### `*.inode` {#common-pathkey-inode-doc}
+### `*.inode` {#common-dentrykey-inode-doc}
 Type: int
 
 Definition: Inode of the file
@@ -1993,7 +1993,7 @@ Definition: Modification time (mtime) of the file
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
-### `*.mount_id` {#common-pathkey-mount_id-doc}
+### `*.mount_id` {#common-dentrykey-mount_id-doc}
 Type: int
 
 Definition: Mount ID of the file

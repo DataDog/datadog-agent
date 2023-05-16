@@ -8,8 +8,8 @@ int __attribute__((always_inline)) _is_discarded_by_inode(u64 event_type, u32 mo
     struct is_discarded_by_inode_t params = {
         .discarder_type = event_type,
         .discarder = {
-            .path_key.ino = inode,
-            .path_key.mount_id = mount_id,
+            .dentry_key.ino = inode,
+            .dentry_key.mount_id = mount_id,
         }
     };
 

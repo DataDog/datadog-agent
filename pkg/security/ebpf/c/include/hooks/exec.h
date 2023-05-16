@@ -5,6 +5,7 @@
 #include "constants/offsets/filesystem.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/exec.h"
 #include "constants/fentry_macro.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **argv, const char **env) {
@@ -63,7 +64,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     syscall->resolver.key = syscall->exec.linux_binprm.interpreter;
     syscall->resolver.dentry = get_file_dentry(file);
     syscall->resolver.discarder_type = 0;
-    syscall->resolver.callback = DR_NO_CALLBACK;
+    syscall->resolver.callback = DR_CALLBACK_INTERPRETER;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -71,6 +72,30 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_current_or_impersonated_exec_syscall();
+    
+    return 0;
+}
+
+TAIL_CALL_TARGET("dr_executable_path_cb")
+int tail_call_target_dr_executable_path_cb(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    fill_dr_ringbuf_ref_from_ctx(&syscall->exec.file.path_ref);
+
+    return 0;
+}
+
+TAIL_CALL_TARGET("dr_interpreter_path_cb")
+int tail_call_target_dr_interpreter_path_cb(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    fill_dr_ringbuf_ref_from_ctx(&syscall->exec.linux_binprm.path_ref);
 
     return 0;
 }
@@ -273,7 +298,7 @@ int hook_do_exit(ctx_t *ctx) {
         struct exit_event_t event = {};
         struct proc_cache_t *pc = fill_process_context(&event.process);
         if (pc) {
-            dec_mount_ref(ctx, pc->entry.executable.path_key.mount_id);
+            dec_mount_ref(ctx, pc->entry.executable.dentry_key.mount_id);
         }
         fill_container_context(pc, &event.container);
         fill_span_context(&event.span);
@@ -616,12 +641,18 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     struct proc_cache_t pc = {
         .entry = {
             .executable = {
-                .path_key = {
-                    .ino = syscall->exec.file.path_key.ino,
-                    .mount_id = syscall->exec.file.path_key.mount_id,
-                    .path_id = syscall->exec.file.path_key.path_id,
+                .dentry_key = {
+                    .ino = syscall->exec.file.dentry_key.ino,
+                    .mount_id = syscall->exec.file.dentry_key.mount_id,
+                    .path_id = syscall->exec.file.dentry_key.path_id,
                 },
-                .flags = syscall->exec.file.flags
+                .flags = syscall->exec.file.flags,
+                .path_ref = {
+                    .read_cursor = syscall->exec.file.path_ref.read_cursor,
+                    .watermark = syscall->exec.file.path_ref.watermark,
+                    .len = syscall->exec.file.path_ref.len,
+                    .cpu = syscall->exec.file.path_ref.cpu,
+                },
             },
             .exec_timestamp = bpf_ktime_get_ns(),
         },
@@ -640,11 +671,11 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         u64 parent_cookie = fork_entry->cookie;
         struct proc_cache_t *parent_pc = get_proc_from_cookie(parent_cookie);
         if (parent_pc) {
-            parent_inode = parent_pc->entry.executable.path_key.ino;
+            parent_inode = parent_pc->entry.executable.dentry_key.ino;
 
             // inherit the parent container context
             fill_container_context(parent_pc, &pc.container);
-            dec_mount_ref(ctx, parent_pc->entry.executable.path_key.mount_id);
+            dec_mount_ref(ctx, parent_pc->entry.executable.dentry_key.mount_id);
         }
     }
 
@@ -695,6 +726,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // add interpreter path info
     event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
+    event->linux_binprm.path_ref = syscall->exec.linux_binprm.path_ref;
 
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);

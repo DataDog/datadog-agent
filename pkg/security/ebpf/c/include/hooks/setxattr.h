@@ -74,7 +74,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_typ
         return 0;
     }
 
-    if (syscall->xattr.file.path_key.ino) {
+    if (syscall->xattr.file.dentry_key.ino) {
         return 0;
     }
 
@@ -89,11 +89,11 @@ int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_typ
 
     set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, 0);
 
-    // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+    // the mount id of dentry_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->xattr.dentry;
-    syscall->resolver.key = syscall->xattr.file.path_key;
+    syscall->resolver.key = syscall->xattr.file.dentry_key;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? event_type : 0;
-    syscall->resolver.callback = DR_SETXATTR_CALLBACK_KPROBE_KEY;
+    syscall->resolver.callback = DR_CALLBACK_SETXATTR;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -116,6 +116,8 @@ int tail_call_target_dr_setxattr_callback(ctx_t *ctx) {
         monitor_discarded(EVENT_SETXATTR);
         return discard_syscall(syscall);
     }
+
+    fill_dr_ringbuf_ref_from_ctx(&syscall->xattr.file.path_ref);
 
     return 0;
 }

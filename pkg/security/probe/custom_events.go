@@ -12,7 +12,7 @@ package probe
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -59,8 +59,8 @@ func NewEventLostWriteEvent(mapName string, perEventPerCPU map[string]uint64) (*
 
 func errorToEventType(err error) model.EventType {
 	switch err.(type) {
-	case dentry.ErrTruncatedParents, dentry.ErrTruncatedParentsERPC:
-		return model.CustomTruncatedParentsEventType
+	case path.ErrTruncatedPath:
+		return model.CustomTruncatedPathEventType
 	default:
 		return model.UnknownEventType
 	}

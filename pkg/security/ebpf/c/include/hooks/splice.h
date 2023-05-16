@@ -33,7 +33,7 @@ int hook_get_pipe_info(ctx_t *ctx) {
     if (!syscall->splice.file_found) {
         struct file *f = (struct file*) CTX_PARM1(ctx);
         syscall->splice.dentry = get_file_dentry(f);
-        syscall->splice.file.path_key.mount_id = get_file_mount_id(f);
+        syscall->splice.file.dentry_key.mount_id = get_file_mount_id(f);
         set_file_inode(syscall->splice.dentry, &syscall->splice.file, 0);
     }
 
@@ -51,8 +51,9 @@ int rethook_get_pipe_info(ctx_t *ctx) {
     if (info == NULL) {
         // this is not a pipe, so most likely a file, resolve its path now
         syscall->splice.file_found = 1;
-        syscall->resolver.key = syscall->splice.file.path_key;
+        syscall->resolver.key = syscall->splice.file.dentry_key;
         syscall->resolver.dentry = syscall->splice.dentry;
+        syscall->resolver.callback = DR_NO_CALLBACK;
         syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_SPLICE : 0;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
@@ -101,6 +102,7 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
         .pipe_exit_flag = syscall->splice.pipe_exit_flag,
     };
     fill_file(syscall->splice.dentry, &event.file);
+    fill_dr_ringbuf_ref_from_ctx(&event.file.path_ref);
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);

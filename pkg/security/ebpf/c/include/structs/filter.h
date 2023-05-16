@@ -54,7 +54,7 @@ struct pid_discarder_t {
 };
 
 struct inode_discarder_t {
-    struct path_key_t path_key;
+    struct dentry_key_t dentry_key;
     u32 is_leaf;
     u32 padding;
 };

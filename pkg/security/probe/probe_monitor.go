@@ -97,7 +97,10 @@ func (m *Monitor) SendStats() error {
 		time.Sleep(delay)
 
 		if err := resolvers.DentryResolver.SendStats(); err != nil {
-			return fmt.Errorf("failed to send process_resolver stats: %w", err)
+			return fmt.Errorf("failed to send dentry_resolver stats: %w", err)
+		}
+		if err := resolvers.PathResolver.SendStats(); err != nil {
+			return fmt.Errorf("failed to send path_resolver stats: %w", err)
 		}
 		if err := resolvers.NamespaceResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send namespace_resolver stats: %w", err)

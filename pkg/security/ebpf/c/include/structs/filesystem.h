@@ -3,6 +3,7 @@
 
 #include "constants/custom.h"
 #include "events_context.h"
+#include "ring_buffer.h"
 
 struct mount_released_event_t {
     struct kevent_t event;
@@ -15,8 +16,10 @@ struct mount_ref_t {
 };
 
  struct mount_fields_t {
-    struct path_key_t root_key;
-    struct path_key_t mountpoint_key;
+    struct dentry_key_t root_key;
+    struct dentry_key_t mountpoint_key;
+    struct ring_buffer_ref_t root_ref;
+    struct ring_buffer_ref_t mountpoint_ref;
     dev_t device;
     u32 bind_src_mount_id;
     char fstype[FSTYPE_LEN];

@@ -26,12 +26,10 @@ const (
 	DiscardInodeOp = iota + 1
 	// DiscardPidOp discards a pid
 	DiscardPidOp
-	// ResolveSegmentOp resolves the requested segment
-	ResolveSegmentOp
-	// ResolvePathOp resolves the requested path
-	ResolvePathOp
-	// ResolveParentOp resolves the parent of the provide path key
-	ResolveParentOp
+	// ResolveParentDentryOp resolves the parent dentry of the provided path key
+	ResolveParentDentryOp
+	// ResolvePathSegmentOp resolves the path segment of the provided path ref
+	ResolvePathSegmentOp
 	// RegisterSpanTLSOP is used for span TLS registration
 	RegisterSpanTLSOP
 	// ExpireInodeDiscarderOp is used to expire an inode discarder

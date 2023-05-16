@@ -22,8 +22,6 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
-	"strings"
-
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -52,11 +50,11 @@ func (ce *counterEntry) Tags() []string {
 type Resolver struct {
 	config                *config.Config
 	statsdClient          statsd.ClientInterface
-	pathnames             *lib.Map
+	dentries              *lib.Map
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
-	cache                 map[uint32]*lru.Cache[model.PathKey, PathEntry]
+	cache                 map[uint32]*lru.Cache[model.DentryKey, *DentryCacheEntry]
 	erpc                  *erpc.ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
@@ -73,10 +71,8 @@ type Resolver struct {
 // ErrEntryNotFound is thrown when a path key was not found in the cache
 var ErrEntryNotFound = errors.New("entry not found")
 
-// PathEntry is the path structure saved in cache
-type PathEntry struct {
-	Parent model.PathKey
-	Name   string
+type DentryCacheEntry struct {
+	Parent model.DentryKey
 }
 
 // eRPCStats is used to collect kernel space metrics about the eRPC resolution
@@ -180,15 +176,15 @@ func (dr *Resolver) DelCacheEntries(mountID uint32) {
 	delete(dr.cache, mountID)
 }
 
-func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (PathEntry, error) {
-	entries, exists := dr.cache[pathKey.MountID]
+func (dr *Resolver) lookupInodeFromCache(key model.DentryKey) (*DentryCacheEntry, error) {
+	entries, exists := dr.cache[key.MountID]
 	if !exists {
-		return PathEntry{}, ErrEntryNotFound
+		return &DentryCacheEntry{}, ErrEntryNotFound
 	}
 
-	entry, exists := entries.Get(pathKey)
+	entry, exists := entries.Get(key)
 	if !exists {
-		return PathEntry{}, ErrEntryNotFound
+		return &DentryCacheEntry{}, ErrEntryNotFound
 	}
 
 	return entry, nil
@@ -196,242 +192,35 @@ func (dr *Resolver) lookupInodeFromCache(pathKey model.PathKey) (PathEntry, erro
 
 // We need to cache inode by inode instead of caching the whole path in order to be
 // able to invalidate the whole path if one of its element got rename or removed.
-func (dr *Resolver) cacheInode(key model.PathKey, path PathEntry) error {
+func (dr *Resolver) cacheInode(key model.DentryKey, entry *DentryCacheEntry) error {
 	entries, exists := dr.cache[key.MountID]
 	if !exists {
 		var err error
 
-		entries, err = lru.New[model.PathKey, PathEntry](dr.config.DentryCacheSize)
+		entries, err = lru.New[model.DentryKey, *DentryCacheEntry](dr.config.DentryCacheSize)
 		if err != nil {
 			return err
 		}
 		dr.cache[key.MountID] = entries
 	}
 
-	entries.Add(key, path)
+	entries.Add(key, entry)
 
 	return nil
 }
 
-// ResolveNameFromCache returns the name
-func (dr *Resolver) ResolveNameFromCache(pathKey model.PathKey) (string, error) {
-	entry := counterEntry{
-		resolutionType: metrics.CacheTag,
-		resolution:     metrics.SegmentResolutionTag,
-	}
-
-	path, err := dr.lookupInodeFromCache(pathKey)
-	if err != nil {
-		dr.missCounters[entry].Inc()
-		return "", err
-	}
-
-	dr.hitsCounters[entry].Inc()
-	return path.Name, nil
-}
-
-func (dr *Resolver) lookupInodeFromMap(pathKey model.PathKey) (model.PathLeaf, error) {
-	var pathLeaf model.PathLeaf
-	if err := dr.pathnames.Lookup(pathKey, &pathLeaf); err != nil {
+func (dr *Resolver) lookupInodeFromMap(pathKey model.DentryKey) (model.DentryLeaf, error) {
+	var pathLeaf model.DentryLeaf
+	if err := dr.dentries.Lookup(pathKey, &pathLeaf); err != nil {
 		return pathLeaf, fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`: %w", pathKey.MountID, pathKey.Inode, err)
 	}
 	return pathLeaf, nil
 }
 
-func newPathEntry(parent model.PathKey, name string) PathEntry {
-	return PathEntry{
+func (dr *Resolver) newDentryCacheEntry(parent model.DentryKey) *DentryCacheEntry {
+	return &DentryCacheEntry{
 		Parent: parent,
-		Name:   name,
 	}
-}
-
-// ResolveNameFromMap resolves the name of the provided inode
-func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
-	entry := counterEntry{
-		resolutionType: metrics.KernelMapsTag,
-		resolution:     metrics.SegmentResolutionTag,
-	}
-
-	pathLeaf, err := dr.lookupInodeFromMap(pathKey)
-	if err != nil {
-		dr.missCounters[entry].Inc()
-		return "", fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`: %w", pathKey.MountID, pathKey.Inode, err)
-	}
-
-	dr.hitsCounters[entry].Inc()
-
-	name := pathLeaf.GetName()
-
-	if !IsFakeInode(pathKey.Inode) {
-		cacheEntry := newPathEntry(pathLeaf.Parent, name)
-
-		_ = dr.cacheInode(pathKey, cacheEntry)
-	}
-
-	return name, nil
-}
-
-// ResolveName resolves an inode/mount ID pair to a file basename
-func (dr *Resolver) ResolveName(pathKey model.PathKey) string {
-	name, err := dr.ResolveNameFromCache(pathKey)
-	if err != nil && dr.config.ERPCDentryResolutionEnabled {
-		name, err = dr.ResolveNameFromERPC(pathKey)
-	}
-	if err != nil && dr.config.MapDentryResolutionEnabled {
-		name, err = dr.ResolveNameFromMap(pathKey)
-	}
-
-	if err != nil {
-		name = ""
-	}
-	return name
-}
-
-// ResolveFromCache resolves path from the cache
-func (dr *Resolver) ResolveFromCache(pathKey model.PathKey) (string, error) {
-	var path PathEntry
-	var err error
-	depth := int64(0)
-	filenameParts := make([]string, 0, 128)
-
-	entry := counterEntry{
-		resolutionType: metrics.CacheTag,
-		resolution:     metrics.PathResolutionTag,
-	}
-
-	// Fetch path recursively
-	for i := 0; i <= model.MaxPathDepth; i++ {
-		path, err = dr.lookupInodeFromCache(pathKey)
-		if err != nil {
-			dr.missCounters[entry].Inc()
-			break
-		}
-		depth++
-
-		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if len(path.Name) != 0 && path.Name[0] != '\x00' && path.Name[0] != '/' {
-			filenameParts = append(filenameParts, path.Name)
-		}
-
-		if path.Parent.Inode == 0 {
-			break
-		}
-
-		// Prepare next key
-		pathKey = path.Parent
-	}
-
-	if depth > 0 {
-		dr.hitsCounters[entry].Add(depth)
-	}
-
-	return computeFilenameFromParts(filenameParts), err
-}
-
-func computeFilenameFromParts(parts []string) string {
-	if len(parts) == 0 {
-		return "/"
-	}
-
-	var builder strings.Builder
-
-	// pre-allocation
-	for _, part := range parts {
-		builder.Grow(len(part) + 1)
-	}
-
-	// reverse iteration
-	for i := 0; i < len(parts); i++ {
-		j := len(parts) - 1 - i
-
-		builder.WriteRune('/')
-		builder.WriteString(parts[j])
-	}
-	return builder.String()
-}
-
-// ResolveFromMap resolves the path of the provided inode / mount id / path id
-func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, error) {
-	var cacheEntry PathEntry
-	var resolutionErr error
-	var name string
-	var pathLeaf model.PathLeaf
-
-	keyBuffer, err := pathKey.MarshalBinary()
-	if err != nil {
-		return "", err
-	}
-
-	depth := int64(0)
-
-	var keys []model.PathKey
-	var entries []PathEntry
-
-	filenameParts := make([]string, 0, 128)
-
-	// Fetch path recursively
-	for i := 0; i <= model.MaxPathDepth; i++ {
-		pathKey.Write(keyBuffer)
-		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
-			filenameParts = nil
-			resolutionErr = &ErrDentryPathKeyNotFound{PathKey: pathKey}
-			break
-		}
-		depth++
-
-		if pathLeaf.Name[0] == '\x00' {
-			if depth >= model.MaxPathDepth {
-				resolutionErr = errTruncatedParents
-			} else {
-				resolutionErr = errKernelMapResolution
-			}
-			break
-		}
-
-		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if pathLeaf.Name[0] == '/' {
-			name = "/"
-		} else {
-			name = model.NullTerminatedString(pathLeaf.Name[:])
-			filenameParts = append(filenameParts, name)
-		}
-
-		// do not cache fake path keys in the case of rename events
-		if !IsFakeInode(pathKey.Inode) && cache {
-			cacheEntry = newPathEntry(pathLeaf.Parent, name)
-
-			keys = append(keys, pathKey)
-			entries = append(entries, cacheEntry)
-		}
-
-		if pathLeaf.Parent.Inode == 0 {
-			break
-		}
-
-		// Prepare next key
-		pathKey = pathLeaf.Parent
-	}
-
-	filename := computeFilenameFromParts(filenameParts)
-
-	entry := counterEntry{
-		resolutionType: metrics.KernelMapsTag,
-		resolution:     metrics.PathResolutionTag,
-	}
-
-	if resolutionErr == nil && len(keys) > 0 {
-		resolutionErr = dr.cacheEntries(keys, entries)
-
-		if depth > 0 {
-			dr.hitsCounters[entry].Add(depth)
-		}
-	}
-
-	if resolutionErr != nil {
-		dr.missCounters[entry].Inc()
-	}
-
-	return filename, resolutionErr
 }
 
 // preventSegmentMajorPageFault prepares the userspace memory area where the dentry resolver response is written. Used in kernel versions where BPF_F_MMAPABLE array maps are not yet available.
@@ -446,7 +235,7 @@ func (dr *Resolver) preventSegmentMajorPageFault() {
 	dr.erpcSegment[6*os.Getpagesize()] = 0
 }
 
-func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, error) {
+func (dr *Resolver) requestResolve(op uint8, pathKey model.DentryKey) (uint32, error) {
 	challenge := dr.challenge
 	dr.challenge++
 
@@ -466,157 +255,8 @@ func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, err
 	return challenge, dr.erpc.Request(&dr.erpcRequest)
 }
 
-// ResolveNameFromERPC resolves the name of the provided inode / mount id / path id
-func (dr *Resolver) ResolveNameFromERPC(pathKey model.PathKey) (string, error) {
-	entry := counterEntry{
-		resolutionType: metrics.ERPCTag,
-		resolution:     metrics.SegmentResolutionTag,
-	}
-
-	challenge, err := dr.requestResolve(erpc.ResolveSegmentOp, pathKey)
-	if err != nil {
-		dr.missCounters[entry].Inc()
-		return "", fmt.Errorf("unable to get the name of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
-	}
-
-	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
-		dr.missCounters[entry].Inc()
-		return "", errERPCRequestNotProcessed
-	}
-
-	seg := model.NullTerminatedString(dr.erpcSegment[16:])
-	if len(seg) == 0 || len(seg) > 0 && seg[0] == 0 {
-		dr.missCounters[entry].Inc()
-		return "", fmt.Errorf("couldn't resolve segment (len: %d)", len(seg))
-	}
-
-	dr.hitsCounters[entry].Inc()
-	return seg, nil
-}
-
-func (dr *Resolver) cacheEntries(keys []model.PathKey, entries []PathEntry) error {
-	var cacheEntry PathEntry
-
-	if len(keys) != len(entries) {
-		return errors.New("out of bound")
-	}
-
-	for i, k := range keys {
-		cacheEntry = entries[i]
-		if len(keys) > i+1 {
-			cacheEntry.Parent = keys[i+1]
-		}
-
-		_ = dr.cacheInode(k, cacheEntry)
-	}
-
-	return nil
-}
-
-// ResolveFromERPC resolves the path of the provided inode / mount id / path id
-func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, error) {
-	var segment string
-	var resolutionErr error
-	depth := int64(0)
-
-	entry := counterEntry{
-		resolutionType: metrics.ERPCTag,
-		resolution:     metrics.PathResolutionTag,
-	}
-
-	// create eRPC request and send using the ioctl syscall
-	challenge, err := dr.requestResolve(erpc.ResolvePathOp, pathKey)
-	if err != nil {
-		dr.missCounters[entry].Inc()
-		return "", fmt.Errorf("unable to resolve the path of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
-	}
-
-	var keys []model.PathKey
-	var entries []PathEntry
-
-	filenameParts := make([]string, 0, 128)
-
-	i := 0
-	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
-	for i < dr.erpcSegmentSize-17 {
-		depth++
-
-		// parse the path_key_t structure
-		pathKey.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
-		pathKey.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
-
-		// check challenge
-		if challenge != model.ByteOrder.Uint32(dr.erpcSegment[i+12:i+16]) {
-			if depth >= model.MaxPathDepth {
-				resolutionErr = errTruncatedParentsERPC
-				break
-			}
-			dr.missCounters[entry].Inc()
-			return "", errERPCRequestNotProcessed
-		}
-
-		// skip PathID
-		i += 16
-
-		if dr.erpcSegment[i] == 0 {
-			if depth >= model.MaxPathDepth {
-				resolutionErr = errTruncatedParentsERPC
-			} else {
-				resolutionErr = errERPCResolution
-			}
-			break
-		}
-
-		if dr.erpcSegment[i] != '/' {
-			segment = model.NullTerminatedString(dr.erpcSegment[i:])
-			filenameParts = append(filenameParts, segment)
-			i += len(segment) + 1
-		} else {
-			break
-		}
-
-		if !IsFakeInode(pathKey.Inode) && cache {
-			keys = append(keys, pathKey)
-
-			entry := newPathEntry(model.PathKey{}, segment)
-			entries = append(entries, entry)
-		}
-	}
-
-	if resolutionErr == nil && len(keys) > 0 {
-		resolutionErr = dr.cacheEntries(keys, entries)
-
-		if depth > 0 {
-			dr.hitsCounters[entry].Add(depth)
-		}
-	}
-
-	if resolutionErr != nil {
-		dr.missCounters[entry].Inc()
-	}
-
-	return computeFilenameFromParts(filenameParts), resolutionErr
-}
-
-// Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
-func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
-	var path string
-	var err = ErrEntryNotFound
-
-	if cache {
-		path, err = dr.ResolveFromCache(pathKey)
-	}
-	if err != nil && dr.config.ERPCDentryResolutionEnabled {
-		path, err = dr.ResolveFromERPC(pathKey, cache)
-	}
-	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
-		path, err = dr.ResolveFromMap(pathKey, cache)
-	}
-	return path, err
-}
-
 // ResolveParentFromCache resolves the parent
-func (dr *Resolver) ResolveParentFromCache(pathKey model.PathKey) (model.PathKey, error) {
+func (dr *Resolver) ResolveParentFromCache(pathKey model.DentryKey) (model.DentryKey, error) {
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.ParentResolutionTag,
@@ -625,7 +265,7 @@ func (dr *Resolver) ResolveParentFromCache(pathKey model.PathKey) (model.PathKey
 	path, err := dr.lookupInodeFromCache(pathKey)
 	if err != nil {
 		dr.missCounters[entry].Inc()
-		return model.PathKey{}, ErrEntryNotFound
+		return model.DentryKey{}, ErrEntryNotFound
 	}
 
 	dr.hitsCounters[entry].Inc()
@@ -633,22 +273,22 @@ func (dr *Resolver) ResolveParentFromCache(pathKey model.PathKey) (model.PathKey
 }
 
 // ResolveParentFromERPC resolves the parent
-func (dr *Resolver) ResolveParentFromERPC(pathKey model.PathKey) (model.PathKey, error) {
+func (dr *Resolver) ResolveParentFromERPC(pathKey model.DentryKey) (model.DentryKey, error) {
 	entry := counterEntry{
 		resolutionType: metrics.ERPCTag,
 		resolution:     metrics.ParentResolutionTag,
 	}
 
 	// create eRPC request
-	challenge, err := dr.requestResolve(erpc.ResolveParentOp, pathKey)
+	challenge, err := dr.requestResolve(erpc.ResolveParentDentryOp, pathKey)
 	if err != nil {
 		dr.missCounters[entry].Inc()
-		return model.PathKey{}, fmt.Errorf("unable to resolve the parent of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
+		return model.DentryKey{}, fmt.Errorf("unable to resolve the parent of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
 	}
 
 	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
 		dr.missCounters[entry].Inc()
-		return model.PathKey{}, errERPCRequestNotProcessed
+		return model.DentryKey{}, errERPCRequestNotProcessed
 	}
 
 	pathKey.Inode = model.ByteOrder.Uint64(dr.erpcSegment[0:8])
@@ -659,7 +299,7 @@ func (dr *Resolver) ResolveParentFromERPC(pathKey model.PathKey) (model.PathKey,
 }
 
 // ResolveParentFromMap resolves the parent
-func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, error) {
+func (dr *Resolver) ResolveParentFromMap(pathKey model.DentryKey) (model.DentryKey, error) {
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.ParentResolutionTag,
@@ -668,7 +308,7 @@ func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, 
 	path, err := dr.lookupInodeFromMap(pathKey)
 	if err != nil {
 		dr.missCounters[entry].Inc()
-		return model.PathKey{}, err
+		return model.DentryKey{}, err
 	}
 
 	dr.hitsCounters[entry].Inc()
@@ -676,29 +316,38 @@ func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, 
 }
 
 // GetParent returns the parent mount_id/inode
-func (dr *Resolver) GetParent(pathKey model.PathKey) (model.PathKey, error) {
-	pathKey, err := dr.ResolveParentFromCache(pathKey)
+func (dr *Resolver) GetParent(pathKey model.DentryKey) (model.DentryKey, error) {
+	parentKey, err := dr.ResolveParentFromCache(pathKey)
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
-		pathKey, err = dr.ResolveParentFromERPC(pathKey)
-	}
-	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
-		pathKey, err = dr.ResolveParentFromMap(pathKey)
-	}
-
-	if pathKey.Inode == 0 {
-		return model.PathKey{}, ErrEntryNotFound
+		parentKey, err = dr.ResolveParentFromERPC(pathKey)
+		if err == nil && parentKey.MountID != 0 && parentKey.Inode != 0 && !IsFakeInode(parentKey.Inode) {
+			entry := dr.newDentryCacheEntry(parentKey)
+			_ = dr.cacheInode(pathKey, entry)
+		}
 	}
 
-	return pathKey, err
+	if err != nil && dr.config.MapDentryResolutionEnabled {
+		parentKey, err = dr.ResolveParentFromMap(pathKey)
+		if err == nil && parentKey.MountID != 0 && parentKey.Inode != 0 && !IsFakeInode(parentKey.Inode) {
+			entry := dr.newDentryCacheEntry(parentKey)
+			_ = dr.cacheInode(pathKey, entry)
+		}
+	}
+
+	if parentKey.Inode == 0 {
+		return model.DentryKey{}, ErrEntryNotFound
+	}
+
+	return parentKey, nil
 }
 
 // Start the dentry resolver
 func (dr *Resolver) Start(manager *manager.Manager) error {
-	pathnames, err := managerhelper.Map(manager, "pathnames")
+	dentries, err := managerhelper.Map(manager, "dentries")
 	if err != nil {
 		return err
 	}
-	dr.pathnames = pathnames
+	dr.dentries = dentries
 
 	erpcStatsFB, err := managerhelper.Map(manager, "dr_erpc_stats_fb")
 	if err != nil {
@@ -782,7 +431,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 	return &Resolver{
 		config:        config,
 		statsdClient:  statsdClient,
-		cache:         make(map[uint32]*lru.Cache[model.PathKey, PathEntry]),
+		cache:         make(map[uint32]*lru.Cache[model.DentryKey, *DentryCacheEntry]),
 		erpc:          e,
 		erpcRequest:   erpc.Request{},
 		erpcStatsZero: make([]eRPCStats, numCPU),

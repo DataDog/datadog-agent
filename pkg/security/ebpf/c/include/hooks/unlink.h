@@ -47,7 +47,7 @@ int hook_vfs_unlink(ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->unlink.file.path_key.ino) {
+    if (syscall->unlink.file.dentry_key.ino) {
         return 0;
     }
 
@@ -72,11 +72,11 @@ int hook_vfs_unlink(ctx_t *ctx) {
         return mark_as_discarded(syscall);
     }
 
-    // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+    // the mount id of dentry_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = dentry;
-    syscall->resolver.key = syscall->unlink.file.path_key;
+    syscall->resolver.key = syscall->unlink.file.dentry_key;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_UNLINK : 0;
-    syscall->resolver.callback = DR_UNLINK_CALLBACK_KPROBE_KEY;
+    syscall->resolver.callback = DR_CALLBACK_UNLINK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -98,6 +98,8 @@ int tail_call_target_dr_unlink_callback(ctx_t *ctx) {
     if (syscall->resolver.ret < 0) {
         return mark_as_discarded(syscall);
     }
+
+    fill_dr_ringbuf_ref_from_ctx(&syscall->unlink.file.path_ref);
 
     return 0;
 }
@@ -152,7 +154,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     }
 
     if (retval >= 0) {
-        expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
+        expire_inode_discarders(syscall->unlink.file.dentry_key.mount_id, syscall->unlink.file.dentry_key.ino);
     }
 
     return 0;

@@ -8,12 +8,6 @@
 // Package dentry holds dentry related files
 package dentry
 
-import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-)
-
 // ErrERPCRequestNotProcessed is used to notify that the eRPC request was not processed
 type ErrERPCRequestNotProcessed struct{}
 
@@ -23,47 +17,47 @@ func (err ErrERPCRequestNotProcessed) Error() string {
 
 var errERPCRequestNotProcessed ErrERPCRequestNotProcessed
 
-// ErrTruncatedParentsERPC is used to notify that some parents of the path are missing
-type ErrTruncatedParentsERPC struct{}
+// // ErrTruncatedParentsERPC is used to notify that some parents of the path are missing
+// type ErrTruncatedParentsERPC struct{}
 
-func (err ErrTruncatedParentsERPC) Error() string {
-	return "truncated_parents_erpc"
-}
+// func (err ErrTruncatedParentsERPC) Error() string {
+// 	return "truncated_parents_erpc"
+// }
 
-var errTruncatedParentsERPC ErrTruncatedParentsERPC
+// var errTruncatedParentsERPC ErrTruncatedParentsERPC
 
-// ErrTruncatedParents is used to notify that some parents of the path are missing
-type ErrTruncatedParents struct{}
+// // ErrTruncatedParents is used to notify that some parents of the path are missing
+// type ErrTruncatedParents struct{}
 
-func (err ErrTruncatedParents) Error() string {
-	return "truncated_parents"
-}
+// func (err ErrTruncatedParents) Error() string {
+// 	return "truncated_parents"
+// }
 
-var errTruncatedParents ErrTruncatedParents
+// var errTruncatedParents ErrTruncatedParents
 
-// ErrERPCResolution is used to notify that the eRPC resolution failed
-type ErrERPCResolution struct{}
+// // ErrERPCResolution is used to notify that the eRPC resolution failed
+// type ErrERPCResolution struct{}
 
-func (err ErrERPCResolution) Error() string {
-	return "erpc_resolution"
-}
+// func (err ErrERPCResolution) Error() string {
+// 	return "erpc_resolution"
+// }
 
-var errERPCResolution ErrERPCResolution
+// var errERPCResolution ErrERPCResolution
 
-// ErrKernelMapResolution is used to notify that the Kernel maps resolution failed
-type ErrKernelMapResolution struct{}
+// // ErrKernelMapResolution is used to notify that the Kernel maps resolution failed
+// type ErrKernelMapResolution struct{}
 
-func (err ErrKernelMapResolution) Error() string {
-	return "map_resolution"
-}
+// func (err ErrKernelMapResolution) Error() string {
+// 	return "map_resolution"
+// }
 
-var errKernelMapResolution ErrKernelMapResolution
+// var errKernelMapResolution ErrKernelMapResolution
 
-// ErrDentryPathKeyNotFound is used to notify that the request key is missing from the kernel maps
-type ErrDentryPathKeyNotFound struct {
-	PathKey model.PathKey
-}
+// // ErrDentryKeyNotFound is used to notify that the request key is missing from the kernel maps
+// type ErrDentryKeyNotFound struct {
+// 	DentryKey model.DentryKey
+// }
 
-func (err ErrDentryPathKeyNotFound) Error() string {
-	return fmt.Sprintf("dentry path key not found %d/%d", err.PathKey.MountID, err.PathKey.Inode)
-}
+// func (err ErrDentryKeyNotFound) Error() string {
+// 	return fmt.Sprintf("dentry path key not found %d/%d", err.DentryKey.MountID, err.DentryKey.Inode)
+// }

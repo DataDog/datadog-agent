@@ -148,7 +148,7 @@ int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 ino
 
 struct inode_discarder_params_t * __attribute__((always_inline)) get_inode_discarder_params(u32 mount_id, u64 inode, u32 is_leaf) {
     struct inode_discarder_t key = {
-        .path_key = {
+        .dentry_key = {
             .ino = inode,
             .mount_id = mount_id,
         },
@@ -164,7 +164,7 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
     }
 
     struct inode_discarder_t key = {
-        .path_key = {
+        .dentry_key = {
             .ino = inode,
             .mount_id = mount_id,
         },
@@ -228,7 +228,7 @@ discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct 
         return NOT_DISCARDED;
     }
 
-    bool are_revisions_equal = inode_params->mount_revision == get_mount_discarder_revision(params->discarder.path_key.mount_id);
+    bool are_revisions_equal = inode_params->mount_revision == get_mount_discarder_revision(params->discarder.dentry_key.mount_id);
     if (!are_revisions_equal) {
         return NOT_DISCARDED;
     }
@@ -249,7 +249,7 @@ int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 ino
     u64 expire_at = bpf_ktime_get_ns() + get_discarder_retention();
 
     struct inode_discarder_t key = {
-        .path_key = {
+        .dentry_key = {
             .ino = inode,
             .mount_id = mount_id,
         }

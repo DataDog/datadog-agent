@@ -31,7 +31,7 @@ func MarshalBinary(data []byte, binaryMarshalers ...BinaryMarshaler) (int, error
 
 // MarshalBinary marshals a binary representation of itself
 func (e *FileFields) MarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
+	if len(data) < 96 {
 		return 0, ErrNotEnoughSpace
 	}
 	ByteOrder.PutUint64(data[0:8], e.Inode)
@@ -65,7 +65,9 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 	}
 	ByteOrder.PutUint64(data[56:64], uint64(timeSec))
 	ByteOrder.PutUint64(data[64:72], uint64(timeNsec))
-	return 72, nil
+
+	// ignore FileFields.PathRef
+	return 96, nil
 }
 
 // MarshalProcCache marshals a binary representation of itself

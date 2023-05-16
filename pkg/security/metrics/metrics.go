@@ -57,6 +57,19 @@ var (
 	// Tags: ret
 	MetricDentryERPC = newRuntimeMetric(".dentry_resolver.erpc")
 
+	// Path Resolver metrics
+
+	// MetricPathResolutionSuccess is the number of successful path resolutions
+	// Tags: -
+	MetricPathResolutionSuccess = newRuntimeMetric(".path_resolver.success")
+	// MetricPathResolutionFailure is the number of unsuccessful path resolutions
+	// Tags: cause
+	MetricPathResolutionFailure = newRuntimeMetric(".path_resolver.failure")
+	// MetricPathResolutionCacheHit is the number of successful cache lookups during path resolution
+	MetricPathResolutionCacheHit = newRuntimeMetric(".path_resolver.cache_hit")
+	// MetricPathResolutionCacheMiss is the number of unsuccessful cache lookups during path resolution
+	MetricPathResolutionCacheMiss = newRuntimeMetric(".path_resolver.cache_miss")
+
 	// filtering metrics
 
 	// MetricDiscarderAdded is the number of discarder added

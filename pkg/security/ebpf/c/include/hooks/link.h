@@ -65,7 +65,7 @@ int hook_vfs_link(ctx_t *ctx) {
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
-    syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.target_path);
+    syscall->link.src_file.dentry_key.mount_id = get_path_mount_id(syscall->link.target_path);
 
     // force a new path id to force path resolution
     set_file_inode(src_dentry, &syscall->link.src_file, 1);
@@ -78,16 +78,16 @@ int hook_vfs_link(ctx_t *ctx) {
     syscall->link.target_file.metadata = syscall->link.src_file.metadata;
 
     // we generate a fake target key as the inode is the same
-    syscall->link.target_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
-    syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
+    syscall->link.target_file.dentry_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
+    syscall->link.target_file.dentry_key.mount_id = syscall->link.src_file.dentry_key.mount_id;
     if (is_overlayfs(src_dentry)) {
         syscall->link.target_file.flags |= UPPER_LAYER;
     }
 
     syscall->resolver.dentry = src_dentry;
-    syscall->resolver.key = syscall->link.src_file.path_key;
+    syscall->resolver.key = syscall->link.src_file.dentry_key;
     syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0;
-    syscall->resolver.callback = DR_LINK_SRC_CALLBACK_KPROBE_KEY;
+    syscall->resolver.callback = DR_CALLBACK_LINK_SRC;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
@@ -111,6 +111,8 @@ int tail_call_target_dr_link_src_callback(ctx_t *ctx) {
         return mark_as_discarded(syscall);
     }
 
+    fill_dr_ringbuf_ref_from_ctx(&syscall->link.src_file.path_ref);
+
     return 0;
 }
 
@@ -130,14 +132,14 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     // invalidate user space inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
         // for hardlink we need to invalidate the discarders as the nlink counter in now > 1
-        expire_inode_discarders(syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino);
+        expire_inode_discarders(syscall->link.src_file.dentry_key.mount_id, syscall->link.src_file.dentry_key.ino);
     }
 
     if (pass_to_userspace) {
         syscall->resolver.dentry = syscall->link.target_dentry;
-        syscall->resolver.key = syscall->link.target_file.path_key;
+        syscall->resolver.key = syscall->link.target_file.dentry_key;
         syscall->resolver.discarder_type = 0;
-        syscall->resolver.callback = select_dr_key(dr_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
+        syscall->resolver.callback = DR_CALLBACK_LINK_DST;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
         syscall->resolver.sysretval = retval;
@@ -195,6 +197,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
+    fill_dr_ringbuf_ref_from_ctx(&event.target.path_ref);
 
     send_event(ctx, EVENT_LINK, event);
 

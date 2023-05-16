@@ -22,6 +22,7 @@ BPF_ARRAY_MAP(open_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(selinux_enforce_status, u16, 2)
 BPF_ARRAY_MAP(splice_entry_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, u32, 1)
+BPF_ARRAY_MAP(dr_ringbufs, struct ring_buffer_t, 1) // max entries is overriden at runtime with the number of cores
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
@@ -50,7 +51,8 @@ BPF_LRU_MAP(netns_cache, u32, u32, 40960)
 BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 4096)
 BPF_LRU_MAP(inode_discarders, struct inode_discarder_t, struct inode_discarder_params_t, 4096)
 BPF_LRU_MAP(pid_discarders, u32, struct pid_discarder_params_t, 512)
-BPF_LRU_MAP(pathnames, struct path_key_t, struct path_leaf_t, 1) // edited
+// BPF_LRU_MAP(pathnames, struct path_key_t, struct path_leaf_t, 1) // edited
+BPF_LRU_MAP(dentries, struct dentry_key_t, struct dentry_leaf_t, 1) // edited
 BPF_LRU_MAP(flow_pid, struct pid_route_t, u32, 10240)
 BPF_LRU_MAP(conntrack, struct namespaced_flow_t, struct namespaced_flow_t, 4096)
 BPF_LRU_MAP(io_uring_ctx_pid, void*, u64, 2048)
@@ -80,13 +82,13 @@ BPF_PERCPU_ARRAY_MAP(dns_event, u32, struct dns_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(packets, u32, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, u32, struct selinux_write_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(is_new_kthread, u32, u32, 1)
+BPF_PERCPU_ARRAY_MAP(dr_ringbufs_ctx, u32, struct ring_buffer_ctx, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
-BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
-BPF_PROG_ARRAY(dentry_resolver_tracepoint_callbacks, EVENT_MAX)
-BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_progs, 5)
-BPF_PROG_ARRAY(dentry_resolver_tracepoint_progs, 2)
-BPF_PROG_ARRAY(classifier_router, 100)
 BPF_PROG_ARRAY(sys_exit_progs, 64)
+BPF_PROG_ARRAY(classifier_router, 100)
+BPF_PROG_ARRAY(dr_kprobe_or_fentry_progs, DR_MAX_KPROBE_AND_FENTRY_PROGS)
+BPF_PROG_ARRAY(dr_tracepoint_progs, DR_MAX_TRACEPOINT_PROGS)
+BPF_PROG_ARRAY(erpc_kprobe_or_fentry_progs, ERPC_MAX_PROGS)
 
 #endif
