@@ -23,10 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -120,7 +117,12 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 // NewClient creates a new client
 func NewClient(agentName string, updater ConfigUpdater, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	return newClient(agentName, updater, true, agentVersion, products, pollInterval)
+	return newClient(agentName, updater, true, agentVersion, "", "", products, pollInterval)
+}
+
+// NewClusterAgentClient creates a new client specifically for use in the cluster-agent
+func NewClusterAgentClient(agentName string, updater ConfigUpdater, agentVersion string, clusterName string, clusterID string, products []data.Product, pollInterval time.Duration) (*Client, error) {
+	return newClient(agentName, updater, true, agentVersion, clusterName, clusterID, products, pollInterval)
 }
 
 // NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
@@ -130,7 +132,7 @@ func NewGRPCClient(agentName string, agentVersion string, products []data.Produc
 		return nil, err
 	}
 
-	return newClient(agentName, grpcClient, true, agentVersion, products, pollInterval)
+	return newClient(agentName, grpcClient, true, agentVersion, "", "", products, pollInterval)
 }
 
 // NewUnverifiedGRPCClient creates a new client that does not perform any TUF verification
@@ -140,10 +142,10 @@ func NewUnverifiedGRPCClient(agentName string, agentVersion string, products []d
 		return nil, err
 	}
 
-	return newClient(agentName, grpcClient, false, agentVersion, products, pollInterval)
+	return newClient(agentName, grpcClient, false, agentVersion, "", "", products, pollInterval)
 }
 
-func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
+func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, agentVersion string, clusterName string, clusterID string, products []data.Product, pollInterval time.Duration) (*Client, error) {
 	var repository *state.Repository
 	var err error
 
@@ -165,24 +167,6 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	// Every success will cause numErrors to shrink by 2.
 	backoffPolicy := backoff.NewPolicy(minBackoffFactor, pollInterval.Seconds(),
 		maximalMaxBackoffTime.Seconds(), recoveryInterval, false)
-
-	// If we're the cluster agent, we want to report our cluster name and cluster ID in order to allow products
-	// relying on remote config to identify this RC client to be able to write predicates for config routing
-	clusterName := ""
-	clusterID := ""
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		hname, err := hostname.Get(context.TODO())
-		if err != nil {
-			log.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
-		} else {
-			clusterName = clustername.GetClusterName(context.TODO(), hname)
-		}
-
-		clusterID, err = clustername.GetClusterID()
-		if err != nil {
-			log.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
-		}
-	}
 
 	ctx, close := context.WithCancel(context.Background())
 

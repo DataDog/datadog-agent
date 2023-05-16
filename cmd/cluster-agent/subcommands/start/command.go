@@ -424,7 +424,20 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 		return nil, fmt.Errorf("unable to start remote-config service: %w", err)
 	}
 
-	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
+	clusterName := ""
+	hname, err := hostname.Get(ctx)
+	if err != nil {
+		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
+	} else {
+		clusterName = clustername.GetClusterName(context.TODO(), hname)
+	}
+
+	clusterID, err := clustername.GetClusterID()
+	if err != nil {
+		pkglog.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
+	}
+
+	rcClient, err := remote.NewClusterAgentClient("cluster-agent", configService, version.AgentVersion, clusterName, clusterID, []data.Product{data.ProductAPMTracing}, time.Second*5)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
 	}
