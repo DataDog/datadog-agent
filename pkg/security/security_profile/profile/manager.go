@@ -398,6 +398,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	}
 
 	if profile.Version == newProfile.Version {
+		seclog.Tracef("same version for selector %v: %v", selector, profile.Version)
 		// this is the same file, ignore
 		return
 	}
@@ -553,11 +554,13 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// ignore events with an error
 	if event.Error != nil {
+		seclog.Tracef("event in error: %v", event.Error)
 		return
 	}
 
 	// shortcut for dedicated anomaly detection events
 	if IsAnomalyDetectionEvent(event.GetEventType()) {
+		seclog.Tracef("anomaly detection event for %s: %v", event.ContainerContext.ID, event.GetEventType())
 		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 		return
 	}
@@ -565,17 +568,26 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// create profile selector
 	event.FieldHandlers.ResolveContainerTags(event, event.ContainerContext)
 	if len(event.ContainerContext.Tags) == 0 {
+		seclog.Tracef("container context without tags: %s", event.ContainerContext.ID)
 		return
 	}
 
 	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), utils.GetTagValue("image_tag", event.ContainerContext.Tags))
 	if err != nil {
+		seclog.Tracef("unable to get a selector for %s: %v", event.ContainerContext.ID, err)
 		return
 	}
 
 	// lookup profile
 	profile := m.GetProfile(selector)
-	if profile == nil || profile.Status == 0 {
+	if profile == nil {
+		seclog.Tracef("no profile found for %s with %s", event.ContainerContext.ID, selector)
+		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
+		return
+	}
+
+	if profile.Status == 0 {
+		seclog.Tracef("incorrect profile status for %s", event.ContainerContext.ID)
 		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
 		return
 	}
@@ -598,6 +610,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	if autoLearned, err := m.tryAutolearn(profile, event); err != nil {
 		return
 	} else if autoLearned {
+		seclog.Tracef("event auto learned for %s", event.ContainerContext.ID)
 		markEventAsInProfile(true)
 		return
 	}
@@ -605,10 +618,13 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// check if the event is in its profile
 	found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
 	if err != nil {
+		seclog.Tracef("error during contain evaluation for %s: %v", event.ContainerContext.ID, err)
 		// ignore, evaluation failed
 		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
 		return
 	}
+
+	seclog.Tracef("contains returned for %s: %v", event.ContainerContext.ID, found)
 
 	markEventAsInProfile(found)
 }
