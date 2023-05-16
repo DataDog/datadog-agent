@@ -320,11 +320,19 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 				httpKeys[key.SrcPort] = key
 				found = true
 				continue
+			} else {
+				s, _ := tr.getStats(allStats...)
+				t.Logf("==== %# v\n%# v", krpretty.Formatter(req), krpretty.Formatter(s))
 			}
 			if len(httpKeys) == 3 {
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
+		}
+
+		if !found {
+			s, _ := tr.getStats(allStats...)
+			t.Logf("=====loop= %# v", krpretty.Formatter(s))
 		}
 		return found
 	}, 15*time.Second, 5*time.Second, "couldn't find USM HTTPS stats")
