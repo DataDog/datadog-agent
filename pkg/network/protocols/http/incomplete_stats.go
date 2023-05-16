@@ -96,6 +96,7 @@ func (b *incompleteBuffer) Add(tx HttpTX) {
 		b.data[key] = parts
 	}
 	b.totalEntries++
+	b.telemetry.newIncomplete.Add(1)
 
 	// copy underlying httpTX value. this is now needed because these objects are
 	// now coming directly from pooled perf records
@@ -123,6 +124,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
 		nowUnix  = now.UnixNano()
 	)
 
+	b.telemetry.totalIncomplete.Add(int64(b.totalEntries))
 	b.data = make(map[types.ConnectionKey]*txParts)
 	b.totalEntries = 0
 	for key, parts := range previous {
@@ -164,6 +166,7 @@ func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
 		}
 	}
 
+	b.telemetry.joinedIncomplete.Add(int64(len(joined)))
 	return joined
 }
 
