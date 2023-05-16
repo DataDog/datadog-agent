@@ -152,12 +152,25 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 // isJavaProcess checks if the given PID comm's name is java.
 // The method is much faster and efficient that using process.NewProcess(pid).Name().
 func isJavaProcess(pid int) bool {
-	content, err := os.ReadFile(filepath.Join(util.GetProcRoot(), strconv.Itoa(pid), "comm"))
+	filePath := filepath.Join(util.GetProcRoot(), strconv.Itoa(pid), "comm")
+	content, err := os.ReadFile(filePath)
 	if err != nil {
-		return false
+		// Waiting a bit, as we might get the event of process creation before the directory was created.
+		for i := 0; i < 3; i++ {
+			time.Sleep(time.Millisecond)
+			// reading again.
+			content, err = os.ReadFile(filePath)
+			if err == nil {
+				break
+			}
+		}
 	}
 
-	return bytes.HasPrefix(bytes.TrimSpace(content), javaProcessName)
+	if err != nil {
+		// short living process can hit here, or slow start of another process.
+		return false
+	}
+	return bytes.Equal(bytes.TrimSpace(content), javaProcessName)
 }
 
 // isAttachmentAllowed will return true if the pid can be attached

@@ -64,9 +64,10 @@ type ProcessMonitor struct {
 	callbackRunner            chan func()
 
 	// monitor stats
-	eventCount atomic.Uint32
-	execCount  atomic.Uint32
-	exitCount  atomic.Uint32
+	eventCount     atomic.Uint32
+	execCount      atomic.Uint32
+	exitCount      atomic.Uint32
+	restartCounter atomic.Uint32
 }
 
 type ProcessCallback struct {
@@ -198,18 +199,21 @@ func (pm *ProcessMonitor) mainEventLoop() {
 			if !ok {
 				return
 			}
+			pm.restartCounter.Inc()
 			log.Errorf("process monitor error: %s", err)
 			log.Info("re-initializing process monitor")
 			pm.netlinkDoneChannel <- struct{}{}
 			// Netlink might suffer from temporary errors (insufficient buffer for example). We're trying to recover
 			// by reinitializing netlink socket.
+			// Waiting a bit before reinitializing.
+			time.Sleep(50 * time.Millisecond)
 			if err := pm.initNetlinkProcessEventMonitor(); err != nil {
 				log.Errorf("failed re-initializing process monitor: %s", err)
 				return
 			}
 		case <-logTicker.C:
-			log.Debugf("process monitor stats - total events: %d; exec events: %d; exit events: %d; Channel size: %d",
-				pm.eventCount.Swap(0), pm.execCount.Swap(0), pm.exitCount.Swap(0), len(pm.netlinkEventsChannel))
+			log.Debugf("process monitor stats - total events: %d; exec events: %d; exit events: %d; Channel size: %d; restart counter: %d",
+				pm.eventCount.Swap(0), pm.execCount.Swap(0), pm.exitCount.Swap(0), len(pm.netlinkEventsChannel), pm.restartCounter.Load())
 		}
 	}
 }
