@@ -28,6 +28,7 @@ include:
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
   - /.gitlab/fakeintake.yml
+  - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
   - /.gitlab/functional_test_junit_upload.yml
