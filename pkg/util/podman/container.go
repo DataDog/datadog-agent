@@ -188,12 +188,23 @@ type ContainerConfig struct {
 	Dependencies []string
 
 	// embedded sub-configs
-	//ContainerRootFSConfig
+	ContainerRootFSConfig
 	ContainerSecurityConfig
 	ContainerNameSpaceConfig
 	ContainerNetworkConfig
 	ContainerImageConfig
 	ContainerMiscConfig
+}
+
+// ContainerRootFSConfig is an embedded sub-config providing config info about the container's root fs.
+// We use it to get the container's imageID
+type ContainerRootFSConfig struct {
+	// RootfsImageID is the ID of the image used to create the container.
+	// If the container was created from a Rootfs, this will be empty.
+	// If non-empty, Podman will create a root filesystem for the container
+	// based on an image with this ID.
+	// This conflicts with Rootfs.
+	RootfsImageID string `json:"rootfsImageID,omitempty"`
 }
 
 // ContainerSecurityConfig is an embedded sub-config providing security configuration

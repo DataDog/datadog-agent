@@ -9,12 +9,14 @@
 package containerd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/namespaces"
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
