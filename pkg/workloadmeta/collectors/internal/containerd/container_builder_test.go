@@ -46,8 +46,8 @@ type mockedImage struct {
 	mockConfig func() (ocispec.Descriptor, error)
 }
 
-func (m *mockedImage) Name() string {
-	return m.mockName()
+func (m *mockedImage) Config(ctx context.Context) (ocispec.Descriptor, error) {
+	return m.mockConfig()
 }
 
 func TestBuildWorkloadMetaContainer(t *testing.T) {
