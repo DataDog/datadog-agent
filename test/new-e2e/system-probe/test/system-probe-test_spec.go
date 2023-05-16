@@ -21,7 +21,7 @@ import (
 const (
 	Testsuite   = "testsuite"
 	TestDirRoot = "/opt/system-probe-tests"
-	Sudo        = "sudo"
+	GoTestSum   = "/go/bin/gotestsum"
 )
 
 var BaseEnv = map[string]interface{}{
@@ -133,8 +133,6 @@ func buildCommandArgs(file, bundle string) []string {
 		fmt.Sprintf("%s.json", junitfilePrefix),
 	)
 	args := []string{
-		"-E",
-		"/go/bin/gotestsum",
 		"--format", "dots",
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
@@ -176,7 +174,7 @@ func testPass(config testConfig) error {
 
 	for _, file := range matches {
 		args := buildCommandArgs(file, config.bundle)
-		cmd := exec.Command(Sudo, args...)
+		cmd := exec.Command(GoTestSum, args...)
 
 		r, w := io.Pipe()
 		cmd.Env = mergeEnv(config.env, BaseEnv)

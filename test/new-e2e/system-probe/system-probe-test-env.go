@@ -32,6 +32,9 @@ import (
 type SystemProbeEnvOpts struct {
 	X86AmiID           string
 	ArmAmiID           string
+	SSHKeyPath         string
+	SSHKeyName         string
+	InfraEnv           string
 	Provision          bool
 	ShutdownPeriod     time.Duration
 	FailOnMissing      bool
@@ -47,9 +50,6 @@ type TestEnv struct {
 	StackOutput      auto.UpResult
 }
 
-const SSHKeyName = "ssh_key"
-const DefaultKeyPairName = "datadog-agent-ci"
-
 var (
 	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
 	vmConfig            = filepath.Join(".", "system-probe", "config", "vmconfig.json")
@@ -59,7 +59,6 @@ var (
 	sshKeyX86            = os.Getenv("LibvirtSSHKeyX86")
 	sshKeyArm            = os.Getenv("LibvirtSSHKeyARM")
 
-	SSHKeyFile   = filepath.Join(CI_PROJECT_DIR, SSHKeyName)
 	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.outputs")
 )
 
@@ -80,33 +79,27 @@ func outputsToFile(output auto.OutputMap) error {
 	return nil
 }
 
+func GetEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
+	var err error
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
 		name:    fmt.Sprintf("microvm-scenario-%s", name),
 	}
 
-	sshkey, err := runner.GetProfile().SecretStore().Get("ssh_key")
-	if err != nil {
-		return nil, fmt.Errorf("aws get credential: %w", err)
-	}
-
-	// Write ssh key to file
-	f, err := os.Create(SSHKeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("ssh key create: %w", err)
-	}
-	defer f.Close()
-	f.WriteString(sshkey)
-
 	stackManager := infra.GetStackManager()
 
 	config := runner.ConfigMap{
-		"ddinfra:env":                            auto.ConfigValue{Value: "aws/agent-qa"},
+		"ddinfra:env":                            auto.ConfigValue{Value: opts.InfraEnv},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
-		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: DefaultKeyPairName},
-		"ddinfra:aws/defaultPrivateKeyPath":      auto.ConfigValue{Value: SSHKeyFile},
+		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: opts.SSHKeyName},
 		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
 		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
 		"microvm:microVMConfigFile":              auto.ConfigValue{Value: vmConfig},
@@ -117,12 +110,15 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
 	}
+	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
+	if opts.SSHKeyPath != "" {
+		config["ddinfra:aws/defaultPrivateKeyPath"] = auto.ConfigValue{Value: opts.SSHKeyPath}
+	}
 
+	var upResult auto.UpResult
 	ctx := context.Background()
 	b := retry.NewConstant(3 * time.Second)
 	b = retry.WithMaxRetries(3, b)
-
-	var upResult auto.UpResult
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 			awsEnvironment, err := aws.NewEnvironment(ctx)
@@ -203,6 +199,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				return err
 			}
 		}
+
 		return nil
 	}); retryErr != nil {
 		return nil, fmt.Errorf("failed to create stack: %w", retryErr)
