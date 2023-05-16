@@ -1274,6 +1274,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		userGroupResolver:         userGroupResolver,
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
+		envVarsResolver:           envvars.NewEnvVarsResolver(config),
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
