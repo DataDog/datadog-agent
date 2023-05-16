@@ -199,7 +199,11 @@ def create_stack(ctx, stack):
     if not os.path.exists(f"{KMT_STACKS_DIR}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
-    ctx.run(f"mkdir {KMT_STACKS_DIR}/{stack}")
+    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    if os.path.exists(stack_dir):
+        raise Exit(f"Stack {stack} already exists")
+
+    ctx.run(f"mkdir {stack_dir}")
 
 
 def empty_config(file_path):
@@ -243,7 +247,7 @@ def get_custom_kernel_config(version, arch):
         arch = archs_mapping[platform.machine()]
 
     kernel = {
-        "dir": f"kernel-v{version}-{karch_mapping[arch]}.pkg",
+        "dir": f"kernel-v{version}.{karch_mapping[arch]}.pkg",
         "tag": version,
         "extra_params": {"console": consoles[arch]},
     }
@@ -305,12 +309,12 @@ def build_new_vmset(set_id, kernels):
         if version == "lte_414":
             vmset["image"] = {
                 "image_path": f"buster.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_url": images_path["buster"],
+                "image_uri": images_path["buster"],
             }
         else:
             vmset["image"] = {
                 "image_path": f"bullseye.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_url": images_path["bullseye"],
+                "image_uri": images_path["bullseye"],
             }
     elif recipe == "distro":
         vmset = {"name": vmset_name_from_id(set_id), "recipe": f"distro-{arch}", "arch": arch, "kernels": kernels}
@@ -440,6 +444,12 @@ def mem_to_pow_of_2(memory):
             print(f"rounding up memory: {memory[i]} -> {new}")
             memory[i] = new
 
+def ls_to_int(ls):
+    int_ls = list()
+    for elem in ls:
+        int_ls.append(int(elem))
+
+    return int_ls
 
 @task(
     help={
@@ -481,7 +491,7 @@ def gen_config(ctx, stack, vms="", init_stack=False, vcpu="4", memory="8192", ne
         orig_vm_config = f.read()
 
     vm_config = json.loads(orig_vm_config)
-    generate_vm_config(vm_config, vm_types, vcpu_ls, memory_ls)
+    generate_vm_config(vm_config, vm_types, ls_to_int(vcpu_ls), ls_to_int(memory_ls))
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
@@ -540,6 +550,13 @@ def download_kernel_packages(ctx, revert=False):
         if revert:
             revert_kernel_packages(ctx)
         raise Exit("Failed to extract kernel packages")
+
+    # set permissions
+    res = ctx.run(f"find {KMT_PACKAGES_DIR} -name kernel-v* -type d -exec chmod 0766 {} \;")
+    if not res.ok:
+        if revert:
+            revert_kernel_packages(ctx)
+        raise Exit("Failed to set permissions to kernel packages")
 
 
 def update_kernel_packages(ctx):
@@ -606,11 +623,19 @@ def download_rootfs(ctx, revert=False):
         raise Exit("Failed to download rootfs")
 
     # extract rootfs
-    res = ctx.run(f"cd {KMT_ROOTFS_DIR} && tar xzvf {rootfs}")
+    res = ctx.run(f"cd {KMT_ROOTFS_DIR} && tar xzvf {rootfs}.tar.gz")
     if not res.ok:
         if revert:
             revert_rootfs(ctx)
         raise Exit("Failed to extract rootfs")
+
+    # set permissions
+    res = ctx.run(f"find {KMT_ROOTFS_DIR} -name *qcow* -type f -exec chmod 0766 {} \;")
+    if not res.ok:
+        if revert:
+            revert_rootfs(ctx)
+        raise Exit("Failed to set permissions 0766 to rootfs")
+
 
 
 def update_rootfs(ctx):
