@@ -77,7 +77,7 @@ func TestBufferLimit(t *testing.T) {
 
 	buffer := newIncompleteBuffer(config.New(), tel)
 
-	// Attempt to insert more data then allowed
+	// Attempt to insert more data than allowed
 	// Since all incomplete parts share the same tuple, this will generate
 	// *one* map key, with many "parts" appended to it
 	//

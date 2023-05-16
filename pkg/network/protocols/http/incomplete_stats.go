@@ -64,7 +64,7 @@ func newTXParts() *txParts {
 
 func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
 	// Only set aside a fraction of MaxHTTPBuffered for incomplete data
-	// as this should only be used rarely (as described in the example below).
+	// as this should only be used rarely (as described in the example above).
 	// If our telemetry indicates that this buffer is filling up often, we need
 	// to better understand what is going on and reassess our approach
 	maxEntries := c.MaxHTTPStatsBuffered / 10
