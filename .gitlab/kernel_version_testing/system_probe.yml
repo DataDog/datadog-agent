@@ -133,7 +133,7 @@ kernel_matrix_testing_setup_env:
     # instances in the build-stable account. We reuse this file to ssh into
     # the instances in subsequent jobs.
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
-    AWS_EC2_SSH_KEY_NAME: ssh_key
+    AWS_EC2_SSH_KEY_NAME: datadog-agent-ci
     INFRA_ENV: "aws/agent-qa"
   before_script:
     - !reference [.retrieve_linux_go_deps]
@@ -173,7 +173,7 @@ kernel_matrix_testing_upload_deps:
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
-    AWS_EC2_SSH_KEY_NAME: ssh_key
+    AWS_EC2_SSH_KEY_NAME: datadog-agent-ci
     INFRA_ENV: "aws/agent-qa"
   before_script:
     - !reference [.retrieve_linux_go_deps]
