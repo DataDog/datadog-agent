@@ -45,7 +45,7 @@ findings[f] {
 	)
 }
 `).
-		AssertErrorEvent()
+		AssertNoEvent()
 
 	b.AddRule("NoDockerWithScope").
 		WithScope("docker").

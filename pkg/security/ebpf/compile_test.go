@@ -14,14 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 )
 
 func TestLoaderCompile(t *testing.T) {
-	syscfg, err := sysconfig.New("")
+	_, err := sysconfig.New("")
 	require.NoError(t, err)
-	cfg, err := config.NewConfig(syscfg)
+	cfg, err := config.NewConfig()
 	require.NoError(t, err)
-	_, err = getRuntimeCompiledPrograms(cfg, false, false, nil)
+	out, err := getRuntimeCompiledPrograms(cfg, false, false, nil)
 	require.NoError(t, err)
+	_ = out.Close()
 }

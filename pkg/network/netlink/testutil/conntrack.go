@@ -32,9 +32,8 @@ func init() {
 // * 3.3.3.3 to 1.1.1.1 (PREROUTING Chain)
 func SetupDNAT(t *testing.T) {
 	linkName := "dummy" + strconv.Itoa(rand.Intn(98)+1)
-	state := nettestutil.IptablesSave(t)
+	nettestutil.IptablesSave(t)
 	t.Cleanup(func() {
-		nettestutil.IptablesRestore(t, state)
 		teardownDNAT(t, linkName)
 	})
 
@@ -52,9 +51,8 @@ func SetupDNAT(t *testing.T) {
 // * 6.6.6.6 to 7.7.7.7 (POSTROUTING Chain)
 func SetupSNAT(t *testing.T) string {
 	linkName := "dummy-2-" + strconv.Itoa(rand.Intn(98)+1)
-	state := nettestutil.IptablesSave(t)
+	nettestutil.IptablesSave(t)
 	t.Cleanup(func() {
-		nettestutil.IptablesRestore(t, state)
 		teardownDNAT(t, linkName)
 	})
 
@@ -100,11 +98,7 @@ func SetupDNAT6(t *testing.T) {
 		teardownDNAT6(t, ifName, linkName)
 	})
 
-	state := nettestutil.Ip6tablesSave(t)
-	t.Cleanup(func() {
-		nettestutil.Ip6tablesRestore(t, state)
-	})
-
+	nettestutil.Ip6tablesSave(t)
 	cmds := []string{
 		fmt.Sprintf("ip link add %s type dummy", linkName),
 		fmt.Sprintf("ip address add fd00::1 dev %s", linkName),
@@ -210,10 +204,7 @@ func setupCrossNsDNAT(tb testing.TB, dport int, redirPort int) (ns string) {
 	})
 	ns = SetupVethPair(tb)
 
-	iptablesState := nettestutil.IptablesSave(tb)
-	tb.Cleanup(func() {
-		nettestutil.IptablesRestore(tb, iptablesState)
-	})
+	nettestutil.IptablesSave(tb)
 	cmds := []string{
 		//this is required to enable conntrack in the root net namespace
 		//conntrack won't be enabled unless there is at least one iptables
@@ -244,8 +235,7 @@ func SetupCrossNsDNAT6(t *testing.T) (ns string) {
 	})
 	ns = SetupVeth6Pair(t)
 
-	state := nettestutil.Ip6tablesSave(t)
-	t.Cleanup(func() { nettestutil.Ip6tablesRestore(t, state) })
+	nettestutil.Ip6tablesSave(t)
 	cmds := []string{
 		"ip6tables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT",
 		fmt.Sprintf("ip netns exec %s ip6tables -A PREROUTING -t nat -p tcp --dport 80 -j REDIRECT --to-port 8080", ns),

@@ -123,7 +123,7 @@ type tracer struct {
 }
 
 // NewTracer creates a new tracer
-func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
+func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -145,6 +145,10 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 			probes.ConnectionProtocolMap:             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 		},
+		ConstantEditors: []manager.ConstantEditor{
+			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
+			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
+		},
 	}
 
 	closedChannelSize := defaultClosedChannelSize
@@ -157,20 +161,14 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	}
 
 	var tracerType TracerType = TracerTypeFentry
-	fentryOptions := mgrOptions
-	fentryOptions.ConstantEditors = []manager.ConstantEditor{
-		{Name: "tcpv6_enabled", Value: boolToUint64(config.CollectTCPv6Conns)},
-		{Name: "udpv6_enabled", Value: boolToUint64(config.CollectUDPv6Conns)},
-	}
 	var closeTracerFn func()
-	closeTracerFn, err := fentry.LoadTracer(config, m, fentryOptions, perfHandlerTCP)
+	closeTracerFn, err := fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
 	}
 
 	if err != nil {
-		mgrOptions.ConstantEditors = constants
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
@@ -227,11 +225,16 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	return tr, nil
 }
 
-func boolToUint64(b bool) uint64 {
-	if b {
-		return 1
+func boolConst(name string, value bool) manager.ConstantEditor {
+	c := manager.ConstantEditor{
+		Name:  name,
+		Value: uint64(1),
 	}
-	return 0
+	if !value {
+		c.Value = uint64(0)
+	}
+
+	return c
 }
 
 func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {

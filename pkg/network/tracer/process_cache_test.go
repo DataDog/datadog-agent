@@ -61,6 +61,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 			t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 				pc, err := newProcessCache(10, te.filter)
 				require.NoError(t, err)
+				t.Cleanup(pc.Stop)
 
 				var values []string
 				for _, e := range te.envs {
@@ -88,8 +89,6 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 						assert.Equal(t, envs[e], p.Envs[e])
 					}
 				}
-
-				pc.Stop()
 			})
 		}
 	}
@@ -131,6 +130,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(5, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		pc.add(&process{
 			Pid:       1234,
@@ -148,6 +148,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(10, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		for i := 0; i < maxProcessListSize+1; i++ {
 			pc.add(&process{
@@ -173,6 +174,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(2, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		pc.add(&process{
 			Pid:       1234,
@@ -223,6 +225,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(1, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		pc.add(&process{
 			Pid:       1234,
@@ -249,6 +252,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(1, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		pc.add(&process{
 			Pid:       1234,
@@ -285,6 +289,7 @@ func TestProcessCacheGet(t *testing.T) {
 	pc, err := newProcessCache(10, nil)
 	require.NoError(t, err)
 	require.NotNil(t, pc)
+	t.Cleanup(pc.Stop)
 
 	pc.add(&process{
 		Pid:       1234,

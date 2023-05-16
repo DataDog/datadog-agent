@@ -312,8 +312,7 @@ func (p *Probe) PlaySnapshot() {
 		if entry.Source != model.ProcessCacheEntryFromProcFS {
 			return
 		}
-		event := &model.Event{}
-		event.FieldHandlers = p.fieldHandlers
+		event := NewEvent(p.fieldHandlers)
 		event.Type = uint32(model.ExecEventType)
 		event.TimestampRaw = uint64(time.Now().UnixNano())
 		event.ProcessCacheEntry = entry
@@ -1431,7 +1430,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		cancelFnc:            cancel,
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		event:                &model.Event{ContainerContext: &model.ContainerContext{}},
 		PlatformProbe: PlatformProbe{
 			approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
 			managerOptions:       ebpf.NewDefaultOptions(),
@@ -1441,6 +1439,9 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			anomalyDetectionSent: make(map[model.EventType]*atomic.Uint64),
 		},
 	}
+
+	p.event = NewEvent(p.fieldHandlers)
+
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		p.anomalyDetectionSent[i] = atomic.NewUint64(0)
 	}

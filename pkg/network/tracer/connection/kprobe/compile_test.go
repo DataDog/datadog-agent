@@ -19,6 +19,7 @@ import (
 func TestTracerCompile(t *testing.T) {
 	cfg := config.New()
 	cfg.BPFDebug = true
-	_, err := getRuntimeCompiledTracer(cfg)
+	out, err := getRuntimeCompiledTracer(cfg)
 	require.NoError(t, err)
+	_ = out.Close()
 }

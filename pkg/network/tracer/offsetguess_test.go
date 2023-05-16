@@ -143,10 +143,12 @@ func TestOffsetGuess(t *testing.T) {
 	if kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
-	_consts, err := runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser)
+
+	offsetguess.TracerOffsets.Reset()
+	_consts, err := offsetguess.TracerOffsets.Offsets(cfg)
 	require.NoError(t, err)
-	cts, err := runOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
-		return offsetguess.NewConntrackOffsetGuesser(_consts)
+	cts, err := offsetguess.RunOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
+		return offsetguess.NewConntrackOffsetGuesser(cfg)
 	})
 	require.NoError(t, err)
 	_consts = append(_consts, cts...)
