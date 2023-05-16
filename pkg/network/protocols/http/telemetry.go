@@ -27,6 +27,10 @@ type telemetry struct {
 	rejected     *libtelemetry.Metric // this happens when an user-defined reject-filter matches a request
 	malformed    *libtelemetry.Metric // this happens when the request doesn't have the expected format
 	aggregations *libtelemetry.Metric
+
+	newIncomplete    *libtelemetry.Metric
+	totalIncomplete  *libtelemetry.Metric
+	joinedIncomplete *libtelemetry.Metric
 }
 
 func newTelemetry() (*telemetry, error) {
@@ -44,6 +48,11 @@ func newTelemetry() (*telemetry, error) {
 		hits4XX:      metricGroup.NewMetric("hits4xx"),
 		hits5XX:      metricGroup.NewMetric("hits5xx"),
 		aggregations: metricGroup.NewMetric("aggregations"),
+
+		// metrics from `incompleteBuffer`
+		newIncomplete:    metricGroup.NewMetric("new_incomplete"),
+		totalIncomplete:  metricGroup.NewMetric("total_incomplete"),
+		joinedIncomplete: metricGroup.NewMetric("joined_incomplete"),
 
 		// these metrics are also exported as statsd metrics
 		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd),
@@ -81,10 +90,13 @@ func (t *telemetry) log() {
 	rejected := t.rejected.Delta()
 	malformed := t.malformed.Delta()
 	aggregations := t.aggregations.Delta()
+	newIncomplete := t.newIncomplete.Delta()
+	joinedIncomplete := t.joinedIncomplete.Delta()
+	totalIncomplete := t.totalIncomplete.Delta()
 	elapsed := now - then
 
 	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
+		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) incomplete_parts=%d(%.2f/s) incomplete_parts_joined=%d(%.2f/s) incomplete_parts_accumulated=%d aggregations=%d",
 		totalRequests,
 		float64(totalRequests)/float64(elapsed),
 		dropped,
@@ -93,6 +105,11 @@ func (t *telemetry) log() {
 		float64(rejected)/float64(elapsed),
 		malformed,
 		float64(malformed)/float64(elapsed),
+		newIncomplete,
+		float64(newIncomplete)/float64(elapsed),
+		joinedIncomplete,
+		float64(joinedIncomplete)/float64(elapsed),
+		totalIncomplete,
 		aggregations,
 	)
 }
