@@ -1526,12 +1526,15 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 @task
 def test_microvms(
     ctx,
+    infra_env,
     instance_type_x86=None,
     instance_type_arm=None,
     x86_ami_id=None,
     arm_ami_id=None,
     destroy=False,
     upload_dependencies=False,
+    ssh_key_name=None,
+    ssh_key_path=None,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
@@ -1540,6 +1543,9 @@ def test_microvms(
         f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
         "--destroy" if destroy else "",
         "--upload-dependencies" if upload_dependencies else "",
+        f"--ssh-key-path {ssh_key_path}" if ssh_key_path is not None else "",
+        f"--ssh-key-name {ssh_key_name}" if ssh_key_name is not None else"",
+        f"--infra-env {infra_env}",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))

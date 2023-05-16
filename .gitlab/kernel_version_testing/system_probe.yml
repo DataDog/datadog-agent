@@ -132,14 +132,17 @@ kernel_matrix_testing_setup_env:
     # The ssh key is created by the pulumi scenario, to be used for creating
     # instances in the build-stable account. We reuse this file to ssh into
     # the instances in subsequent jobs.
-    AWS_SSH_KEY: $CI_PROJECT_DIR/ssh_key
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    AWS_EC2_SSH_KEY_NAME: ssh_key
+    INFRA_ENV: "aws/agent-qa"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key --with-decryption --query "Parameter.Value" --out text > $AWS_EC2_SSH_KEY_FILE
+    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=INFRA_ENV
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
   artifacts:
@@ -151,7 +154,7 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
       - $CI_PROJECT_DIR/stack.outputs
-      - $AWS_SSH_KEY
+      - $AWS_EC2_SSH_KEY_FILE
 
 kernel_matrix_testing_upload_deps:
   extends:
@@ -169,12 +172,15 @@ kernel_matrix_testing_upload_deps:
     LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
     LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    AWS_EC2_SSH_KEY_NAME: ssh_key
+    INFRA_ENV: "aws/agent-qa"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
   script:
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --upload-dependencies
+    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --upload-dependencies
     - pulumi logout
   artifacts:
     when: always
@@ -191,18 +197,18 @@ kernel_matrix_testing_run_tests:
   needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
   tags: ["arch:amd64"]
   variables:
-    AWS_SSH_KEY: $CI_PROJECT_DIR/ssh_key
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     GOVERSION: "1.19"
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
-    - chmod 600 $AWS_SSH_KEY
+    - chmod 600 $AWS_EC2_SSH_KEY_FILE
     # Without the newline ssh silently fails and moves on to try other auth methods
-    - echo "" >> $AWS_SSH_KEY
+    - echo "" >> $AWS_EC2_SSH_KEY_FILE
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
-    - ssh -o StrictHostKeyChecking=no -i $AWS_SSH_KEY ubuntu@$INSTANCE_IP "sudo ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} '/root/fetch-dependencies.sh ${ARCH} && /micro-vm-init.sh ${GOVERSION}'"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "sudo ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/rootfs/ddvm_rsa root@${MICRO_VM_IP} '/root/fetch-dependencies.sh ${ARCH} && /micro-vm-init.sh ${GOVERSION}'"
   parallel:
     matrix:
       - TAG: ["4.18", "5.4", "5.15"]

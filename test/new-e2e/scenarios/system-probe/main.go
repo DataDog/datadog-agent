@@ -40,6 +40,9 @@ func main() {
 	toProvisionPtr := flag.Bool("run-provision", true, "run provision step for metal instance")
 	shutdownPtr := flag.Int("shutdown-period", 0, "shutdown after specified interval in minutes")
 	uploadDependenciesPtr := flag.Bool("upload-dependencies", false, "upload test dependencies to microvms")
+	sshKeyFile := flag.String("ssh-key-path", "", "path of private ssh key for ec2 instances")
+	sshKeyName := flag.String("ssh-key-name", "", "name of ssh key pair to use for ec2 instances")
+	infraEnv := flag.String("infra-env", "", "name of infra env to use")
 
 	flag.Parse()
 
@@ -55,6 +58,9 @@ func main() {
 		Provision:          *toProvisionPtr,
 		FailOnMissing:      failOnMissing,
 		UploadDependencies: *uploadDependenciesPtr,
+		SSHKeyPath:         *sshKeyFile,
+		SSHKeyName:         *sshKeyName,
+		InfraEnv:           *infraEnv,
 	}
 
 	fmt.Printf("shutdown period: %s\n", opts.ShutdownPeriod)
