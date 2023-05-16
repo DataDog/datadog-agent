@@ -91,13 +91,13 @@ var ConnTracerTelemetry = struct {
 	PidCollisions     *nettelemetry.StatCounterWrapper
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of miscounted tcp sends in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "missed_tcp_close", []string{}, "Gauge measuring the number of missed TCP close events in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "missed_udp_close", []string{}, "Gauge measuring the number of missed UDP close events in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Gauge measuring the number of processed UDP sends in EBPF"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Gauge measuring failures to process UDP sends in EBPF"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_dropped_conns", []string{}, "Gauge measuring the number of dropped UDP connections in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_failed_connects", []string{}, "Counter measuring the number of failed TCP connections in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Counter measuring the number of miscounted tcp sends in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "missed_tcp_close", []string{}, "Counter measuring the number of missed TCP close events in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "missed_udp_close", []string{}, "Counter measuring the number of missed UDP close events in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Counter measuring the number of processed UDP sends in EBPF"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Counter measuring failures to process UDP sends in EBPF"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_dropped_conns", []string{}, "Counter measuring the number of dropped UDP connections in the EBPF map"),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 }
 
