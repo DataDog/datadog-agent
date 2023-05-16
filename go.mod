@@ -567,9 +567,10 @@ require (
 )
 
 require (
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
-	github.com/sijms/go-ora/v2 v2.6.12
+	github.com/sijms/go-ora/v2 v2.6.17
 )
 
 require (
