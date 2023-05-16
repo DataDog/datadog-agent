@@ -261,7 +261,7 @@ func GetFilledProcess(p *process.Process) *FilledProcess {
 	}
 }
 
-const MAX_ENV_VARS_COLLECTED = 128
+const MAX_ENV_VARS_COLLECTED = 256
 
 func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	for i := 0; i < len(data); i++ {
