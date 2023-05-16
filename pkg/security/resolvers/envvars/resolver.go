@@ -18,9 +18,14 @@ type Resolver struct {
 }
 
 func NewEnvVarsResolver(cfg *config.Config) *Resolver {
-	pe := make([]string, 0, len(cfg.EnvsWithValue)+1)
+	var envsWithValue []string
+	if cfg != nil {
+		envsWithValue = cfg.EnvsWithValue
+	}
+
+	pe := make([]string, 0, len(envsWithValue)+1)
 	pe = append(pe, "DD_SERVICE")
-	pe = append(pe, cfg.EnvsWithValue...)
+	pe = append(pe, envsWithValue...)
 
 	return &Resolver{
 		priorityEnvs: pe,
