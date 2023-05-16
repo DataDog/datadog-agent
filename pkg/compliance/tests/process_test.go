@@ -15,11 +15,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
-
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -66,12 +62,12 @@ findings[f] {
 	)
 }
 `).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
-			assert.Equal(t, "Self", evt.AgentRuleID)
-			assert.Equal(t, 0, evt.AgentRuleVersion)
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
+			assert.Equal(t, "Self", evt.RuleID)
+			assert.Equal(t, 0, evt.RuleVersion)
 			assert.Equal(t, "my_resource_id", evt.ResourceID)
 			assert.Equal(t, "my_resource_type", evt.ResourceType)
-			assert.Equal(t, "rego", evt.Evaluator)
+			assert.Equal(t, compliance.RegoEvaluator, evt.Evaluator)
 		})
 
 	b.AddRule("SelfDuplicated").
@@ -122,21 +118,21 @@ findings[f] {
 	)
 }
 `).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
-			assert.Equal(t, "SelfDuplicated", evt.AgentRuleID)
-			assert.Equal(t, 0, evt.AgentRuleVersion)
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
+			assert.Equal(t, "SelfDuplicated", evt.RuleID)
+			assert.Equal(t, 0, evt.RuleVersion)
 			assert.Equal(t, "self1_id", evt.ResourceID)
 			assert.Equal(t, "self1", evt.ResourceType)
-			assert.Equal(t, "rego", evt.Evaluator)
-			assert.Equal(t, self, evt.Data.(event.Data)["name"])
+			assert.Equal(t, compliance.RegoEvaluator, evt.Evaluator)
+			assert.Equal(t, self, evt.Data["name"])
 		}).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
-			assert.Equal(t, "SelfDuplicated", evt.AgentRuleID)
-			assert.Equal(t, 0, evt.AgentRuleVersion)
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
+			assert.Equal(t, "SelfDuplicated", evt.RuleID)
+			assert.Equal(t, 0, evt.RuleVersion)
 			assert.Equal(t, "self2_id", evt.ResourceID)
 			assert.Equal(t, "self2", evt.ResourceType)
-			assert.Equal(t, "rego", evt.Evaluator)
-			assert.Equal(t, self, evt.Data.(event.Data)["name"])
+			assert.Equal(t, compliance.RegoEvaluator, evt.Evaluator)
+			assert.Equal(t, self, evt.Data["name"])
 		})
 
 	b.AddRule("NoProcess").
@@ -209,7 +205,7 @@ findings[f] {
 	)
 }
 `).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "sleep", evt.ResourceID)
 			assert.Equal(t, "sleep", evt.ResourceType)
 		})

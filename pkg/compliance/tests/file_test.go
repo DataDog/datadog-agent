@@ -12,8 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -48,10 +47,10 @@ findings[f] {
 	)
 }
 `).
-		AssertFailedEvent(func(t *testing.T, evt *event.Event) {
+		AssertFailedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "my_resource_id", evt.ResourceID)
 			assert.Equal(t, "my_resource_type", evt.ResourceType)
-			assert.Equal(t, "bar", evt.Data.(event.Data)["foo"])
+			assert.Equal(t, "bar", evt.Data["foo"])
 		})
 
 	tmpFile := b.WriteTempFile(t, "foobar")
@@ -90,10 +89,10 @@ findings[f] {
 	)
 }
 `, tmpFile).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "the_resource_id", evt.ResourceID)
 			assert.Equal(t, "the_resource_type", evt.ResourceType)
-			assert.Equal(t, "", evt.Data.(event.Data)["content"])
+			assert.Equal(t, "", evt.Data["content"])
 		})
 
 	b.AddRule("FileExists").
@@ -119,8 +118,8 @@ findings[f] {
 	)
 }
 `).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
-			assert.Equal(t, "foobar", evt.Data.(event.Data)["content"])
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
+			assert.Equal(t, "foobar", evt.Data["content"])
 		})
 
 	b.AddRule("Context").
@@ -150,7 +149,7 @@ findings[f] {
 	)
 }
 `).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "plop_type", evt.ResourceType)
 			assert.Equal(t, "plop_id", evt.ResourceID)
 		})
@@ -194,7 +193,7 @@ findings[f] {
 	)
 }
 `, tmpFileJSON).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "foo", evt.ResourceType)
 			assert.Equal(t, "bar", evt.ResourceID)
 		})
@@ -226,7 +225,7 @@ findings[f] {
 	)
 }
 `, tmpFileYAML).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "foo", evt.ResourceType)
 			assert.Equal(t, "bar", evt.ResourceID)
 		})

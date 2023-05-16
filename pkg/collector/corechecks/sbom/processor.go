@@ -52,6 +52,7 @@ type processor struct {
 
 func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
 	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
+	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")

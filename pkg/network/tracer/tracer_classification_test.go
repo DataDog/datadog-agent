@@ -441,9 +441,10 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 
 	mysqlTeardown := func(t *testing.T, ctx testContext) {
-		client := ctx.extras["conn"].(*mysql.Client)
-		defer client.DB.Close()
-		client.DropDB()
+		if client, ok := ctx.extras["conn"].(*mysql.Client); ok {
+			defer client.DB.Close()
+			client.DropDB()
+		}
 	}
 
 	serverAddress := net.JoinHostPort(serverHost, mysqlPort)
@@ -507,8 +508,8 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
-				require.NoError(t, c.CreateDB())
 				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
@@ -531,9 +532,9 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
@@ -582,10 +583,10 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
 				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
@@ -610,10 +611,10 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
 				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
@@ -636,9 +637,9 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
@@ -661,9 +662,9 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
@@ -688,9 +689,9 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
@@ -715,13 +716,13 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
 				name := strings.Repeat("#", 1024)
 				for i := int64(1); i <= 40; i++ {
 					require.NoError(t, c.InsertIntoTable(name+"i", 10))
 				}
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)

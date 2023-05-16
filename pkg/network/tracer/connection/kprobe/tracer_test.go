@@ -31,7 +31,9 @@ func TestTracerFallback(t *testing.T) {
 	prevRCLoader := rcTracerLoader
 	prevPrebuiltLoader := prebuiltTracerLoader
 	prevCORELoader := coreTracerLoader
+	prevRunner := tracerOffsetGuesserRunner
 	t.Cleanup(func() {
+		tracerOffsetGuesserRunner = prevRunner
 		rcTracerLoader = prevRCLoader
 		prebuiltTracerLoader = prevPrebuiltLoader
 		coreTracerLoader = prevCORELoader
@@ -45,10 +47,10 @@ func TestTracerFallback(t *testing.T) {
 
 func testTracerFallbackNoErr(t *testing.T) {
 	tests := []struct {
-		enableCORE         bool
-		enableCOREFallback bool
-		enableRC           bool
-		enableRCFallback   bool
+		enableCORE            bool
+		allowRCFallback       bool
+		enableRC              bool
+		allowPrebuiltFallback bool
 
 		tracerType TracerType
 		err        error
@@ -76,10 +78,10 @@ func testTracerFallbackNoErr(t *testing.T) {
 
 func testTracerFallbackCOREErr(t *testing.T) {
 	tests := []struct {
-		enableCORE         bool
-		enableCOREFallback bool
-		enableRC           bool
-		enableRCFallback   bool
+		enableCORE            bool
+		allowRCFallback       bool
+		enableRC              bool
+		allowPrebuiltFallback bool
 
 		tracerType TracerType
 		err        error
@@ -93,10 +95,10 @@ func testTracerFallbackCOREErr(t *testing.T) {
 		{false, true, true, false, TracerTypeRuntimeCompiled, nil},
 		{false, true, true, true, TracerTypeRuntimeCompiled, nil},
 		{true, false, false, false, TracerTypeCORE, assert.AnError},
-		{true, false, false, true, TracerTypeCORE, assert.AnError},
+		{true, false, false, true, TracerTypePrebuilt, nil},
 		{true, false, true, false, TracerTypeCORE, assert.AnError},
-		{true, false, true, true, TracerTypeCORE, assert.AnError},
-		{true, true, false, false, TracerTypePrebuilt, nil},
+		{true, false, true, true, TracerTypePrebuilt, nil},
+		{true, true, false, false, TracerTypeCORE, assert.AnError},
 		{true, true, false, true, TracerTypePrebuilt, nil},
 		{true, true, true, false, TracerTypeRuntimeCompiled, nil},
 		{true, true, true, true, TracerTypeRuntimeCompiled, nil},
@@ -107,10 +109,10 @@ func testTracerFallbackCOREErr(t *testing.T) {
 
 func testTracerFallbackRCErr(t *testing.T) {
 	tests := []struct {
-		enableCORE         bool
-		enableCOREFallback bool
-		enableRC           bool
-		enableRCFallback   bool
+		enableCORE            bool
+		allowRCFallback       bool
+		enableRC              bool
+		allowPrebuiltFallback bool
 
 		tracerType TracerType
 		err        error
@@ -138,10 +140,10 @@ func testTracerFallbackRCErr(t *testing.T) {
 
 func testTracerFallbackCOREAndRCErr(t *testing.T) {
 	tests := []struct {
-		enableCORE         bool
-		enableCOREFallback bool
-		enableRC           bool
-		enableRCFallback   bool
+		enableCORE            bool
+		allowRCFallback       bool
+		enableRC              bool
+		allowPrebuiltFallback bool
 
 		tracerType TracerType
 		err        error
@@ -155,10 +157,10 @@ func testTracerFallbackCOREAndRCErr(t *testing.T) {
 		{false, true, true, false, TracerTypeRuntimeCompiled, assert.AnError},
 		{false, true, true, true, TracerTypePrebuilt, nil},
 		{true, false, false, false, TracerTypeCORE, assert.AnError},
-		{true, false, false, true, TracerTypeCORE, assert.AnError},
+		{true, false, false, true, TracerTypePrebuilt, nil},
 		{true, false, true, false, TracerTypeCORE, assert.AnError},
-		{true, false, true, true, TracerTypeCORE, assert.AnError},
-		{true, true, false, false, TracerTypePrebuilt, nil},
+		{true, false, true, true, TracerTypePrebuilt, nil},
+		{true, true, false, false, TracerTypeCORE, assert.AnError},
 		{true, true, false, true, TracerTypePrebuilt, nil},
 		{true, true, true, false, TracerTypeRuntimeCompiled, assert.AnError},
 		{true, true, true, true, TracerTypePrebuilt, nil},
@@ -174,10 +176,10 @@ func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ *manager.Man
 }
 
 func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []struct {
-	enableCORE         bool
-	enableCOREFallback bool
-	enableRC           bool
-	enableRCFallback   bool
+	enableCORE            bool
+	allowRCFallback       bool
+	enableRC              bool
+	allowPrebuiltFallback bool
 
 	tracerType TracerType
 	err        error
@@ -194,14 +196,21 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 
 	prebuiltTracerLoader = loaderFunc(expectedCloseFn, nil)
 
+	offsetGuessingRun := 0
+	tracerOffsetGuesserRunner = func(cfg *config.Config) ([]manager.ConstantEditor, error) {
+		offsetGuessingRun++
+		return nil, nil
+	}
+
 	cfg := config.New()
 	for _, te := range tests {
 		t.Run(desc, func(t *testing.T) {
 			cfg.EnableCORE = te.enableCORE
-			cfg.AllowRuntimeCompiledFallback = te.enableCOREFallback
+			cfg.AllowRuntimeCompiledFallback = te.allowRCFallback
 			cfg.EnableRuntimeCompiler = te.enableRC
-			cfg.AllowPrecompiledFallback = te.enableRCFallback
+			cfg.AllowPrecompiledFallback = te.allowPrebuiltFallback
 
+			prevOffsetGuessingRun := offsetGuessingRun
 			closeFn, tracerType, err := LoadTracer(cfg, nil, manager.Options{}, nil)
 			if te.err == nil {
 				assert.NoError(t, err, "%+v", te)
@@ -214,6 +223,15 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 			}
 
 			assert.Equal(t, te.tracerType, tracerType, "%+v", te)
+
+			if te.err == nil {
+				if te.tracerType == TracerTypePrebuilt {
+					// check if offset guesser was called
+					assert.Equal(t, prevOffsetGuessingRun+1, offsetGuessingRun, "%+v: offset guesser was not called", te)
+				} else {
+					assert.Equal(t, prevOffsetGuessingRun, offsetGuessingRun, "%+v: offset guesser was called", te)
+				}
+			}
 		})
 	}
 

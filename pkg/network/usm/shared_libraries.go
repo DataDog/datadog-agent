@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/gopsutil/process"
@@ -28,6 +29,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
+	// and lowering it might cause constant cpu usage.
+	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
 func toLibPath(data []byte) http.LibPath {
@@ -214,11 +221,7 @@ func (w *soWatcher) Start() {
 		return
 	}
 
-	cleanupExit, err := w.processMonitor.Subscribe(&monitor.ProcessCallback{
-		Event:    monitor.EXIT,
-		Metadata: monitor.ANY,
-		Callback: w.registry.unregister,
-	})
+	cleanupExit, err := w.processMonitor.SubscribeExit(w.registry.unregister)
 	if err != nil {
 		log.Errorf("can't subscribe to process monitor exit event %s", err)
 		return
@@ -226,7 +229,10 @@ func (w *soWatcher) Start() {
 
 	w.wg.Add(1)
 	go func() {
+		processSync := time.NewTicker(scanTerminatedProcessesInterval)
+
 		defer func() {
+			processSync.Stop()
 			// Removing the registration of our hook.
 			cleanupExit()
 			// Stopping the process monitor (if we're the last instance)
@@ -241,6 +247,18 @@ func (w *soWatcher) Start() {
 			select {
 			case <-w.done:
 				return
+			case <-processSync.C:
+				processSet := make(map[int32]struct{})
+				w.registry.m.RLock()
+				for pid := range w.registry.byPID {
+					processSet[int32(pid)] = struct{}{}
+				}
+				w.registry.m.RUnlock()
+
+				deletedPids := monitor.FindDeletedProcesses(processSet)
+				for deletedPid := range deletedPids {
+					w.registry.unregister(int(deletedPid))
+				}
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
 					return
@@ -287,9 +305,10 @@ func (r *soRegistry) cleanup() {
 }
 
 // unregister a pid if exists, unregisterCB will be called if his uniqueProcessesCount == 0
-func (r *soRegistry) unregister(pid uint32) {
+func (r *soRegistry) unregister(pid int) {
+	pidU32 := uint32(pid)
 	r.m.RLock()
-	_, found := r.byPID[pid]
+	_, found := r.byPID[pidU32]
 	r.m.RUnlock()
 	if !found {
 		return
@@ -297,7 +316,7 @@ func (r *soRegistry) unregister(pid uint32) {
 
 	r.m.Lock()
 	defer r.m.Unlock()
-	paths, found := r.byPID[pid]
+	paths, found := r.byPID[pidU32]
 	if !found {
 		return
 	}
@@ -311,7 +330,7 @@ func (r *soRegistry) unregister(pid uint32) {
 			delete(r.byID, pathID)
 		}
 	}
-	delete(r.byPID, pid)
+	delete(r.byPID, pidU32)
 }
 
 // register a ELF library root/libPath as be used by the pid
