@@ -891,7 +891,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if !isResolved {
 			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
 		} else if !entry.HasCompleteLineage() {
-			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+			// event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
 			p.resolvers.ProcessResolver.CountBrokenLineage()
 		}
 	}
