@@ -8,14 +8,11 @@
 package testutil
 
 import (
-	"bytes"
-	"os/exec"
 	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
-	"github.com/stretchr/testify/require"
 )
 
 // RunJavaVersion run class under java version
@@ -30,21 +27,11 @@ func RunJavaVersion(t testing.TB, version string, class string, waitForParam ...
 	}
 
 	dir, _ := testutil.CurDir()
-	docker0IpAddr, err := exec.Command("docker", "network", "inspect", "bridge", "--format='{{(index .IPAM.Config 0).Gateway}}'").CombinedOutput()
-	require.NoErrorf(t, err, "failed to get docker0 ip address")
-	addr := string(bytes.Trim(docker0IpAddr, "'\n"))
+	addr := "172.17.0.1" // for some reason docker network inspect bridge --format='{{(index .IPAM.Config 0).Gateway}}'   is not reliable and doesn't report Gateway ip sometime
 	env := []string{
 		"IMAGE_VERSION=" + version,
 		"ENTRYCLASS=" + class,
 		"EXTRA_HOSTS=host.docker.internal:" + addr,
-	}
-	if addr == "" {
-		o, _ := exec.Command("docker", "network", "inspect", "host", "bridge").CombinedOutput()
-		t.Errorf(string(o))
-		o, _ = exec.Command("hostname", "-I").CombinedOutput()
-		t.Errorf(string(o))
-		o, _ = exec.Command("ip", "-a").CombinedOutput()
-		t.Errorf(string(o))
 	}
 
 	return protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, protocolsUtils.DefaultTimeout)
