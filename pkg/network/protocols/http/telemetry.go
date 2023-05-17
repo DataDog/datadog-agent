@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
 
 package http
 

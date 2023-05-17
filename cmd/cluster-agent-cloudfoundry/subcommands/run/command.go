@@ -4,13 +4,20 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && clusterchecks
-// +build !windows,clusterchecks
 
 package run
 
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"regexp"
+	"syscall"
+	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
@@ -34,14 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/gorilla/mux"
-	"github.com/spf13/cobra"
-
-	"os"
-	"os/signal"
-	"regexp"
-	"syscall"
-	"time"
 
 	"go.uber.org/fx"
 )
