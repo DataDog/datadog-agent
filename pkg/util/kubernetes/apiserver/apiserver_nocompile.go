@@ -35,6 +35,10 @@ func GetAPIClient() (*APIClient, error) {
 	return &APIClient{}, nil
 }
 
+// ReSetGlobalAPIClientOnce resets globalAPIClientOnce
+func ReSetGlobalAPIClientOnce() {
+}
+
 // WaitForAPIClient returns the shared ApiClient instance.
 func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	log.Errorf("WaitForAPIClient not implemented %s", ErrNotCompiled.Error())
