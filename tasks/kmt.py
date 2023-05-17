@@ -11,6 +11,7 @@ from invoke.exceptions import Exit
 from glob import glob
 from thefuzz import process
 from thefuzz import fuzz
+from pathlib import Path
 
 KMT_DIR = os.path.join("/", "home", "kernel-version-testing")
 KMT_ROOTFS_DIR = os.path.join(KMT_DIR, "rootfs")
@@ -154,6 +155,18 @@ def vm_config_exists(stack):
     return os.path.exists(f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}")
 
 
+def check_and_get_stack(stack, branch):
+    if stack is None and not branch:
+        raise Exit("Stack name required if not using current branch")
+
+    if stack is not None and branch:
+        raise Exit("Cannot specify stack when branch parameter is set")
+
+    if branch:
+        return get_active_branch_name()
+
+    return stack
+
 def gen_ssh_key(ctx):
     with open(f"{KMT_DIR}/ddvm_rsa", "w") as f:
         f.write(priv_key)
@@ -244,10 +257,8 @@ def delete_networks(conn, stack):
 
 
 @task
-def destroy_stack(ctx, stack=None):
-    if stack is None:
-        raise Exit("Stack name is required")
-
+def destroy_stack(ctx, stack=None, branch=False):
+    stack = check_and_get_stack(stack, branch)
     if not os.path.exists("f{KMT_STACKS_DIR}/{stack}"):
         raise Exit(f"stack {stack} not created")
 
@@ -262,11 +273,23 @@ def destroy_stack(ctx, stack=None):
 
     ctx.run("rm -r {KMT_STACKS_DIR}/{stack}")
 
+def get_active_branch_name():
+    head_dir = Path(".") / ".git" / "HEAD"
+    with head_dir.open("r") as f: content = f.read().splitlines()
+
+    for line in content:
+        if line[0:4] == "ref:":
+            return line.partition("refs/heads/")[2].replace("/", "-")
 
 @task
-def create_stack(ctx, stack):
+def create_stack(ctx, stack=None, branch=False):
     if not os.path.exists(f"{KMT_STACKS_DIR}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
+
+    stack = check_and_get_stack(stack, branch)
+
+    if branch:
+        stack = get_active_branch_name()
 
     stack_dir = f"{KMT_STACKS_DIR}/{stack}"
     if os.path.exists(stack_dir):
@@ -529,7 +552,8 @@ def ls_to_int(ls):
         "new": "Generate new configuration file instead of appending to existing one within the provided stack",
     }
 )
-def gen_config(ctx, stack, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
+def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
+    stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
             f"Stack {stack} does not exist. Please create stack first 'inv kmt.stack-create --stack={stack}, or specify --create-stack option'"
@@ -782,7 +806,8 @@ def revert_resources(ctx):
 
 
 @task
-def launch_stack(ctx, stack, ssh_key="", x86_ami="ami-0584a00dd384af6ab", arm_ami="ami-0a5c054df5931fbfc"):
+def launch_stack(ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0584a00dd384af6ab", arm_ami="ami-0a5c054df5931fbfc"):
+    stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
