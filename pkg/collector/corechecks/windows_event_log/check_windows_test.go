@@ -411,7 +411,47 @@ query: |
 	nomatchstring := "should not match"
 	s.sender.On("Commit").Return().Once()
 	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
-		return assert.Contains(s.T(), e.Text, matchstring, "reported events should match the query")
+		return assert.Contains(s.T(), e.Text, matchstring, "reported events should match EventID=1000")
+	})).Once()
+
+	// Generate an event the query should match on (EventID=1000)
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
+	// Generate an event the query should not match on (EventID!=1000)
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
+
+	check.Run()
+
+	s.sender.AssertExpectations(s.T())
+}
+
+// Tests that the Event Query configuration value succesfully filters event records
+func (s *GetEventsTestSuite) TestGetEventsWithFilters() {
+	reporter, err := evtreporter.New(s.eventSource, s.ti.API())
+	require.NoError(s.T(), err)
+	defer reporter.Close()
+
+	// Query for EventID=1000
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: now
+filters:
+  source:
+  - '%s'
+  type:
+  - information
+  id:
+  - 1000
+`, s.channelPath, s.eventSource))
+
+	check, err := s.newCheck(instanceConfig, nil)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	matchstring := "match this string"
+	nomatchstring := "should not match"
+	s.sender.On("Commit").Return().Once()
+	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+		return assert.Contains(s.T(), e.Text, matchstring, "reported events should match EventID=1000")
 	})).Once()
 
 	// Generate an event the query should match on (EventID=1000)

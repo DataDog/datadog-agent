@@ -95,4 +95,31 @@ event_priority: %v
 		assert.Equal(t, *config.instance.Tag_sid, defaultConfigTag_sid)
 		assert.Equal(t, *config.instance.Event_priority, defaultConfigEvent_priority)
 	}
+
+	//
+	// Assert filter sets query when query isn't provided
+	//
+	instanceConfig4 := []byte(fmt.Sprintf(`
+filters:
+  id:
+  - 1000
+`))
+	config, err = UnmarshalConfig(instanceConfig4, []byte(""))
+	if assert.NoError(t, err) {
+		assert.Equal(t, *config.instance.Query, "*[System[EventID=1000]]")
+	}
+
+	//
+	// Assert query overrides filter
+	//
+	instanceConfig5 := []byte(fmt.Sprintf(`
+query: banana
+filters:
+  id:
+  - 1000
+`))
+	config, err = UnmarshalConfig(instanceConfig5, []byte(""))
+	if assert.NoError(t, err) {
+		assert.Equal(t, *config.instance.Query, "banana")
+	}
 }
