@@ -737,7 +737,7 @@ def download_rootfs(ctx, revert=False):
         raise Exit("Failed to extract rootfs")
 
     # set permissions
-    res = ctx.run(f"find {KMT_ROOTFS_DIR} -name *qcow* -type f -exec chmod 0766 {{}} \;")
+    res = ctx.run(f"find {KMT_ROOTFS_DIR} -name \"*qcow*\" -type f -exec chmod 0766 {{}} \;")
     if not res.ok:
         if revert:
             revert_rootfs(ctx)
