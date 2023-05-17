@@ -47,10 +47,10 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		HostRoot:           os.Getenv("HOST_ROOT"),
 		DockerProvider:     compliance.DefaultDockerProvider,
 		LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
-		StatsdClient:       statsdClient,
 	}
-	if !metricsEnabled {
-		resolverOptions.StatsdClient = nil
+
+	if metricsEnabled {
+		resolverOptions.StatsdClient = statsdClient
 	}
 
 	runner := runner.NewRunner()
