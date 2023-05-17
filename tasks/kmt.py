@@ -596,23 +596,23 @@ def download_kernel_packages(ctx, revert=False):
 
     sudo = "sudo" if not is_root() else ""
     # download kernel packages
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {KMT_PACKAGES_DIR}/{kernel_packages_tar}",
-        warn=True,
-    )
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx)
-        raise Exit("Failed to download kernel pacakges")
+    #res = ctx.run(
+    #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {KMT_PACKAGES_DIR}/{kernel_packages_tar}",
+    #    warn=True,
+    #)
+    #if not res.ok:
+    #    if revert:
+    #        revert_kernel_packages(ctx)
+    #    raise Exit("Failed to download kernel pacakges")
 
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {KMT_PACKAGES_DIR}/{kernel_packages_sum}",
-        warn=True,
-    )
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx)
-        raise Exit("Failed to download kernel pacakges checksum")
+    #res = ctx.run(
+    #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {KMT_PACKAGES_DIR}/{kernel_packages_sum}",
+    #    warn=True,
+    #)
+    #if not res.ok:
+    #    if revert:
+    #        revert_kernel_packages(ctx)
+    #    raise Exit("Failed to download kernel pacakges checksum")
 
     # extract pacakges
     res = ctx.run(f"cd {KMT_PACKAGES_DIR} && tar xvf {kernel_packages_tar} | xargs -i tar xzf {{}}")
@@ -689,21 +689,21 @@ def download_rootfs(ctx, revert=False):
         Exit(f"Unsupported arch detected {arch}")
 
     # download rootfs
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O {KMT_ROOTFS_DIR}/{rootfs}.sum"
-    )
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx)
-        raise Exit("Failed to download rootfs check sum file")
+    #res = ctx.run(
+    #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O {KMT_ROOTFS_DIR}/{rootfs}.sum"
+    #)
+    #if not res.ok:
+    #    if revert:
+    #        revert_rootfs(ctx)
+    #    raise Exit("Failed to download rootfs check sum file")
 
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.tar.gz -O {KMT_ROOTFS_DIR}/{rootfs}.tar.gz"
-    )
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx)
-        raise Exit("Failed to download rootfs")
+    #res = ctx.run(
+    #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.tar.gz -O {KMT_ROOTFS_DIR}/{rootfs}.tar.gz"
+    #)
+    #if not res.ok:
+    #    if revert:
+    #        revert_rootfs(ctx)
+    #    raise Exit("Failed to download rootfs")
 
     # extract rootfs
     res = ctx.run(f"cd {KMT_ROOTFS_DIR} && tar xzvf {rootfs}.tar.gz")
