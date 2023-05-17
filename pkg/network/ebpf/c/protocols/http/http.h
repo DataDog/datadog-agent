@@ -168,8 +168,9 @@ static __always_inline bool http_allow_packet(http_transaction_t *http, struct _
     if (!stack) {
         return false;
     }
-    if (is_fully_classified(stack) || is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
-        // if this is an encrypted packet, we only
+    bool empty_payload = skb_info->data_off == skb->len;
+    if (empty_payload || is_fully_classified(stack) || is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
+        // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
     }
