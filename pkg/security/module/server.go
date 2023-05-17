@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package module
 
@@ -532,7 +531,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		limiter:       NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:  client,
 		probe:         probe,
-		retention:     time.Duration(cfg.EventServerRetention) * time.Second,
+		retention:     cfg.EventServerRetention,
 		cfg:           cfg,
 	}
 	return es

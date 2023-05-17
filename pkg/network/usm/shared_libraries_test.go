@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
@@ -192,6 +191,7 @@ func TestSameInodeRegression(t *testing.T) {
 
 		return int64(1) == registers.Load()
 	}, time.Second*10, time.Second, "")
+
 	require.Len(t, watcher.registry.byID, 1)
 	require.NoError(t, command1.Process.Kill())
 

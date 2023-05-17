@@ -112,7 +112,7 @@ const (
 	HostCloudProvider          AgentMetadataName = "cloud_provider"
 	HostCloudProviderSource    AgentMetadataName = "cloud_provider_source"
 	HostCloudProviderAccountID AgentMetadataName = "cloud_provider_account_id"
-	HostCloudProviderID        AgentMetadataName = "cloud_provider_host_id"
+	HostCloudProviderHostID    AgentMetadataName = "cloud_provider_host_id"
 )
 
 // Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed

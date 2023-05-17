@@ -57,6 +57,7 @@ type HostMetadata struct {
 	CloudProvider          string `json:"cloud_provider"`
 	CloudProviderSource    string `json:"cloud_provider_source"`
 	CloudProviderAccountID string `json:"cloud_provider_account_id"`
+	CloudProviderHostID    string `json:"cloud_provider_host_id"`
 	OsVersion              string `json:"os_version"`
 
 	// From file system
@@ -144,6 +145,7 @@ func getHostMetadata() *HostMetadata {
 
 	metadata.CloudProvider = fetchFromMetadata(string(HostCloudProvider), agentMetadata)
 	metadata.CloudProviderSource = fetchFromMetadata(string(HostCloudProviderSource), hostMetadata)
+	metadata.CloudProviderHostID = fetchFromMetadata(string(HostCloudProviderHostID), hostMetadata)
 	metadata.OsVersion = fetchFromMetadata(string(HostOSVersion), hostMetadata)
 
 	metadata.CloudProviderAccountID = fetchFromMetadata(string(HostCloudProviderAccountID), hostMetadata)

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -140,6 +139,11 @@ func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerC
 
 // ResolveContainerCreatedAt resolves the container creation time of the event
 func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
+	if e.CreatedAt == 0 {
+		if containerContext, _ := fh.ResolveContainerContext(ev); containerContext != nil {
+			e.CreatedAt = containerContext.CreatedAt
+		}
+	}
 	return int(e.CreatedAt)
 }
 

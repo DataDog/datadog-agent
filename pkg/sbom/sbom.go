@@ -29,6 +29,7 @@ type ScanOptions struct {
 	Timeout          time.Duration
 	WaitAfter        time.Duration
 	Fast             bool
+	NoCache          bool // Caching doesn't really provide any value when scanning filesystem as the filesystem has to be walked to compute the keys
 }
 
 // ScanOptionsFromConfig loads the scanning options from the configuration

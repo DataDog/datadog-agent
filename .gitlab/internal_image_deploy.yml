@@ -5,7 +5,7 @@
 docker_trigger_internal:
   stage: internal_image_deploy
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy_a7_internal_or_manual]
   needs:
     - job: docker_build_agent7_jmx
       artifacts: false
@@ -21,7 +21,6 @@ docker_trigger_internal:
     TMPL_SRC_IMAGE: v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx
     TMPL_SRC_REPO: ci/datadog-agent/agent
     RELEASE_STAGING: "true"
-    RELEASE_PROD: "true"
   script:
     - source /root/.bashrc
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)

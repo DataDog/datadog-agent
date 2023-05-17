@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -34,8 +33,6 @@ import (
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -43,12 +40,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 var kv470 kernel.Version = kernel.VersionCode(4, 7, 0)
@@ -388,7 +387,8 @@ func TestConnectionExpirationRegression(t *testing.T) {
 }
 
 func TestConntrackExpiration(t *testing.T) {
-	setupDNAT(t)
+	netlinktestutil.SetupDNAT(t)
+	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, testConfig())
 
@@ -397,8 +397,12 @@ func TestConntrackExpiration(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
-		io.Copy(io.Discard, c)
-		c.Close()
+		wg.Add(1)
+		defer wg.Done()
+		defer c.Close()
+
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
@@ -432,12 +436,18 @@ func TestConntrackExpiration(t *testing.T) {
 	_ = getConnections(t, tr)
 
 	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
+
+	// write newline so server connections will exit
+	_, err = c.Write([]byte("\n"))
+	require.NoError(t, err)
+	wg.Wait()
 }
 
 // This test ensures that conntrack lookups are retried for short-lived
 // connections when the first lookup fails
 func TestConntrackDelays(t *testing.T) {
-	setupDNAT(t)
+	netlinktestutil.SetupDNAT(t)
+	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, testConfig())
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
@@ -448,8 +458,12 @@ func TestConntrackDelays(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
-		io.Copy(io.Discard, c)
-		c.Close()
+		wg.Add(1)
+		defer wg.Done()
+		defer c.Close()
+
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
@@ -467,10 +481,16 @@ func TestConntrackDelays(t *testing.T) {
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
 	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
+
+	// write newline so server connections will exit
+	_, err = c.Write([]byte("\n"))
+	require.NoError(t, err)
+	wg.Wait()
 }
 
 func TestTranslationBindingRegression(t *testing.T) {
-	setupDNAT(t)
+	netlinktestutil.SetupDNAT(t)
+	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, testConfig())
 
@@ -478,8 +498,12 @@ func TestTranslationBindingRegression(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
-		io.Copy(io.Discard, c)
-		c.Close()
+		wg.Add(1)
+		defer wg.Done()
+		defer c.Close()
+
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
@@ -499,6 +523,11 @@ func TestTranslationBindingRegression(t *testing.T) {
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
 	require.NotNil(t, conn.IPTranslation, "missing translation for connection")
+
+	// write newline so server connections will exit
+	_, err = c.Write([]byte("\n"))
+	require.NoError(t, err)
+	wg.Wait()
 }
 
 func TestUnconnectedUDPSendIPv6(t *testing.T) {
@@ -692,44 +721,41 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
+	ns1 := netlinktestutil.AddNS(t)
+	ns2 := netlinktestutil.AddNS(t)
+
 	// setup two network namespaces
-	state := testutil.IptablesSave(t)
+	t.Cleanup(func() {
+		testutil.RunCommands(t, []string{
+			"ip link del veth1",
+			"ip link del veth3",
+			"ip link del br0",
+		}, true)
+	})
+	testutil.IptablesSave(t)
 	cmds := []string{
 		"ip link add br0 type bridge",
 		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
-		"ip netns add test1",
-		"ip netns add test2",
 		"ip link add veth1 type veth peer name veth2",
 		"ip link set veth1 master br0",
-		"ip link set veth2 netns test1",
-		"ip -n test1 addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2",
+		fmt.Sprintf("ip link set veth2 netns %s", ns1),
+		fmt.Sprintf("ip -n %s addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2", ns1),
 		"ip link add veth3 type veth peer name veth4",
 		"ip link set veth3 master br0",
-		"ip link set veth4 netns test2",
-		"ip -n test2 addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4",
+		fmt.Sprintf("ip link set veth4 netns %s", ns2),
+		fmt.Sprintf("ip -n %s addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4", ns2),
 		"ip link set br0 up",
 		"ip link set veth1 up",
-		"ip -n test1 link set veth2 up",
+		fmt.Sprintf("ip -n %s link set veth2 up", ns1),
 		"ip link set veth3 up",
-		"ip -n test2 link set veth4 up",
-		"ip -n test1 r add default via 2.2.2.1",
-		"ip -n test2 r add default via 2.2.2.1",
+		fmt.Sprintf("ip -n %s link set veth4 up", ns2),
+		fmt.Sprintf("ip -n %s r add default via 2.2.2.1", ns1),
+		fmt.Sprintf("ip -n %s r add default via 2.2.2.1", ns2),
 		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 		"iptables -I FORWARD -i br0 -j ACCEPT",
 		"iptables -I FORWARD -o br0 -j ACCEPT",
 		"sysctl -w net.ipv4.ip_forward=1",
 	}
-	t.Cleanup(func() {
-		testutil.IptablesRestore(t, state)
-		testutil.RunCommands(t, []string{
-			"ip link del veth1",
-			"ip link del veth3",
-			"ip link del br0",
-			"ip netns del test1",
-			"ip netns del test2",
-		}, true)
-	})
-
 	testutil.RunCommands(t, cmds, false)
 
 	ifs, err := net.Interfaces()
@@ -746,7 +772,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 	require.NoError(t, tr.start(), "could not start tracer")
 
-	test1Ns, err := vnetns.GetFromName("test1")
+	test1Ns, err := vnetns.GetFromName(ns1)
 	require.NoError(t, err)
 	defer test1Ns.Close()
 
@@ -780,7 +806,7 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 	t.Run("client in other namespace", func(t *testing.T) {
 		// try connecting to server in test1 namespace
-		test2Ns, err := vnetns.GetFromName("test2")
+		test2Ns, err := vnetns.GetFromName(ns2)
 		require.NoError(t, err)
 		defer test2Ns.Close()
 
@@ -915,7 +941,7 @@ func TestUDPConnExpiryTimeout(t *testing.T) {
 }
 
 func TestDNATIntraHostIntegration(t *testing.T) {
-	setupDNAT(t)
+	netlinktestutil.SetupDNAT(t)
 
 	tr := setupTracer(t, testConfig())
 
@@ -1265,70 +1291,29 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 }
 
 func TestDNSStatsWithNAT(t *testing.T) {
-	state := testutil.IptablesSave(t)
+	testutil.IptablesSave(t)
 	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
 	testutil.RunCommands(t, cmds, true)
-
-	t.Cleanup(func() {
-		testutil.IptablesRestore(t, state)
-	})
 
 	testDNSStats(t, "golang.org", 1, 0, 0, "2.2.2.2")
 }
 
 func iptablesWrapper(t *testing.T, f func()) {
 	iptables, err := exec.LookPath("iptables")
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	// Init iptables rule to simulate packet loss
 	rule := "INPUT --source 127.0.0.1 -j DROP"
 	create := strings.Fields(fmt.Sprintf("-I %s", rule))
 
 	state := testutil.IptablesSave(t)
+	defer testutil.IptablesRestore(t, state)
 	createCmd := exec.Command(iptables, create...)
-	err = createCmd.Start()
-	assert.Nil(t, err)
-	err = createCmd.Wait()
-	assert.Nil(t, err)
-
-	defer func() {
-		testutil.IptablesRestore(t, state)
-	}()
+	err = createCmd.Run()
+	require.NoError(t, err)
 
 	f()
-}
-
-func setupDNAT(t *testing.T) {
-	if _, err := exec.LookPath("conntrack"); err != nil {
-		t.Errorf("conntrack not found in PATH: %s", err)
-		return
-	}
-
-	state := testutil.IptablesSave(t)
-	t.Cleanup(func() { teardownDNAT(t, state) })
-	// Using dummy1 instead of dummy0 (https://serverfault.com/a/841723)
-	cmds := []string{
-		"ip link add dummy1 type dummy",
-		"ip address add 1.1.1.1 broadcast + dev dummy1",
-		"ip link set dummy1 up",
-		"iptables -t nat -A OUTPUT --dest 2.2.2.2 -j DNAT --to-destination 1.1.1.1",
-	}
-	testutil.RunCommands(t, cmds, false)
-}
-
-func teardownDNAT(t *testing.T, state []byte) {
-	if len(state) > 0 {
-		testutil.IptablesRestore(t, state)
-	}
-
-	cmds := []string{
-		// tear down the testing interface, and iptables rule
-		"ip link del dummy1",
-		// clear out the conntrack table
-		"conntrack -F",
-	}
-	testutil.RunCommands(t, cmds, true)
 }
 
 func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interface {
@@ -1738,6 +1723,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 		_, _ = c.Write(genPayload(serverMessageSize))
 		_ = c.Close()
 	})
+	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
 	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
@@ -1805,8 +1791,6 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	if kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
-	constants, err := getTracerOffsets(t, cfg)
-	require.NoError(t, err)
 	t.Cleanup(func() {
 		ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
 		ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
@@ -1822,7 +1806,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 			ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
 			ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
 			if te.prebuiltError {
-				ebpfConntrackerPrebuiltCreator = func(c *config.Config, ce []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+				ebpfConntrackerPrebuiltCreator = func(c *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
 					return nil, nil, assert.AnError
 				}
 			}
@@ -1830,7 +1814,11 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 				ebpfConntrackerRCCreator = func(cfg *config.Config) (rc.CompiledOutput, error) { return nil, assert.AnError }
 			}
 
-			conntracker, err := NewEBPFConntracker(cfg, nil, constants)
+			conntracker, err := NewEBPFConntracker(cfg, nil)
+			// ensure we always clean up the conntracker, regardless of behavior
+			if conntracker != nil {
+				t.Cleanup(conntracker.Close)
+			}
 			if te.err != nil {
 				assert.Error(t, err)
 				assert.Nil(t, conntracker)
@@ -1840,7 +1828,6 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 			assert.NoError(t, err)
 			require.NotNil(t, conntracker)
 			assert.Equal(t, te.isPrebuilt, conntracker.(*ebpfConntracker).isPrebuilt)
-			conntracker.Close()
 		})
 	}
 }
@@ -1849,13 +1836,18 @@ func TestConntrackerFallback(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
 	cfg.AllowNetlinkConntrackerFallback = true
-	conntracker, err := newConntracker(cfg, nil, nil)
+	conntracker, err := newConntracker(cfg, nil)
+	if conntracker != nil {
+		t.Cleanup(conntracker.Close)
+	}
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
-	conntracker.Close()
 
 	cfg.AllowNetlinkConntrackerFallback = false
-	conntracker, err = newConntracker(cfg, nil, nil)
+	conntracker, err = newConntracker(cfg, nil)
+	if conntracker != nil {
+		t.Cleanup(conntracker.Close)
+	}
 	assert.Error(t, err)
 	require.Nil(t, conntracker)
 }
