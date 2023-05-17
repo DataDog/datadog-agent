@@ -41,23 +41,25 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 	if err != nil {
 		return nil, err
 	}
+
+	resolverOptions := compliance.ResolverOptions{
+		Hostname:           hostname,
+		HostRoot:           os.Getenv("HOST_ROOT"),
+		DockerProvider:     compliance.DefaultDockerProvider,
+		LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
+		StatsdClient:       statsdClient,
+	}
 	if !metricsEnabled {
-		statsdClient = nil
+		resolverOptions.StatsdClient = nil
 	}
 
 	runner := runner.NewRunner()
 	stopper.Add(runner)
 	agent := compliance.NewAgent(compliance.AgentOptions{
-		ResolverOptions: compliance.ResolverOptions{
-			Hostname:           hostname,
-			HostRoot:           os.Getenv("HOST_ROOT"),
-			DockerProvider:     compliance.DefaultDockerProvider,
-			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
-			StatsdClient:       statsdClient,
-		},
-		ConfigDir:     configDir,
-		Reporter:      reporter,
-		CheckInterval: checkInterval,
+		ResolverOptions: resolverOptions,
+		ConfigDir:       configDir,
+		Reporter:        reporter,
+		CheckInterval:   checkInterval,
 	})
 	err = agent.Start()
 	if err != nil {
