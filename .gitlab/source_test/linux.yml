@@ -2,28 +2,12 @@
 .rtloader_tests:
   stage: source_test
   before_script:
-    # Debug: gohai
-    - cat /etc/mtab || true
-    - cat /etc/fstab || true
-    - df -l -k || true
     - source /root/.bashrc && conda activate $CONDA_ENV
-    # Debug: gohai
-    - cat /etc/mtab || true
-    - cat /etc/fstab || true
-    - df -l -k || true
     - !reference [.retrieve_linux_go_deps]
-    # Debug: gohai
-    - cat /etc/mtab || true
-    - cat /etc/fstab || true
-    - df -l -k || true
     - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.install
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
-    # Debug: gohai
-    - cat /etc/mtab || true
-    - cat /etc/fstab || true
-    - df -l -k || true
   # Placeholder script, overridden by .linux_tests when running all go tests
   script: [ "# Skipping go tests" ]
 
@@ -33,21 +17,9 @@
     FLAVORS: '--flavors base'
   script:
     - !reference [.retrieve_linux_go_tools_deps]
-    # Debug: gohai
-    - cat /etc/mtab || true
-    - cat /etc/fstab || true
-    - df -l -k || true
     - inv -e install-tools
     - inv -e invoke-unit-tests
-    - echo "Env - $DD_ENV"
-    - echo "Site - $DD_SITE"
-    # Debug: gohai
-    - cat /etc/mtab || true
-    - cat /etc/fstab || true
-    - df -l -k || true
     - inv -e test $FLAVORS --skip-linters --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
-    - echo "Env - $DD_ENV"
-    - echo "Site - $DD_SITE"
   artifacts:
     expire_in: 2 weeks
     when: always
