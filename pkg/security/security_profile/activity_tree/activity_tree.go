@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package activity_tree
 
@@ -52,6 +51,10 @@ const (
 	Snapshot NodeGenerationType = 2
 	// ProfileDrift is a node that was added because of a drift from a security profile
 	ProfileDrift NodeGenerationType = 3
+	// WorkloadWarmup is a node that was added of a drift in a warming up profile
+	WorkloadWarmup NodeGenerationType = 4
+	// MaxNodeGenerationType is the maximum node type
+	MaxNodeGenerationType NodeGenerationType = 4
 )
 
 func (genType NodeGenerationType) String() string {
@@ -62,6 +65,8 @@ func (genType NodeGenerationType) String() string {
 		return "snapshot"
 	case ProfileDrift:
 		return "profile_drift"
+	case WorkloadWarmup:
+		return "workload_warmup"
 	default:
 		return "unknown"
 	}
@@ -114,6 +119,42 @@ func (at *ActivityTree) ComputeSyscallsList() []uint32 {
 		return output[i] < output[j]
 	})
 	return output
+}
+
+// ComputeActivityTreeStats computes the initial counts of the activity tree stats
+func (at *ActivityTree) ComputeActivityTreeStats() {
+	pnodes := at.ProcessNodes
+	var fnodes []*FileNode
+
+	for len(pnodes) > 0 {
+		node := pnodes[0]
+
+		at.Stats.ProcessNodes += 1
+		pnodes = append(pnodes, node.Children...)
+
+		at.Stats.dnsNodes += int64(len(node.DNSNames))
+		at.Stats.socketNodes += int64(len(node.Sockets))
+
+		for _, f := range node.Files {
+			fnodes = append(fnodes, f)
+		}
+
+		pnodes = pnodes[1:]
+	}
+
+	for len(fnodes) > 0 {
+		node := fnodes[0]
+
+		if node.File != nil {
+			at.Stats.fileNodes += 1
+		}
+
+		for _, f := range node.Children {
+			fnodes = append(fnodes, f)
+		}
+
+		fnodes = fnodes[1:]
+	}
 }
 
 // IsEmpty returns true if the tree is empty
@@ -195,7 +236,7 @@ func (at *ActivityTree) Contains(event *model.Event, generationType NodeGenerati
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
 func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType NodeGenerationType) (bool, error) {
 	// sanity check
-	if generationType == Unknown || generationType > ProfileDrift {
+	if generationType == Unknown || generationType > MaxNodeGenerationType {
 		return false, fmt.Errorf("invalid generation type: %v", generationType)
 	}
 
@@ -236,13 +277,13 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun)
+		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun), nil
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun)
+		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun), nil
 	case model.BindEventType:
-		return node.InsertBindEvent(event, generationType, at.Stats, dryRun)
+		return node.InsertBindEvent(event, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
-		return node.InsertSyscalls(event, at.SyscallsMask)
+		return node.InsertSyscalls(event, at.SyscallsMask), nil
 	}
 
 	return false, nil

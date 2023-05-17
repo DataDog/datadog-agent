@@ -7,10 +7,8 @@ import uuid
 import warnings
 
 from lib.config import gen_datadog_agent_config
-from lib.const import CSPM_START_LOG
 from lib.cspm.api import App
 from lib.docker import DockerHelper
-from lib.log import wait_agent_log
 from lib.stepper import Step
 from test_e2e_cspm import expect_findings
 
@@ -30,8 +28,6 @@ class TestE2EDocker(unittest.TestCase):
         print("")
 
         test_id = str(uuid.uuid4())[:4]
-        agent_name = "security-agent"
-
         with Step(msg="create privileged container", emoji=":construction:"):
             pc = self.docker_helper.client.containers.run(
                 "ubuntu:latest",
@@ -57,11 +53,10 @@ class TestE2EDocker(unittest.TestCase):
 
             self.docker_helper.wait_agent_container()
 
-            wait_agent_log(agent_name, self.docker_helper, CSPM_START_LOG)
-
         with Step(msg="check agent events", emoji=":check_mark_button:"):
             self.container.exec_run("security-agent compliance check --dump-reports /tmp/reports.json --report")
             _, output = self.container.exec_run("cat /tmp/reports.json")
+            print(output)
             findings = json.loads(output)
 
             expected_findings = {

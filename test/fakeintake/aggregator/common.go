@@ -40,7 +40,7 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 
 func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	// reset map
-	agg.payloadsByName = map[string][]P{}
+	agg.Reset()
 	// build map
 	for _, p := range payloads {
 		payloads, err := agg.parse(p)
@@ -105,6 +105,10 @@ func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser
 
 func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
 	return agg.payloadsByName[name]
+}
+
+func (agg *Aggregator[P]) Reset() {
+	agg.payloadsByName = map[string][]P{}
 }
 
 func FilterByTags[P PayloadItem](payloads []P, tags []string) []P {

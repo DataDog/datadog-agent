@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && !windows
-// +build clusterchecks,!windows
 
 package cloudfoundry
 

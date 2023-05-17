@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 

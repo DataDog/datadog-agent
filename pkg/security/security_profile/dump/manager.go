@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package dump
 
@@ -415,6 +414,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.Comm = params.GetComm()
+		ad.Metadata.ContainerID = params.GetContainerID()
 		ad.SetTimeout(time.Duration(params.Timeout) * time.Minute)
 
 		if params.GetDifferentiateArgs() {

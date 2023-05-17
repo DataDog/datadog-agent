@@ -6,6 +6,7 @@
 package oracle
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -59,6 +60,8 @@ type Check struct {
 	dbVersion                               string
 	driver                                  string
 	statementsLastRun                       time.Time
+	filePath                                string
+	isRDS                                   bool
 }
 
 // Run executes the check.
@@ -69,10 +72,32 @@ func (c *Check) Run() error {
 			c.Teardown()
 			return err
 		}
+		if db == nil {
+			c.Teardown()
+			return fmt.Errorf("empty connection")
+		}
 		c.db = db
 	}
 
 	if c.dbmEnabled {
+		if c.config.CollectSysMetrics {
+			err := c.SysMetrics()
+			if err != nil {
+				return err
+			}
+		}
+		if c.config.CollectTablespaces {
+			err := c.Tablespaces()
+			if err != nil {
+				return err
+			}
+		}
+		if c.config.CollectProcessMemory {
+			err := c.ProcessMemory()
+			if err != nil {
+				return err
+			}
+		}
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
@@ -86,8 +111,19 @@ func (c *Check) Run() error {
 			}
 		}
 
+		if c.config.QuerySamples.Enabled {
+			err := c.SampleSession()
+			if err != nil {
+				return err
+			}
+			if c.config.QueryMetrics.Enabled {
+				_, err = c.StatementMetrics()
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
-
 	return nil
 }
 
@@ -136,9 +172,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	if c.dbHostname == "" || c.dbVersion == "" {
-		row := db.QueryRow("SELECT /* DD */ host_name, version FROM v$instance")
+		row := db.QueryRow("SELECT /* DD */ host_name, version, instance_name FROM v$instance")
 		var dbHostname string
-		err = row.Scan(&dbHostname, &c.dbVersion)
+		var instanceName string
+		err = row.Scan(&dbHostname, &c.dbVersion, &instanceName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
 		}
@@ -148,6 +185,18 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			c.dbHostname = dbHostname
 		}
 		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
+	}
+
+	if c.filePath == "" {
+		r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
+		var path string
+		err = r.Scan(&path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query path: %w", err)
+		}
+		if path == "/rdsdbdata" {
+			c.isRDS = true
+		}
 	}
 
 	return db, nil
@@ -222,4 +271,11 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 
 func (c *Check) getFullPDBName(pdb string) string {
 	return fmt.Sprintf("%s.%s", c.cdbName, pdb)
+}
+
+func appendPDBTag(tags []string, pdb sql.NullString) []string {
+	if !pdb.Valid {
+		return tags
+	}
+	return append(tags, "pdb:"+pdb.String)
 }

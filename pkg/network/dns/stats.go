@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows || linux_bpf
-// +build windows linux_bpf
 
 package dns
 
@@ -260,5 +259,5 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 }
 
 func (d *dnsStatKeeper) Close() {
-	d.exit <- struct{}{}
+	close(d.exit)
 }
