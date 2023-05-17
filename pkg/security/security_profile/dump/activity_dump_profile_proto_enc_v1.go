@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package dump
 
@@ -24,7 +23,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProf
 	}
 
 	output := proto.SecurityProfile{
-		Status:   uint32(model.AnomalyDetection + model.AutoSuppression),
+		Status:   uint32(model.AnomalyDetection),
 		Version:  security_profile.LocalProfileVersion,
 		Metadata: mtdt.MetadataToProto(&input.Metadata),
 		Syscalls: input.ActivityTree.ComputeSyscallsList(),

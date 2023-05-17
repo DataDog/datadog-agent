@@ -1690,7 +1690,7 @@ api_key:
 # service_monitoring_config:
 {{- if (eq .OS "windows")}}
   ## Please note that enabling the Universal Service Monitoring
-  ## Module of the System Probe will result in a kernel driver 
+  ## Module of the System Probe will result in a kernel driver
   ## being loaded.
 {{ end }}
   ## @param enabled - boolean - optional - default: false
@@ -1804,11 +1804,11 @@ api_key:
     #
     #  traced_cgroups_count: 5
 
-    ## @param cgroup_dump_timeout - integer - optional - default: 30
-    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_CGROUP_DUMP_TIMEOUT - integer - optional - default: 30
-    ## Defines the duration of cgroups learning phase in minutes. Minimum value is 10.
+    ## @param dump_duration - duration - optional - default: 30m
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_DUMP_DURATION - duration - optional - default: 30m
+    ## Defines the duration of cgroups learning phase. Minimum value is 10m.
     #
-    #  cgroup_dump_timeout: 30
+    #  dump_duration: 30m
 
   ## @param network - custom object - optional
   ## Network section is used to configure Cloud Workload Security (CWS) network features.
@@ -3541,6 +3541,12 @@ api_key:
           ## Known protocols are "tcp", "udp", "ip", "unix", "unixgram", and "unixpacket".
           #
           # transport: tcp
+
+          ## @param max_recv_msg_size_mib - number - optional - default: 4
+          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB - number - optional - default: 4
+          ## The maximum size (in MiB) of messages accepted by the OTLP/gRPC endpoint.
+          #
+          # max_recv_msg_size_mib: 4
 
         ## @param http - custom object - optional
         ## Configuration for OTLP/HTTP listener.

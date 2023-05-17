@@ -6,7 +6,6 @@
 // Imported from https://github.com/aquasecurity/trivy/blob/main/pkg/fanal/image/daemon/image.go
 
 //go:build trivy
-// +build trivy
 
 package trivy
 

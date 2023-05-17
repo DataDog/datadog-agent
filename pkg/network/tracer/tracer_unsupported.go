@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (linux && !linux_bpf) || (windows && !npm) || (!linux && !windows)
-// +build linux,!linux_bpf windows,!npm !linux,!windows
 
 package tracer
 

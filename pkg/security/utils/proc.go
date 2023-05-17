@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package utils
 
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -260,40 +260,92 @@ func GetFilledProcess(p *process.Process) *FilledProcess {
 	}
 }
 
+const MAX_ENV_VARS_COLLECTED = 256
+
+func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	for i := 0; i < len(data); i++ {
+		if data[i] == '\x00' {
+			return i + 1, data[:i], nil
+		}
+	}
+	if !atEOF {
+		return 0, nil, nil
+	}
+	return 0, data, bufio.ErrFinalToken
+}
+
+func newEnvScanner(f *os.File) (*bufio.Scanner, error) {
+	_, err := f.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := bufio.NewScanner(f)
+	scanner.Split(zeroSplitter)
+
+	return scanner, nil
+}
+
+func matchesOnePrefix(text string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(text, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // EnvVars returns a array with the environment variables of the given pid
-func EnvVars(pid int32) ([]string, error) {
+func EnvVars(priorityEnvsPrefixes []string, pid int32) ([]string, bool, error) {
 	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
 
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer f.Close()
 
-	zero := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		for i := 0; i < len(data); i++ {
-			if data[i] == '\x00' {
-				return i + 1, data[:i], nil
-			}
-		}
-		if !atEOF {
-			return 0, nil, nil
-		}
-		return 0, data, bufio.ErrFinalToken
+	// first pass collecting only priority variables
+	scanner, err := newEnvScanner(f)
+	if err != nil {
+		return nil, false, err
 	}
+	var priorityEnvs []string
+	envCounter := 0
 
-	scanner := bufio.NewScanner(f)
-	scanner.Split(zero)
-
-	var envs []string
 	for scanner.Scan() {
 		text := scanner.Text()
 		if len(text) > 0 {
-			envs = append(envs, text)
+			envCounter++
+			if matchesOnePrefix(text, priorityEnvsPrefixes) {
+				priorityEnvs = append(priorityEnvs, text)
+			}
 		}
 	}
 
-	return envs, nil
+	// second pass collecting
+	scanner, err = newEnvScanner(f)
+	if err != nil {
+		return nil, false, err
+	}
+	envs := make([]string, 0, envCounter)
+	envs = append(envs, priorityEnvs...)
+
+	for scanner.Scan() {
+		if len(envs) >= MAX_ENV_VARS_COLLECTED {
+			return envs, true, nil
+		}
+
+		text := scanner.Text()
+		if len(text) > 0 {
+			// if it matches one prefix, it's already in the envs through priority envs
+			if !matchesOnePrefix(text, priorityEnvsPrefixes) {
+				envs = append(envs, text)
+			}
+		}
+	}
+
+	return envs, false, nil
 }
 
 // ProcFSModule is a representation of a line in /proc/modules

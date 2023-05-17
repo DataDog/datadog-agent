@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package ebpf
 
@@ -36,11 +35,11 @@ func TestReadKprobeProfile(t *testing.T) {
 
 func TestGetProbeStats(t *testing.T) {
 	stats := getProbeStats(7178, testProfile)
-	require.Equal(t, int64(1111389857), stats["r_tcp_sendmsg_hits"])
+	require.Equal(t, uint64(1111389857), stats["r_tcp_sendmsg_hits"])
 
 	stats = getProbeStats(4256, testProfile)
-	require.Equal(t, int64(549926224), stats["r_tcp_sendmsg_hits"])
-	require.Equal(t, int64(549925022), stats["p_tcp_sendmsg_hits"])
+	require.Equal(t, uint64(549926224), stats["r_tcp_sendmsg_hits"])
+	require.Equal(t, uint64(549925022), stats["p_tcp_sendmsg_hits"])
 
 	stats = getProbeStats(0, testProfile)
 	require.Empty(t, stats)

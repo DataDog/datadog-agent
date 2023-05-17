@@ -158,7 +158,8 @@ CWS logs have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "id"
+                "id",
+                "question"
             ],
             "description": "DNSEventSerializer serializes a DNS event to JSON"
         },
@@ -1544,7 +1545,8 @@ CWS logs have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "id"
+        "id",
+        "question"
     ],
     "description": "DNSEventSerializer serializes a DNS event to JSON"
 }
