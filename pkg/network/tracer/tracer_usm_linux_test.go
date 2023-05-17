@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -70,11 +71,6 @@ func goTLSSupported() bool {
 
 func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
-}
-
-func isTLSTag(staticTags uint64) bool {
-	// we check only if the TLS tag has set, not like network.IsTLSTag()
-	return staticTags&network.ConnTagTLS > 0
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
@@ -314,7 +310,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 				}
 
 				for _, c := range payload.Conns {
-					if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
+					if c.SPort == key.SrcPort && c.DPort == key.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 						return true
 					}
 				}
@@ -613,7 +609,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		}
 
 		client.CloseIdleConnections()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP, tlsNotExpected)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, protocols.HTTP, tlsNotExpected)
 		HTTPServer.Shutdown()
 
 		gRPCServer, err := grpc.NewServer(HTTPServer.address)
@@ -627,7 +623,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
 		gRPCServer.Stop()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, network.ProtocolHTTP2, tlsNotExpected)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, protocols.HTTP2, tlsNotExpected)
 	})
 }
 
@@ -834,7 +830,7 @@ func TestJavaInjection(t *testing.T) {
 							}
 
 							for _, c := range payload.Conns {
-								if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
+								if c.SPort == key.SrcPort && c.DPort == key.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 									return true
 								}
 							}
@@ -1145,7 +1141,7 @@ func TestTLSClassification(t *testing.T) {
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for _, c := range payload.Conns {
-						if c.DPort == 44330 && isTLSTag(c.StaticTags) {
+						if c.DPort == 44330 && c.ProtocolStack.Contains(protocols.TLS) {
 							return true
 						}
 					}
@@ -1285,7 +1281,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				_ = resp.Body.Close()
 				client.CloseIdleConnections()
 			},
-			validation: validateProtocolConnection(network.ProtocolHTTP, tlsExpected),
+			validation: validateProtocolConnection(protocols.HTTP, tlsExpected),
 		},
 	}
 	for _, tt := range tests {

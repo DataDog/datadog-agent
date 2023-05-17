@@ -34,8 +34,6 @@ import (
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -49,6 +47,7 @@ import (
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 var kv470 kernel.Version = kernel.VersionCode(4, 7, 0)
@@ -1805,8 +1804,6 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	if kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
-	constants, err := getTracerOffsets(t, cfg)
-	require.NoError(t, err)
 	t.Cleanup(func() {
 		ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
 		ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
@@ -1822,7 +1819,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 			ebpfConntrackerPrebuiltCreator = getPrebuiltConntracker
 			ebpfConntrackerRCCreator = getRuntimeCompiledConntracker
 			if te.prebuiltError {
-				ebpfConntrackerPrebuiltCreator = func(c *config.Config, ce []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+				ebpfConntrackerPrebuiltCreator = func(c *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
 					return nil, nil, assert.AnError
 				}
 			}
@@ -1830,7 +1827,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 				ebpfConntrackerRCCreator = func(cfg *config.Config) (rc.CompiledOutput, error) { return nil, assert.AnError }
 			}
 
-			conntracker, err := NewEBPFConntracker(cfg, nil, constants)
+			conntracker, err := NewEBPFConntracker(cfg, nil)
 			if te.err != nil {
 				assert.Error(t, err)
 				assert.Nil(t, conntracker)
@@ -1849,13 +1846,13 @@ func TestConntrackerFallback(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
 	cfg.AllowNetlinkConntrackerFallback = true
-	conntracker, err := newConntracker(cfg, nil, nil)
+	conntracker, err := newConntracker(cfg, nil)
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
 	conntracker.Close()
 
 	cfg.AllowNetlinkConntrackerFallback = false
-	conntracker, err = newConntracker(cfg, nil, nil)
+	conntracker, err = newConntracker(cfg, nil)
 	assert.Error(t, err)
 	require.Nil(t, conntracker)
 }

@@ -6,7 +6,7 @@ def expect_findings(test_case, findings, expected_findings):
     for agent_rule_id, rule_findings in findings.items():
         findings_by_rule.setdefault(agent_rule_id, []).extend(rule_findings)
         for finding in rule_findings:
-            print(f"finding {agent_rule_id} {finding['result']} {finding['resource_id']}")
+            print(f"finding {agent_rule_id} {finding}")
 
     for rule_id, expected_rule_findings in expected_findings.items():
         for expected_rule_finding in expected_rule_findings:

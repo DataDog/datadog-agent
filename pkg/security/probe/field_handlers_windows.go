@@ -42,3 +42,8 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 	}
 	return nil, false
 }
+
+// ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
+func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
+	return nil, false
+}

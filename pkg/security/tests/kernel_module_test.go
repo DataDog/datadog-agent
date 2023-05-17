@@ -167,7 +167,7 @@ func TestLoadModule(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_from_memory", r.ID, "invalid rule triggered")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			event.ResolveFields()

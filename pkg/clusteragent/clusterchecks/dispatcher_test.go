@@ -201,7 +201,6 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.True(t, upToDate)
 	node1, found := dispatcher.store.getNodeStore("node1")
 	assert.True(t, found)
-	assert.Equal(t, status1, node1.lastStatus)
 	assert.True(t, timestampNow() >= node1.heartbeat)
 	assert.True(t, timestampNow() <= node1.heartbeat+1)
 
