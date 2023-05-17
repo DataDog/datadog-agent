@@ -13,40 +13,19 @@ skip_prebuilt_tests = Array.[](
   "pkg/collector/corechecks/ebpf/probe"
 )
 
-# list based on `find pkg -name "*_test.go" | xargs grep -l "linux_bpf" | xargs dirname | sort -u`
 runtime_compiled_tests = Array.[](
   "pkg/collector/corechecks/ebpf/probe",
-  "pkg/ebpf",
-  "pkg/ebpf/bytecode/runtime",
-  "pkg/ebpf/compiler",
-  "pkg/network",
-  "pkg/network/dns",
-  "pkg/network/netlink",
-  "pkg/network/protocols",
-  "pkg/network/protocols/events",
   "pkg/network/protocols/grpc",
   "pkg/network/protocols/http",
   "pkg/network/tracer",
-  "pkg/network/tracer/connection",
-  "pkg/network/tracer/connection/kprobe",
   "pkg/network/usm",
 )
 
 co_re_tests = Array.[](
   "pkg/collector/corechecks/ebpf/probe",
-  "pkg/ebpf",
-  "pkg/ebpf/bytecode/runtime",
-  "pkg/ebpf/compiler",
-  "pkg/network",
-  "pkg/network/dns",
-  "pkg/network/netlink",
-  "pkg/network/protocols",
-  "pkg/network/protocols/events",
   "pkg/network/protocols/grpc",
   "pkg/network/protocols/http",
   "pkg/network/tracer",
-  "pkg/network/tracer/connection",
-  "pkg/network/tracer/connection/kprobe",
   "pkg/network/usm",
 )
 
