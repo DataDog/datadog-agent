@@ -88,10 +88,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         // should never happen, but it is required by the eBPF verifier
         return;
     }
-
-    if (is_fully_classified(stack) || is_protocol_layer_known(stack, LAYER_ENCRYPTION)) {
-        return;
-    }
+    // TODO: consider adding early return if `is_layer_known(stack, LAYER_ENCRYPTION)`
 
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
