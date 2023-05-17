@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
@@ -19,17 +18,14 @@ import (
 )
 
 func TestHttpCompile(t *testing.T) {
-	if !rtcHTTPSupported(t) {
-		t.Skip("HTTP Runtime compilation not supported on this kernel version")
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < http.MinimumKernelVersion {
+		t.Skip("USM Runtime compilation not supported on this kernel version")
 	}
 	cfg := config.New()
 	cfg.BPFDebug = true
-	_, err := getRuntimeCompiledHTTP(cfg)
+	out, err := getRuntimeCompiledUSM(cfg)
 	require.NoError(t, err)
-}
-
-func rtcHTTPSupported(t *testing.T) bool {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	return currKernelVersion >= http.MinimumKernelVersion
+	_ = out.Close()
 }

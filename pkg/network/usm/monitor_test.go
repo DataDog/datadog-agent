@@ -4,12 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -162,8 +162,9 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			monitor := newHTTPMonitor(t)
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-				EnableKeepAlives: true,
+				EnableKeepAlive: true,
 			})
+			t.Cleanup(srvDoneFn)
 
 			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
@@ -223,6 +224,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 				ReadTimeout:  serverTimeout,
 				SlowResponse: slowResponseTimeout,
 			})
+			t.Cleanup(srvDoneFn)
 
 			// Perform a number of random requests
 			req := requestGenerator(t, targetAddr, emptyBody)()
@@ -247,12 +249,12 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 
 	t.Run("with keep-alives", func(t *testing.T) {
 		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlives: true,
+			EnableKeepAlive: true,
 		})
 	})
 	t.Run("without keep-alives", func(t *testing.T) {
 		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlives: false,
+			EnableKeepAlive: false,
 		})
 	})
 }
@@ -265,12 +267,12 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 	serverAddr := "1.1.1.1:8080"
 	t.Run("with keep-alives", func(t *testing.T) {
 		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlives: true,
+			EnableKeepAlive: true,
 		})
 	})
 	t.Run("without keep-alives", func(t *testing.T) {
 		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlives: false,
+			EnableKeepAlive: false,
 		})
 	})
 }
@@ -284,10 +286,10 @@ func TestUnknownMethodRegression(t *testing.T) {
 	targetAddr := "2.2.2.2:8080"
 	serverAddr := "1.1.1.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableTLS:        false,
-		EnableKeepAlives: true,
+		EnableTLS:       false,
+		EnableKeepAlive: true,
 	})
-	defer srvDoneFn()
+	t.Cleanup(srvDoneFn)
 
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
 	for i := 0; i < 100; i++ {
@@ -309,9 +311,9 @@ func TestRSTPacketRegression(t *testing.T) {
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableKeepAlives: true,
+		EnableKeepAlive: true,
 	})
-	defer srvDoneFn()
+	t.Cleanup(srvDoneFn)
 
 	// Create a "raw" TCP socket that will serve as our HTTP client
 	// We do this in order to configure the socket option SO_LINGER
@@ -431,6 +433,7 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o
 	monitor := newHTTPMonitor(t)
 
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
+	t.Cleanup(srvDoneFn)
 
 	// Perform a number of random requests
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
@@ -458,6 +461,13 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 		reqBuf  = make([]byte, 0, len(reqBody))
 		respBuf = make([]byte, 512)
 	)
+
+	// Disabling http2
+	tr := nethttp.DefaultTransport.(*nethttp.Transport).Clone()
+	tr.ForceAttemptHTTP2 = false
+	tr.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) nethttp.RoundTripper)
+
+	client.Transport = tr
 
 	return func() *nethttp.Request {
 		idx++
@@ -561,12 +571,12 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 func newHTTPMonitor(t *testing.T) *Monitor {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(monitor.Stop)
 
-	// at this stage the test can be legitimally skipped due to missing BTF information
+	// at this stage the test can be legitimately skipped due to missing BTF information
 	// in the context of CO-RE
 	err = monitor.Start()
 	skipIfNotSupported(t, err)

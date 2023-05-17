@@ -46,14 +46,17 @@ type Config struct {
 	// DataStreamsEnabled is whether the data streams feature is enabled or not
 	DataStreamsEnabled bool
 
-	// CollectTCPConns specifies whether the tracer should collect traffic statistics for TCP connections
-	CollectTCPConns bool
+	// CollectTCPv4Conns specifies whether the tracer should collect traffic statistics for TCPv4 connections
+	CollectTCPv4Conns bool
 
-	// CollectUDPConns specifies whether the tracer should collect traffic statistics for UDP connections
-	CollectUDPConns bool
+	// CollectTCPv6Conns specifies whether the tracer should collect traffic statistics for TCPv6 connections
+	CollectTCPv6Conns bool
 
-	// CollectIPv6Conns specifics whether the tracer should capture traffic for IPv6 TCP/UDP connections
-	CollectIPv6Conns bool
+	// CollectUDPv4Conns specifies whether the tracer should collect traffic statistics for UDPv4 connections
+	CollectUDPv4Conns bool
+
+	// CollectUDPv6Conns specifies whether the tracer should collect traffic statistics for UDPv6 connections
+	CollectUDPv6Conns bool
 
 	// CollectLocalDNS specifies whether the tracer should capture traffic for local DNS calls
 	CollectLocalDNS bool
@@ -267,15 +270,16 @@ func New() *Config {
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
 		DataStreamsEnabled:       cfg.GetBool(join(dsNS, "enabled")),
 
-		CollectTCPConns:  !cfg.GetBool(join(spNS, "disable_tcp")),
-		TCPConnTimeout:   2 * time.Minute,
-		TCPClosedTimeout: 1 * time.Second,
+		CollectTCPv4Conns: true,
+		CollectTCPv6Conns: true,
+		TCPConnTimeout:    2 * time.Minute,
+		TCPClosedTimeout:  1 * time.Second,
 
-		CollectUDPConns:  !cfg.GetBool(join(spNS, "disable_udp")),
-		UDPConnTimeout:   defaultUDPTimeoutSeconds * time.Second,
-		UDPStreamTimeout: defaultUDPStreamTimeoutSeconds * time.Second,
+		CollectUDPv4Conns: true,
+		CollectUDPv6Conns: true,
+		UDPConnTimeout:    defaultUDPTimeoutSeconds * time.Second,
+		UDPStreamTimeout:  defaultUDPStreamTimeoutSeconds * time.Second,
 
-		CollectIPv6Conns:               !cfg.GetBool(join(spNS, "disable_ipv6")),
 		OffsetGuessThreshold:           uint64(cfg.GetInt64(join(spNS, "offset_guess_threshold"))),
 		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
 		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
@@ -341,6 +345,19 @@ func New() *Config {
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 	}
 
+	if cfg.GetBool(join(spNS, "disable_tcp")) {
+		c.CollectTCPv4Conns = false
+		c.CollectTCPv6Conns = false
+	}
+	if cfg.GetBool(join(spNS, "disable_udp")) {
+		c.CollectUDPv4Conns = false
+		c.CollectUDPv6Conns = false
+	}
+	if cfg.GetBool(join(spNS, "disable_ipv6")) {
+		c.CollectTCPv6Conns = false
+		c.CollectUDPv6Conns = false
+	}
+
 	if runtime.GOOS == "windows" {
 		if cfg.IsSet(join(spNS, "closed_connection_flush_threshold")) && c.ClosedConnectionFlushThreshold < 1024 {
 			log.Warnf("Closed connection notification threshold set to invalid value %d.  Resetting to default.", c.ClosedConnectionFlushThreshold)
@@ -381,19 +398,26 @@ func New() *Config {
 		c.OffsetGuessThreshold = defaultOffsetThreshold
 	}
 
-	if !kernel.IsIPv6Enabled() {
-		c.CollectIPv6Conns = false
-		log.Info("network tracer IPv6 tracing disabled by system")
-	} else if !c.CollectIPv6Conns {
-		log.Info("network tracer IPv6 tracing disabled by configuration")
+	if !c.CollectTCPv4Conns {
+		log.Info("network tracer TCPv4 tracing disabled by configuration")
+	}
+	if !c.CollectUDPv4Conns {
+		log.Info("network tracer UDPv4 tracing disabled by configuration")
 	}
 
-	if !c.CollectUDPConns {
-		log.Info("network tracer UDP tracing disabled by configuration")
+	if !kernel.IsIPv6Enabled() {
+		c.CollectTCPv6Conns = false
+		c.CollectUDPv6Conns = false
+		log.Info("network tracer IPv6 tracing disabled by system")
+	} else {
+		if !c.CollectTCPv6Conns {
+			log.Info("network tracer TCPv6 tracing disabled by configuration")
+		}
+		if !c.CollectUDPv6Conns {
+			log.Info("network tracer UDPv6 tracing disabled by configuration")
+		}
 	}
-	if !c.CollectTCPConns {
-		log.Info("network tracer TCP tracing disabled by configuration")
-	}
+
 	if !c.DNSInspection {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}

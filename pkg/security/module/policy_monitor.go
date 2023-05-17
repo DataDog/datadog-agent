@@ -135,7 +135,7 @@ func ReportRuleSetLoaded(sender EventSender, statsdClient statsd.ClientInterface
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
 
-	sender.SendEvent(rule, event, func() []string { return nil }, "")
+	sender.SendEvent(rule, event, nil, "")
 }
 
 // RuleLoaded defines a loaded rule

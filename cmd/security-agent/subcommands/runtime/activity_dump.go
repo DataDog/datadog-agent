@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package runtime
 
@@ -151,6 +150,12 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
+	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&cliParams.containerID,
+		flags.ContainerID,
+		"",
+		"a container identifier can be used to filter the activity dump from a specific container.",
+	)
 	activityDumpGenerateDumpCmd.Flags().IntVar(
 		&cliParams.timeout,
 		flags.Timeout,
@@ -277,6 +282,7 @@ func generateActivityDump(log log.Component, config config.Component, activityDu
 
 	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
 		Comm:              activityDumpArgs.comm,
+		ContainerID:       activityDumpArgs.containerID,
 		Timeout:           int32(activityDumpArgs.timeout),
 		DifferentiateArgs: activityDumpArgs.differentiateArgs,
 		Storage:           storage,

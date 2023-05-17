@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -1365,6 +1364,11 @@ func TestRebalance(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+			// Tests have been written with this value hardcoded
+			// Changing the values rather than re-writing all the tests.
+			checkExecutionTimeWeight = 0.8
+			checkMetricSamplesWeight = 0.2
+
 			dispatcher := newDispatcher()
 
 			// prepare store

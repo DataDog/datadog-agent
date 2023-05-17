@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package http
 
@@ -179,14 +178,6 @@ func (di *HttpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, 
 	}
 
 	return transactionBatch, nil
-}
-
-func (di *HttpDriverInterface) GetStats() (map[string]int64, error) {
-	stats, err := di.driverHTTPHandle.GetStatsForHandle()
-	if err != nil {
-		return nil, err
-	}
-	return stats["handle"], nil
 }
 
 func (di *HttpDriverInterface) Close() error {

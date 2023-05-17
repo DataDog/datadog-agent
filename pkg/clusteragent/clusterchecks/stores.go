@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -84,7 +83,6 @@ type nodeStore struct {
 	sync.RWMutex
 	name             string
 	heartbeat        int64
-	lastStatus       types.NodeStatus
 	lastConfigChange int64
 	digestToConfig   map[string]integration.Config
 	clientIP         string

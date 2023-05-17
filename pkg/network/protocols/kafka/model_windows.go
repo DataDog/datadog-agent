@@ -4,6 +4,5 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package kafka

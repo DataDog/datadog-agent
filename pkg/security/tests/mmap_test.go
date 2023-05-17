@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -49,7 +48,7 @@ func TestMMapEvent(t *testing.T) {
 			assert.Equal(t, "mmap", event.GetType(), "wrong event type")
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			executable, err := os.Executable()

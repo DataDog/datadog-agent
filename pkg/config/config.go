@@ -1104,8 +1104,9 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)        // controls the agent configurations
-	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false) // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)            // controls the agent configurations
+	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false)     // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
@@ -1946,10 +1947,10 @@ func IsCLCRunner() bool {
 // Not using `config.BindEnvAndSetDefault` as some processes need to know
 // if value was default one or not (e.g. trace-agent)
 func GetBindHost() string {
-	return getBindHost(Datadog)
+	return GetBindHostFromConfig(Datadog)
 }
 
-func getBindHost(cfg Config) string {
+func GetBindHostFromConfig(cfg ConfigReader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")
 	}

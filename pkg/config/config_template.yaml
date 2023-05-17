@@ -1368,6 +1368,17 @@ api_key:
   #
   # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
 
+  ## @param debug - custom object - optional
+  ## Specifies settings for the debug server of the trace agent.
+  #
+  # debug:
+
+    ## @param port - integer - optional - default: 5012
+    ## @env DD_APM_DEBUG_PORT - string - optional - default: 5012
+    ## Port for the debug endpoints for the trace Agent. Set it to 0 to disable the server.
+    #
+    # port: 5012
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
@@ -1659,6 +1670,10 @@ api_key:
 ########################################
 
 # network_config:
+{{- if (eq .OS "windows")}}
+  ## Please note that enabling the Network Module of the System
+  ## Probe will result in a kernel driver being loaded.
+{{ end }}
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Network Module of the System Probe
   #
@@ -1673,10 +1688,15 @@ api_key:
 #############################################################
 
 # service_monitoring_config:
-## @param enabled - boolean - optional - default: false
-## Set to true to enable the Universal Service Monitoring Module of the System Probe
-#
-# enabled: false
+{{- if (eq .OS "windows")}}
+  ## Please note that enabling the Universal Service Monitoring
+  ## Module of the System Probe will result in a kernel driver
+  ## being loaded.
+{{ end }}
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Universal Service Monitoring Module of the System Probe
+  #
+  # enabled: false
 
 {{ end -}}
 
@@ -1687,10 +1707,10 @@ api_key:
 #############################################
 
 # data_streams_config:
-## @param enabled - boolean - optional - default: false
-## Set to true to enable the Data Streams Module of the System Probe
-#
-# enabled: false
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Data Streams Module of the System Probe
+  #
+  # enabled: false
 
 {{ end -}}
 
@@ -1784,11 +1804,11 @@ api_key:
     #
     #  traced_cgroups_count: 5
 
-    ## @param cgroup_dump_timeout - integer - optional - default: 30
-    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_CGROUP_DUMP_TIMEOUT - integer - optional - default: 30
-    ## Defines the duration of cgroups learning phase in minutes. Minimum value is 10.
+    ## @param dump_duration - duration - optional - default: 30m
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_DUMP_DURATION - duration - optional - default: 30m
+    ## Defines the duration of cgroups learning phase. Minimum value is 10m.
     #
-    #  cgroup_dump_timeout: 30
+    #  dump_duration: 30m
 
   ## @param network - custom object - optional
   ## Network section is used to configure Cloud Workload Security (CWS) network features.
@@ -3521,6 +3541,12 @@ api_key:
           ## Known protocols are "tcp", "udp", "ip", "unix", "unixgram", and "unixpacket".
           #
           # transport: tcp
+
+          ## @param max_recv_msg_size_mib - number - optional - default: 4
+          ## @env DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB - number - optional - default: 4
+          ## The maximum size (in MiB) of messages accepted by the OTLP/gRPC endpoint.
+          #
+          # max_recv_msg_size_mib: 4
 
         ## @param http - custom object - optional
         ## Configuration for OTLP/HTTP listener.

@@ -229,6 +229,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 					lp.requestHandler.inferredSpans[1].CompleteInferredSpan(lp.ProcessTrace, lp.getInferredSpanStart(), endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
 					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
 				}
+				lp.GetInferredSpan().AddTagToInferredSpan("http.status_code", statusCode)
 				lp.GetInferredSpan().CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
 				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
 			} else {

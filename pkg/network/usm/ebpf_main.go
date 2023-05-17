@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
@@ -22,9 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -52,7 +53,6 @@ const (
 type ebpfProgram struct {
 	*errtelemetry.Manager
 	cfg                   *config.Config
-	offsets               []manager.ConstantEditor
 	subprograms           []subprogram
 	probesResolvers       []probeResolver
 	mapCleaner            *ddebpf.MapCleaner
@@ -95,13 +95,13 @@ type subprogram interface {
 
 var http2TailCall = manager.TailCallRoute{
 	ProgArrayName: protocolDispatcherProgramsMap,
-	Key:           uint32(http.ProtocolHTTP2),
+	Key:           uint32(protocols.ProgramHTTP2),
 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
 		EBPFFuncName: "socket__http2_filter",
 	},
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
@@ -163,7 +163,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connecti
 	tailCalls := []manager.TailCallRoute{
 		{
 			ProgArrayName: protocolDispatcherProgramsMap,
-			Key:           uint32(http.ProtocolHTTP),
+			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "socket__http_filter",
 			},
@@ -179,14 +179,14 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connecti
 		tailCalls = append(tailCalls,
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherProgramsMap,
-				Key:           uint32(http.ProtocolKafka),
+				Key:           uint32(protocols.ProgramKafka),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__kafka_filter",
 				},
 			},
 			manager.TailCallRoute{
 				ProgArrayName: protocolDispatcherClassificationPrograms,
-				Key:           uint32(http.DispatcherKafkaProg),
+				Key:           uint32(protocols.DispatcherKafkaProg),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__protocol_dispatcher_kafka",
 				},
@@ -196,7 +196,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, connecti
 	program := &ebpfProgram{
 		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
-		offsets:               offsets,
 		subprograms:           subprograms,
 		probesResolvers:       subprogramProbesResolvers,
 		tailCallRouter:        tailCalls,
@@ -269,20 +268,19 @@ func (e *ebpfProgram) Start() error {
 
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
-	err := e.Stop(manager.CleanAll)
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
-	return err
+	return e.Stop(manager.CleanAll)
 }
 
 func (e *ebpfProgram) initCORE() error {
-	assetName := getAssetName("http", e.cfg.BPFDebug)
+	assetName := getAssetName("usm", e.cfg.BPFDebug)
 	return ddebpf.LoadCOREAsset(&e.cfg.Config, assetName, e.init)
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
-	bc, err := getRuntimeCompiledHTTP(e.cfg)
+	bc, err := getRuntimeCompiledUSM(e.cfg)
 	if err != nil {
 		return err
 	}
@@ -296,7 +294,13 @@ func (e *ebpfProgram) initPrebuilt() error {
 		return err
 	}
 	defer bc.Close()
-	return e.init(bc, manager.Options{})
+
+	var offsets []manager.ConstantEditor
+	if offsets, err = offsetguess.TracerOffsets.Offsets(e.cfg); err != nil {
+		return err
+	}
+
+	return e.init(bc, manager.Options{ConstantEditors: offsets})
 }
 
 func (e *ebpfProgram) setupMapCleaner() {
@@ -406,7 +410,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			},
 		},
 	}
-	options.ConstantEditors = e.offsets
 	addBoolConst(&options, e.cfg.EnableHTTPMonitoring, "http_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableHTTP2Monitoring, "http2_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableKafkaMonitoring, "kafka_monitoring_enabled")

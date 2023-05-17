@@ -29,6 +29,8 @@ func main() {
 
 	client := http.Client{
 		Transport: &http.Transport{
+			ForceAttemptHTTP2: false,
+			TLSNextProto:      make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},

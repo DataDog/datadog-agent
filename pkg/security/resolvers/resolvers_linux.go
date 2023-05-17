@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package resolvers
 
@@ -42,6 +41,7 @@ import (
 // ResolversOpts defines common options
 type ResolversOpts struct {
 	PathResolutionEnabled bool
+	TagsResolver          tags.Resolver
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -51,7 +51,7 @@ type Resolvers struct {
 	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
 	UserGroupResolver *usergroup.Resolver
-	TagsResolver      *tags.Resolver
+	TagsResolver      tags.Resolver
 	DentryResolver    *dentry.Resolver
 	ProcessResolver   *process.Resolver
 	NamespaceResolver *netns.Resolver
@@ -94,7 +94,12 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		}
 	}
 
-	tagsResolver := tags.NewResolver(config.Probe)
+	var tagsResolver tags.Resolver
+	if opts.TagsResolver != nil {
+		tagsResolver = opts.TagsResolver
+	} else {
+		tagsResolver = tags.NewResolver(config.Probe)
+	}
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
 	if err != nil {
 		return nil, err
@@ -226,12 +231,14 @@ func (r *Resolvers) snapshot() error {
 			continue
 		}
 
-		if process.IsKThread(uint32(ppid), uint32(proc.Pid)) {
+		pid := uint32(proc.Pid)
+
+		if process.IsKThread(uint32(ppid), pid) {
 			continue
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err = r.MountResolver.SyncCache(uint32(proc.Pid)); err != nil {
+		if err = r.MountResolver.SyncCache(pid); err != nil {
 			if !os.IsNotExist(err) {
 				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
@@ -241,7 +248,7 @@ func (r *Resolvers) snapshot() error {
 		r.ProcessResolver.SyncCache(proc)
 
 		// Sync the namespace cache
-		r.NamespaceResolver.SyncCache(proc)
+		r.NamespaceResolver.SyncCache(pid)
 	}
 
 	return nil
