@@ -134,7 +134,7 @@ DEFAULT_MODULES = {
         "test/new-e2e",
         independent=True,
         should_tag=False,
-        targets=["./runner", "./utils"],
+        targets=["./runner", "./utils/e2e/client"],
     ),
     "test/fakeintake": GoModule("test/fakeintake", independent=True, should_tag=False),
     "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True),
