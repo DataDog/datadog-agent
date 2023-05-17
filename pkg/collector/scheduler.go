@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	yaml "gopkg.in/yaml.v2"
@@ -118,6 +119,11 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 			s.configToChecks[digest] = dangling
 		}
 	}
+
+	// When we close each check, we close the informers used by each check as well.
+	// We can't restart informer https://github.com/kubernetes/kubernetes/pull/104853
+	// So we have to re-create their informer factory
+	apiserver.ReSetGlobalAPIClientOnce()
 }
 
 // Stop handles clean stop of registered schedulers

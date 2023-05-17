@@ -142,9 +142,9 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
-// ReCreateAPIClient resets globalAPIClientOnce
-func ReCreateAPIClient() {
-	log.Info("Recreate api client")
+// ReSetGlobalAPIClientOnce resets globalAPIClientOnce
+func ReSetGlobalAPIClientOnce() {
+	log.Info("Reset globalAPIClientOnce to recreate APIClient")
 	globalAPIClientOnce = new(sync.Once)
 }
 
