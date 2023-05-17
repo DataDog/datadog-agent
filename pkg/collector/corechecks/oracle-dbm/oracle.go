@@ -79,25 +79,26 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
+	if c.config.CollectSysMetrics {
+		err := c.SysMetrics()
+		if err != nil {
+			return err
+		}
+	}
+	if c.config.CollectTablespaces {
+		err := c.Tablespaces()
+		if err != nil {
+			return err
+		}
+	}
+	if c.config.CollectProcessMemory {
+		err := c.ProcessMemory()
+		if err != nil {
+			return err
+		}
+	}
+
 	if c.dbmEnabled {
-		if c.config.CollectSysMetrics {
-			err := c.SysMetrics()
-			if err != nil {
-				return err
-			}
-		}
-		if c.config.CollectTablespaces {
-			err := c.Tablespaces()
-			if err != nil {
-				return err
-			}
-		}
-		if c.config.CollectProcessMemory {
-			err := c.ProcessMemory()
-			if err != nil {
-				return err
-			}
-		}
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
