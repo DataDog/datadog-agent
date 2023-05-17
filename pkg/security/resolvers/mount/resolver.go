@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -90,7 +91,7 @@ type Resolver struct {
 	deleteQueue     []deleteRequest
 	minMountID      uint32
 	redemption      *simplelru.LRU[uint32, *model.Mount]
-	fallbackLimiter *simplelru.LRU[uint32, time.Time]
+	fallbackLimiter *utils.Limiter[uint32]
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -389,23 +390,11 @@ func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (s
 	return mr.resolveMountPath(mountID, containerID, pid)
 }
 
-func (mr *Resolver) isSyncCacheAllowed(mountID uint32) bool {
-	now := time.Now()
-	if ts, ok := mr.fallbackLimiter.Get(mountID); ok {
-		if now.After(ts) {
-			mr.fallbackLimiter.Remove(mountID)
-		} else {
-			return false
-		}
-	}
-	return true
-}
-
 func (mr *Resolver) syncCacheMiss(mountID uint32) {
 	mr.procMissStats.Inc()
 
 	// add to fallback limiter to avoid storm of file access
-	mr.fallbackLimiter.Add(mountID, time.Now().Add(fallbackLimiterPeriod))
+	mr.fallbackLimiter.Count(mountID)
 }
 
 func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ...uint32) (string, error) {
@@ -436,7 +425,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ..
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.isSyncCacheAllowed(mountID) {
+	if !mr.fallbackLimiter.IsAllowed(mountID) {
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -627,11 +616,11 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	}
 	mr.redemption = redemption
 
-	fallbackLimiter, err := simplelru.NewLRU[uint32, time.Time](64, nil)
+	limiter, err := utils.NewLimiter[uint32](64, fallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}
-	mr.fallbackLimiter = fallbackLimiter
+	mr.fallbackLimiter = limiter
 
 	return mr, nil
 }

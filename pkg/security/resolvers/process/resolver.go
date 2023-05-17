@@ -48,8 +48,9 @@ const (
 )
 
 const (
-	procResolveMaxDepth = 16
-	maxParallelArgsEnvs = 512 // == number of parallel starting processes
+	procResolveMaxDepth       = 16
+	maxParallelArgsEnvs       = 512              // == number of parallel starting processes
+	procFallbackLimiterPeriod = 30 * time.Second // proc fallback period by pid
 )
 
 // ResolverOpts options of resolver
@@ -99,6 +100,9 @@ type Resolver struct {
 	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
 
 	processCacheEntryPool *ProcessCacheEntryPool
+
+	// limiters
+	procFallbackLimiter *utils.Limiter[uint32]
 
 	exitedQueue []uint32
 }
@@ -578,10 +582,14 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEnt
 		return entry
 	}
 
-	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	if entry := p.resolveFromProcfs(pid, procResolveMaxDepth); entry != nil {
-		p.hitsStats[metrics.ProcFSTag].Inc()
-		return entry
+	if p.procFallbackLimiter.IsAllowed(pid) {
+		p.procFallbackLimiter.Count(pid)
+
+		// fallback to /proc, the in-kernel LRU may have deleted the entry
+		if entry := p.resolveFromProcfs(pid, procResolveMaxDepth); entry != nil {
+			p.hitsStats[metrics.ProcFSTag].Inc()
+			return entry
+		}
 	}
 
 	p.missStats.Inc()
@@ -1279,6 +1287,12 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		p.hitsStats[t] = atomic.NewInt64(0)
 	}
 	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
+
+	limiter, err := utils.NewLimiter[uint32](128, procFallbackLimiterPeriod)
+	if err != nil {
+		return nil, err
+	}
+	p.procFallbackLimiter = limiter
 
 	return p, nil
 }
