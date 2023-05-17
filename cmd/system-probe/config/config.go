@@ -157,16 +157,7 @@ func load() (*Config, error) {
 		cfg.Set("log_file", c.LogFile)
 	}
 
-	// This code block handles the backward compatibility logic for the enable_http_monitoring configuration value
-	deprecatedEnableHttpMonitoringKey := key(netNS, "enable_http_monitoring")
-	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
-		enableHttpMonitoringKey := key(smNS, "enable_http_monitoring")
-		log.Infof("%q is deprecated, use %q instead",
-			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
-		if !cfg.IsSet(enableHttpMonitoringKey) {
-			cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
-		}
-	}
+	handleBackwardCompatibilityForUsmConfig(cfg)
 
 	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {
 		log.Warn("Overriding the configured connections count per message limit because it exceeds maximum")
@@ -273,4 +264,17 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		return err
 	}
 	return nil
+}
+
+func handleBackwardCompatibilityForUsmConfig(cfg aconfig.Config) {
+	// This code block handles the backward compatibility logic for the enable_http_monitoring configuration value
+	deprecatedEnableHttpMonitoringKey := key(netNS, "enable_http_monitoring")
+	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
+		enableHttpMonitoringKey := key(smNS, "enable_http_monitoring")
+		log.Infof("%q is deprecated, use %q instead",
+			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
+		if !cfg.IsSet(enableHttpMonitoringKey) {
+			cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
+		}
+	}
 }
