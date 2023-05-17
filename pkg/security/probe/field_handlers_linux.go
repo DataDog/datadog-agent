@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -299,7 +298,7 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 		return model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
 	}
 
-	if ev.ProcessCacheEntry == nil {
+	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
 		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.Inode)
 	}
 

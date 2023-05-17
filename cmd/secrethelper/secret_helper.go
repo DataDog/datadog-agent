@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build secrets
-// +build secrets
 
 // Package secrethelper implements the secrethelper subcommand.
 //

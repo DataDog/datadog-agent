@@ -69,7 +69,7 @@ func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) {
 type ResolverOptions struct {
 	Hostname     string
 	HostRoot     string
-	StatsdClient statsd.ClientInterface
+	StatsdClient *statsd.Client
 
 	DockerProvider
 	KubernetesProvider

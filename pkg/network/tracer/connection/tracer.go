@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package connection
 
@@ -82,23 +81,23 @@ const (
 
 var ConnTracerTelemetry = struct {
 	connections       telemetry.Gauge
-	tcpFailedConnects telemetry.Gauge
-	TcpSentMiscounts  *nettelemetry.StatGaugeWrapper
-	unbatchedTcpClose telemetry.Gauge
-	unbatchedUdpClose telemetry.Gauge
-	UdpSendsProcessed *nettelemetry.StatGaugeWrapper
-	UdpSendsMissed    *nettelemetry.StatGaugeWrapper
-	UdpDroppedConns   telemetry.Gauge
+	tcpFailedConnects *nettelemetry.StatCounterWrapper
+	TcpSentMiscounts  *nettelemetry.StatCounterWrapper
+	unbatchedTcpClose *nettelemetry.StatCounterWrapper
+	unbatchedUdpClose *nettelemetry.StatCounterWrapper
+	UdpSendsProcessed *nettelemetry.StatCounterWrapper
+	UdpSendsMissed    *nettelemetry.StatCounterWrapper
+	UdpDroppedConns   *nettelemetry.StatCounterWrapper
 	PidCollisions     *nettelemetry.StatCounterWrapper
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
-	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of miscounted tcp sends in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "unbatched_tcp_close", []string{}, "Gauge measuring the number of TCP close events that we not part of a batch"),
-	telemetry.NewGauge(connTracerModuleName, "unbatched_udp_close", []string{}, "Gauge measuring the number of UDP closed events that were not part of a batch"),
-	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Gauge measuring the number of processed UDP sends in EBPF"),
-	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Gauge measuring failures to process UDP sends in EBPF"),
-	telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "Gauge measuring the number of dropped UDP connections in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_failed_connects", []string{}, "Counter measuring the number of failed TCP connections in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Counter measuring the number of miscounted tcp sends in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "missed_tcp_close", []string{}, "Counter measuring the number of TCP close events that were not part of a batch"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "missed_udp_close", []string{}, "Counter measuring the number of UDP close events that were not part of a batch"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Counter measuring the number of processed UDP sends in EBPF"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Counter measuring failures to process UDP sends in EBPF"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_dropped_conns", []string{}, "Counter measuring the number of dropped UDP connections in the EBPF map"),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 }
 
@@ -444,18 +443,18 @@ func (t *tracer) RefreshProbeTelemetry() {
 // Refreshes connection tracer telemetry on a loop
 // TODO: Replace with prometheus collector interface
 func (t *tracer) refreshProbeTelemetry() {
-	telemetry := t.getEBPFTelemetry()
-	if telemetry == nil {
+	ebpfTelemetry := t.getEBPFTelemetry()
+	if ebpfTelemetry == nil {
 		return
 	}
 
-	ConnTracerTelemetry.tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
-	ConnTracerTelemetry.TcpSentMiscounts.Set(int64(telemetry.Tcp_sent_miscounts))
-	ConnTracerTelemetry.unbatchedTcpClose.Set(float64(telemetry.Unbatched_tcp_close))
-	ConnTracerTelemetry.unbatchedUdpClose.Set(float64(telemetry.Unbatched_udp_close))
-	ConnTracerTelemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
-	ConnTracerTelemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
-	ConnTracerTelemetry.UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
+	ConnTracerTelemetry.tcpFailedConnects.Add(int64(ebpfTelemetry.Tcp_failed_connect) - ConnTracerTelemetry.tcpFailedConnects.Load())
+	ConnTracerTelemetry.TcpSentMiscounts.Add(int64(ebpfTelemetry.Tcp_sent_miscounts) - ConnTracerTelemetry.TcpSentMiscounts.Load())
+	ConnTracerTelemetry.unbatchedTcpClose.Add(int64(ebpfTelemetry.Unbatched_tcp_close) - ConnTracerTelemetry.unbatchedTcpClose.Load())
+	ConnTracerTelemetry.unbatchedUdpClose.Add(int64(ebpfTelemetry.Unbatched_udp_close) - ConnTracerTelemetry.unbatchedUdpClose.Load())
+	ConnTracerTelemetry.UdpSendsProcessed.Add(int64(ebpfTelemetry.Udp_sends_processed) - ConnTracerTelemetry.UdpSendsProcessed.Load())
+	ConnTracerTelemetry.UdpSendsMissed.Add(int64(ebpfTelemetry.Udp_sends_missed) - ConnTracerTelemetry.UdpSendsMissed.Load())
+	ConnTracerTelemetry.UdpDroppedConns.Add(int64(ebpfTelemetry.Udp_dropped_conns) - ConnTracerTelemetry.UdpDroppedConns.Load())
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.

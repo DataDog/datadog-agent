@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -194,6 +193,24 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 							Message:            "No pods match this VPA object",
 						},
 					},
+				},
+				Conditions: []*model.VerticalPodAutoscalerCondition{
+					{
+						Type:               string(v1.RecommendationProvided),
+						Status:             string(corev1.ConditionTrue),
+						LastTransitionTime: exampleTime.Unix(),
+					},
+					{
+						Type:               string(v1.NoPodsMatched),
+						Status:             string(corev1.ConditionTrue),
+						LastTransitionTime: exampleTime.Unix(),
+						Reason:             "NoPodsMatched",
+						Message:            "No pods match this VPA object",
+					},
+				},
+				Tags: []string{
+					"kube_condition_recommendationprovided:true",
+					"kube_condition_nopodsmatched:true",
 				},
 			},
 		},

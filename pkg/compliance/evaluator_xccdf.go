@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !libopenscap || !cgo || !linux
-// +build !libopenscap !cgo !linux
 
 package compliance
 

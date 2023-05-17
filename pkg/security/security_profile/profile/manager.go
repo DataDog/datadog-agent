@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package profile
 
@@ -408,6 +407,9 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 
 	// decode the content of the profile
 	ProtoToSecurityProfile(profile, newProfile)
+
+	// compute activity tree initial stats
+	profile.ActivityTree.ComputeActivityTreeStats()
 
 	// prepare the profile for insertion
 	m.prepareProfile(profile)
