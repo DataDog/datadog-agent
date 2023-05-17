@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package kfilters
 
@@ -17,6 +16,7 @@ type activeKFilter interface {
 	Remove(*manager.Manager) error
 	Apply(*manager.Manager) error
 	Key() interface{}
+	GetTableName() string
 }
 
 type activeKFilters map[interface{}]activeKFilter
@@ -69,6 +69,10 @@ func (e *arrayEntry) Key() interface{} {
 	}
 }
 
+func (e *arrayEntry) GetTableName() string {
+	return e.tableName
+}
+
 func (e *arrayEntry) Remove(manager *manager.Manager) error {
 	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
@@ -97,6 +101,10 @@ func (e *mapEventMask) Key() interface{} {
 		tableName: e.tableName,
 		key:       e.key,
 	}
+}
+
+func (e *mapEventMask) GetTableName() string {
+	return e.tableName
 }
 
 func (e *mapEventMask) Remove(manager *manager.Manager) error {

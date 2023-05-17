@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd && linux
-// +build containerd,linux
 
 package containerd
 

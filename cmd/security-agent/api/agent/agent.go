@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	compagent "github.com/DataDog/datadog-agent/pkg/compliance/agent"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -30,11 +30,11 @@ import (
 // Agent handles REST API calls
 type Agent struct {
 	runtimeAgent    *secagent.RuntimeSecurityAgent
-	complianceAgent *compagent.Agent
+	complianceAgent *compliance.Agent
 }
 
 // NewAgent returns a new Agent
-func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compagent.Agent) *Agent {
+func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent) *Agent {
 	return &Agent{
 		runtimeAgent:    runtimeAgent,
 		complianceAgent: complianceAgent,
@@ -85,7 +85,7 @@ func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 
 func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	s, err := status.GetStatus()
+	s, err := status.GetStatus(false)
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})

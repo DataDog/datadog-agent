@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package testutil
 
@@ -17,7 +16,7 @@ import (
 )
 
 // RunJavaVersion run class under java version
-func RunJavaVersion(t *testing.T, version string, class string, waitForParam ...*regexp.Regexp) bool {
+func RunJavaVersion(t testing.TB, version string, class string, waitForParam ...*regexp.Regexp) error {
 	t.Helper()
 	var waitFor *regexp.Regexp
 	if len(waitForParam) == 0 {

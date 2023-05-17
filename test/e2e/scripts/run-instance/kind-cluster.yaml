@@ -7,6 +7,8 @@ nodes:
     hostPath: /root/.docker/config.json
   - containerPath: /host/datadog-agent
     hostPath: /home/core/datadog-agent
+  - containerPath: /host/proc
+    hostPath: /proc
   extraPortMappings:
   - containerPort: 30001
     hostPort: 443

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output accessors_linux.go -field-handlers-tags unix -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -output accessors_unix.go -field-handlers-tags unix -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -output accessors_windows.go -field-handlers-tags windows -field-handlers field_handlers_windows.go
 
 package model
@@ -20,6 +20,8 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -35,14 +37,17 @@ type Model struct {
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
-	return &Event{}
+	return &Event{
+		ContainerContext: &ContainerContext{},
+	}
 }
 
 // NewDefaultEventWithType returns a new Event for the given type
 func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 	return &Event{
-		Type:          uint32(kind),
-		FieldHandlers: &DefaultFieldHandlers{},
+		Type:             uint32(kind),
+		FieldHandlers:    &DefaultFieldHandlers{},
+		ContainerContext: &ContainerContext{},
 	}
 }
 
@@ -131,7 +136,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`Chmod mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`Chmod mode constants`
+	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
 }
 
 // ChownEvent represents a chown event
@@ -144,8 +149,36 @@ type ChownEvent struct {
 	Group string    `field:"file.destination.group,handler:ResolveChownGID"` // SECLDoc[file.destination.group] Definition:`New group of the chown-ed file's owner`
 }
 
+// Releasable represents an object than can be released
+type Releasable struct {
+	onReleaseCallback func() `field:"-" json:"-"`
+}
+
+func (r *Releasable) CallReleaseCallback() {
+	if r.onReleaseCallback != nil {
+		r.onReleaseCallback()
+	}
+}
+
+// SetReleaseCallback sets a callback to be called when the cache entry is released
+func (r *Releasable) SetReleaseCallback(callback func()) {
+	previousCallback := r.onReleaseCallback
+	r.onReleaseCallback = func() {
+		callback()
+		if previousCallback != nil {
+			previousCallback()
+		}
+	}
+}
+
+// Release triggers the callback
+func (r *Releasable) OnRelease() {
+	r.onReleaseCallback()
+}
+
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
+	Releasable
 	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
 	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
@@ -190,10 +223,16 @@ func (s Status) String() string {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name    string   `field:"name"`    // SECLDoc[name] Definition:`Name of the security profile`
-	Status  Status   `field:"status"`  // SECLDoc[status] Definition:`Status of the security profile`
-	Version string   `field:"version"` // SECLDoc[version] Definition:`Version of the security profile`
-	Tags    []string `field:"tags"`    // SECLDoc[tags] Definition:`Tags of the security profile`
+	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
+	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
+	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
+	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
+	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
+}
+
+// CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
+func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
+	return slices.Contains[EventType](spc.AnomalyDetectionEventTypes, evtType)
 }
 
 // Event represents an event sent from the kernel
@@ -202,9 +241,9 @@ type Event struct {
 	ID           string         `field:"-" json:"-"`
 	Type         uint32         `field:"-"`
 	Flags        uint32         `field:"-"`
-	Async        bool           `field:"async,handler:ResolveAsync" event:"*" platform:"linux"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	TimestampRaw uint64         `field:"-" json:"-"`
-	Timestamp    time.Time      `field:"-"` // Timestamp of the event
+	Async        bool           `field:"event.async,handler:ResolveAsync" event:"*" platform:"linux"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" json:"-"`      // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time      `field:"-"`
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
@@ -212,7 +251,7 @@ type Event struct {
 	PIDContext             PIDContext             `field:"-" json:"-" platform:"linux"`
 	SpanContext            SpanContext            `field:"-" json:"-" platform:"linux"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*" platform:"linux"`
-	ContainerContext       ContainerContext       `field:"container" platform:"linux"`
+	ContainerContext       *ContainerContext      `field:"container" platform:"linux"`
 	NetworkContext         NetworkContext         `field:"network" platform:"linux"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
@@ -257,15 +296,17 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind" platform:"linux"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount              UmountEvent           `field:"-" json:"-" platform:"linux"`
-	InvalidateDentry    InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
-	ArgsEnvs            ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
-	MountReleased       MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
-	CgroupTracing       CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
-	NetDevice           NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
-	VethPair            VethPairEvent         `field:"-" json:"-" platform:"linux"`
-	UnshareMountNS      UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
-	PathResolutionError error                 `field:"-" json:"-" platform:"linux"` // hold one of the path resolution error
+	Umount           UmountEvent           `field:"-" json:"-" platform:"linux"`
+	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
+	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
+	MountReleased    MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
+	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
+	NetDevice        NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
+	VethPair         VethPairEvent         `field:"-" json:"-" platform:"linux"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
+
+	// mark event with having error
+	Error error `field:"-" json:"-"`
 
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-" json:"-" platform:"linux"`
@@ -304,7 +345,8 @@ func initMember(member reflect.Value, deja map[string]bool) {
 // NewDefaultEvent returns a new event using the default field handlers
 func NewDefaultEvent() eval.Event {
 	return &Event{
-		FieldHandlers: &DefaultFieldHandlers{},
+		FieldHandlers:    &DefaultFieldHandlers{},
+		ContainerContext: &ContainerContext{},
 	}
 }
 
@@ -382,7 +424,7 @@ func (ev *Event) Release() {
 // SetPathResolutionError sets the Event.pathResolutionError
 func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 	fileFields.PathResolutionError = err
-	ev.PathResolutionError = err
+	ev.Error = err
 }
 
 // ResolveProcessCacheEntry uses the field handler
@@ -390,14 +432,14 @@ func (ev *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
 	return ev.FieldHandlers.ResolveProcessCacheEntry(ev)
 }
 
-// ResolveEventTimestamp uses the field handler
-func (ev *Event) ResolveEventTimestamp() time.Time {
-	return ev.FieldHandlers.ResolveEventTimestamp(ev)
+// ResolveEventTime uses the field handler
+func (ev *Event) ResolveEventTime() time.Time {
+	return ev.FieldHandlers.ResolveEventTime(ev)
 }
 
-// GetProcessServiceTag uses the field handler
-func (ev *Event) GetProcessServiceTag() string {
-	return ev.FieldHandlers.GetProcessServiceTag(ev)
+// GetProcessService uses the field handler
+func (ev *Event) GetProcessService() string {
+	return ev.FieldHandlers.GetProcessService(ev)
 }
 
 // MatchedRules contains the identification of one rule that has match
@@ -569,6 +611,8 @@ type Process struct {
 	Variables             eval.Variables `field:"-" json:"-"`
 
 	IsThread bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+
+	Source uint64 `field:"-" json:"-"`
 }
 
 // SpanContext describes a span context
@@ -595,7 +639,7 @@ type FileFields struct {
 	User  string `field:"user,handler:ResolveFileFieldsUser"`                          // SECLDoc[user] Definition:`User of the file's owner`
 	GID   uint32 `field:"gid"`                                                         // SECLDoc[gid] Definition:`GID of the file's owner`
 	Group string `field:"group,handler:ResolveFileFieldsGroup"`                        // SECLDoc[group] Definition:`Group of the file's owner`
-	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:cacheless_resolution"` // SECLDoc[mode] Definition:`Mode of the file` SECLDoc[rights] Definition:`Rights of the file` Constants:`Chmod mode constants`
+	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:cacheless_resolution"` // SECLDoc[mode] Definition:`Mode of the file` Constants:`Inode mode constants` SECLDoc[rights] Definition:`Rights of the file` Constants:`File mode constants`
 	CTime uint64 `field:"change_time"`                                                 // SECLDoc[change_time] Definition:`Change time of the file`
 	MTime uint64 `field:"modification_time"`                                           // SECLDoc[modification_time] Definition:`Modification time of the file`
 
@@ -688,7 +732,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`Chmod mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`Chmod mode constants`
+	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`File mode constants`
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -744,7 +788,7 @@ type OpenEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
-	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`Chmod mode constants`
+	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
 }
 
 // SELinuxEventKind represents the event kind for SELinux events
@@ -778,6 +822,22 @@ type ProcessCacheEntry struct {
 	refCount  uint64                     `field:"-" json:"-"`
 	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
 	releaseCb func()                     `field:"-" json:"-"`
+}
+
+const (
+	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromKernelMap
+	ProcessCacheEntryFromProcFS
+)
+
+var ProcessSources = [...]string{
+	"Event",
+	"KernelMap",
+	"ProcFS",
+}
+
+func ProcessSourceToString(source uint64) string {
+	return ProcessSources[source]
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -1196,8 +1256,9 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 // ExtraFieldHandlers handlers not hold by any field
 type ExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
-	ResolveEventTimestamp(ev *Event) time.Time
-	GetProcessServiceTag(ev *Event) string
+	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
+	ResolveEventTime(ev *Event) time.Time
+	GetProcessService(ev *Event) string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -1205,12 +1266,17 @@ func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCa
 	return nil, false
 }
 
+// ResolveContainerContext stub implementation
+func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerContext, bool) {
+	return nil, false
+}
+
 // ResolveEventTimestamp stub implementation
-func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) time.Time {
+func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
 	return ev.Timestamp
 }
 
-// GetProcessServiceTag stub implementation
-func (dfh *DefaultFieldHandlers) GetProcessServiceTag(ev *Event) string {
+// GetProcessService stub implementation
+func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
 	return ""
 }

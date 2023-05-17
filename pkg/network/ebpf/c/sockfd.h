@@ -3,9 +3,9 @@
 
 #include "ktypes.h"
 #include "bpf_builtins.h"
-#include "ktypes.h"
+#include "map-defs.h"
 
-#include "tracer.h"
+#include "pid_fd.h"
 
 // This map is used to to temporarily store function arguments (sockfd) for
 // sockfd_lookup_light function calls, so they can be accessed by the corresponding kretprobe.

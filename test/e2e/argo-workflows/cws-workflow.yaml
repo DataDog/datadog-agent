@@ -19,6 +19,9 @@ spec:
     - name: datadog-agent-volume
       hostPath:
         path: /host/datadog-agent
+    - name: host-root-proc
+      hostPath:
+        path: /proc
   templates:
     - name: main
       inputs:
@@ -78,6 +81,8 @@ spec:
                   value: "{{inputs.parameters.ci_job_id}}"
                 - name: remote_configuration_enabled
                   value: "true"
+                - name: networkmonitoring_enabled
+                  value: "false"
 
         - - name: wait-datadog-agent
             templateRef:

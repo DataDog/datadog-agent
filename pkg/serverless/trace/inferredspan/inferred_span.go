@@ -171,5 +171,8 @@ func IsInferredSpansEnabled() bool {
 // AddTagToInferredSpan is used to add new tags to the inferred span in
 // inferredSpan.Span.Meta[]. Should be used before completing an inferred span.
 func (inferredSpan *InferredSpan) AddTagToInferredSpan(key string, value string) {
+	if inferredSpan.Span.Meta == nil {
+		inferredSpan.Span.Meta = make(map[string]string)
+	}
 	inferredSpan.Span.Meta[key] = value
 }

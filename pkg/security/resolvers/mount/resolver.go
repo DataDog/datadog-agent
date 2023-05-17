@@ -4,13 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package mount
 
 import (
 	"context"
-	"errors"
 	"path"
 	"strconv"
 	"strings"
@@ -29,19 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-)
-
-var (
-	// ErrMountNotFound is used when an unknown mount identifier is found
-	ErrMountNotFound = errors.New("unknown mount ID")
-	// ErrMountUndefined is used when a mount identifier is undefined
-	ErrMountUndefined = errors.New("undefined mountID")
-	// ErrMountLoop is returned when there is a resolution loop
-	ErrMountLoop = errors.New("mount resolution loop")
-	// ErrMountPathEmpty is returned when the resolved mount path is empty
-	ErrMountPathEmpty = errors.New("mount resolution return empty path")
-	// ErrMountKernelID
-	ErrMountKernelID = errors.New("not a critical error")
 )
 
 const (
@@ -223,7 +208,7 @@ func (mr *Resolver) Delete(mountID uint32) error {
 
 	mount, exists := mr.mounts[mountID]
 	if !exists {
-		return ErrMountNotFound
+		return &ErrMountNotFound{MountID: mountID}
 	}
 
 	mr.deleteQueue = append(mr.deleteQueue, deleteRequest{mount: mount, timeoutAt: time.Now().Add(deleteDelayTime)})
@@ -293,7 +278,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string
 
 	mount, exists := mr.mounts[mountID]
 	if !exists {
-		return "", ErrMountNotFound
+		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
 	if len(mount.Path) > 0 {
@@ -448,11 +433,11 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ..
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return "", ErrMountNotFound
+		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
 	if !mr.isSyncCacheAllowed(mountID) {
-		return "", ErrMountNotFound
+		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
 	if err := mr.syncCache(pids...); err != nil {
@@ -503,7 +488,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return nil, ErrMountNotFound
+		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if err := mr.syncCache(pids...); err != nil {
@@ -518,7 +503,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 	}
 	mr.procMissStats.Inc()
 
-	return nil, ErrMountNotFound
+	return nil, &ErrMountNotFound{MountID: mountID}
 }
 
 // GetMountIDOffset returns the mount id offset
