@@ -22,7 +22,7 @@ import (
 	4. Add a method on the `Repository` to retrieved typed configs for the product.
 */
 
-var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductASM, ProductASMFeatures, ProductASMDD, ProductASMData, ProductAPMTracing}
+var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductCWSProfiles, ProductASM, ProductASMFeatures, ProductASMDD, ProductASMData, ProductAPMTracing}
 
 const (
 	// ProductAPMSampling is the apm sampling product
@@ -31,6 +31,8 @@ const (
 	ProductCWSDD = "CWS_DD"
 	// ProductCWSCustom is the cloud workload security product managed by datadog customers
 	ProductCWSCustom = "CWS_CUSTOM"
+	// ProductCWSProfile is the cloud workload security profile product
+	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
 	// ProductASM is the ASM product used by customers to issue rules configurations
 	ProductASM = "ASM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
@@ -58,6 +60,8 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 		c, err = parseConfigCWSDD(raw, metadata)
 	case ProductCWSCustom:
 		c, err = parseConfigCWSCustom(raw, metadata)
+	case ProductCWSProfiles:
+		c, err = parseConfigCWSProfiles(raw, metadata)
 	case ProductASM:
 		c, err = parseConfigASM(raw, metadata)
 	case ProductASMDD:
@@ -164,7 +168,40 @@ func (r *Repository) CWSCustomConfigs() map[string]ConfigCWSCustom {
 		// We control this, so if this has gone wrong something has gone horribly wrong
 		typed, ok := conf.(ConfigCWSCustom)
 		if !ok {
-			panic("unexpected config stored as CWSDD Config")
+			panic("unexpected config stored as CWS_CUSTOM Config")
+		}
+
+		typedConfigs[path] = typed
+	}
+
+	return typedConfigs
+}
+
+// ConfigCWSProfiles is a deserialized CWS Profile configuration file along with its
+// associated remote config metadata
+type ConfigCWSProfiles struct {
+	Config   []byte
+	Metadata Metadata
+}
+
+func parseConfigCWSProfiles(data []byte, metadata Metadata) (ConfigCWSProfiles, error) {
+	return ConfigCWSProfiles{
+		Config:   data,
+		Metadata: metadata,
+	}, nil
+}
+
+// CWSProfilesConfigs returns the currently active CWSProfiles config files
+func (r *Repository) CWSProfilesConfigs() map[string]ConfigCWSProfiles {
+	typedConfigs := make(map[string]ConfigCWSProfiles)
+
+	configs := r.getConfigs(ProductCWSProfiles)
+
+	for path, conf := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := conf.(ConfigCWSProfiles)
+		if !ok {
+			panic("unexpected config stored as CWS_SECURITY_PROFILES Config")
 		}
 
 		typedConfigs[path] = typed

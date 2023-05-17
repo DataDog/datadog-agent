@@ -30,7 +30,7 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
-& inv -e golangci-lint --build system-probe .\pkg
+& inv -e golangci-lint --build system-probe-unit-tests .\pkg
 $err = $LASTEXITCODE
 if ($err -ne 0) {
     Write-Host -ForegroundColor Red "golangci-lint failed $err"

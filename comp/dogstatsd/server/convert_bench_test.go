@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func buildRawSample(tagCount int, multipleValues bool) []byte {
@@ -30,7 +32,8 @@ var (
 )
 
 func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
-	parser := newParser(newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](b, config.MockModule)
+	parser := newParser(cfg, newFloat64ListPool())
 
 	conf := enrichConfig{
 		defaultHostname:           "default-hostname",

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package modules
 
@@ -20,6 +19,7 @@ import (
 // All System Probe modules should register their factories here
 var All = []module.Factory{
 	NetworkTracer,
+	EventMonitor,
 }
 
 const (

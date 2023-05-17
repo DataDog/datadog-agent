@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package orchestrator
 
@@ -38,7 +37,7 @@ type CollectorBundle struct {
 	stopCh              chan struct{}
 	runCfg              *collectors.CollectorRunConfig
 	manifestBuffer      *ManifestBuffer
-	crdDiscovery        *discovery.DiscoveryCollector
+	collectorDiscovery  *discovery.DiscoveryCollector
 	activatedCollectors map[string]struct{}
 }
 
@@ -65,7 +64,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		},
 		stopCh:              make(chan struct{}),
 		manifestBuffer:      NewManifestBuffer(chk),
-		crdDiscovery:        discovery.NewDiscoveryCollectorForInventory(),
+		collectorDiscovery:  discovery.NewDiscoveryCollectorForInventory(),
 		activatedCollectors: map[string]struct{}{},
 	}
 
@@ -144,13 +143,13 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 
 			return
 		}
-		collector, err = cb.crdDiscovery.VerifyForInventory(resource, groupVersion)
+		collector, err = cb.collectorDiscovery.VerifyForCRDInventory(resource, groupVersion)
 	} else if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
 		groupVersion := collectorName[:idx]
 		name := collectorName[idx+1:]
-		collector, err = cb.inventory.CollectorForVersion(name, groupVersion)
+		collector, err = cb.collectorDiscovery.VerifyForInventory(name, groupVersion, cb.inventory)
 	} else {
-		collector, err = cb.inventory.CollectorForDefaultVersion(collectorName)
+		collector, err = cb.collectorDiscovery.VerifyForInventory(collectorName, "", cb.inventory)
 	}
 
 	if err != nil {

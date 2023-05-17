@@ -16,10 +16,12 @@ import (
 
 func TestMain(m *testing.M) {
 	code := m.Run()
-	fmt.Fprintf(os.Stderr, "Cleaning up stacks")
-	errs := infra.GetStackManager().Cleanup(context.Background())
-	for _, err := range errs {
-		fmt.Fprint(os.Stderr, err.Error())
+	if code == 0 {
+		fmt.Fprintf(os.Stderr, "Cleaning up stacks")
+		errs := infra.GetStackManager().Cleanup(context.Background())
+		for _, err := range errs {
+			fmt.Fprint(os.Stderr, err.Error())
+		}
 	}
 	os.Exit(code)
 }

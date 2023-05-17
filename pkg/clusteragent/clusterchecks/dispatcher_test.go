@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -201,7 +200,6 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.True(t, upToDate)
 	node1, found := dispatcher.store.getNodeStore("node1")
 	assert.True(t, found)
-	assert.Equal(t, status1, node1.lastStatus)
 	assert.True(t, timestampNow() >= node1.heartbeat)
 	assert.True(t, timestampNow() <= node1.heartbeat+1)
 
@@ -431,8 +429,7 @@ func TestReset(t *testing.T) {
 }
 
 func TestPatchConfiguration(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(config.FeatureMap{})
+	config.SetFeatures(t, config.Kubernetes)
 
 	checkConfig := integration.Config{
 		Name:          "test",
@@ -470,8 +467,7 @@ func TestPatchConfiguration(t *testing.T) {
 }
 
 func TestPatchEndpointsConfiguration(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(config.FeatureMap{})
+	config.SetFeatures(t, config.Kubernetes)
 
 	checkConfig := integration.Config{
 		Name:          "test",
@@ -504,8 +500,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(config.FeatureMap{})
+	config.SetFeatures(t, config.Kubernetes)
 
 	for _, tc := range []struct {
 		extraTagsConfig   []string

@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	tagStatusCode = "http.status_code"
-	tagSynthetics = "synthetics"
+	tagStatusCode  = "http.status_code"
+	tagSynthetics  = "synthetics"
+	tagPeerService = "peer.service"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -27,12 +28,13 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service    string
-	Name       string
-	Resource   string
-	Type       string
-	StatusCode uint32
-	Synthetics bool
+	Service     string
+	Name        string
+	PeerService string
+	Resource    string
+	Type        string
+	StatusCode  uint32
+	Synthetics  bool
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -62,9 +64,9 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
-	return Aggregation{
+	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:   s.Resource,
@@ -75,17 +77,22 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 			Synthetics: synthetics,
 		},
 	}
+	if enablePeerSvcAgg {
+		agg.PeerService = s.Meta[tagPeerService]
+	}
+	return agg
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
 func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:   g.Resource,
-			Service:    g.Service,
-			Name:       g.Name,
-			StatusCode: g.HTTPStatusCode,
-			Synthetics: g.Synthetics,
+			Resource:    g.Resource,
+			Service:     g.Service,
+			PeerService: g.PeerService,
+			Name:        g.Name,
+			StatusCode:  g.HTTPStatusCode,
+			Synthetics:  g.Synthetics,
 		},
 	}
 }

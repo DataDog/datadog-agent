@@ -412,13 +412,10 @@ functions:
 
   otlp-python:
     runtime: python3.8
-    handler: datadog_lambda.handler.handler
+    handler: src/otlpPython.simple_test
     layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
       - { Ref: PythonRequirementsLambdaLayer }
     environment:
-      DD_LAMBDA_HANDLER: src/otlpPython.simple_test
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
       DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: localhost:4318

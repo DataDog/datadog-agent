@@ -12,8 +12,8 @@ import (
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/spf13/afero"
 	"go.uber.org/fx"
 )
@@ -99,6 +99,9 @@ func (tc *trafficCapture) Start(p string, d time.Duration, compressed bool) (str
 func (tc *trafficCapture) Stop() {
 	tc.Lock()
 	defer tc.Unlock()
+	if tc.writer == nil {
+		return
+	}
 
 	tc.writer.StopCapture()
 }

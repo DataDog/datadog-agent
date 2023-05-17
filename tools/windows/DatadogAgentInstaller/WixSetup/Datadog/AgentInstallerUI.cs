@@ -53,6 +53,7 @@ namespace WixSetup.Datadog
                 .AddXmlInclude("dialogs/fatalError.wxi")
                 .AddXmlInclude("dialogs/sendFlaredlg.wxi")
                 .AddXmlInclude("dialogs/ddagentuserdlg.wxi")
+                .AddXmlInclude("dialogs/ddlicense.wxi")
                 .AddXmlInclude("dialogs/errormodaldlg.wxi");
 
             // NOTE: CustomActions called from dialog Controls will not be able to add messages to the log.
@@ -60,10 +61,10 @@ namespace WixSetup.Datadog
             //       https://learn.microsoft.com/en-us/windows/win32/msi/doaction-controlevent
 
             // Fresh install track
-            OnFreshInstall(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.LicenseAgreementDlg));
-            OnFreshInstall(NativeDialogs.LicenseAgreementDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
-            OnFreshInstall(NativeDialogs.LicenseAgreementDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.LicenseAccepted));
-            OnFreshInstall(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.LicenseAgreementDlg));
+            OnFreshInstall(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(Dialogs.LicenseAgreementDlg));
+            OnFreshInstall(Dialogs.LicenseAgreementDlg, Buttons.Back, new ShowDialog(NativeDialogs.WelcomeDlg));
+            OnFreshInstall(Dialogs.LicenseAgreementDlg, Buttons.Next, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.LicenseAccepted));
+            OnFreshInstall(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(Dialogs.LicenseAgreementDlg));
             OnFreshInstall(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.ApiKeyDialog, Conditions.NOT_DatadogYamlExists));
             OnFreshInstall(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog, Conditions.DatadogYamlExists));
             OnFreshInstall(Dialogs.ApiKeyDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg));
@@ -73,7 +74,8 @@ namespace WixSetup.Datadog
             OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Next,
                 new ExecuteCustomAction(agentCustomActions.ProcessDdAgentUserCredentialsUI) { Order = 1},
                 new SpawnDialog(Dialogs.ErrorModalDialog, new Condition("DDAgentUser_Valid <> \"True\"")) { Order = 2 },
-                new ShowDialog(NativeDialogs.VerifyReadyDlg, new Condition("DDAgentUser_Valid = \"True\"")) { Order = 3 });
+                new ShowDialog(NativeDialogs.VerifyReadyDlg, new Condition("DDAgentUser_Valid = \"True\"")) { Order = 3 }
+            );
             OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(Dialogs.SiteSelectionDialog, Conditions.NOT_DatadogYamlExists));
             OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Back, new ShowDialog(NativeDialogs.CustomizeDlg, Conditions.DatadogYamlExists));
             OnFreshInstall(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog));
@@ -94,7 +96,7 @@ namespace WixSetup.Datadog
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
 
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton",
-                new SetProperty("PREVIOUS_PAGE", NativeDialogs.CustomizeDlg),
+                new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg),
                 new ShowDialog(NativeDialogs.CustomizeDlg));
 
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair,
@@ -105,7 +107,9 @@ namespace WixSetup.Datadog
                 new ShowDialog(NativeDialogs.VerifyReadyDlg));
 
             OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
-            OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
+            OnMaintenance(NativeDialogs.CustomizeDlg, Buttons.Next,
+                new SetProperty("PREVIOUS_PAGE", NativeDialogs.CustomizeDlg),
+                new ShowDialog(Dialogs.AgentUserDialog));
 
             OnMaintenance(Dialogs.AgentUserDialog, Buttons.Back,
                 new ShowDialog(NativeDialogs.CustomizeDlg, new Condition($"PREVIOUS_PAGE = \"{NativeDialogs.CustomizeDlg}\"")) { Order = 1 });

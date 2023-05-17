@@ -47,7 +47,7 @@ type RuntimeSecurityConfig struct {
 	// EventServerRate defines the grpc server rate at which events can be sent
 	EventServerRate int
 	// EventServerRetention defines an event retention period so that some fields can be resolved
-	EventServerRetention int
+	EventServerRetention time.Duration
 	// FIMEnabled determines whether fim rules will be loaded
 	FIMEnabled bool
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
@@ -76,8 +76,6 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpTagsResolutionPeriod time.Duration
 	// ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
 	ActivityDumpLoadControlPeriod time.Duration
-	// ActivityDumpPathMergeEnabled defines if path merge should be enabled
-	ActivityDumpPathMergeEnabled bool
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
@@ -109,7 +107,7 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpSyscallMonitorPeriod time.Duration
 	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
 	ActivityDumpMaxDumpCountPerWorkload int
-	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:thread_score)
+	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:threat_score)
 	ActivityDumpTagRulesEnabled bool
 
 	// # Dynamic configuration fields:
@@ -124,6 +122,29 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileWatchDir bool
 	// SecurityProfileCacheSize defines the count of Security Profiles held in cache
 	SecurityProfileCacheSize int
+	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
+	SecurityProfileMaxCount int
+	// SecurityProfileRCEnabled defines if remote-configuration is enabled
+	SecurityProfileRCEnabled bool
+
+	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
+	AnomalyDetectionEventTypes []model.EventType
+	// AnomalyDetectionMinimumStablePeriod defines the minimum amount of time during which the events
+	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
+	// event.
+	AnomalyDetectionMinimumStablePeriod time.Duration
+	// AnomalyDetectionUnstableProfileTimeThreshold defines the maximum amount of time to wait until a profile that
+	// hasn't reached a stable state is considered as unstable.
+	AnomalyDetectionUnstableProfileTimeThreshold time.Duration
+	// AnomalyDetectionUnstableProfileSizeThreshold defines the maximum size a profile can reach past which it is
+	// considered unstable
+	AnomalyDetectionUnstableProfileSizeThreshold int64
+	// AnomalyDetectionWorkloadWarmupPeriod defines the duration we ignore the anomaly detections for
+	// because of workload warm up
+	AnomalyDetectionWorkloadWarmupPeriod time.Duration
+
+	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
+	AnomalyDetectionRateLimiter int
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
@@ -160,6 +181,11 @@ func NewConfig() (*Config, error) {
 }
 
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
+	dumpDuration := time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute
+	if dumpDuration == 0 {
+		dumpDuration = coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.dump_duration")
+	}
+
 	rsConfig := &RuntimeSecurityConfig{
 		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
@@ -167,7 +193,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
-		EventServerRetention: coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.retention"),
+		EventServerRetention: coreconfig.SystemProbe.GetDuration("runtime_security_config.event_server.retention"),
 
 		SelfTestEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
 		SelfTestSendReport:         coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
@@ -186,20 +212,19 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// activity dump
 		ActivityDumpEnabled:                   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"),
-		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
-		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
-		ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
-		ActivityDumpPathMergeEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
+		ActivityDumpCleanupPeriod:             coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.cleanup_period"),
+		ActivityDumpTagsResolutionPeriod:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.tags_resolution_period"),
+		ActivityDumpLoadControlPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.load_controller_period"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
-		ActivityDumpCgroupDumpTimeout:         time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute,
+		ActivityDumpCgroupDumpTimeout:         dumpDuration,
 		ActivityDumpRateLimiter:               coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.rate_limiter"),
-		ActivityDumpCgroupWaitListTimeout:     time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cgroup_wait_list_timeout")) * time.Minute,
+		ActivityDumpCgroupWaitListTimeout:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
 		ActivityDumpCgroupDifferentiateArgs:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
 		ActivityDumpLocalStorageDirectory:     coreconfig.SystemProbe.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
 		ActivityDumpLocalStorageMaxDumpsCount: coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
 		ActivityDumpLocalStorageCompression:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
-		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
+		ActivityDumpSyscallMonitorPeriod:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.syscall_monitor.period"),
 		ActivityDumpMaxDumpCountPerWorkload:   coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
 		ActivityDumpTagRulesEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
 		// activity dump dynamic fields
@@ -220,6 +245,16 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileDir:       coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
 		SecurityProfileWatchDir:  coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
 		SecurityProfileCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileMaxCount:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
+		SecurityProfileRCEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
+
+		// anomaly detection
+		AnomalyDetectionEventTypes:                   model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
+		AnomalyDetectionMinimumStablePeriod:          coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
+		AnomalyDetectionWorkloadWarmupPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
+		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
+		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
+		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

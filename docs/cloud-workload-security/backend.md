@@ -18,6 +18,20 @@ CWS logs have the following JSON schema:
 {
     "$id": "https://github.com/DataDog/datadog-agent/pkg/security/serializers/event",
     "$defs": {
+        "AnomalyDetectionSyscallEvent": {
+            "properties": {
+                "syscall": {
+                    "type": "string",
+                    "description": "Name of the syscall that triggered the anomaly detection event"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "syscall"
+            ],
+            "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
+        },
         "BPFEvent": {
             "properties": {
                 "cmd": {
@@ -144,7 +158,8 @@ CWS logs have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "id"
+                "id",
+                "question"
             ],
             "description": "DNSEventSerializer serializes a DNS event to JSON"
         },
@@ -553,6 +568,15 @@ CWS logs have the following JSON schema:
                 "loaded_from_memory": {
                     "type": "boolean",
                     "description": "indicates if a module was loaded from memory, as opposed to a file"
+                },
+                "argv": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array"
+                },
+                "args_truncated": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": false,
@@ -803,6 +827,10 @@ CWS logs have the following JSON schema:
                 "is_kworker": {
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Process source"
                 }
             },
             "additionalProperties": false,
@@ -919,6 +947,10 @@ CWS logs have the following JSON schema:
                 "is_kworker": {
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Process source"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -1078,6 +1110,38 @@ CWS logs have the following JSON schema:
             "type": "object",
             "description": "SELinuxEventSerializer serializes a SELinux context to JSON"
         },
+        "SecurityProfileContext": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the security profile"
+                },
+                "status": {
+                    "type": "string",
+                    "description": "Status defines in which state the security profile was when the event was triggered"
+                },
+                "version": {
+                    "type": "string",
+                    "description": "Version of the profile in use"
+                },
+                "tags": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "List of tags associated to this profile"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "name",
+                "status",
+                "version",
+                "tags"
+            ],
+            "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
+        },
         "SignalEvent": {
             "properties": {
                 "type": {
@@ -1182,6 +1246,9 @@ CWS logs have the following JSON schema:
         "mount": {
             "$ref": "#/$defs/MountEvent"
         },
+        "anomaly_detection_syscall": {
+            "$ref": "#/$defs/AnomalyDetectionSyscallEvent"
+        },
         "usr": {
             "$ref": "#/$defs/UserContext"
         },
@@ -1193,6 +1260,9 @@ CWS logs have the following JSON schema:
         },
         "container": {
             "$ref": "#/$defs/ContainerContext"
+        },
+        "security_profile": {
+            "$ref": "#/$defs/SecurityProfileContext"
         },
         "date": {
             "type": "string",
@@ -1223,11 +1293,39 @@ CWS logs have the following JSON schema:
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
+| `anomaly_detection_syscall` | $ref | Please see [AnomalyDetectionSyscallEvent](#anomalydetectionsyscallevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
+| `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
 | `date` | string |  |
+
+## `AnomalyDetectionSyscallEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "syscall": {
+            "type": "string",
+            "description": "Name of the syscall that triggered the anomaly detection event"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "syscall"
+    ],
+    "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `syscall` | Name of the syscall that triggered the anomaly detection event |
+
 
 ## `BPFEvent`
 
@@ -1447,7 +1545,8 @@ CWS logs have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "id"
+        "id",
+        "question"
     ],
     "description": "DNSEventSerializer serializes a DNS event to JSON"
 }
@@ -2044,6 +2143,15 @@ CWS logs have the following JSON schema:
         "loaded_from_memory": {
             "type": "boolean",
             "description": "indicates if a module was loaded from memory, as opposed to a file"
+        },
+        "argv": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array"
+        },
+        "args_truncated": {
+            "type": "boolean"
         }
     },
     "additionalProperties": false,
@@ -2373,6 +2481,10 @@ CWS logs have the following JSON schema:
         "is_kworker": {
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
+        },
+        "source": {
+            "type": "string",
+            "description": "Process source"
         }
     },
     "additionalProperties": false,
@@ -2412,6 +2524,7 @@ CWS logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
+| `source` | Process source |
 
 | References |
 | ---------- |
@@ -2531,6 +2644,10 @@ CWS logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
+        "source": {
+            "type": "string",
+            "description": "Process source"
+        },
         "parent": {
             "$ref": "#/$defs/Process",
             "description": "Parent process"
@@ -2580,6 +2697,7 @@ CWS logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
+| `source` | Process source |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 
@@ -2810,6 +2928,53 @@ CWS logs have the following JSON schema:
 | [SELinuxBoolChange](#selinuxboolchange) |
 | [SELinuxEnforceStatus](#selinuxenforcestatus) |
 | [SELinuxBoolCommit](#selinuxboolcommit) |
+
+## `SecurityProfileContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Name of the security profile"
+        },
+        "status": {
+            "type": "string",
+            "description": "Status defines in which state the security profile was when the event was triggered"
+        },
+        "version": {
+            "type": "string",
+            "description": "Version of the profile in use"
+        },
+        "tags": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "List of tags associated to this profile"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "name",
+        "status",
+        "version",
+        "tags"
+    ],
+    "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `name` | Name of the security profile |
+| `status` | Status defines in which state the security profile was when the event was triggered |
+| `version` | Version of the profile in use |
+| `tags` | List of tags associated to this profile |
+
 
 ## `SignalEvent`
 

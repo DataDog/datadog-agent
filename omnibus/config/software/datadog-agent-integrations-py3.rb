@@ -13,6 +13,7 @@ dependency 'pip3'
 dependency 'setuptools3'
 
 dependency 'snowflake-connector-python-py3'
+dependency 'confluent-kafka-python'
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -67,6 +68,7 @@ blacklist_packages = Array.new
 
 # We build these manually
 blacklist_packages.push(/^snowflake-connector-python==/)
+blacklist_packages.push(/^confluent-kafka==/)
 
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency

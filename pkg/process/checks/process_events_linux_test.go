@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package checks
 
@@ -19,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api/mocks"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
@@ -230,7 +230,7 @@ func TestProcessEventsCheck(t *testing.T) {
 	}
 	stream.On("Recv").Return(nil, io.EOF)
 
-	store, err := events.NewRingStore(&statsd.NoOpClient{})
+	store, err := events.NewRingStore(ddconfig.Mock(t), &statsd.NoOpClient{})
 	require.NoError(t, err)
 
 	listener, err := events.NewSysProbeListener(nil, client, func(e *model.ProcessEvent) {

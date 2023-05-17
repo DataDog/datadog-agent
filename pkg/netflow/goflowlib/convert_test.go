@@ -70,7 +70,7 @@ func TestConvertFlow(t *testing.T) {
 		DstPort:        uint32(80),
 		InIf:           10,
 		OutIf:          20,
-		IPTos:          3,
+		IpTos:          3,
 		NextHop:        []byte{10, 10, 10, 30},
 	}
 	expectedFlow := common.Flow{
@@ -78,7 +78,7 @@ func TestConvertFlow(t *testing.T) {
 		FlowType:        common.TypeNetFlow9,
 		SamplingRate:    10,
 		Direction:       1,
-		DeviceAddr:      []byte{127, 0, 0, 1},
+		ExporterAddr:    []byte{127, 0, 0, 1},
 		StartTimestamp:  1234568,
 		EndTimestamp:    1234569,
 		Bytes:           10,

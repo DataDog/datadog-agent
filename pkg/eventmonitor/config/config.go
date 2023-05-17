@@ -6,7 +6,6 @@
 package config
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -20,9 +19,6 @@ const (
 )
 
 type Config struct {
-	// StatsdAddr defines the statsd address
-	StatsdAddr string
-
 	// SocketPath is the path to the socket that is used to communicate with the security agent and process agent
 	SocketPath string
 
@@ -39,8 +35,6 @@ type Config struct {
 // NewConfig creates a config for the event monitoring module
 func NewConfig(spConfig *config.Config) *Config {
 	return &Config{
-		StatsdAddr: fmt.Sprintf("%s:%d", spConfig.StatsdHost, spConfig.StatsdPort),
-
 		// event server
 		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),
 		EventServerBurst: coreconfig.SystemProbe.GetInt(join(evNS, "event_server.burst")),

@@ -10,9 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
-
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/stretchr/testify/suite"
 )
 
 type ConfigTestSuite struct {
@@ -584,8 +583,8 @@ func getTestEndpoints(e Endpoint) *Endpoints {
 }
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 	suite.config.Set("api_key", "123")
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "http://vector.host:8080/")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false))
@@ -595,8 +594,8 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
 	suite.config.Set("api_key", "123")
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "https://vector.host:8443/")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "https://vector.host:8443/")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
@@ -606,11 +605,11 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() {
 	suite.config.Set("api_key", "123")
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "vector.host:8443")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, true))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -618,11 +617,11 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() 
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverride() {
 	suite.config.Set("api_key", "123")
 	suite.config.Set("logs_config.logs_no_ssl", true)
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "vector.host:8443")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride("test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, false))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, false))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -630,8 +629,8 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverri
 func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.config.Set("api_key", "123")
 	suite.config.Set("logs_config.logs_no_ssl", true)
-	suite.config.Set("vector.logs.enabled", true)
-	suite.config.Set("vector.logs.url", "vector.host:8443")
+	suite.config.Set("observability_pipelines_worker.logs.enabled", true)
+	suite.config.Set("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
@@ -695,4 +694,192 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("compliance_config.endpoints.logs_dd_url", "https://my-proxy.com:443")
+
+	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
+	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+
+	main := Endpoint{
+		APIKey:           "123",
+		Host:             "my-proxy.com",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:          EPIntakeVersion2,
+		TrackType:        "test-track",
+		Protocol:         "test-proto",
+		Origin:           "test-source",
+	}
+
+	expectedEndpoints := &Endpoints{
+		UseHTTP:                true,
+		BatchWait:              coreConfig.DefaultBatchWait * time.Second,
+		Main:                   main,
+		Endpoints:              []Endpoint{main},
+		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
+		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          coreConfig.DefaultInputChanSize,
+	}
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
+	suite.config.Set("api_key", "123")
+	suite.config.Set("compliance_config.endpoints.dd_url", "https://my-proxy.com:443")
+
+	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
+	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.mydomain.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+
+	main := Endpoint{
+		APIKey:           "123",
+		Host:             "my-proxy.com",
+		Port:             443,
+		UseSSL:           true,
+		UseCompression:   true,
+		CompressionLevel: 6,
+		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
+		BackoffBase:      coreConfig.DefaultLogsSenderBackoffBase,
+		BackoffMax:       coreConfig.DefaultLogsSenderBackoffMax,
+		RecoveryInterval: coreConfig.DefaultLogsSenderBackoffRecoveryInterval,
+		Version:          EPIntakeVersion2,
+		TrackType:        "test-track",
+		Protocol:         "test-proto",
+		Origin:           "test-source",
+	}
+
+	expectedEndpoints := &Endpoints{
+		UseHTTP:                true,
+		BatchWait:              coreConfig.DefaultBatchWait * time.Second,
+		Main:                   main,
+		Endpoints:              []Endpoint{main},
+		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
+		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          coreConfig.DefaultInputChanSize,
+	}
+
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func Test_parseAddressWithScheme(t *testing.T) {
+	type args struct {
+		address       string
+		defaultNoSSL  bool
+		defaultParser defaultParseAddressFunc
+	}
+	tests := []struct {
+		name       string
+		args       args
+		wantHost   string
+		wantPort   int
+		wantUseSSL bool
+		wantErr    bool
+	}{
+		{
+			name: "url without scheme and port",
+			args: args{
+				address:       "localhost:8080",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:   "localhost",
+			wantPort:   8080,
+			wantUseSSL: false,
+			wantErr:    false,
+		},
+		{
+			name: "url with https prefix",
+			args: args{
+				address:       "https://localhost",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:   "localhost",
+			wantPort:   0,
+			wantUseSSL: true,
+			wantErr:    false,
+		},
+		{
+			name: "url with https prefix and port",
+			args: args{
+				address:       "https://localhost:443",
+				defaultParser: parseAddress,
+			},
+			wantHost:   "localhost",
+			wantPort:   443,
+			wantUseSSL: true,
+			wantErr:    false,
+		},
+		{
+			name: "invalid url",
+			args: args{
+				address:       "https://localhost:443-8080",
+				defaultNoSSL:  true,
+				defaultParser: parseAddressAsHost,
+			},
+			wantHost:   "",
+			wantPort:   0,
+			wantUseSSL: false,
+			wantErr:    true,
+		},
+		{
+			name: "allow emptyPort",
+			args: args{
+				address:       "https://localhost",
+				defaultNoSSL:  true,
+				defaultParser: parseAddressAsHost,
+			},
+			wantHost:   "localhost",
+			wantPort:   0,
+			wantUseSSL: true,
+			wantErr:    false,
+		},
+		{
+			name: "no schema, not port emptyPort",
+			args: args{
+				address:       "localhost",
+				defaultNoSSL:  false,
+				defaultParser: parseAddressAsHost,
+			},
+			wantHost:   "localhost",
+			wantPort:   0,
+			wantUseSSL: true,
+			wantErr:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotHost, gotPort, gotUseSSL, err := parseAddressWithScheme(tt.args.address, tt.args.defaultNoSSL, tt.args.defaultParser)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseAddressWithScheme() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotHost != tt.wantHost {
+				t.Errorf("parseAddressWithScheme() gotHost = %v, want %v", gotHost, tt.wantHost)
+			}
+			if gotPort != tt.wantPort {
+				t.Errorf("parseAddressWithScheme() gotPort = %v, want %v", gotPort, tt.wantPort)
+			}
+			if gotUseSSL != tt.wantUseSSL {
+				t.Errorf("parseAddressWithScheme() gotUseSSL = %v, want %v", gotUseSSL, tt.wantUseSSL)
+			}
+		})
+	}
 }

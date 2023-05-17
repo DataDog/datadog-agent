@@ -202,3 +202,11 @@ github.com/klauspost/compress/s2:
   - "Copyright (c) 2019 Klaus Post. All rights reserved"
   - "Copyright 2016 The filepathx Authors"
   - "Copyright 2016-2017 The New York Times Company"
+
+# The Copyright information is not contained in the LICENSE file, but it can be found in other
+# files in the package, such as:
+#  * https://github.com/godror/knownpb/blob/main/timestamppb/timestamp_test.go
+#  * https://github.com/godror/knownpb/blob/main/timestamppb/timestamp.go
+#  * https://github.com/godror/knownpb/blob/main/internal/writer.go 
+github.com/godror/knownpb/internal: Copyright 2014, 2021 Tamás Gulácsi
+github.com/godror/knownpb/timestamppb: Copyright 2019, 2021 Tamás Gulácsi

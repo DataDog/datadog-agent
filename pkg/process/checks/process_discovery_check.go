@@ -18,15 +18,21 @@ import (
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
-func NewProcessDiscoveryCheck() *ProcessDiscoveryCheck {
-	return &ProcessDiscoveryCheck{}
+func NewProcessDiscoveryCheck(config ddconfig.ConfigReader) *ProcessDiscoveryCheck {
+	return &ProcessDiscoveryCheck{
+		config:    config,
+		userProbe: NewLookupIdProbe(config),
+	}
 }
 
 // ProcessDiscoveryCheck is a check that gathers basic process metadata.
 // It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
+	config ddconfig.ConfigReader
+
 	probe      procutil.Probe
+	userProbe  *LookupIdProbe
 	info       *HostInfo
 	initCalled bool
 
@@ -37,16 +43,16 @@ type ProcessDiscoveryCheck struct {
 func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	d.info = info
 	d.initCalled = true
-	d.probe = newProcessProbe(procutil.WithPermission(syscfg.ProcessModuleEnabled))
+	d.probe = newProcessProbe(d.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 
-	d.maxBatchSize = getMaxBatchSize()
+	d.maxBatchSize = getMaxBatchSize(d.config)
 	return nil
 }
 
 // IsEnabled returns true if the check is enabled by configuration
 func (d *ProcessDiscoveryCheck) IsEnabled() bool {
 	// The Process and Process Discovery checks are mutually exclusive
-	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+	if d.config.GetBool("process_config.process_collection.enabled") {
 		return false
 	}
 
@@ -55,7 +61,7 @@ func (d *ProcessDiscoveryCheck) IsEnabled() bool {
 		return false
 	}
 
-	return ddconfig.Datadog.GetBool("process_config.process_discovery.enabled")
+	return d.config.GetBool("process_config.process_discovery.enabled")
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -90,7 +96,7 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (Ru
 		NumCpus:     calculateNumCores(d.info.SystemInfo),
 		TotalMemory: d.info.SystemInfo.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), d.maxBatchSize)
+	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, d.userProbe), d.maxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 
 	groupID := nextGroupID()
@@ -110,14 +116,14 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (Ru
 // Cleanup frees any resource held by the ProcessDiscoveryCheck before the agent exits
 func (d *ProcessDiscoveryCheck) Cleanup() {}
 
-func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process) []*model.ProcessDiscovery {
+func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *LookupIdProbe) []*model.ProcessDiscovery {
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
 	for _, proc := range pidMap {
 		pd = append(pd, &model.ProcessDiscovery{
 			Pid:        proc.Pid,
 			NsPid:      proc.NsPid,
 			Command:    formatCommand(proc),
-			User:       formatUser(proc),
+			User:       formatUser(proc, userProbe),
 			CreateTime: proc.Stats.CreateTime,
 		})
 	}

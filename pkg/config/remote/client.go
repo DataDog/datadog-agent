@@ -59,8 +59,9 @@ type Client struct {
 	agentVersion string
 	products     []string
 
-	clusterName string
-	clusterID   string
+	clusterName  string
+	clusterID    string
+	cwsWorkloads []string
 
 	pollInterval      time.Duration
 	lastUpdateError   error
@@ -72,10 +73,11 @@ type Client struct {
 	state *state.Repository
 
 	// Listeners
-	apmListeners        []func(update map[string]state.APMSamplingConfig)
-	cwsListeners        []func(update map[string]state.ConfigCWSDD)
-	cwsCustomListeners  []func(update map[string]state.ConfigCWSCustom)
-	apmTracingListeners []func(update map[string]state.APMTracingConfig)
+	apmListeners         []func(update map[string]state.APMSamplingConfig)
+	cwsListeners         []func(update map[string]state.ConfigCWSDD)
+	cwsCustomListeners   []func(update map[string]state.ConfigCWSCustom)
+	cwsProfilesListeners []func(update map[string]state.ConfigCWSProfiles)
+	apmTracingListeners  []func(update map[string]state.APMTracingConfig)
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -193,6 +195,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		agentVersion:        agentVersion,
 		clusterName:         clusterName,
 		clusterID:           clusterID,
+		cwsWorkloads:        make([]string, 0),
 		products:            data.ProductListToString(products),
 		state:               repository,
 		pollInterval:        pollInterval,
@@ -292,6 +295,11 @@ func (c *Client) update() error {
 			listener(c.state.CWSCustomConfigs())
 		}
 	}
+	if containsProduct(changedProducts, state.ProductCWSProfiles) {
+		for _, listener := range c.cwsProfilesListeners {
+			listener(c.state.CWSProfilesConfigs())
+		}
+	}
 	if containsProduct(changedProducts, state.ProductAPMTracing) {
 		for _, listener := range c.apmTracingListeners {
 			listener(c.state.APMTracingConfigs())
@@ -338,6 +346,15 @@ func (c *Client) RegisterCWSCustomUpdate(fn func(update map[string]state.ConfigC
 	fn(c.state.CWSCustomConfigs())
 }
 
+// RegisterCWSCustomUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the CWS_SECURITY_PROFILES product.
+func (c *Client) RegisterCWSProfilesUpdate(fn func(update map[string]state.ConfigCWSProfiles)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsProfilesListeners = append(c.cwsProfilesListeners, fn)
+	fn(c.state.CWSProfilesConfigs())
+}
+
 // RegisterAPMTracing registers a callback function to be called after a successful client update that will
 // contain the current state of the APMTracing product.
 func (c *Client) RegisterAPMTracing(fn func(update map[string]state.APMTracingConfig)) {
@@ -352,6 +369,13 @@ func (c *Client) APMTracingConfigs() map[string]state.APMTracingConfig {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return c.state.APMTracingConfigs()
+}
+
+// SetCWSWorkloads updates the list of workloads that needs cws profiles
+func (c *Client) SetCWSWorkloads(workloads []string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsWorkloads = workloads
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
@@ -424,10 +448,11 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			IsAgent:  true,
 			IsTracer: false,
 			ClientAgent: &pbgo.ClientAgent{
-				Name:        c.agentName,
-				Version:     c.agentVersion,
-				ClusterName: c.clusterName,
-				ClusterId:   c.clusterID,
+				Name:         c.agentName,
+				Version:      c.agentVersion,
+				ClusterName:  c.clusterName,
+				ClusterId:    c.clusterID,
+				CwsWorkloads: c.cwsWorkloads,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,

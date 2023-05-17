@@ -19,8 +19,8 @@ type Flow struct {
 	SamplingRate uint64
 	Direction    uint32
 
-	// Device information
-	DeviceAddr []byte
+	// Exporter information
+	ExporterAddr []byte
 
 	// Flow time
 	StartTimestamp uint64 // in seconds
@@ -70,7 +70,7 @@ type Flow struct {
 func (f *Flow) AggregationHash() uint64 {
 	h := fnv.New64()
 	h.Write([]byte(f.Namespace))                           //nolint:errcheck
-	h.Write(f.DeviceAddr)                                  //nolint:errcheck
+	h.Write(f.ExporterAddr)                                //nolint:errcheck
 	h.Write(f.SrcAddr)                                     //nolint:errcheck
 	h.Write(f.DstAddr)                                     //nolint:errcheck
 	binary.Write(h, binary.LittleEndian, f.SrcPort)        //nolint:errcheck
@@ -85,7 +85,7 @@ func (f *Flow) AggregationHash() uint64 {
 // This method is used for hash collision detection.
 func IsEqualFlowContext(a Flow, b Flow) bool {
 	if a.Namespace == b.Namespace &&
-		bytes.Compare(a.DeviceAddr, b.DeviceAddr) == 0 &&
+		bytes.Compare(a.ExporterAddr, b.ExporterAddr) == 0 &&
 		bytes.Compare(a.SrcAddr, b.SrcAddr) == 0 &&
 		bytes.Compare(a.DstAddr, b.DstAddr) == 0 &&
 		a.SrcPort == b.SrcPort &&

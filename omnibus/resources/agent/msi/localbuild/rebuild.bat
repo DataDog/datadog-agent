@@ -9,10 +9,9 @@ REM Copy few resource files locally, source.wxs AS IS and
 REM localization-en-us.wxl.erb replace template value currently via "Agent",
 REM unless localization-en-us.wxl already exhists (e.g. from previous copy)
 copy ..\source.wxs.erb source.wxs
-if not exist localization-en-us.wxl (
-    REM Note "complicated" %% escape BATCH characters
-    PowerShell -Command "Get-Content ..\localization-en-us.wxl.erb | %%{$_ -replace '<%%= friendly_name %%>', 'Agent'} | Out-File -Encoding utf8 'localization-en-us.wxl'"
-)
+
+PowerShell -Command "Get-Content ..\localization-en-us.wxl.erb | %%{$_ -replace '<%%= friendly_name %%>', 'Agent'} | Out-File -Encoding utf8 'localization-en-us.wxl'"
+
 
 xcopy /y/e/s/i ..\assets\*.* resources\assets
 

@@ -61,6 +61,7 @@
     <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.DirectoryServices" />
+    <Reference Include="System.ServiceProcess" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -69,6 +70,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="APM\ApmConfigTests.cs" />
+    <Compile Include="InstallState\InstallStateTests.cs" />
+    <Compile Include="InstallState\InstallStateTestSetup.cs" />
     <Compile Include="UserCustomActions\BaseUserCustomActionsDomainTests.cs" />
     <Compile Include="Flare\FlareUnitTests.cs" />
     <Compile Include="IntegrationTests\TestConfig.cs" />
@@ -77,6 +80,7 @@
     <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="Proxy\ProcessConfigTests.cs" />
     <Compile Include="Telemetry\TelemetryUnitTests.cs" />
+    <Compile Include="SessionTestBaseSetup.cs" />
     <Compile Include="UserCustomActions\UserCustomActionsDomainClientTests.cs" />
     <Compile Include="UserCustomActions\UserCustomActionsDomainControllerTests.cs" />
     <Compile Include="UserCustomActions\UserCustomActionsTestSetup.cs" />

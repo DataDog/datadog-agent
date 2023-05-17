@@ -11,6 +11,7 @@ import platform
 import re
 import shutil
 import sys
+import tempfile
 from distutils.dir_util import copy_tree
 
 from invoke import task
@@ -27,6 +28,7 @@ from .ssm import get_pfx_pass, get_signing_cert
 from .utils import (
     REPO_PATH,
     bin_name,
+    cache_version,
     generate_config,
     get_build_flags,
     get_version,
@@ -56,6 +58,7 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "oom_kill",
+    "oracle-dbm",
     "systemd",
     "tcp_queue_length",
     "uptime",
@@ -317,6 +320,79 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
     # Build with the release target
     ctx.run(f"docker build {common_build_opts} --platform linux/{arch} --target release {build_context}")
     ctx.run(f"rm {build_context}/{deb_glob}")
+
+
+@task
+def hacky_dev_image_build(ctx, base_image=None, target_image="agent", push=False, signed_pull=False):
+    os.environ["DELVE"] = "1"
+    build(ctx)
+
+    if base_image is None:
+        import requests
+        import semver
+
+        # Try to guess what is the latest release of the agent
+        latest_release = semver.VersionInfo(0)
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list")
+        for tag in tags.json()['tags']:
+            if not semver.VersionInfo.isvalid(tag):
+                continue
+            ver = semver.VersionInfo.parse(tag)
+            if ver.prerelease or ver.build:
+                continue
+            if ver > latest_release:
+                latest_release = ver
+        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+
+    with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
+        dockerfile.write(
+            f'''FROM ubuntu:latest AS src
+
+COPY . /usr/src/datadog-agent
+
+RUN find /usr/src/datadog-agent -type f \\! -name \\*.go -print0 | xargs -0 rm
+RUN find /usr/src/datadog-agent -type d -empty -print0 | xargs -0 rmdir
+
+FROM ubuntu:latest AS bin
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y patchelf
+
+COPY bin/agent/agent /opt/datadog-agent/bin/agent/agent
+
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
+
+FROM golang:latest AS dlv
+
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+FROM {base_image}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y bash-completion less vim tshark && \
+    apt-get clean
+
+ENV DELVE_PAGER=less
+
+COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
+COPY --from=src /usr/src/datadog-agent {os.getcwd()}
+COPY --from=bin /opt/datadog-agent/bin/agent/agent /opt/datadog-agent/bin/agent/agent
+RUN agent completion bash > /usr/share/bash-completion/completions/agent
+
+ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
+'''
+        )
+        dockerfile.flush()
+
+        pull_env = {}
+        if signed_pull:
+            pull_env['DOCKER_CONTENT_TRUST'] = '1'
+        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+
+        if push:
+            ctx.run(f'docker push {target_image}')
 
 
 @task
@@ -711,7 +787,7 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7'):
+def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7', version_cached=False):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
@@ -720,7 +796,12 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
     git_sha_length: different versions of git have a different short sha length,
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
+    version_cached: save the version inside a "agent-version.cache" that will be reused
+                    by each next call of version.
     """
+    if version_cached:
+        cache_version(ctx, git_sha_length=git_sha_length)
+
     version = get_version(
         ctx,
         include_git=True,

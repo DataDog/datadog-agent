@@ -279,6 +279,9 @@ if windows?
   if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
     dependency 'datadog-windows-filter-driver'
   end
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-windows-procmon-driver'
+  end
 end
 # Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'

@@ -6,6 +6,7 @@
 package encoding
 
 import (
+	"runtime"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -262,19 +263,21 @@ func TestHTTP2LocalhostScenario(t *testing.T) {
 
 func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	assert := assert.New(t)
+	cliport := uint16(6000)
+	serverport := uint16(80)
 	connections := []network.ConnectionStats{
 		{
 			Source: util.AddressFromString("127.0.0.1"),
-			SPort:  60000,
+			SPort:  cliport,
 			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  80,
+			DPort:  serverport,
 			Pid:    1,
 		},
 		{
 			Source: util.AddressFromString("127.0.0.1"),
-			SPort:  80,
+			SPort:  serverport,
 			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  60000,
+			DPort:  cliport,
 			Pid:    2,
 		},
 	}
@@ -283,12 +286,13 @@ func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	httpKey := http.NewKey(
 		util.AddressFromString("127.0.0.1"),
 		util.AddressFromString("127.0.0.1"),
-		60000,
-		80,
+		cliport,
+		serverport,
 		"/",
 		true,
 		http.MethodGet,
 	)
+
 	http2Stats.AddRequest(103, 1.0, 0, nil)
 
 	in := &network.Connections{
@@ -299,7 +303,25 @@ func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 			httpKey: http2Stats,
 		},
 	}
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 */
+		httpKeyWin := http.NewKey(
+			util.AddressFromString("127.0.0.1"),
+			util.AddressFromString("127.0.0.1"),
+			serverport,
+			cliport,
+			"/",
+			true,
+			http.MethodGet,
+		)
 
+		in.HTTP2[httpKeyWin] = http2Stats
+	}
 	http2Encoder := newHTTP2Encoder(in)
 
 	// assert that both ends (client:server, server:client) of the connection

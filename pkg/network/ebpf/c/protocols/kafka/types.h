@@ -23,6 +23,7 @@ typedef struct {
     __u16 request_api_key;
     __u16 request_api_version;
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
+    __u16 topic_name_size;
 } kafka_transaction_batch_entry_t;
 
 // Kafka transaction information associated to a certain socket (tuple_t)

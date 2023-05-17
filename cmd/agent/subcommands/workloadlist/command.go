@@ -18,8 +18,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := workloadlistcmd.MakeCommand(func() workloadlistcmd.GlobalParams {
 		return workloadlistcmd.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
-			ConfigName:   "datadog",
-			LoggerName:   "CORE",
+			ConfigName:   command.ConfigName,
+			LoggerName:   command.LoggerName,
 		}
 	})
 

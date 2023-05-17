@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,7 +39,8 @@ func TestIdentifyRandomString(t *testing.T) {
 }
 
 func TestParseTags(t *testing.T) {
-	p := newParser(newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	p := newParser(cfg, newFloat64ListPool())
 	rawTags := []byte("tag:test,mytag,good:boy")
 	tags := p.parseTags(rawTags)
 	expectedTags := []string{"tag:test", "mytag", "good:boy"}
@@ -45,7 +48,8 @@ func TestParseTags(t *testing.T) {
 }
 
 func TestParseTagsEmpty(t *testing.T) {
-	p := newParser(newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	p := newParser(cfg, newFloat64ListPool())
 	rawTags := []byte("")
 	tags := p.parseTags(rawTags)
 	assert.Nil(t, tags)
@@ -63,7 +67,8 @@ func TestUnsafeParseFloat(t *testing.T) {
 }
 
 func TestUnsafeParseFloatList(t *testing.T) {
-	p := newParser(newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	p := newParser(cfg, newFloat64ListPool())
 	unsafeFloats, err := p.parseFloat64List([]byte("1.1234:21.5:13"))
 	assert.NoError(t, err)
 	assert.Len(t, unsafeFloats, 3)

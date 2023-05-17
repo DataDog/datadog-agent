@@ -67,7 +67,6 @@ type StatsByKeyByNameByType map[Key]map[Hostname]map[QueryType]Stats
 type ReverseDNS interface {
 	Resolve([]util.Address) map[util.Address][]Hostname
 	GetDNSStats() StatsByKeyByNameByType
-	GetStats() map[string]int64
 	Start() error
 	Close()
 }

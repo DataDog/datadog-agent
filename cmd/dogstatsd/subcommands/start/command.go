@@ -20,10 +20,11 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -98,10 +99,12 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			Serverless: false,
 		}),
 		dogstatsd.Bundle,
+		forwarder.Bundle,
+		fx.Provide(defaultforwarder.NewParams),
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component) error {
+func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -113,7 +116,7 @@ func start(cliParams *CLIParams, config config.Component, params *Params, server
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := RunAgent(ctx, cliParams, config, params, components)
+	err := RunAgent(ctx, cliParams, config, params, components, forwarder)
 	if err != nil {
 		return err
 	}
@@ -124,7 +127,7 @@ func start(cliParams *CLIParams, config config.Component, params *Params, server
 	return nil
 }
 
-func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, components *DogstatsdComponents) (err error) {
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, components *DogstatsdComponents, forwarder defaultforwarder.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -187,14 +190,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	// setup the demultiplexer
-	keysPerDomain, err := pkgconfig.GetMultipleEndpoints()
-	if err != nil {
-		log.Error("Misconfiguration of agent endpoints: ", err)
-	}
-
-	forwarderOpts := forwarder.NewOptions(keysPerDomain)
-	opts := aggregator.DefaultAgentDemultiplexerOptions(forwarderOpts)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.UseOrchestratorForwarder = false
 	opts.UseEventPlatformForwarder = false
 	opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
@@ -204,7 +200,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		hname = ""
 	}
 	log.Debugf("Using hostname: %s", hname)
-	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hname)
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector

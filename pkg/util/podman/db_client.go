@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build podman
-// +build podman
 
 package podman
 
@@ -40,13 +39,11 @@ import (
 )
 
 const (
-	// DefaultDBPath is the default path of podman's state database
-	DefaultDBPath = "/var/lib/containers/storage/libpod/bolt_state.db"
-	ctrName       = "ctr"
-	allCtrsName   = "all-ctrs"
-	configName    = "config"
-	stateName     = "state"
-	openTimeout   = 30 * time.Second
+	ctrName     = "ctr"
+	allCtrsName = "all-ctrs"
+	configName  = "config"
+	stateName   = "state"
+	openTimeout = 30 * time.Second
 )
 
 var (
@@ -61,13 +58,8 @@ type DBClient struct {
 	DBPath string
 }
 
-// NewDBClient returns a DB client that uses the DB stored in dbPath. If dbPath
-// is empty, it uses the default path.
+// NewDBClient returns a DB client that uses the DB stored in dbPath.
 func NewDBClient(dbPath string) *DBClient {
-	if dbPath == "" {
-		dbPath = DefaultDBPath
-	}
-
 	return &DBClient{
 		DBPath: dbPath,
 	}

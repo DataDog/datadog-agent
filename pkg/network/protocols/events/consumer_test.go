@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package events
 
@@ -154,6 +153,12 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "tracepoint__syscalls__sys_enter_write",
 				},
+			},
+		},
+		ConstantEditors: []manager.ConstantEditor{
+			{
+				Name:  "test_monitoring_enabled",
+				Value: uint64(1),
 			},
 		},
 	}

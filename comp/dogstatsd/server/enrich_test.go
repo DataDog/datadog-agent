@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,8 +29,9 @@ var (
 	}
 )
 
-func parseAndEnrichSingleMetricMessage(message []byte, conf enrichConfig) (metrics.MetricSample, error) {
-	parser := newParser(newFloat64ListPool())
+func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrichConfig) (metrics.MetricSample, error) {
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	parser := newParser(cfg, newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return metrics.MetricSample{}, err
@@ -42,8 +45,9 @@ func parseAndEnrichSingleMetricMessage(message []byte, conf enrichConfig) (metri
 	return samples[0], nil
 }
 
-func parseAndEnrichMultipleMetricMessage(message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
-	parser := newParser(newFloat64ListPool())
+func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	parser := newParser(cfg, newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return []metrics.MetricSample{}, err
@@ -53,8 +57,9 @@ func parseAndEnrichMultipleMetricMessage(message []byte, conf enrichConfig) ([]m
 	return enrichMetricSample(samples, parsed, "", conf), nil
 }
 
-func parseAndEnrichServiceCheckMessage(message []byte, conf enrichConfig) (*metrics.ServiceCheck, error) {
-	parser := newParser(newFloat64ListPool())
+func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*metrics.ServiceCheck, error) {
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	parser := newParser(cfg, newFloat64ListPool())
 	parsed, err := parser.parseServiceCheck(message)
 	if err != nil {
 		return nil, err
@@ -62,8 +67,9 @@ func parseAndEnrichServiceCheckMessage(message []byte, conf enrichConfig) (*metr
 	return enrichServiceCheck(parsed, "", conf), nil
 }
 
-func parseAndEnrichEventMessage(message []byte, conf enrichConfig) (*metrics.Event, error) {
-	parser := newParser(newFloat64ListPool())
+func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig) (*metrics.Event, error) {
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	parser := newParser(cfg, newFloat64ListPool())
 	parsed, err := parser.parseEvent(message)
 	if err != nil {
 		return nil, err
@@ -78,7 +84,7 @@ func TestConvertParseMultiple(t *testing.T) {
 
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666:777.5|"+metricSymbol), conf)
+		parsed, err := parseAndEnrichMultipleMetricMessage(t, []byte("daemon:666:777.5|"+metricSymbol), conf)
 		assert.NoError(t, err)
 		require.Len(t, parsed, 2)
 
@@ -109,7 +115,7 @@ func TestConvertParseSingle(t *testing.T) {
 
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol), conf)
+		parsed, err := parseAndEnrichMultipleMetricMessage(t, []byte("daemon:666|"+metricSymbol), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -132,7 +138,7 @@ func TestConvertParseSingleWithTags(t *testing.T) {
 
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,bench"), conf)
+		parsed, err := parseAndEnrichMultipleMetricMessage(t, []byte("daemon:666|"+metricSymbol+"|#protocol:http,bench"), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -157,7 +163,7 @@ func TestConvertParseSingleWithHostTags(t *testing.T) {
 
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,host:custom-host,bench"), conf)
+		parsed, err := parseAndEnrichMultipleMetricMessage(t, []byte("daemon:666|"+metricSymbol+"|#protocol:http,host:custom-host,bench"), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -182,7 +188,7 @@ func TestConvertParseSingleWithEmptyHostTags(t *testing.T) {
 
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|#protocol:http,host:,bench"), conf)
+		parsed, err := parseAndEnrichMultipleMetricMessage(t, []byte("daemon:666|"+metricSymbol+"|#protocol:http,host:,bench"), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -207,7 +213,7 @@ func TestConvertParseSingleWithSampleRate(t *testing.T) {
 
 	for metricSymbol, metricType := range symbolToType {
 
-		parsed, err := parseAndEnrichMultipleMetricMessage([]byte("daemon:666|"+metricSymbol+"|@0.21"), conf)
+		parsed, err := parseAndEnrichMultipleMetricMessage(t, []byte("daemon:666|"+metricSymbol+"|@0.21"), conf)
 
 		assert.NoError(t, err)
 		require.Len(t, parsed, 1)
@@ -228,7 +234,7 @@ func TestConvertParseSet(t *testing.T) {
 		defaultHostname: "default-hostname",
 	}
 
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:abc:def|s"), conf)
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:abc:def|s"), conf)
 
 	assert.NoError(t, err)
 
@@ -247,7 +253,7 @@ func TestConvertParseSetUnicode(t *testing.T) {
 		defaultHostname: "default-hostname",
 	}
 
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"), conf)
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:♬†øU†øU¥ºuT0♪|s"), conf)
 
 	assert.NoError(t, err)
 
@@ -266,7 +272,7 @@ func TestConvertParseGaugeWithPoundOnly(t *testing.T) {
 		defaultHostname: "default-hostname",
 	}
 
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#"), conf)
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:666|g|#"), conf)
 
 	assert.NoError(t, err)
 
@@ -285,7 +291,7 @@ func TestConvertParseGaugeWithUnicode(t *testing.T) {
 		defaultHostname: "default-hostname",
 	}
 
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), conf)
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"), conf)
 
 	assert.NoError(t, err)
 
@@ -306,38 +312,38 @@ func TestConvertParseMetricError(t *testing.T) {
 	}
 
 	// not enough information
-	_, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666"), conf)
+	_, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:666"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|"), conf)
+	_, err = parseAndEnrichSingleMetricMessage(t, []byte("daemon:666|"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:|g"), conf)
+	_, err = parseAndEnrichSingleMetricMessage(t, []byte("daemon:|g"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichSingleMetricMessage([]byte(":666|g"), conf)
+	_, err = parseAndEnrichSingleMetricMessage(t, []byte(":666|g"), conf)
 	assert.Error(t, err)
 
 	// unknown metadata prefix
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|m:test"), conf)
+	_, err = parseAndEnrichSingleMetricMessage(t, []byte("daemon:666|g|m:test"), conf)
 	assert.NoError(t, err)
 
 	// invalid value
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:abc|g"), conf)
+	_, err = parseAndEnrichSingleMetricMessage(t, []byte("daemon:abc|g"), conf)
 	assert.Error(t, err)
 
 	// invalid metric type
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|unknown"), conf)
+	_, err = parseAndEnrichSingleMetricMessage(t, []byte("daemon:666|unknown"), conf)
 	assert.Error(t, err)
 
 	// invalid sample rate
-	_, err = parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|@abc"), conf)
+	_, err = parseAndEnrichSingleMetricMessage(t, []byte("daemon:666|g|@abc"), conf)
 	assert.Error(t, err)
 }
 
 func TestConvertParseMonokeyBatching(t *testing.T) {
 	// TODO: not implemented
-	// parsed, err := parseAndEnrichSingleMetricMessage([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")
+	// parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")
 }
 
 func TestConvertEnsureUTF8(t *testing.T) {
@@ -361,7 +367,7 @@ func TestConvertServiceCheckMinimal(t *testing.T) {
 		defaultHostname: "default-hostname",
 	}
 
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0"), conf)
+	sc, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0"), conf)
 
 	assert.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -380,26 +386,26 @@ func TestConvertServiceCheckError(t *testing.T) {
 	}
 
 	// not enough information
-	_, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up"), conf)
+	_, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|"), conf)
+	_, err = parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|"), conf)
 	assert.Error(t, err)
 
 	// not invalid status
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|OK"), conf)
+	_, err = parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|OK"), conf)
 	assert.Error(t, err)
 
 	// not unknown status
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|21"), conf)
+	_, err = parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|21"), conf)
 	assert.Error(t, err)
 
 	// invalid timestamp
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:some_time"), conf)
+	_, err = parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|d:some_time"), conf)
 	assert.NoError(t, err)
 
 	// unknown metadata
-	_, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|u:unknown"), conf)
+	_, err = parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|u:unknown"), conf)
 	assert.NoError(t, err)
 }
 
@@ -407,7 +413,7 @@ func TestConvertServiceCheckMetadataTimestamp(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21"), conf)
+	sc, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|d:21"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -424,7 +430,7 @@ func TestConvertServiceCheckMetadataHostname(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|h:localhost"), conf)
+	sc, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|h:localhost"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -441,7 +447,7 @@ func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|#host:localhost"), conf)
+	sc, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|#host:localhost"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -458,7 +464,7 @@ func TestConvertServiceCheckMetadataEmptyHostTag(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|#host:,other:tag"), conf)
+	sc, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|#host:,other:tag"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -475,7 +481,7 @@ func TestConvertServiceCheckMetadataTags(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"), conf)
+	sc, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|#tag1,tag2:test,tag3"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -492,7 +498,7 @@ func TestConvertServiceCheckMetadataMessage(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|m:this is fine"), conf)
+	sc, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|m:this is fine"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -510,7 +516,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 		defaultHostname: "default-hostname",
 	}
 	// all type
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"), conf)
+	sc, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"), conf)
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
@@ -522,7 +528,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
 
 	// multiple time the same tag
-	sc, err = parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"), conf)
+	sc, err = parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"), conf)
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost2", sc.Host)
@@ -538,7 +544,7 @@ func TestServiceCheckOriginTag(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	sc, err := parseAndEnrichServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2,dd.internal.entity_id:testID|m:this is fine"), conf)
+	sc, err := parseAndEnrichServiceCheckMessage(t, []byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2,dd.internal.entity_id:testID|m:this is fine"), conf)
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
@@ -554,7 +560,7 @@ func TestConvertEventMinimal(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -575,7 +581,7 @@ func TestConvertEventMultilinesText(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -596,7 +602,7 @@ func TestConvertEventPipeInTitle(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test|title", e.Title)
@@ -618,66 +624,66 @@ func TestConvertEventError(t *testing.T) {
 		defaultHostname: "default-hostname",
 	}
 	// missing length header
-	_, err := parseAndEnrichEventMessage([]byte("_e:title|text"), conf)
+	_, err := parseAndEnrichEventMessage(t, []byte("_e:title|text"), conf)
 	assert.Error(t, err)
 
 	// greater length than packet
-	_, err = parseAndEnrichEventMessage([]byte("_e{10,10}:title|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{10,10}:title|text"), conf)
 	assert.Error(t, err)
 
 	// zero length
-	_, err = parseAndEnrichEventMessage([]byte("_e{0,0}:a|a"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{0,0}:a|a"), conf)
 	assert.Error(t, err)
 
 	// missing title or text length
-	_, err = parseAndEnrichEventMessage([]byte("_e{5555:title|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{5555:title|text"), conf)
 	assert.Error(t, err)
 
 	// missing wrong len format
-	_, err = parseAndEnrichEventMessage([]byte("_e{a,1}:title|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{a,1}:title|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e{1,a}:title|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{1,a}:title|text"), conf)
 	assert.Error(t, err)
 
 	// missing title or text length
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,}:title|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{5,}:title|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e{,4}:title|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{,4}:title|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e{}:title|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{}:title|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e{,}:title|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{,}:title|text"), conf)
 	assert.Error(t, err)
 
 	// not enough information
-	_, err = parseAndEnrichEventMessage([]byte("_e|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e|text"), conf)
 	assert.Error(t, err)
 
-	_, err = parseAndEnrichEventMessage([]byte("_e:|text"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e:|text"), conf)
 	assert.Error(t, err)
 
 	// invalid timestamp
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|d:abc"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{5,4}:title|text|d:abc"), conf)
 	assert.NoError(t, err)
 
 	// invalid priority
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|p:urgent"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{5,4}:title|text|p:urgent"), conf)
 	assert.NoError(t, err)
 
 	// invalid priority
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|p:urgent"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{5,4}:title|text|p:urgent"), conf)
 	assert.NoError(t, err)
 
 	// invalid alert type
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|t:test"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{5,4}:title|text|t:test"), conf)
 	assert.NoError(t, err)
 
 	// unknown metadata
-	_, err = parseAndEnrichEventMessage([]byte("_e{5,4}:title|text|x:1234"), conf)
+	_, err = parseAndEnrichEventMessage(t, []byte("_e{5,4}:title|text|x:1234"), conf)
 	assert.NoError(t, err)
 }
 
@@ -685,7 +691,7 @@ func TestConvertEventMetadataTimestamp(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|d:21"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|d:21"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -706,7 +712,7 @@ func TestConvertEventMetadataPriority(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|p:low"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|p:low"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -727,7 +733,7 @@ func TestConvertEventMetadataHostname(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|h:localhost"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|h:localhost"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -748,7 +754,7 @@ func TestConvertEventMetadataHostnameInTag(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|#host:localhost"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|#host:localhost"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -769,7 +775,7 @@ func TestConvertEventMetadataEmptyHostTag(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|#host:,other:tag"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|#host:,other:tag"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -790,7 +796,7 @@ func TestConvertEventMetadataAlertType(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|t:warning"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -811,7 +817,7 @@ func TestConvertEventMetadataAggregatioKey(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|k:some aggregation key"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|k:some aggregation key"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -832,7 +838,7 @@ func TestConvertEventMetadataSourceType(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|s:this is the source"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|s:this is the source"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -853,7 +859,7 @@ func TestConvertEventMetadataTags(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|#tag1,tag2:test"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -874,7 +880,7 @@ func TestConvertEventMetadataMultiple(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -895,7 +901,7 @@ func TestEventOriginTag(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	e, err := parseAndEnrichEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test,dd.internal.entity_id:testID"), conf)
+	e, err := parseAndEnrichEventMessage(t, []byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test,dd.internal.entity_id:testID"), conf)
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -916,7 +922,7 @@ func TestConvertNamespace(t *testing.T) {
 		metricPrefix:    "testNamespace.",
 		defaultHostname: "default-hostname",
 	}
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:21|ms"), conf)
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:21|ms"), conf)
 
 	assert.NoError(t, err)
 
@@ -931,7 +937,7 @@ func TestConvertNamespaceBlacklist(t *testing.T) {
 		defaultHostname:       "default-hostname",
 	}
 
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("datadog.agent.daemon:21|ms"), conf)
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("datadog.agent.daemon:21|ms"), conf)
 
 	assert.NoError(t, err)
 
@@ -950,7 +956,8 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 		defaultHostname: "default",
 	}
 
-	parser := newParser(newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	parser := newParser(cfg, newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
@@ -967,7 +974,8 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	}
 
 	message := []byte("custom.metric.a:21|ms")
-	parser := newParser(newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	parser := newParser(cfg, newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
@@ -986,7 +994,8 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 		},
 		defaultHostname: "default",
 	}
-	parser := newParser(newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	parser := newParser(cfg, newFloat64ListPool())
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
@@ -999,7 +1008,7 @@ func TestConvertEntityOriginDetectionNoTags(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), conf)
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), conf)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -1018,7 +1027,7 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), conf)
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), conf)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
@@ -1036,7 +1045,7 @@ func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",
 	}
-	parsed, err := parseAndEnrichSingleMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), conf)
+	parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,dd.internal.entity_id:foo,sometag2:somevalue2"), conf)
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)

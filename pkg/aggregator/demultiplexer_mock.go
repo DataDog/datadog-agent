@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -39,6 +42,11 @@ func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	a.Lock()
 	a.aggregatedSamples = append(a.aggregatedSamples, sample)
 	a.Unlock()
+}
+
+// GetEventPlatformForwarder returns a event platform forwarder
+func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
+	return a.aggregator.GetEventPlatformForwarder()
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
@@ -149,8 +157,9 @@ func (a *TestAgentDemultiplexer) Reset() {
 }
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
-func InitTestAgentDemultiplexerWithOpts(opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
-	demux := InitAndStartAgentDemultiplexer(opts, "hostname")
+func InitTestAgentDemultiplexerWithOpts(sharedForwarderOptions *forwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, sharedForwarderOptions)
+	demux := InitAndStartAgentDemultiplexer(sharedForwarder, opts, "hostname")
 	testAgent := TestAgentDemultiplexer{
 		AgentDemultiplexer: demux,
 		events:             make(chan []*metrics.Event),
@@ -161,11 +170,11 @@ func InitTestAgentDemultiplexerWithOpts(opts AgentDemultiplexerOptions) *TestAge
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
 func InitTestAgentDemultiplexerWithFlushInterval(flushInterval time.Duration) *TestAgentDemultiplexer {
-	opts := DefaultAgentDemultiplexerOptions(nil)
+	opts := DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	return InitTestAgentDemultiplexerWithOpts(opts)
+	return InitTestAgentDemultiplexerWithOpts(forwarder.NewOptions(config.Datadog, nil), opts)
 }
 
 // InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.

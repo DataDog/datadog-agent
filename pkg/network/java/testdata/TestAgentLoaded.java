@@ -14,8 +14,8 @@ public class TestAgentLoaded {
         try {
             // parsing the argument like agent-usm.jar
             if (agentArgs != ""){
-                //split arguments by space character
-                String[] args = agentArgs.split(" ");
+                //split arguments by comma character
+                String[] args = agentArgs.split(",");
                 for (String arg : args){
                     //we only parse the arguments of the form "arg=value" (e.g: dd.debug.enabled=true)
                     String[] keyValTuple = arg.split("=");

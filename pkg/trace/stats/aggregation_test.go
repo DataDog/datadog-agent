@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetStatusCode(t *testing.T) {
@@ -49,5 +50,42 @@ func TestGetStatusCode(t *testing.T) {
 		if got := getStatusCode(tt.in); got != tt.out {
 			t.Fatalf("Expected %d, got %d", tt.out, got)
 		}
+	}
+}
+
+func TestNewAggregationPeerService(t *testing.T) {
+	for _, tt := range []struct {
+		in               *pb.Span
+		enablePeerSvcAgg bool
+		res              Aggregation
+	}{
+		{
+			&pb.Span{},
+			false,
+			Aggregation{},
+		},
+		{
+			&pb.Span{},
+			true,
+			Aggregation{},
+		},
+		{
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"peer.service": "remote-service"},
+			},
+			false,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a"}},
+		},
+		{
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"peer.service": "remote-service"},
+			},
+			true,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", PeerService: "remote-service"}},
+		},
+	} {
+		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerSvcAgg))
 	}
 }

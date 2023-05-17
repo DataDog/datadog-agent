@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package logs
 
@@ -25,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -81,13 +81,12 @@ func createAgent(endpoints *config.Endpoints) (*Agent, *sources.LogSources, *ser
 	services := service.NewServices()
 
 	// setup and start the agent
-	agent = NewAgent(sources, services, nil, endpoints)
+	agent = NewAgent(sources, services, tailers.NewTailerTracker(), nil, endpoints)
 	return agent, sources, services
 }
 
 func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
-	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
-	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
+	coreConfig.SetFeatures(suite.T(), coreConfig.Docker, coreConfig.Kubernetes)
 
 	agent, sources, _ := createAgent(endpoints)
 
@@ -113,7 +112,6 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 }
 
 func (suite *AgentTestSuite) TestAgentTcp() {
-
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
@@ -124,7 +122,6 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-
 	server := http.NewTestServer(200)
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
@@ -136,8 +133,7 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	endpoint := config.Endpoint{Host: "fake:", Port: 0}
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
-	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{coreConfig.Docker: struct{}{}, coreConfig.Kubernetes: struct{}{}})
-	defer coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
+	coreConfig.SetFeatures(suite.T(), coreConfig.Docker, coreConfig.Kubernetes)
 
 	agent, sources, _ := createAgent(endpoints)
 

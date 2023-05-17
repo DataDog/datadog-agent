@@ -2,6 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/DataDog/datadog-agent/pkg/security/serializers/event",
   "$defs": {
+    "AnomalyDetectionSyscallEvent": {
+      "properties": {
+        "syscall": {
+          "type": "string",
+          "description": "Name of the syscall that triggered the anomaly detection event"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "syscall"
+      ],
+      "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
+    },
     "BPFEvent": {
       "properties": {
         "cmd": {
@@ -128,7 +142,8 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "id"
+        "id",
+        "question"
       ],
       "description": "DNSEventSerializer serializes a DNS event to JSON"
     },
@@ -537,6 +552,15 @@
         "loaded_from_memory": {
           "type": "boolean",
           "description": "indicates if a module was loaded from memory, as opposed to a file"
+        },
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "args_truncated": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -787,6 +811,10 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "source": {
+          "type": "string",
+          "description": "Process source"
         }
       },
       "additionalProperties": false,
@@ -903,6 +931,10 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "source": {
+          "type": "string",
+          "description": "Process source"
         },
         "parent": {
           "$ref": "#/$defs/Process",
@@ -1062,6 +1094,38 @@
       "type": "object",
       "description": "SELinuxEventSerializer serializes a SELinux context to JSON"
     },
+    "SecurityProfileContext": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the security profile"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status defines in which state the security profile was when the event was triggered"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the profile in use"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of tags associated to this profile"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "version",
+        "tags"
+      ],
+      "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
+    },
     "SignalEvent": {
       "properties": {
         "type": {
@@ -1166,6 +1230,9 @@
     "mount": {
       "$ref": "#/$defs/MountEvent"
     },
+    "anomaly_detection_syscall": {
+      "$ref": "#/$defs/AnomalyDetectionSyscallEvent"
+    },
     "usr": {
       "$ref": "#/$defs/UserContext"
     },
@@ -1177,6 +1244,9 @@
     },
     "container": {
       "$ref": "#/$defs/ContainerContext"
+    },
+    "security_profile": {
+      "$ref": "#/$defs/SecurityProfileContext"
     },
     "date": {
       "type": "string",

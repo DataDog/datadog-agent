@@ -28,6 +28,7 @@ const (
 	spNS      = Namespace
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
+	diNS      = "dynamic_instrumentation"
 
 	defaultConnsMessageBatchSize = 600
 	maxConnsMessageBatchSize     = 1000
@@ -35,12 +36,13 @@ const (
 
 // system-probe module names
 const (
-	NetworkTracerModule        ModuleName = "network_tracer"
-	OOMKillProbeModule         ModuleName = "oom_kill_probe"
-	TCPQueueLengthTracerModule ModuleName = "tcp_queue_length_tracer"
-	SecurityRuntimeModule      ModuleName = "security_runtime"
-	ProcessModule              ModuleName = "process"
-	EventMonitorModule         ModuleName = "event_monitor"
+	NetworkTracerModule          ModuleName = "network_tracer"
+	OOMKillProbeModule           ModuleName = "oom_kill_probe"
+	TCPQueueLengthTracerModule   ModuleName = "tcp_queue_length_tracer"
+	SecurityRuntimeModule        ModuleName = "security_runtime"
+	ProcessModule                ModuleName = "process"
+	EventMonitorModule           ModuleName = "event_monitor"
+	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 )
 
 func key(pieces ...string) string {
@@ -96,6 +98,15 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
+		// System probe is not supported on darwin, so we should fail gracefully in this case.
+		if runtime.GOOS != "darwin" {
+			if errors.Is(err, os.ErrPermission) {
+				log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+			} else {
+				log.Warnf("Error loading config: %v", err)
+			}
+		}
+
 		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			// do nothing, we can ignore a missing system-probe.yaml config file
@@ -181,6 +192,10 @@ func load() (*Config, error) {
 	}
 	if cfg.GetBool(key(spNS, "process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
+	}
+
+	if cfg.GetBool(key(diNS, "enabled")) {
+		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
 
 	if len(c.EnabledModules) > 0 {

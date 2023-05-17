@@ -1,0 +1,27 @@
+From a9ba116d85b408c86e5fb9c279c5f5803e45d2fa Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jan=20=C4=8Cern=C3=BD?= <jcerny@redhat.com>
+Date: Mon, 30 Jan 2023 11:21:20 +0100
+Subject: [PATCH 06/22] Use correct format specifier
+
+Addressing:
+openscap-1.3.7/src/OVAL/probes/independent/xmlfilecontent_probe.c:306: invalid_type: Argument "xmlGetLineNo(cur_node)" to format specifier "%d" was expected to have type "int" but has type "long".
+---
+ src/OVAL/probes/independent/xmlfilecontent_probe.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/OVAL/probes/independent/xmlfilecontent_probe.c b/src/OVAL/probes/independent/xmlfilecontent_probe.c
+index 5d56afa0d..da74cb94e 100644
+--- a/src/OVAL/probes/independent/xmlfilecontent_probe.c
++++ b/src/OVAL/probes/independent/xmlfilecontent_probe.c
+@@ -303,7 +303,7 @@ static int process_file(const char *prefix, const char *path, const char *filena
+ 			node_tab = nodes->nodeTab;
+ 			for (i = 0; i < node_cnt; ++i) {
+ 				cur_node = node_tab[i];
+-				dD("node[%d] line: %d, name: '%s', type: %d.",
++				dD("node[%d] line: %ld, name: '%s', type: %d.",
+ 				   i, XML_GET_LINE(cur_node), cur_node->name, cur_node->type);
+ 				if (cur_node->type == XML_ATTRIBUTE_NODE
+ 				    || cur_node->type == XML_TEXT_NODE) {
+-- 
+2.34.1
+

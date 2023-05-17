@@ -13,8 +13,10 @@ package process
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/podcheck"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
@@ -45,5 +47,8 @@ var Bundle = fxutil.Bundle(
 	processdiscoverycheck.Module,
 
 	hostinfo.Module,
+	expvars.Module,
+	apiserver.Module,
+
 	core.Bundle,
 )

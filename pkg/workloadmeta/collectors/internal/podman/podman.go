@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build podman
-// +build podman
 
 package podman
 
@@ -50,7 +49,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Store) error {
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
-	c.client = podman.NewDBClient(podman.DefaultDBPath)
+	c.client = podman.NewDBClient(config.Datadog.GetString("podman_db_path"))
 	c.store = store
 
 	return nil
@@ -105,7 +104,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		log.Warnf("Could not get env vars for container %s", containerID)
 	}
 
-	image, err := workloadmeta.NewContainerImage(container.Config.RawImageName)
+	image, err := workloadmeta.NewContainerImage(container.Config.ContainerRootFSConfig.RootfsImageID, container.Config.RawImageName)
 	if err != nil {
 		log.Warnf("Could not get image for container %s", containerID)
 	}

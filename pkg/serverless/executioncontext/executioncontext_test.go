@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package executioncontext
 
@@ -83,6 +82,7 @@ func TestSaveAndRestoreFromFile(t *testing.T) {
 	endTime := startTime.Add(10 * time.Second)
 	ec := ExecutionContext{persistedStateFilePath: tempfile.Name()}
 	ec.SetFromInvocation(testArn, testRequestID)
+	ec.UpdateOutOfMemoryRequestID(testRequestID)
 	ec.UpdateStartTime(startTime)
 	ec.UpdateEndTime(endTime)
 
@@ -97,6 +97,7 @@ func TestSaveAndRestoreFromFile(t *testing.T) {
 	assert.Nil(err)
 
 	assert.Equal(testRequestID, ec.lastRequestID)
+	assert.Equal(testRequestID, ec.lastOOMRequestID)
 	assert.Equal(testArn, ec.arn)
 	assert.WithinDuration(startTime, ec.startTime, time.Millisecond)
 	assert.WithinDuration(endTime, ec.endTime, time.Millisecond)
@@ -110,4 +111,13 @@ func TestUpdateFromRuntimeDoneLog(t *testing.T) {
 	ec.UpdateEndTime(endTime)
 
 	assert.Equal(endTime, ec.endTime)
+}
+
+func TestUpdateOutOfMemoryRequestID(t *testing.T) {
+	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	ec := ExecutionContext{}
+	ec.UpdateOutOfMemoryRequestID(testRequestID)
+
+	ecs := ec.GetCurrentState()
+	assert.Equal(t, testRequestID, ecs.LastOOMRequestID)
 }

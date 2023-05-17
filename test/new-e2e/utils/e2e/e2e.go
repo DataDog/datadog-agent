@@ -10,184 +10,192 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
+	"reflect"
 	"strings"
+	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/credentials"
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
-	"github.com/DataDog/test-infra-definitions/aws"
-	"github.com/DataDog/test-infra-definitions/common/config"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
+const (
+	deleteTimeout = 30 * time.Minute
+)
+
 // Suite manages the environment creation and runs E2E tests.
-// It is implemented as a [testify Suite].
-// Example of usage:
-//
-//	  type MyEnv struct {
-//		   VM *client.VM
-//	  }
-//	  type vmSuite struct {
-//		   *Suite[MyEnv]
-//	  }
-//
-//	  func TestE2ESuite(t *testing.T) {
-//		   suite.Run(t, &vmSuite{Suite: NewSuite("my-test", &StackDefinition[MyEnv]{
-//		     EnvCloudName: "aws/sandbox",
-//			 EnvFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
-//				vm, err := ec2vm.NewUnixLikeEc2VM(ctx, ec2vm.WithOS(os.AmazonLinuxOS, commonos.AMD64Arch))
-//				if err != nil {
-//					return nil, err
-//				}
-//				return &MyEnv{
-//					VM: client.NewVM(vm),
-//				}, nil
-//			  },
-//		   })})
-//	  }
-//
-// Suite leverages pulumi features to compute the differences between the previous
-// environment and the new one to make environment updates faster.
-//
-// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 type Suite[Env any] struct {
-	shortStackName string
-	fullStackName  string // From StackManager.Stack. Use shortStackName and the username
-	stackDef       *StackDefinition[Env]
-	destroyEnv     bool
+	suite.Suite
+
+	stackName       string
+	defaultStackDef *StackDefinition[Env]
+	currentStackDef *StackDefinition[Env]
+	firstFailTest   string
 
 	// These fields are initialized in SetupSuite
-	suite.Suite
-	Env              *Env
-	auth             client.Authentification
-	defaultConfigMap auto.ConfigMap
+	env *Env
+
+	isUpdateEnvCalledInThisTest bool
+
+	// Setting devMode allows to skip deletion regardless of test results
+	// Unavailable in CI.
+	devMode bool
+
+	skipDeleteOnFailure bool
 }
 
-type StackDefinition[Env any] struct {
-	EnvCloudName string // Must be "aws/sandbox" for now.
-	EnvFactory   func(ctx *pulumi.Context) (*Env, error)
-	ConfigMap    auto.ConfigMap
+type suiteConstraint[Env any] interface {
+	suite.TestingSuite
+	initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env]))
 }
 
-// NewSuite creates a new Suite.
-// stackName is the name of the stack and should be unique across suites.
-// stackDef is the stack definition.
-// options are optional parameters for example [e2e.KeepEnv].
-func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
-	testSuite := Suite[Env]{
-		shortStackName:   stackName,
-		stackDef:         stackDef,
-		destroyEnv:       true,
-		defaultConfigMap: make(auto.ConfigMap),
-	}
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
+	suiteType := reflect.TypeOf(e2eSuite).Elem()
+	name := suiteType.Name()
+	pkgPaths := suiteType.PkgPath()
+	pkgs := strings.Split(pkgPaths, "/")
 
+	// Use the hash of PkgPath in order to have a uniq stack name
+	hash := utils.StrHash(pkgs...)
+
+	// Example: "e2e-e2eSuite-cbb731954db42b"
+	defaultStackName := fmt.Sprintf("%v-%v-%v", pkgs[len(pkgs)-1], name, hash)
+
+	e2eSuite.initSuite(defaultStackName, stackDef, options...)
+	suite.Run(t, e2eSuite)
+}
+
+func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
+	suite.stackName = stackName
+	suite.defaultStackDef = stackDef
 	for _, o := range options {
-		o(&testSuite)
+		o(suite)
 	}
-
-	return &testSuite
 }
 
-// KeepEnv prevents Suite from destroying the environment at the end of the test suite.
-// When using this option, you have to manually destroy the environment.
-func KeepEnv[Env any]() func(*Suite[Env]) {
-	return func(p *Suite[Env]) { p.destroyEnv = false }
+// WithStackName overrides the stack name.
+// This function is useful only when using e2e.Run.
+func WithStackName[Env any](stackName string) func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.stackName = stackName
+	}
+}
+
+func DevMode[Env any]() func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.devMode = true
+	}
+}
+
+func SkipDeleteOnFailure[Env any]() func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.skipDeleteOnFailure = true
+	}
+}
+
+// Env returns the current environment.
+// In order to improve the efficiency, this function behaves as follow:
+//   - It creates the default environment if no environment exists. It happens only during the first call of the test suite.
+//   - It restores the default environment if UpdateEnv was not already called during this test.
+//     This avoid having to restore the default environment for each test even if UpdateEnv immedialy
+//     overrides this environment.
+func (suite *Suite[Env]) Env() *Env {
+	if suite.env == nil || !suite.isUpdateEnvCalledInThisTest {
+		suite.UpdateEnv(suite.defaultStackDef)
+	}
+	return suite.env
+}
+
+func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
+	suite.isUpdateEnvCalledInThisTest = false
+}
+
+func (suite *Suite[Env]) AfterTest(suiteName, testName string) {
+	if suite.T().Failed() && suite.firstFailTest == "" {
+		// As far as I know, there is no way to prevent other tests from being
+		// run when a test fail. Even calling panic doesn't work.
+		// Instead, this code stores the name of the first fail test and prevents
+		// the environment to be updated.
+		// Note: using os.Exit(1) prevents other tests from being run but at the
+		// price of having no test output at all.
+		suite.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
+	}
 }
 
 // SetupSuite method will run before the tests in the suite are run.
 // This function is called by [testify Suite].
-// Note: Having initialization code in this function allows `NewSuite` to not
-// return an error in order to write a single line for
-// `suite.Run(t, &vmSuite{Suite: e2e.NewSuite(...)})`
 func (suite *Suite[Env]) SetupSuite() {
-	require := require.New(suite.T())
+	skipDelete, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
+	if skipDelete {
+		suite.skipDeleteOnFailure = true
+	}
 
+	suite.Require().NotEmptyf(suite.stackName, "The stack name is empty. You must define it with WithName")
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
-	require.NoError(err)
-
-	credentialsManager := credentials.NewManager()
-	apiKey, err := credentialsManager.GetCredential(credentials.AWSSSMStore, "agent.ci.dev.apikey")
-	require.NoError(err)
-
-	sshKey, err := credentialsManager.GetCredential(credentials.AWSSSMStore, "agent.ci.awssandbox.ssh")
-	require.NoError(err)
-
-	suite.auth.SSHKey = sshKey
-	suite.add(config.DDAgentConfigNamespace, config.DDAgentAPIKeyParamName, apiKey)
-	suite.add(config.DDInfraConfigNamespace, aws.DDInfraDefaultKeyPairParamName, "agent-ci-sandbox")
-	suite.add(config.DDInfraConfigNamespace, aws.DDInfraDefaultInstanceTypeParamName, "t3.large")
-	suite.add(config.DDInfraConfigNamespace, aws.DDInfraDefaultARMInstanceTypeParamName, "m6g.medium")
-	env, stack, upResult, err := createEnv(suite, suite.stackDef)
-	require.NoError(err)
-	suite.fullStackName = stack.Name()
-	suite.Env = env
-	err = client.CallStackInitializers(&suite.auth, env, upResult)
-	require.NoError(err)
+	suite.Require().NoError(err)
 }
 
-func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, *auto.Stack, auto.UpResult, error) {
-	var env *Env
-	ctx := context.Background()
-	configMap := auto.ConfigMap{}
-	for key, value := range suite.defaultConfigMap {
-		configMap[key] = value
-	}
-
-	// Override the values of the config map with the values from the StackDefinition.
-	for key, value := range stackDef.ConfigMap {
-		configMap[key] = value
-	}
-	stack, stackOutput, err := infra.GetStackManager().GetStack(
-		ctx,
-		suite.stackDef.EnvCloudName,
-		suite.shortStackName,
-		configMap,
-		func(ctx *pulumi.Context) error {
-			var err error
-			env, err = stackDef.EnvFactory(ctx)
-			return err
-		}, false)
-
-	return env, stack, stackOutput, err
-}
-
-func (c *Suite[Env]) add(namespace string, key string, value string) {
-	c.defaultConfigMap[namespace+":"+key] = auto.ConfigValue{Value: value}
-}
-
-// TearDownSuite method is run after all the tests in the suite have been run.
+// TearDownTestSuite run after all the tests in the suite have been run.
 // This function is called by [testify Suite].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite[Env]) TearDownSuite() {
-	var err error
-
-	if suite.fullStackName == "" {
-		// There was an error when creating the stack so nothing to destroy
+	if runner.GetProfile().AllowDevMode() && suite.devMode {
 		return
 	}
 
-	if suite.destroyEnv {
-		ctx := context.Background()
-		err = infra.GetStackManager().DeleteStack(ctx, suite.stackDef.EnvCloudName, suite.shortStackName)
+	if suite.firstFailTest != "" && suite.skipDeleteOnFailure {
+		suite.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
+			"The environment of %v was kept.", suite.firstFailTest, suite.firstFailTest, suite.firstFailTest))
+		return
 	}
 
-	if !suite.destroyEnv || err != nil {
-		stars := strings.Repeat("*", 50)
-		thisFolder := "A_FOLDER_CONTAINING_PULUMI.YAML"
-		if _, thisFile, _, ok := runtime.Caller(0); ok {
-			thisFolder = filepath.Dir(thisFile)
+	// TODO: Implement retry on delete
+	ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
+	defer cancel()
+	err := infra.GetStackManager().DeleteStack(ctx, suite.stackName)
+	if err != nil {
+		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.stackName, err)
+		suite.T().Fail()
+	}
+}
+
+func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
+	var env *Env
+	ctx := context.Background()
+
+	_, stackOutput, err := infra.GetStackManager().GetStack(
+		ctx,
+		suite.stackName,
+		stackDef.configMap,
+		func(ctx *pulumi.Context) error {
+			var err error
+			env, err = stackDef.envFactory(ctx)
+			return err
+		}, false)
+
+	return env, stackOutput, err
+}
+
+func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
+	if stackDef != suite.currentStackDef {
+		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.skipDeleteOnFailure {
+			// In case of failure, do not override the environment
+			suite.T().SkipNow()
 		}
-
-		command := fmt.Sprintf("pulumi destroy -C %v --remove  -s %v", thisFolder, suite.fullStackName)
-		fmt.Fprintf(os.Stderr, "\n%v\nYour environment was not destroyed.\nTo destroy it, run `%v`.\n%v", stars, command, stars)
+		env, upResult, err := createEnv(suite, stackDef)
+		suite.Require().NoError(err)
+		err = client.CallStackInitializers(suite.T(), env, upResult)
+		suite.Require().NoError(err)
+		suite.env = env
+		suite.currentStackDef = stackDef
 	}
-	require.NoError(suite.T(), err)
+	suite.isUpdateEnvCalledInThisTest = true
 }

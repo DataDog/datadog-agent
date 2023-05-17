@@ -24,6 +24,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -80,7 +81,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	}
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
 	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
-	if p := coreconfig.GetProxies(); p != nil {
+	if p := coreconfig.Datadog.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
@@ -134,14 +135,15 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.StatsdPort = coreconfig.Datadog.GetInt("dogstatsd_port")
 	}
 
-	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
-		if host := coreconfig.Datadog.GetString("vector.traces.url"); host == "" {
-			log.Error("vector.traces.enabled but vector.traces.url is empty.")
+	obsPipelineEnabled, prefix := isObsPipelineEnabled()
+	if obsPipelineEnabled {
+		if host := coreconfig.Datadog.GetString(fmt.Sprintf("%s.traces.url", prefix)); host == "" {
+			log.Errorf("%s.traces.enabled but %s.traces.url is empty.", prefix, prefix)
 		} else {
 			c.Endpoints[0].Host = host
 		}
 	} else {
-		c.Endpoints[0].Host = coreconfig.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+		c.Endpoints[0].Host = utils.GetMainEndpoint(coreconfig.Datadog, apiEndpointPrefix, "apm_config.apm_dd_url")
 	}
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
@@ -193,6 +195,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = coreconfig.Datadog.GetInt("apm_config.connection_limit")
 	}
+	c.PeerServiceAggregation = coreconfig.Datadog.GetBool("apm_config.peer_service_aggregation")
+	c.ComputeStatsBySpanKind = coreconfig.Datadog.GetBool("apm_config.compute_stats_by_span_kind")
 	if coreconfig.Datadog.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = coreconfig.Datadog.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -289,7 +293,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
 		c.TelemetryConfig.Enabled = true
 		c.TelemetryConfig.Endpoints = []*config.Endpoint{{
-			Host:   coreconfig.GetMainEndpoint(config.TelemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
+			Host:   utils.GetMainEndpoint(coreconfig.Datadog, config.TelemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
 			APIKey: c.Endpoints[0].APIKey,
 		}}
 		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
@@ -413,6 +417,18 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	if k := "apm_config.debugger_api_key"; coreconfig.Datadog.IsSet(k) {
 		c.DebuggerProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "apm_config.debugger_additional_endpoints"; coreconfig.Datadog.IsSet(k) {
+		c.DebuggerProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
+	}
+	if k := "apm_config.symdb_dd_url"; coreconfig.Datadog.IsSet(k) {
+		c.SymDBProxy.DDURL = coreconfig.Datadog.GetString(k)
+	}
+	if k := "apm_config.symdb_api_key"; coreconfig.Datadog.IsSet(k) {
+		c.SymDBProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "apm_config.symdb_additional_endpoints"; coreconfig.Datadog.IsSet(k) {
+		c.SymDBProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
 	}
 	if k := "evp_proxy_config.enabled"; coreconfig.Datadog.IsSet(k) {
 		c.EVPProxy.Enabled = coreconfig.Datadog.GetBool(k)
@@ -686,4 +702,14 @@ func setMaxMemCPU(c *config.AgentConfig, isContainerized bool) {
 		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
 		c.MaxMemory = 0
 	}
+}
+
+func isObsPipelineEnabled() (bool, string) {
+	if coreconfig.Datadog.GetBool("observability_pipelines_worker.traces.enabled") {
+		return true, "observability_pipelines_worker"
+	}
+	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
+		return true, "vector"
+	}
+	return false, "observability_pipelines_worker"
 }

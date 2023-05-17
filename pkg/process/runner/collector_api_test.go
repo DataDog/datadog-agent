@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/process"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -79,13 +80,14 @@ func TestSendConnectionsMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/connections", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		apiEps, err := GetAPIEndpoints()
+		apiEps, err := GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, apiEps[0].APIKey, req.headers.Get("DD-Api-Key"))
 
@@ -118,13 +120,14 @@ func TestSendContainerMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/container", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := GetAPIEndpoints()
+		eps, err := GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -155,13 +158,14 @@ func TestSendProcMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := GetAPIEndpoints()
+		eps, err := GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -195,13 +199,14 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/discovery", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := GetAPIEndpoints()
+		eps, err := GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
@@ -244,13 +249,14 @@ func TestSendProcessEventMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := getEventsAPIEndpoints()
+		eps, err := getEventsAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
@@ -288,7 +294,8 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := ddconfig.Mock(t)
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
 		requests := []request{
 			<-ep.Requests,
 			<-ep.Requests,
@@ -297,7 +304,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 		timestamps := make(map[string]struct{})
 		for _, req := range requests {
 			assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-			eps, err := GetAPIEndpoints()
+			eps, err := GetAPIEndpoints(cfg)
 			assert.NoError(t, err)
 			assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 			assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -350,8 +357,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 func TestSendPodMessageSendManifestPayload(t *testing.T) {
 	clusterID, check := getPodCheckMessage(t)
 
-	ddconfig.SetDetectedFeatures(ddconfig.FeatureMap{ddconfig.Kubernetes: {}})
-	defer ddconfig.SetDetectedFeatures(nil)
+	ddconfig.SetFeatures(t, ddconfig.Kubernetes)
 
 	ddcfg := ddconfig.Mock(t)
 	ddcfg.Set("orchestrator_explorer.enabled", true)
@@ -366,27 +372,23 @@ func TestSendPodMessageSendManifestPayload(t *testing.T) {
 func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 	clusterID, check := getPodCheckMessage(t)
 
-	ddconfig.SetDetectedFeatures(ddconfig.FeatureMap{ddconfig.Kubernetes: {}})
-	defer ddconfig.SetDetectedFeatures(nil)
+	ddconfig.SetFeatures(t, ddconfig.Kubernetes)
 
 	ddcfg := ddconfig.Mock(t)
 	ddcfg.Set("orchestrator_explorer.enabled", true)
 	ddcfg.Set("orchestrator_explorer.manifest_collection.enabled", false)
 
 	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
-
 		testPodMessageMetadata(t, clusterID, c, ep)
 		select {
 		case q := <-ep.Requests:
 			t.Fatalf("should not have received manifest payload %+v", q)
 		case <-time.After(1 * time.Second):
 		}
-
 	})
 }
 
 func getPodCheckMessage(t *testing.T) (string, checks.Check) {
-
 	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
 
 	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
@@ -566,11 +568,10 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	hostInfo := &checks.HostInfo{
 		HostName: testHostName,
 	}
-	c, err := NewRunnerWithChecks([]checks.Check{check}, true, nil)
+	c, err := NewRunnerWithChecks(mockConfig, []checks.Check{check}, true, nil)
 	check.Init(nil, hostInfo)
 	assert.NoError(t, err)
-
-	c.Submitter, err = NewSubmitter(hostInfo.HostName)
+	c.Submitter, err = NewSubmitter(mockConfig, hostInfo.HostName)
 	require.NoError(t, err)
 
 	err = c.Submitter.Start()

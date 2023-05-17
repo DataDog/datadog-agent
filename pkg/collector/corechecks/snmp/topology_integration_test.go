@@ -583,7 +583,6 @@ profiles:
 	// language=json
 	event := []byte(fmt.Sprintf(`
 {
-  "subnet": "",
   "namespace":"profile-metadata",
   "devices": [
     {
@@ -1275,7 +1274,6 @@ profiles:
 	// language=json
 	event := []byte(fmt.Sprintf(`
 {
-  "subnet": "",
   "namespace":"profile-metadata",
   "devices": [
     {
@@ -1958,7 +1956,6 @@ profiles:
 	// language=json
 	event := []byte(fmt.Sprintf(`
 {
-  "subnet": "",
   "namespace":"profile-metadata",
   "devices": [
     {

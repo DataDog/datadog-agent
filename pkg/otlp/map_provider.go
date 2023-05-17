@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build otlp
-// +build otlp
 
 package otlp
 
@@ -31,6 +30,10 @@ const defaultTracesConfig string = `
 receivers:
   otlp:
 
+processors:
+  batch:
+    timeout: 10s
+
 exporters:
   otlp:
     tls:
@@ -44,6 +47,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
+      processors: [batch]
       exporters: [otlp]
 `
 

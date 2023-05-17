@@ -4,7 +4,6 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package erpc
 
@@ -33,7 +32,7 @@ const (
 	// ResolveParentOp resolves the parent of the provide path key
 	ResolveParentOp
 	// RegisterSpanTLSOP is used for span TLS registration
-	RegisterSpanTLSOP //nolint:deadcode,unused
+	RegisterSpanTLSOP
 	// ExpireInodeDiscarderOp is used to expire an inode discarder
 	ExpireInodeDiscarderOp
 	// ExpirePidDiscarderOp is used to expire a pid discarder

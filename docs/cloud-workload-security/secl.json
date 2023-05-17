@@ -8,11 +8,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "async",
-          "definition": "True if the syscall was asynchronous",
-          "property_doc_link": "async-doc"
-        },
-        {
           "name": "container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "container-created_at-doc"
@@ -26,6 +21,16 @@
           "name": "container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "container-tags-doc"
+        },
+        {
+          "name": "event.async",
+          "definition": "True if the syscall was asynchronous",
+          "property_doc_link": "event-async-doc"
+        },
+        {
+          "name": "event.timestamp",
+          "definition": "Timestamp of the event",
+          "property_doc_link": "event-timestamp-doc"
         },
         {
           "name": "network.destination.ip",
@@ -2457,6 +2462,21 @@
       "from_agent_version": "7.35",
       "experimental": false,
       "properties": [
+        {
+          "name": "load_module.args",
+          "definition": "Parameters (as a string) of the new kernel module",
+          "property_doc_link": "load_module-args-doc"
+        },
+        {
+          "name": "load_module.args_truncated",
+          "definition": "Indicates if the arguments were truncated or not",
+          "property_doc_link": "load_module-args_truncated-doc"
+        },
+        {
+          "name": "load_module.argv",
+          "definition": "Parameters (as an array) of the new kernel module",
+          "property_doc_link": "load_module-argv-doc"
+        },
         {
           "name": "load_module.file.change_time",
           "definition": "Change time of the file",
@@ -7206,8 +7226,8 @@
         "unlink.file",
         "utimes.file"
       ],
-      "constants": "",
-      "constants_link": "",
+      "constants": "Inode mode constants",
+      "constants_link": "inode-mode-constants",
       "examples": []
     },
     {
@@ -7702,8 +7722,8 @@
         "unlink.file",
         "utimes.file"
       ],
-      "constants": "Chmod mode constants",
-      "constants_link": "chmod-mode-constants",
+      "constants": "File mode constants",
+      "constants_link": "file-mode-constants",
       "examples": []
     },
     {
@@ -7898,18 +7918,6 @@
       "examples": []
     },
     {
-      "name": "async",
-      "link": "async-doc",
-      "type": "bool",
-      "definition": "True if the syscall was asynchronous",
-      "prefixes": [
-        ""
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "bind.addr.family",
       "link": "bind-addr-family-doc",
       "type": "int",
@@ -8049,8 +8057,8 @@
       "prefixes": [
         "chmod"
       ],
-      "constants": "Chmod mode constants",
-      "constants_link": "chmod-mode-constants",
+      "constants": "File mode constants",
+      "constants_link": "file-mode-constants",
       "examples": []
     },
     {
@@ -8061,8 +8069,8 @@
       "prefixes": [
         "chmod"
       ],
-      "constants": "Chmod mode constants",
-      "constants_link": "chmod-mode-constants",
+      "constants": "File mode constants",
+      "constants_link": "file-mode-constants",
       "examples": []
     },
     {
@@ -8222,6 +8230,30 @@
       "examples": []
     },
     {
+      "name": "event.async",
+      "link": "event-async-doc",
+      "type": "bool",
+      "definition": "True if the syscall was asynchronous",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.timestamp",
+      "link": "event-timestamp-doc",
+      "type": "int",
+      "definition": "Timestamp of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "exit.cause",
       "link": "exit-cause-doc",
       "type": "int",
@@ -8240,6 +8272,42 @@
       "definition": "Exit code of the process or number of the signal that caused the process to terminate",
       "prefixes": [
         "exit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "load_module.args",
+      "link": "load_module-args-doc",
+      "type": "string",
+      "definition": "Parameters (as a string) of the new kernel module",
+      "prefixes": [
+        "load_module"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "load_module.args_truncated",
+      "link": "load_module-args_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates if the arguments were truncated or not",
+      "prefixes": [
+        "load_module"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "load_module.argv",
+      "link": "load_module-argv-doc",
+      "type": "string",
+      "definition": "Parameters (as an array) of the new kernel module",
+      "prefixes": [
+        "load_module"
       ],
       "constants": "",
       "constants_link": "",
@@ -8277,8 +8345,8 @@
       "prefixes": [
         "mkdir"
       ],
-      "constants": "Chmod mode constants",
-      "constants_link": "chmod-mode-constants",
+      "constants": "File mode constants",
+      "constants_link": "file-mode-constants",
       "examples": []
     },
     {
@@ -8289,8 +8357,8 @@
       "prefixes": [
         "mkdir"
       ],
-      "constants": "Chmod mode constants",
-      "constants_link": "chmod-mode-constants",
+      "constants": "File mode constants",
+      "constants_link": "file-mode-constants",
       "examples": []
     },
     {
@@ -8445,8 +8513,8 @@
       "prefixes": [
         "open"
       ],
-      "constants": "Chmod mode constants",
-      "constants_link": "chmod-mode-constants",
+      "constants": "File mode constants",
+      "constants_link": "file-mode-constants",
       "examples": []
     },
     {
@@ -9987,105 +10055,6 @@
       ]
     },
     {
-      "name": "Chmod mode constants",
-      "link": "chmod-mode-constants",
-      "description": "Chmod mode constants are the supported modes for the chmod syscall.",
-      "all": [
-        {
-          "name": "S_IFBLK",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IFCHR",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IFDIR",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IFIFO",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IFLNK",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IFMT",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IFREG",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IFSOCK",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IRGRP",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IROTH",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IRUSR",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IRWXG",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IRWXO",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IRWXU",
-          "architecture": "all"
-        },
-        {
-          "name": "S_ISGID",
-          "architecture": "all"
-        },
-        {
-          "name": "S_ISUID",
-          "architecture": "all"
-        },
-        {
-          "name": "S_ISVTX",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IWGRP",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IWOTH",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IWUSR",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IXGRP",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IXOTH",
-          "architecture": "all"
-        },
-        {
-          "name": "S_IXUSR",
-          "architecture": "all"
-        }
-      ]
-    },
-    {
       "name": "DNS qclasses",
       "link": "dns-qclasses",
       "description": "DNS qclasses are the supported DNS query classes.",
@@ -10999,6 +10968,172 @@
       ]
     },
     {
+      "name": "File mode constants",
+      "link": "file-mode-constants",
+      "description": "File mode constants are the supported file permissions as well as constants for the set-user-ID, set-group-ID, and sticky bits.",
+      "all": [
+        {
+          "name": "S_ISUID",
+          "architecture": "all"
+        },
+        {
+          "name": "S_ISGID",
+          "architecture": "all"
+        },
+        {
+          "name": "S_ISVTX",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRWXU",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRUSR",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IWUSR",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IXUSR",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRWXG",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRGRP",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IWGRP",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IXGRP",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRWXO",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IROTH",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IWOTH",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IXOTH",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Inode mode constants",
+      "link": "inode-mode-constants",
+      "description": "Inode mode constants are the supported file type constants as well as the file mode constants.",
+      "all": [
+        {
+          "name": "S_IFMT",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IFSOCK",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IFLNK",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IFREG",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IFBLK",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IFDIR",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IFCHR",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IFIFO",
+          "architecture": "all"
+        },
+        {
+          "name": "S_ISUID",
+          "architecture": "all"
+        },
+        {
+          "name": "S_ISGID",
+          "architecture": "all"
+        },
+        {
+          "name": "S_ISVTX",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRWXU",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRUSR",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IWUSR",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IXUSR",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRWXG",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRGRP",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IWGRP",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IXGRP",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IRWXO",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IROTH",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IWOTH",
+          "architecture": "all"
+        },
+        {
+          "name": "S_IXOTH",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Kernel Capability constants",
       "link": "kernel-capability-constants",
       "description": "Kernel Capability constants are the supported Linux Kernel Capability.",
@@ -11057,10 +11192,6 @@
         },
         {
           "name": "CAP_KILL",
-          "architecture": "all"
-        },
-        {
-          "name": "CAP_LAST_CAP",
           "architecture": "all"
         },
         {

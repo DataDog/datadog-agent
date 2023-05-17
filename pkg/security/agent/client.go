@@ -135,9 +135,14 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
-	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
-		return net.Dial("unix", url)
-	}))
+	conn, err := grpc.Dial(
+		socketPath,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
+		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+			return net.Dial("unix", url)
+		}),
+	)
 	if err != nil {
 		return nil, err
 	}

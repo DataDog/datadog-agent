@@ -27,7 +27,7 @@ func Test_buildPayload(t *testing.T) {
 				FlowType:        common.TypeNetFlow9,
 				SamplingRate:    10,
 				Direction:       1,
-				DeviceAddr:      []byte{127, 0, 0, 1},
+				ExporterAddr:    []byte{127, 0, 0, 1},
 				StartTimestamp:  1234568,
 				EndTimestamp:    1234569,
 				Bytes:           10,
@@ -59,8 +59,10 @@ func Test_buildPayload(t *testing.T) {
 				EtherType:    "IPv4",
 				IPProtocol:   "TCP",
 				Device: payload.Device{
-					IP:        "127.0.0.1",
 					Namespace: "my-namespace",
+				},
+				Exporter: payload.Exporter{
+					IP: "127.0.0.1",
 				},
 				Source: payload.Endpoint{
 					IP:   "10.10.10.10",
@@ -89,7 +91,7 @@ func Test_buildPayload(t *testing.T) {
 				FlowType:        common.TypeNetFlow9,
 				SamplingRate:    10,
 				Direction:       1,
-				DeviceAddr:      []byte{127, 0, 0, 1},
+				ExporterAddr:    []byte{127, 0, 0, 1},
 				StartTimestamp:  1234568,
 				EndTimestamp:    1234569,
 				Bytes:           10,
@@ -121,8 +123,10 @@ func Test_buildPayload(t *testing.T) {
 				EtherType:    "IPv4",
 				IPProtocol:   "TCP",
 				Device: payload.Device{
-					IP:        "127.0.0.1",
 					Namespace: "my-namespace",
+				},
+				Exporter: payload.Exporter{
+					IP: "127.0.0.1",
 				},
 				Source: payload.Endpoint{
 					IP:   "10.10.10.10",
@@ -151,7 +155,7 @@ func Test_buildPayload(t *testing.T) {
 				FlowType:        common.TypeNetFlow9,
 				SamplingRate:    10,
 				Direction:       1,
-				DeviceAddr:      []byte{127, 0, 0, 1},
+				ExporterAddr:    []byte{127, 0, 0, 1},
 				StartTimestamp:  1234568,
 				EndTimestamp:    1234569,
 				Bytes:           10,
@@ -183,8 +187,10 @@ func Test_buildPayload(t *testing.T) {
 				EtherType:    "IPv4",
 				IPProtocol:   "TCP",
 				Device: payload.Device{
-					IP:        "127.0.0.1",
 					Namespace: "my-namespace",
+				},
+				Exporter: payload.Exporter{
+					IP: "127.0.0.1",
 				},
 				Source: payload.Endpoint{
 					IP:   "10.10.10.10",

@@ -1,18 +1,10 @@
+#include "kconfig.h"
+
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
 
-#include "kconfig.h"
-#include <net/sock.h>
-#include <uapi/linux/if_ether.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/udp.h>
-
-#include "tracer.h"
-#include "ip.h"
-#include "defs.h"
-#include "sock.h"
 #include "offsets.h"
+#include "ip.h"
 
 // This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
 // When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.

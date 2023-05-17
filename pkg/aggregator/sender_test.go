@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package aggregator
 
@@ -42,9 +41,9 @@ func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
 }
 
 func testDemux() *AgentDemultiplexer {
-	opts := DefaultAgentDemultiplexerOptions(nil)
+	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := initAgentDemultiplexer(opts, defaultHostname)
+	demux := initAgentDemultiplexer(NewForwarderTest(), opts, defaultHostname)
 	return demux
 }
 

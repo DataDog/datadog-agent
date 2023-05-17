@@ -11,7 +11,7 @@ import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 type EventType uint32
 
 const (
-	// UnknownEventType unknow event
+	// UnknownEventType unknown event
 	UnknownEventType EventType = iota
 	// FileOpenEventType File open event
 	FileOpenEventType
@@ -89,6 +89,8 @@ const (
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
+	// AnomalyDetectionSyscallEventType Anomaly Detection Syscall event
+	AnomalyDetectionSyscallEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -103,6 +105,9 @@ const (
 
 	// LastDiscarderEventType last event that accepts discarders
 	LastDiscarderEventType = FileRemoveXAttrEventType
+
+	// LastApproverEventType is the last event that accepts approvers
+	LastApproverEventType = SpliceEventType
 
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
 	CustomLostReadEventType = iota
@@ -200,6 +205,8 @@ func (t EventType) String() string {
 		return "unshare_mntns"
 	case SyscallsEventType:
 		return "syscalls"
+	case AnomalyDetectionSyscallEventType:
+		return "anomaly_detection_syscall"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -222,8 +229,6 @@ func (t EventType) String() string {
 
 // ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
 // the current algorithm is not efficient but allows us to reduce the number of conversion functions
-//
-//nolint:deadcode,unused
 func ParseEvalEventType(eventType eval.EventType) EventType {
 	for i := uint64(0); i != uint64(MaxAllEventType); i++ {
 		if EventType(i).String() == eventType {

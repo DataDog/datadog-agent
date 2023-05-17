@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build syscalltesters
-// +build syscalltesters
 
 package main
 
@@ -47,6 +46,9 @@ func BPFLoad() error {
 		Maps: []*manager.Map{
 			{
 				Name: "cache",
+			},
+			{
+				Name: "is_discarded_by_inode_gen",
 			},
 		},
 	}

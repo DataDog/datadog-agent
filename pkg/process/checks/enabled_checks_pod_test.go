@@ -4,21 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet && orchestrator
-// +build kubelet,orchestrator
 
 package checks
 
 import (
 	"testing"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 func TestPodCheck(t *testing.T) {
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: {}})
-	defer config.SetDetectedFeatures(nil)
+	config.SetFeatures(t, config.Kubernetes)
 
 	t.Run("enabled", func(t *testing.T) {
 		// Resets the cluster name so that it isn't cached during the call to `getEnabledChecks()`
@@ -29,7 +26,7 @@ func TestPodCheck(t *testing.T) {
 		cfg.Set("orchestrator_explorer.enabled", true)
 		cfg.Set("cluster_name", "test")
 
-		enabledChecks := getEnabledChecks(&sysconfig.Config{})
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertContainsCheck(t, enabledChecks, PodCheckName)
 	})
 
@@ -40,7 +37,7 @@ func TestPodCheck(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", false)
 
-		enabledChecks := getEnabledChecks(&sysconfig.Config{})
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertNotContainsCheck(t, enabledChecks, PodCheckName)
 	})
 }

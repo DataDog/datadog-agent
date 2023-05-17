@@ -11,8 +11,8 @@ import (
 	"regexp"
 )
 
-// unwrapIfErrArgumentsFailed unwrap the error if the error was returned by an FX invoke method otherwise return the error.
-func unwrapIfErrArgumentsFailed(err error) error {
+// UnwrapIfErrArgumentsFailed unwrap the error if the error was returned by an FX invoke method otherwise return the error.
+func UnwrapIfErrArgumentsFailed(err error) error {
 	// This is a workaround until https://github.com/uber-go/fx/issues/988 will be done.
 	if reflect.TypeOf(err).Name() == "errArgumentsFailed" {
 		re := regexp.MustCompile(`.*received non-nil error from function.*\(.*\): (.*)`)

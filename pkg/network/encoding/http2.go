@@ -11,24 +11,24 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type http2Encoder struct {
-	aggregations   map[http.KeyTuple]*http2AggregationWrapper
-	staticTags     map[http.KeyTuple]uint64
-	dynamicTagsSet map[http.KeyTuple]map[string]struct{}
+	aggregations   map[types.ConnectionKey]*http2AggregationWrapper
+	staticTags     map[types.ConnectionKey]uint64
+	dynamicTagsSet map[types.ConnectionKey]map[string]struct{}
 
 	orphanEntries int
 }
 
 // aggregationWrapper is meant to handle collision scenarios where multiple
 // `ConnectionStats` objects may claim the same `HTTP2Aggregations` object because
-// they generate the same http.KeyTuple
+// they generate the same connection key
 // TODO: we should probably revisit/get rid of this if we ever replace socket
 // filters by kprobes, since in that case we would have access to PIDs, and
-// could incorporate that information in the `http.KeyTuple` struct.
+// could incorporate that information in the `types.ConnectionKey` struct.
 type http2AggregationWrapper struct {
 	*model.HTTP2Aggregations
 
@@ -42,8 +42,8 @@ func (e *http2Encoder) GetHTTP2AggregationsAndTags(c network.ConnectionStats) (*
 		return nil, 0, nil
 	}
 
-	keyTuples := network.HTTPKeyTuplesFromConn(c)
-	for _, key := range keyTuples {
+	connectionKeys := network.ConnectionKeysFromConnectionStats(c)
+	for _, key := range connectionKeys {
 		if aggregation := e.aggregations[key]; aggregation != nil {
 			return e.aggregations[key].ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
 		}
@@ -78,7 +78,7 @@ func (a *http2AggregationWrapper) ValueFor(c network.ConnectionStats) *model.HTT
 	// exactly the same source and destination addresses but different PIDs to
 	// "bind" to the same HTTP2Aggregations object, which would result in a
 	// overcount problem. (Note that this is due to the fact that
-	// `http.KeyTuple` doesn't have a PID field.) This happens mostly in the
+	// `types.ConnectionKey` doesn't have a PID field.) This happens mostly in the
 	// context of pre-fork web servers, where multiple worker processes share the
 	// same socket
 	return nil
@@ -90,15 +90,15 @@ func newHTTP2Encoder(payload *network.Connections) *http2Encoder {
 	}
 
 	encoder := &http2Encoder{
-		aggregations:   make(map[http.KeyTuple]*http2AggregationWrapper, len(payload.Conns)),
-		staticTags:     make(map[http.KeyTuple]uint64, len(payload.Conns)),
-		dynamicTagsSet: make(map[http.KeyTuple]map[string]struct{}, len(payload.Conns)),
+		aggregations:   make(map[types.ConnectionKey]*http2AggregationWrapper, len(payload.Conns)),
+		staticTags:     make(map[types.ConnectionKey]uint64, len(payload.Conns)),
+		dynamicTagsSet: make(map[types.ConnectionKey]map[string]struct{}, len(payload.Conns)),
 	}
 
 	// pre-populate aggregation map with keys for all existent connections
 	// this allows us to skip encoding orphan HTTP2 objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
-		for _, key := range network.HTTPKeyTuplesFromConn(conn) {
+		for _, key := range network.ConnectionKeysFromConnectionStats(conn) {
 			log.Tracef("Payload has a connection %v and was converted to http2 key %v", conn, key)
 			encoder.aggregations[key] = nil
 		}
@@ -109,16 +109,16 @@ func newHTTP2Encoder(payload *network.Connections) *http2Encoder {
 }
 
 func (e *http2Encoder) buildAggregations(payload *network.Connections) {
-	aggrSize := make(map[http.KeyTuple]int)
+	aggrSize := make(map[types.ConnectionKey]int)
 	for key := range payload.HTTP2 {
-		aggrSize[key.KeyTuple]++
+		aggrSize[key.ConnectionKey]++
 	}
 
 	for key, stats := range payload.HTTP2 {
-		aggregation, ok := e.aggregations[key.KeyTuple]
+		aggregation, ok := e.aggregations[key.ConnectionKey]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize HTTP2 data
-			log.Tracef("Found http2 orphan connection %v", key.KeyTuple)
+			log.Tracef("Found http2 orphan connection %v", key.ConnectionKey)
 			e.orphanEntries++
 			continue
 		}
@@ -126,10 +126,10 @@ func (e *http2Encoder) buildAggregations(payload *network.Connections) {
 		if aggregation == nil {
 			aggregation = &http2AggregationWrapper{
 				HTTP2Aggregations: &model.HTTP2Aggregations{
-					EndpointAggregations: make([]*model.HTTPStats, 0, aggrSize[key.KeyTuple]),
+					EndpointAggregations: make([]*model.HTTPStats, 0, aggrSize[key.ConnectionKey]),
 				},
 			}
-			e.aggregations[key.KeyTuple] = aggregation
+			e.aggregations[key.ConnectionKey] = aggregation
 		}
 
 		ms := &model.HTTPStats{
@@ -139,7 +139,7 @@ func (e *http2Encoder) buildAggregations(payload *network.Connections) {
 			StatsByStatusCode: make(map[int32]*model.HTTPStats_Data, len(stats.Data)),
 		}
 
-		staticTags := e.staticTags[key.KeyTuple]
+		staticTags := e.staticTags[key.ConnectionKey]
 		var dynamicTags map[string]struct{}
 		for status, s := range stats.Data {
 			data, ok := ms.StatsByStatusCode[int32(status)]
@@ -170,8 +170,8 @@ func (e *http2Encoder) buildAggregations(payload *network.Connections) {
 			}
 		}
 
-		e.staticTags[key.KeyTuple] = staticTags
-		e.dynamicTagsSet[key.KeyTuple] = dynamicTags
+		e.staticTags[key.ConnectionKey] = staticTags
+		e.dynamicTagsSet[key.ConnectionKey] = dynamicTags
 
 		aggregation.EndpointAggregations = append(aggregation.EndpointAggregations, ms)
 	}

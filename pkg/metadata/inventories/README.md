@@ -93,16 +93,19 @@ The payload is a JSON dict with the following fields
     `network_config.enabled` config option in `system-probe.yaml`).
   - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-probe.yaml`).
   - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_https_monitoring` config option in `system-probe.yaml`).
+  - `feature_remote_configuration_enabled` - **bool**: True if Remote Configuration is enabled (see: `remote_configuration.enabled` config option).
   - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
   - `feature_usm_kafka_enabled` - **bool**: True is Kafka monitoring is enabled for Universal Service Monitoring (see: `data_streams_config.enabled` config option in `system-probe.yaml`)
   - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_java_tls_support` config option in `system-probe.yaml`).
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_go_tls_support` config option in `system-probe.yaml`).
+  - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled.
   - `feature_enable_http_stats_by_status_code` - **bool**: True if HTTP stats aggregation should be by status code rather than status code family (see: `service_monitoring_config.enable_http_stats_by_status_code` config option in `system-probe.yaml`).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
   - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
+  - `feature_imdsv2_enabled` - **bool**: True if the IMDSv2 is enabled (see: `ec2_prefer_imdsv2` config option).
   - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
     string.
   - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
@@ -137,9 +140,14 @@ The payload is a JSON dict with the following fields
     Values on AWS:
     - `IMDSv2`: The Agent successfully contacted IMDSv2 metadata endpoint.
     - `IMDSv1`: The Agent successfully contacted IMDSv1 metadata endpoint.
-    - `DMI`: The Agent successfully used DMI information to fetch the instance ID (only work on EC2 Nitro instances).
+    - `DMI`: The Agent successfully used DMI information to fetch the instance ID (only works on Unix EC2 Nitro instances).
     - `UUID`: The hypervisor or product UUID has the EC2 prefix. The Agent knows it's running on EC2 but don't know on
-      which instance.
+      which instance (see `hypervisor_guest_uuid` or `dmi_product_uuid`).
+  - `cloud_provider_account_id` - **string**: The account/subscription ID from the cloud provider.
+  - `cloud_provider_host_id` - **string**: the unique ID the cloud provider uses to reference this instance.
+    This is different for each cloud provider (for now, ony AWS is supported).
+    - On AWS: the instance ID returned by querying the IMDSv2 endpoint. An empty string is returned if we can't reach
+      IMDSv2 (even if IMDSv1 is available).
   - `hypervisor_guest_uuid` - **string**: the hypervisor guest UUID (Unix only, empty string on Windows or if we can't
     read the data). On `ec2` instance this might start by "ec2". This was introduce in `7.41.0`/`6.41.0`.
   - `dmi_product_uuid` - **string**: the DMI product UUID (Unix only, empty string on Windows or if we can't read the
@@ -171,12 +179,14 @@ Here an example of an inventory payload:
         "config_proxy_http": "",
         "config_proxy_https": "http://localhost:9999",
         "config_site": "",
+        "feature_imdsv2_enabled": false,
         "feature_apm_enabled": true,
         "feature_cspm_enabled": false,
         "feature_cws_enabled": false,
         "feature_logs_enabled": true,
         "feature_networks_enabled": false,
         "feature_process_enabled": false,
+        "feature_remote_configuration_enabled": false,
         "flavor": "agent",
         "hostname_source": "os",
         "install_method_installer_version": "",
@@ -275,6 +285,9 @@ Here an example of an inventory payload:
         "mac_address": "01:23:45:67:89:AB",
         "agent_version": "7.37.0-devel+git.198.68a5b69",
         "cloud_provider": "AWS",
+        "cloud_provider_source": "DMI",
+        "cloud_provider_account_id": "aws_account_id",
+        "cloud_provider_host_id": "i-abcedf",
         "hypervisor_guest_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
         "dmi_product_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
         "dmi_board_asset_tag": "i-abcedf",

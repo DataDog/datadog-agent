@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.ServiceProcess;
@@ -10,24 +11,39 @@ namespace Datadog.CustomActions.Native
 {
     class ServiceController : IServiceController
     {
+        public IReadOnlyList<IWindowsService> Services
+        {
+            get
+            {
+                var services = System.ServiceProcess
+                    .ServiceController
+                    .GetServices();
+                // .NET hides device driver services behind a separate API, we combine them here
+                services = services.Concat(System.ServiceProcess
+                    .ServiceController
+                    .GetDevices()).ToArray();
+                return services
+                    .Select(svc => new WindowsService(svc))
+                    .ToList();
+            }
+        }
+
         public Tuple<string,string>[] GetServiceNames()
         {
-            return System.ServiceProcess.ServiceController.GetServices()
+            return Services
                 .Select(svc => Tuple.Create(svc.ServiceName,svc.DisplayName))
                 .ToArray();
         }
 
         public bool ServiceExists(string serviceName)
         {
-            return System.ServiceProcess.ServiceController
-                .GetServices()
+            return Services
                 .Any(svc => svc.ServiceName.Equals(serviceName, StringComparison.InvariantCultureIgnoreCase));
         }
 
         public ServiceControllerStatus? ServiceStatus(string serviceName)
         {
-            return System.ServiceProcess.ServiceController
-                .GetServices()
+            return Services
                 .FirstOrDefault(svc => svc.ServiceName.Equals(serviceName, StringComparison.InvariantCultureIgnoreCase))
                 ?.Status;
         }

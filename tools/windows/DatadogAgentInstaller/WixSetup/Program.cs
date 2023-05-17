@@ -33,7 +33,7 @@ namespace WixSetup
             // ServiceConfig functionality is documented in the Windows Installer SDK to "not [work] as expected." Consider replacing ServiceConfig with the WixUtilExtension ServiceConfig element.
             Compiler.CandleOptions += "-sw1150";
 
-#if DEBUG
+#if false
             // Useful to produce multiple versions of the installer for testing.
             BuildMsi("7.43.0~rc.3+git.485.14b9337");
 #endif

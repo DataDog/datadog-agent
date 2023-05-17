@@ -14,6 +14,7 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -154,11 +155,11 @@ const (
 	MonotonicPerfLost               ConnTelemetryType = "perf_lost"
 	MonotonicUDPSendsProcessed      ConnTelemetryType = "udp_sends_processed"
 	MonotonicUDPSendsMissed         ConnTelemetryType = "udp_sends_missed"
+	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
 	DNSStatsDropped                 ConnTelemetryType = "dns_stats_dropped"
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
 )
 
 //revive:enable
@@ -167,9 +168,9 @@ var (
 	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
 	// into the network connections payload
 	ConnTelemetryTypes = []ConnTelemetryType{
+		DNSStatsDropped,
 		ConnsBpfMapSize,
 		ConntrackSamplingPercent,
-		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
 	}
 
@@ -180,13 +181,13 @@ var (
 		MonotonicKprobesMissed,
 		MonotonicClosedConnDropped,
 		MonotonicConnDropped,
+		MonotonicConnsClosed,
 		MonotonicConntrackRegisters,
 		MonotonicDNSPacketsProcessed,
-		MonotonicConnsClosed,
+		MonotonicPerfLost,
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
-		MonotonicPerfLost,
 	}
 )
 
@@ -256,7 +257,7 @@ type ConnectionStats struct {
 
 	ContainerID *string
 
-	Protocol ProtocolType
+	ProtocolStack protocols.Stack
 }
 
 // Via has info about the routing decision for a flow
@@ -388,7 +389,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	}
 
 	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
-	str += fmt.Sprintf(", protocol: %v", c.Protocol)
+	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
 
 	return str
@@ -406,58 +407,6 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 		b.WriteString(dns.ToString(s))
 	}
 	return b.String()
-}
-
-// HTTPKeyTuplesFromConn constructs HTTP key tuples using the underlying raw connection stats object, which is produced by the tracer.
-// Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
-// This function generates all relevant combinations of connection keys: [(source, dest), (dest, source), (NAT'd source, NAT'd dest), (NAT'd dest, NAT'd source)].
-// This is necessary to handle all possible scenarios for connections originating from the USM HTTP module (i.e., whether they are NAT'd or not, and whether they use TLS or plain HTTP).
-func HTTPKeyTuplesFromConn(connectionStats ConnectionStats) []http.KeyTuple {
-
-	// HTTP data is always indexed as (client, server), but we don't know which is the remote
-	// and which is the local address. To account for this, we'll construct 2 possible
-	// http keys and check for both of them in our http aggregations map.
-	httpKeyTuples := []http.KeyTuple{
-		http.NewKeyTuple(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
-		http.NewKeyTuple(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
-	}
-
-	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
-	if connectionStats.IPTranslation != nil {
-		localAddress, localPort := GetNATLocalAddress(connectionStats)
-		remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
-		httpKeyTuples = append(httpKeyTuples,
-			http.NewKeyTuple(localAddress, remoteAddress, localPort, remotePort),
-			http.NewKeyTuple(remoteAddress, localAddress, remotePort, localPort))
-	}
-
-	return httpKeyTuples
-}
-
-// KafkaKeyTuplesFromConn constructs Kafka key tuples using the underlying raw connection stats object, which is produced by the tracer.
-// Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
-// This function generates all relevant combinations of connection keys: [(source, dest), (dest, source), (NAT'd source, NAT'd dest), (NAT'd dest, NAT'd source)].
-// This is necessary to handle all possible scenarios for connections originating from the Kafka module (i.e., whether they are NAT'd or not, and whether they use TLS or plain Kafka).
-func KafkaKeyTuplesFromConn(connectionStats ConnectionStats) []kafka.KeyTuple {
-
-	// Kafka data is always indexed as (client, server), but we don't know which is the remote
-	// and which is the local address. To account for this, we'll construct 2 possible
-	// kafka keys and check for both of them in our kafka aggregations map.
-	kafkaKeyTuples := []kafka.KeyTuple{
-		kafka.NewKeyTuple(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
-		kafka.NewKeyTuple(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
-	}
-
-	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
-	if connectionStats.IPTranslation != nil {
-		localAddress, localPort := GetNATLocalAddress(connectionStats)
-		remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
-		kafkaKeyTuples = append(kafkaKeyTuples,
-			kafka.NewKeyTuple(localAddress, remoteAddress, localPort, remotePort),
-			kafka.NewKeyTuple(remoteAddress, localAddress, remotePort, localPort))
-	}
-
-	return kafkaKeyTuples
 }
 
 func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {

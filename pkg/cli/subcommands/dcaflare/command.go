@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -86,7 +86,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	logFile := pkgconfig.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultDCALogFile
+		logFile = path.DefaultDCALogFile
 	}
 
 	// Set session token
@@ -104,7 +104,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateDCAArchive(true, common.GetDistPath(), logFile)
+		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

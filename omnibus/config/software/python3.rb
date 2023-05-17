@@ -27,9 +27,11 @@ if ohai["platform"] != "windows"
   if mac_os_x?
     python_configure.push("--enable-ipv6",
                           "--with-universal-archs=intel",
-                          "--enable-shared")
+                          "--enable-shared",
+                          "--disable-static")
   elsif linux?
     python_configure.push("--enable-shared",
+                          "--disable-static",
                           "--enable-ipv6")
   elsif aix?
     # something here...

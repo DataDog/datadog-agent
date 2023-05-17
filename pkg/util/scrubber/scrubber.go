@@ -69,7 +69,8 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 //
 // It then applies all MultiLine replacers to the entire text of the input.
 type Scrubber struct {
-	singleLineReplacers, multiLineReplacers []Replacer
+	singleLineReplacers []Replacer
+	multiLineReplacers  []Replacer
 }
 
 // New creates a new scrubber with no replacers installed.

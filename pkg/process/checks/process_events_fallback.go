@@ -4,21 +4,25 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package checks
 
 import (
 	"errors"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
-func NewProcessEventsCheck() *ProcessEventsCheck {
-	return &ProcessEventsCheck{}
+func NewProcessEventsCheck(config config.ConfigReader) *ProcessEventsCheck {
+	return &ProcessEventsCheck{
+		config: config,
+	}
 }
 
 // ProcessEventsCheck collects process lifecycle events such as exec and exit signals
 type ProcessEventsCheck struct {
+	config config.ConfigReader
 }
 
 // Init initializes the ProcessEventsCheck.

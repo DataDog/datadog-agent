@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
@@ -316,6 +317,7 @@ namespace Datadog.CustomActions
                 else
                 {
                     _session["DDAGENTUSER_FOUND"] = "false";
+                    _session["DDAGENTUSER_SID"] = null;
                     _session.Log($"User {ddAgentUserName} doesn't exist.");
 
                     if (isDomainController)
@@ -357,6 +359,7 @@ namespace Datadog.CustomActions
                 _session["DDAGENTUSER_PROCESSED_DOMAIN"] = domain;
                 _session["DDAGENTUSER_PROCESSED_FQ_NAME"] = $"{domain}\\{userName}";
 
+                _session["DDAGENTUSER_RESET_PASSWORD"] = null;
                 if (!isServiceAccount &&
                     !isDomainAccount  &&
                     string.IsNullOrEmpty(ddAgentUserPassword))

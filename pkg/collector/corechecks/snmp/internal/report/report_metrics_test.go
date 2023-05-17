@@ -312,12 +312,19 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 		log   string
 		count int
 	}
+	type expectedMetric struct {
+		method string
+		name   string
+		value  float64
+		tags   []string
+	}
 	tests := []struct {
-		name         string
-		metrics      []checkconfig.MetricsConfig
-		values       *valuestore.ResultValueStore
-		tags         []string
-		expectedLogs []logCount
+		name            string
+		metrics         []checkconfig.MetricsConfig
+		values          *valuestore.ResultValueStore
+		tags            []string
+		expectedMetrics []expectedMetric
+		expectedLogs    []logCount
 	}{
 		{
 			name: "report scalar error",
@@ -327,6 +334,52 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			values: &valuestore.ResultValueStore{},
 			expectedLogs: []logCount{
 				{"[DEBUG] reportScalarMetrics: report scalar: error getting scalar value: value for Scalar OID `1.2.3.4.5` not found in results", 1},
+			},
+		},
+		{
+			name: "report constant metric",
+			metrics: []checkconfig.MetricsConfig{
+				{Symbols: []checkconfig.SymbolConfig{{Name: "constantMetric", ConstantValueOne: true}}, MetricTags: checkconfig.MetricTagConfigList{
+					{
+						Tag:    "status",
+						Column: checkconfig.SymbolConfig{Name: "status", OID: "1.2.3.4"},
+					},
+				}},
+			},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.2.3.4": {
+						"5.6.7": valuestore.ResultValue{
+							Value: float64(1),
+						},
+						"5.6.8": valuestore.ResultValue{
+							Value: float64(2),
+						},
+						"5.6.9": valuestore.ResultValue{
+							Value: float64(3),
+						},
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					method: "Gauge",
+					name:   "snmp.constantMetric",
+					value:  float64(1),
+					tags:   []string{"status:1"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.constantMetric",
+					value:  float64(1),
+					tags:   []string{"status:2"},
+				},
+				{
+					method: "Gauge",
+					name:   "snmp.constantMetric",
+					value:  float64(1),
+					tags:   []string{"status:3"},
+				},
 			},
 		},
 	}
@@ -345,6 +398,11 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 			metricSender := MetricSender{sender: mockSender}
 
 			metricSender.ReportMetrics(tt.metrics, tt.values, tt.tags)
+
+			assert.Equal(t, len(tt.expectedMetrics), metricSender.submittedMetrics)
+			for _, expectedMetric := range tt.expectedMetrics {
+				mockSender.AssertCalled(t, expectedMetric.method, expectedMetric.name, expectedMetric.value, "", expectedMetric.tags)
+			}
 
 			w.Flush()
 			logs := b.String()

@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
@@ -34,10 +35,11 @@ type dependencies struct {
 	Checks   []types.CheckComponent `group:"check"`
 	HostInfo hostinfo.Component
 	SysCfg   sysprobeconfig.Component
+	Config   config.Component
 }
 
 func newRunner(deps dependencies) (Component, error) {
-	c, err := processRunner.NewRunner(deps.SysCfg.Object(), deps.HostInfo.Object(), filterEnabledChecks(deps.Checks), deps.RTNotifier)
+	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.Object(), deps.HostInfo.Object(), filterEnabledChecks(deps.Checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}

@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +38,7 @@ type ServerlessDemultiplexer struct {
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
 func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
-	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
+	forwarder := forwarder.NewSyncForwarder(config.Datadog, domainResolvers, forwarderTimeout)
 	serializer := serializer.NewSerializer(forwarder, nil)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")

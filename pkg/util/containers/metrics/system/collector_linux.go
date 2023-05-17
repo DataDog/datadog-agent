@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package system
 
@@ -231,6 +230,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.Swap, &cs.Swap)
 	convertField(cgs.SwapLimit, &cs.SwapLimit)
 	convertField(cgs.OOMEvents, &cs.OOMEvents)
+	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	return cs
 }
@@ -249,6 +249,7 @@ func buildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPU
 	convertField(cgs.ElapsedPeriods, &cs.ElapsedPeriods)
 	convertField(cgs.ThrottledPeriods, &cs.ThrottledPeriods)
 	convertField(cgs.ThrottledTime, &cs.ThrottledTime)
+	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	// Compute complex fields
 	cs.Limit = computeCPULimitPct(cgs, parentCPUStatsRetriever)

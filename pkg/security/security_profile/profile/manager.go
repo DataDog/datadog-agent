@@ -4,32 +4,87 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+)
+
+// EventFilteringResult is used to compute metrics for the event filtering feature
+type EventFilteringResult uint8
+
+const (
+	// NoProfile is used to count the events for which we didn't have a profile
+	NoProfile EventFilteringResult = iota
+	// InProfile is used to count the events that matched a profile
+	InProfile
+	// NotInProfile is used to count the events that didn't match their profile
+	NotInProfile
+	// UnstableProfile is used to count the events that didn't make it into a profile because their matching profile was
+	// unstable
+	UnstableProfile
+	// WorkloadWarmup is used to count the unmatched events with a profile skipped due to workload warm up time
+	WorkloadWarmup
+)
+
+// DefaultProfileName used as default profile name
+const DefaultProfileName = "default"
+
+func (efr EventFilteringResult) toTag() string {
+	switch efr {
+	case NoProfile:
+		return fmt.Sprintf("in_profile:no_profile")
+	case InProfile:
+		return fmt.Sprintf("in_profile:true")
+	case NotInProfile:
+		return fmt.Sprintf("in_profile:false")
+	case UnstableProfile:
+		return fmt.Sprintf("in_profile:unstable_profile")
+	}
+	return ""
+}
+
+var (
+	allEventFilteringResults           = []EventFilteringResult{NoProfile, InProfile, NotInProfile, UnstableProfile}
+	errUnstableProfileSizeLimitReached = errors.New("unstable profile: size limit reached")
+	errUnstableProfileTimeLimitReached = errors.New("unstable profile: time limit reached")
 )
 
 // SecurityProfileManager is used to manage Security Profiles
 type SecurityProfileManager struct {
+	config         *config.Config
 	statsdClient   statsd.ClientInterface
 	cgroupResolver *cgroup.Resolver
+	timeResolver   *timeResolver.Resolver
 	providers      []Provider
+
+	manager                    *manager.Manager
+	securityProfileMap         *ebpf.Map
+	securityProfileSyscallsMap *ebpf.Map
 
 	profilesLock sync.Mutex
 	profiles     map[cgroupModel.WorkloadSelector]*SecurityProfile
@@ -38,10 +93,12 @@ type SecurityProfileManager struct {
 	pendingCache     *simplelru.LRU[cgroupModel.WorkloadSelector, *SecurityProfile]
 	cacheHit         *atomic.Uint64
 	cacheMiss        *atomic.Uint64
+
+	eventFiltering map[model.EventType]map[EventFilteringResult]*atomic.Uint64
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
-func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver) (*SecurityProfileManager, error) {
+func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver, timeResolver *timeResolver.Resolver, manager *manager.Manager) (*SecurityProfileManager, error) {
 	var providers []Provider
 
 	// instantiate directory provider
@@ -53,19 +110,50 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		providers = append(providers, dirProvider)
 	}
 
+	// instantiate remote-config provider
+	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
+		rcProvider, err := rconfig.NewRCProfileProvider()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
+		}
+		providers = append(providers, rcProvider)
+	}
+
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
 	}
 
+	securityProfileMap, ok, _ := manager.GetMap("security_profiles")
+	if !ok {
+		return nil, fmt.Errorf("security_profiles map not found")
+	}
+
+	securityProfileSyscallsMap, ok, _ := manager.GetMap("secprofs_syscalls")
+	if !ok {
+		return nil, fmt.Errorf("secprofs_syscalls map not found")
+	}
+
 	m := &SecurityProfileManager{
-		statsdClient:   statsdClient,
-		providers:      providers,
-		cgroupResolver: cgroupResolver,
-		profiles:       make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
-		pendingCache:   profileCache,
-		cacheHit:       atomic.NewUint64(0),
-		cacheMiss:      atomic.NewUint64(0),
+		config:                     config,
+		statsdClient:               statsdClient,
+		providers:                  providers,
+		manager:                    manager,
+		securityProfileMap:         securityProfileMap,
+		securityProfileSyscallsMap: securityProfileSyscallsMap,
+		cgroupResolver:             cgroupResolver,
+		timeResolver:               timeResolver,
+		profiles:                   make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
+		pendingCache:               profileCache,
+		cacheHit:                   atomic.NewUint64(0),
+		cacheMiss:                  atomic.NewUint64(0),
+		eventFiltering:             make(map[model.EventType]map[EventFilteringResult]*atomic.Uint64),
+	}
+	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
+		m.eventFiltering[i] = make(map[EventFilteringResult]*atomic.Uint64)
+		for _, result := range allEventFilteringResults {
+			m.eventFiltering[i][result] = atomic.NewUint64(0)
+		}
 	}
 
 	// register the manager to the provider(s)
@@ -81,7 +169,6 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 	for _, p := range m.providers {
 		if err := p.Start(ctx); err != nil {
 			seclog.Errorf("couldn't start profile provider: %v", err)
-			return
 		}
 	}
 
@@ -134,14 +221,19 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			// since the profile was in cache, it was removed from kernel space, load it now
 			// (locking isn't necessary here, but added as a safeguard)
 			profile.Lock()
-			m.loadProfile(profile)
+			err := m.loadProfile(profile)
 			profile.Unlock()
+
+			if err != nil {
+				seclog.Errorf("couldn't load security profile %s in kernel space: %v", profile.selector, err)
+				return
+			}
 
 			// insert the profile in the list of active profiles
 			m.profiles[workload.WorkloadSelector] = profile
 		} else {
 			// create a new entry
-			profile = NewSecurityProfile(workload.WorkloadSelector)
+			profile = NewSecurityProfile(workload.WorkloadSelector, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
 			m.profiles[workload.WorkloadSelector] = profile
 
 			// notify the providers that we're interested in a new workload selector
@@ -201,6 +293,43 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 	return m.profiles[selector]
 }
 
+// FillProfileContextFromContainerID populates a SecurityProfileContext for the given container ID
+func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext) {
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	for _, profile := range m.profiles {
+		profile.Lock()
+		for _, instance := range profile.Instances {
+			instance.Lock()
+			if instance.ID == id {
+				ctx.Name = profile.Metadata.Name
+				ctx.Version = profile.Version
+				ctx.Tags = profile.Tags
+				ctx.Status = profile.Status
+			}
+			instance.Unlock()
+		}
+		profile.Unlock()
+	}
+}
+
+// FillProfileContextFromProfile fills the given ctx with profile infos
+func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *SecurityProfile) {
+	profile.Lock()
+	defer profile.Unlock()
+
+	ctx.Name = profile.Metadata.Name
+	if ctx.Name == "" {
+		ctx.Name = DefaultProfileName
+	}
+
+	ctx.Version = profile.Version
+	ctx.Tags = profile.Tags
+	ctx.Status = profile.Status
+	ctx.AnomalyDetectionEventTypes = profile.anomalyDetectionEvents
+}
+
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.CacheEntry) {
 	// lookup the profile
@@ -236,16 +365,23 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	// propagate the workload selectors
 	m.propagateWorkloadSelectorsToProviders()
 
+	if profile.loadedInKernel {
+		// remove profile from kernel space
+		m.unloadProfile(profile)
+	}
+
 	// cleanup profile before insertion in cache
 	profile.reset()
+
+	if profile.selector.IsEmpty() {
+		// do not insert in cache
+		return
+	}
 
 	// add profile in cache
 	m.pendingCacheLock.Lock()
 	defer m.pendingCacheLock.Unlock()
 	m.pendingCache.Add(profile.selector, profile)
-
-	// remove profile from kernel space
-	m.unloadProfile(profile)
 }
 
 // OnNewProfileEvent handles the arrival of a new profile (or the new version of a profile) from a provider
@@ -257,7 +393,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile, ok := m.profiles[selector]
 	if !ok {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
-		profile = NewSecurityProfile(selector)
+		profile = NewSecurityProfile(selector, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
 	}
 
 	if profile.Version == newProfile.Version {
@@ -270,7 +406,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile.loadedInKernel = false
 
 	// decode the content of the profile
-	protoToSecurityProfile(profile, newProfile)
+	ProtoToSecurityProfile(profile, newProfile)
 
 	// prepare the profile for insertion
 	m.prepareProfile(profile)
@@ -284,7 +420,10 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	}
 
 	// load the profile in kernel space
-	m.loadProfile(profile)
+	if err := m.loadProfile(profile); err != nil {
+		seclog.Errorf("couldn't load security profile %s in kernel space: %v", profile.selector, err)
+		return
+	}
 
 	// link all workloads
 	for _, workload := range profile.Instances {
@@ -311,6 +450,14 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
+	for _, profile := range m.profiles {
+		if profile.loadedInKernel { // make sure the profile is loaded
+			if err := profile.SendStats(m.statsdClient); err != nil {
+				return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
+			}
+		}
+	}
+
 	m.pendingCacheLock.Lock()
 	defer m.pendingCacheLock.Unlock()
 	if val := float64(m.pendingCache.Len()); val > 0 {
@@ -331,31 +478,187 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
+	for evtType, filteringCounts := range m.eventFiltering {
+		for result, count := range filteringCounts {
+			tags := []string{fmt.Sprintf("event_type:%s", evtType), result.toTag()}
+			if value := count.Swap(0); value > 0 {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
+					return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
 // prepareProfile (thread unsafe) generates eBPF programs and cookies to prepare for kernel space insertion
 func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
-	// TODO: generate eBPF programs and prepare the workload to be inserted in kernel space
+	// generate cookies for the profile
+	profile.generateCookies()
+
+	// TODO: generate eBPF programs and make sure the profile is ready to be inserted in kernel space
 }
 
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
-func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) {
-	// TODO: load generated programs and push kernel space filters
+func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	profile.loadedInKernel = true
+	profile.loadedNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
+
+	// push kernel space filters
+	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
+		return fmt.Errorf("couldn't push syscalls filter: %w", err)
+	}
+
+	// TODO: load generated programs
+	seclog.Debugf("security profile %s (version:%s status:%s) loaded in kernel space", profile.Metadata.Name, profile.Version, profile.Status.String())
+	return nil
 }
 
 // unloadProfile (thread unsafe) unloads a Security Profile from kernel space
 func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
-	// TODO: delete all kernel space programs and map entries for this profile
+	profile.loadedInKernel = false
+
+	// remove kernel space filters
+	if err := m.securityProfileSyscallsMap.Delete(profile.profileCookie); err != nil {
+		seclog.Errorf("coudln't remove syscalls filter: %v", err)
+	}
+
+	// TODO: delete all kernel space programs
+	seclog.Debugf("security profile %s (version:%s status:%s) unloaded from kernel space", profile.Metadata.Name, profile.Version, profile.Status.String())
 }
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
-	// TODO: link profile <-> container ID in kernel space
+	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.generateKernelSecurityProfileDefinition()); err != nil {
+		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		return
+	}
+	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
 // unlinkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
-	// TODO: unlink profile <-> container ID in kernel space
+	if !profile.loadedInKernel {
+		return
+	}
+
+	if err := m.securityProfileMap.Delete([]byte(workload.ID)); err != nil {
+		seclog.Errorf("couldn't unlink workload %s with profile %s: %v", workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+	}
+	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
+}
+
+func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
+	// ignore events with an error
+	if event.Error != nil {
+		return
+	}
+
+	// shortcut for dedicated anomaly detection events
+	if IsAnomalyDetectionEvent(event.GetEventType()) {
+		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+		return
+	}
+
+	// create profile selector
+	event.FieldHandlers.ResolveContainerTags(event, event.ContainerContext)
+	if len(event.ContainerContext.Tags) == 0 {
+		return
+	}
+
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), utils.GetTagValue("image_tag", event.ContainerContext.Tags))
+	if err != nil {
+		return
+	}
+
+	// lookup profile
+	profile := m.GetProfile(selector)
+	if profile == nil || profile.Status == 0 {
+		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
+		return
+	}
+
+	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, event.ContainerContext)
+
+	markEventAsInProfile := func(inProfile bool) {
+		// link the profile to the event only if it's a valid event for profile without any error
+		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
+
+		if inProfile {
+			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+			m.eventFiltering[event.GetEventType()][InProfile].Inc()
+		} else {
+			m.eventFiltering[event.GetEventType()][NotInProfile].Inc()
+		}
+	}
+
+	// check if the event should be injected in the profile automatically
+	if autoLearned, err := m.tryAutolearn(profile, event); err != nil {
+		return
+	} else if autoLearned {
+		markEventAsInProfile(true)
+		return
+	}
+
+	// check if the event is in its profile
+	found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
+	if err != nil {
+		// ignore, evaluation failed
+		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
+		return
+	}
+
+	markEventAsInProfile(found)
+}
+
+// tryAutolearn tries to autolearn the input event. The first return values is true if the event was autolearned,
+// in which case the second return value tells whether the node was already in the profile.
+func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) (bool, error) {
+	// check if the unstable size limit was reached
+	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
+		m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+		return false, errUnstableProfileSizeLimitReached
+	}
+
+	var nodeType activity_tree.NodeGenerationType
+
+	// check if we are at the beginning of a workload lifetime
+	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
+		nodeType = activity_tree.WorkloadWarmup
+	} else {
+		// have we reached the stable state time limit ?
+		lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]
+		if !ok {
+			profile.lastAnomalyNano[event.GetEventType()] = profile.loadedNano
+			lastAnomalyNano = profile.loadedNano
+		}
+		if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
+			return false, nil
+		}
+
+		// have we reached the unstable time limit ?
+		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+			m.eventFiltering[event.GetEventType()][UnstableProfile].Inc()
+			return false, errUnstableProfileTimeLimitReached
+		}
+
+		nodeType = activity_tree.ProfileDrift
+	}
+
+	// try to insert the event in the profile
+	newEntry, err := profile.ActivityTree.Insert(event, nodeType)
+	if err != nil {
+		m.eventFiltering[event.GetEventType()][NoProfile].Inc()
+		return false, err
+	}
+
+	// the event was either already in the profile, or has just been inserted
+	event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+
+	if newEntry {
+		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
+	}
+
+	return true, nil
 }

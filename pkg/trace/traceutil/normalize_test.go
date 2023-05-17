@@ -162,3 +162,37 @@ func TestNormalizeService(t *testing.T) {
 		assert.Equal(t, testCase.err, err)
 	}
 }
+
+func TestNormalizePeerService(t *testing.T) {
+	testCases := []struct {
+		peerService string
+		normalized  string
+		err         error
+	}{
+		{
+			peerService: "",
+			normalized:  "",
+			err:         nil,
+		},
+		{
+			peerService: "remote-service",
+			normalized:  "remote-service",
+			err:         nil,
+		},
+		{
+			peerService: "Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.",
+			normalized:  "too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.",
+			err:         ErrTooLong,
+		},
+		{
+			peerService: "bad$remote**service",
+			normalized:  "bad_remote_service",
+			err:         nil,
+		},
+	}
+	for _, testCase := range testCases {
+		out, err := NormalizePeerService(testCase.peerService)
+		assert.Equal(t, testCase.normalized, out)
+		assert.Equal(t, testCase.err, err)
+	}
+}

@@ -34,8 +34,7 @@ import (
 const (
 
 	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite    = "datadoghq.com"
-	infraURLPrefix = "https://app."
+	DefaultSite = "datadoghq.com"
 
 	// DefaultNumWorkers default number of workers for our check runner
 	DefaultNumWorkers = 4
@@ -75,9 +74,6 @@ const (
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-	DefaultSecurityProfilesDir = "/etc/datadog-agent/runtime-security.d/profiles"
-
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
 
@@ -104,7 +100,6 @@ const (
 var (
 	Datadog       Config
 	SystemProbe   Config
-	proxies       *Proxy
 	overrideFuncs = make([]func(Config), 0)
 )
 
@@ -122,6 +117,9 @@ var (
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
+
+	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
+	DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
 )
 
 // PrometheusScrapeChecksTransformer unmarshals a prometheus check.
@@ -173,13 +171,6 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 	_, found := l.EnabledProviders[provider]
 
 	return found
-}
-
-// Proxy represents the configuration for proxies in the agent
-type Proxy struct {
-	HTTP    string   `mapstructure:"http"`
-	HTTPS   string   `mapstructure:"https"`
-	NoProxy []string `mapstructure:"no_proxy"`
 }
 
 // MappingProfile represent a group of mappings
@@ -306,6 +297,7 @@ func InitConfig(config Config) {
 	config.BindEnv("remote_configuration.refresh_interval")
 	config.BindEnvAndSetDefault("remote_configuration.max_backoff_interval", 5*time.Minute)
 	config.BindEnvAndSetDefault("remote_configuration.clients.ttl_seconds", 30*time.Second)
+	config.BindEnvAndSetDefault("remote_configuration.clients.cache_bypass_limit", 5)
 	// Remote config products
 	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
 
@@ -631,6 +623,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_env_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 
+	// Podman
+	config.BindEnvAndSetDefault("podman_db_path", "/var/lib/containers/storage/libpod/bolt_state.db")
+
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
@@ -821,9 +816,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_check_period", int(defaults.DefaultCheckInterval/time.Millisecond))
 	config.BindEnvAndSetDefault("jmx_reconnection_timeout", 60)
 	config.BindEnvAndSetDefault("jmx_statsd_telemetry_enabled", false)
-	// this is an internal setting and will not be documented in the config template.
+	// The following jmx_statsd_client-* options are internal and will not be documented
 	// the queue size is the no. of elements (metrics, event, service checks) it can hold.
 	config.BindEnvAndSetDefault("jmx_statsd_client_queue_size", 4096)
+	config.BindEnvAndSetDefault("jmx_statsd_client_use_non_blocking", false)
+	// the "buffer" here is the socket send buffer (SO_SNDBUF) and the size is in bytes
+	config.BindEnvAndSetDefault("jmx_statsd_client_buffer_size", 0)
+	// the socket timeout (SO_SNDTIMEO) is in milliseconds
+	config.BindEnvAndSetDefault("jmx_statsd_client_socket_timeout", 0)
 
 	// Go_expvar server port
 	config.BindEnvAndSetDefault("expvar_port", "5000")
@@ -1089,6 +1089,7 @@ func InitConfig(config Config) {
 
 	// SBOM configuration
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
+	setupSBOMConfig(config, "sbom-agent")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1103,8 +1104,9 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)        // controls the agent configurations
-	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false) // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)            // controls the agent configurations
+	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false)     // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
@@ -1116,9 +1118,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
 	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_directory", "")
-	config.BindEnvAndSetDefault("container_image_collection.sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.cache_ttl", 60*60) // Integer seconds. Only used with Badger
+	config.BindEnvAndSetDefault("container_image_collection.sbom.check_disk_usage", true)
+	config.BindEnvAndSetDefault("container_image_collection.sbom.min_available_disk", "1Gb")
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1140,6 +1141,7 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
@@ -1217,11 +1219,6 @@ func InitConfig(config Config) {
 // version (see AddAgentVersionToDomain).
 var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 
-// GetProxies returns the proxy settings from the configuration
-func GetProxies() *Proxy {
-	return proxies
-}
-
 // LoadProxyFromEnv overrides the proxy settings with environment variables
 func LoadProxyFromEnv(config Config) {
 	// Viper doesn't handle mixing nested variables from files and set
@@ -1289,25 +1286,29 @@ func LoadProxyFromEnv(config Config) {
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
 	}
 
+	if !config.GetBool("use_proxy_for_cloud_metadata") {
+		log.Debugf("'use_proxy_for_cloud_metadata' is enabled: adding cloud provider URL to the no_proxy list")
+		isSet = true
+		p.NoProxy = append(p.NoProxy,
+			"169.254.169.254", // Azure, EC2, GCE
+			"100.100.100.200", // Alibaba
+		)
+	}
+
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
 		config.Set("proxy.http", p.HTTP)
 		config.Set("proxy.https", p.HTTPS)
-		if len(p.NoProxy) > 0 {
-			config.Set("proxy.no_proxy", p.NoProxy)
-		} else {
-			// If this is set to an empty []string, viper will have a type conflict when merging
-			// this config during secrets resolution. It unmarshals empty yaml lists to type
-			// []interface{}, which will then conflict with type []string and fail to merge.
-			config.Set("proxy.no_proxy", []interface{}{})
-		}
-		proxies = p
-	}
 
-	if !config.GetBool("use_proxy_for_cloud_metadata") {
-		p.NoProxy = append(p.NoProxy, "169.254.169.254") // Azure, EC2, GCE
-		p.NoProxy = append(p.NoProxy, "100.100.100.200") // Alibaba
+		// If this is set to an empty []string, viper will have a type conflict when merging
+		// this config during secrets resolution. It unmarshals empty yaml lists to type
+		// []interface{}, which will then conflict with type []string and fail to merge.
+		noProxy := make([]interface{}, len(p.NoProxy))
+		for idx := range p.NoProxy {
+			noProxy[idx] = p.NoProxy[idx]
+		}
+		config.Set("proxy.no_proxy", noProxy)
 	}
 }
 
@@ -1410,9 +1411,11 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_SERVICE":                   {},
+		"DD_API_KEY_SECRET_ARN":        {},
 		"DD_DOTNET_TRACER_HOME":        {},
 		"DD_SERVERLESS_APPSEC_ENABLED": {},
+		"DD_SERVICE":                   {},
+		"DD_VERSION":                   {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 	}
@@ -1474,12 +1477,17 @@ func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret 
 	defer func() {
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
-		DetectFeatures()
+		detectFeatures()
 		applyOverrideFuncs(config)
 	}()
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
+		} else {
+			log.Warnf("Error loading config: %v", err)
+		}
 		return warnings, err
 	}
 
@@ -1499,7 +1507,6 @@ func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret 
 		AddOverride("python_version", DefaultPython)
 	}
 
-	LoadProxyFromEnv(config)
 	SanitizeAPIKeyConfig(config, "api_key")
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
@@ -1516,11 +1523,6 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 			log.Debug("No config file detected, using environment variable based configuration only")
 			return &warnings, nil
 		}
-		if errors.Is(err, os.ErrPermission) {
-			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-		} else {
-			log.Warnf("Error loading config: %v", err)
-		}
 		return &warnings, err
 	}
 
@@ -1535,6 +1537,9 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 	for _, warningMsg := range findUnexpectedUnicode(config) {
 		log.Warnf(warningMsg)
 	}
+
+	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
+	LoadProxyFromEnv(config)
 
 	if loadSecret {
 		if err := ResolveSecrets(config, origin); err != nil {
@@ -1656,6 +1661,17 @@ func setupFipsLogsConfig(config Config, configPrefix string, url string) {
 	config.Set(configPrefix+"logs_dd_url", url)
 }
 
+func setupSBOMConfig(config Config, cacheDir string) {
+	config.BindEnvAndSetDefault("sbom.enabled", false)
+	config.BindEnvAndSetDefault("sbom.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, cacheDir))
+	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
+	config.BindEnvAndSetDefault("sbom.use_custom_cache", false)
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
+	config.BindEnvAndSetDefault("sbom.custom_cache_max_cache_entries", 10000)     // used by custom cache keys stored in memory
+	config.BindEnvAndSetDefault("sbom.cache_clean_interval", "30m")               // used by custom cache.
+}
+
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
@@ -1731,21 +1747,6 @@ func SanitizeAPIKey(key string) string {
 	return strings.TrimSpace(key)
 }
 
-// GetMainInfraEndpoint returns the main DD Infra URL defined in the config, based on the value of `site` and `dd_url`
-func GetMainInfraEndpoint() string {
-	return getMainInfraEndpointWithConfig(Datadog)
-}
-
-// GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
-func GetMainEndpoint(prefix string, ddURLKey string) string {
-	return GetMainEndpointWithConfig(Datadog, prefix, ddURLKey)
-}
-
-// GetMultipleEndpoints returns the api keys per domain specified in the main agent config
-func GetMultipleEndpoints() (map[string][]string, error) {
-	return getMultipleEndpointsWithConfig(Datadog)
-}
-
 func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
@@ -1790,109 +1791,6 @@ func AddAgentVersionToDomain(DDURL string, app string) (string, error) {
 
 	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
 	return u.String(), nil
-}
-
-func getMainInfraEndpointWithConfig(config Config) string {
-	return GetMainEndpointWithConfig(config, infraURLPrefix, "dd_url")
-}
-
-// GetMainEndpointWithConfig implements the logic to extract the DD URL from a config, based on `site` and ddURLKey
-func GetMainEndpointWithConfig(config Config, prefix string, ddURLKey string) (resolvedDDURL string) {
-	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
-		// value under ddURLKey takes precedence over 'site'
-		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
-	} else if config.GetString("site") != "" {
-		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
-	} else {
-		resolvedDDURL = prefix + DefaultSite
-	}
-	return
-}
-
-// GetMainEndpointWithConfigBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
-func GetMainEndpointWithConfigBackwardCompatible(config Config, prefix string, ddURLKey string, backwardKey string) (resolvedDDURL string) {
-	if config.IsSet(ddURLKey) && config.GetString(ddURLKey) != "" {
-		// value under ddURLKey takes precedence over backwardKey and 'site'
-		resolvedDDURL = getResolvedDDUrl(config, ddURLKey)
-	} else if config.IsSet(backwardKey) && config.GetString(backwardKey) != "" {
-		// value under backwardKey takes precedence over 'site'
-		resolvedDDURL = getResolvedDDUrl(config, backwardKey)
-	} else if config.GetString("site") != "" {
-		resolvedDDURL = prefix + strings.TrimSpace(config.GetString("site"))
-	} else {
-		resolvedDDURL = prefix + DefaultSite
-	}
-	return
-}
-
-func getResolvedDDUrl(config Config, urlKey string) string {
-	resolvedDDURL := config.GetString(urlKey)
-	if config.IsSet("site") {
-		log.Infof("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, config.GetString(urlKey))
-	}
-	return resolvedDDURL
-}
-
-// getMultipleEndpointsWithConfig implements the logic to extract the api keys per domain from an agent config
-func getMultipleEndpointsWithConfig(config Config) (map[string][]string, error) {
-	// Validating domain
-	ddURL := getMainInfraEndpointWithConfig(config)
-	_, err := url.Parse(ddURL)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse main endpoint: %s", err)
-	}
-
-	keysPerDomain := map[string][]string{
-		ddURL: {
-			config.GetString("api_key"),
-		},
-	}
-
-	additionalEndpoints := config.GetStringMapStringSlice("additional_endpoints")
-
-	return MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
-}
-
-// MergeAdditionalEndpoints merges additional endpoints into keysPerDomain
-func MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]string) (map[string][]string, error) {
-	for domain, apiKeys := range additionalEndpoints {
-
-		// Validating domain
-		_, err := url.Parse(domain)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse url from 'additional_endpoints' %s: %s", domain, err)
-		}
-
-		if _, ok := keysPerDomain[domain]; ok {
-			for _, apiKey := range apiKeys {
-				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
-			}
-		} else {
-			keysPerDomain[domain] = apiKeys
-		}
-	}
-
-	// dedupe api keys and remove domains with no api keys (or empty ones)
-	for domain, apiKeys := range keysPerDomain {
-		dedupedAPIKeys := make([]string, 0, len(apiKeys))
-		seen := make(map[string]bool)
-		for _, apiKey := range apiKeys {
-			trimmedAPIKey := strings.TrimSpace(apiKey)
-			if _, ok := seen[trimmedAPIKey]; !ok && trimmedAPIKey != "" {
-				seen[trimmedAPIKey] = true
-				dedupedAPIKeys = append(dedupedAPIKeys, trimmedAPIKey)
-			}
-		}
-
-		if len(dedupedAPIKeys) > 0 {
-			keysPerDomain[domain] = dedupedAPIKeys
-		} else {
-			log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
-			delete(keysPerDomain, domain)
-		}
-	}
-
-	return keysPerDomain, nil
 }
 
 // IsCloudProviderEnabled checks the cloud provider family provided in
@@ -2049,10 +1947,10 @@ func IsCLCRunner() bool {
 // Not using `config.BindEnvAndSetDefault` as some processes need to know
 // if value was default one or not (e.g. trace-agent)
 func GetBindHost() string {
-	return getBindHost(Datadog)
+	return GetBindHostFromConfig(Datadog)
 }
 
-func getBindHost(cfg Config) string {
+func GetBindHostFromConfig(cfg ConfigReader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")
 	}
@@ -2107,23 +2005,36 @@ func GetGlobalConfiguredTags(includeDogstatsd bool) []string {
 }
 
 func bindVectorOptions(config Config, datatype DataType) {
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
+
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
 }
 
-// GetVectorURL returns the URL under the 'vector.' prefix for the given datatype
-func GetVectorURL(datatype DataType) (string, error) {
-	if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
-		vectorURL := Datadog.GetString(fmt.Sprintf("vector.%s.url", datatype))
-		if vectorURL == "" {
-			log.Errorf("vector.%s.enabled is set to true, but vector.%s.url is empty", datatype, datatype)
+// GetObsPipelineURL returns the URL under the 'observability_pipelines_worker.' prefix for the given datatype
+func GetObsPipelineURL(datatype DataType) (string, error) {
+	if Datadog.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype)) {
+		return getObsPipelineURLForPrefix(datatype, "observability_pipelines_worker")
+	} else if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+		// Fallback to the `vector` config if observability_pipelines_worker is not set.
+		return getObsPipelineURLForPrefix(datatype, "vector")
+	}
+	return "", nil
+}
+
+func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error) {
+	if Datadog.GetBool(fmt.Sprintf("%s.%s.enabled", prefix, datatype)) {
+		pipelineURL := Datadog.GetString(fmt.Sprintf("%s.%s.url", prefix, datatype))
+		if pipelineURL == "" {
+			log.Errorf("%s.%s.enabled is set to true, but %s.%s.url is empty", prefix, datatype, prefix, datatype)
 			return "", nil
 		}
-		_, err := url.Parse(vectorURL)
+		_, err := url.Parse(pipelineURL)
 		if err != nil {
-			return "", fmt.Errorf("could not parse vector %s endpoint: %s", datatype, err)
+			return "", fmt.Errorf("could not parse %s %s endpoint: %s", prefix, datatype, err)
 		}
-		return vectorURL, nil
+		return pipelineURL, nil
 	}
 	return "", nil
 }

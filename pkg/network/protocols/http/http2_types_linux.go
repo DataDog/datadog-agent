@@ -14,7 +14,7 @@ type http2ConnTuple = struct {
 	Pid      uint32
 	Metadata uint32
 }
-type ebpfHttp2Tx struct {
+type EbpfHttp2Tx struct {
 	Tup                   http2ConnTuple
 	Response_last_seen    uint64
 	Request_started       uint64

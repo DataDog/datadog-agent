@@ -4,7 +4,6 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build docker && kubeapiserver
-// +build docker,kubeapiserver
 
 package kubernetes
 
@@ -44,8 +43,7 @@ func TestSuiteKube(t *testing.T) {
 	s := &testSuite{}
 
 	// Env detection
-	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: struct{}{}})
-	defer config.SetDetectedFeatures(nil)
+	config.SetFeatures(t, config.Kubernetes)
 
 	// Start compose stack
 	compose, err := initAPIServerCompose()

@@ -20,15 +20,14 @@ runtime_compiled_tests = Array.[](
 )
 
 co_re_tests = Array.[](
-  "pkg/collector/corechecks/ebpf/probe",
-  "pkg/network/protocols/http"
+  "pkg/network/tracer",
+  "pkg/network/protocols/http",
+  "pkg/collector/corechecks/ebpf/probe"
 )
 
 TIMEOUTS = {
-  "pkg/network/protocols" => "5m",
-  # disable timeouts for pkg/network/tracer
-  "pkg/network/protocols/http$" => "0",
-  "pkg/network/tracer$" => "0",
+  "pkg/network/protocols/http$" => "15m",
+  "pkg/network/tracer$" => "25m",
 }
 
 DEFAULT_TIMEOUT = "10m"
@@ -159,7 +158,7 @@ describe "system-probe" do
 
   context "fentry" do
     env = {
-      "ECS_FARGATE"=>"true",
+      "NETWORK_TRACER_FENTRY_TESTS"=>"true",
       "DD_ENABLE_CO_RE"=>"true",
       "DD_ENABLE_RUNTIME_COMPILER"=>"false",
       "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false"

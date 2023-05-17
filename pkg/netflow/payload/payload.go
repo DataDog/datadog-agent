@@ -5,10 +5,14 @@
 
 package payload
 
-// Device contains device (exporter) details
+// Device contains device details (device sending NetFlow flows)
 type Device struct {
-	IP        string `json:"ip"`
 	Namespace string `json:"namespace"`
+}
+
+// Exporter contains NetFlow exporter details
+type Exporter struct {
+	IP string `json:"ip"`
 }
 
 // Endpoint contains source or destination endpoint details
@@ -46,6 +50,7 @@ type FlowPayload struct {
 	EtherType    string           `json:"ether_type,omitempty"`
 	IPProtocol   string           `json:"ip_protocol"`
 	Device       Device           `json:"device"`
+	Exporter     Exporter         `json:"exporter"`
 	Source       Endpoint         `json:"source"`
 	Destination  Endpoint         `json:"destination"`
 	Ingress      ObservationPoint `json:"ingress"`
