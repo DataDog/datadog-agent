@@ -13,9 +13,9 @@
 #include "skb.h"
 #include "sockfd.h"
 #include "tracer/events.h"
+#include "tracer/maps.h"
 #include "tracer/port.h"
 #include "tracer/tcp_recv.h"
-#include "protocols/classification/tracer-maps.h"
 #include "protocols/classification/protocol-classification.h"
 
 SEC("socket/classifier_entry")

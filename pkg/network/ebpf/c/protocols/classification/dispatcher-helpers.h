@@ -6,7 +6,6 @@
 #include "ip.h"
 
 #include "protocols/classification/defs.h"
-#include "protocols/classification/protocol-classification.h"
 #include "protocols/classification/maps.h"
 #include "protocols/classification/structs.h"
 #include "protocols/classification/dispatcher-maps.h"

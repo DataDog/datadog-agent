@@ -10,7 +10,6 @@
 #include "tracer/stats.h"
 #include "tracer/telemetry.h"
 #include "cookie.h"
-#include "protocols/classification/tracer-maps.h"
 #include "ip.h"
 #include "port_range.h"
 

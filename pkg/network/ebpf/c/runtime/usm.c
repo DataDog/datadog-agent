@@ -12,8 +12,6 @@
 #include "sock.h"
 #include "port_range.h"
 
-#define USM_C
-
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/http/http.h"
 #include "protocols/http/buffer.h"
