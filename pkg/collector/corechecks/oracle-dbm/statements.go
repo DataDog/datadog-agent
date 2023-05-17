@@ -304,15 +304,15 @@ type PlanDefinition struct {
 	AccessPredicates string  `json:"access_predicates,omitempty"`
 	FilterPredicates string  `json:"filter_predicates,omitempty"`
 	Projection       string  `json:"projection,omitempty"`
-	LastStarts       *uint64 `json:"actual_starts,omitempty"`
-	LastOutputRows   *uint64 `json:"actual_rows,omitempty"`
-	LastCRBufferGets *uint64 `json:"actual_cr_buffer_gets,omitempty"`
-	LastDiskReads    *uint64 `json:"actual_disk_reads,omitempty"`
-	LastDiskWrites   *uint64 `json:"actual_disk_writes,omitempty"`
-	LastElapsedTime  *uint64 `json:"actual_elapsed_time,omitempty"`
-	LastMemoryUsed   *uint64 `json:"actual_memory_used,omitempty"`
-	LastDegree       *uint64 `json:"actual_parallel_degree,omitempty"`
-	LastTempsegSize  *uint64 `json:"actual_tempseg_size,omitempty"`
+	LastStarts       uint64  `json:"actual_starts,omitempty"`
+	LastOutputRows   uint64  `json:"actual_rows,omitempty"`
+	LastCRBufferGets uint64  `json:"actual_cr_buffer_gets,omitempty"`
+	LastDiskReads    uint64  `json:"actual_disk_reads,omitempty"`
+	LastDiskWrites   uint64  `json:"actual_disk_writes,omitempty"`
+	LastElapsedTime  uint64  `json:"actual_elapsed_time,omitempty"`
+	LastMemoryUsed   uint64  `json:"actual_memory_used,omitempty"`
+	LastDegree       uint64  `json:"actual_parallel_degree,omitempty"`
+	LastTempsegSize  uint64  `json:"actual_tempseg_size,omitempty"`
 }
 
 type PlanPlanDB struct {
@@ -815,31 +815,31 @@ func (c *Check) StatementMetrics() (int, error) {
 								stepPayload.Projection = stepRow.Projection.String
 							}
 							if stepRow.LastStarts != nil {
-								stepPayload.LastStarts = *&stepRow.LastStarts
+								stepPayload.LastStarts = *stepRow.LastStarts
 							}
 							if stepRow.LastOutputRows != nil {
-								stepPayload.LastOutputRows = *&stepRow.LastOutputRows
+								stepPayload.LastOutputRows = *stepRow.LastOutputRows
 							}
 							if stepRow.LastCRBufferGets != nil {
-								stepPayload.LastCRBufferGets = *&stepRow.LastCRBufferGets
+								stepPayload.LastCRBufferGets = *stepRow.LastCRBufferGets
 							}
 							if stepRow.LastDiskReads != nil {
-								stepPayload.LastDiskReads = *&stepRow.LastDiskReads
+								stepPayload.LastDiskReads = *stepRow.LastDiskReads
 							}
 							if stepRow.LastDiskWrites != nil {
-								stepPayload.LastDiskWrites = *&stepRow.LastDiskWrites
+								stepPayload.LastDiskWrites = *stepRow.LastDiskWrites
 							}
 							if stepRow.LastElapsedTime != nil {
-								stepPayload.LastElapsedTime = *&stepRow.LastElapsedTime
+								stepPayload.LastElapsedTime = *stepRow.LastElapsedTime
 							}
 							if stepRow.LastMemoryUsed != nil {
-								stepPayload.LastMemoryUsed = *&stepRow.LastMemoryUsed
+								stepPayload.LastMemoryUsed = *stepRow.LastMemoryUsed
 							}
 							if stepRow.LastDegree != nil {
-								stepPayload.LastDegree = *&stepRow.LastDegree
+								stepPayload.LastDegree = *stepRow.LastDegree
 							}
 							if stepRow.LastTempsegSize != nil {
-								stepPayload.LastTempsegSize = *&stepRow.LastTempsegSize
+								stepPayload.LastTempsegSize = *stepRow.LastTempsegSize
 							}
 							if stepRow.PlanCreated.Valid && stepRow.PlanCreated.String != "" {
 								oraclePlan.Timestamp = stepRow.PlanCreated.String
