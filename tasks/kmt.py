@@ -143,6 +143,7 @@ a1eAv3AZrgqk0eQl1XapooMMSY5mKjxJKscqthce9uvVnWPWVSI9moPKH6gaZ6336UhFzz
 -----END OPENSSH PRIVATE KEY-----
 """
 
+
 def is_root():
     return os.getuid() == 0
 
@@ -167,11 +168,13 @@ def check_and_get_stack(stack, branch):
 
     return stack
 
+
 def gen_ssh_key(ctx):
     with open(f"{KMT_DIR}/ddvm_rsa", "w") as f:
         f.write(priv_key)
 
     ctx.run(f"chmod 400 {KMT_DIR}/ddvm_rsa")
+
 
 @task
 def init(ctx):
@@ -187,7 +190,9 @@ def init(ctx):
 
     # fix libvirt conf
     user = getpass.getuser()
-    ctx.run(f"{sudo} sed --in-place 's/#security_driver = \"selinux\"/security_driver = \"none\"/' /etc/libvirt/qemu.conf")
+    ctx.run(
+        f"{sudo} sed --in-place 's/#security_driver = \"selinux\"/security_driver = \"none\"/' /etc/libvirt/qemu.conf"
+    )
     ctx.run(f"{sudo} sed --in-place 's/#user = \"root\"/user = \"{user}\"/' /etc/libvirt/qemu.conf")
     ctx.run(f"{sudo} sed --in-place 's/#group = \"root\"/group = \"kvm\"/' /etc/libvirt/qemu.conf")
     ctx.run(f"{sudo} systemctl restart libvirtd.service")
@@ -259,27 +264,47 @@ def delete_networks(conn, stack):
 @task
 def destroy_stack(ctx, stack=None, branch=False):
     stack = check_and_get_stack(stack, branch)
-    if not os.path.exists("f{KMT_STACKS_DIR}/{stack}"):
+    if not stack_exists(stack):
         raise Exit(f"stack {stack} not created")
 
-    print(f"[*] Destroying stack {stack}")
-    # ctx.run(f"pulumi login {KMT_DIR}/stacks/{stack}/.pulumi")
-    conn = libvirt.open("qemu:///system")
-    delete_domains(conn, stack)
-    delete_volumes(conn, stack)
-    delete_pools(conn, stack)
-    delete_networks(conn, stack)
-    conn.close()
+    destroy_cmd = [
+        "PULUMI_CONFIG_PASSPHRASE=1234",
+        "aws-vault exec sandbox-account-admin",
+        "--",
+        "pulumi",
+        "destroy",
+        f"-C ../test-infra-definitions/aws/scenarios/microVMs -s {stack}",
+    ]
 
-    ctx.run("rm -r {KMT_STACKS_DIR}/{stack}")
+    print("Run this ->\n")
+    print(' '.join(destroy_cmd))
+
+##def destroy_stack(ctx, stack=None, branch=False):
+#    stack = check_and_get_stack(stack, branch)
+#    if not os.path.exists("f{KMT_STACKS_DIR}/{stack}"):
+#        raise Exit(f"stack {stack} not created")
+#
+#    print(f"[*] Destroying stack {stack}")
+#    # ctx.run(f"pulumi login {KMT_DIR}/stacks/{stack}/.pulumi")
+#    conn = libvirt.open("qemu:///system")
+#    delete_domains(conn, stack)
+#    delete_volumes(conn, stack)
+#    delete_pools(conn, stack)
+#    delete_networks(conn, stack)
+#    conn.close()
+#
+#    ctx.run("rm -r {KMT_STACKS_DIR}/{stack}")
+
 
 def get_active_branch_name():
     head_dir = Path(".") / ".git" / "HEAD"
-    with head_dir.open("r") as f: content = f.read().splitlines()
+    with head_dir.open("r") as f:
+        content = f.read().splitlines()
 
     for line in content:
         if line[0:4] == "ref:":
             return line.partition("refs/heads/")[2].replace("/", "-")
+
 
 @task
 def create_stack(ctx, stack=None, branch=False):
@@ -536,12 +561,14 @@ def mem_to_pow_of_2(memory):
             print(f"rounding up memory: {memory[i]} -> {new}")
             memory[i] = new
 
+
 def ls_to_int(ls):
     int_ls = list()
     for elem in ls:
         int_ls.append(int(elem))
 
     return int_ls
+
 
 @task(
     help={
@@ -577,7 +604,7 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
     vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
     # vmconfig_file = "/tmp/vm-config.json"
     if new or not os.path.exists(vmconfig_file):
-        ctx.run("rm -f {vmconfig_file}")
+        ctx.run(f"rm -f {vmconfig_file}")
         empty_config(vmconfig_file)
 
     with open(vmconfig_file) as f:
@@ -620,20 +647,20 @@ def download_kernel_packages(ctx, revert=False):
 
     sudo = "sudo" if not is_root() else ""
     # download kernel packages
-    #res = ctx.run(
+    # res = ctx.run(
     #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {KMT_PACKAGES_DIR}/{kernel_packages_tar}",
     #    warn=True,
-    #)
-    #if not res.ok:
+    # )
+    # if not res.ok:
     #    if revert:
     #        revert_kernel_packages(ctx)
     #    raise Exit("Failed to download kernel pacakges")
 
-    #res = ctx.run(
+    # res = ctx.run(
     #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {KMT_PACKAGES_DIR}/{kernel_packages_sum}",
     #    warn=True,
-    #)
-    #if not res.ok:
+    # )
+    # if not res.ok:
     #    if revert:
     #        revert_kernel_packages(ctx)
     #    raise Exit("Failed to download kernel pacakges checksum")
@@ -659,7 +686,9 @@ def download_kernel_packages(ctx, revert=False):
                 os.chmod(f, 0o666)
 
     # copy headers
-    res = ctx.run(f"find {KMT_PACKAGES_DIR} -name 'linux-image-*' -type f | xargs -i cp {{}} {KMT_KHEADERS_DIR} && find {KMT_PACKAGES_DIR} -name 'linux-headers-*' -type f | xargs -i cp {{}} {KMT_KHEADERS_DIR}")
+    res = ctx.run(
+        f"find {KMT_PACKAGES_DIR} -name 'linux-image-*' -type f | xargs -i cp {{}} {KMT_KHEADERS_DIR} && find {KMT_PACKAGES_DIR} -name 'linux-headers-*' -type f | xargs -i cp {{}} {KMT_KHEADERS_DIR}"
+    )
     if not res.ok:
         if revert:
             revert_kernel_packages(ctx)
@@ -713,18 +742,18 @@ def download_rootfs(ctx, revert=False):
         Exit(f"Unsupported arch detected {arch}")
 
     # download rootfs
-    #res = ctx.run(
+    # res = ctx.run(
     #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O {KMT_ROOTFS_DIR}/{rootfs}.sum"
-    #)
-    #if not res.ok:
+    # )
+    # if not res.ok:
     #    if revert:
     #        revert_rootfs(ctx)
     #    raise Exit("Failed to download rootfs check sum file")
 
-    #res = ctx.run(
+    # res = ctx.run(
     #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.tar.gz -O {KMT_ROOTFS_DIR}/{rootfs}.tar.gz"
-    #)
-    #if not res.ok:
+    # )
+    # if not res.ok:
     #    if revert:
     #        revert_rootfs(ctx)
     #    raise Exit("Failed to download rootfs")
@@ -742,7 +771,6 @@ def download_rootfs(ctx, revert=False):
         if revert:
             revert_rootfs(ctx)
         raise Exit("Failed to set permissions 0766 to rootfs")
-
 
 
 def update_rootfs(ctx):
@@ -805,8 +833,19 @@ def revert_resources(ctx):
     print("[+] Reverted successfully")
 
 
+def find_ssh_key(ssh_key):
+    user = getpass.getuser()
+    ssh_key_file = f"/home/{user}/.ssh/{ssh_key}.pem"
+    if not os.path.exists(ssh_key_file):
+        raise Exit(f"Could not find file for ssh key {ssh_key}. Looked for {ssh_key_file}")
+
+    return ssh_key_file
+
+
 @task
-def launch_stack(ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0584a00dd384af6ab", arm_ami="ami-0a5c054df5931fbfc"):
+def launch_stack(
+    ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0584a00dd384af6ab", arm_ami="ami-0a5c054df5931fbfc"
+):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -814,35 +853,42 @@ def launch_stack(ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0584a00
     if not vm_config_exists(stack):
         raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'inv kmt.gen-config --help'")
 
-    if not os.path.exists(test_infra_definitions):
+    if not os.path.exists("../test-infra-definitions"):
         raise Exit("'test-infra-definitions' repository required to launc VMs")
 
     vm_config = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
     micro_vm_scenario = "../test-infra-definitions/aws/scenarios/microVMs"
 
+    if ssh_key != "":
+        ssh_key_file = find_ssh_key(ssh_key)
+        ssh_add_cmd = f"ssh-add -l | grep {ssh_key} || ssh-add {ssh_key_file}"
+    else:
+        ssh_add_cmd = ""
+
     pulumi_cmd = [
+        "PULUMI_CONFIG_PASSPHRASE=1234",
         "aws-vault exec sandbox-account-admin",
         "--",
         "pulumi",
         "up",
         "-c scenario=aws/microvms",
-        "-c ddinfra:aws/defaultKeyPairName=",
+        f"-c ddinfra:aws/defaultKeyPairName={ssh_key}",
         "-c ddinfra:env=aws/sandbox",
         "-c ddinfra:aws/defaultARMInstanceType=m6g.metal",
         "-c ddinfra:aws/defaultInstanceType=i3.metal",
         "-c ddinfra:aws/defaultInstanceStorageSize=500",
         f"-c microvm:microVMConfigFile={vm_config}",
-        "-c microvm:workingDir={KMT_DIR}",
+        f"-c microvm:workingDir={KMT_DIR}",
         "-c microvm:provision=false",
-        "-c microvm:x86AmiID={x86_ami}",
-        "-c microvm:arm64AmiID={arm_ami}",
+        f"-c microvm:x86AmiID={x86_ami}",
+        f"-c microvm:arm64AmiID={arm_ami}",
         f"-C {micro_vm_scenario}",
-        "-s {stack}",
+        f"-s {stack}",
     ]
 
     if not os.path.exists(micro_vm_scenario):
         raise Exit(f"Could not find scenario directory at {micro_vm_scenario}")
-    
-    print("Run this ->")
-    print(' '.join(pulumi_cmd))
 
+    print("Run this ->\n")
+    print(ssh_add_cmd)
+    print(' '.join(pulumi_cmd))
