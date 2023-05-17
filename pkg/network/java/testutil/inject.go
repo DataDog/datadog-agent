@@ -38,5 +38,14 @@ func RunJavaVersion(t testing.TB, version string, class string, waitForParam ...
 		"ENTRYCLASS=" + class,
 		"EXTRA_HOSTS=host.docker.internal:" + addr,
 	}
+	if addr == "" {
+		o, _ := exec.Command("docker", "network", "inspect", "host", "bridge").CombinedOutput()
+		t.Errorf(string(o))
+		o, _ = exec.Command("hostname", "-I").CombinedOutput()
+		t.Errorf(string(o))
+		o, _ = exec.Command("ip", "-a").CombinedOutput()
+		t.Errorf(string(o))
+	}
+
 	return protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, protocolsUtils.DefaultTimeout)
 }
