@@ -216,7 +216,7 @@ type FQTPayload struct {
 	Host         string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
 	AgentVersion string      `json:"ddagentversion,omitempty"`
 	Source       string      `json:"ddsource"`
-	Tags         []string    `json:"tags,omitempty"`
+	Tags         string      `json:"ddtags,omitempty"`
 	DBMType      string      `json:"dbm_type"`
 	FQTDB        FQTDB       `json:"db"`
 	FQTDBOracle  FQTDBOracle `json:"oracle"`
@@ -226,35 +226,18 @@ func ConstructStatementMetricsQueryBlock(sqlHandleColumn string, whereClause str
 	return fmt.Sprintf(STATEMENT_METRICS_QUERY, sqlHandleColumn, sqlHandleColumn, bindPlaceholder, whereClause, sqlHandleColumn)
 }
 
-// func GetStatementsMetricsForKeys[K comparable](db *sqlx.DB, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
 func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
 	if len(keys) != 0 {
 		db := c.db
-		//driver := c.driver
 		var bindPlaceholder string
 		keysSlice := maps.Keys(keys)
 
-		//if driver == common.Godror {
 		bindPlaceholder = "?"
-		/*
-			} else if driver == common.GoOra {
-				// workaround for https://github.com/jmoiron/sqlx/issues/854
-				for i := range keysSlice {
-					if i > 0 {
-						bindPlaceholder = bindPlaceholder + ","
-					}
-					bindPlaceholder = fmt.Sprintf("%s:%d", bindPlaceholder, i+1)
-				}
-			} else {
-				return nil, fmt.Errorf("statements wrong driver %s", driver)
-			} */
-
 		var statementMetrics []StatementMetricsDB
 		statements_metrics_query := ConstructStatementMetricsQueryBlock(keyName, whereClause, bindPlaceholder)
 
 		log.Tracef("Statements query metrics keys %s: %+v", keyName, keysSlice)
 
-		//if driver == common.Godror {
 		query, args, err := sqlx.In(statements_metrics_query, keysSlice)
 		if err != nil {
 			return nil, fmt.Errorf("error preparing statement metrics query: %w %s", err, statements_metrics_query)
@@ -263,17 +246,6 @@ func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereCl
 		if err != nil {
 			return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
 		}
-		/* } else if driver == common.GoOra {
-			// workaround for https://github.com/jmoiron/sqlx/issues/854
-			convertedSlice := make([]any, len(keysSlice))
-			for i := range keysSlice {
-				convertedSlice[i] = K(keysSlice[i])
-			}
-			err := db.Select(&statementMetrics, statements_metrics_query, convertedSlice...)
-			if err != nil {
-				return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
-			}
-		} */
 		return statementMetrics, nil
 	}
 	return nil, nil
@@ -298,10 +270,15 @@ func (c *Check) StatementMetrics() (int, error) {
 	SQLCount := 0
 	totalSQLTextTimeUs := int64(0)
 	var oracleRows []OracleRow
-	FQTSent := make(map[string]int)
-	if c.config.QueryMetrics {
-		if c.config.InstanceConfig.IncludeDatadogQueries {
+
+	if c.config.QueryMetrics.Enabled {
+		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 			var DDForceMatchingSignatures []string
+
+			/*
+			 * When we want to capture the Datadog Agent queries, we're explicitly looking for them in v$sqlstats, because
+			 * they are excluded from query samples and therefore won't be found in c.statementsCache
+			 */
 			err = c.db.Select(
 				&DDForceMatchingSignatures,
 				"SELECT distinct force_matching_signature FROM v$sqlstats WHERE sql_text like '%/* DD%' and (sysdate-last_active_time)*3600*24 < :1",
@@ -337,6 +314,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		SQLCount = len(statementMetricsAll)
 		sender.Count("dd.oracle.statements_metrics.sql_count", float64(SQLCount), "", c.tags)
 
+		// query metrics cache
 		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
 		if c.statementMetricsMonotonicCountsPrevious == nil {
 			c.copyToPreviousMap(newCache)
@@ -346,7 +324,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
-
+		FQTSent := make(map[string]int)
 		for _, statementMetricRow := range statementMetricsAll {
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
@@ -466,7 +444,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					queryRow.Tables = obfuscatedStatement.tables
 					SQLStatement = obfuscatedStatement.statement
 					found = true
-				} else if c.config.InstanceConfig.IncludeDatadogQueries {
+				} else if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 					obfuscatedStatement, ok := c.DDPrevStatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature]
 					if ok {
 						queryRow.Commands = obfuscatedStatement.commands
@@ -527,7 +505,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					queryRow.Commands = obfuscatedStatement.Commands
 					queryRow.Tables = obfuscatedStatement.Tables
 
-					if c.config.InstanceConfig.IncludeDatadogQueries {
+					if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 						cacheEntry := StatementsCacheData{
 							statement:      SQLStatement,
 							querySignature: obfuscatedStatement.QuerySignature,
@@ -570,7 +548,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					Host:         c.dbHostname,
 					AgentVersion: c.agentVersion,
 					Source:       common.IntegrationName,
-					Tags:         c.tags,
+					Tags:         c.tagsString,
 					DBMType:      "fqt",
 					FQTDB:        FQTDB,
 					FQTDBOracle:  FQTDBOracle,
@@ -583,12 +561,11 @@ func (c *Check) StatementMetrics() (int, error) {
 				sender.EventPlatformEvent(string(FQTPayloadBytes), "dbm-samples")
 				FQTSent[queryRow.QuerySignature] = 1
 			}
-			//select * from table(dbms_xplan.display_cursor(sql_id, null, format=>'allstats last +cost'));
 		}
 
 		c.copyToPreviousMap(newCache)
 
-		if c.config.InstanceConfig.IncludeDatadogQueries {
+		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 			c.DDPrevStatementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
 			for k, v := range c.DDstatementsCache.forceMatchingSignatures {
 				c.DDPrevStatementsCache.forceMatchingSignatures[k] = v
