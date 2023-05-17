@@ -19,6 +19,7 @@ grant select on v_$con_sysmetric to c##datadog ;
 grant select on cdb_tablespace_usage_metrics to c##datadog ;
 grant select on cdb_tablespaces to c##datadog ;
 grant select on v_$process to c##datadog ;
+grant select on v_$sql_plan_statistics_all to c##data dog ;
 
 CREATE OR REPLACE VIEW dd_session AS
 SELECT 

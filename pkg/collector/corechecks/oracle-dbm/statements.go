@@ -434,12 +434,11 @@ func (c *Check) StatementMetrics() (int, error) {
 	SQLCount := 0
 	totalSQLTextTimeUs := int64(0)
 	var oracleRows []OracleRow
-	executionPlanSent := make(map[uint64]int)
 	var planErrors uint16
 	if c.config.QueryMetrics.Enabled {
 		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
-			var DDForceMatchingSignatures []string       
-      /*
+			var DDForceMatchingSignatures []string
+			/*
 			 * When we want to capture the Datadog Agent queries, we're explicitly looking for them in v$sqlstats, because
 			 * they are excluded from query samples and therefore won't be found in c.statementsCache
 			 */
@@ -490,6 +489,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		var diff OracleRowMonotonicCount
 		planErrors = 0
 		FQTSent := make(map[string]int)
+		executionPlanSent := make(map[uint64]int)
 		for _, statementMetricRow := range statementMetricsAll {
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
@@ -725,9 +725,9 @@ func (c *Check) StatementMetrics() (int, error) {
 				FQTSent[queryRow.QuerySignature] = 1
 			}
 
-      if c.config.ExecutionPlans.Enabled {
-				_, sent = executionPlanSent[statementMetricRow.PlanHashValue]
-				if !sent {
+			if c.config.ExecutionPlans.Enabled {
+				_, ok = executionPlanSent[statementMetricRow.PlanHashValue]
+				if !ok {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
