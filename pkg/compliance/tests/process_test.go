@@ -194,9 +194,7 @@ valid(p) {
 }
 
 findings[f] {
-	count(input.process) == 2
-	valid(input.process[0])
-	valid(input.process[1])
+	count([p | p := input.process[_]; valid(p)]) == 2
 	f := dd.passed_finding(
 		"sleep",
 		"sleep",
