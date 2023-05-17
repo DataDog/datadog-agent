@@ -676,3 +676,141 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	})
 
 }
+
+func TestSecurityProfileAutoSuppression(t *testing.T) {
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile", "protobuf"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+	reinsertPeriod := 10
+	rulesDef := []*rules.RuleDefinition{
+		{
+			ID:         "test_autosuppression_exec",
+			Expression: `exec.file.name == "getconf"`,
+		},
+		{
+			ID:         "test_autosuppression_dns",
+			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
+		},
+	}
+	test, err := newTestModule(t, nil, rulesDef, testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             200,
+		activityDumpTracedCgroupsCount:      3,
+		activityDumpCgroupDumpTimeout:       10,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		enableSecurityProfile:               true,
+		securityProfileDir:                  outputDir,
+		securityProfileWatchDir:             true,
+		anomalyDetectionMinimumStablePeriod: reinsertPeriod,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, dump, err := test.StartADockerGetDump()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+
+	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+	cmd := dockerInstance.Command(syscallTester, []string{"sleep", "1"}, []string{})
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+	t.Run("auto-suppression-process-signal", func(t *testing.T) {
+		// check that we generate an event during profile learning phase
+		test.WaitSignal(t, func() error {
+			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_autosuppression_exec")
+			assert.Equal(t, "getconf", event.ProcessContext.FileEvent.BasenameStr, "wrong exec file")
+		})
+	})
+
+	t.Run("auto-suppression-dns-signal", func(t *testing.T) {
+		// check that we generate an event during profile learning phase
+		test.WaitSignal(t, func() error {
+			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_autosuppression_dns")
+			assert.Equal(t, "busybox", event.ProcessContext.FileEvent.BasenameStr, "wrong exec file")
+		})
+	})
+
+	err = test.StopActivityDump(dump.Name, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(6 * time.Second) // a quick sleep to let the profile to be loaded (5sec debounce + 1sec spare)
+
+	// get AD selector and force the auto-suppression mode
+	selector, err := test.GetADSelector(dump)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := test.SetProfileStatus(selector, model.AutoSuppression); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
+		// check we autosuppres signals
+		err = test.GetSignal(t, func() error {
+			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(event *model.Event, rule *rules.Rule) {
+			if event.ProcessContext.ContainerID == dump.ContainerID {
+				t.Fatal("Got a signal that should have been suppressed")
+			}
+		})
+		if err != nil && !strings.HasPrefix(err.Error(), "timeout") {
+			t.Fatal("Got an error different from timeout")
+		}
+	})
+
+	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
+		// check we autosuppres signals
+		err = test.GetSignal(t, func() error {
+			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(event *model.Event, rule *rules.Rule) {
+			if event.ProcessContext.ContainerID == dump.ContainerID {
+				t.Fatal("Got a signal that should have been suppressed")
+			}
+		})
+		if err != nil && !strings.HasPrefix(err.Error(), "timeout") {
+			t.Fatal("Got an error different from timeout")
+		}
+	})
+}
