@@ -86,7 +86,7 @@ func deprecationMessage(oldkey, newkey string) string {
 func limitMaxInt(cfg config.Config, key string, max int) {
 	val := cfg.GetInt(key)
 	if val > max {
-		log.Warnf("limiting configuration key `%s` to maximum value `%d`", key, max)
+		log.Warnf("configuration key `%s` was set to `%d`, using maximum value `%d` instead", key, val, max)
 		cfg.Set(key, max)
 	}
 }
@@ -94,7 +94,7 @@ func limitMaxInt(cfg config.Config, key string, max int) {
 func limitMaxInt64(cfg config.Config, key string, max int64) {
 	val := cfg.GetInt64(key)
 	if val > max {
-		log.Warnf("limiting configuration key `%s` to maximum value `%d`", key, max)
+		log.Warnf("configuration key `%s` was set to `%d`, using maximum value `%d` instead", key, val, max)
 		cfg.Set(key, max)
 	}
 }
