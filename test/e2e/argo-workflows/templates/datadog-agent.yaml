@@ -180,6 +180,10 @@ spec:
                 value: "false"
               - name: DATADOG_HOST
                 value: {{inputs.parameters.dd-url}}
+              - name: DD_ADMISSION_CONTROLLER_INJECT_TAGS_ENABLED
+                value: "true"
+              - name: DD_ADMISSION_CONTROLLER_INJECT_TAGS_WORKLOAD_TAGS
+                value: "true"
           EOF
 
           helm repo add datadog https://helm.datadoghq.com
