@@ -181,11 +181,6 @@ func NewConfig() (*Config, error) {
 }
 
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
-	dumpDuration := time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute
-	if dumpDuration == 0 {
-		dumpDuration = coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.dump_duration")
-	}
-
 	rsConfig := &RuntimeSecurityConfig{
 		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
 		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
@@ -217,7 +212,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpLoadControlPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.load_controller_period"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
-		ActivityDumpCgroupDumpTimeout:         dumpDuration,
+		ActivityDumpCgroupDumpTimeout:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.dump_duration"),
 		ActivityDumpRateLimiter:               coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.rate_limiter"),
 		ActivityDumpCgroupWaitListTimeout:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
 		ActivityDumpCgroupDifferentiateArgs:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
@@ -271,16 +266,6 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
-	// if runtime is enabled then we force fim
-	if c.RuntimeEnabled {
-		c.FIMEnabled = true
-	}
-
-	// if runtime is disabled then we force disable activity dumps
-	if !c.RuntimeEnabled {
-		c.ActivityDumpEnabled = false
-	}
-
 	serviceName := utils.GetTagValue("service", coreconfig.GetGlobalConfiguredTags(true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
