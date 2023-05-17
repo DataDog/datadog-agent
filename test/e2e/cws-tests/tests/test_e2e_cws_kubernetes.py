@@ -8,6 +8,7 @@ import uuid
 import warnings
 
 import emoji
+from kubernetes import client
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
 from lib.cws.app import App
 from lib.cws.policy import PolicyLoader
@@ -215,6 +216,25 @@ class TestE2EKubernetes(unittest.TestCase):
             self.app.wait_for_metric(
                 "datadog.security_agent.runtime.containers_running", host=TestE2EKubernetes.hostname
             )
+
+        with Step(msg="check workload tags are added by the admission controller", emoji=":footprints:"):
+            container = client.V1Container(name="busybox", image="busybox:latest", args=["sleep", "100000"])
+            pod_spec = client.V1PodSpec(containers=[container])
+            pod_metadata = client.V1ObjectMeta(
+                name="test",
+                namespace=self.namespace,
+                labels={
+                    "admission.datadoghq.com/enabled": "true",
+                },
+            )
+            pod_body = client.V1Pod(api_version="v1", kind="Pod", metadata=pod_metadata, spec=pod_spec)
+            pod = self.kubernetes_helper.create_pod(pod_body)
+            self.assertNotEqual(len(pod.spec.containers), 0, "no container found")
+            for container in pod.spec.containers:
+                self.assertIn("DD_WORKLOAD_IMAGE_NAME", [env.name for env in container.env])
+                self.assertIn("DD_WORKLOAD_IMAGE_TAG", [env.name for env in container.env])
+                self.assertIn("busybox", [env.value for env in container.env if env.name == "DD_WORKLOAD_IMAGE_NAME"])
+                self.assertIn("latest", [env.value for env in container.env if env.name == "DD_WORKLOAD_IMAGE_TAG"])
 
         print(emoji.emojize(":heart_on_fire:"), flush=True)
 

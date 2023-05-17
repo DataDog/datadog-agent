@@ -20,6 +20,9 @@ class KubernetesHelper(LogGetter):
         self.namespace = namespace
         self.pod_name = None
 
+    def create_pod(self, body):
+        return self.api_client.create_namespaced_pod(namespace=self.namespace, body=body)
+
     def select_pod_name(self, label_selector):
         resp = self.api_client.list_namespaced_pod(namespace=self.namespace, label_selector=label_selector)
         for i in resp.items:
