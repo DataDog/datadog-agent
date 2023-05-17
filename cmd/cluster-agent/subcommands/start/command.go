@@ -55,7 +55,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"golang.org/x/mod/semver"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -176,11 +175,6 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
 	}
 	pkglog.Infof("Got APIClient connection")
-
-	serverVersion, err := apicommon.KubeServerVersion(apiCl.DiscoveryCl, 10*time.Second)
-	if err == nil && semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.14.0") < 0 {
-		pkglog.Warnf("[DEPRECATION WARNING] DataDog will drop support of Kubernetes older than v1.14. Please update to a newer version to ensure proper functionality and security.")
-	}
 
 	// Get hostname as aggregator requires hostname
 	hname, err := hostname.Get(mainCtx)
