@@ -23,7 +23,6 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
-    struct dentry *exec_dentry = get_path_dentry(path);
     struct proc_cache_t pc = {
         .entry = {
             .executable = {
@@ -38,8 +37,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
         },
         .container = {},
     };
-    fill_file_metadata(exec_dentry, &pc.entry.executable.metadata);
-    set_file_inode(exec_dentry, &pc.entry.executable, 0);
+    fill_file_metadata(syscall->exec.dentry, &pc.entry.executable.metadata);
     bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
 
     // select the previous cookie entry in cache of the current process

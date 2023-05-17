@@ -395,8 +395,9 @@ type Container struct {
 	State      ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
-	CollectorTags []string
-	Owner         *EntityID
+	CollectorTags   []string
+	Owner           *EntityID
+	SecurityContext *ContainerSecurityContext
 }
 
 // GetID implements Entity#GetID.
@@ -451,12 +452,59 @@ func (c Container) String(verbose bool) string {
 		}
 	}
 
+	if c.SecurityContext != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Security Context -----------")
+		if c.SecurityContext.Capabilities != nil {
+			_, _ = fmt.Fprintln(&sb, "----------- Capabilities -----------")
+			_, _ = fmt.Fprintln(&sb, "Add:", c.SecurityContext.Capabilities.Add)
+			_, _ = fmt.Fprintln(&sb, "Drop:", c.SecurityContext.Capabilities.Drop)
+		}
+
+		_, _ = fmt.Fprintln(&sb, "Privileged:", c.SecurityContext.Privileged)
+		if c.SecurityContext.SeccompProfile != nil {
+			_, _ = fmt.Fprintln(&sb, "----------- Seccomp Profile -----------")
+			_, _ = fmt.Fprintln(&sb, "Type:", c.SecurityContext.SeccompProfile.Type)
+			if c.SecurityContext.SeccompProfile.Type == SeccompProfileTypeLocalhost {
+				_, _ = fmt.Fprintln(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
+			}
+		}
+	}
+
 	return sb.String()
 }
 
-// IsOwnedByPod checks if a container's Owner is a KindKubernetesPod
-func (c *Container) IsOwnedByPod() bool {
-	return c.Owner != nil && c.Owner.Kind == KindKubernetesPod
+// PodSecurityContext is the Security Context of a Kubernete pod
+type PodSecurityContext struct {
+	RunAsUser  int32
+	RunAsGroup int32
+	FsGroup    int32
+}
+
+// ContainerSecurityContext is the Security Context of a Container
+type ContainerSecurityContext struct {
+	*Capabilities
+	Privileged     bool
+	SeccompProfile *SeccompProfile
+}
+
+type Capabilities struct {
+	Add  []string
+	Drop []string
+}
+
+// SeccompProfileType is the type of seccomp profile used
+type SeccompProfileType string
+
+const (
+	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
+	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
+	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
+)
+
+// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+type SeccompProfile struct {
+	Type             SeccompProfileType
+	LocalhostProfile string
 }
 
 var _ Entity = &Container{}
@@ -482,6 +530,7 @@ type KubernetesPod struct {
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 	FinishedAt                 time.Time
+	SecurityContext            *PodSecurityContext
 }
 
 // GetID implements Entity#GetID.
@@ -542,6 +591,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		if !p.FinishedAt.IsZero() {
 			_, _ = fmt.Fprintln(&sb, "Finished At:", p.FinishedAt)
 		}
+	}
+
+	if p.SecurityContext != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Pod Security Context -----------")
+		_, _ = fmt.Fprintln(&sb, "RunAsUser:", p.SecurityContext.RunAsUser)
+		_, _ = fmt.Fprintln(&sb, "RunAsGroup:", p.SecurityContext.RunAsGroup)
+		_, _ = fmt.Fprintln(&sb, "FsGroup:", p.SecurityContext.FsGroup)
 	}
 
 	return sb.String()

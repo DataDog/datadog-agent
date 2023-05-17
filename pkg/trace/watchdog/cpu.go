@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && !aix
-// +build !windows,!aix
 
 package watchdog
 

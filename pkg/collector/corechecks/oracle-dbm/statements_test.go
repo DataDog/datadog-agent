@@ -23,7 +23,7 @@ func TestUInt64Binding(t *testing.T) {
 	initAndStartAgentDemultiplexer()
 
 	chk.dbmEnabled = true
-	chk.config.QueryMetrics = true
+	chk.config.QueryMetrics.Enabled = true
 
 	chk.config.InstanceConfig.InstantClient = false
 

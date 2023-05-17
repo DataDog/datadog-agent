@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/channel"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -33,7 +34,7 @@ func NewLauncher() *Launcher {
 }
 
 // Start starts the launcher.
-func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
 	l.sources = sourceProvider.GetAddedForType(config.StringChannelType)
 	go l.run()

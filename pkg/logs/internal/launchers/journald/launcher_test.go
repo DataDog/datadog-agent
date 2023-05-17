@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build systemd
-// +build systemd
 
 package journald
 
@@ -15,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -50,7 +50,7 @@ func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, er
 
 func newTestLauncher() *Launcher {
 	launcher := NewLauncherWithFactory(&MockJournalFactory{})
-	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")))
+	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")), tailers.NewTailerTracker())
 	return launcher
 }
 

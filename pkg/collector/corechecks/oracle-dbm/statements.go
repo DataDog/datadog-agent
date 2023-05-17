@@ -260,7 +260,7 @@ type FQTPayload struct {
 	Host         string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
 	AgentVersion string      `json:"ddagentversion,omitempty"`
 	Source       string      `json:"ddsource"`
-	Tags         []string    `json:"tags,omitempty"`
+	Tags         string      `json:"ddtags,omitempty"`
 	DBMType      string      `json:"dbm_type"`
 	FQTDB        FQTDB       `json:"db"`
 	FQTDBOracle  FQTDBOracle `json:"oracle"`
@@ -390,16 +390,13 @@ func ConstructStatementMetricsQueryBlock(sqlHandleColumn string, whereClause str
 	return fmt.Sprintf(STATEMENT_METRICS_QUERY, sqlHandleColumn, sqlHandleColumn, bindPlaceholder, whereClause, sqlHandleColumn)
 }
 
-// func GetStatementsMetricsForKeys[K comparable](db *sqlx.DB, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
 func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
 	if len(keys) != 0 {
 		db := c.db
-
 		var bindPlaceholder string
 		keysSlice := maps.Keys(keys)
 
 		bindPlaceholder = "?"
-
 		var statementMetrics []StatementMetricsDB
 		statements_metrics_query := ConstructStatementMetricsQueryBlock(keyName, whereClause, bindPlaceholder)
 
@@ -437,12 +434,15 @@ func (c *Check) StatementMetrics() (int, error) {
 	SQLCount := 0
 	totalSQLTextTimeUs := int64(0)
 	var oracleRows []OracleRow
-	FQTSent := make(map[string]int)
 	executionPlanSent := make(map[uint64]int)
 	var planErrors uint16
 	if c.config.QueryMetrics.Enabled {
 		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
-			var DDForceMatchingSignatures []string
+			var DDForceMatchingSignatures []string       
+      /*
+			 * When we want to capture the Datadog Agent queries, we're explicitly looking for them in v$sqlstats, because
+			 * they are excluded from query samples and therefore won't be found in c.statementsCache
+			 */
 			err = c.db.Select(
 				&DDForceMatchingSignatures,
 				"SELECT distinct force_matching_signature FROM v$sqlstats WHERE sql_text like '%/* DD%' and (sysdate-last_active_time)*3600*24 < :1",
@@ -478,6 +478,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		SQLCount = len(statementMetricsAll)
 		sender.Count("dd.oracle.statements_metrics.sql_count", float64(SQLCount), "", c.tags)
 
+		// query metrics cache
 		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
 		if c.statementMetricsMonotonicCountsPrevious == nil {
 			c.copyToPreviousMap(newCache)
@@ -488,7 +489,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-
+		FQTSent := make(map[string]int)
 		for _, statementMetricRow := range statementMetricsAll {
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
@@ -661,14 +662,12 @@ func (c *Check) StatementMetrics() (int, error) {
 					continue
 				}
 				SQLStatement = cols[0].(string)
-
 				obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement)
 				SQLStatement = obfuscatedStatement.Statement
 				if err == nil {
 					queryRow.QuerySignature = obfuscatedStatement.QuerySignature
 					queryRow.Commands = obfuscatedStatement.Commands
 					queryRow.Tables = obfuscatedStatement.Tables
-
 					if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
 						cacheEntry := StatementsCacheData{
 							statement:      SQLStatement,
@@ -700,15 +699,10 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 
-			_, sent := FQTSent[queryRow.QuerySignature]
-			if !sent {
+			_, ok := FQTSent[queryRow.QuerySignature]
+			if !ok {
 				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
-				FQTDB := FQTDB{
-					Instance:       c.cdbName,
-					QuerySignature: queryRow.QuerySignature,
-					Statement:      SQLStatement,
-					FQTDBMetadata:  FQTDBMetadata,
-				}
+				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
 				FQTDBOracle := FQTDBOracle{
 					CDBName: c.cdbName,
 				}
@@ -717,7 +711,7 @@ func (c *Check) StatementMetrics() (int, error) {
 					Host:         c.dbHostname,
 					AgentVersion: c.agentVersion,
 					Source:       common.IntegrationName,
-					Tags:         c.tags,
+					Tags:         c.tagsString,
 					DBMType:      "fqt",
 					FQTDB:        FQTDB,
 					FQTDBOracle:  FQTDBOracle,
@@ -731,7 +725,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				FQTSent[queryRow.QuerySignature] = 1
 			}
 
-			if c.config.ExecutionPlans.Enabled {
+      if c.config.ExecutionPlans.Enabled {
 				_, sent = executionPlanSent[statementMetricRow.PlanHashValue]
 				if !sent {
 					var planStepsPayload []PlanDefinition

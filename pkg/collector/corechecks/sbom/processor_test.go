@@ -4,11 +4,11 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build trivy
-// +build trivy
 
 package sbom
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -395,11 +395,13 @@ func TestProcessEvents(t *testing.T) {
 	}
 
 	cfg := config.Mock(nil)
-	cfg.Set("sbom.enabled", true)
-	_, err := sbomscanner.CreateGlobalScanner(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	cacheDir, err := os.MkdirTemp("", "sbom-cache")
+	assert.Nil(t, err)
+	defer os.RemoveAll(cacheDir)
+	cfg.Set("sbom.cache_directory", cacheDir)
+	cfg.Set("container_image_collection.sbom.enabled", true)
+	_, err = sbomscanner.CreateGlobalScanner(cfg)
+	assert.Nil(t, err)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -414,7 +416,7 @@ func TestProcessEvents(t *testing.T) {
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond)
+			p, err := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond, false)
 			if err != nil {
 				t.Fatal(err)
 			}

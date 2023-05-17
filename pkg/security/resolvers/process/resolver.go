@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package process
 
@@ -22,9 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/shirou/gopsutil/v3/process"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -57,14 +57,6 @@ type ResolverOpts struct {
 	envsWithValue map[string]bool
 }
 
-type processCacheEntrySource uint64
-
-const (
-	processCacheEntryFromEvent     processCacheEntrySource = 1
-	processCacheEntryFromKernelMap processCacheEntrySource = 2
-	processCacheEntryFromProcFS    processCacheEntrySource = 3
-)
-
 // Resolver resolved process context
 type Resolver struct {
 	sync.RWMutex
@@ -80,7 +72,8 @@ type Resolver struct {
 	cgroupResolver    *cgroup.Resolver
 	userGroupResolver *usergroup.Resolver
 	timeResolver      *stime.Resolver
-	pathResolver      *spath.Resolver
+	pathResolver      spath.ResolverInterface
+	envVarsResolver   *envvars.Resolver
 
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
@@ -319,7 +312,7 @@ func (p *Resolver) AddForkEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertForkEntry(entry, processCacheEntryFromEvent)
+	p.insertForkEntry(entry, model.ProcessCacheEntryFromEvent)
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
@@ -327,11 +320,11 @@ func (p *Resolver) AddExecEntry(entry *model.ProcessCacheEntry) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertExecEntry(entry, processCacheEntryFromEvent)
+	p.insertExecEntry(entry, model.ProcessCacheEntryFromEvent)
 }
 
 // enrichEventFromProc uses /proc to enrich a ProcessCacheEntry with additional metadata
-func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *process.Process, filledProc *process.FilledProcess) error {
+func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *process.Process, filledProc *utils.FilledProcess) error {
 	// the provided process is a kernel process if its virtual memory size is null
 	if filledProc.MemInfo.VMS == 0 {
 		return fmt.Errorf("cannot snapshot kernel threads")
@@ -402,8 +395,9 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	}
 
 	entry.EnvsEntry = &model.EnvsEntry{}
-	if envs, err := utils.EnvVars(proc.Pid); err == nil {
+	if envs, truncated, err := p.envVarsResolver.ResolveEnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry.Values = envs
+		entry.EnvsEntry.Truncated = truncated
 	}
 
 	// Heuristic to detect likely interpreter event
@@ -482,7 +476,8 @@ func (p *Resolver) retrieveExecFileFields(procExecPath string) (*model.FileField
 	return &fileFields, nil
 }
 
-func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin processCacheEntrySource) {
+func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin uint64) {
+	entry.Source = origin
 	p.entryCache[entry.Pid] = entry
 	entry.Retain()
 
@@ -496,18 +491,18 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, origin proc
 	}
 
 	switch origin {
-	case processCacheEntryFromEvent:
+	case model.ProcessCacheEntryFromEvent:
 		p.addedEntriesFromEvent.Inc()
-	case processCacheEntryFromKernelMap:
+	case model.ProcessCacheEntryFromKernelMap:
 		p.addedEntriesFromKernelMap.Inc()
-	case processCacheEntryFromProcFS:
+	case model.ProcessCacheEntryFromProcFS:
 		p.addedEntriesFromProcFS.Inc()
 	}
 
 	p.cacheSize.Inc()
 }
 
-func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin processCacheEntrySource) {
+func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -526,7 +521,7 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin proces
 	p.insertEntry(entry, prev, origin)
 }
 
-func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, origin processCacheEntrySource) {
+func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, origin uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		prev.Exec(entry)
@@ -771,11 +766,11 @@ func (p *Resolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEnt
 	}
 
 	if entry.ExecTime.IsZero() {
-		p.insertForkEntry(entry, processCacheEntryFromKernelMap)
+		p.insertForkEntry(entry, model.ProcessCacheEntryFromKernelMap)
 		return entry
 	}
 
-	p.insertExecEntry(entry, processCacheEntryFromKernelMap)
+	p.insertExecEntry(entry, model.ProcessCacheEntryFromKernelMap)
 	return entry
 }
 
@@ -1092,7 +1087,7 @@ func (p *Resolver) setAncestor(pce *model.ProcessCacheEntry) {
 }
 
 // syncCache snapshots /proc for the provided pid. This method returns true if it updated the process cache.
-func (p *Resolver) syncCache(proc *process.Process, filledProc *process.FilledProcess) (*model.ProcessCacheEntry, bool) {
+func (p *Resolver) syncCache(proc *process.Process, filledProc *utils.FilledProcess) (*model.ProcessCacheEntry, bool) {
 	pid := uint32(proc.Pid)
 
 	// Check if an entry is already in cache for the given pid.
@@ -1115,7 +1110,7 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *process.FilledPr
 
 	p.setAncestor(entry)
 
-	p.insertEntry(entry, p.entryCache[pid], processCacheEntryFromProcFS)
+	p.insertEntry(entry, p.entryCache[pid], model.ProcessCacheEntryFromProcFS)
 
 	// insert new entry in kernel maps
 	procCacheEntryB := make([]byte, 224)
@@ -1232,11 +1227,19 @@ func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	}
 }
 
+// HasCompleteLineage returns whether the lineage is complete
+func (p *Resolver) HasCompleteLineage(entry *model.ProcessCacheEntry) bool {
+	p.RLock()
+	defer p.RUnlock()
+
+	return entry.HasCompleteLineage()
+}
+
 // NewResolver returns a new process resolver
 func NewResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
-	pathResolver *spath.Resolver, opts ResolverOpts) (*Resolver, error) {
+	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*Resolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1248,7 +1251,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		statsdClient:              statsdClient,
 		scrubber:                  scrubber,
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		opts:                      opts,
+		opts:                      *opts,
 		argsEnvsCache:             argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
 		hitsStats:                 map[string]*atomic.Int64{},
@@ -1270,6 +1273,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		userGroupResolver:         userGroupResolver,
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
+		envVarsResolver:           envvars.NewEnvVarsResolver(config),
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
@@ -1279,15 +1283,17 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	return p, nil
 }
 
-// NewResolverOpts returns a new set of process resolver options
-func NewResolverOpts(envsWithValue []string) ResolverOpts {
-	opts := ResolverOpts{
-		envsWithValue: make(map[string]bool, len(envsWithValue)),
-	}
-
+// WithEnvsValue specifies envs with value
+func (o *ResolverOpts) WithEnvsValue(envsWithValue []string) *ResolverOpts {
 	for _, envVar := range envsWithValue {
-		opts.envsWithValue[envVar] = true
+		o.envsWithValue[envVar] = true
 	}
+	return o
+}
 
-	return opts
+// NewResolverOpts returns a new set of process resolver options
+func NewResolverOpts() *ResolverOpts {
+	return &ResolverOpts{
+		envsWithValue: make(map[string]bool),
+	}
 }

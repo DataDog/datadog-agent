@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux && !windows
-// +build !linux,!windows
 
 package eventmonitor
 
@@ -15,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc"
 )
+
+// Opts defines options that can be used for the eventmonitor
+type Opts struct{}
 
 // EventMonitor represents the system-probe module for kernel event monitoring
 type EventMonitor struct {

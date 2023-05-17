@@ -4,19 +4,19 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build trivy
-// +build trivy
 
 package trivy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
@@ -523,4 +523,86 @@ func (cache *PersistentCache) collectTelemetry() {
 		log.Errorf("could not collect telemetry: %v", err)
 	}
 	telemetry.SBOMCacheDiskSize.Set(float64(diskSize))
+}
+
+type memoryCache struct {
+	blobInfo *struct {
+		*types.BlobInfo
+		id string
+	}
+	artifactInfo *struct {
+		*types.ArtifactInfo
+		id string
+	}
+}
+
+func (c *memoryCache) MissingBlobs(artifactID string, blobIDs []string) (missingArtifact bool, missingBlobIDs []string, err error) {
+	for _, blobID := range blobIDs {
+		if _, err := c.GetBlob(blobID); err != nil {
+			missingBlobIDs = append(missingBlobIDs, blobID)
+		}
+	}
+
+	if _, err := c.GetArtifact(artifactID); err != nil {
+		missingArtifact = true
+	}
+
+	return
+}
+
+func (c *memoryCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) (err error) {
+	c.artifactInfo = &struct {
+		*types.ArtifactInfo
+		id string
+	}{
+		id:           artifactID,
+		ArtifactInfo: &artifactInfo,
+	}
+	return nil
+}
+
+func (c *memoryCache) PutBlob(blobID string, blobInfo types.BlobInfo) (err error) {
+	c.blobInfo = &struct {
+		*types.BlobInfo
+		id string
+	}{
+		id:       blobID,
+		BlobInfo: &blobInfo,
+	}
+	return nil
+}
+
+func (c *memoryCache) DeleteBlobs(blobIDs []string) error {
+	if c.blobInfo != nil {
+		for _, blobID := range blobIDs {
+			if blobID == c.blobInfo.id {
+				c.blobInfo = nil
+			}
+		}
+	}
+	return nil
+}
+
+func (c *memoryCache) GetArtifact(artifactID string) (artifactInfo types.ArtifactInfo, err error) {
+	if c.artifactInfo != nil && c.artifactInfo.id == artifactID {
+		return *c.artifactInfo.ArtifactInfo, nil
+	}
+	return types.ArtifactInfo{}, nil
+}
+
+func (c *memoryCache) GetBlob(blobID string) (blobInfo types.BlobInfo, err error) {
+	if c.blobInfo != nil && c.blobInfo.id == blobID {
+		return *c.blobInfo.BlobInfo, nil
+	}
+	return types.BlobInfo{}, errors.New("not found")
+}
+
+func (c *memoryCache) Close() (err error) {
+	c.artifactInfo = nil
+	c.blobInfo = nil
+	return nil
+}
+
+func (c *memoryCache) Clear() (err error) {
+	return c.Close()
 }

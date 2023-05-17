@@ -1,8 +1,0 @@
----
-upgrade:
-  - |
-    The files provided by the agent and its configuration are no longer
-    owned by the ``dd-agent`` user but by ``root`` instead.
-    Users of the embedded agent GUI on Linux who need to edit the agent
-    configuration file should change the file permission to keep using
-    this feature.

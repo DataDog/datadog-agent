@@ -2,15 +2,11 @@ enhancements:
   - |
     * Remove BadgerDB cache for Trivy.
     * Add new custom LRU cache for Trivy backed by BoltDB and parametrized by:
-      - ``sbom.use_custom_cache``: Enables the custom cache.
-      - ``sbom.custom_cache_max_cache_entries``: Maximum number of cached objects.
-      - ``sbom.custom_cache_max_disk_size``: Maximum total size of the cached objects.
-      - ``sbom.cache_clean_interval``: Duration interval of garbage collection.
     * Periodically delete unused entries from the custom cache.
     * Add telemetry metrics to monitor the cache:
-      - ``sbom_cached_keys``: Number of cache keys stored in memory
-      - ``sbom_cache_disk_size``: Total size, in bytes, of the database as reported by BoltDB.
-      - ``sbom_cached_object_size``: Total size, in bytes, of cached SBOM objects on disk. Limited by sbom.custom_cache_max_disk_size.
-      - ``sbom_cache_hits_total``: Total number of cache hits.
-      - ``sbom_cache_misses_total``: Total number of cache misses.
-      - ``sbom_cache_evicts_total``: Total number of cache evicts.
+      - ``sbom.cached_keys``: Number of cache keys stored in memory
+      - ``sbom.cache_disk_size``: Total size, in bytes, of the database as reported by BoltDB.
+      - ``sbom.cached_objects_size``: Total size, in bytes, of cached SBOM objects on disk. Limited by sbom.custom_cache_max_disk_size.
+      - ``sbom.cache_hits_total``: Total number of cache hits.
+      - ``sbom.cache_misses_total``: Total number of cache misses.
+      - ``sbom.cache_evicts_total``: Total number of cache evicts.

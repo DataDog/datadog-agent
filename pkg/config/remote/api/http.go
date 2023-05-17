@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,7 +69,7 @@ func NewHTTPClient(auth Auth) (*HTTPClient, error) {
 	httpClient := &http.Client{
 		Transport: transport,
 	}
-	baseRawURL := config.GetMainEndpoint("https://config.", "remote_configuration.rc_dd_url")
+	baseRawURL := utils.GetMainEndpoint(config.Datadog, "https://config.", "remote_configuration.rc_dd_url")
 	baseURL, err := url.Parse(baseRawURL)
 	if err != nil {
 		return nil, err

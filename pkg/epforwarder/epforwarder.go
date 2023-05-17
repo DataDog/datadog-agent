@@ -312,15 +312,20 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 	}
 
-	strategy := sender.NewBatchStrategy(inputChan,
-		senderInput,
-		make(chan struct{}),
-		sender.ArraySerializer,
-		endpoints.BatchWait,
-		endpoints.BatchMaxSize,
-		endpoints.BatchMaxContentSize,
-		desc.eventType,
-		encoder)
+	var strategy sender.Strategy
+	if desc.contentType == http.ProtobufContentType {
+		strategy = sender.NewStreamStrategy(inputChan, senderInput, encoder)
+	} else {
+		strategy = sender.NewBatchStrategy(inputChan,
+			senderInput,
+			make(chan struct{}),
+			sender.ArraySerializer,
+			endpoints.BatchWait,
+			endpoints.BatchMaxSize,
+			endpoints.BatchMaxContentSize,
+			desc.eventType,
+			encoder)
+	}
 
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",

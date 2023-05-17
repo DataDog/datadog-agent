@@ -4,11 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -18,6 +18,10 @@ type Opts struct {
 	DontDiscardRuntime bool
 	// StatsdClient to be used for probe stats
 	StatsdClient statsd.ClientInterface
+	// PathResolutionEnabled defines if the path resolution is enabled
+	PathResolutionEnabled bool
+	// TagsResolver will override the default one. Mainly here for tests.
+	TagsResolver tags.Resolver
 }
 
 func (o *Opts) normalize() {

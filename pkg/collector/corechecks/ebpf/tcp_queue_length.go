@@ -8,7 +8,6 @@
 // which has a hard dependency on `github.com/DataDog/zstd_0`, which requires CGO.
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
 //go:build cgo && linux
-// +build cgo,linux
 
 package ebpf
 
@@ -66,9 +65,6 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 
 // Configure parses the check configuration and init the check
 func (t *TCPQueueLengthCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	// TODO: Remove that hard-code and put it somewhere else
-	process_net.SetSystemProbePath(dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
-
 	err := t.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
@@ -83,7 +79,8 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return nil
 	}
 
-	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil()
+	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
+		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return err
 	}

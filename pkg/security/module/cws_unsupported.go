@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package module
 
@@ -30,3 +29,6 @@ func (c *CWSConsumer) Start() error {
 }
 
 func (c *CWSConsumer) Stop() {}
+
+// UpdateEventMonitorOpts adapt the event monitor options
+func UpdateEventMonitorOpts(opts *eventmonitor.Opts) {}

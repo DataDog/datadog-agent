@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
-// +build !windows
 
 package inventories
 
@@ -296,6 +295,8 @@ func TestGetPayload(t *testing.T) {
 			"agent_version": "%v",
 			"cloud_provider": "some_cloud_provider",
 			"cloud_provider_source": "",
+			"cloud_provider_account_id": "",
+			"cloud_provider_host_id": "",
 			"os_version": "testOS",
 			"hypervisor_guest_uuid": "hypervisorUUID",
 			"dmi_product_uuid": "dmiUUID",
