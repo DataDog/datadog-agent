@@ -31,6 +31,11 @@ type Tags struct {
 	Tags []string
 }
 
+type LambdaInitMetric struct {
+	InitDurationTelemetry float64
+	InitStartTime         time.Time
+}
+
 // LambdaLogsCollector is the route to which the AWS environment is sending the logs
 // for the extension to collect them.
 type LambdaLogsCollector struct {
@@ -48,7 +53,7 @@ type LambdaLogsCollector struct {
 	invocationEndTime      time.Time
 	process_once           *sync.Once
 	executionContext       *executioncontext.ExecutionContext
-	initDurationChan       chan<- float64
+	lambdaInitMetricChan   chan<- *LambdaInitMetric
 
 	arn string
 
@@ -56,7 +61,7 @@ type LambdaLogsCollector struct {
 	handleRuntimeDone func()
 }
 
-func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), initDurationChan chan<- float64) *LambdaLogsCollector {
+func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), lambdaInitMetricChan chan<- *LambdaInitMetric) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{
 		In:                     make(chan []LambdaLogAPIMessage, maxBufferedLogs), // Buffered, so we can hold start-up logs before first invocation without blocking
@@ -68,7 +73,7 @@ func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregato
 		executionContext:       executionContext,
 		handleRuntimeDone:      handleRuntimeDone,
 		process_once:           &sync.Once{},
-		initDurationChan:       initDurationChan,
+		lambdaInitMetricChan:   lambdaInitMetricChan,
 	}
 }
 
@@ -108,7 +113,7 @@ func (lc *LambdaLogsCollector) Shutdown() {
 
 // shouldProcessLog returns whether or not the log should be further processed.
 func shouldProcessLog(message *LambdaLogAPIMessage) bool {
-	if message.logType == logTypePlatformInitReport {
+	if message.logType == logTypePlatformInitReport || message.logType == logTypePlatformInitStart {
 		return true
 	}
 	// Making sure that empty logs are not uselessly sent
@@ -176,7 +181,17 @@ func (lc *LambdaLogsCollector) processMessage(
 		return
 	}
 	if message.logType == logTypePlatformInitReport {
-		lc.initDurationChan <- message.objectRecord.reportLogItem.initDurationTelemetry
+		lambdaMetric := &LambdaInitMetric{
+			InitDurationTelemetry: message.objectRecord.reportLogItem.initDurationTelemetry,
+		}
+		lc.lambdaInitMetricChan <- lambdaMetric
+	}
+
+	if message.logType == logTypePlatformInitStart {
+		lambdaMetric := &LambdaInitMetric{
+			InitStartTime: message.objectRecord.reportLogItem.initStartTime,
+		}
+		lc.lambdaInitMetricChan <- lambdaMetric
 	}
 
 	if message.logType == logTypePlatformStart {
