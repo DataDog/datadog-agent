@@ -34,12 +34,12 @@ func getServiceMapping(serviceName string) string {
 }
 
 func firstNonEmpty(strings ...string) string {
-    for _, str := range strings {
-        if str != "" {
-            return str
-        }
-    }
-    return ""
+	for _, str := range strings {
+		if str != "" {
+			return str
+		}
+	}
+	return ""
 }
 
 // EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
@@ -330,7 +330,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayloa
 
 	// If neither mapping is found, default to "kinesis"
 	serviceName := firstNonEmpty(streamNameMapping, kinesisMapping, "kinesis")
-
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.kinesis"
