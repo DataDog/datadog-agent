@@ -60,6 +60,17 @@ func validateInt(cfg config.Config, key string, defaultVal int, fn func(int) err
 	}
 }
 
+func validateInt64(cfg config.Config, key string, defaultVal int64, fn func(int64) error) {
+	if cfg.IsSet(key) {
+		if err := fn(cfg.GetInt64(key)); err != nil {
+			log.Errorf("error validating `%s`: %s. using default value of `%d`", key, err, defaultVal)
+			cfg.Set(key, defaultVal)
+		}
+	} else {
+		cfg.Set(key, defaultVal)
+	}
+}
+
 func applyDefault(cfg config.Config, key string, defaultVal interface{}) {
 	if !cfg.IsSet(key) {
 		cfg.Set(key, defaultVal)

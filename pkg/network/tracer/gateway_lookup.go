@@ -92,7 +92,7 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 	}
 
 	routeCacheSize := maxRouteCacheSize
-	if config.MaxTrackedConnections <= uint(maxRouteCacheSize) {
+	if int(config.MaxTrackedConnections) <= maxRouteCacheSize {
 		routeCacheSize = int(config.MaxTrackedConnections)
 	} else {
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, config.MaxTrackedConnections)

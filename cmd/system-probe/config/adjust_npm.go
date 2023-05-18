@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	maxConnsMessageBatchSize   = 1000
-	maxOffsetThreshold         = 3000
-	defaultMaxProcessesTracked = 1024
+	maxConnsMessageBatchSize     = 1000
+	maxOffsetThreshold           = 3000
+	defaultMaxProcessesTracked   = 1024
+	defaultMaxTrackedConnections = 65536
 )
 
 func adjustNetwork(cfg config.Config) {
@@ -44,10 +45,21 @@ func adjustNetwork(cfg config.Config) {
 		})
 	}
 
+	validateInt64(cfg, spNS("max_tracked_connections"), defaultMaxTrackedConnections, func(v int64) error {
+		if v <= 0 {
+			return fmt.Errorf("must be a positive value")
+		}
+		return nil
+	})
 	// make sure max_closed_connections_buffered is equal to max_tracked_connections,
 	// if the former is not set. this helps with lowering or eliminating dropped
 	// closed connections in environments with mostly short-lived connections
-	applyDefault(cfg, spNS("max_closed_connections_buffered"), cfg.GetInt(spNS("max_tracked_connections")))
+	validateInt64(cfg, spNS("max_closed_connections_buffered"), cfg.GetInt64(spNS("max_tracked_connections")), func(v int64) error {
+		if v <= 0 {
+			return fmt.Errorf("must be a positive value")
+		}
+		return nil
+	})
 
 	limitMaxInt(cfg, spNS("offset_guess_threshold"), maxOffsetThreshold)
 
