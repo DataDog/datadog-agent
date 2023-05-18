@@ -38,7 +38,7 @@ func DetectLanguage(logger log.Component, procs []procutil.Process) []*Language 
 	for i, proc := range procs {
 		languageName, err := languageFromCommandline(proc.Cmdline)
 		if err != nil {
-			logger.Trace(languageName)
+			logger.Trace("detected language:", languageName)
 		}
 		langs[i] = &Language{}
 	}
