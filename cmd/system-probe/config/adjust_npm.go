@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -51,6 +52,7 @@ func adjustNetwork(cfg config.Config) {
 		}
 		return nil
 	})
+	limitMaxInt64(cfg, spNS("max_tracked_connections"), math.MaxUint32)
 	// make sure max_closed_connections_buffered is equal to max_tracked_connections,
 	// if the former is not set. this helps with lowering or eliminating dropped
 	// closed connections in environments with mostly short-lived connections
@@ -60,6 +62,7 @@ func adjustNetwork(cfg config.Config) {
 		}
 		return nil
 	})
+	limitMaxInt64(cfg, spNS("max_closed_connections_buffered"), math.MaxUint32)
 
 	limitMaxInt(cfg, spNS("offset_guess_threshold"), maxOffsetThreshold)
 
