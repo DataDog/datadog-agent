@@ -972,6 +972,7 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	}
 
 	if bytes.Compare(a.ByteKey(ns.mergeStatsBuffers[0]), b.ByteKey(ns.mergeStatsBuffers[1])) != 0 {
+		log.Debugf("cookie collision for connections %+v and %+v", a, b)
 		// cookie collision
 		return true
 	}
