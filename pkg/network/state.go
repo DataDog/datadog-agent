@@ -135,10 +135,10 @@ const minClosedCapacity = 1024
 type client struct {
 	lastFetch time.Time
 
-	closedConnectionsKeys map[uint32]int
+	closedConnectionsKeys map[StatCookie]int
 
 	closedConnections []ConnectionStats
-	stats             map[uint32]StatCounters
+	stats             map[StatCookie]StatCounters
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
@@ -147,14 +147,14 @@ type client struct {
 	lastTelemetries map[ConnTelemetryType]int64
 }
 
-func (c *client) Reset(active map[uint32]*ConnectionStats) {
+func (c *client) Reset(active map[StatCookie]*ConnectionStats) {
 	half := cap(c.closedConnections) / 2
 	if closedLen := len(c.closedConnections); closedLen > minClosedCapacity && closedLen < half {
 		c.closedConnections = make([]ConnectionStats, half)
 	}
 
 	c.closedConnections = c.closedConnections[:0]
-	c.closedConnectionsKeys = make(map[uint32]int)
+	c.closedConnectionsKeys = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
@@ -162,7 +162,7 @@ func (c *client) Reset(active map[uint32]*ConnectionStats) {
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
-	newStats := make(map[uint32]StatCounters, len(c.stats))
+	newStats := make(map[StatCookie]StatCounters, len(c.stats))
 	for cookie, st := range c.stats {
 		// Only keep active connections stats
 		if _, isActive := active[cookie]; isActive {
@@ -395,8 +395,8 @@ func (ns *networkState) RegisterClient(id string) {
 }
 
 // getConnsByCookie returns a mapping of cookie -> connection for easier access + manipulation
-func (ns *networkState) getConnsByCookie(conns []ConnectionStats) map[uint32]*ConnectionStats {
-	connsByKey := make(map[uint32]*ConnectionStats, len(conns))
+func (ns *networkState) getConnsByCookie(conns []ConnectionStats) map[StatCookie]*ConnectionStats {
+	connsByKey := make(map[StatCookie]*ConnectionStats, len(conns))
 	for i := range conns {
 		var c *ConnectionStats
 		if c = connsByKey[conns[i].Cookie]; c == nil {
@@ -612,9 +612,9 @@ func (ns *networkState) getClient(clientID string) *client {
 
 	c := &client{
 		lastFetch:             time.Now(),
-		stats:                 make(map[uint32]StatCounters),
+		stats:                 make(map[StatCookie]StatCounters),
 		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
-		closedConnectionsKeys: make(map[uint32]int),
+		closedConnectionsKeys: make(map[StatCookie]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
 		httpStatsDelta:        map[http.Key]*http.RequestStats{},
 		http2StatsDelta:       map[http.Key]*http.RequestStats{},
@@ -626,7 +626,7 @@ func (ns *networkState) getClient(clientID string) *client {
 }
 
 // mergeConnections return the connections and takes care of updating their last stat counters
-func (ns *networkState) mergeConnections(id string, active map[uint32]*ConnectionStats, buffer *clientBuffer) {
+func (ns *networkState) mergeConnections(id string, active map[StatCookie]*ConnectionStats, buffer *clientBuffer) {
 	now := time.Now()
 
 	client := ns.clients[id]
@@ -677,7 +677,7 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 	aggrConns.WriteTo(buffer)
 }
 
-func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *ConnectionStats) {
+func (ns *networkState) updateConnWithStats(client *client, cookie StatCookie, c *ConnectionStats) {
 	c.Last = StatCounters{}
 	if sts, ok := client.stats[cookie]; ok {
 		var last StatCounters
@@ -700,7 +700,7 @@ func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *Co
 }
 
 // createStatsForCookie will create a new stats object for a key if it doesn't already exist.
-func (ns *networkState) createStatsForCookie(client *client, cookie uint32) {
+func (ns *networkState) createStatsForCookie(client *client, cookie StatCookie) {
 	if _, ok := client.stats[cookie]; !ok {
 		if len(client.stats) >= ns.maxClientStats {
 			stateTelemetry.connDropped.Inc()

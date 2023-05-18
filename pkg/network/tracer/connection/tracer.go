@@ -557,7 +557,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
 		LastUpdateEpoch:  s.Timestamp,
 		IsAssured:        s.IsAssured(),
-		Cookie:           s.Cookie,
+		Cookie:           network.StatCookie(s.Cookie),
 	}
 
 	stats.ProtocolStack = protocols.Stack{
@@ -607,13 +607,13 @@ func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *nete
 }
 
 type cookieHasher struct {
-	hash hash.Hash32
+	hash hash.Hash64
 	buf  []byte
 }
 
 func newCookieHasher() *cookieHasher {
 	return &cookieHasher{
-		hash: murmur3.New32(),
+		hash: murmur3.New64(),
 		buf:  make([]byte, network.ConnectionByteKeyMaxLen),
 	}
 }
@@ -629,5 +629,5 @@ func (h *cookieHasher) Hash(stats *network.ConnectionStats) {
 		log.Errorf("error writing byte key to hash: %s", err)
 		return
 	}
-	stats.Cookie = h.hash.Sum32()
+	stats.Cookie = h.hash.Sum64()
 }
