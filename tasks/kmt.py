@@ -160,7 +160,7 @@ def check_and_get_stack(stack, branch):
     if stack is None and not branch:
         raise Exit("Stack name required if not using current branch")
 
-    if stack is not None and branch:
+    if stack and branch:
         raise Exit("Cannot specify stack when branch parameter is set")
 
     if branch:
