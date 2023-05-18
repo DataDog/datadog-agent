@@ -84,6 +84,9 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 		// between the first invocation start time and initTime
 		// is greater than 10, we're in a proactive_initialization
 		// not a cold start
+
+		// TODO Astuyve - refactor this to use initTime
+		// from TelemetryAPI
 		if time.Now().Sub(ec.initTime) > 10*time.Second {
 			ec.proactiveInit = true
 			ec.coldstart = false
