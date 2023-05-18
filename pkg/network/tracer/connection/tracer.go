@@ -620,8 +620,14 @@ func newCookieHasher() *cookieHasher {
 
 func (h *cookieHasher) Hash(stats *network.ConnectionStats) {
 	h.hash.Reset()
-	binary.Write(h.hash, binary.BigEndian, stats.Cookie)
+	if err := binary.Write(h.hash, binary.BigEndian, stats.Cookie); err != nil {
+		log.Errorf("error writing cookie to hash: %s", err)
+		return
+	}
 	stats.ByteKey(h.buf)
-	h.hash.Write(h.buf)
+	if _, err := h.hash.Write(h.buf); err != nil {
+		log.Errorf("error writing byte key to hash: %s", err)
+		return
+	}
 	stats.Cookie = h.hash.Sum32()
 }
