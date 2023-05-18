@@ -38,9 +38,11 @@ func adjustConfig(cfg config.Config) {
 	adjustSecurity(cfg)
 }
 
-func validateString(cfg config.Config, key string, defaultVal string, fn func(string) error) {
+// validateString validates the string configuration value at `key` using a custom provided function `valFn`.
+// If `key` is not set or `valFn` returns an error, the `defaultVal` is used instead.
+func validateString(cfg config.Config, key string, defaultVal string, valFn func(string) error) {
 	if cfg.IsSet(key) {
-		if err := fn(cfg.GetString(key)); err != nil {
+		if err := valFn(cfg.GetString(key)); err != nil {
 			log.Errorf("error validating `%s`: %s. using default value of `%s`", key, err, defaultVal)
 			cfg.Set(key, defaultVal)
 		}
@@ -49,9 +51,11 @@ func validateString(cfg config.Config, key string, defaultVal string, fn func(st
 	}
 }
 
-func validateInt(cfg config.Config, key string, defaultVal int, fn func(int) error) {
+// validateInt validates the int configuration value at `key` using a custom provided function `valFn`.
+// If `key` is not set or `valFn` returns an error, the `defaultVal` is used instead.
+func validateInt(cfg config.Config, key string, defaultVal int, valFn func(int) error) {
 	if cfg.IsSet(key) {
-		if err := fn(cfg.GetInt(key)); err != nil {
+		if err := valFn(cfg.GetInt(key)); err != nil {
 			log.Errorf("error validating `%s`: %s. using default value of `%d`", key, err, defaultVal)
 			cfg.Set(key, defaultVal)
 		}
@@ -60,9 +64,11 @@ func validateInt(cfg config.Config, key string, defaultVal int, fn func(int) err
 	}
 }
 
-func validateInt64(cfg config.Config, key string, defaultVal int64, fn func(int64) error) {
+// validateInt64 validates the int64 configuration value at `key` using a custom provided function `valFn`.
+// If `key` is not set or `valFn` returns an error, the `defaultVal` is used instead.
+func validateInt64(cfg config.Config, key string, defaultVal int64, valFn func(int64) error) {
 	if cfg.IsSet(key) {
-		if err := fn(cfg.GetInt64(key)); err != nil {
+		if err := valFn(cfg.GetInt64(key)); err != nil {
 			log.Errorf("error validating `%s`: %s. using default value of `%d`", key, err, defaultVal)
 			cfg.Set(key, defaultVal)
 		}
@@ -71,6 +77,7 @@ func validateInt64(cfg config.Config, key string, defaultVal int64, fn func(int6
 	}
 }
 
+// applyDefault sets configuration `key` to `defaultVal` only if not previously set.
 func applyDefault(cfg config.Config, key string, defaultVal interface{}) {
 	if !cfg.IsSet(key) {
 		cfg.Set(key, defaultVal)
@@ -85,12 +92,16 @@ func deprecateBool(cfg config.Config, oldkey string, newkey string) {
 	})
 }
 
+// deprecateString sets `newkey` to the value at `oldkey` and logs a deprecation message,
+// but only if `oldkey` is set and `newkey` is not set.
 func deprecateString(cfg config.Config, oldkey string, newkey string) {
 	deprecateCustom(cfg, oldkey, newkey, func(cfg config.Config) interface{} {
 		return cfg.GetString(oldkey)
 	})
 }
 
+// deprecateCustom sets `newkey` to the value obtained from `getFn` and logs a deprecation message,
+// but only if `oldkey` is set and `newkey` is not set.
 func deprecateCustom(cfg config.Config, oldkey string, newkey string, getFn func(config.Config) interface{}) {
 	if cfg.IsSet(oldkey) && !cfg.IsSet(newkey) {
 		log.Warn(deprecationMessage(oldkey, newkey))
@@ -98,10 +109,12 @@ func deprecateCustom(cfg config.Config, oldkey string, newkey string, getFn func
 	}
 }
 
+// deprecationMessage returns the standard deprecation message
 func deprecationMessage(oldkey, newkey string) string {
 	return fmt.Sprintf("configuration key `%s` is deprecated, use `%s` instead", oldkey, newkey)
 }
 
+// limitMaxInt logs a warning and sets `key` to `max` if the value exceeds `max`.
 func limitMaxInt(cfg config.Config, key string, max int) {
 	val := cfg.GetInt(key)
 	if val > max {
@@ -110,6 +123,7 @@ func limitMaxInt(cfg config.Config, key string, max int) {
 	}
 }
 
+// limitMaxInt64 logs a warning and sets `key` to `max` if the value exceeds `max`.
 func limitMaxInt64(cfg config.Config, key string, max int64) {
 	val := cfg.GetInt64(key)
 	if val > max {
