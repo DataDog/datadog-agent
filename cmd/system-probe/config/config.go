@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/viper"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -88,16 +87,8 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
 		// System probe is not supported on darwin, so we should fail gracefully in this case.
-		if runtime.GOOS != "darwin" {
-			if errors.Is(err, os.ErrPermission) {
-				log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-			} else {
-				log.Warnf("Error loading config: %v", err)
-			}
-		}
-
 		var e viper.ConfigFileNotFoundError
-		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
+		if runtime.GOOS == "darwin" || errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			// do nothing, we can ignore a missing system-probe.yaml config file
 		} else if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
