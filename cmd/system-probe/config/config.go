@@ -69,6 +69,11 @@ func NewCustom(configPath string, loadSecrets bool) (*Config, error) {
 }
 
 func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
+	// System probe is not supported on darwin, so we should fail gracefully in this case.
+	if runtime.GOOS == "darwin" {
+		return &Config{}, nil
+	}
+
 	aconfig.SystemProbe.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -86,9 +91,8 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", loadSecrets, aconfig.Datadog.GetEnvVars())
 	if err != nil {
-		// System probe is not supported on darwin, so we should fail gracefully in this case.
 		var e viper.ConfigFileNotFoundError
-		if runtime.GOOS == "darwin" || errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
+		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			// do nothing, we can ignore a missing system-probe.yaml config file
 		} else if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -152,14 +156,8 @@ func load() (*Config, error) {
 		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
 
-	if len(c.EnabledModules) > 0 {
-		c.Enabled = true
-	} else {
-		c.Enabled = false
-		c.SocketAddress = ""
-	}
+	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use adjustConfig function
-	cfg.Set(spNS("sysprobe_socket"), c.SocketAddress)
 	cfg.Set(spNS("enabled"), c.Enabled)
 
 	return c, nil
