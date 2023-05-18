@@ -413,7 +413,7 @@ func (ns *networkState) getConnsByCookie(conns []ConnectionStats) map[StatCookie
 			stateTelemetry.statsCookieCollisions.Inc()
 			// pick the latest one
 			if conns[i].LastUpdateEpoch > c.LastUpdateEpoch {
-				connsByKey[c.Cookie] = c
+				connsByKey[conns[i].Cookie] = &conns[i]
 			}
 		}
 	}
