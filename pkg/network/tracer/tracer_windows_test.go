@@ -8,6 +8,7 @@
 package tracer
 
 import (
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -24,6 +25,7 @@ func classificationSupported(config *config.Config) bool {
 }
 
 func testConfig() *config.Config {
+	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	return cfg
 }

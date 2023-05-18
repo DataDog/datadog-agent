@@ -18,6 +18,7 @@ import (
 	"github.com/vishvananda/netns"
 	"go4.org/netipx"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -44,6 +45,7 @@ func TestConntrackers(t *testing.T) {
 	for _, conntracker := range conntrackers {
 		t.Run(conntracker.name, func(t *testing.T) {
 			t.Run("IPv4", func(t *testing.T) {
+				_, _ = sysconfig.New("/doesnotexist")
 				cfg := config.New()
 				ct, err := conntracker.create(t, cfg)
 				require.NoError(t, err)
@@ -54,6 +56,7 @@ func TestConntrackers(t *testing.T) {
 				testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct, cfg)
 			})
 			t.Run("IPv6", func(t *testing.T) {
+				_, _ = sysconfig.New("/doesnotexist")
 				cfg := config.New()
 				ct, err := conntracker.create(t, cfg)
 				require.NoError(t, err)
@@ -73,6 +76,7 @@ func TestConntrackers(t *testing.T) {
 					}
 				}
 
+				_, _ = sysconfig.New("/doesnotexist")
 				cfg := config.New()
 				cfg.EnableConntrackAllNamespaces = true
 				ct, err := conntracker.create(t, cfg)
@@ -82,6 +86,7 @@ func TestConntrackers(t *testing.T) {
 				testConntrackerCrossNamespace(t, ct)
 			})
 			t.Run("cross namespace - NAT rule on root namespace", func(t *testing.T) {
+				_, _ = sysconfig.New("/doesnotexist")
 				cfg := config.New()
 				cfg.EnableConntrackAllNamespaces = true
 				ct, err := conntracker.create(t, cfg)

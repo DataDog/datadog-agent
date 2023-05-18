@@ -18,7 +18,7 @@ import (
 func TestDisableRootNetNamespace(t *testing.T) {
 	newConfig(t)
 	t.Setenv("DD_NETWORK_CONFIG_ENABLE_ROOT_NETNS", "false")
-	_, err := sysconfig.New("")
+	_, err := sysconfig.New("/doesnotexist")
 	require.NoError(t, err)
 
 	cfg := New()

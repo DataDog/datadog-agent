@@ -13,14 +13,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
+	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
 	tel, err := NewTelemetry()
@@ -99,6 +102,7 @@ func TestPathProcessing(t *testing.T) {
 		statusCode = 200
 		latency    = time.Second
 	)
+	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
 	setupStatKeeper := func(rules []*config.ReplaceRule) *HttpStatKeeper {
@@ -195,6 +199,7 @@ func TestPathProcessing(t *testing.T) {
 
 func TestHTTPCorrectness(t *testing.T) {
 	t.Run("wrong path format", func(t *testing.T) {
+		_, _ = sysconfig.New("/doesnotexist")
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
@@ -220,6 +225,7 @@ func TestHTTPCorrectness(t *testing.T) {
 	})
 
 	t.Run("invalid http verb", func(t *testing.T) {
+		_, _ = sysconfig.New("/doesnotexist")
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
@@ -246,6 +252,7 @@ func TestHTTPCorrectness(t *testing.T) {
 	})
 
 	t.Run("invalid latency", func(t *testing.T) {
+		_, _ = sysconfig.New("/doesnotexist")
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()

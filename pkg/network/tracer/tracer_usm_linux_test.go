@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
@@ -65,6 +66,7 @@ func goTLSSupported() bool {
 	if !httpsSupported() {
 		return false
 	}
+	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	return cfg.EnableRuntimeCompiler || cfg.EnableCORE
 }
@@ -943,6 +945,7 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	}
 
 	t.Run("new process (runtime compilation)", func(t *testing.T) {
+		_, _ = sysconfig.New("/doesnotexist")
 		cfg := config.New()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
@@ -950,6 +953,7 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	})
 
 	t.Run("already running process (runtime compilation)", func(t *testing.T) {
+		_, _ = sysconfig.New("/doesnotexist")
 		cfg := config.New()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
@@ -960,6 +964,7 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
 	// and running the CO-RE tests as well
 	t.Run("new process (co-re)", func(t *testing.T) {
+		_, _ = sysconfig.New("/doesnotexist")
 		cfg := config.New()
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false
@@ -968,6 +973,7 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	})
 
 	t.Run("already running process (co-re)", func(t *testing.T) {
+		_, _ = sysconfig.New("/doesnotexist")
 		cfg := config.New()
 		cfg.EnableCORE = true
 		cfg.EnableRuntimeCompiler = false

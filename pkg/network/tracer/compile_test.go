@@ -12,10 +12,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 func TestConntrackCompile(t *testing.T) {
+	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	cfg.BPFDebug = true
 	out, err := getRuntimeCompiledConntracker(cfg)

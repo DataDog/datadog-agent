@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -27,6 +28,7 @@ const (
 
 func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries can be joined even after flushing", func(t *testing.T) {
+		_, _ = sysconfig.New("/doesnotexist")
 		now := time.Now()
 		tel, err := NewTelemetry()
 		require.NoError(t, err)
@@ -58,6 +60,7 @@ func TestOrphanEntries(t *testing.T) {
 	})
 
 	t.Run("orphan entries are not kept indefinitely", func(t *testing.T) {
+		_, _ = sysconfig.New("/doesnotexist")
 		tel, err := NewTelemetry()
 		require.NoError(t, err)
 		buffer := newIncompleteBuffer(config.New(), tel)

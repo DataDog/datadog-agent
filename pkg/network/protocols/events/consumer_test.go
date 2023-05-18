@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	bpftelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
@@ -37,6 +38,7 @@ func TestConsumer(t *testing.T) {
 	}
 
 	const numEvents = 100
+	_, _ = sysconfig.New("/doesnotexist")
 	c := config.New()
 	program, err := newEBPFProgram(c)
 	require.NoError(t, err)

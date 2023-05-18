@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -37,6 +38,7 @@ const (
 func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 	ns := testutil.SetupCrossNsDNAT(t)
 
+	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500

@@ -21,6 +21,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -359,6 +360,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 			},
 			teardown: kafkaTeardown,
 			configuration: func() *config.Config {
+				_, _ = sysconfig.New("/doesnotexist")
 				cfg := config.New()
 				cfg.EnableHTTPMonitoring = true
 				return cfg
@@ -438,6 +440,7 @@ func testProtocolParsingInner(t *testing.T, params kafkaParsingTestAttributes, c
 }
 
 func getDefaultTestConfiguration() *config.Config {
+	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true
@@ -472,6 +475,7 @@ func TestLoadKafkaBinary(t *testing.T) {
 }
 
 func loadKafkaBinary(t *testing.T, debug bool, binaryType BinaryType) {
+	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	// We don't have a way of enabling kafka without http at the moment
 	cfg.EnableHTTPMonitoring = true

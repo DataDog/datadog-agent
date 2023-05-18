@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -428,6 +429,7 @@ func checkWatcherStateIsClean(t *testing.T, watcher *soWatcher) {
 }
 
 func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
+	_, _ = sysconfig.New("/doesnotexist")
 	c := config.New()
 	if !http.HTTPSSupported(c) {
 		t.Skip("https not supported for this setup")
