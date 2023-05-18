@@ -43,7 +43,6 @@ func getExe(cmd []string) string {
 	if len(cmd) == 1 {
 		if idx := strings.IndexRune(exe, ' '); idx != -1 {
 			exe = exe[0:idx]
-			cmd = strings.Split(cmd[0], " ")
 		}
 	}
 
