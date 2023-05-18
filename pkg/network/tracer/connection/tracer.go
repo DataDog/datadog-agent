@@ -565,7 +565,6 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Application: protocols.Application(s.Protocol_stack.Application),
 		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
 	}
-	stats.StaticTags |= uint64(s.Conn_tags)
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP
