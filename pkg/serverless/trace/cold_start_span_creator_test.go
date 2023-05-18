@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 
+	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -39,17 +40,22 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	coldStartDuration := 50.0 // Given in millis
 
 	lambdaSpanChan := make(chan *pb.Span)
-	initDurationChan := make(chan float64)
+	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
 	stopChan := make(chan struct{})
 	coldStartSpanId := random.Random.Uint64()
-	agentStartTimeNanos := time.Now().Add(-1 * time.Second).UnixNano()
+	initReportStartTime := time.Now().Add(-1 * time.Second)
+	lambdaInitMetricDuration := &serverlessLog.LambdaInitMetric{
+		InitDurationTelemetry: coldStartDuration,
+	}
+	lambdaInitMetricStartTime := &serverlessLog.LambdaInitMetric{
+		InitStartTime: initReportStartTime,
+	}
 	coldStartSpanCreator := &ColdStartSpanCreator{
-		TraceAgent:          traceAgent,
-		LambdaSpanChan:      lambdaSpanChan,
-		AgentStartTimeNanos: agentStartTimeNanos,
-		InitDurationChan:    initDurationChan,
-		ColdStartSpanId:     coldStartSpanId,
-		StopChan:            stopChan,
+		TraceAgent:           traceAgent,
+		LambdaSpanChan:       lambdaSpanChan,
+		LambdaInitMetricChan: lambdaInitMetricChan,
+		ColdStartSpanId:      coldStartSpanId,
+		StopChan:             stopChan,
 	}
 
 	coldStartSpanCreator.Run()
@@ -66,7 +72,8 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 		Duration: 500000000,
 	}
 	lambdaSpanChan <- lambdaSpan
-	initDurationChan <- coldStartDuration
+	lambdaInitMetricChan <- lambdaInitMetricDuration
+	lambdaInitMetricChan <- lambdaInitMetricStartTime
 
 	timeout := time.After(2 * time.Second)
 	var span *pb.Span
@@ -78,7 +85,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	}
 	assert.Equal(t, "aws.lambda", span.Service)
 	assert.Equal(t, "aws.lambda.cold_start", span.Name)
-	assert.Equal(t, agentStartTimeNanos, span.Start)
+	assert.Equal(t, initReportStartTime.UnixNano(), span.Start)
 	assert.Equal(t, int64(coldStartDuration*1000000), span.Duration)
 }
 
@@ -98,17 +105,22 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 	coldStartDuration := 50.0 // Given in millis
 
 	lambdaSpanChan := make(chan *pb.Span)
-	initDurationChan := make(chan float64)
+	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
+	initReportStartTime := time.Now().Add(10 * time.Second)
+	lambdaInitMetricDuration := &serverlessLog.LambdaInitMetric{
+		InitDurationTelemetry: coldStartDuration,
+	}
+	lambdaInitMetricStartTime := &serverlessLog.LambdaInitMetric{
+		InitStartTime: initReportStartTime,
+	}
 	stopChan := make(chan struct{})
 	coldStartSpanId := random.Random.Uint64()
-	agentStartTimeNanos := time.Now().Add(10 * time.Second).UnixNano()
 	coldStartSpanCreator := &ColdStartSpanCreator{
-		TraceAgent:          traceAgent,
-		LambdaSpanChan:      lambdaSpanChan,
-		AgentStartTimeNanos: agentStartTimeNanos,
-		InitDurationChan:    initDurationChan,
-		ColdStartSpanId:     coldStartSpanId,
-		StopChan:            stopChan,
+		TraceAgent:           traceAgent,
+		LambdaSpanChan:       lambdaSpanChan,
+		LambdaInitMetricChan: lambdaInitMetricChan,
+		ColdStartSpanId:      coldStartSpanId,
+		StopChan:             stopChan,
 	}
 
 	coldStartSpanCreator.Run()
@@ -125,8 +137,8 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 		Duration: 500000000,
 	}
 	lambdaSpanChan <- lambdaSpan
-	initDurationChan <- coldStartDuration
-
+	lambdaInitMetricChan <- lambdaInitMetricDuration
+	lambdaInitMetricChan <- lambdaInitMetricStartTime
 	timeout := time.After(2 * time.Second)
 	var span *pb.Span
 	select {
@@ -155,15 +167,22 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	}
 	coldStartDuration := 50.0 // Given in millis
 	lambdaSpanChan := make(chan *pb.Span)
-	initDurationChan := make(chan float64)
+	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
+	initReportStartTime := time.Now().Add(-1 * time.Second)
+	lambdaInitMetricDuration := &serverlessLog.LambdaInitMetric{
+		InitDurationTelemetry: coldStartDuration,
+	}
+	lambdaInitMetricStartTime := &serverlessLog.LambdaInitMetric{
+		InitStartTime: initReportStartTime,
+	}
 	stopChan := make(chan struct{})
 	coldStartSpanId := random.Random.Uint64()
 	coldStartSpanCreator := &ColdStartSpanCreator{
-		TraceAgent:       traceAgent,
-		LambdaSpanChan:   lambdaSpanChan,
-		InitDurationChan: initDurationChan,
-		ColdStartSpanId:  coldStartSpanId,
-		StopChan:         stopChan,
+		TraceAgent:           traceAgent,
+		LambdaSpanChan:       lambdaSpanChan,
+		LambdaInitMetricChan: lambdaInitMetricChan,
+		ColdStartSpanId:      coldStartSpanId,
+		StopChan:             stopChan,
 	}
 
 	coldStartSpanCreator.Run()
@@ -179,7 +198,8 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 		Duration: 500,
 	}
 	lambdaSpanChan <- lambdaSpan
-	initDurationChan <- coldStartDuration
+	lambdaInitMetricChan <- lambdaInitMetricDuration
+	lambdaInitMetricChan <- lambdaInitMetricStartTime
 	timeout := time.After(time.Millisecond)
 	timedOut := false
 	select {
@@ -204,15 +224,15 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 		ta: agnt,
 	}
 	lambdaSpanChan := make(chan *pb.Span)
-	initDurationChan := make(chan float64)
+	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
 	stopChan := make(chan struct{})
 	coldStartSpanId := random.Random.Uint64()
 	coldStartSpanCreator := &ColdStartSpanCreator{
-		TraceAgent:       traceAgent,
-		LambdaSpanChan:   lambdaSpanChan,
-		InitDurationChan: initDurationChan,
-		ColdStartSpanId:  coldStartSpanId,
-		StopChan:         stopChan,
+		TraceAgent:           traceAgent,
+		LambdaSpanChan:       lambdaSpanChan,
+		LambdaInitMetricChan: lambdaInitMetricChan,
+		ColdStartSpanId:      coldStartSpanId,
+		StopChan:             stopChan,
 	}
 
 	coldStartSpanCreator.Run()
@@ -228,7 +248,7 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 		Duration: 500,
 	}
 	lambdaSpanChan <- lambdaSpan
-	// Don't write to initDurationChan, as this is not a cold start
+	// Don't write to lambdaInitMetricChan, as this is not a cold start
 
 	timeout := time.After(time.Millisecond)
 	timedOut := false
@@ -257,17 +277,22 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	coldStartDuration := 50.0 // Given in millis
 
 	lambdaSpanChan := make(chan *pb.Span)
-	initDurationChan := make(chan float64)
+	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
 	stopChan := make(chan struct{})
 	coldStartSpanId := random.Random.Uint64()
-	agentStartTimeNanos := time.Now().Add(-10 * time.Minute).UnixNano()
+	initReportStartTime := time.Now().Add(-10 * time.Minute)
+	lambdaInitMetricDuration := &serverlessLog.LambdaInitMetric{
+		InitDurationTelemetry: coldStartDuration,
+	}
+	lambdaInitMetricStartTime := &serverlessLog.LambdaInitMetric{
+		InitStartTime: initReportStartTime,
+	}
 	coldStartSpanCreator := &ColdStartSpanCreator{
-		TraceAgent:          traceAgent,
-		LambdaSpanChan:      lambdaSpanChan,
-		AgentStartTimeNanos: agentStartTimeNanos,
-		InitDurationChan:    initDurationChan,
-		ColdStartSpanId:     coldStartSpanId,
-		StopChan:            stopChan,
+		TraceAgent:           traceAgent,
+		LambdaSpanChan:       lambdaSpanChan,
+		LambdaInitMetricChan: lambdaInitMetricChan,
+		ColdStartSpanId:      coldStartSpanId,
+		StopChan:             stopChan,
 	}
 
 	coldStartSpanCreator.Run()
@@ -284,7 +309,8 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 		Duration: 500000000,
 	}
 	lambdaSpanChan <- lambdaSpan
-	initDurationChan <- coldStartDuration
+	lambdaInitMetricChan <- lambdaInitMetricStartTime
+	lambdaInitMetricChan <- lambdaInitMetricDuration
 
 	timeout := time.After(2 * time.Second)
 	var span *pb.Span
@@ -296,6 +322,6 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	}
 	assert.Equal(t, "aws.lambda", span.Service)
 	assert.Equal(t, "aws.lambda.cold_start", span.Name)
-	assert.Equal(t, agentStartTimeNanos, span.Start)
+	assert.Equal(t, initReportStartTime.UnixNano(), span.Start)
 	assert.Equal(t, int64(coldStartDuration*1000000), span.Duration)
 }
