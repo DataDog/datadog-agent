@@ -411,6 +411,10 @@ func (ns *networkState) getConnsByCookie(conns []ConnectionStats) map[StatCookie
 		if ns.mergeConnectionStats(c, &conns[i]) {
 			// cookie collision
 			stateTelemetry.statsCookieCollisions.Inc()
+			// pick the latest one
+			if conns[i].LastUpdateEpoch > c.LastUpdateEpoch {
+				connsByKey[c.Cookie] = c
+			}
 		}
 	}
 
@@ -431,6 +435,10 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			if i, ok := client.closedConnectionsKeys[c.Cookie]; ok {
 				if ns.mergeConnectionStats(&client.closedConnections[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
+					// pick the latest one
+					if c.LastUpdateEpoch > client.closedConnections[i].LastUpdateEpoch {
+						client.closedConnections[i] = c
+					}
 				}
 				continue
 			}
@@ -641,6 +649,15 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 		if activeConn := active[cookie]; activeConn != nil {
 			if ns.mergeConnectionStats(closedConn, activeConn) {
 				stateTelemetry.statsCookieCollisions.Inc()
+				// remove any previous stats since we
+				// can't distinguish between the two sets of stats
+				delete(client.stats, cookie)
+				if activeConn.LastUpdateEpoch > closedConn.LastUpdateEpoch {
+					// keep active connection
+					continue
+				}
+
+				// keep closed connection
 			}
 			// not an active connection
 			delete(active, cookie)
