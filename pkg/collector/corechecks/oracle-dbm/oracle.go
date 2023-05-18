@@ -60,6 +60,8 @@ type Check struct {
 	dbVersion                               string
 	driver                                  string
 	statementsLastRun                       time.Time
+	filePath                                string
+	isRDS                                   bool
 }
 
 // Run executes the check.
@@ -69,6 +71,10 @@ func (c *Check) Run() error {
 		if err != nil {
 			c.Teardown()
 			return err
+		}
+		if db == nil {
+			c.Teardown()
+			return fmt.Errorf("empty connection")
 		}
 		c.db = db
 	}
@@ -166,9 +172,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	if c.dbHostname == "" || c.dbVersion == "" {
-		row := db.QueryRow("SELECT /* DD */ host_name, version FROM v$instance")
+		row := db.QueryRow("SELECT /* DD */ host_name, version, instance_name FROM v$instance")
 		var dbHostname string
-		err = row.Scan(&dbHostname, &c.dbVersion)
+		var instanceName string
+		err = row.Scan(&dbHostname, &c.dbVersion, &instanceName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
 		}
@@ -178,6 +185,18 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			c.dbHostname = dbHostname
 		}
 		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
+	}
+
+	if c.filePath == "" {
+		r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
+		var path string
+		err = r.Scan(&path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query path: %w", err)
+		}
+		if path == "/rdsdbdata" {
+			c.isRDS = true
+		}
 	}
 
 	return db, nil

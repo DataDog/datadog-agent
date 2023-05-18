@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package eventmonitor
 

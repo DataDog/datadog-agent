@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build freebsd || linux || netbsd || openbsd || solaris || dragonfly || aix
-// +build freebsd linux netbsd openbsd solaris dragonfly aix
 
 package pidfile
 
