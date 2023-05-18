@@ -57,7 +57,7 @@ func adjustNetwork(cfg config.Config) {
 
 	validateInt(cfg, evNS("network_process", "max_processes_tracked"), defaultMaxProcessesTracked, func(v int) error {
 		if v <= 0 {
-			return fmt.Errorf("%d non-positive", v)
+			return fmt.Errorf("`%d` is 0 or less", v)
 		}
 		return nil
 	})

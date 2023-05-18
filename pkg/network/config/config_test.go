@@ -490,14 +490,18 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
 
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
 		cfg := New()
-		require.Equal(t, int(maxTrackedConnections-1), cfg.MaxClosedConnectionsBuffered)
+		require.Equal(t, maxTrackedConnections-1, cfg.MaxClosedConnectionsBuffered)
 	})
 
 	t.Run("value not set", func(t *testing.T) {
 		newConfig(t)
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
 		cfg := New()
-		require.Equal(t, int(cfg.MaxTrackedConnections), cfg.MaxClosedConnectionsBuffered)
+		require.Equal(t, cfg.MaxTrackedConnections, cfg.MaxClosedConnectionsBuffered)
 	})
 }
 
@@ -506,6 +510,8 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
 
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
 		cfg := New()
 		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)
 	})

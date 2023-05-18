@@ -39,15 +39,23 @@ func adjustConfig(cfg config.Config) {
 }
 
 func validateString(cfg config.Config, key string, defaultVal string, fn func(string) error) {
-	if err := fn(cfg.GetString(key)); err != nil {
-		log.Errorf("error validating `%s`: %s. using default value of `%s`", key, err, defaultVal)
+	if cfg.IsSet(key) {
+		if err := fn(cfg.GetString(key)); err != nil {
+			log.Errorf("error validating `%s`: %s. using default value of `%s`", key, err, defaultVal)
+			cfg.Set(key, defaultVal)
+		}
+	} else {
 		cfg.Set(key, defaultVal)
 	}
 }
 
 func validateInt(cfg config.Config, key string, defaultVal int, fn func(int) error) {
-	if err := fn(cfg.GetInt(key)); err != nil {
-		log.Errorf("error validating `%s`: %s. using default value of `%d`", key, err, defaultVal)
+	if cfg.IsSet(key) {
+		if err := fn(cfg.GetInt(key)); err != nil {
+			log.Errorf("error validating `%s`: %s. using default value of `%d`", key, err, defaultVal)
+			cfg.Set(key, defaultVal)
+		}
+	} else {
 		cfg.Set(key, defaultVal)
 	}
 }
