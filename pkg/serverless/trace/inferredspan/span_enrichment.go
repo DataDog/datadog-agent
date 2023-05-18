@@ -7,6 +7,7 @@ package inferredspan
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func getServiceMapping(serviceName string) string {
+	serviceMapping := os.Getenv("DD_SERVICE_MAPPING")
+	mapping := make(map[string]string)
+
+	for _, entry := range strings.Split(serviceMapping, ",") {
+		parts := strings.Split(entry, ":")
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			mapping[key] = value
+		}
+	}
+	// If the map is of string keys to string values, the zero value is "".
+	return mapping[serviceName]
+}
+
+func firstNonEmpty(strings ...string) string {
+    for _, str := range strings {
+        if str != "" {
+            return str
+        }
+    }
+    return ""
+}
+
 // EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a REST event.
@@ -23,11 +49,23 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 	log.Debug("Enriching an inferred span for a REST API Gateway")
 	requestContext := eventPayload.RequestContext
 	resource := fmt.Sprintf("%s %s", eventPayload.HTTPMethod, eventPayload.Path)
-	httpurl := fmt.Sprintf("%s%s", requestContext.DomainName, eventPayload.Path)
+	domain := requestContext.DomainName
+	httpurl := fmt.Sprintf("%s%s", domain, eventPayload.Path)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
+	apiId := requestContext.APIID
+	// Attempt to get the service mapping for the domain so that we don't remap all apigw services
+	// Allows the customer to have more fine-grained control
+	domainMapping := getServiceMapping(strings.ToLower(apiId))
+
+	// If the domain mapping is not found,
+	// attempt to get the service mapping for 'lambda_api_gateway'
+	apiGatewayMapping := getServiceMapping("lambda_api_gateway")
+
+	// If neither mapping is found, default to the domain name
+	serviceName := firstNonEmpty(domainMapping, apiGatewayMapping, domain)
 
 	inferredSpan.Span.Name = "aws.apigateway"
-	inferredSpan.Span.Service = requestContext.DomainName
+	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Resource = resource
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Type = "http"
@@ -54,11 +92,23 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 	http := requestContext.HTTP
 	path := eventPayload.RequestContext.HTTP.Path
 	resource := fmt.Sprintf("%s %s", http.Method, path)
-	httpurl := fmt.Sprintf("%s%s", requestContext.DomainName, path)
+	domainName := requestContext.DomainName
+	httpurl := fmt.Sprintf("%s%s", domainName, path)
 	startTime := calculateStartTime(requestContext.TimeEpoch)
+	apiId := requestContext.APIID
+	// Attempt to get the service mapping for the domain so that we don't remap all apigw services
+	// Allows the customer to have more fine-grained control
+	domainMapping := getServiceMapping(strings.ToLower(apiId))
+
+	// If the domain mapping is not found,
+	// attempt to get the service mapping for 'lambda_api_gateway'
+	apiGatewayMapping := getServiceMapping("lambda_api_gateway")
+
+	// If neither mapping is found, default to the domain name
+	serviceName := firstNonEmpty(domainMapping, apiGatewayMapping, domainName)
 
 	inferredSpan.Span.Name = "aws.httpapi"
-	inferredSpan.Span.Service = requestContext.DomainName
+	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Resource = resource
 	inferredSpan.Span.Type = "http"
 	inferredSpan.Span.Start = startTime
@@ -86,9 +136,20 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 	routeKey := requestContext.RouteKey
 	httpurl := fmt.Sprintf("%s%s", requestContext.DomainName, routeKey)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
+	apiId := requestContext.APIID
+	// Attempt to get the service mapping for the domain so that we don't remap all apigw services
+	// Allows the customer to have more fine-grained control
+	domainMapping := getServiceMapping(strings.ToLower(apiId))
+
+	// If the domain mapping is not found,
+	// attempt to get the service mapping for 'lambda_api_gateway'
+	apiGatewayMapping := getServiceMapping("lambda_api_gateway")
+
+	// If neither mapping is found, default to the domain name
+	serviceName := firstNonEmpty(domainMapping, apiGatewayMapping, requestContext.DomainName)
 
 	inferredSpan.Span.Name = "aws.apigateway.websocket"
-	inferredSpan.Span.Service = requestContext.DomainName
+	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Resource = routeKey
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Start = startTime
@@ -117,11 +178,20 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 	snsMessage := eventRecord.SNS
 	splitArn := strings.Split(snsMessage.TopicArn, ":")
 	topicNameValue := splitArn[len(splitArn)-1]
+	// Get the service mapping for the topic name
+	queueMapping := getServiceMapping(topicNameValue)
+
+	// If the queue mapping is not found, attempt to get the service mapping for 'sns'
+	snsMapping := getServiceMapping("lambda_sns")
+
+	// If neither mapping is found, default to "sns"
+	serviceName := firstNonEmpty(queueMapping, snsMapping, "sns")
+
 	startTime := snsMessage.Timestamp.UnixNano()
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sns"
-	inferredSpan.Span.Service = sns
+	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Resource = topicNameValue
 	inferredSpan.Span.Type = "web"
@@ -145,18 +215,30 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 // specific set of data to the span expected from an S3 event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload events.S3Event) {
 	eventRecord := eventPayload.Records[0]
+	bucketNameVar := eventRecord.S3.Bucket.Name
+	// Get the service mapping for the bucket name
+	bucketNameMapping := getServiceMapping(bucketNameVar)
+
+	// If the bucket name mapping is not found, attempt to get the service mapping for 's3'
+	s3Mapping := ""
+	if bucketNameMapping == "" {
+		s3Mapping = getServiceMapping("lambda_s3")
+	}
+
+	// If neither mapping is found, default to "s3"
+	serviceName := firstNonEmpty(bucketNameMapping, s3Mapping, "s3")
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.s3"
-	inferredSpan.Span.Service = "s3"
+	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Start = eventRecord.EventTime.UnixNano()
-	inferredSpan.Span.Resource = eventRecord.S3.Bucket.Name
+	inferredSpan.Span.Resource = bucketNameVar
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName: "aws.s3",
-		resourceNames: eventRecord.S3.Bucket.Name,
+		resourceNames: bucketNameVar,
 		eventName:     eventRecord.EventName,
-		bucketName:    eventRecord.S3.Bucket.Name,
+		bucketName:    bucketNameVar,
 		bucketARN:     eventRecord.S3.Bucket.Arn,
 		objectKey:     eventRecord.S3.Object.Key,
 		objectSize:    strconv.FormatInt(eventRecord.S3.Object.Size, 10),
@@ -172,10 +254,18 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
 	parsedQueueName := splitArn[len(splitArn)-1]
 	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
+	// Get the service mapping for queue name
+	queueMapping := getServiceMapping(parsedQueueName)
+
+	// If the queue mapping is not found, attempt to get the service mapping for 'lambda_sqs'
+	sqsMapping := getServiceMapping("lambda_sqs")
+
+	// If neither mapping is found, default to "sqs"
+	serviceName := firstNonEmpty(queueMapping, sqsMapping, "sqs")
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sqs"
-	inferredSpan.Span.Service = "sqs"
+	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Resource = parsedQueueName
 	inferredSpan.Span.Type = "web"
@@ -193,15 +283,28 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an EventBridge event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload EventBridgeEvent) {
+	source := eventPayload.Source
+	// Get the service mapping for the source
+	sourceMapping := getServiceMapping(source)
+
+	// If the source mapping is not found, attempt to get the service mapping for 'eventbridge'
+	eventBridgeMapping := ""
+	if sourceMapping == "" {
+		eventBridgeMapping = getServiceMapping("lambda_eventbridge")
+	}
+
+	// If neither mapping is found, default to "eventbridge"
+	serviceName := firstNonEmpty(sourceMapping, eventBridgeMapping, "eventbridge")
+
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.eventbridge"
-	inferredSpan.Span.Service = "eventbridge"
+	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Start = formatISOStartTime(eventPayload.StartTime)
-	inferredSpan.Span.Resource = eventPayload.Source
+	inferredSpan.Span.Resource = source
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName: "aws.eventbridge",
-		resourceNames: eventPayload.Source,
+		resourceNames: source,
 		detailType:    eventPayload.DetailType,
 	}
 }
@@ -211,13 +314,27 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPa
 // specific set of data to the span expected from a Kinesis event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayload events.KinesisEvent) {
 	eventRecord := eventPayload.Records[0]
-	splitArn := strings.Split(eventRecord.EventSourceArn, ":")
-	parsedStreamName := splitArn[len(splitArn)-1]
+	eventSourceARN := eventRecord.EventSourceArn
+	parts := strings.Split(eventSourceARN, "/")
+	parsedStreamName := parts[len(parts)-1]
 	parsedShardID := strings.Split(eventRecord.EventID, ":")[0]
+
+	// Get the service mapping for the stream name
+	streamNameMapping := getServiceMapping(parsedStreamName)
+
+	// If the stream name mapping is not found, attempt to get the service mapping for 'kinesis'
+	kinesisMapping := ""
+	if streamNameMapping == "" {
+		kinesisMapping = getServiceMapping("lambda_kinesis")
+	}
+
+	// If neither mapping is found, default to "kinesis"
+	serviceName := firstNonEmpty(streamNameMapping, kinesisMapping, "kinesis")
+
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.kinesis"
-	inferredSpan.Span.Service = "kinesis"
+	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Start = eventRecord.Kinesis.ApproximateArrivalTimestamp.UnixNano()
 	inferredSpan.Span.Resource = parsedStreamName
 	inferredSpan.Span.Type = "web"
@@ -226,7 +343,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayloa
 		resourceNames:  parsedStreamName,
 		streamName:     parsedStreamName,
 		shardID:        parsedShardID,
-		eventSourceArn: eventRecord.EventSourceArn,
+		eventSourceArn: eventSourceARN,
 		eventID:        eventRecord.EventID,
 		eventName:      eventRecord.EventName,
 		eventVersion:   eventRecord.EventVersion,
@@ -241,10 +358,22 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithDynamoDBEvent(eventPaylo
 	eventRecord := eventPayload.Records[0]
 	parsedTableName := strings.Split(eventRecord.EventSourceArn, "/")[1]
 	eventMessage := eventRecord.Change
+	// Attempt to get the service mapping for the domain so that we don't remap all apigw services
+	// Allows the customer to have more fine grained control
+	tableArnMapping := getServiceMapping(parsedTableName)
+
+	// If the tableArnMapping is not found, attempt to get the service mapping for 'dynamodb'
+	dynamoDBMapping := ""
+	if tableArnMapping == "" {
+		dynamoDBMapping = getServiceMapping("lambda_dynamodb")
+	}
+
+	// If neither mapping is found, default to "dynamodb"
+	serviceName := firstNonEmpty(tableArnMapping, dynamoDBMapping, "dynamodb")
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.dynamodb"
-	inferredSpan.Span.Service = "dynamodb"
+	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Start = eventMessage.ApproximateCreationDateTime.UnixNano()
 	inferredSpan.Span.Resource = parsedTableName
 	inferredSpan.Span.Type = "web"

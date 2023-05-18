@@ -48,6 +48,64 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 	assert.False(t, inferredSpan.IsAsync)
 }
 
+func TestRemapsAllInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "lambda_api_gateway:new-name")
+    
+    // Load the original event
+	var apiGatewayRestEvent events.APIGatewayProxyRequest
+	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.apigateway.rest", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    apiGatewayRestEvent2 := apiGatewayRestEvent
+    apiGatewayRestEvent2.RequestContext.DomainName = "different.execute-api.us-east-2.amazonaws.com"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.apigateway.rest", span2.Meta[operationName])
+    assert.Equal(t, "new-name", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
+func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "1234567890:new-name")
+    
+    // Load the original event
+	var apiGatewayRestEvent events.APIGatewayProxyRequest
+	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.apigateway.rest", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    apiGatewayRestEvent2 := apiGatewayRestEvent
+    apiGatewayRestEvent2.RequestContext.APIID = "different"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.apigateway.rest", span2.Meta[operationName])
+    assert.Equal(t, "70ixmpl4fl.execute-api.us-east-2.amazonaws.com", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
 func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-non-proxy-async.json"), &apiGatewayRestEvent)
@@ -97,6 +155,35 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 	assert.Equal(t, "GET /httpapi/get", span.Meta[resourceNames])
 }
 
+func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayHTTPAPIEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "x02yirxc7a:new-name")
+
+    // Load the original event
+	var apiGatewayHTTPAPIEvent events.APIGatewayV2HTTPRequest
+	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPAPIEvent)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPAPIEvent)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.httpapi", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    apiGatewayHTTPAPIEvent2 := apiGatewayHTTPAPIEvent
+    apiGatewayHTTPAPIEvent2.RequestContext.APIID = "different"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPAPIEvent2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.httpapi", span2.Meta[operationName])
+    assert.Equal(t, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
 func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-default.json"), &apiGatewayWebsocketEvent)
@@ -122,6 +209,35 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 	assert.Equal(t, "Fc5S3EvdGjQFtsQ=", span.Meta[requestID])
 	assert.Equal(t, "$default", span.Meta[resourceNames])
 	assert.Equal(t, "dev", span.Meta[stage])
+}
+
+func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayWebsocketDefaultEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "p62c47itsb:new-name")
+
+    // Load the original event
+	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
+	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-default.json"), &apiGatewayWebsocketEvent)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.apigateway.websocket", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    apiGatewayWebsocketEvent2 := apiGatewayWebsocketEvent
+    apiGatewayWebsocketEvent2.RequestContext.APIID = "different"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.apigateway.websocket", span2.Meta[operationName])
+    assert.Equal(t, "p62c47itsb.execute-api.sa-east-1.amazonaws.com", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
@@ -203,6 +319,64 @@ func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
 	assert.True(t, inferredSpan.IsAsync)
 }
 
+func TestRemapsAllInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "lambda_sns:new-name")
+    
+    // Load the original event
+	var snsEvent events.SNSEvent
+	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsEvent)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithSNSEvent(snsEvent)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.sns", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    snsEvent2 := snsEvent
+    snsEvent2.Records[0].SNS.TopicArn = "arn:aws:sns:us-east-2:123456789012:different"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithSNSEvent(snsEvent2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.sns", span2.Meta[operationName])
+    assert.Equal(t, "new-name", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
+func TestRemapsSpecificInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "serverlessTracingTopicPy:new-name")
+    
+    // Load the original event
+	var snsEvent events.SNSEvent
+	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsEvent)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithSNSEvent(snsEvent)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.sns", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    snsEvent2 := snsEvent
+    snsEvent2.Records[0].SNS.TopicArn = "arn:aws:sns:us-east-2:123456789012:different"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithSNSEvent(snsEvent2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.sns", span2.Meta[operationName])
+    assert.Equal(t, "sns", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
 func TestEnrichInferredSpanForS3Event(t *testing.T) {
 	var s3Request events.S3Event
 	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Request)
@@ -227,6 +401,65 @@ func TestEnrichInferredSpanForS3Event(t *testing.T) {
 	assert.Equal(t, "1024", span.Meta[objectSize])
 	assert.Equal(t, "0123456789abcdef0123456789abcdef", span.Meta[objectETag])
 }
+
+func TestRemapsAllInferredSpanServiceNamesFromS3Event(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "lambda_s3:new-name")
+    
+    // Load the original event
+	var s3Event events.S3Event
+	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Event)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithS3Event(s3Event)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.s3", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    s3Event2 := s3Event
+    s3Event2.Records[0].S3.Bucket.Arn = "arn:aws:s3:::different-example-bucket"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithS3Event(s3Event2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.s3", span2.Meta[operationName])
+    assert.Equal(t, "new-name", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
+func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "example-bucket:new-name")
+    
+    // Load the original event
+	var s3Event events.S3Event
+	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Event)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithS3Event(s3Event)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.s3", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    s3Event2 := s3Event
+    s3Event2.Records[0].S3.Bucket.Name = "different-example-bucket"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithS3Event(s3Event2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.s3", span2.Meta[operationName])
+    assert.Equal(t, "s3", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
 func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
 	var eventBridgeEvent EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
@@ -243,6 +476,64 @@ func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
 	assert.Equal(t, "aws.eventbridge", span.Meta[operationName])
 	assert.Equal(t, "eventbridge.custom.event.sender", span.Meta[resourceNames])
 	assert.True(t, inferredSpan.IsAsync)
+}
+
+func TestRemapsAllInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "lambda_eventbridge:new-name")
+    
+    // Load the original event
+	var eventBridgeEvent EventBridgeEvent
+	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.eventbridge", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    eventBridgeEvent2 := eventBridgeEvent
+    eventBridgeEvent2.Source = "different.event.sender"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.eventbridge", span2.Meta[operationName])
+    assert.Equal(t, "new-name", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
+func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "eventbridge.custom.event.sender:new-name")
+    
+    // Load the original event
+	var eventBridgeEvent EventBridgeEvent
+	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.eventbridge", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    eventBridgeEvent2 := eventBridgeEvent
+    eventBridgeEvent2.Source = "different.event.sender"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.eventbridge", span2.Meta[operationName])
+    assert.Equal(t, "eventbridge", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
@@ -267,6 +558,64 @@ func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
 	assert.True(t, inferredSpan.IsAsync)
 }
 
+func TestRemapsAllInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "lambda_sqs:new-name")
+    
+    // Load the original event
+	var sqsRequest events.SQSEvent
+	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithSQSEvent(sqsRequest)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.sqs", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    sqsRequest2 := sqsRequest
+    sqsRequest2.Records[0].EventSourceARN = "arn:aws:sqs:sa-east-1:425362996713:differentQueue"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithSQSEvent(sqsRequest2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.sqs", span2.Meta[operationName])
+    assert.Equal(t, "new-name", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
+func TestRemapsSpecificInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "InferredSpansQueueNode:new-name")
+    
+    // Load the original event
+	var sqsRequest events.SQSEvent
+	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithSQSEvent(sqsRequest)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.sqs", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    sqsRequest2 := sqsRequest
+    sqsRequest2.Records[0].EventSourceARN = "arn:aws:sqs:sa-east-1:425362996713:differentQueue"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithSQSEvent(sqsRequest2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.sqs", span2.Meta[operationName])
+    assert.Equal(t, "sqs", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
 func TestEnrichInferredSpanWithKinesisEvent(t *testing.T) {
 	var kinesisRequest events.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
@@ -278,11 +627,11 @@ func TestEnrichInferredSpanWithKinesisEvent(t *testing.T) {
 	assert.Equal(t, int64(1643638425163000106), span.Start)
 	assert.Equal(t, "kinesis", span.Service)
 	assert.Equal(t, "aws.kinesis", span.Name)
-	assert.Equal(t, "stream/kinesisStream", span.Resource)
+	assert.Equal(t, "kinesisStream", span.Resource)
 	assert.Equal(t, "web", span.Type)
 	assert.Equal(t, "aws.kinesis", span.Meta[operationName])
-	assert.Equal(t, "stream/kinesisStream", span.Meta[resourceNames])
-	assert.Equal(t, "stream/kinesisStream", span.Meta[streamName])
+	assert.Equal(t, "kinesisStream", span.Meta[resourceNames])
+	assert.Equal(t, "kinesisStream", span.Meta[streamName])
 	assert.Equal(t, "shardId-000000000002", span.Meta[shardID])
 	assert.Equal(t, "arn:aws:kinesis:sa-east-1:425362996713:stream/kinesisStream", span.Meta[eventSourceArn])
 	assert.Equal(t, "shardId-000000000002:49624230154685806402418173680709770494154422022871973922", span.Meta[eventID])
@@ -290,6 +639,64 @@ func TestEnrichInferredSpanWithKinesisEvent(t *testing.T) {
 	assert.Equal(t, "1.0", span.Meta[eventVersion])
 	assert.Equal(t, "partitionkey", span.Meta[partitionKey])
 	assert.True(t, inferredSpan.IsAsync)
+}
+
+func TestRemapsAllInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "lambda_kinesis:new-name")
+    
+    // Load the original event
+	var kinesisRequest events.KinesisEvent
+	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithKinesisEvent(kinesisRequest)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.kinesis", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    kinesisRequest2 := kinesisRequest
+    kinesisRequest2.Records[0].EventSourceArn = "arn:aws:kinesis:sa-east-1:425362996713:differentStream"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithKinesisEvent(kinesisRequest2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.kinesis", span2.Meta[operationName])
+    assert.Equal(t, "new-name", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
+func TestRemapsSpecificInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "kinesisStream:new-name")
+    
+    // Load the original event
+	var kinesisRequest events.KinesisEvent
+	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithKinesisEvent(kinesisRequest)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.kinesis", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    kinesisRequest2 := kinesisRequest
+    kinesisRequest2.Records[0].EventSourceArn = "arn:aws:kinesis:sa-east-1:425362996713:stream/differentKinesisStream"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithKinesisEvent(kinesisRequest2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.kinesis", span2.Meta[operationName])
+    assert.Equal(t, "kinesis", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithDynamoDBEvent(t *testing.T) {
@@ -315,6 +722,64 @@ func TestEnrichInferredSpanWithDynamoDBEvent(t *testing.T) {
 	assert.Equal(t, "NEW_AND_OLD_IMAGES", span.Meta[streamViewType])
 	assert.Equal(t, "26", span.Meta[sizeBytes])
 	assert.True(t, inferredSpan.IsAsync)
+}
+
+func TestRemapsAllInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "lambda_dynamodb:new-name")
+    
+    // Load the original event
+	var dynamoRequest events.DynamoDBEvent
+	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithDynamoDBEvent(dynamoRequest)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.dynamodb", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    dynamoRequest2 := dynamoRequest
+    dynamoRequest2.Records[0].EventSourceArn = "arn:aws:dynamodb:us-east-1:123456789012:table/DifferentTable/stream/2015-06-27T00:48:05.899"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithDynamoDBEvent(dynamoRequest2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.dynamodb", span2.Meta[operationName])
+    assert.Equal(t, "new-name", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
+}
+
+func TestRemapsSpecificInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
+    // Set the environment variable
+    os.Setenv("DD_SERVICE_MAPPING", "ExampleTableWithStream:new-name")
+    
+    // Load the original event
+	var dynamoRequest events.DynamoDBEvent
+	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
+
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithDynamoDBEvent(dynamoRequest)
+
+	span1 := inferredSpan.Span
+	assert.Equal(t, "aws.dynamodb", span1.Meta[operationName])
+    assert.Equal(t, "new-name", span1.Service)
+    
+    // Create a copy of the original event and modify it
+    dynamoRequest2 := dynamoRequest
+    dynamoRequest2.Records[0].EventSourceArn = "arn:aws:dynamodb:us-east-1:123456789012:table/DifferentTable/stream/2015-06-27T00:48:05.899"
+    
+    inferredSpan2 := mockInferredSpan()
+	inferredSpan2.EnrichInferredSpanWithDynamoDBEvent(dynamoRequest2)
+
+	span2 := inferredSpan2.Span
+	assert.Equal(t, "aws.dynamodb", span2.Meta[operationName])
+    assert.Equal(t, "dynamodb", span2.Service)
+
+	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestFormatISOStartTime(t *testing.T) {
