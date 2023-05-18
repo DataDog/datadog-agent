@@ -1648,7 +1648,7 @@ func setupFipsEndpoints(config Config) error {
 	// TODO: (5/16/23) these can technically all be the same, we should follow this up with a cleanup PR
 	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics))
 	config.Set("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics))
-	config.Set("database_monitoring.samples.dd_url", urlFor(databasesMonitoringMetrics))
+	config.Set("database_monitoring.samples.dd_url", urlFor(databasesMonitoringSamples))
 
 	// Network devices
 	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata))
