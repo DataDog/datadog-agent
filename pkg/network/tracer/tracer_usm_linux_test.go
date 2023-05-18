@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
-	krpretty "github.com/kr/pretty"
 	"github.com/DataDog/gopsutil/host"
+	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
