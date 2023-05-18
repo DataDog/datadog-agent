@@ -26,7 +26,7 @@ func adjustConfig(cfg config.Config) {
 		!dsmEnabled {
 		// This case exists to preserve backwards compatibility. If system_probe_config.enabled is explicitly set to true, and there is no network_config block,
 		// enable the connections/network check.
-		log.Info(deprecationMessage(spNS("enabled"), netNS("enabled")))
+		log.Warn(deprecationMessage(spNS("enabled"), netNS("enabled")))
 		// ensure others can key off of this single config value for NPM status
 		cfg.Set(netNS("enabled"), true)
 	}
@@ -93,7 +93,7 @@ func deprecateString(cfg config.Config, oldkey string, newkey string) {
 
 func deprecateCustom(cfg config.Config, oldkey string, newkey string, getFn func(config.Config) interface{}) {
 	if cfg.IsSet(oldkey) && !cfg.IsSet(newkey) {
-		log.Info(deprecationMessage(oldkey, newkey))
+		log.Warn(deprecationMessage(oldkey, newkey))
 		cfg.Set(newkey, getFn(cfg))
 	}
 }
