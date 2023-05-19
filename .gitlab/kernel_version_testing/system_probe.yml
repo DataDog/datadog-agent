@@ -140,7 +140,9 @@ kernel_matrix_testing_setup_env:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
+    - set +x
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key --with-decryption --query "Parameter.Value" --out text > $AWS_EC2_SSH_KEY_FILE
+    - set -x
     # Without the newline ssh silently fails and moves on to try other auth methods
     - echo "" >> $AWS_EC2_SSH_KEY_FILE
     - chmod 600 $AWS_EC2_SSH_KEY_FILE
