@@ -212,40 +212,40 @@ type FilledProcess struct {
 }
 
 // GetFilledProcess returns a FilledProcess from a Process input
-func GetFilledProcess(p *process.Process) *FilledProcess {
+func GetFilledProcess(p *process.Process) (*FilledProcess, error) {
 	ppid, err := p.Ppid()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	createTime, err := p.CreateTime()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	uids, err := p.Uids()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	gids, err := p.Gids()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	name, err := p.Name()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	memInfo, err := p.MemoryInfo()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	cmdLine, err := p.CmdlineSlice()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	return &FilledProcess{
@@ -257,7 +257,7 @@ func GetFilledProcess(p *process.Process) *FilledProcess {
 		Gids:       gids,
 		MemInfo:    memInfo,
 		Cmdline:    cmdLine,
-	}
+	}, nil
 }
 
 const MAX_ENV_VARS_COLLECTED = 256
