@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux && trivy
-// +build linux,trivy
 
 package sbom
 
@@ -14,8 +13,10 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
@@ -34,6 +35,8 @@ import (
 
 // SBOMSource defines is the default log source for the SBOM events
 const SBOMSource = "runtime-security-agent"
+
+const maxSBOMGenerationRetries = 3
 
 type SBOM struct {
 	sync.RWMutex
@@ -182,8 +185,10 @@ func (r *Resolver) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case sbom := <-r.scannerChan:
-				if err := r.analyzeWorkload(sbom); err != nil {
-					seclog.Errorf("couldn't scan '%s': %v", sbom.ContainerID, err)
+				if err := retry.Do(func() error {
+					return r.analyzeWorkload(sbom)
+				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(20*time.Millisecond)); err != nil {
+					seclog.Errorf(err.Error())
 				}
 			}
 		}

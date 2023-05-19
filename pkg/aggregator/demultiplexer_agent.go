@@ -11,6 +11,7 @@ import (
 	"time"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -175,7 +176,14 @@ func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDe
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
 		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, agg.hostname)
+
+		limiter := limiter.New(
+			config.Datadog.GetInt("dogstatsd_context_limiter.limit")/statsdPipelinesCount,
+			config.Datadog.GetString("dogstatsd_context_limiter.key_tag_name"),
+			config.Datadog.GetStringSlice("dogstatsd_context_limiter.telemetry_tag_names"),
+		)
+
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, limiter, agg.hostname)
 
 		// its worker (process loop + flush/serialization mechanism)
 

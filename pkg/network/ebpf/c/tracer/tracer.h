@@ -43,8 +43,6 @@ typedef struct {
     __u64 sent_packets;
     __u64 recv_packets;
     __u8 direction;
-    // keep the conn_tags u8 to keep the struct slim
-    __u8 conn_tags;
     protocol_stack_t protocol_stack;
 } conn_stats_ts_t;
 
@@ -93,8 +91,8 @@ typedef struct {
 typedef struct {
     __u64 tcp_failed_connect;
     __u64 tcp_sent_miscounts;
-    __u64 missed_tcp_close;
-    __u64 missed_udp_close;
+    __u64 unbatched_tcp_close;
+    __u64 unbatched_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;

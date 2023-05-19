@@ -92,7 +92,7 @@ func GetProfile() Profile {
 	initProfile.Do(func() {
 		var profileFunc func() (Profile, error) = NewLocalProfile
 		isCI, _ := strconv.ParseBool(os.Getenv("CI"))
-		if isCI || strings.ToLower(os.Getenv(strings.ToUpper(EnvPrefix+parameters.Profile))) == "ci" {
+		if isCI || strings.ToLower(os.Getenv(strings.ToUpper(EnvPrefix+string(parameters.Profile)))) == "ci" {
 			profileFunc = NewCIProfile
 		}
 

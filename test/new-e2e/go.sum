@@ -1,5 +1,5 @@
-github.com/DataDog/test-infra-definitions v0.0.0-20230509143222-7ee11fd3ce55 h1:hnVVed1sG+lwMAZCJulvw0nGVRQBUMvHT0iC3pDdLHY=
-github.com/DataDog/test-infra-definitions v0.0.0-20230509143222-7ee11fd3ce55/go.mod h1:WmCQAFypCQB6zjmXl9CGW0qMa5s7krntwld/tt7rjcc=
+github.com/DataDog/test-infra-definitions v0.0.0-20230512085134-bf3a1761a5bc h1:hbR/sF2RV9AShTzwLZqBuyhgH34gm5Vgh12RwUhsYzg=
+github.com/DataDog/test-infra-definitions v0.0.0-20230512085134-bf3a1761a5bc/go.mod h1:WmCQAFypCQB6zjmXl9CGW0qMa5s7krntwld/tt7rjcc=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2 h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=
 github.com/Masterminds/semver v1.5.0 h1:H65muMkzWKEuNDnfl9d70GUjFniHKHRbFPGBuZ3QEww=
 github.com/Masterminds/semver v1.5.0/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=

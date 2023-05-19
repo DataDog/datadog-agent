@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -1038,7 +1037,7 @@ func TestProcessPIDVariable(t *testing.T) {
 	}
 }
 
-func TestProcessMutableVariable(t *testing.T) {
+func TestProcessScopedVariable(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_mutable_vars",
 		Expression: `open.file.path == "{{.Root}}/test-open"`,
