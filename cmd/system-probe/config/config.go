@@ -43,6 +43,7 @@ const (
 	ProcessModule                ModuleName = "process"
 	EventMonitorModule           ModuleName = "event_monitor"
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
+	LanguageDetectionModule      ModuleName = "langauge_detection"
 )
 
 func key(pieces ...string) string {

@@ -23,6 +23,7 @@ import (
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -236,4 +237,8 @@ func (r *RemoteSysProbeUtil) init() error {
 		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
 	}
 	return nil
+}
+
+func (r *RemoteSysProbeUtil) GetLanguage(process []procutil.Process) {
+
 }

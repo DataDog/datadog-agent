@@ -5,12 +5,17 @@
 
 package net
 
-import model "github.com/DataDog/agent-payload/v5/process"
+import (
+	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+)
 
 // SysProbeUtil fetches info from the SysProbe running remotely
 type SysProbeUtil interface {
 	GetConnections(clientID string) (*model.Connections, error)
 	GetStats() (map[string]interface{}, error)
 	GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error)
+	GetLanguage(process procutil.Process)
 	Register(clientID string) error
 }

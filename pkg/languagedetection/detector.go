@@ -8,6 +8,8 @@ package languagedetection
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -67,12 +69,38 @@ func languageNameFromCommandLine(cmdline []string) LanguageName {
 	return unknown
 }
 
+type LanguageDetector struct {
+	sysprobeutil       net.SysProbeUtil
+	sysprobeConfigured bool
+}
+
+func NewLanguageDetector(sysprobeConfig config.ConfigReader) (*LanguageDetector, error) {
+	var err error
+	detector := &LanguageDetector{sysprobeConfigured: true}
+	detector.sysprobeutil, err = net.GetRemoteSystemProbeUtil(sysprobeConfig.GetString("system_probe_config.sysprobe_socket"))
+	if err != nil {
+		_ = log.Warn("Sysprobe is not available, language detection will not use privileged mode")
+		detector.sysprobeConfigured = false
+	}
+
+	return detector, nil
+}
+
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
-func DetectLanguage(procs []*procutil.Process) []*Language {
+func (l *LanguageDetector) DetectLanguage(procs []procutil.Process) []*Language {
 	langs := make([]*Language, len(procs))
 	for i, proc := range procs {
 		languageName := languageNameFromCommandLine(proc.Cmdline)
+
+		// If the sysprobe is configured, and we don't know the language, fall back to that environment.
+		if languageName == unknown && l.sysprobeConfigured {
+			l.sysprobeutil.GetStats()
+		}
 		langs[i] = &Language{Name: languageName}
 	}
 	return langs
+}
+
+func DetectLanguageWithPrivileges() {
+
 }

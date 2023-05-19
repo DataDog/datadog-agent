@@ -17,6 +17,7 @@ import (
 const (
 	connectionsURL = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
 	procStatsURL   = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
+	languageURL    = "http://unix/" + string(sysconfig.ProcessModule) + "/language"
 	registerURL    = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL       = "http://unix/debug/stats"
 	netType        = "unix"
