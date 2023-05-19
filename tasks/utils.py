@@ -59,6 +59,17 @@ def get_gopath(ctx):
     return gopath
 
 
+def get_gobin(ctx):
+    gobin = os.environ.get("GOBIN")
+    if not gobin:
+        gobin = ctx.run("go env GOBIN", hide=True).stdout.strip()
+        if not gobin:
+            gopath = get_gopath(ctx)
+            gobin = os.path.join(gopath, "bin")
+
+    return gobin
+
+
 def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     rtloader_lib = []
     rtloader_headers = ""
@@ -406,8 +417,27 @@ def get_version(
 
 def get_version_numeric_only(ctx, major_version='7'):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
+    version = ""
+    pipeline_id = os.getenv("CI_PIPELINE_ID")
+    project_name = os.getenv("CI_PROJECT_NAME")
+    if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
+        try:
+            if not os.path.exists(AGENT_VERSION_CACHE_NAME):
+                ctx.run(
+                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
+                    hide="stdout",
+                )
 
-    version, *_ = query_version(ctx, major_version_hint=major_version)
+            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+                cache_data = json.load(file)
+
+            version, *_ = cache_data[major_version]
+        except (IOError, json.JSONDecodeError, IndexError) as e:
+            # If a cache file is found but corrupted we ignore it.
+            print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
+            version = ""
+    if not version:
+        version, *_ = query_version(ctx, major_version_hint=major_version)
     return version
 
 

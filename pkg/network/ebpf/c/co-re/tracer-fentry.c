@@ -3,17 +3,18 @@
 #include "bpf_endian.h"
 #include "bpf_tracing.h"
 
-#include "tracer.h"
-#include "tracer-events.h"
-#include "tracer-maps.h"
-#include "tracer-stats.h"
-#include "tracer-telemetry.h"
 #include "sockfd.h"
 #include "ip.h"
 #include "ipv6.h"
-#include "port.h"
 #include "sock.h"
 #include "skb.h"
+
+#include "tracer/tracer.h"
+#include "tracer/events.h"
+#include "tracer/maps.h"
+#include "tracer/stats.h"
+#include "tracer/telemetry.h"
+#include "tracer/port.h"
 
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
@@ -250,7 +251,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
-    cleanup_conn(&t, sk);
+    cleanup_conn(ctx, &t, sk);
     return 0;
 }
 
@@ -592,14 +593,14 @@ int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
     return 0;
 }
 
-static __always_inline int handle_udp_destroy_sock(struct sock *sk) {
+static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP);
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(&tup, sk);
+        cleanup_conn(ctx, &tup, sk);
         lport = tup.sport;
     } else {
         // get the port for the current sock
@@ -629,7 +630,7 @@ int BPF_PROG(udp_destroy_sock, struct sock *sk) {
     if (!event_in_task("fentry/udp_destroy_sock")) {
         return 0;
     }
-    return handle_udp_destroy_sock(sk);
+    return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fentry/udpv6_destroy_sock")
@@ -637,7 +638,7 @@ int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
     if (!event_in_task("fentry/udpv6_destroy_sock")) {
         return 0;
     }
-    return handle_udp_destroy_sock(sk);
+    return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fexit/udp_destroy_sock")

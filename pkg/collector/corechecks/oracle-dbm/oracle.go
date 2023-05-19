@@ -6,8 +6,10 @@
 package oracle
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -22,11 +24,21 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
-// Check represents one Oracle instance check.
+// The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
-	SQLIDs map[string]int
-	//ForceMatchingSignatures map[uint64]int
+	SQLIDs                  map[string]int
 	ForceMatchingSignatures map[string]int
+}
+
+type StatementsCacheData struct {
+	statement      string
+	querySignature string
+	tables         []string
+	commands       []string
+}
+type StatementsCache struct {
+	SQLIDs                  map[string]StatementsCacheData
+	forceMatchingSignatures map[string]StatementsCacheData
 }
 
 type Check struct {
@@ -37,12 +49,19 @@ type Check struct {
 	agentVersion                            string
 	checkInterval                           float64
 	tags                                    []string
+	tagsString                              string
 	cdbName                                 string
 	statementsFilter                        StatementsFilter
+	statementsCache                         StatementsCache
+	DDstatementsCache                       StatementsCache
+	DDPrevStatementsCache                   StatementsCache
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
 	dbVersion                               string
 	driver                                  string
+	statementsLastRun                       time.Time
+	filePath                                string
+	isRDS                                   bool
 }
 
 // Run executes the check.
@@ -53,22 +72,59 @@ func (c *Check) Run() error {
 			c.Teardown()
 			return err
 		}
+		if db == nil {
+			c.Teardown()
+			return fmt.Errorf("empty connection")
+		}
 		c.db = db
 	}
 
 	if c.dbmEnabled {
-		err := c.SampleSession()
-		if err != nil {
-			return err
+		if c.config.CollectSysMetrics {
+			err := c.SysMetrics()
+			if err != nil {
+				return err
+			}
+		}
+		if c.config.CollectTablespaces {
+			err := c.Tablespaces()
+			if err != nil {
+				return err
+			}
+		}
+		if c.config.CollectProcessMemory {
+			err := c.ProcessMemory()
+			if err != nil {
+				return err
+			}
 		}
 
-		_, err = c.StatementMetrics()
-		if err != nil {
-			return err
+		if c.config.QuerySamples.Enabled {
+			err := c.SampleSession()
+			if err != nil {
+				return err
+			}
+			if c.config.QueryMetrics.Enabled {
+				_, err = c.StatementMetrics()
+				if err != nil {
+					return err
+				}
+			}
 		}
 
+		if c.config.QuerySamples.Enabled {
+			err := c.SampleSession()
+			if err != nil {
+				return err
+			}
+			if c.config.QueryMetrics.Enabled {
+				_, err = c.StatementMetrics()
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
-
 	return nil
 }
 
@@ -108,7 +164,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	db.SetMaxOpenConns(10)
 
 	if c.cdbName == "" {
-		row := db.QueryRow("SELECT name FROM v$database")
+		row := db.QueryRow("SELECT /* DD */ name FROM v$database")
 		err = row.Scan(&c.cdbName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query db name: %w", err)
@@ -117,9 +173,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	if c.dbHostname == "" || c.dbVersion == "" {
-		row := db.QueryRow("SELECT host_name, version FROM v$instance")
+		row := db.QueryRow("SELECT /* DD */ host_name, version, instance_name FROM v$instance")
 		var dbHostname string
-		err = row.Scan(&dbHostname, &c.dbVersion)
+		var instanceName string
+		err = row.Scan(&dbHostname, &c.dbVersion, &instanceName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
 		}
@@ -129,6 +186,18 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			c.dbHostname = dbHostname
 		}
 		c.tags = append(c.tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("oracle_version:%s", c.dbVersion))
+	}
+
+	if c.filePath == "" {
+		r := db.QueryRow("SELECT SUBSTR(name, 1, 10) path FROM v$datafile WHERE rownum = 1")
+		var path string
+		err = r.Scan(&path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query path: %w", err)
+		}
+		if path == "/rdsdbdata" {
+			c.isRDS = true
+		}
 	}
 
 	return db, nil
@@ -170,6 +239,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.tags = c.config.Tags
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
+	c.tagsString = strings.Join(c.tags, ",")
 	return nil
 }
 
@@ -202,4 +272,11 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 
 func (c *Check) getFullPDBName(pdb string) string {
 	return fmt.Sprintf("%s.%s", c.cdbName, pdb)
+}
+
+func appendPDBTag(tags []string, pdb sql.NullString) []string {
+	if !pdb.Valid {
+		return tags
+	}
+	return append(tags, "pdb:"+pdb.String)
 }

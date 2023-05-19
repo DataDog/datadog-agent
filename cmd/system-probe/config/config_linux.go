@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package config
 
@@ -26,10 +25,4 @@ func ValidateSocketAddress(sockPath string) error {
 		return fmt.Errorf("socket path must be an absolute file path: %s", sockPath)
 	}
 	return nil
-}
-
-// Right now, no, because there isn't a way to consent to closed source on Linux
-// and there aren't any closed source components
-func isClosedSourceAllowed() bool {
-	return false
 }

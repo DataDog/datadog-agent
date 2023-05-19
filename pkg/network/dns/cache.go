@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
 
 package dns
 
@@ -159,7 +158,8 @@ func (c *reverseDNSCache) Len() int {
 }
 
 func (c *reverseDNSCache) Close() {
-	c.exit <- struct{}{}
+	c.oversizedLogLimit.Close()
+	close(c.exit)
 }
 
 func (c *reverseDNSCache) Expire(now time.Time) {

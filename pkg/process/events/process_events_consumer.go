@@ -79,7 +79,7 @@ func (p *ProcessConsumer) SendStats() {
 func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
 	// Force resolution of all event fields before exposing it through the API server
 	event.ResolveFields()
-	event.ResolveEventTimestamp()
+	event.ResolveEventTime()
 
 	entry, _ := event.ResolveProcessCacheEntry()
 	if entry == nil {

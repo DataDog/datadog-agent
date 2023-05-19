@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -42,7 +43,7 @@ type TimeSampler struct {
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostname string) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, limiter *limiter.Limiter, hostname string) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -51,7 +52,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostnam
 
 	s := &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(cache),
+		contextResolver:             newTimestampContextResolver(cache, limiter),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
@@ -77,7 +78,11 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 	}
 
 	// Keep track of the context
-	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
+	contextKey, ok := s.contextResolver.trackContext(metricSample, timestamp)
+	if !ok {
+		return
+	}
+
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {
@@ -235,9 +240,7 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
 	}
 
-	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") {
-		s.sendOriginTelemetry(timestamp, series)
-	}
+	s.sendTelemetry(timestamp, series)
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,
@@ -285,7 +288,11 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 	}
 }
 
-func (s *TimeSampler) sendOriginTelemetry(timestamp float64, series metrics.SerieSink) {
+func (s *TimeSampler) sendTelemetry(timestamp float64, series metrics.SerieSink) {
+	if !config.Datadog.GetBool("telemetry.enabled") {
+		return
+	}
+
 	// If multiple samplers are used, this avoids the need to
 	// aggregate the stats agent-side, and allows us to see amount of
 	// tags duplication between shards.
@@ -293,5 +300,11 @@ func (s *TimeSampler) sendOriginTelemetry(timestamp float64, series metrics.Seri
 		fmt.Sprintf("sampler_id:%d", s.id),
 	}
 
-	s.contextResolver.sendOriginTelemetry(timestamp, series, s.hostname, tags)
+	if config.Datadog.GetBool("telemetry.dogstatsd_origin") {
+		s.contextResolver.sendOriginTelemetry(timestamp, series, s.hostname, tags)
+	}
+
+	if config.Datadog.GetBool("telemetry.dogstatsd_limiter") {
+		s.contextResolver.sendLimiterTelemetry(timestamp, series, s.hostname, tags)
+	}
 }

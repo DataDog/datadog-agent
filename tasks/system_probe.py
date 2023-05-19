@@ -19,7 +19,7 @@ from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
+from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -252,9 +252,25 @@ def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
 
 
-def ninja_runtime_compilation_files(nw):
+def ninja_runtime_compilation_files(nw, gobin):
     bc_dir = os.path.join("pkg", "ebpf", "bytecode")
     build_dir = os.path.join(bc_dir, "build")
+
+    rc_tools = {
+        "pkg/ebpf/include_headers.go": "include_headers",
+        "pkg/ebpf/bytecode/runtime/integrity.go": "integrity",
+    }
+
+    toolpaths = []
+    nw.rule(name="rctool", command="go install $in")
+    for in_path, toolname in rc_tools.items():
+        toolpath = os.path.join(gobin, toolname)
+        toolpaths.append(toolpath)
+        nw.build(
+            inputs=[in_path],
+            outputs=[toolpath],
+            rule="rctool",
+        )
 
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
@@ -269,17 +285,16 @@ def ninja_runtime_compilation_files(nw):
     nw.rule(name="headerincl", command="go generate -mod=mod -tags linux_bpf $in", depfile="$out.d")
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
-    rc_outputs = []
     for in_path, out_filename in runtime_compiler_files.items():
         c_file = os.path.join(rc_dir, f"{out_filename}.c")
         hash_file = os.path.join(hash_dir, f"{out_filename}.go")
         nw.build(
             inputs=[in_path],
             outputs=[c_file],
+            implicit=toolpaths,
             implicit_outputs=[hash_file],
             rule="headerincl",
         )
-        rc_outputs.extend([c_file, hash_file])
 
 
 def ninja_cgo_type_files(nw, windows):
@@ -310,10 +325,10 @@ def ninja_cgo_type_files(nw, windows):
     else:
         go_platform = "linux"
         def_files = {
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack-types.h"],
-            "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer.h"],
+            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack/types.h"],
+            "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer/tracer.h"],
             "pkg/network/ebpf/kprobe_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/tcp_states.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
@@ -322,17 +337,17 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
             "pkg/network/protocols/http/http_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
             "pkg/network/protocols/http/http2_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],
             "pkg/network/protocols/kafka/kafka_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
             "pkg/network/telemetry/telemetry_types.go": [
@@ -402,12 +417,13 @@ def ninja_generate(
             nw.build(inputs=[in_path], outputs=[rcout], rule="windmc", variables={"rcdir": in_dir})
             nw.build(inputs=[rcout], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
+            gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
             ninja_define_co_re_compiler(nw)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
-            ninja_runtime_compilation_files(nw)
+            ninja_runtime_compilation_files(nw, gobin)
 
         ninja_cgo_type_files(nw, windows)
 

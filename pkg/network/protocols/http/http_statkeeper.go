@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
 
 package http
 
@@ -77,6 +76,10 @@ func (h *HttpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.stats = make(map[Key]*RequestStats)
 	h.interned = make(map[string]string)
 	return ret
+}
+
+func (h *HttpStatKeeper) Close() {
+	h.oversizedLogLimit.Close()
 }
 
 func (h *HttpStatKeeper) add(tx HttpTX) {
