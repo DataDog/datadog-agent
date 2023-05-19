@@ -339,7 +339,7 @@ type PlanPayload struct {
 	OraclePlan   OraclePlan `json:"oracle"`
 }
 
-type PlanGlobalRows struct {
+type PlanGlobalRow struct {
 	SQLID         string         `db:"SQL_ID"`
 	ChildNumber   sql.NullInt64  `db:"CHILD_NUMBER"`
 	PlanCreated   sql.NullString `db:"TIMESTAMP"`
@@ -382,7 +382,7 @@ type PlanStepRows struct {
 	LastTempsegSize  *uint64         `db:"LAST_TEMPSEG_SIZE"`
 }
 type PlanRows struct {
-	PlanGlobalRows
+	PlanGlobalRow
 	PlanStepRows
 }
 
