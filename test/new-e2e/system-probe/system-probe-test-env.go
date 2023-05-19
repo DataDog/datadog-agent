@@ -96,10 +96,10 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	stackManager := infra.GetStackManager()
 
 	config := runner.ConfigMap{
-		"ddinfra:env":                            auto.ConfigValue{Value: opts.InfraEnv},
+		runner.InfraEnvironmentVariables:         auto.ConfigValue{Value: opts.InfraEnv},
+		runner.AwsKeyPairName:                    auto.ConfigValue{Value: opts.SSHKeyName},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
-		"ddinfra:aws/defaultKeyPairName":         auto.ConfigValue{Value: opts.SSHKeyName},
 		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
 		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
 		"microvm:microVMConfigFile":              auto.ConfigValue{Value: vmConfig},

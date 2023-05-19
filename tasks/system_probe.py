@@ -1537,14 +1537,14 @@ def test_microvms(
     ssh_key_path=None,
 ):
     args = [
-        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
-        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
-        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
-        f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id else "",
         "--destroy" if destroy else "",
         "--upload-dependencies" if upload_dependencies else "",
-        f"--ssh-key-path {ssh_key_path}" if ssh_key_path is not None else "",
-        f"--ssh-key-name {ssh_key_name}" if ssh_key_name is not None else "",
+        f"--ssh-key-path {ssh_key_path}" if ssh_key_path else "",
+        f"--ssh-key-name {ssh_key_name}" if ssh_key_name else "",
         f"--infra-env {infra_env}",
     ]
 

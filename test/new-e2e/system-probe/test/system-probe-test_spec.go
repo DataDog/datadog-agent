@@ -67,12 +67,7 @@ var fentryTests = filterPaths{
 }
 
 func pathEmbedded(fullPath, embedded string) bool {
-	normalized := fmt.Sprintf("/%s/",
-		strings.TrimRight(
-			strings.TrimLeft(embedded, "/"),
-			"/",
-		),
-	)
+	normalized := fmt.Sprintf("/%s/", strings.Trim(embedded, "/"))
 
 	return strings.Contains(fullPath, normalized)
 }
@@ -108,15 +103,12 @@ func glob(dir, filePattern string, filter filterPaths) ([]string, error) {
 	return matches, nil
 }
 
-func generatePacakgeName(file string) string {
-	pkg := strings.TrimLeft(
-		strings.TrimRight(
-			strings.TrimPrefix(
-				strings.TrimSuffix(file, Testsuite),
-				TestDirRoot,
-			),
-			"/"),
-		"/")
+func generatePackageName(file string) string {
+	pkg := strings.Trim(
+		strings.TrimPrefix(
+			strings.TrimSuffix(file, Testsuite),
+			TestDirRoot,
+		), "/")
 
 	return pkg
 }
