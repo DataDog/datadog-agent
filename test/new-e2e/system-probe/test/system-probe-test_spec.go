@@ -168,13 +168,12 @@ func testPass(config testConfig) error {
 		args := buildCommandArgs(file, config.bundle)
 		cmd := exec.Command(GoTestSum, args...)
 
-		r, w := io.Pipe()
 		cmd.Env = mergeEnv(config.env, BaseEnv)
 		cmd.Dir = filepath.Dir(file)
-		cmd.Stdout = w
-		cmd.Stderr = w
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 
-		if err := runCommandAndStreamOutput(cmd, r); err != nil {
+		if err := cmd.Run(); err != nil {
 			return err
 		}
 	}
