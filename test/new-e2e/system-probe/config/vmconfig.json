@@ -22,7 +22,7 @@
 #        },
         {
             "name": "custom_kernels_x86_64_lte4.14",
-            "recipe": "custom-amd64",
+            "recipe": "custom-x86_64",
             "arch": "x86_64",
             "kernels": [
                 {
@@ -43,7 +43,7 @@
         },
         {
             "name": "custom_kernels_x86_64_gt4.14",
-            "recipe": "custom-amd64",
+            "recipe": "custom-x86_64",
             "arch": "x86_64",
             "kernels": [
                 {
@@ -400,8 +400,8 @@
             }
         },
         {
-            "name": "ubuntu_amd64",
-            "recipe": "distro-amd64",
+            "name": "ubuntu_x86_64",
+            "recipe": "distro-x86_64",
             "arch": "x86_64",
             "kernels": [
                 {
