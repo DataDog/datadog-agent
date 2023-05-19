@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -94,11 +93,6 @@ func (ms *MetaScheduler) Unschedule(configs []integration.Config) {
 	for _, scheduler := range ms.activeSchedulers {
 		scheduler.Unschedule(configs)
 	}
-
-	// When we close each check, we close the informers used by each check as well.
-	// We can't restart informer https://github.com/kubernetes/kubernetes/pull/104853
-	// So we have to re-create their informer factory
-	apiserver.ReSetGlobalAPIClientOnce()
 }
 
 // Stop handles clean stop of registered schedulers

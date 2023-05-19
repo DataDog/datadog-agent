@@ -59,7 +59,7 @@ func (c *ClusterRoleCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ClusterRoleCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Rbac().V1().ClusterRoles()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Rbac().V1().ClusterRoles()
 	c.lister = c.informer.Lister()
 }
 

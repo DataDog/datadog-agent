@@ -41,7 +41,7 @@ import (
 
 var (
 	globalAPIClient     *APIClient
-	globalAPIClientOnce = new(sync.Once)
+	globalAPIClientOnce sync.Once
 	ErrNotFound         = errors.New("entity not found") //nolint:revive
 	ErrIsEmpty          = errors.New("entity is empty")  //nolint:revive
 	ErrNotLeader        = errors.New("not Leader")       //nolint:revive
@@ -139,12 +139,6 @@ func GetAPIClient() (*APIClient, error) {
 		return nil, err
 	}
 	return globalAPIClient, nil
-}
-
-// ReSetGlobalAPIClientOnce resets globalAPIClientOnce
-func ReSetGlobalAPIClientOnce() {
-	log.Info("Reset globalAPIClientOnce to recreate APIClient")
-	globalAPIClientOnce = new(sync.Once)
 }
 
 // WaitForAPIClient waits for availability of APIServer Client before returning

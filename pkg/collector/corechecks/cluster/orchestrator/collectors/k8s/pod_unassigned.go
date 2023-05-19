@@ -60,7 +60,7 @@ func (c *UnassignedPodCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *UnassignedPodCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.UnassignedPodInformerFactory.Core().V1().Pods()
+	c.informer = rcfg.OrchestratorInformerFactory.UnassignedPodInformerFactory.Core().V1().Pods()
 	c.lister = c.informer.Lister()
 }
 
