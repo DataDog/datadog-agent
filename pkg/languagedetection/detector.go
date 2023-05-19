@@ -13,34 +13,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
+type LanguageName string
+
+var (
+	python  LanguageName = "python"
+	java    LanguageName = "java"
+	unknown LanguageName = ""
+)
+
 type Language struct {
-	Name string
+	Name LanguageName
 }
 
-// Maps the prefix to the language name
-var knownPrefixes = map[string]string{
-	"python": "python",
-	"java":   "java",
+// knownPrefixes maps languages names to their prefix
+var knownPrefixes = map[string]LanguageName{
+	"python": python,
+	"java":   java,
 }
 
-func languageFromCommandline(cmdline []string) (string, error) {
+func languageNameFromCommandLine(cmdline []string) (LanguageName, error) {
 	exe := getExe(cmdline)
-	for prefix, languageName := range knownPrefixes {
+	for prefix, language := range knownPrefixes {
 		if strings.HasPrefix(exe, prefix) {
-			return languageName, nil
+			return language, nil
 		}
 	}
-	return "", fmt.Errorf("unknown executable: %s", exe)
+	return unknown, fmt.Errorf("unknown executable: %s", exe)
 }
 
 func DetectLanguage(logger log.Component, procs []procutil.Process) []*Language {
 	langs := make([]*Language, len(procs))
 	for i, proc := range procs {
-		languageName, err := languageFromCommandline(proc.Cmdline)
-		if err != nil {
-			logger.Trace("detected language:", languageName)
+		languageName, err := languageNameFromCommandLine(proc.Cmdline)
+		if err == nil {
+			logger.Trace("detected languageName:", languageName)
 		}
-		langs[i] = &Language{}
+		langs[i] = &Language{Name: languageName}
 	}
 	return langs
 }
