@@ -481,6 +481,11 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
             # Run eventlog tests with the Windows API, which depend on the EventLog service
             'prefix': './pkg/util/winutil/eventlog/...',
             'extra_args': '-evtapi Windows',
+        },
+        {
+            # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
+            'prefix': './pkg/logs/internal/tailers/windowsevent-new/...',
+            'extra_args': '-evtapi Windows',
         }
     ]
 
