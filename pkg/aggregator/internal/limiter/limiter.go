@@ -34,7 +34,8 @@ type Limiter struct {
 //
 // limit is the maximum number of contexts per sender. If zero or less, the limiter is disabled.
 //
-// keyTagName is the origin-detection tag name that will be used to identify the senders.
+// keyTagName is the origin-detection tag name that will be used to identify the senders. Contexts
+// that have no tag will be tracked as a single sender and the limit will still be applied.
 //
 // telemetryTagNames are additional tags that will be copied to the per-sender telemetry. Telemetry
 // tags should have the same values for all containers that have the same key tag value and will be
