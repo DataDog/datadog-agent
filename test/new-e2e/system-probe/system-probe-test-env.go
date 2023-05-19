@@ -60,9 +60,9 @@ var (
 	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
 	vmConfig            = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 
-	CI_PROJECT_DIR = os.Getenv("CI_PROJECT_DIR")
-	sshKeyX86      = os.Getenv("LibvirtSSHKeyX86")
-	sshKeyArm      = os.Getenv("LibvirtSSHKeyARM")
+	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
+	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
+	sshKeyArm      = GetEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
 
 	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.outputs")
 )
