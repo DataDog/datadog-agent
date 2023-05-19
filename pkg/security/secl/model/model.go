@@ -26,6 +26,7 @@ import (
 const (
 	// OverlayFS overlay filesystem
 	OverlayFS = "overlay"
+	UnknownFS = "unknown"
 )
 
 // Model describes the data model for the runtime security agent events

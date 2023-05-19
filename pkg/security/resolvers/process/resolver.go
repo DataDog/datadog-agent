@@ -373,7 +373,8 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	// resolve container path with the MountResolver
 	entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't get the filesystem: %w", proc.Pid, err)
+		entry.FileEvent.Filesystem = model.UnknownFS
+		seclog.Debugf("snapshot failed for %d: couldn't get the filesystem: %s", proc.Pid, err)
 	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
@@ -521,7 +522,7 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin proces
 
 	parent := p.entryCache[entry.PPid]
 	if parent == nil && entry.PPid >= 1 {
-		parent = p.resolve(entry.PPid, entry.PPid, entry.Inode)
+		parent = p.resolve(entry.PPid, entry.PPid, entry.Inode, true)
 	}
 
 	if parent != nil {
@@ -565,14 +566,14 @@ func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.resolve(pid, tid, inode)
+	return p.resolve(pid, tid, inode, useProcFS)
 }
 
-func (p *Resolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+func (p *Resolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *model.ProcessCacheEntry {
 	if entry := p.resolveFromCache(pid, tid, inode); entry != nil {
 		p.hitsStats[metrics.CacheTag].Inc()
 		return entry
@@ -586,6 +587,11 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEnt
 	if entry := p.resolveFromKernelMaps(pid, tid); entry != nil {
 		p.hitsStats[metrics.KernelMapsTag].Inc()
 		return entry
+	}
+
+	if !useProcFS {
+		p.missStats.Inc()
+		return nil
 	}
 
 	if p.procFallbackLimiter.IsAllowed(pid) {
@@ -801,18 +807,26 @@ func (p *Resolver) ResolveFromProcfs(pid uint32) *model.ProcessCacheEntry {
 }
 
 func (p *Resolver) resolveFromProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
-	if maxDepth < 1 || pid == 0 {
+	if maxDepth < 1 {
+		seclog.Tracef("max depth reached during procfs resolution: %d", pid)
+		return nil
+	}
+
+	if pid == 0 {
+		seclog.Tracef("no pid: %d", pid)
 		return nil
 	}
 
 	var ppid uint32
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
+		seclog.Tracef("unable to find pid: %d", pid)
 		return nil
 	}
 
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
+	filledProc, err := utils.GetFilledProcess(proc)
+	if err != nil {
+		seclog.Tracef("unable to get a filled process for pid %d: %d", pid, err)
 		return nil
 	}
 
@@ -1084,8 +1098,9 @@ func (p *Resolver) SyncCache(proc *process.Process) bool {
 	p.Lock()
 	defer p.Unlock()
 
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
+	filledProc, err := utils.GetFilledProcess(proc)
+	if err != nil {
+		seclog.Tracef("unable to get a filled process for %d: %v", proc.Pid, err)
 		return false
 	}
 

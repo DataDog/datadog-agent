@@ -202,40 +202,40 @@ func GetProcesses() ([]*process.Process, error) {
 
 // GetFilledProcess returns a FilledProcess from a Process input
 // TODO: make a PR to export a similar function in Datadog/gopsutil. We only populate the fields we need for now.
-func GetFilledProcess(p *process.Process) *process.FilledProcess {
+func GetFilledProcess(p *process.Process) (*process.FilledProcess, error) {
 	ppid, err := p.Ppid()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	createTime, err := p.CreateTime()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	uids, err := p.Uids()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	gids, err := p.Gids()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	name, err := p.Name()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	memInfo, err := p.MemoryInfo()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	cmdLine, err := p.CmdlineSlice()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	return &process.FilledProcess{
@@ -247,7 +247,7 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 		Gids:       gids,
 		MemInfo:    memInfo,
 		Cmdline:    cmdLine,
-	}
+	}, nil
 }
 
 const MAX_ENV_VARS_COLLECTED = 256
