@@ -208,9 +208,3 @@ test/fakeintake/build/*
 
 # Allow Regression Detector material to ignore excludes
 !test/regression/**
-
-# launch template + dd agent file
-*vscode/*
-ddagent*
-launch.json
-tasks.json

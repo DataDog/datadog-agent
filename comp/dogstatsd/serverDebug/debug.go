@@ -87,19 +87,6 @@ func newServerDebugCompat(log logComponent.Component, cfg config.ConfigReader) C
 	sd.dogstatsdDebugLogger = sd.getDogstatsdDebug(cfg)
 
 	return sd
-	// return &serverDebug{
-	// 	log:     log,
-	// 	enabled: atomic.NewBool(false),
-	// 	Stats:   make(map[ckey.ContextKey]metricStat),
-	// 	metricsCounts: metricsCountBuckets{
-	// 		counts:     [5]uint64{0, 0, 0, 0, 0},
-	// 		metricChan: make(chan struct{}),
-	// 		closeChan:  make(chan struct{}),
-	// 	},
-	// 	keyGen:               ckey.NewKeyGenerator(),
-	// 	clock:                clock.New(),
-	// 	dogstatsdDebugLogger: getDogstatsdDebug(cfg),
-	// }
 }
 
 // metricsCountBuckets is counting the amount of metrics received for the last 5 seconds.
