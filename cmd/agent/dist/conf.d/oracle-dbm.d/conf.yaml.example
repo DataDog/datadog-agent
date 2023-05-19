@@ -65,6 +65,33 @@ instances:
   ## @param reported_hostname - string - optional
   ## Set the reported hostname for this instance. This value overrides the hostname detected by the Agent
 
+  ## Configure collection of database sysmetrics
+  #
+  # sysmetrics:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of database sysmetrics
+      #
+      # enabled: true
+
+  ## Configure collection of tablespace usage
+  #
+  # tablespaces:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of tablespace usage
+      #
+      # enabled: true
+
+  ## Configure collection of process memory usage
+  #
+  # processes:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of process memory usage
+      #
+      # enabled: true
+
   ## @param dbm - boolean - optional - default: false
   ## Set to `true` to enable Database Monitoring.
   #

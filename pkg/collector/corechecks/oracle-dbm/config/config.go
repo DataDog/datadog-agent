@@ -31,6 +31,18 @@ type QueryMetricsConfig struct {
 	IncludeDatadogQueries bool `yaml:"include_datadog_queries"`
 }
 
+type SysMetricsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type TablespacesConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type ProcessMemoryConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
 	Server                 string              `yaml:"server"`
@@ -48,9 +60,9 @@ type InstanceConfig struct {
 	ReportedHostname       string              `yaml:"reported_hostname"`
 	QuerySamples           QuerySamplesConfig  `yaml:"query_samples"`
 	QueryMetrics           QueryMetricsConfig  `yaml:"query_metrics"`
-	CollectSysMetrics      bool                `yaml:"collect_sysmetrics"`
-	CollectTablespaces     bool                `yaml:"collect_tablespaces"`
-	CollectProcessMemory   bool                `yaml:"collect_process_memory"`
+	SysMetrics             SysMetricsConfig    `yaml:"sysmetrics"`
+	Tablespaces            TablespacesConfig   `yaml:"tablespaces"`
+	ProcessMemory          ProcessMemoryConfig `yaml:"process_memory"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -82,9 +94,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QuerySamples.Enabled = true
 	instance.QueryMetrics.Enabled = true
 
-	instance.CollectSysMetrics = true
-	instance.CollectTablespaces = true
-	instance.CollectProcessMemory = true
+	instance.SysMetrics.Enabled = true
+	instance.Tablespaces.Enabled = true
+	instance.ProcessMemory.Enabled = true
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {

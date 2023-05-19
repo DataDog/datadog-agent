@@ -79,19 +79,19 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
-	if c.config.CollectSysMetrics {
+	if c.config.SysMetrics.Enabled {
 		err := c.SysMetrics()
 		if err != nil {
 			return err
 		}
 	}
-	if c.config.CollectTablespaces {
+	if c.config.Tablespaces.Enabled {
 		err := c.Tablespaces()
 		if err != nil {
 			return err
 		}
 	}
-	if c.config.CollectProcessMemory {
+	if c.config.ProcessMemory.Enabled {
 		err := c.ProcessMemory()
 		if err != nil {
 			return err
