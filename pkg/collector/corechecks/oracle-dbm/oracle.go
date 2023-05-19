@@ -98,6 +98,7 @@ func (c *Check) Run() error {
 				return err
 			}
 		}
+
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {

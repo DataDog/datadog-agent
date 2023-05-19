@@ -31,26 +31,31 @@ type QueryMetricsConfig struct {
 	IncludeDatadogQueries bool `yaml:"include_datadog_queries"`
 }
 
+type ExecutionPlansConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                 string              `yaml:"server"`
-	Port                   int                 `yaml:"port"`
-	ServiceName            string              `yaml:"service_name"`
-	Username               string              `yaml:"username"`
-	Password               string              `yaml:"password"`
-	TnsAlias               string              `yaml:"tns_alias"`
-	TnsAdmin               string              `yaml:"tns_admin"`
-	DBM                    bool                `yaml:"dbm"`
-	Tags                   []string            `yaml:"tags"`
-	LogUnobfuscatedQueries bool                `yaml:"log_unobfuscated_queries"`
-	ObfuscatorOptions      obfuscate.SQLConfig `yaml:"obfuscator_options"`
-	InstantClient          bool                `yaml:"instant_client"`
-	ReportedHostname       string              `yaml:"reported_hostname"`
-	QuerySamples           QuerySamplesConfig  `yaml:"query_samples"`
-	QueryMetrics           QueryMetricsConfig  `yaml:"query_metrics"`
-	CollectSysMetrics      bool                `yaml:"collect_sysmetrics"`
-	CollectTablespaces     bool                `yaml:"collect_tablespaces"`
-	CollectProcessMemory   bool                `yaml:"collect_process_memory"`
+	Server                 string               `yaml:"server"`
+	Port                   int                  `yaml:"port"`
+	ServiceName            string               `yaml:"service_name"`
+	Username               string               `yaml:"username"`
+	Password               string               `yaml:"password"`
+	TnsAlias               string               `yaml:"tns_alias"`
+	TnsAdmin               string               `yaml:"tns_admin"`
+	DBM                    bool                 `yaml:"dbm"`
+	Tags                   []string             `yaml:"tags"`
+	LogUnobfuscatedQueries bool                 `yaml:"log_unobfuscated_queries"`
+	ObfuscatorOptions      obfuscate.SQLConfig  `yaml:"obfuscator_options"`
+	InstantClient          bool                 `yaml:"instant_client"`
+	ReportedHostname       string               `yaml:"reported_hostname"`
+	QuerySamples           QuerySamplesConfig   `yaml:"query_samples"`
+	QueryMetrics           QueryMetricsConfig   `yaml:"query_metrics"`
+	CollectSysMetrics      bool                 `yaml:"collect_sysmetrics"`
+	CollectTablespaces     bool                 `yaml:"collect_tablespaces"`
+	CollectProcessMemory   bool                 `yaml:"collect_process_memory"`
+	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
