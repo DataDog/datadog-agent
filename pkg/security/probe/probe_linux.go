@@ -676,7 +676,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ContainerContext); err != nil {
-			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
+			seclog.Debugf("failed to resolve new process cache entry context for pid %d: %s", event.PIDContext.Pid, err)
 
 			var errResolution *path.ErrPathResolution
 			if errors.As(err, &errResolution) {
@@ -694,7 +694,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		var exists bool
-		event.ProcessCacheEntry, exists = p.fieldHandlers.ResolveProcessCacheEntry(event)
+		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event)
 		if !exists {
 			// no need to dispatch an exit event that don't have the corresponding cache entry
 			return
@@ -741,7 +741,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// resolve tracee process context
 		var pce *model.ProcessCacheEntry
 		if event.PTrace.PID > 0 { // pid can be 0 for a PTRACE_TRACEME request
-			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0)
+			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
 		}
 		if pce == nil {
 			pce = model.NewEmptyProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
@@ -786,7 +786,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// resolve target process context
 		var pce *model.ProcessCacheEntry
 		if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0)
+			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false)
 		}
 		if pce == nil {
 			pce = model.NewEmptyProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
@@ -1255,7 +1255,7 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid, ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)); err != nil {
+	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}

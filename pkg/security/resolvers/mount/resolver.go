@@ -246,7 +246,7 @@ func (mr *Resolver) ResolveFilesystem(mountID, pid uint32, containerID string) (
 }
 
 // Insert a new mount point in the cache
-func (mr *Resolver) Insert(e model.Mount, pid uint32, containerID string) error {
+func (mr *Resolver) Insert(e model.Mount, pid uint32) error {
 	if e.MountID == 0 {
 		return ErrMountUndefined
 	}
