@@ -11,54 +11,71 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 )
+
+func newCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
+	bundle := &CollectorBundle{
+		discoverCollectors: chk.orchestratorConfig.CollectorDiscoveryEnabled,
+		check:              chk,
+		inventory:          inventory.NewCollectorInventory(),
+		runCfg: &collectors.CollectorRunConfig{
+			APIClient:                   chk.apiClient,
+			ClusterID:                   chk.clusterID,
+			Config:                      chk.orchestratorConfig,
+			MsgGroupRef:                 chk.groupID,
+			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+		},
+		stopCh:              chk.stopCh,
+		manifestBuffer:      NewManifestBuffer(chk),
+		activatedCollectors: map[string]struct{}{},
+	}
+	bundle.importCollectorsFromInventory()
+	bundle.prepareExtraSyncTimeout()
+	return bundle
+}
 
 // TestOrchestratorCheckSafeReSchedule close simulates the check being unscheduled and rescheduled again
 func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	var wg sync.WaitGroup
 
 	client := fake.NewSimpleClientset()
-	informerFactory := informers.NewSharedInformerFactory(client, 0)
-	cl := &apiserver.APIClient{Cl: client, InformerFactory: informerFactory, UnassignedPodInformerFactory: informerFactory}
+	cl := &apiserver.APIClient{Cl: client}
 	orchCheck := OrchestratorFactory().(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
-	bundle := NewCollectorBundle(orchCheck)
+	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)
+	bundle := newCollectorBundle(orchCheck)
 	err := bundle.Initialize()
 	assert.NoError(t, err)
 
 	wg.Add(2)
 
-	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
-	nodeInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
+	// getting rescheduled.
+	orchCheck.Cancel()
+
+	bundle.runCfg.OrchestratorInformerFactory = getOrchestratorInformerFactory(cl)
+	bundle.stopCh = make(chan struct{})
+	err = bundle.Initialize()
+	assert.NoError(t, err)
+
+	bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			wg.Done()
 		},
 	})
 
 	writeNode(t, client, "1")
-
-	// getting rescheduled.
-	orchCheck.Cancel()
-	// This part is not optimal as the cancel closes a channel which gets propagated everywhere that might take some time.
-	// If things are too fast the close is not getting propagated fast enough.
-	// But even if we are too fast and don't catch that part it will not lead to a false positive
-	time.Sleep(1 * time.Millisecond)
-	err = bundle.Initialize()
-	assert.NoError(t, err)
 	writeNode(t, client, "2")
 
 	wg.Wait()
