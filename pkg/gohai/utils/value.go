@@ -17,7 +17,7 @@ func NewValue[T any](value T) Value[T] {
 
 // NewErrorValue initializes a Value[T] with the given error.
 //
-// Note that if err is nil, the returned Value[T] is fundamentaly equivalent to a Value[T]
+// Note that if err is nil, the returned Value[T] is fundamentally equivalent to a Value[T]
 // containing the default value of T and no error.
 func NewErrorValue[T any](err error) Value[T] {
 	return Value[T]{
@@ -27,10 +27,10 @@ func NewErrorValue[T any](err error) Value[T] {
 
 // NewErrorValue initializes a Value[T] with the given error.
 //
-// Note that if err is nil, the returned Value[T] is fundamentaly equivalent to a Value[T]
+// Note that if err is nil, the returned Value[T] is fundamentally equivalent to a Value[T]
 // containing the default value of T and no error.
 //
-// This function is equivalent to NewErrorValue[T] but allows not to specify the value of T explicitely
+// This function is equivalent to NewErrorValue[T] but allows not to specify the value of T explicitly
 func (Value[T]) NewErrorValue(err error) Value[T] {
 	return NewErrorValue[T](err)
 }

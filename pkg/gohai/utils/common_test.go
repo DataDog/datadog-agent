@@ -107,7 +107,7 @@ func TestAsJsonOmit(t *testing.T) {
 	info := &struct {
 		NotValue    int `json:"not_value"`
 		NoTag       Value[int]
-		notExported Value[int]      `json:"not_exported"`
+		notExported Value[int]      `json:"not_exported"` //nolint:govet
 		ValueError  Value[int]      `json:"value_error"`
 		ValueStruct Value[struct{}] `json:"value_struct"`
 		ValuePtr    Value[*int]     `json:"value_ptr"`
@@ -196,7 +196,7 @@ func TestInitializeOmit(t *testing.T) {
 	info := &struct {
 		NotValue    int `json:"not_value"`
 		NoTag       Value[int]
-		notExported Value[int] `json:"not_exported"`
+		notExported Value[int] `json:"not_exported"` //nolint:govet
 	}{}
 
 	err := Initialize(info)
