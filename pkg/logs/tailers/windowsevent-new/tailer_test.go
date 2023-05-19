@@ -32,7 +32,6 @@ type ReadEventsSuite struct {
 
 	channelPath string
 	eventSource string
-	query       string
 
 	testAPI   string
 	numEvents uint
@@ -47,7 +46,6 @@ func TestReadEventsSuite(t *testing.T) {
 			var s ReadEventsSuite
 			s.channelPath = "dd-test-channel-logtailer"
 			s.eventSource = "dd-test-source-logtailer"
-			s.query = "*"
 			s.numEvents = 100
 			s.testAPI = tiName
 			suite.Run(t, &s)
@@ -101,7 +99,37 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, msgChan chan *message.Me
 func (s *ReadEventsSuite) TestReadEvents() {
 	config := Config{
 		ChannelPath: s.channelPath,
-		Query:       s.query,
+	}
+	msgChan := make(chan *message.Message)
+	tailer, err := newtailer(s.ti.API(), &config, msgChan)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		tailer.Stop()
+	})
+
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	totalEvents := uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		totalEvents += 1
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+}
+
+func (s *ReadEventsSuite) TestCustomQuery() {
+	query := fmt.Sprintf(`
+<QueryList>
+  <Query Id="0" Path="%s">
+    <Select Path="%s">*[System[Provider[@Name='%s'] and (Level=4 or Level=0) and (EventID=1000)]]</Select>
+  </Query>
+</QueryList>
+`, s.channelPath, s.channelPath, s.eventSource)
+	config := Config{
+		ChannelPath: s.channelPath,
+		Query:       query,
 	}
 	msgChan := make(chan *message.Message)
 	tailer, err := newtailer(s.ti.API(), &config, msgChan)
