@@ -15,7 +15,6 @@ instances:
   ## If you use Oracle names resolution via tnsnamas.ora or ldap.ora, 
   ## you must specify 'tns_alias' instead of 'server' and 'service_name'.
   # 
-
 - server: <HOST> or server: <HOST>:<PORT>
 
   ## @param port - string - optional
@@ -91,6 +90,15 @@ instances:
       ## Configure query metrics collection for Datadog agent statements
       #
       # include_datadog_queries: false
+  
+  ## Configure collection of execution plans
+  #
+  # execution_plans:
+
+      ## @param enabled - boolean - optional - default: false
+      ## Enable collection of execution plans. Requires query metrics.
+      #
+      # enabled: false
 
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.
