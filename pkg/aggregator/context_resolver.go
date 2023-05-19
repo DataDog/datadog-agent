@@ -72,7 +72,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
-		if !cr.canAdd() {
+		if !cr.tryAdd() {
 			return contextKey, false
 		}
 
@@ -91,7 +91,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	return contextKey, true
 }
 
-func (cr *contextResolver) canAdd() bool {
+func (cr *contextResolver) tryAdd() bool {
 	return cr.limiter.Track(cr.taggerBuffer.Get())
 }
 
