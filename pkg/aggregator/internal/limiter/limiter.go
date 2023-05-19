@@ -47,6 +47,8 @@ func New(limit int, keyTagName string, telemetryTagNames []string) *Limiter {
 		return nil
 	}
 
+	// Make sure all names end with a colon, so we don't accidentally match a part of the tag name, only the full name.
+	// e.g. keyTagName="pod_name" should not match the tag "pod_name_alias:foo"
 	if !strings.HasSuffix(keyTagName, ":") {
 		keyTagName += ":"
 	}
@@ -60,6 +62,7 @@ func New(limit int, keyTagName string, telemetryTagNames []string) *Limiter {
 		hasKey = hasKey || keyTagName == telemetryTagNames[i]
 	}
 
+	// Make sure key tag is always set on the telemetry metrics.
 	if !hasKey {
 		telemetryTagNames = append(telemetryTagNames, keyTagName)
 	}
