@@ -19,6 +19,7 @@ func TestValidEnv(t *testing.T) {
 	require.NoError(t, CheckEnvStructValid[ValidEnv]())
 }
 
+// nolint:unused
 type UnexportedFieldEnv struct {
 	vm *VM
 }
