@@ -114,7 +114,7 @@ func generatePackageName(file string) string {
 }
 
 func buildCommandArgs(file, bundle string) []string {
-	pkg := generatePacakgeName(file)
+	pkg := generatePackageName(file)
 	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 	xmlpath := filepath.Join(
 		"/", "tmp", bundle,
