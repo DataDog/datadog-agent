@@ -111,19 +111,6 @@ func (c *Check) Run() error {
 				}
 			}
 		}
-
-		if c.config.QuerySamples.Enabled {
-			err := c.SampleSession()
-			if err != nil {
-				return err
-			}
-			if c.config.QueryMetrics.Enabled {
-				_, err = c.StatementMetrics()
-				if err != nil {
-					return err
-				}
-			}
-		}
 	}
 	return nil
 }

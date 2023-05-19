@@ -40,6 +40,10 @@ type TablespacesConfig struct {
 }
 
 type ProcessMemoryConfig struct {
+  	Enabled bool `yaml:"enabled"`
+}
+
+type ExecutionPlansConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
@@ -63,6 +67,7 @@ type InstanceConfig struct {
 	SysMetrics             SysMetricsConfig    `yaml:"sysmetrics"`
 	Tablespaces            TablespacesConfig   `yaml:"tablespaces"`
 	ProcessMemory          ProcessMemoryConfig `yaml:"process_memory"`
+	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.

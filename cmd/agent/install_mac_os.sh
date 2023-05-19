@@ -40,6 +40,11 @@ if [ -n "$DD_SITE" ]; then
     site=$DD_SITE
 fi
 
+agent_dist_channel=
+if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
+    agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
+fi
+
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
   #  - 20   = defaults to highest patch version x.20.2
@@ -172,7 +177,12 @@ if [ -z "$dmg_version" ]; then
         dmg_version="${agent_major_version}.${agent_minor_version}-1"
     fi
 fi
-dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
+
+if [ -z "$agent_dist_channel" ]; then
+    dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
+else
+    dmg_url="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}.dmg"
+fi
 
 if [ "$upgrade" ]; then
     if [ ! -f $etc_dir/datadog.conf ]; then

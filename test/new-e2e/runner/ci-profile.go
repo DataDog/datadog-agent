@@ -8,9 +8,14 @@ package runner
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 )
+
+const defaultCISecretPrefix = "ci.datadog-agent."
+
+var defaultCIEnvs = []string{"aws/agent-qa"}
 
 type ciProfile struct {
 	baseProfile
@@ -23,9 +28,12 @@ func NewCIProfile() (Profile, error) {
 	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
 	}
-
+	ciSecretPrefix := os.Getenv("CI_SECRET_PREFIX")
+	if len(ciSecretPrefix) == 0 {
+		ciSecretPrefix = defaultCISecretPrefix
+	}
 	// Secret store
-	secretStore := parameters.NewAWSStore("ci.datadog-agent.")
+	secretStore := parameters.NewAWSStore(ciSecretPrefix)
 
 	// Set Pulumi password
 	passVal, err := secretStore.Get(parameters.PulumiPassword)
@@ -42,8 +50,14 @@ func NewCIProfile() (Profile, error) {
 	}
 
 	store := parameters.NewEnvStore(EnvPrefix)
+
+	ciEnvironments := strings.Split(os.Getenv("CI_ENV_NAMES"), " ")
+	if len(ciEnvironments) == 0 {
+		ciEnvironments = defaultCIEnvs
+	}
+
 	return ciProfile{
-		baseProfile: newProfile("e2eci", []string{"aws/agent-qa"}, store, &secretStore),
+		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
 		ciUniqueID:  pipelineID + "-" + projectID,
 	}, nil
 }
