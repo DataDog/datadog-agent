@@ -555,7 +555,6 @@ func BenchmarkTimeSamplerWithLimiter(b *testing.B) {
 	for limit := range []int{0, 1, 2, 3} {
 		store := tags.NewStore(false, "test")
 		limiter := limiter.New(limit, "pod", []string{"pod"})
-		fmt.Println(limiter)
 		sampler := NewTimeSampler(TimeSamplerID(0), 10, store, limiter, "host")
 
 		b.Run(fmt.Sprintf("limit=%d", limit), func(b *testing.B) {
