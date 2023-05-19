@@ -29,16 +29,22 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+const (
+	MicroVMsDependenciesPath = filepath.Join("opt", "kernel-version-testing", "dependencies-%s.tar.gz")
+	DependenciesPackage      = "dependencies-%s.tar.gz"
+)
+
 type SystemProbeEnvOpts struct {
-	X86AmiID           string
-	ArmAmiID           string
-	SSHKeyPath         string
-	SSHKeyName         string
-	InfraEnv           string
-	Provision          bool
-	ShutdownPeriod     time.Duration
-	FailOnMissing      bool
-	UploadDependencies bool
+	X86AmiID              string
+	ArmAmiID              string
+	SSHKeyPath            string
+	SSHKeyName            string
+	InfraEnv              string
+	Provision             bool
+	ShutdownPeriod        time.Duration
+	FailOnMissing         bool
+	UploadDependencies    bool
+	DependenciesDirectory string
 }
 
 type TestEnv struct {
@@ -54,10 +60,9 @@ var (
 	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
 	vmConfig            = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 
-	DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
-	CI_PROJECT_DIR       = os.Getenv("CI_PROJECT_DIR")
-	sshKeyX86            = os.Getenv("LibvirtSSHKeyX86")
-	sshKeyArm            = os.Getenv("LibvirtSSHKeyARM")
+	CI_PROJECT_DIR = os.Getenv("CI_PROJECT_DIR")
+	sshKeyX86      = os.Getenv("LibvirtSSHKeyX86")
+	sshKeyArm      = os.Getenv("LibvirtSSHKeyARM")
 
 	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.outputs")
 )
@@ -109,6 +114,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
+		"microvm:shutdownPeriod":                 auto.ConfigValue{Value: opts.ShutdownPeriod.Minutes()},
 	}
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
 	if opts.SSHKeyPath != "" {
@@ -131,9 +137,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
 
-			var depends []pulumi.Resource
 			osCommand := command.NewUnixOSCommand()
-
 			commandProvider, err := pulumiCommand.NewProvider(ctx, "test-env-command-provider", &pulumiCommand.ProviderArgs{})
 			if err != nil {
 				return fmt.Errorf("failed to get command provider: %w", err)
@@ -148,35 +152,14 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 					OSCommand: osCommand,
 				})
 
-				// if shutdown period specified then register a cron job
-				// to automatically shutdown the ec2 instance after desired
-				// interval. The microvm scenario sets the terminateOnShutdown
-				// attribute of the ec2 instance to true. Therefore the shutdown would
-				// trigger the automatic termination of the ec2 instance.
-				if int64(opts.ShutdownPeriod) > 0 {
-					shutdownRegisterArgs := command.Args{
-						Create: pulumi.Sprintf(
-							"shutdown -P +%.0f", opts.ShutdownPeriod.Minutes(),
-						),
-						Sudo: true,
-					}
-					shutdownRegisterDone, err := remoteRunner.Command("shutdown-"+instance.Arch, &shutdownRegisterArgs, pulumi.DependsOn(scenarioDone.Dependencies))
-					if err != nil {
-						return fmt.Errorf("failed to schedule shutdown: %w", err)
-					}
-					depends = []pulumi.Resource{shutdownRegisterDone}
-				} else {
-					depends = scenarioDone.Dependencies
-				}
-
 				if opts.UploadDependencies {
 					// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
 					// is mounted to all micro-vms. Each micro-vm extract the context on boot.
 					filemanager := command.NewFileManager(remoteRunner)
 					_, err = filemanager.CopyFile(
-						fmt.Sprintf("%s/dependencies-%s.tar.gz", DD_AGENT_TESTING_DIR, instance.Arch),
-						fmt.Sprintf("/opt/kernel-version-testing/dependencies-%s.tar.gz", instance.Arch),
-						pulumi.DependsOn(depends),
+						filepath.Join(opts.DependenciesDirectory, fmt.Sprintf(DependenciesPackage, instance.Arch)),
+						fmt.Sprintf(MicroVMsDependenciesPath, instance.Arch),
+						pulumi.DependsOn(scenarioDone.Dependencies),
 						pulumi.Provider(commandProvider),
 					)
 					if err != nil {
