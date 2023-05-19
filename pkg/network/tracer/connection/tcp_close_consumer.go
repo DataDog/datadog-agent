@@ -37,6 +37,7 @@ type tcpCloseConsumer struct {
 	requests     chan chan struct{}
 	buffer       *network.ConnectionBuffer
 	once         sync.Once
+	ch           *cookieHasher
 }
 
 func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) (*tcpCloseConsumer, error) {
@@ -45,6 +46,7 @@ func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, ba
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
 		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
+		ch:           newCookieHasher(),
 	}
 	return c, nil
 }
@@ -72,7 +74,7 @@ func (c *tcpCloseConsumer) Stop() {
 func (c *tcpCloseConsumer) extractConn(data []byte) {
 	ct := (*netebpf.Conn)(unsafe.Pointer(&data[0]))
 	conn := c.buffer.Next()
-	populateConnStats(conn, &ct.Tup, &ct.Conn_stats)
+	populateConnStats(conn, &ct.Tup, &ct.Conn_stats, c.ch)
 	updateTCPStats(conn, ct.Conn_stats.Cookie, &ct.Tcp_stats)
 }
 
