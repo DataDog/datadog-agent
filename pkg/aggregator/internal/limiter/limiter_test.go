@@ -21,7 +21,7 @@ func TestLimiter(t *testing.T) {
 
 	a := assert.New(t)
 
-	a.Equal(l.tags, []string{"srv:", "pod:"})
+	a.Equal(l.telemetryTagNames, []string{"srv:", "pod:"})
 
 	a.True(l.Track([]string{"srv:foo", "cid:1", "pod", "pod:foo"}))
 	a.False(l.Track([]string{"srv:foo", "cid:2", "pod", "pod:foo"}))
@@ -40,9 +40,9 @@ func TestLimiter(t *testing.T) {
 	a.True(l.Track([]string{"srv:bar", "pod:foo"}))
 
 	a.Equal(&entry{
-		current:  1,
-		rejected: 0,
-		tags:     []string{"srv:bar", "pod:foo"},
+		current:       1,
+		rejected:      0,
+		telemetryTags: []string{"srv:bar", "pod:foo"},
 	}, l.usage["pod:foo"])
 
 	l.Remove([]string{"pod:foo"})
