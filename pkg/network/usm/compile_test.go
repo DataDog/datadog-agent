@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
@@ -26,6 +25,7 @@ func TestHttpCompile(t *testing.T) {
 	}
 	cfg := config.New()
 	cfg.BPFDebug = true
-	_, err = getRuntimeCompiledUSM(cfg)
+	out, err := getRuntimeCompiledUSM(cfg)
 	require.NoError(t, err)
+	_ = out.Close()
 }

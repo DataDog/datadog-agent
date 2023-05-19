@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroup
 
@@ -55,10 +54,7 @@ func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
 		listeners:            make(map[CGroupEvent][]CGroupListener),
 	}
 	workloads, err := simplelru.NewLRU(1024, func(key string, value *cgroupModel.CacheEntry) {
-		if value.OnReleaseCallback != nil {
-			value.OnReleaseCallback()
-		}
-
+		value.CallReleaseCallback()
 		value.Deleted.Store(true)
 
 		cr.listenersLock.Lock()

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package offsetguess
 
@@ -38,7 +37,12 @@ type conntrackOffsetGuesser struct {
 	udpv6Enabled uint64
 }
 
-func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, error) {
+func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
+	consts, err := TracerOffsets.Offsets(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	var offsetIno uint64
 	var tcpv6Enabled, udpv6Enabled uint64
 	for _, c := range consts {
@@ -49,9 +53,6 @@ func NewConntrackOffsetGuesser(consts []manager.ConstantEditor) (OffsetGuesser, 
 			tcpv6Enabled = c.Value.(uint64)
 		case "udpv6_enabled":
 			udpv6Enabled = c.Value.(uint64)
-			if offsetIno > 0 {
-				break
-			}
 		}
 	}
 

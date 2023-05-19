@@ -15,7 +15,6 @@ instances:
   ## If you use Oracle names resolution via tnsnamas.ora or ldap.ora, 
   ## you must specify 'tns_alias' instead of 'server' and 'service_name'.
   # 
-
 - server: <HOST> or server: <HOST>:<PORT>
 
   ## @param port - string - optional
@@ -65,6 +64,33 @@ instances:
   ## @param reported_hostname - string - optional
   ## Set the reported hostname for this instance. This value overrides the hostname detected by the Agent
 
+  ## Configure collection of database sysmetrics
+  #
+  # sysmetrics:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of database sysmetrics
+      #
+      # enabled: true
+
+  ## Configure collection of tablespace usage
+  #
+  # tablespaces:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of tablespace usage
+      #
+      # enabled: true
+
+  ## Configure collection of process memory usage
+  #
+  # processes:
+
+      ## @param enabled - boolean - optional - default: true
+      ## Enable collection of process memory usage
+      #
+      # enabled: true
+
   ## @param dbm - boolean - optional - default: false
   ## Set to `true` to enable Database Monitoring.
   #
@@ -91,6 +117,15 @@ instances:
       ## Configure query metrics collection for Datadog agent statements
       #
       # include_datadog_queries: false
+  
+  ## Configure collection of execution plans
+  #
+  # execution_plans:
+
+      ## @param enabled - boolean - optional - default: false
+      ## Enable collection of execution plans. Requires query metrics.
+      #
+      # enabled: false
 
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.

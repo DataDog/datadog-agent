@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package netlink
 
@@ -205,10 +204,7 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 	listenPort := 8080
 	ns := testutil.SetupCrossNsDNATWithPorts(t, destPort, listenPort)
 
-	state := nettestutil.IptablesSave(t)
-	t.Cleanup(func() {
-		nettestutil.IptablesRestore(t, state)
-	})
+	nettestutil.IptablesSave(t)
 	nettestutil.RunCommands(t, []string{
 		"iptables --table nat --new-chain CLUSTERIPS",
 		"iptables --table nat --append PREROUTING --jump CLUSTERIPS",

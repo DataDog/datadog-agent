@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -15,14 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -36,13 +31,13 @@ import (
 	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -157,38 +152,17 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 		log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http.HTTP2MinimumKernelVersion, currKernelVersion)
 	}
 
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read offset bpf module: %s", err)
-	}
-	defer offsetBuf.Close()
-
-	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	needsOffsets := !cfg.EnableRuntimeCompiler || cfg.AllowPrecompiledFallback
-	var constantEditors []manager.ConstantEditor
-	if needsOffsets {
-		// we must create a copy of the config as-if we were loading prebuilt
-		var ogConfig = *cfg
-		// prebuilt on 5.18+ cannot support UDPv6
-		if currKernelVersion >= kernel.VersionCode(5, 18, 0) {
-			ogConfig.CollectUDPv6Conns = false
-		}
-		if constantEditors, err = runOffsetGuessing(&ogConfig, offsetBuf, offsetguess.NewTracerOffsetGuesser); err != nil {
-			return nil, fmt.Errorf("error guessing offsets: %s", err)
-		}
-	}
-
 	var bpfTelemetry *nettelemetry.EBPFTelemetry
 	if usmSupported {
 		bpfTelemetry = nettelemetry.NewEBPFTelemetry()
 	}
 
-	ebpfTracer, err := connection.NewTracer(cfg, constantEditors, bpfTelemetry)
+	ebpfTracer, err := connection.NewTracer(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
 
-	conntracker, err := newConntracker(cfg, bpfTelemetry, constantEditors)
+	conntracker, err := newConntracker(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +185,7 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 		config:                     cfg,
 		state:                      state,
 		reverseDNS:                 newReverseDNS(cfg),
-		usmMonitor:                 newUSMMonitor(cfg, ebpfTracer, bpfTelemetry, constantEditors),
+		usmMonitor:                 newUSMMonitor(cfg, ebpfTracer, bpfTelemetry),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(cfg.ExcludedSourceConnections),
@@ -276,14 +250,14 @@ func (tr *Tracer) start() error {
 	return nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
 
 	var c netlink.Conntracker
 	var err error
-	if c, err = NewEBPFConntracker(cfg, bpfTelemetry, constants); err == nil {
+	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
 		return c, nil
 	}
 
@@ -315,36 +289,6 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 
 	log.Info("dns inspection enabled")
 	return rdns
-}
-
-func runOffsetGuessing(config *config.Config, buf bytecode.AssetReader, newGuesser func() (offsetguess.OffsetGuesser, error)) (editors []manager.ConstantEditor, err error) {
-	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
-	start := time.Now()
-	for i := 0; i < 5; i++ {
-		err = func() error {
-			guesser, err := newGuesser()
-			if err != nil {
-				return err
-			}
-
-			if err = offsetguess.SetupOffsetGuesser(guesser, config, buf); err != nil {
-				return err
-			}
-
-			editors, err = guesser.Guess(config)
-			guesser.Close()
-			return err
-		}()
-
-		if err == nil {
-			log.Infof("offset guessing complete (took %v)", time.Since(start))
-			return editors, nil
-		}
-
-		time.Sleep(1 * time.Second)
-	}
-
-	return nil, err
 }
 
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
@@ -481,8 +425,8 @@ func (t *Tracer) removeClient(clientID string) {
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {
 	kprobeStats := ddebpf.GetProbeTotals()
 	tm := map[network.ConnTelemetryType]int64{
-		network.MonotonicKprobesTriggered: kprobeStats.Hits,
-		network.MonotonicKprobesMissed:    kprobeStats.Misses,
+		network.MonotonicKprobesTriggered: int64(kprobeStats.Hits),
+		network.MonotonicKprobesMissed:    int64(kprobeStats.Misses),
 		network.ConnsBpfMapSize:           int64(mapSize),
 		network.MonotonicConnsClosed:      tracerTelemetry.closedConns.Load(),
 	}
@@ -842,12 +786,19 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, nil
 }
 
-func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *usm.Monitor {
+func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry) *usm.Monitor {
 	// Shared with the USM program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
-	monitor, err := usm.NewMonitor(c, offsets, connectionProtocolMap, sockFDMap, bpfTelemetry)
+	if tracer.Type() != connection.TracerTypeKProbeRuntimeCompiled && tracer.Type() != connection.TracerTypeKProbeCORE {
+		if c.EnableGoTLSSupport {
+			log.Warn("disabling USM goTLS support as goTLS requires runtime compilation or CO-RE")
+			c.EnableGoTLSSupport = false
+		}
+	}
+
+	monitor, err := usm.NewMonitor(c, connectionProtocolMap, sockFDMap, bpfTelemetry)
 	if err != nil {
 		log.Error(err)
 		return nil
@@ -865,5 +816,9 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *net
 	if c.EnableKafkaMonitoring {
 		log.Info("kafka monitoring enabled")
 	}
+	if c.EnableGoTLSSupport {
+		log.Info("goTLS monitoring enabled")
+	}
+
 	return monitor
 }

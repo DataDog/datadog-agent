@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -311,8 +310,7 @@ func (p *Probe) PlaySnapshot() {
 		if entry.Source != model.ProcessCacheEntryFromProcFS {
 			return
 		}
-		event := &model.Event{}
-		event.FieldHandlers = p.fieldHandlers
+		event := NewEvent(p.fieldHandlers)
 		event.Type = uint32(model.ExecEventType)
 		event.TimestampRaw = uint64(time.Now().UnixNano())
 		event.ProcessCacheEntry = entry
@@ -723,7 +721,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
-			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
+			seclog.Debugf("failed to resolve new process cache entry context for pid %d: %s", event.PIDContext.Pid, err)
 
 			var errResolution *path.ErrPathResolution
 			if errors.As(err, &errResolution) {
@@ -741,7 +739,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		var exists bool
-		event.ProcessCacheEntry, exists = p.fieldHandlers.ResolveProcessCacheEntry(event)
+		event.ProcessCacheEntry, exists = p.fieldHandlers.GetProcessCacheEntry(event)
 		if !exists {
 			// no need to dispatch an exit event that don't have the corresponding cache entry
 			return
@@ -788,7 +786,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// resolve tracee process context
 		var pce *model.ProcessCacheEntry
 		if event.PTrace.PID > 0 { // pid can be 0 for a PTRACE_TRACEME request
-			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0)
+			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
 		}
 		if pce == nil {
 			pce = model.NewEmptyProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
@@ -833,7 +831,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// resolve target process context
 		var pce *model.ProcessCacheEntry
 		if event.Signal.PID > 0 { // Linux accepts a kill syscall with both negative and zero pid
-			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0)
+			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false)
 		}
 		if pce == nil {
 			pce = model.NewEmptyProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
@@ -1354,7 +1352,7 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid, ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)); err != nil {
+	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
@@ -1429,7 +1427,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		cancelFnc:            cancel,
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		event:                &model.Event{ContainerContext: &model.ContainerContext{}},
 		PlatformProbe: PlatformProbe{
 			approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
 			managerOptions:       ebpf.NewDefaultOptions(),
@@ -1439,6 +1436,9 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			anomalyDetectionSent: make(map[model.EventType]*atomic.Uint64),
 		},
 	}
+
+	p.event = NewEvent(p.fieldHandlers)
+
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		p.anomalyDetectionSent[i] = atomic.NewUint64(0)
 	}

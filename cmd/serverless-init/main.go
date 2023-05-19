@@ -4,12 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package main
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"os"
 	"time"
 
@@ -22,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -82,7 +81,7 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	config.Datadog.Set("use_v2_api.series", false)
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
-	delete(tags, "container_id")
+	tags = tag.WithoutContainerID(tags)
 	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tags)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(tagArray)
