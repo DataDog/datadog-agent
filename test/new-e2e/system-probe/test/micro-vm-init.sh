@@ -16,4 +16,15 @@ find $KITCHEN_DOCKERS -maxdepth 1 -type f -exec docker load -i {} \;
 # VM provisioning end !
 
 # Start tests
-/system-probe-test_spec
+IP=$(ip -f inet addr show $(ip route get $(getent ahosts google.com | awk '{print $1; exit}') | grep -Po '(?<=(dev ))(\S+)') | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')
+rm -f /opt/kernel-version-testing/testjson-$IP.tar.gz
+rm -f /opt/kernel-version-testing/junit-$IP.tar.gz
+
+/system-probe-test_spec || FAILURE="true"
+
+tar czvf /testjson /opt/kernel-version-testing/testjson-$IP.tar.gz
+tar czvf /junit /opt/kernel-version-testing/junit-$IP.tar.gz
+
+if [ $FAILURE ]; then
+    exit 1
+fi
