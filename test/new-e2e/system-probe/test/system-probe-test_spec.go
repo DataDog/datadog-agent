@@ -7,6 +7,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -72,7 +73,7 @@ func pathEmbedded(fullPath, embedded string) bool {
 	return strings.Contains(fullPath, normalized)
 }
 
-func glob(dir, filePattern string, filter filterPaths) ([]string, error) {
+func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
 	var matches []string
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -87,12 +88,8 @@ func glob(dir, filePattern string, filter filterPaths) ([]string, error) {
 		if d.IsDir() || !present {
 			return nil
 		}
-		for _, p := range filter.paths {
-			if pathEmbedded(path, p) && filter.inclusive {
-				matches = append(matches, path)
-			} else if !pathEmbedded(path, p) && !filter.inclusive {
-				matches = append(matches, path)
-			}
+		if filterFn(path) {
+			matches = append(matches, path)
 		}
 		return nil
 	})
@@ -117,11 +114,11 @@ func buildCommandArgs(file, bundle string) []string {
 	pkg := generatePackageName(file)
 	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 	xmlpath := filepath.Join(
-		"/", "tmp", bundle,
+		"/", "junit", bundle,
 		fmt.Sprintf("%s.xml", junitfilePrefix),
 	)
 	jsonpath := filepath.Join(
-		"/", "tmp", bundle,
+		"/", "pkgjson", bundle,
 		fmt.Sprintf("%s.json", junitfilePrefix),
 	)
 	args := []string{
@@ -158,10 +155,71 @@ func runCommandAndStreamOutput(cmd *exec.Cmd, commandOutput io.Reader) error {
 	return cmd.Run()
 }
 
-func testPass(config testConfig) error {
-	matches, err := glob(TestDirRoot, Testsuite, config.filterPackages)
+func filterPackagesFn(filter filterPaths) func(path string) bool {
+	return func(path string) bool {
+		for _, p := range filter.paths {
+			if pathEmbedded(path, p) && filter.inclusive {
+				return true
+			} else if !pathEmbedded(path, p) && !filter.inclusive {
+				return true
+			}
+		}
+
+		return false
+	}
+}
+
+func concatenateBundleJsons(bundle string) error {
+	testJsonFile := filepath.Join("/", "testjson", fmt.Sprintf("%s.json", bundle))
+	bundleJSONPath := filepath.Join("/", "pkgjson", bundle)
+	matches, err := glob(bundleJSONPath, `*\.json`, func(path string) bool { return true })
 	if err != nil {
 		return err
+	}
+
+	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	for _, jsonFile := range matches {
+		data, err := os.ReadFile(jsonFile)
+		if err != nil {
+			return err
+		}
+		f.Write(data)
+	}
+
+	return nil
+}
+
+func testPass(config testConfig) error {
+	matches, err := glob(TestDirRoot, Testsuite, filterPackagesFn(config.filterPackages))
+	if err != nil {
+		return err
+	}
+
+	if err := os.RemoveAll("/junit/"); err != nil {
+		return fmt.Errorf("failed to remove contents of /junit/: %w", err)
+	}
+	if err := os.RemoveAll("/pkgjson/"); err != nil {
+		return fmt.Errorf("failed to remove contents of /pkgjson/: %w", err)
+	}
+
+	bundleXMLPath := filepath.Join("/", "junit", config.bundle)
+	bundleJSONPath := filepath.Join("/", "pkgjson", config.bundle)
+
+	// create bundle if not exist
+	if _, err := os.Stat(bundleXMLPath); errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(bundleXMLPath, 0777); err != nil {
+			return fmt.Errorf("failed to create directory %s", bundleXMLPath)
+		}
+	}
+	if _, err := os.Stat(bundleJSONPath); errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(bundleJSONPath, 0777); err != nil {
+			return fmt.Errorf("failed to create directory %s", bundleJSONPath)
+		}
 	}
 
 	for _, file := range matches {
@@ -178,14 +236,18 @@ func testPass(config testConfig) error {
 		}
 	}
 
+	concatenateBundleJsons(config.bundle)
+
 	return nil
 }
 
 func fixAssetPermissions() error {
-	matches, err := glob(TestDirRoot, `.*\.o`, filterPaths{
-		paths:     []string{"pkg/ebpf/bytecode/build"},
-		inclusive: true,
-	})
+	matches, err := glob(TestDirRoot, `.*\.o`,
+		filterPackagesFn(filterPaths{
+			paths:     []string{"pkg/ebpf/bytecode/build"},
+			inclusive: true,
+		}),
+	)
 	if err != nil {
 		return err
 	}
@@ -200,6 +262,7 @@ func fixAssetPermissions() error {
 }
 
 func main() {
+	var testErr error
 	if err := fixAssetPermissions(); err != nil {
 		log.Fatal(err)
 	}
@@ -212,7 +275,7 @@ func main() {
 		},
 		filterPackages: skipPrebuiltTests,
 	}); err != nil {
-		log.Fatal(err)
+		testErr = fmt.Errorf("prebuilt: %w\n%w", err, testErr)
 	}
 	if err := testPass(testConfig{
 		bundle: "runtime",
@@ -223,7 +286,7 @@ func main() {
 		},
 		filterPackages: runtimeCompiledTests,
 	}); err != nil {
-		log.Fatal(err)
+		testErr = fmt.Errorf("runtime: %w\n%w", err, testErr)
 	}
 	if err := testPass(testConfig{
 		bundle: "co-re",
@@ -235,7 +298,7 @@ func main() {
 		},
 		filterPackages: coreTests,
 	}); err != nil {
-		log.Fatal(err)
+		testErr = fmt.Errorf("co-re: %w\n%w", err, testErr)
 	}
 	if err := testPass(testConfig{
 		bundle: "fentry",
@@ -247,6 +310,10 @@ func main() {
 		},
 		filterPackages: fentryTests,
 	}); err != nil {
-		log.Fatal(err)
+		testErr = fmt.Errorf("fentry: %w\n%w", err, testErr)
+	}
+
+	if testErr != nil {
+		log.Fatal(testErr)
 	}
 }
