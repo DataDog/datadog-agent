@@ -20,11 +20,10 @@ IP=$(ip -f inet addr show $(ip route get $(getent ahosts google.com | awk '{prin
 rm -f /opt/kernel-version-testing/testjson-$IP.tar.gz
 rm -f /opt/kernel-version-testing/junit-$IP.tar.gz
 
-/system-probe-test_spec || FAILURE="true"
+CODE=0
+/system-probe-test_spec || CODE=$?
 
 tar czvf /testjson /opt/kernel-version-testing/testjson-$IP.tar.gz
 tar czvf /junit /opt/kernel-version-testing/junit-$IP.tar.gz
 
-if [ $FAILURE ]; then
-    exit 1
-fi
+exit $?
