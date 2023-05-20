@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,9 +30,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-const (
-	MicroVMsDependenciesPath = filepath.Join("opt", "kernel-version-testing", "dependencies-%s.tar.gz")
-	DependenciesPackage      = "dependencies-%s.tar.gz"
+var (
+	DependenciesPackage = "dependencies-%s.tar.gz"
 )
 
 type SystemProbeEnvOpts struct {
@@ -41,7 +41,7 @@ type SystemProbeEnvOpts struct {
 	SSHKeyName            string
 	InfraEnv              string
 	Provision             bool
-	ShutdownPeriod        time.Duration
+	ShutdownPeriod        int
 	FailOnMissing         bool
 	UploadDependencies    bool
 	DependenciesDirectory string
@@ -57,8 +57,9 @@ type TestEnv struct {
 }
 
 var (
-	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
-	vmConfig            = filepath.Join(".", "system-probe", "config", "vmconfig.json")
+	MicroVMsDependenciesPath = filepath.Join("opt", "kernel-version-testing", "dependencies-%s.tar.gz")
+	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
+	vmConfig                 = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 
 	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
@@ -114,7 +115,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
-		"microvm:shutdownPeriod":                 auto.ConfigValue{Value: opts.ShutdownPeriod.Minutes()},
+		"microvm:shutdownPeriod":                 auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)},
 	}
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
 	if opts.SSHKeyPath != "" {

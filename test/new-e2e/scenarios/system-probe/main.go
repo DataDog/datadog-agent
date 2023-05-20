@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
@@ -58,7 +57,7 @@ func main() {
 	opts := systemProbe.SystemProbeEnvOpts{
 		X86AmiID:              *x86AmiIDPtr,
 		ArmAmiID:              *armAmiIDPtr,
-		ShutdownPeriod:        time.Duration(*shutdownPtr) * time.Minute,
+		ShutdownPeriod:        *shutdownPtr,
 		Provision:             *toProvisionPtr,
 		FailOnMissing:         failOnMissing,
 		UploadDependencies:    *uploadDependenciesPtr,
