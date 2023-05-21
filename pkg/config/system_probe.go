@@ -195,15 +195,23 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
-	httpRules := join(netNS, "http_replace_rules")
-	cfg.BindEnv(httpRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
-	cfg.SetEnvKeyTransformer(httpRules, func(in string) interface{} {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			log.Warnf(`%q can not be parsed: %v`, httpRules, err)
+
+	oldHTTPRules := join(netNS, "http_replace_rules")
+	newHTTPRules := join(smNS, "http_replace_rules")
+	cfg.BindEnv(newHTTPRules)
+	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
+	httpRulesTransformer := func(key string) func(in string) interface{} {
+		return func(in string) interface{} {
+			var out []map[string]string
+			if err := json.Unmarshal([]byte(in), &out); err != nil {
+				log.Warnf(`%q can not be parsed: %v`, key, err)
+			}
+			return out
 		}
-		return out
-	})
+	}
+	cfg.SetEnvKeyTransformer(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
+	cfg.SetEnvKeyTransformer(newHTTPRules, httpRulesTransformer(newHTTPRules))
+
 	cfg.BindEnvAndSetDefault(join(netNS, "max_tracked_http_connections"), 1024)
 	cfg.BindEnvAndSetDefault(join(netNS, "http_notification_threshold"), 512)
 	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 160)

@@ -444,21 +444,7 @@ func TestHTTPReplaceRules(t *testing.T) {
 		},
 	}
 
-	t.Run("via YAML", func(t *testing.T) {
-		newConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-HTTPReplaceRules.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
-		require.Len(t, cfg.HTTPReplaceRules, 3)
-		for i, r := range expected {
-			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
-		}
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
+	envContent := `
         [
           {
             "pattern": "/users/(.*)",
@@ -472,7 +458,23 @@ func TestHTTPReplaceRules(t *testing.T) {
             "pattern": "payment_id"
           }
         ]
-        `)
+        `
+
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRulesDeprecated.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
 
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -482,6 +484,82 @@ func TestHTTPReplaceRules(t *testing.T) {
 		for i, r := range expected {
 			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
 		}
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRules.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		cfg := New()
+
+		assert.Empty(t, cfg.HTTPReplaceRules)
 	})
 }
 

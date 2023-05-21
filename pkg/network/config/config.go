@@ -342,7 +342,7 @@ func New() *Config {
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 	}
 
-	httpRRKey := join(netNS, "http_replace_rules")
+	httpRRKey := join(smNS, "http_replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {
 		log.Errorf("error parsing %q: %v", httpRRKey, err)
