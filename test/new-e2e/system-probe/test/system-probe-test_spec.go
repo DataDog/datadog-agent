@@ -226,7 +226,7 @@ func testPass(config testConfig) error {
 		args := buildCommandArgs(file, config.bundle)
 		cmd := exec.Command(GoTestSum, args...)
 
-		cmd.Env = mergeEnv(config.env, BaseEnv)
+		cmd.Env = append(cmd.Environ(), mergeEnv(config.env, BaseEnv)...)
 		cmd.Dir = filepath.Dir(file)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
