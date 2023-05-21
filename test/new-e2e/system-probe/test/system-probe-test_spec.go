@@ -212,12 +212,12 @@ func testPass(config testConfig) error {
 
 	// create bundle if not exist
 	if _, err := os.Stat(bundleXMLPath); errors.Is(err, os.ErrNotExist) {
-		if err := os.Mkdir(bundleXMLPath, 0777); err != nil {
+		if err := os.MkdirAll(bundleXMLPath, 0777); err != nil {
 			return fmt.Errorf("failed to create directory %s", bundleXMLPath)
 		}
 	}
 	if _, err := os.Stat(bundleJSONPath); errors.Is(err, os.ErrNotExist) {
-		if err := os.Mkdir(bundleJSONPath, 0777); err != nil {
+		if err := os.MkdirAll(bundleJSONPath, 0777); err != nil {
 			return fmt.Errorf("failed to create directory %s", bundleJSONPath)
 		}
 	}
@@ -262,7 +262,6 @@ func fixAssetPermissions() error {
 }
 
 func main() {
-	var testErr error
 	if err := fixAssetPermissions(); err != nil {
 		log.Fatal(err)
 	}
@@ -275,7 +274,7 @@ func main() {
 		},
 		filterPackages: skipPrebuiltTests,
 	}); err != nil {
-		testErr = fmt.Errorf("prebuilt: %w\n%w", err, testErr)
+		log.Fatal(err)
 	}
 	if err := testPass(testConfig{
 		bundle: "runtime",
@@ -286,7 +285,7 @@ func main() {
 		},
 		filterPackages: runtimeCompiledTests,
 	}); err != nil {
-		testErr = fmt.Errorf("runtime: %w\n%w", err, testErr)
+		log.Fatal(err)
 	}
 	if err := testPass(testConfig{
 		bundle: "co-re",
@@ -298,7 +297,7 @@ func main() {
 		},
 		filterPackages: coreTests,
 	}); err != nil {
-		testErr = fmt.Errorf("co-re: %w\n%w", err, testErr)
+		log.Fatal(err)
 	}
 	if err := testPass(testConfig{
 		bundle: "fentry",
@@ -310,10 +309,6 @@ func main() {
 		},
 		filterPackages: fentryTests,
 	}); err != nil {
-		testErr = fmt.Errorf("fentry: %w\n%w", err, testErr)
-	}
-
-	if testErr != nil {
-		log.Fatal(testErr)
+		log.Fatal(err)
 	}
 }

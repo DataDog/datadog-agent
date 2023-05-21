@@ -57,7 +57,7 @@ type TestEnv struct {
 }
 
 var (
-	MicroVMsDependenciesPath = filepath.Join("opt", "kernel-version-testing", "dependencies-%s.tar.gz")
+	MicroVMsDependenciesPath = filepath.Join("/", "opt", "kernel-version-testing", "dependencies-%s.tar.gz")
 	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
 	vmConfig                 = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 
