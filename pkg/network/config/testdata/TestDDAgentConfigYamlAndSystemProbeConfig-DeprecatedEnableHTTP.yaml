@@ -1,2 +1,2 @@
-service_monitoring_config:
+network_config:
   enable_http_monitoring: true
