@@ -213,6 +213,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.SetEnvKeyTransformer(newHTTPRules, httpRulesTransformer(newHTTPRules))
 
 	cfg.BindEnvAndSetDefault(join(netNS, "max_tracked_http_connections"), 1024)
+	cfg.BindEnv(join(smNS, "max_tracked_http_connections"))
 	cfg.BindEnvAndSetDefault(join(netNS, "http_notification_threshold"), 512)
 	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 160)
 

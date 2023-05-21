@@ -563,6 +563,91 @@ func TestHTTPReplaceRules(t *testing.T) {
 	})
 }
 
+func TestMaxTrackedHTTPConnections(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnectionsDeprecated.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnections.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1024))
+	})
+}
+
 func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	maxTrackedConnections := New().MaxTrackedConnections
 
