@@ -666,20 +666,87 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 }
 
 func TestMaxHTTPStatsBuffered(t *testing.T) {
-	t.Run("value set through env var", func(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
 		newConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBufferedDeprecated.yaml")
+		require.NoError(t, err)
 		cfg := New()
-		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
 	})
 
-	t.Run("value set through yaml", func(t *testing.T) {
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		newConfig(t)
-		cfg := configurationFromYAML(t, `
-network_config:
-  max_http_stats_buffered: 30000
-`)
-		assert.Equal(t, 30000, cfg.MaxHTTPStatsBuffered)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "513")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBuffered.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "513")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "514")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 100000)
 	})
 }
 
