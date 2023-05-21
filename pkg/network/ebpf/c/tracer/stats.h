@@ -23,11 +23,6 @@ static __always_inline __u64 offset_rtt_var();
 #endif
 
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {
-    conn_stats_ts_t *cst = bpf_map_lookup_elem(&conn_stats, t);
-    if (cst) {
-        return cst;
-    }
-
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
