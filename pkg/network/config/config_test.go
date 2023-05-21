@@ -543,7 +543,14 @@ func TestHTTPReplaceRules(t *testing.T) {
 	t.Run("Both enabled", func(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
+		// Setting a different value for the old value, as we should override.
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
+        [
+          {
+            "pattern": "payment_id"
+          }
+        ]
+        `)
 
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
@@ -628,7 +635,8 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 
 	t.Run("Both enabled", func(t *testing.T) {
 		newConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+		// Setting a different value
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1026")
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
 
 		_, err := sysconfig.New("")
