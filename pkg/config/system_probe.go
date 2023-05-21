@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type transformerFunction func(string) interface{}
+
 const (
 	spNS                         = "system_probe_config"
 	netNS                        = "network_config"
@@ -201,7 +203,7 @@ func InitSystemProbeConfig(cfg Config) {
 	newHTTPRules := join(smNS, "http_replace_rules")
 	cfg.BindEnv(newHTTPRules)
 	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
-	httpRulesTransformer := func(key string) func(in string) interface{} {
+	httpRulesTransformer := func(key string) transformerFunction {
 		return func(in string) interface{} {
 			var out []map[string]string
 			if err := json.Unmarshal([]byte(in), &out); err != nil {
