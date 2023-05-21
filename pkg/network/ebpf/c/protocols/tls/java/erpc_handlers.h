@@ -1,15 +1,13 @@
-#ifndef _JAVA_TLS_ERPC_H
-#define _JAVA_TLS_ERPC_H
+#ifndef _ERPC_HANDLERS_H
+#define _ERPC_HANDLERS_H
 
-#include "bpf_helpers.h"
 #include "conn_tuple.h"
 #include "protocols/tls/tags-types.h"
 #include "protocols/tls/https.h"
 #include "port_range.h"
-#include "types.h"
-#include "maps.h"
 
-#define USM_IOCTL_ID 0xda7ad09
+// macro to get the data pointer from the ctx, we skip the 1st byte as it is the operation byte read by the erpc dispatcher
+#define GET_DATA_PTR(ctx) ((void *)(PT_REGS_PARM4(ctx) + 1))
 
 /*
   handle_sync_payload's pseudo format of *data that contains the http payload
@@ -20,14 +18,16 @@
       u8 payload_buffer[payload_len];
   }
 */
-static int __always_inline handle_sync_payload(struct pt_regs *ctx, void *data) {
+
+SEC("kprobe/handle_sync_payload")
+int kprobe_handle_sync_payload(struct pt_regs *ctx) {
     // get connection tuple
     conn_tuple_t connection = {0};
     const bool val = true;
     u32 bytes_read = 0;
 
     //interactive pointer to read the data buffer
-    void* bufferPtr = data;
+    void* bufferPtr = GET_DATA_PTR(ctx);
 
     //read the connection tuple from the ioctl buffer
     if (0 != bpf_probe_read_user(&connection, sizeof(conn_tuple_t), bufferPtr)){
@@ -60,11 +60,13 @@ static int __always_inline handle_sync_payload(struct pt_regs *ctx, void *data) 
 /*
   handle_close_connection gets only the connection information in form of conn_tuple_t struct from the close event of the socket
 */
-static int __always_inline handle_close_connection(void *data) {
-
+SEC("kprobe/handle_close_connection")
+int kprobe_handle_close_connection(struct pt_regs *ctx) {
+    //interactive pointer to read the data buffer
+    void* bufferPtr = GET_DATA_PTR(ctx);
     //read the connection tuple from the ioctl buffer
     conn_tuple_t connection = {0};
-    if (0 != bpf_probe_read_user(&connection, sizeof(conn_tuple_t), data)){
+    if (0 != bpf_probe_read_user(&connection, sizeof(conn_tuple_t), bufferPtr)){
         log_debug("[java_tls_handle_close] failed to parse connection info\n");
         return 1;
     }
@@ -84,14 +86,15 @@ static int __always_inline handle_close_connection(void *data) {
   handle_connection_by_peer gets connection information along the peer domain and port information
   which helps to correlate later the plain payload with the relevant connection via the peer details
 */
-static int __always_inline handle_connection_by_peer(void *data) {
+SEC("kprobe/handle_connection_by_peer")
+int kprobe_handle_connection_by_peer(struct pt_regs *ctx) {
 
     connection_by_peer_key_t peer_key ={0};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     peer_key.pid = pid_tgid >> 32;
 
     //interactive pointer to read the data buffer
-    void* bufferPtr = data;
+    void* bufferPtr = GET_DATA_PTR(ctx);
 
     //read the connection tuple from the ioctl buffer
     conn_tuple_t connection = {0};
@@ -122,12 +125,13 @@ static int __always_inline handle_connection_by_peer(void *data) {
 
   We try to locate the relevant connection info from the bpf map using peer information together with pid as a key
 */
-static int __always_inline handle_async_payload(struct pt_regs *ctx, void *data) {
+SEC("kprobe/handle_async_payload")
+int kprobe_handle_async_payload(struct pt_regs *ctx) {
     const bool val = true;
     u32 bytes_read = 0;
 
     //interactive pointer to read the data buffer
-    void* bufferPtr = data;
+    void* bufferPtr = GET_DATA_PTR(ctx);
 
     // Allocate the buffer from a per-cpu array map, where the connection_by_peer_key_t struct will be read into.
     // Meant to avoid hitting the stack size limit of 512 bytes
@@ -182,48 +186,4 @@ static int __always_inline handle_async_payload(struct pt_regs *ctx, void *data)
     return 0;
 }
 
-static int __always_inline is_usm_erpc_request(struct pt_regs *ctx) {
-    u32 cmd = PT_REGS_PARM3(ctx);
-    return cmd == USM_IOCTL_ID;
-}
-
-/*
-  handle_erpc_request ioctl request format :
-
-  struct {
-      u8           operation;  // see erpc_message_type enum for supported operations
-      u8           data[];     // payload data
-  }
-*/
-static int __always_inline handle_erpc_request(struct pt_regs *ctx) {
-#ifdef DEBUG
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u64 pid = pid_tgid >> 32;
-#endif
-    void *req = (void *)PT_REGS_PARM4(ctx);
-
-    u8 op = 0;
-    if (0 != bpf_probe_read_user(&op, sizeof(op), req)){
-        log_debug("[java_tls_handle_erpc_request] failed to parse opcode of java tls erpc request for: pid %d\n", pid);
-        return 1;
-    }
-
-    void *data = req + sizeof(op);
-    log_debug("[java_tls_handle_erpc_request] received %d op\n", op);
-    switch (op) {
-    case SYNCHRONOUS_PAYLOAD:
-        return handle_sync_payload(ctx, data);
-    case CLOSE_CONNECTION:
-        return handle_close_connection(data);
-    case CONNECTION_BY_PEER:
-        return handle_connection_by_peer(data);
-    case ASYNC_PAYLOAD:
-        return handle_async_payload(ctx, data);
-    default:
-        log_debug("[java_tls_handle_erpc_request] got unsupported erpc request %x for: pid %d\n",op, pid);
-    }
-
-    return 0;
-}
-
-#endif
+#endif // _ERPC_HANDLERS_H

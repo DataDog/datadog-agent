@@ -34,6 +34,18 @@ const (
 	agentUSMJar                 = "agent-usm.jar"
 	javaTLSConnectionsMap       = "java_tls_connections"
 	javaDomainsToConnectionsMap = "java_conn_tuple_by_peer"
+	eRPCHandlersMap             = "java_tls_erpc_handlers"
+)
+
+const (
+	// SyncPayload is the key to the program that handles the SYNCHRONOUS_PAYLOAD eRPC operation
+	SyncPayload uint32 = iota
+	// CloseConnection is the key to the program that handles the CLOSE_CONNECTION eRPC operation
+	CloseConnection
+	// ConnectionByPeer is the key to the program that handles the CONNECTION_BY_PEER eRPC operation
+	ConnectionByPeer
+	// AsyncPayload is the key to the program that handles the ASYNC_PAYLOAD eRPC operation
+	AsyncPayload
 )
 
 var (
@@ -67,6 +79,39 @@ type JavaTLSProgram struct {
 
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &JavaTLSProgram{}
+
+func GetJavaHandlersTailCallRoutes() []manager.TailCallRoute {
+	return []manager.TailCallRoute{
+		{
+			ProgArrayName: "java_tls_erpc_handlers",
+			Key:           SyncPayload,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe_handle_sync_payload",
+			},
+		},
+		{
+			ProgArrayName: "java_tls_erpc_handlers",
+			Key:           CloseConnection,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe_handle_close_connection",
+			},
+		},
+		{
+			ProgArrayName: "java_tls_erpc_handlers",
+			Key:           ConnectionByPeer,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe_handle_connection_by_peer",
+			},
+		},
+		{
+			ProgArrayName: "java_tls_erpc_handlers",
+			Key:           AsyncPayload,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe_handle_async_payload",
+			},
+		},
+	}
+}
 
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	var err error

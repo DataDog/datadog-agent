@@ -38,4 +38,10 @@ BPF_HASH_MAP(java_tls_connections, conn_tuple_t, bool, 1)
    if javaTLS is enabled. */
 BPF_HASH_MAP(java_conn_tuple_by_peer, connection_by_peer_key_t, conn_tuple_t, 1)
 
-#endif //JAVA_MAPS_H
+/*
+    Map used to store the sub programs used by eRPC mechanism
+    This is done to avoid memory limitation when handling different operations sent via ioctl (eRPC) from our dd-java-agent
+*/
+BPF_PROG_ARRAY(java_tls_erpc_handlers, MAX_MESSAGE_TYPE)
+
+#endif // JAVA_MAPS_H

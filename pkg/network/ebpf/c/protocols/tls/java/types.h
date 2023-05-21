@@ -5,12 +5,12 @@
 
 #define MAX_DOMAIN_NAME_LENGTH 64
 
-
 enum erpc_message_type {
     SYNCHRONOUS_PAYLOAD,
     CLOSE_CONNECTION,
     CONNECTION_BY_PEER,
     ASYNC_PAYLOAD,
+    MAX_MESSAGE_TYPE,
 };
 
 typedef struct{
