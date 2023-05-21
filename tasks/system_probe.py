@@ -1535,6 +1535,8 @@ def test_microvms(
     upload_dependencies=False,
     ssh_key_name=None,
     ssh_key_path=None,
+    dependencies_dir=None,
+    shutdown_period=320,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1546,9 +1548,11 @@ def test_microvms(
         f"--ssh-key-path {ssh_key_path}" if ssh_key_path else "",
         f"--ssh-key-name {ssh_key_name}" if ssh_key_name else "",
         f"--infra-env {infra_env}",
+        f"--shutdown-period {shutdown_period}",
+        f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
     ctx.run(
-        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args}",
     )

@@ -67,7 +67,7 @@ func main() {
 		DependenciesDirectory: *dependenciesDirectoryPtr,
 	}
 
-	fmt.Printf("shutdown period: %s\n", opts.ShutdownPeriod)
+	fmt.Printf("shutdown period: %d\n", opts.ShutdownPeriod)
 
 	err := run(*envNamePtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr, &opts)
 	if err != nil {
