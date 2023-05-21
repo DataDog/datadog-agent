@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"io"
 	"math"
 	"math/rand"
@@ -1853,6 +1854,7 @@ func TestConntrackerFallback(t *testing.T) {
 }
 
 func testConfig() *config.Config {
+	_, _ = sysconfig.New("")
 	cfg := config.New()
 	if os.Getenv("BPF_DEBUG") != "" {
 		cfg.BPFDebug = true
