@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"context"
 	"os/exec"
 	"regexp"
 	"syscall"
@@ -54,65 +55,45 @@ func TestOOMKillProbe(t *testing.T) {
 		}
 		t.Cleanup(oomKillProbe.Close)
 
-		cmd := exec.Command("systemd-run", "--scope", "-p", "MemoryLimit=1M", "dd", "if=/dev/zero", "of=/dev/null", "bs=2M")
-		err = cmd.Start()
-		require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+		t.Cleanup(cancel)
 
-		to := 3 * time.Minute
-		manuallyKilled := false
-		done := make(chan struct{})
-		go func() {
-			select {
-			case <-time.After(to):
-				manuallyKilled = true
-				_ = cmd.Process.Kill()
-				return
-			case <-done:
-				return
-			}
-		}()
+		cmd := exec.CommandContext(ctx, "systemd-run", "--scope", "-p", "MemoryLimit=1M", "dd", "if=/dev/zero", "of=/dev/null", "bs=2M")
+		obytes, err := cmd.CombinedOutput()
+		output := string(obytes)
+		require.Error(t, err)
+		require.NotErrorIs(t, err, context.DeadlineExceeded)
 
-		oomKilled := false
-		err = cmd.Wait()
-		close(done)
-		require.False(t, manuallyKilled, "process timed out after %s", to)
+		var exiterr *exec.ExitError
+		require.ErrorAs(t, err, &exiterr, output)
+		var status syscall.WaitStatus
 
-		if err != nil {
-			if exiterr, ok := err.(*exec.ExitError); ok {
-				if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-					if (status.Signaled() && status.Signal() == unix.SIGKILL) || status.ExitStatus() == 137 {
-						oomKilled = true
-					}
+		status, sok := exiterr.Sys().(syscall.WaitStatus)
+		require.True(t, sok, output)
+
+		if status.Signaled() {
+			require.Equal(t, unix.SIGKILL, status.Signal(), output)
+		} else {
+			require.Equal(t, 128+unix.SIGKILL, status.ExitStatus(), output)
+		}
+
+		var result OOMKillStats
+		require.Eventually(t, func() bool {
+			for _, r := range oomKillProbe.GetAndFlush() {
+				if r.TPid == uint32(cmd.Process.Pid) {
+					result = r
+					return true
 				}
 			}
-		}
-		if !oomKilled {
-			output, _ := cmd.CombinedOutput()
-			t.Fatalf("expected process to be killed: %s (output: %s)", err, string(output))
-		}
+			return false
+		}, 5*time.Second, 500*time.Millisecond, "failed to find an OOM killed process with pid %d", cmd.Process.Pid)
 
-		time.Sleep(3 * time.Second)
-
-		found := false
-		results := oomKillProbe.GetAndFlush()
-		for _, result := range results {
-			t.Logf("%+v\n", result)
-			if result.TPid == uint32(cmd.Process.Pid) {
-				found = true
-
-				assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
-				assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
-				assert.Equal(t, "dd", result.FComm, "fcomm")
-				assert.Equal(t, "dd", result.TComm, "tcomm")
-				assert.NotZero(t, result.Pages, "pages")
-				assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
-				break
-			}
-		}
-
-		if !found {
-			t.Errorf("failed to find an OOM killed process with pid %d in %+v", cmd.Process.Pid, results)
-		}
+		assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
+		assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
+		assert.Equal(t, "dd", result.FComm, "fcomm")
+		assert.Equal(t, "dd", result.TComm, "tcomm")
+		assert.NotZero(t, result.Pages, "pages")
+		assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
 	})
 }
 
