@@ -122,7 +122,7 @@ runtime_security_config:
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:
       enabled: {{ .ActivityDumpTagRules }}
-    dump_duration: {{ .ActivityDumpCgroupDumpTimeout }}s
+    dump_duration: {{ .ActivityDumpDuration }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
@@ -140,8 +140,8 @@ runtime_security_config:
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
     anomaly_detection:
-      minimum_stable_period: {{.AnomalyDetectionMinimumStablePeriod}}s
-      workload_warmup_period: {{.AnomalyDetectionWarmupPeriod}}s
+      minimum_stable_period: {{.AnomalyDetectionMinimumStablePeriod}}
+      workload_warmup_period: {{.AnomalyDetectionWarmupPeriod}}
 {{end}}
 
   self_test:
@@ -219,7 +219,7 @@ type testOpts struct {
 	enableActivityDump                  bool
 	activityDumpRateLimiter             int
 	activityDumpTagRules                bool
-	activityDumpCgroupDumpTimeout       int
+	activityDumpDuration                time.Duration
 	activityDumpTracedCgroupsCount      int
 	activityDumpTracedEventTypes        []string
 	activityDumpLocalStorageDirectory   string
@@ -228,8 +228,8 @@ type testOpts struct {
 	enableSecurityProfile               bool
 	securityProfileDir                  string
 	securityProfileWatchDir             bool
-	anomalyDetectionMinimumStablePeriod int
-	anomalyDetectionWarmupPeriod        int
+	anomalyDetectionMinimumStablePeriod time.Duration
+	anomalyDetectionWarmupPeriod        time.Duration
 	disableDiscarders                   bool
 	eventsCountThreshold                int
 	disableERPCDentryResolution         bool
@@ -256,7 +256,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.activityDumpTagRules == opts.activityDumpTagRules &&
-		to.activityDumpCgroupDumpTimeout == opts.activityDumpCgroupDumpTimeout &&
+		to.activityDumpDuration == opts.activityDumpDuration &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
@@ -702,8 +702,8 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		opts.activityDumpTracedCgroupsCount = 5
 	}
 
-	if opts.activityDumpCgroupDumpTimeout == 0 {
-		opts.activityDumpTracedCgroupsCount = 30
+	if opts.activityDumpDuration == 0 {
+		opts.activityDumpDuration = testActivityDumpDuration
 	}
 
 	if len(opts.activityDumpTracedEventTypes) == 0 {
@@ -741,7 +741,7 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		"EnableActivityDump":                  opts.enableActivityDump,
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
 		"ActivityDumpTagRules":                opts.activityDumpTagRules,
-		"ActivityDumpCgroupDumpTimeout":       opts.activityDumpCgroupDumpTimeout,
+		"ActivityDumpDuration":                opts.activityDumpDuration,
 		"ActivityDumpTracedCgroupsCount":      opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":   opts.activityDumpLocalStorageDirectory,
@@ -1689,7 +1689,7 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 	}
 	p := &api.ActivityDumpParams{
 		Comm:              comm,
-		Timeout:           "1s",
+		Timeout:           "1m",
 		DifferentiateArgs: true,
 		Storage: &api.StorageRequestParams{
 			LocalStorageDirectory:    outputDir,

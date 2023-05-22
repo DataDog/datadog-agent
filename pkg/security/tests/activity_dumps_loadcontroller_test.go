@@ -41,7 +41,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -63,7 +63,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dockerInstance.stop()
-	assert.Equal(t, fmt.Sprintf("%dm0s", testActivityDumpCgroupDumpTimeout), dump.Timeout)
+	assert.Equal(t, testActivityDumpDuration.String(), dump.Timeout)
 
 	// trigg reducer (before t > timeout / 4)
 	test.triggerLoadControlerReducer(dockerInstance, dump)
@@ -96,7 +96,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -170,7 +170,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
