@@ -19,6 +19,17 @@ func NewValue[T any](value T) Value[T] {
 	}
 }
 
+// NewValueFrom returns a Value[T] from a value and an error.
+// If the error is non-nil then it represents this error, otherwise it represents the value.
+//
+// This is a convenient function to get a Value from a function which returns a value and an error.
+func NewValueFrom[T any](value T, err error) Value[T] {
+	if err != nil {
+		return NewErrorValue[T](err)
+	}
+	return NewValue(value)
+}
+
 // NewErrorValue initializes a Value[T] with the given error.
 //
 // Note that if err is nil, the returned Value[T] is fundamentally equivalent to a Value[T]

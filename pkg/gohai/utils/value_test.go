@@ -6,6 +6,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,4 +31,16 @@ func TestNewErrorValue(t *testing.T) {
 	result, err = value.Value()
 	require.ErrorIs(t, err, myOtherErr)
 	require.Equal(t, 0, result)
+}
+
+func TestNewValueFrom(t *testing.T) {
+	myerr := fmt.Errorf("yet another error")
+	value := NewValueFrom(42, myerr)
+	_, err := value.Value()
+	require.ErrorIs(t, err, myerr)
+
+	value = NewValueFrom(42, nil)
+	val, err := value.Value()
+	require.NoError(t, err)
+	require.Equal(t, 42, val)
 }
