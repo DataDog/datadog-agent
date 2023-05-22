@@ -144,10 +144,9 @@ reductionOrder:
 	}
 
 	for _, evt := range old.LoadConfig.TracedEventTypes {
-		if evt == evtToRemove {
-			continue
+		if evt != evtToRemove {
+			new.LoadConfig.TracedEventTypes = append(new.LoadConfig.TracedEventTypes, evt)
 		}
-		new.LoadConfig.TracedEventTypes = append(new.LoadConfig.TracedEventTypes, evt)
 	}
 
 	// send metric
