@@ -86,7 +86,7 @@ spec:
                 - name: remote_configuration_enabled
                   value: "false"
                 - name: networkmonitoring_enabled
-                  value: "false"
+                  value: "true"
 
         - - name: wait-datadog-agent
             templateRef:
