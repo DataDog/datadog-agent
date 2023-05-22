@@ -103,7 +103,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 		return err
 	}
 
-	var statsdClient ddgostatsd.ClientInterface
+	var statsdClient *ddgostatsd.Client
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
 	if metricsEnabled {
 		// Create a statsd Client

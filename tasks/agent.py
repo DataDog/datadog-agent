@@ -18,7 +18,7 @@ from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .docker import pull_base_images
+from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
 from .rtloader import clean as rtloader_clean
