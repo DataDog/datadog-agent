@@ -5,7 +5,7 @@
 #include "map-defs.h"
 #include "conn_tuple.h"
 
-#include "types.h"
+#include "protocols/tls/java/types.h"
 
 /* A set (map from a key to a const bool value, we care only if the key exists in the map, and not its value) to
    mark if we've seen a specific java tls connection.

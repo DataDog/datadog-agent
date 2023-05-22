@@ -2,8 +2,8 @@
 #define _ERPC_DISPATCHER_H
 
 #include "bpf_helpers.h"
-#include "types.h"
-#include "maps.h"
+#include "protocols/tls/java/types.h"
+#include "protocols/tls/java/maps.h"
 
 #define USM_IOCTL_ID 0xda7ad09
 
