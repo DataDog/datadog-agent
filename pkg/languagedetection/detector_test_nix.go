@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package languagedetection
 
 import (
@@ -81,6 +83,16 @@ func TestLanguageFromCommandline(t *testing.T) {
 			name:     "py is not a prefix",
 			cmdline:  []string{"pyret", "main.pyret"},
 			expected: unknown,
+		},
+		{
+			name:     "windows python",
+			cmdline:  []string{"C:\\Program Files\\Python3.9\\python.exe", "test.py"},
+			expected: python,
+		},
+		{
+			name:     "java",
+			cmdline:  []string{"C:\\Program Files\\Java\\java.exe", "main.java"},
+			expected: java,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
