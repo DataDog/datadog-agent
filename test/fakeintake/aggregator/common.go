@@ -78,6 +78,14 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 	return false
 }
 
+func (agg *Aggregator[P]) GetNames() []string {
+	names := []string{}
+	for name := range agg.payloadsByName {
+		names = append(names, name)
+	}
+	return names
+}
+
 func enflate(payload []byte, encoding string) (enflated []byte, err error) {
 	rc, err := getReadCloserForEncoding(payload, encoding)
 	if err != nil {
