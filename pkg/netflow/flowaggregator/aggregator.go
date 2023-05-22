@@ -103,7 +103,7 @@ func (agg *FlowAggregator) run() {
 	}
 }
 
-func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
+func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
 	for _, flow := range flows {
 		flowPayload := buildPayload(flow, agg.hostname)
 		payloadBytes, err := json.Marshal(flowPayload)
@@ -114,7 +114,10 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 
 		log.Tracef("flushed flow: %s", string(payloadBytes))
 
-		m := &message.Message{Content: payloadBytes}
+		m := &message.Message{
+			Content:            payloadBytes,
+			IngestionTimestamp: flushTime.UnixNano(),
+		}
 		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
 			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
@@ -222,7 +225,7 @@ func (agg *FlowAggregator) flush() int {
 
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
 	if len(flowsToFlush) > 0 {
-		agg.sendFlows(flowsToFlush)
+		agg.sendFlows(flowsToFlush, flushTime)
 	}
 	agg.sendExporterMetadata(flowsToFlush, flushTime)
 
