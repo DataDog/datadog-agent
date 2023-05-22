@@ -197,7 +197,13 @@ func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
 }
 
 func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
-	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
+	return []manager.ProbeIdentificationPair{
+		{EBPFFuncName: "kprobe__do_vfs_ioctl"},
+		{EBPFFuncName: "kprobe_handle_sync_payload"},
+		{EBPFFuncName: "kprobe_handle_close_connection"},
+		{EBPFFuncName: "kprobe_handle_connection_by_peer"},
+		{EBPFFuncName: "kprobe_handle_async_payload"},
+	}
 }
 
 // isJavaProcess checks if the given PID comm's name is java.
