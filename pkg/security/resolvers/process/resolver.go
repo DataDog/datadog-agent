@@ -422,7 +422,7 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	//
 	// print "Hello from Perl\n";
 	//
-	//EOF
+	// EOF
 	if values := entry.ArgsEntry.Values; len(values) > 1 {
 		firstArg := values[0]
 		lastArg := values[len(values)-1]
@@ -516,7 +516,7 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin uint64
 
 	parent := p.entryCache[entry.PPid]
 	if parent == nil && entry.PPid >= 1 {
-		parent = p.resolve(entry.PPid, entry.PPid, entry.Inode, true)
+		parent = p.resolve(entry.PPid, entry.PPid, entry.ExecInode, true)
 	}
 
 	if parent != nil {
