@@ -25,6 +25,7 @@ import (
 )
 
 var MAX_OPEN_CONNECTIONS = 10
+var DEFAULT_SQL_TRACED_RUNS = 10
 
 // The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
@@ -131,7 +132,7 @@ func (c *Check) Run() error {
 	if c.config.AgentSQLTrace.Enabled {
 		log.Tracef("Traced runs %d", c.sqlTraceRunsCount)
 		c.sqlTraceRunsCount++
-		if c.sqlTraceRunsCount >= 10 {
+		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
 			c.config.AgentSQLTrace.Enabled = false
 			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
 			if err != nil {
@@ -227,7 +228,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			log.Errorf("failed to set SQL trace: %v", err)
 		}
 		if c.config.AgentSQLTrace.TracedRuns == 0 {
-			c.config.AgentSQLTrace.TracedRuns = 10
+			c.config.AgentSQLTrace.TracedRuns = DEFAULT_SQL_TRACED_RUNS
 		}
 	}
 
