@@ -695,7 +695,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	outputDir := t.TempDir()
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
-	reinsertPeriod := 10
+	reinsertPeriod := 10 * time.Second
 	rulesDef := []*rules.RuleDefinition{
 		{
 			ID:         "test_autosuppression_exec",
@@ -710,7 +710,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       10,
+		activityDumpDuration:                10 * time.Second,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,

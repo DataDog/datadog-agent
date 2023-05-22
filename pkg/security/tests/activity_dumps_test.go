@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var testActivityDumpCleanupPeriod = 15 * time.Second
+
 func TestActivityDumps(t *testing.T) {
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -49,6 +51,7 @@ func TestActivityDumps(t *testing.T) {
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -383,11 +386,11 @@ func TestActivityDumps(t *testing.T) {
 		defer dockerInstance.stop()
 
 		// check that the dump is still alive
-		time.Sleep(testActivityDumpDuration - 20*time.Second)
+		time.Sleep(testActivityDumpDuration - 10*time.Second)
 		assert.Equal(t, true, test.isDumpRunning(dump))
 
-		// check that the dump has timeouted after the cleanup period (30s) + 2s
-		time.Sleep(1 * time.Minute)
+		// check that the dump has timeouted after the cleanup period + 10s + 2s
+		time.Sleep(testActivityDumpCleanupPeriod + 12*time.Second)
 		assert.Equal(t, false, test.isDumpRunning(dump))
 	})
 

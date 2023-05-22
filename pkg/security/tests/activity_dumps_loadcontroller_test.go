@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,16 +36,19 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	opts := testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpDuration:                testActivityDumpDuration,
+		activityDumpDuration:                time.Minute + 10*time.Second,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-	})
+		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
+		activityDumpLoadControllerTimeout:   time.Minute,
+	}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +65,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dockerInstance.stop()
-	assert.Equal(t, testActivityDumpDuration.String(), dump.Timeout)
+	assert.Equal(t, opts.activityDumpDuration.String(), dump.Timeout)
 
 	// trigger reducer (before t > timeout / 4)
 	test.triggerLoadControllerReducer(dockerInstance, dump)
@@ -73,7 +75,12 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, fmt.Sprintf("%dm0s", activitydump.MinDumpTimeout/time.Minute), secondDump.Timeout)
+
+	timeout, err := time.ParseDuration(secondDump.Timeout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, opts.activityDumpLoadControllerTimeout, timeout)
 }
 
 func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
@@ -101,6 +108,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -175,6 +183,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
 	})
 	if err != nil {
 		t.Fatal(err)
