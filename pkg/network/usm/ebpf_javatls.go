@@ -113,10 +113,14 @@ func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
 	}
 }
 
+func IsJavaSubprogramEnabled(c *config.Config) bool {
+	return c.EnableJavaTLSSupport && c.EnableHTTPSMonitoring && http.HTTPSSupported(c)
+}
+
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	var err error
 
-	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+	if !IsJavaSubprogramEnabled(c) {
 		log.Info("java tls is not enabled")
 		return nil
 	}
