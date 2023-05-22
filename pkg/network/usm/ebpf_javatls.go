@@ -83,28 +83,28 @@ var _ subprogram = &JavaTLSProgram{}
 func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
 		{
-			ProgArrayName: "java_tls_erpc_handlers",
+			ProgArrayName: eRPCHandlersMap,
 			Key:           SyncPayload,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_handle_sync_payload",
 			},
 		},
 		{
-			ProgArrayName: "java_tls_erpc_handlers",
+			ProgArrayName: eRPCHandlersMap,
 			Key:           CloseConnection,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_handle_close_connection",
 			},
 		},
 		{
-			ProgArrayName: "java_tls_erpc_handlers",
+			ProgArrayName: eRPCHandlersMap,
 			Key:           ConnectionByPeer,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_handle_connection_by_peer",
 			},
 		},
 		{
-			ProgArrayName: "java_tls_erpc_handlers",
+			ProgArrayName: eRPCHandlersMap,
 			Key:           AsyncPayload,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_handle_async_payload",
@@ -115,7 +115,6 @@ func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
 
 func IsJavaSubprogramEnabled(c *config.Config) bool {
 	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
-		log.Info("java tls is not enabled")
 		return false
 	}
 
@@ -133,6 +132,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	var err error
 
 	if !IsJavaSubprogramEnabled(c) {
+		log.Info("java tls is not enabled")
 		return nil
 	}
 
