@@ -65,8 +65,8 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	defer dockerInstance.stop()
 	assert.Equal(t, testActivityDumpDuration.String(), dump.Timeout)
 
-	// trigg reducer (before t > timeout / 4)
-	test.triggerLoadControlerReducer(dockerInstance, dump)
+	// trigger reducer (before t > timeout / 4)
+	test.triggerLoadControllerReducer(dockerInstance, dump)
 
 	// find the new dump, with timeout *= 3/4, or min timeout
 	secondDump, err := test.findNextPartialDump(dockerInstance, dump)
@@ -127,8 +127,8 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		// add all event types to the dump
 		test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
 		time.Sleep(time.Second * 3)
-		// trigg reducer
-		test.triggerLoadControlerReducer(dockerInstance, dump)
+		// trigger reducer
+		test.triggerLoadControllerReducer(dockerInstance, dump)
 		// find the new dump
 		nextDump, err := test.findNextPartialDump(dockerInstance, dump)
 		if err != nil {
@@ -203,7 +203,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	test.dockerCreateFiles(dockerInstance, syscallTester, testDir, testActivityDumpRateLimiter*2)
 	time.Sleep(time.Second * 3)
 	// trigg reducer
-	test.triggerLoadControlerReducer(dockerInstance, dump)
+	test.triggerLoadControllerReducer(dockerInstance, dump)
 	// find the new dump, with ratelimiter *= 3/4
 	secondDump, err := test.findNextPartialDump(dockerInstance, dump)
 	if err != nil {
@@ -224,7 +224,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	test.dockerCreateFiles(dockerInstance, syscallTester, testDir, testActivityDumpRateLimiter*2)
 	time.Sleep(time.Second * 3)
 	// trigg reducer
-	test.triggerLoadControlerReducer(dockerInstance, dump)
+	test.triggerLoadControllerReducer(dockerInstance, dump)
 	// find the new dump, with ratelimiter *= 3/4
 	_, err = test.findNextPartialDump(dockerInstance, dump)
 	if err != nil {
