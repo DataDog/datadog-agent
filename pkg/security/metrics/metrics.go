@@ -29,12 +29,6 @@ var (
 	// Tags: -
 	MetricProcessEventsServerExpired = newRuntimeMetric(".event_server.process_events_expired")
 
-	// Load controller metrics
-
-	// MetricLoadControllerPidDiscarder is the name of the metric used to count the number of pid discarders
-	// Tags: -
-	MetricLoadControllerPidDiscarder = newRuntimeMetric(".load_controller.pids_discarder")
-
 	// Rate limiter metrics
 
 	// MetricRateLimiterDrop is the name of the metric used to count the amount of events dropped by the rate limiter
