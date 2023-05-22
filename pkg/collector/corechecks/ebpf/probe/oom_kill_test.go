@@ -85,11 +85,10 @@ func TestOOMKillProbe(t *testing.T) {
 					}
 				}
 			}
-
-			if !oomKilled {
-				output, _ := cmd.CombinedOutput()
-				t.Fatalf("expected process to be killed: %s (output: %s)", err, string(output))
-			}
+		}
+		if !oomKilled {
+			output, _ := cmd.CombinedOutput()
+			t.Fatalf("expected process to be killed: %s (output: %s)", err, string(output))
 		}
 
 		time.Sleep(3 * time.Second)
@@ -97,6 +96,7 @@ func TestOOMKillProbe(t *testing.T) {
 		found := false
 		results := oomKillProbe.GetAndFlush()
 		for _, result := range results {
+			t.Logf("%+v\n", result)
 			if result.TPid == uint32(cmd.Process.Pid) {
 				found = true
 
