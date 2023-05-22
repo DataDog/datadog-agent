@@ -26,7 +26,8 @@ const (
 )
 
 var BaseEnv = map[string]interface{}{
-	"DD_SYSTEM_PROBE_BPF_DIR": filepath.Join("/opt/system-probe-tests", "pkg/ebpf/bytecode/build"),
+	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join("/opt/system-probe-tests", "pkg/ebpf/bytecode/build"),
+	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join("/opt/system-probe-tests", "pkg/network/java"),
 }
 
 type testConfig struct {
