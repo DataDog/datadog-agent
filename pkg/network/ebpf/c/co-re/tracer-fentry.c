@@ -19,6 +19,10 @@
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
+#define RETURN_IF_NOT_IN_SYSPROBE_TASK(prog_name)           \
+    if (!event_in_task(prog_name)) {                        \
+        return 0;                                           \
+    }
 
 static __always_inline __u32 systemprobe_dev() {
     __u64 val = 0;
@@ -132,9 +136,7 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
 
 SEC("fexit/tcp_sendmsg")
 int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size, int sent) {
-    if (!event_in_task("fexit/tcp_sendmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendmsg");
     if (sent < 0) {
         log_debug("fexit/tcp_sendmsg: tcp_sendmsg err=%d\n", sent);
         return 0;
@@ -159,9 +161,7 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
 
 SEC("fexit/tcp_sendpage")
 int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
-    if (!event_in_task("fexit/tcp_sendpage")) {
-        return 0;
-    }
+RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendpage");
     if (sent < 0) {
         log_debug("fexit/tcp_sendpage: err=%d\n", sent);
         return 0;
@@ -186,9 +186,7 @@ int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 
 SEC("fexit/udp_sendpage")
 int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
-    if (!event_in_task("fexit/udp_sendpage")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_sendpage");
     if (sent < 0) {
         log_debug("fexit/udp_sendpage: err=%d\n", sent);
         return 0;
@@ -207,9 +205,7 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len, int copied) {
-    if (!event_in_task("fexit/tcp_recvmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_recvmsg");
     if (copied < 0) { // error
         return 0;
     }
@@ -220,9 +216,7 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
-    if (!event_in_task("fexit/tcp_recvmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_recvmsg");
     if (copied < 0) { // error
         return 0;
     }
@@ -233,9 +227,7 @@ int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, s
 
 SEC("fentry/tcp_close")
 int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
-    if (!event_in_task("fentry/tcp_close")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_close");
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
@@ -257,9 +249,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 
 SEC("fexit/tcp_close")
 int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
-    if (!event_in_task("fexit/tcp_close")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_close");
     flush_conn_close_if_full(ctx);
     return 0;
 }
@@ -282,9 +272,7 @@ static __always_inline int handle_udp_send(struct sock *sk, int sent) {
 
 SEC("kprobe/udp_v6_send_skb")
 int kprobe__udp_v6_send_skb(struct pt_regs *ctx) {
-    if (!event_in_task("kprobe/udp_v6_send_skb")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("kprobe/udp_v6_send_skb");
     struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
     struct flowi6 *fl6 = (struct flowi6*) PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -305,17 +293,13 @@ int kprobe__udp_v6_send_skb(struct pt_regs *ctx) {
 
 SEC("fexit/udpv6_sendmsg")
 int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
-    if (!event_in_task("fexit/udpv6_sendmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_sendmsg");
     return handle_udp_send(sk, sent);
 }
 
 SEC("kprobe/udp_send_skb")
 int kprobe__udp_send_skb(struct pt_regs *ctx) {
-    if (!event_in_task("kprobe/udp_send_skb")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("kprobe/udp_send_skb");
     struct sk_buff *skb = (struct sk_buff*) PT_REGS_PARM1(ctx);
     struct flowi4 *fl4 = (struct flowi4*) PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -336,9 +320,7 @@ int kprobe__udp_send_skb(struct pt_regs *ctx) {
 
 SEC("fexit/udp_sendmsg")
 int BPF_PROG(udp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int sent) {
-    if (!event_in_task("fexit/udp_sendmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_sendmsg");
     return handle_udp_send(sk, sent);
 }
 
@@ -361,18 +343,14 @@ static __always_inline int handle_udp_recvmsg_ret() {
 
 SEC("fentry/udp_recvmsg")
 int BPF_PROG(udp_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
-    if (!event_in_task("fentry/udp_recvmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udp_recvmsg");
     log_debug("fentry/udp_recvmsg: flags: %x\n", flags);
     return handle_udp_recvmsg(sk, flags);
 }
 
 SEC("fentry/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg, struct sock *sk, struct msghdr *msg, size_t len, int noblock, int flags) {
-    if (!event_in_task("fentry/udpv6_recvmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udpv6_recvmsg");
     log_debug("fentry/udpv6_recvmsg: flags: %x\n", flags);
     return handle_udp_recvmsg(sk, flags);
 }
@@ -381,9 +359,7 @@ SEC("fexit/udp_recvmsg")
 int BPF_PROG(udp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
              int flags, int *addr_len,
              int copied) {
-    if (!event_in_task("fexit/udp_recvmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_recvmsg");
     return handle_udp_recvmsg_ret();
 }
 
@@ -391,9 +367,7 @@ SEC("fexit/udp_recvmsg")
 int BPF_PROG(udp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
              int flags, int *addr_len,
              int copied) {
-    if (!event_in_task("fexit/udp_recvmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_recvmsg");
     return handle_udp_recvmsg_ret();
 }
 
@@ -401,9 +375,7 @@ SEC("fexit/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len,
              int flags, int *addr_len,
              int copied) {
-    if (!event_in_task("fexit/udpv6_recvmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_recvmsg");
     return handle_udp_recvmsg_ret();
 }
 
@@ -411,41 +383,31 @@ SEC("fexit/udpv6_recvmsg")
 int BPF_PROG(udpv6_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int noblock,
              int flags, int *addr_len,
              int copied) {
-    if (!event_in_task("fexit/udpv6_recvmsg")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_recvmsg");
     return handle_udp_recvmsg_ret();
 }
 
 SEC("fentry/skb_free_datagram_locked")
 int BPF_PROG(skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb) {
-    if (!event_in_task("fentry/skb_free_datagram_locked")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/skb_free_datagram_locked");
     return handle_skb_consume_udp(sk, skb, 0);
 }
 
 SEC("fentry/__skb_free_datagram_locked")
 int BPF_PROG(__skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb, int len) {
-    if (!event_in_task("fentry/__skb_free_datagram_locked")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/__skb_free_datagram_locked");
     return handle_skb_consume_udp(sk, skb, len);
 }
 
 SEC("fentry/skb_consume_udp")
 int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
-    if (!event_in_task("fentry/skb_consume_udp")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/skb_consume_udp");
     return handle_skb_consume_udp(sk, skb, len);
 }
 
 SEC("fentry/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    if (!event_in_task("fentry/tcp_retransmit_skb")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_retransmit_skb");
     log_debug("fexntry/tcp_retransmit\n");
     u64 tid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t args = {};
@@ -461,9 +423,7 @@ int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs,
 
 SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    if (!event_in_task("fexit/tcp_retransmit_skb")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_retransmit_skb");
     log_debug("fexit/tcp_retransmit\n");
     u64 tid = bpf_get_current_pid_tgid();
     if (err < 0) {
@@ -487,9 +447,7 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
 
 SEC("fentry/tcp_set_state")
 int BPF_PROG(tcp_set_state, struct sock *sk, int state) {
-    if (!event_in_task("fentry/tcp_set_state")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_set_state");
     // For now we're tracking only TCP_ESTABLISHED
     if (state != TCP_ESTABLISHED) {
         return 0;
@@ -509,9 +467,7 @@ int BPF_PROG(tcp_set_state, struct sock *sk, int state) {
 
 SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect, struct sock *sk) {
-    if (!event_in_task("kprobe/udp_send_skb")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_connect");
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("fentry/tcp_connect: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
@@ -522,9 +478,7 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
 
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
-    if (!event_in_task("fentry/tcp_finish_connect")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_finish_connect");
     u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     if (!pid_tgid_p) {
         return 0;
@@ -549,9 +503,7 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
 
 SEC("fexit/inet_csk_accept")
 int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool kern, struct sock *sk) {
-    if (!event_in_task("fexit/inet_csk_accept")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet_csk_accept");
     if (sk == NULL) {
         return 0;
     }
@@ -576,9 +528,7 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
 
 SEC("fentry/inet_csk_listen_stop")
 int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
-    if (!event_in_task("fentry/inet_csk_listen_stop")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet_csk_listen_stop");
     __u16 lport = read_sport(sk);
     if (lport == 0) {
         log_debug("ERR(inet_csk_listen_stop): lport is 0 \n");
@@ -627,34 +577,26 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
 
 SEC("fentry/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock, struct sock *sk) {
-    if (!event_in_task("fentry/udp_destroy_sock")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udp_destroy_sock");
     return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fentry/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
-    if (!event_in_task("fentry/udpv6_destroy_sock")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/udpv6_destroy_sock");
     return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fexit/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
-    if (!event_in_task("fexit/udp_destroy_sock")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_destroy_sock");
     flush_conn_close_if_full(ctx);
     return 0;
 }
 
 SEC("fexit/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
-    if (!event_in_task("fexit/udpv6_destroy_sock")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_destroy_sock");
     flush_conn_close_if_full(ctx);
     return 0;
 }
@@ -702,18 +644,14 @@ static __always_inline int sys_exit_bind(struct socket *sock, struct sockaddr *a
 
 SEC("fexit/inet_bind")
 int BPF_PROG(inet_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
-    if (!event_in_task("fexit/inet_bind")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet_bind");
     log_debug("fexit/inet_bind: rc=%d\n", rc);
     return sys_exit_bind(sock, uaddr, rc);
 }
 
 SEC("fexit/inet6_bind")
 int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int addr_len, int rc) {
-    if (!event_in_task("fexit/inet6_bind")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet6_bind");
     log_debug("fexit/inet6_bind: rc=%d\n", rc);
     return sys_exit_bind(sock, uaddr, rc);
 }
@@ -723,9 +661,7 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
 // * an index of struct sock* to pid_fd_t;
 SEC("fexit/sockfd_lookup_light")
 int BPF_PROG(sockfd_lookup_light_exit, int fd, int *err, int *fput_needed, struct socket *socket) {
-    if (!event_in_task("fexit/sockfd_lookup_light")) {
-        return 0;
-    }
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/sockfd_lookup_light");
     u64 pid_tgid = bpf_get_current_pid_tgid();
     // Check if have already a map entry for this pid_fd_t
     // TODO: This lookup eliminates *4* map operations for existing entries

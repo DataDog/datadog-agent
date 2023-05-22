@@ -56,7 +56,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		file, err := os.Stat("/proc/self/ns/pid")
 
 		if err != nil {
-			return nil
+			return fmt.Errorf("could not load sysprobe pid: %w", err)
 		}
 
 		device := file.Sys().(*syscall.Stat_t).Dev
@@ -64,11 +64,11 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 
 		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
 			Name:  "systemprobe_device",
-			Value: uint64(device),
+			Value: device,
 		})
 		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
 			Name:  "systemprobe_ino",
-			Value: uint64(inode),
+			Value: inode,
 		})
 
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
