@@ -22,6 +22,8 @@ import (
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
+
+	_ "net/http/pprof"
 )
 
 var MAX_OPEN_CONNECTIONS = 10
@@ -129,6 +131,7 @@ func (c *Check) Run() error {
 			}
 		}
 	}
+
 	if c.config.AgentSQLTrace.Enabled {
 		log.Tracef("Traced runs %d", c.sqlTraceRunsCount)
 		c.sqlTraceRunsCount++
@@ -222,7 +225,12 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		if err != nil {
 			log.Warnf("failed to set tracefile_identifier: %v", err)
 		}
-		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", c.config.AgentSQLTrace.Binds, c.config.AgentSQLTrace.Waits)
+
+		binds := returnFalseIfNotBool(c.config.AgentSQLTrace.Binds)
+		waits := returnFalseIfNotBool(c.config.AgentSQLTrace.Waits)
+
+		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
+		log.Trace("trace statement: %s", setEventsStatement)
 		_, err = db.Exec(setEventsStatement)
 		if err != nil {
 			log.Errorf("failed to set SQL trace: %v", err)
@@ -233,6 +241,11 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	return db, nil
+}
+
+func returnFalseIfNotBool(input interface{}) bool {
+	retValue, _ := input.(bool)
+	return retValue
 }
 
 // Teardown cleans up resources used throughout the check.
