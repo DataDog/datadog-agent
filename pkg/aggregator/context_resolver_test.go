@@ -375,3 +375,15 @@ func TestLimiterTelemetry(t *testing.T) {
 		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
 	}})
 }
+
+func TestTimestampContextResolverLimit(t *testing.T) {
+	store := tags.NewStore(true, "")
+	limiter := limiter.New(1, "pod", []string{})
+	r := newTimestampContextResolver(store, limiter, nil)
+
+	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"pod:bar"}}, 42)
+	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}}, 42)
+
+	assert.Len(t, r.resolver.contextsByKey, 1)
+	assert.Len(t, r.lastSeenByKey, 1)
+}
