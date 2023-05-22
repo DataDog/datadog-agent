@@ -558,7 +558,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
 
-	config.BindEnvAndSetDefault("dogstatsd_context_limiter.limit", 0) // 0 = disabled.
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.limit", 0)         // 0 = disabled.
 	config.BindEnvAndSetDefault("dogstatsd_context_limiter.entry_timeout", 1) // number of flush intervals
 	config.BindEnvAndSetDefault("dogstatsd_context_limiter.key_tag_name", "pod_name")
 	config.BindEnvAndSetDefault("dogstatsd_context_limiter.telemetry_tag_names", []string{})
