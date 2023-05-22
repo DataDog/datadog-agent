@@ -51,9 +51,10 @@ func NewCIProfile() (Profile, error) {
 
 	store := parameters.NewEnvStore(EnvPrefix)
 
-	ciEnvironments := strings.Split(os.Getenv("CI_ENV_NAMES"), " ")
-	if len(ciEnvironments) == 0 {
-		ciEnvironments = defaultCIEnvs
+	ciEnvironments := defaultCIEnvs
+	ciEnvironmentsStr := os.Getenv("CI_ENV_NAMES")
+	if len(ciEnvironmentsStr) > 0 {
+		ciEnvironments = strings.Split(ciEnvironmentsStr, " ")
 	}
 
 	return ciProfile{

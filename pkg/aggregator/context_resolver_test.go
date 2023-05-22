@@ -9,7 +9,6 @@ package aggregator
 
 import (
 	// stdlib
-
 	"testing"
 
 	// 3p
@@ -19,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -78,7 +78,7 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}
 
-	contextResolver := newContextResolver(store, nil)
+	contextResolver := newContextResolver(store, nil, nil)
 
 	// Track the 2 contexts
 	contextKey1, _ := contextResolver.trackContext(&mSample1)
@@ -123,7 +123,7 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store, nil)
+	contextResolver := newTimestampContextResolver(store, nil, nil)
 
 	// Track the 2 contexts
 	contextKey1, _ := contextResolver.trackContext(&mSample1, 4)
@@ -168,7 +168,7 @@ func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store, nil)
+	contextResolver := newTimestampContextResolver(store, nil, nil)
 
 	// Track the 2 contexts
 	contextKey1, _ := contextResolver.trackContext(&mSample1, 4)
@@ -248,7 +248,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 }
 
 func testTagDeduplication(t *testing.T, store *tags.Store) {
-	resolver := newContextResolver(store, nil)
+	resolver := newContextResolver(store, nil, nil)
 
 	ckey, _ := resolver.trackContext(&metrics.MetricSample{
 		Name: "foo",
@@ -285,7 +285,7 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator) {
 }
 
 func TestOriginTelemetry(t *testing.T) {
-	r := newContextResolver(tags.NewStore(true, "test"), nil)
+	r := newContextResolver(tags.NewStore(true, "test"), nil, nil)
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}})
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}})
 	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}})
@@ -318,13 +318,15 @@ func TestOriginTelemetry(t *testing.T) {
 
 func TestLimiterTelemetry(t *testing.T) {
 	l := limiter.New(2, "pod", []string{"pod", "srv"})
-	r := newContextResolver(tags.NewStore(true, "test"), l)
+	tl := tags_limiter.New(4)
+	r := newContextResolver(tags.NewStore(true, "test"), l, tl)
 	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"pod:bar"}})
 	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}})
 	r.trackContext(&mockSample{"bar", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}})
 	r.trackContext(&mockSample{"foo", []string{"pod:bar"}, []string{"srv:foo"}})
 	r.trackContext(&mockSample{"bar", []string{"pod:bar"}, []string{"srv:bar"}})
 	r.trackContext(&mockSample{"bar", []string{"pod:baz"}, []string{}})
+	r.trackContext(&mockSample{"bar", []string{"pod:baz"}, []string{"1", "2", "3", "4", "5"}})
 	sink := mockSink{}
 	ts := 1672835152.0
 	r.sendLimiterTelemetry(ts, &sink, "test", []string{"test"})
@@ -365,5 +367,23 @@ func TestLimiterTelemetry(t *testing.T) {
 		Tags:   tagset.NewCompositeTags([]string{"test", "reason:too_many_contexts"}, []string{"pod:baz"}),
 		MType:  metrics.APICountType,
 		Points: []metrics.Point{{Ts: ts, Value: 0.0}},
+	}, {
+		Name:   "datadog.agent.aggregator.dogstatsd_samples_dropped",
+		Host:   "test",
+		Tags:   tagset.NewCompositeTags([]string{"test", "reason:too_many_tags"}, []string{"pod:baz"}),
+		MType:  metrics.APICountType,
+		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
 	}})
+}
+
+func TestTimestampContextResolverLimit(t *testing.T) {
+	store := tags.NewStore(true, "")
+	limiter := limiter.New(1, "pod", []string{})
+	r := newTimestampContextResolver(store, limiter, nil)
+
+	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"pod:bar"}}, 42)
+	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}}, 42)
+
+	assert.Len(t, r.resolver.contextsByKey, 1)
+	assert.Len(t, r.lastSeenByKey, 1)
 }
