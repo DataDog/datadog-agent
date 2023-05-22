@@ -8,6 +8,7 @@ package serializerexporter
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -176,8 +177,30 @@ func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 	}
 
 	consumer.addTelemetryMetric(e.hostname)
+	if hasRuntimeMetrics(ld) {
+		consumer.addRuntimeTelemetryMetric(e.hostname)
+	}
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil
+}
+
+func hasRuntimeMetrics(ld pmetric.Metrics) bool {
+	rms := ld.ResourceMetrics()
+	for i := 0; i < rms.Len(); i++ {
+		rm := rms.At(i)
+		ilms := rm.ScopeMetrics()
+		for j := 0; j < ilms.Len(); j++ {
+			ilm := ilms.At(j)
+			metricsArray := ilm.Metrics()
+			for k := 0; k < metricsArray.Len(); k++ {
+				md := metricsArray.At(k)
+				if strings.Contains(md.Name(), "process.runtime") {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
