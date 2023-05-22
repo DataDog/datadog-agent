@@ -877,8 +877,6 @@ func GetProcessArgv(pr *model.Process) ([]string, bool) {
 	argv := pr.ArgsEntry.Values
 	if len(argv) > 0 {
 		argv = argv[1:]
-	} else {
-		argv = []string{}
 	}
 	pr.Argv = argv
 	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
