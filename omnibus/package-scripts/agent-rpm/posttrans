@@ -85,7 +85,7 @@ if [ ! -f "$CONFIG_DIR/install_info" ]; then
         # it as a macro (which would expand to the version of Agent being built).
         # NOTE: on some distros (e.g. opensuse 15.4), "rpm" package doesn't exist,
         # it's called "rpm-ndb". We query version of package which contains /bin/rpm file.
-        tool_version=rpm-$(rpm -qf /bin/rpm --queryformat "%%{VERSION}" || echo "unknown")
+        tool_version=rpm-$(rpm -q -f /bin/rpm --queryformat "%%{VERSION}" || echo "unknown")
     else
         tool=unknown
         tool_version=unknown
