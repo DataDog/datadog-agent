@@ -26,10 +26,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmtestconfig "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/testconfig"
 )
 
 const (
@@ -569,7 +569,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 }
 
 func newHTTPMonitor(t *testing.T) *Monitor {
-	cfg := config.New()
+	cfg := usmtestconfig.USMTestConfig()
 	cfg.EnableHTTPMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	skipIfNotSupported(t, err)
