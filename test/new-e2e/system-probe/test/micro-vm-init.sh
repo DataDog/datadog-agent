@@ -23,7 +23,7 @@ rm -f /opt/kernel-version-testing/junit-$IP.tar.gz
 CODE=0
 /system-probe-test_spec || CODE=$?
 
-tar czvf /testjson /opt/kernel-version-testing/testjson-$IP.tar.gz
-tar czvf /junit /opt/kernel-version-testing/junit-$IP.tar.gz
+tar czvf /testjson-$IP.tar.gz /testjson
+tar czvf /junit-$IP.tar.gz /junit
 
 exit $?
