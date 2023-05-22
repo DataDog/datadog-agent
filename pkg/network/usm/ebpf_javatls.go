@@ -114,45 +114,47 @@ func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
 }
 
 func IsJavaSubprogramEnabled(c *config.Config) bool {
-	return c.EnableJavaTLSSupport && c.EnableHTTPSMonitoring && http.HTTPSSupported(c)
+	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+		log.Info("java tls is not enabled")
+		return false
+	}
+
+	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
+	jar, err := os.Open(javaUSMAgentJarPath)
+	if err != nil {
+		log.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
+		return false
+	}
+	jar.Close()
+	return true
 }
 
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	var err error
 
 	if !IsJavaSubprogramEnabled(c) {
-		log.Info("java tls is not enabled")
 		return nil
 	}
 
 	log.Info("java tls is enabled")
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
 	javaUSMAgentDebug = c.JavaAgentDebug
 	javaUSMAgentArgs = c.JavaAgentArgs
-
 	javaAgentAllowRegex = nil
 	javaAgentBlockRegex = nil
 	if c.JavaAgentAllowRegex != "" {
 		javaAgentAllowRegex, err = regexp.Compile(c.JavaAgentAllowRegex)
 		if err != nil {
 			javaAgentAllowRegex = nil
-			log.Errorf("JavaAgentAllowRegex regex can't be compiled %s", err)
+			log.Errorf("allow regex can't be compiled %s", err)
 		}
 	}
 	if c.JavaAgentBlockRegex != "" {
 		javaAgentBlockRegex, err = regexp.Compile(c.JavaAgentBlockRegex)
 		if err != nil {
 			javaAgentBlockRegex = nil
-			log.Errorf("JavaAgentBlockRegex regex can't be compiled %s", err)
+			log.Errorf("block regex can't be compiled %s", err)
 		}
 	}
-
-	jar, err := os.Open(javaUSMAgentJarPath)
-	if err != nil {
-		log.Errorf("java TLS can't access to agent-usm.jar file %s : %s", javaUSMAgentJarPath, err)
-		return nil
-	}
-	jar.Close()
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
