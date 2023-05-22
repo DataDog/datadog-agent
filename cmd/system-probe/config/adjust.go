@@ -84,28 +84,30 @@ func applyDefault(cfg config.Config, key string, defaultVal interface{}) {
 	}
 }
 
-// deprecateBool sets `newkey` to the value at `oldkey` and logs a deprecation message,
-// but only if `oldkey` is set and `newkey` is not set.
+// deprecateBool logs a deprecation message if `oldkey` is used.
+// It sets `newkey` to the value obtained from `getFn`, but only if `oldkey` is set and `newkey` is not set.
 func deprecateBool(cfg config.Config, oldkey string, newkey string) {
 	deprecateCustom(cfg, oldkey, newkey, func(cfg config.Config) interface{} {
 		return cfg.GetBool(oldkey)
 	})
 }
 
-// deprecateString sets `newkey` to the value at `oldkey` and logs a deprecation message,
-// but only if `oldkey` is set and `newkey` is not set.
+// deprecateString logs a deprecation message if `oldkey` is used.
+// It sets `newkey` to the value obtained from `getFn`, but only if `oldkey` is set and `newkey` is not set.
 func deprecateString(cfg config.Config, oldkey string, newkey string) {
 	deprecateCustom(cfg, oldkey, newkey, func(cfg config.Config) interface{} {
 		return cfg.GetString(oldkey)
 	})
 }
 
-// deprecateCustom sets `newkey` to the value obtained from `getFn` and logs a deprecation message,
-// but only if `oldkey` is set and `newkey` is not set.
+// deprecateCustom logs a deprecation message if `oldkey` is used.
+// It sets `newkey` to the value obtained from `getFn`, but only if `oldkey` is set and `newkey` is not set.
 func deprecateCustom(cfg config.Config, oldkey string, newkey string, getFn func(config.Config) interface{}) {
-	if cfg.IsSet(oldkey) && !cfg.IsSet(newkey) {
+	if cfg.IsSet(oldkey) {
 		log.Warn(deprecationMessage(oldkey, newkey))
-		cfg.Set(newkey, getFn(cfg))
+		if !cfg.IsSet(newkey) {
+			cfg.Set(newkey, getFn(cfg))
+		}
 	}
 }
 
