@@ -22,8 +22,6 @@ import (
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
-
-	_ "net/http/pprof"
 )
 
 var MAX_OPEN_CONNECTIONS = 10
@@ -226,9 +224,12 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			log.Warnf("failed to set tracefile_identifier: %v", err)
 		}
 
+		/* We are concatenating values instead of passing parameters, because there seems to be a problem
+		 * in go-ora with passing bool parameters to PL/SQL. As a mitigation, we are asserting that the
+		 * parameters are bool
+		 */
 		binds := returnFalseIfNotBool(c.config.AgentSQLTrace.Binds)
 		waits := returnFalseIfNotBool(c.config.AgentSQLTrace.Waits)
-
 		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
 		log.Trace("trace statement: %s", setEventsStatement)
 		_, err = db.Exec(setEventsStatement)

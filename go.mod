@@ -566,7 +566,6 @@ require (
 )
 
 require (
-	github.com/felixge/fgprof v0.9.3
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1

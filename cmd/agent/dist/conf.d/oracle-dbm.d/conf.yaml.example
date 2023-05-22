@@ -169,4 +169,4 @@ instances:
       ## @param enabled - int - optional - default: 10
       ## Limit the number of traced check executions to avoid filling the file system.
       #
-      # trace_runs: 10
+      # traced_runs: 10
