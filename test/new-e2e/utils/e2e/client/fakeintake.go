@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	infraFakeintake "github.com/DataDog/test-infra-definitions/datadog/fakeintake"
+	infraFakeintake "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 )
 
 var _ clientService[infraFakeintake.ClientData] = (*Fakeintake)(nil)

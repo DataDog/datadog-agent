@@ -54,8 +54,9 @@ func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...func(*ec2
 }
 
 type AgentEnv struct {
-	VM    *client.VM
-	Agent *client.Agent
+	VM         *client.VM
+	Agent      *client.Agent
+	Fakeintake *client.Fakeintake
 }
 
 type Ec2VMOption = func(*ec2vm.Params) error
@@ -68,13 +69,20 @@ func AgentStackDef(vmParams []Ec2VMOption, agentParams ...func(*agent.Params) er
 				return nil, err
 			}
 
+			fakeintakeExporter, err := ecs.NewEcsFakeintake(vm.Infra)
+			if err != nil {
+				return nil, err
+			}
+
+			agentParams = append(agentParams, agent.WithFakeintake(fakeintakeExporter))
 			installer, err := agent.NewInstaller(vm, agentParams...)
 			if err != nil {
 				return nil, err
 			}
 			return &AgentEnv{
-				VM:    client.NewVM(vm),
-				Agent: client.NewAgent(installer),
+				VM:         client.NewVM(vm),
+				Agent:      client.NewAgent(installer),
+				Fakeintake: client.NewFakeintake(fakeintakeExporter),
 			}, nil
 		},
 	)
