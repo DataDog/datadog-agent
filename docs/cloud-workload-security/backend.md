@@ -432,10 +432,6 @@ CWS logs have the following JSON schema:
                     "type": "integer",
                     "description": "New Mount ID"
                 },
-                "group_id": {
-                    "type": "integer",
-                    "description": "Group ID"
-                },
                 "device": {
                     "type": "integer",
                     "description": "Device associated with the file"
@@ -597,9 +593,6 @@ CWS logs have the following JSON schema:
                 "mount_id": {
                     "type": "integer"
                 },
-                "group_id": {
-                    "type": "integer"
-                },
                 "parent_mount_id": {
                     "type": "integer"
                 },
@@ -629,7 +622,6 @@ CWS logs have the following JSON schema:
             "type": "object",
             "required": [
                 "mount_id",
-                "group_id",
                 "parent_mount_id",
                 "bind_src_mount_id",
                 "device"
@@ -1910,10 +1902,6 @@ CWS logs have the following JSON schema:
             "type": "integer",
             "description": "New Mount ID"
         },
-        "group_id": {
-            "type": "integer",
-            "description": "Group ID"
-        },
         "device": {
             "type": "integer",
             "description": "Device associated with the file"
@@ -1958,7 +1946,6 @@ CWS logs have the following JSON schema:
 | `package_version` | System package version |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
-| `group_id` | Group ID |
 | `device` | Device associated with the file |
 | `fstype` | Filesystem type |
 
@@ -2185,9 +2172,6 @@ CWS logs have the following JSON schema:
         "mount_id": {
             "type": "integer"
         },
-        "group_id": {
-            "type": "integer"
-        },
         "parent_mount_id": {
             "type": "integer"
         },
@@ -2217,7 +2201,6 @@ CWS logs have the following JSON schema:
     "type": "object",
     "required": [
         "mount_id",
-        "group_id",
         "parent_mount_id",
         "bind_src_mount_id",
         "device"
