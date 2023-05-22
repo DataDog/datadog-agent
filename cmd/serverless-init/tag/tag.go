@@ -63,3 +63,14 @@ func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
 	tagsMap := GetBaseTagsMapWithMetadata(metadata)
 	return tags.MapToArray(tagsMap)
 }
+
+// WithoutContainerID creates a new tag map without the `container_id` tag
+func WithoutContainerID(tags map[string]string) map[string]string {
+	newTags := make(map[string]string, len(tags))
+	for k, v := range tags {
+		if k != "container_id" {
+			newTags[k] = v
+		}
+	}
+	return newTags
+}

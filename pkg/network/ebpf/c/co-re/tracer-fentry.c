@@ -206,7 +206,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
-    cleanup_conn(&t, sk);
+    cleanup_conn(ctx, &t, sk);
     return 0;
 }
 
@@ -485,14 +485,14 @@ int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
     return 0;
 }
 
-static __always_inline int handle_udp_destroy_sock(struct sock *sk) {
+static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP);
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(&tup, sk);
+        cleanup_conn(ctx, &tup, sk);
         lport = tup.sport;
     } else {
         // get the port for the current sock
@@ -519,12 +519,12 @@ static __always_inline int handle_udp_destroy_sock(struct sock *sk) {
 
 SEC("fentry/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock, struct sock *sk) {
-    return handle_udp_destroy_sock(sk);
+    return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fentry/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
-    return handle_udp_destroy_sock(sk);
+    return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("fexit/udp_destroy_sock")

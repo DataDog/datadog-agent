@@ -169,7 +169,7 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 	for id, limiter := range defaultPerRuleLimiters {
 		limiters[id] = limiter
 	}
-	limiters[events.AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(rate.Every(time.Duration(rl.config.AnomalyDetectionRateLimiter)*time.Second), 1)
+	limiters[events.AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiter), 1)
 }
 
 // Apply a set of rules

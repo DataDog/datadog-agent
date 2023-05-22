@@ -144,7 +144,7 @@ type RuntimeSecurityConfig struct {
 	AnomalyDetectionWorkloadWarmupPeriod time.Duration
 
 	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
-	AnomalyDetectionRateLimiter int
+	AnomalyDetectionRateLimiter time.Duration
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
@@ -254,7 +254,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionWorkloadWarmupPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
 		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
-		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
+		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

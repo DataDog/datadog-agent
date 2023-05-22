@@ -132,7 +132,17 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 
 // NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
 func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	return &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+	entry := &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+
+	// mark file path as resolved
+	entry.FileEvent.SetPathnameStr("")
+	entry.FileEvent.SetBasenameStr("")
+
+	// mark interpreter as resolved too
+	entry.LinuxBinprm.FileEvent.SetPathnameStr("")
+	entry.LinuxBinprm.FileEvent.SetBasenameStr("")
+
+	return entry
 }
 
 // ArgsEnvs raw value for args and envs
