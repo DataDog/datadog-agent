@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,8 +24,57 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type ProfileDataDCA map[string][]byte
+
+// CreatePerformanceProfile adds a set of heap and CPU profiles into target, using cpusec as the CPU
+// profile duration, debugURL as the target URL for fetching the profiles and prefix as a prefix for
+// naming them inside target.
+//
+// It is accepted to pass a nil target.
+func CreatePerformanceProfileDCA(prefix, debugURL string, cpusec int, target *ProfileDataDCA) error {
+
+	c := apiutil.GetClient(false)
+	if *target == nil {
+		*target = make(ProfileDataDCA)
+	}
+	for _, prof := range []struct{ Name, URL string }{
+		{
+			// 1st heap profile
+			Name: prefix + "-1st-heap.pprof",
+			URL:  debugURL + "/heap",
+		},
+		{
+			// CPU profile
+			Name: prefix + "-cpu.pprof",
+			URL:  fmt.Sprintf("%s/profile?seconds=%d", debugURL, cpusec),
+		},
+		{
+			// 2nd heap profile
+			Name: prefix + "-2nd-heap.pprof",
+			URL:  debugURL + "/heap",
+		},
+		{
+			// mutex profile
+			Name: prefix + "-mutex.pprof",
+			URL:  debugURL + "/mutex",
+		},
+		{
+			// goroutine blocking profile
+			Name: prefix + "-block.pprof",
+			URL:  debugURL + "/block",
+		},
+	} {
+		b, err := apiutil.DoGet(c, prof.URL, apiutil.LeaveConnectionOpen)
+		if err != nil {
+			return err
+		}
+		(*target)[prof.Name] = b
+	}
+	return nil
+}
+
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
+func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDataDCA) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder()
 	if err != nil {
 		return "", err
@@ -35,11 +85,11 @@ func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) 
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
-	createDCAArchive(fb, local, confSearchPaths, logFilePath)
+	createDCAArchive(fb, local, confSearchPaths, logFilePath, pdata)
 	return fb.Save()
 }
 
-func createDCAArchive(fb flarehelpers.FlareBuilder, local bool, confSearchPaths SearchPaths, logFilePath string) {
+func createDCAArchive(fb flarehelpers.FlareBuilder, local bool, confSearchPaths SearchPaths, logFilePath string, pdata ProfileDataDCA) {
 	// If the request against the API does not go through we don't collect the status log.
 	if local {
 		fb.AddFile("local", []byte(""))
@@ -67,6 +117,8 @@ func createDCAArchive(fb flarehelpers.FlareBuilder, local bool, confSearchPaths 
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)
 	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)
 	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)
+
+	getPerformanceProfileDCA(fb, pdata)
 
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		getHPAStatus(fb) //nolint:errcheck
@@ -178,4 +230,10 @@ func getDCAWorkloadList() ([]byte, error) {
 	}
 
 	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port")))
+}
+
+func getPerformanceProfileDCA(fb flarehelpers.FlareBuilder, pdata ProfileDataDCA) {
+	for name, data := range pdata {
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
+	}
 }
