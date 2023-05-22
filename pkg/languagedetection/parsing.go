@@ -11,14 +11,6 @@ import (
 	"unicode"
 )
 
-func trimColonRight(s string) string {
-	if i := strings.Index(s, ":"); i > 0 {
-		return s[:i]
-	}
-
-	return s
-}
-
 func isRuneLetterAt(s string, position int) bool {
 	return len(s) > position && unicode.IsLetter(rune(s[position]))
 }
@@ -50,7 +42,7 @@ func getExe(cmd []string) string {
 	exe = strings.Trim(exe, "\"")
 
 	// Extract executable from commandline args
-	exe = trimColonRight(removeFilePath(exe))
+	exe = removeFilePath(exe)
 	if !isRuneLetterAt(exe, 0) {
 		exe = parseExeStartWithSymbol(exe)
 	}

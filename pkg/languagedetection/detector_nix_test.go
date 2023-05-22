@@ -20,19 +20,6 @@ func makeProcess(cmdline []string) *procutil.Process {
 	return &procutil.Process{
 		Pid:     rand.Int31(),
 		Cmdline: cmdline,
-		Stats: &procutil.Stats{
-			CPUPercent: &procutil.CPUPercentStat{
-				UserPct:   float64(rand.Uint64()),
-				SystemPct: float64(rand.Uint64()),
-			},
-			MemInfo: &procutil.MemoryInfoStat{
-				RSS: rand.Uint64(),
-				VMS: rand.Uint64(),
-			},
-			MemInfoEx:   &procutil.MemoryInfoExStat{},
-			IOStat:      &procutil.IOCountersStat{},
-			CtxSwitches: &procutil.NumCtxSwitchesStat{},
-		},
 	}
 }
 
@@ -56,7 +43,6 @@ func TestLanguageFromCommandline(t *testing.T) {
 			name:     "unknown",
 			cmdline:  []string{"mine-bitcoins", "--all"},
 			expected: unknown,
-			error:    true,
 		},
 		{
 			name:     "python with space and special chars in path",
@@ -82,16 +68,6 @@ func TestLanguageFromCommandline(t *testing.T) {
 			name:     "py is not a prefix",
 			cmdline:  []string{"pyret", "main.pyret"},
 			expected: unknown,
-		},
-		{
-			name:     "windows python",
-			cmdline:  []string{"C:\\Program Files\\Python3.9\\python.exe", "test.py"},
-			expected: python,
-		},
-		{
-			name:     "java",
-			cmdline:  []string{"C:\\Program Files\\Java\\java.exe", "main.java"},
-			expected: java,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -127,5 +103,8 @@ func BenchmarkDetectLanguage(b *testing.B) {
 	}
 
 	b.StartTimer()
-	DetectLanguage(procs)
+
+	for i := 0; i < b.N; i++ {
+		DetectLanguage(procs)
+	}
 }
