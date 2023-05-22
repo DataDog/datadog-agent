@@ -623,8 +623,8 @@ func (h *cookieHasher) Hash(stats *network.ConnectionStats) {
 		log.Errorf("error writing cookie to hash: %s", err)
 		return
 	}
-	stats.ByteKey(h.buf)
-	if _, err := h.hash.Write(h.buf); err != nil {
+	key := stats.ByteKey(h.buf)
+	if _, err := h.hash.Write(key); err != nil {
 		log.Errorf("error writing byte key to hash: %s", err)
 		return
 	}
