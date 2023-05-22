@@ -80,7 +80,7 @@ type JavaTLSProgram struct {
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &JavaTLSProgram{}
 
-func GetJavaHandlersTailCallRoutes() []manager.TailCallRoute {
+func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
 		{
 			ProgArrayName: "java_tls_erpc_handlers",

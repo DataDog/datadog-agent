@@ -3,7 +3,9 @@
 
 #include "ktypes.h"
 
-#define MAX_DOMAIN_NAME_LENGTH 64
+// any change in this const is sensitive to stack limit of kprobe_handle_async_payload ebpf program,
+// as it increases the size of structs defined below.
+#define MAX_DOMAIN_NAME_LENGTH 48
 
 enum erpc_message_type {
     SYNCHRONOUS_PAYLOAD,

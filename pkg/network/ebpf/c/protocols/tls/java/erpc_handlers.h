@@ -49,7 +49,7 @@ int kprobe_handle_sync_payload(struct pt_regs *ctx) {
     bufferPtr+=sizeof(bytes_read);
 
     // register the connection in our map
-    bpf_map_update_with_telemetry(java_tls_connections, &connection, &val, BPF_ANY);
+    bpf_map_update_elem(&java_tls_connections, &connection, &val, BPF_ANY);
     log_debug("[handle_sync_payload] handling tls request of size: %d for connection src addr: %llx; dst address %llx\n",
                 bytes_read, connection.saddr_l, connection.daddr_l);
     https_process(&connection, bufferPtr, bytes_read, JAVA_TLS);
@@ -112,7 +112,7 @@ int kprobe_handle_connection_by_peer(struct pt_regs *ctx) {
     }
 
     // register the connection in conn_by_peer map
-    bpf_map_update_with_telemetry(java_conn_tuple_by_peer, &peer_key, &connection, BPF_ANY);
+    bpf_map_update_elem(&java_conn_tuple_by_peer, &peer_key, &connection, BPF_ANY);
 
     log_debug("[handle_connection_by_peer] created map entry for pid %d domain %s port: %d\n",
                 peer_key.pid, peer_key.peer.domain, peer_key.peer.port);
@@ -134,41 +134,41 @@ int kprobe_handle_async_payload(struct pt_regs *ctx) {
     void* bufferPtr = GET_DATA_PTR(ctx);
 
     connection_by_peer_key_t peer_key ={0};
-    //bpf_memset(peer_key, 0, sizeof(connection_by_peer_key_t));
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    peer_key->pid = pid_tgid >> 32;
+    peer_key.pid = pid_tgid >> 32;
 
     //read the peer tuple (domain string and port)
-    if (0 != bpf_probe_read_user(&peer_key->peer, sizeof(peer_t), bufferPtr)){
+    if (0 != bpf_probe_read_user(&peer_key.peer, sizeof(peer_t), bufferPtr)){
         log_debug("[handle_async_payload] failed allocating peer tuple struct on heap\n");
         return 1;
     }
     bufferPtr+=sizeof(peer_t);
     log_debug("[handle_async_payload] pid: %d; peer domain: %s; peer port: %d\n",
-         peer_key->pid,
-         peer_key->peer.domain,
-         peer_key->peer.port);
+         peer_key.pid,
+         peer_key.peer.domain,
+         peer_key.peer.port);
 
     //get connection tuple
-    conn_tuple_t * actual_connection = bpf_map_lookup_elem(&java_conn_tuple_by_peer, peer_key);
+    conn_tuple_t * actual_connection = bpf_map_lookup_elem(&java_conn_tuple_by_peer, &peer_key);
     if (!actual_connection) {
         log_debug("[handle_async_payload] couldn't correlate connection\n");
         return 1;
     }
 
-     log_debug("[handle_async_payload] found correlation conn src port: %d dst port: %d\n",
+    conn_tuple_t conn_on_stack = *actual_connection;
+    log_debug("[handle_async_payload] found correlation conn src port: %d dst port: %d\n",
              actual_connection->sport,
              actual_connection->dport);
 
     // read the actual length of the message (limited to HTTP_BUFFER_SIZE bytes)
     if (0 != bpf_probe_read_user(&bytes_read, sizeof(bytes_read), bufferPtr)){
-        log_debug("[handle_async_payload] failed reading message length location for pid %d\n", peer_key->pid);
+        log_debug("[handle_async_payload] failed reading message length location for pid %d\n", peer_key.pid);
         return 1;
     }
     bufferPtr+=sizeof(bytes_read);
 
     // register the connection in our map
-    bpf_map_update_with_telemetry(java_tls_connections, actual_connection, &val, BPF_ANY);
+    bpf_map_update_elem(&java_tls_connections, &conn_on_stack, &val, BPF_ANY);
     log_debug("[handle_async_payload] handling tls request of size: %d for connection src addr: %llx; dst address %llx\n",
                 bytes_read,
                 actual_connection->saddr_l,
