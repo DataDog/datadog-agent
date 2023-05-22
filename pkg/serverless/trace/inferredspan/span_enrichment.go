@@ -7,40 +7,59 @@ package inferredspan
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-lambda-go/events"
-
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/aws/aws-lambda-go/events"
 )
 
-func getServiceMapping(serviceName string) string {
-	serviceMapping := os.Getenv("DD_SERVICE_MAPPING")
-	mapping := make(map[string]string)
+// Define and initialize serviceMapping as a global variable.
+var serviceMapping map[string]string
 
-	for _, entry := range strings.Split(serviceMapping, ",") {
+func CreateServiceMapping(val string) map[string]string {
+	newServiceMapping := make(map[string]string)
+
+	for _, entry := range strings.Split(val, ",") {
 		parts := strings.Split(entry, ":")
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			mapping[key] = value
+			newServiceMapping[key] = value
 		}
 	}
-	// If the map is of string keys to string values, the zero value is "".
-	return mapping[serviceName]
+	return newServiceMapping
 }
 
-func firstNonEmpty(strings ...string) string {
-	for _, str := range strings {
-		if str != "" {
-			return str
-		}
-	}
-	return ""
+func init() {
+	serviceMappingStr := config.Datadog.GetString("service_mapping")
+	serviceMapping = CreateServiceMapping(serviceMappingStr)
 }
+
+// SetServiceMapping sets the serviceMapping global variable, primarily for tests.
+func SetServiceMapping(newServiceMapping map[string]string) {
+	serviceMapping = newServiceMapping
+}
+
+// This function gets a snapshot of the current service mapping without modifying it.
+func GetServiceMapping() map[string]string {
+	return serviceMapping
+}
+
+
+func DetermineServiceName(serviceMapping map[string]string, specificKey string, genericKey string, defaultValue string) string{	var serviceName string
+	if val, ok := serviceMapping[specificKey]; ok {
+		serviceName = val
+	} else if val, ok := serviceMapping[genericKey]; ok {
+		serviceName = val
+	} else {
+		serviceName = defaultValue
+	}
+	return serviceName
+}
+
 
 // EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
@@ -53,17 +72,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 	httpurl := fmt.Sprintf("%s%s", domain, eventPayload.Path)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 	apiId := requestContext.APIID
-	// Attempt to get the service mapping for the domain so that we don't remap all apigw services
-	// Allows the customer to have more fine-grained control
-	domainMapping := getServiceMapping(strings.ToLower(apiId))
-
-	// If the domain mapping is not found,
-	// attempt to get the service mapping for 'lambda_api_gateway'
-	apiGatewayMapping := getServiceMapping("lambda_api_gateway")
-
-	// If neither mapping is found, default to the domain name
-	serviceName := firstNonEmpty(domainMapping, apiGatewayMapping, domain)
-
+	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", domain)
 	inferredSpan.Span.Name = "aws.apigateway"
 	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Resource = resource
@@ -96,17 +105,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 	httpurl := fmt.Sprintf("%s%s", domainName, path)
 	startTime := calculateStartTime(requestContext.TimeEpoch)
 	apiId := requestContext.APIID
-	// Attempt to get the service mapping for the domain so that we don't remap all apigw services
-	// Allows the customer to have more fine-grained control
-	domainMapping := getServiceMapping(strings.ToLower(apiId))
-
-	// If the domain mapping is not found,
-	// attempt to get the service mapping for 'lambda_api_gateway'
-	apiGatewayMapping := getServiceMapping("lambda_api_gateway")
-
-	// If neither mapping is found, default to the domain name
-	serviceName := firstNonEmpty(domainMapping, apiGatewayMapping, domainName)
-
+	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", domainName)
 	inferredSpan.Span.Name = "aws.httpapi"
 	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Resource = resource
@@ -137,17 +136,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 	httpurl := fmt.Sprintf("%s%s", requestContext.DomainName, routeKey)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
 	apiId := requestContext.APIID
-	// Attempt to get the service mapping for the domain so that we don't remap all apigw services
-	// Allows the customer to have more fine-grained control
-	domainMapping := getServiceMapping(strings.ToLower(apiId))
-
-	// If the domain mapping is not found,
-	// attempt to get the service mapping for 'lambda_api_gateway'
-	apiGatewayMapping := getServiceMapping("lambda_api_gateway")
-
-	// If neither mapping is found, default to the domain name
-	serviceName := firstNonEmpty(domainMapping, apiGatewayMapping, requestContext.DomainName)
-
+	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", requestContext.DomainName)
 	inferredSpan.Span.Name = "aws.apigateway.websocket"
 	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Resource = routeKey
@@ -178,15 +167,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 	snsMessage := eventRecord.SNS
 	splitArn := strings.Split(snsMessage.TopicArn, ":")
 	topicNameValue := splitArn[len(splitArn)-1]
-	// Get the service mapping for the topic name
-	queueMapping := getServiceMapping(topicNameValue)
-
-	// If the queue mapping is not found, attempt to get the service mapping for 'sns'
-	snsMapping := getServiceMapping("lambda_sns")
-
-	// If neither mapping is found, default to "sns"
-	serviceName := firstNonEmpty(queueMapping, snsMapping, "sns")
-
+	serviceName := DetermineServiceName(serviceMapping, topicNameValue, "lambda_sns", "sns")
 	startTime := snsMessage.Timestamp.UnixNano()
 
 	inferredSpan.IsAsync = true
@@ -216,18 +197,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload events.S3Event) {
 	eventRecord := eventPayload.Records[0]
 	bucketNameVar := eventRecord.S3.Bucket.Name
-	// Get the service mapping for the bucket name
-	bucketNameMapping := getServiceMapping(bucketNameVar)
-
-	// If the bucket name mapping is not found, attempt to get the service mapping for 's3'
-	s3Mapping := ""
-	if bucketNameMapping == "" {
-		s3Mapping = getServiceMapping("lambda_s3")
-	}
-
-	// If neither mapping is found, default to "s3"
-	serviceName := firstNonEmpty(bucketNameMapping, s3Mapping, "s3")
-
+	serviceName := DetermineServiceName(serviceMapping, bucketNameVar, "lambda_s3", "s3")
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.s3"
 	inferredSpan.Span.Service = serviceName
@@ -254,14 +224,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
 	parsedQueueName := splitArn[len(splitArn)-1]
 	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
-	// Get the service mapping for queue name
-	queueMapping := getServiceMapping(parsedQueueName)
-
-	// If the queue mapping is not found, attempt to get the service mapping for 'lambda_sqs'
-	sqsMapping := getServiceMapping("lambda_sqs")
-
-	// If neither mapping is found, default to "sqs"
-	serviceName := firstNonEmpty(queueMapping, sqsMapping, "sqs")
+	serviceName := DetermineServiceName(serviceMapping, parsedQueueName, "lambda_sqs", "sqs")
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sqs"
@@ -284,18 +247,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 // specific set of data to the span expected from an EventBridge event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload EventBridgeEvent) {
 	source := eventPayload.Source
-	// Get the service mapping for the source
-	sourceMapping := getServiceMapping(source)
-
-	// If the source mapping is not found, attempt to get the service mapping for 'eventbridge'
-	eventBridgeMapping := ""
-	if sourceMapping == "" {
-		eventBridgeMapping = getServiceMapping("lambda_eventbridge")
-	}
-
-	// If neither mapping is found, default to "eventbridge"
-	serviceName := firstNonEmpty(sourceMapping, eventBridgeMapping, "eventbridge")
-
+	serviceName := DetermineServiceName(serviceMapping, source, "lambda_eventbridge", "eventbridge")
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.eventbridge"
 	inferredSpan.Span.Service = serviceName
@@ -318,19 +270,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayloa
 	parts := strings.Split(eventSourceARN, "/")
 	parsedStreamName := parts[len(parts)-1]
 	parsedShardID := strings.Split(eventRecord.EventID, ":")[0]
-
-	// Get the service mapping for the stream name
-	streamNameMapping := getServiceMapping(parsedStreamName)
-
-	// If the stream name mapping is not found, attempt to get the service mapping for 'kinesis'
-	kinesisMapping := ""
-	if streamNameMapping == "" {
-		kinesisMapping = getServiceMapping("lambda_kinesis")
-	}
-
-	// If neither mapping is found, default to "kinesis"
-	serviceName := firstNonEmpty(streamNameMapping, kinesisMapping, "kinesis")
-
+	serviceName := DetermineServiceName(serviceMapping, parsedStreamName, "lambda_kinesis", "kinesis")
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.kinesis"
 	inferredSpan.Span.Service = serviceName
@@ -357,19 +297,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithDynamoDBEvent(eventPaylo
 	eventRecord := eventPayload.Records[0]
 	parsedTableName := strings.Split(eventRecord.EventSourceArn, "/")[1]
 	eventMessage := eventRecord.Change
-	// Attempt to get the service mapping for the domain so that we don't remap all apigw services
-	// Allows the customer to have more fine grained control
-	tableArnMapping := getServiceMapping(parsedTableName)
-
-	// If the tableArnMapping is not found, attempt to get the service mapping for 'dynamodb'
-	dynamoDBMapping := ""
-	if tableArnMapping == "" {
-		dynamoDBMapping = getServiceMapping("lambda_dynamodb")
-	}
-
-	// If neither mapping is found, default to "dynamodb"
-	serviceName := firstNonEmpty(tableArnMapping, dynamoDBMapping, "dynamodb")
-
+	serviceName := DetermineServiceName(serviceMapping, parsedTableName, "lambda_dynamodb", "dynamodb") 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.dynamodb"
 	inferredSpan.Span.Service = serviceName

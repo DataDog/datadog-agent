@@ -8,6 +8,7 @@ package inferredspan
 import (
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -20,6 +21,43 @@ import (
 const (
 	dataFile = "../testdata/event_samples/"
 )
+
+// TestGetServiceMapping checks if the function correctly parses the input string into a map.
+func TestCreateServiceMapping(t *testing.T) {
+	testString := "test1:val1,test2:val2"
+	expectedOutput := map[string]string{
+		"test1": "val1",
+		"test2": "val2",
+	}
+
+	result := CreateServiceMapping(testString)
+	assert.True(t, reflect.DeepEqual(result, expectedOutput), "NewServiceMapping failed, expected %v, got %v", expectedOutput, result)
+}
+
+
+// TestDetermineServiceName checks if the function correctly selects a service name from the map.
+func TestDetermineServiceName(t *testing.T) {
+	serviceMapping := map[string]string{
+		"specificKey": "specificVal",
+		"genericKey":  "genericVal",
+	}
+	defaultVal := "defaultVal"
+
+	// Test when the specific key exists.
+	expectedOutput := "specificVal"
+	result := DetermineServiceName(serviceMapping, "specificKey", "nonexistent", defaultVal)
+	assert.Equal(t, expectedOutput, result, "DetermineServiceName failed, expected %v, got %v", expectedOutput, result)
+
+	// Test when only the generic key exists.
+	expectedOutput = "genericVal"
+	result = DetermineServiceName(serviceMapping, "nonexistent", "genericKey", defaultVal)
+	assert.Equal(t, expectedOutput, result, "DetermineServiceName failed, expected %v, got %v", expectedOutput, result)
+
+	// Test when neither key exists.
+	expectedOutput = defaultVal
+	result = DetermineServiceName(serviceMapping, "nonexistent", "nonexistent", defaultVal)
+	assert.Equal(t, expectedOutput, result, "DetermineServiceName failed, expected %v, got %v", expectedOutput, result)
+}
 
 func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 	var apiGatewayRestEvent events.APIGatewayProxyRequest
@@ -49,19 +87,29 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 }
 
 func TestRemapsAllInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "lambda_api_gateway:new-name")
-
 	// Load the original event
 	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
 
 	inferredSpan := mockInferredSpan()
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
+
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	newServiceMapping := map[string]string{
+		"apiId_from_event": "ignored-name",
+		"lambda_api_gateway": "accepted-name",
+    }
+	// Set up test case
+	SetServiceMapping(newServiceMapping)
 	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.apigateway.rest", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	apiGatewayRestEvent2 := apiGatewayRestEvent
@@ -72,25 +120,32 @@ func TestRemapsAllInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
 
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.apigateway.rest", span2.Meta[operationName])
-	assert.Equal(t, "new-name", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
+	assert.Equal(t, "accepted-name", span2.Service)
 }
 
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "1234567890:new-name")
-
 	// Load the original event
 	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
+
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"1234567890": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.apigateway.rest", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	apiGatewayRestEvent2 := apiGatewayRestEvent
@@ -102,8 +157,6 @@ func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T)
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.apigateway.rest", span2.Meta[operationName])
 	assert.Equal(t, "70ixmpl4fl.execute-api.us-east-2.amazonaws.com", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
@@ -156,19 +209,28 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 }
 
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayHTTPAPIEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "x02yirxc7a:new-name")
-
 	// Load the original event
 	var apiGatewayHTTPAPIEvent events.APIGatewayV2HTTPRequest
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPAPIEvent)
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
+
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"x02yirxc7a": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPAPIEvent)
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.httpapi", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	apiGatewayHTTPAPIEvent2 := apiGatewayHTTPAPIEvent
@@ -180,8 +242,6 @@ func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayHTTPAPIEvent(t *tes
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.httpapi", span2.Meta[operationName])
 	assert.Equal(t, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
@@ -212,19 +272,28 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 }
 
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayWebsocketDefaultEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "p62c47itsb:new-name")
-
 	// Load the original event
 	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-default.json"), &apiGatewayWebsocketEvent)
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
+
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"p62c47itsb": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayWebsocketEvent(apiGatewayWebsocketEvent)
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.apigateway.websocket", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	apiGatewayWebsocketEvent2 := apiGatewayWebsocketEvent
@@ -236,8 +305,6 @@ func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayWebsocketDefaultEve
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.apigateway.websocket", span2.Meta[operationName])
 	assert.Equal(t, "p62c47itsb.execute-api.sa-east-1.amazonaws.com", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
@@ -320,8 +387,18 @@ func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
 }
 
 func TestRemapsAllInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "lambda_sns:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
+
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"lambda_sns": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 
 	// Load the original event
 	var snsEvent events.SNSEvent
@@ -332,7 +409,7 @@ func TestRemapsAllInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.sns", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	snsEvent2 := snsEvent
@@ -343,15 +420,22 @@ func TestRemapsAllInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.sns", span2.Meta[operationName])
-	assert.Equal(t, "new-name", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
+	assert.Equal(t, "accepted-name", span2.Service)
 }
 
 func TestRemapsSpecificInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "serverlessTracingTopicPy:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"serverlessTracingTopicPy": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 	// Load the original event
 	var snsEvent events.SNSEvent
 	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsEvent)
@@ -361,7 +445,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.sns", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	snsEvent2 := snsEvent
@@ -373,8 +457,6 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.sns", span2.Meta[operationName])
 	assert.Equal(t, "sns", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanForS3Event(t *testing.T) {
@@ -403,8 +485,18 @@ func TestEnrichInferredSpanForS3Event(t *testing.T) {
 }
 
 func TestRemapsAllInferredSpanServiceNamesFromS3Event(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "lambda_s3:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
+
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"lambda_s3": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 
 	// Load the original event
 	var s3Event events.S3Event
@@ -415,7 +507,7 @@ func TestRemapsAllInferredSpanServiceNamesFromS3Event(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.s3", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	s3Event2 := s3Event
@@ -426,15 +518,23 @@ func TestRemapsAllInferredSpanServiceNamesFromS3Event(t *testing.T) {
 
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.s3", span2.Meta[operationName])
-	assert.Equal(t, "new-name", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
+	assert.Equal(t, "accepted-name", span2.Service)
 }
 
 func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "example-bucket:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"example-bucket": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
+	
 	// Load the original event
 	var s3Event events.S3Event
 	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Event)
@@ -444,7 +544,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.s3", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	s3Event2 := s3Event
@@ -456,8 +556,6 @@ func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.s3", span2.Meta[operationName])
 	assert.Equal(t, "s3", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
@@ -479,9 +577,18 @@ func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
 }
 
 func TestRemapsAllInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "lambda_eventbridge:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"lambda_eventbridge": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 	// Load the original event
 	var eventBridgeEvent EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
@@ -491,7 +598,7 @@ func TestRemapsAllInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.eventbridge", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	eventBridgeEvent2 := eventBridgeEvent
@@ -502,15 +609,22 @@ func TestRemapsAllInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T) {
 
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.eventbridge", span2.Meta[operationName])
-	assert.Equal(t, "new-name", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
+	assert.Equal(t, "accepted-name", span2.Service)
 }
 
 func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "eventbridge.custom.event.sender:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"eventbridge.custom.event.sender": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 	// Load the original event
 	var eventBridgeEvent EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
@@ -520,7 +634,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.eventbridge", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	eventBridgeEvent2 := eventBridgeEvent
@@ -532,8 +646,6 @@ func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.eventbridge", span2.Meta[operationName])
 	assert.Equal(t, "eventbridge", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
@@ -559,9 +671,18 @@ func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
 }
 
 func TestRemapsAllInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "lambda_sqs:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"lambda_sqs": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 	// Load the original event
 	var sqsRequest events.SQSEvent
 	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
@@ -571,7 +692,7 @@ func TestRemapsAllInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.sqs", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	sqsRequest2 := sqsRequest
@@ -582,15 +703,22 @@ func TestRemapsAllInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.sqs", span2.Meta[operationName])
-	assert.Equal(t, "new-name", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
+	assert.Equal(t, "accepted-name", span2.Service)
 }
 
 func TestRemapsSpecificInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "InferredSpansQueueNode:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"InferredSpansQueueNode": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 	// Load the original event
 	var sqsRequest events.SQSEvent
 	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
@@ -600,7 +728,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.sqs", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	sqsRequest2 := sqsRequest
@@ -612,8 +740,6 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.sqs", span2.Meta[operationName])
 	assert.Equal(t, "sqs", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithKinesisEvent(t *testing.T) {
@@ -642,9 +768,18 @@ func TestEnrichInferredSpanWithKinesisEvent(t *testing.T) {
 }
 
 func TestRemapsAllInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "lambda_kinesis:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"lambda_kinesis": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 	// Load the original event
 	var kinesisRequest events.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
@@ -654,7 +789,7 @@ func TestRemapsAllInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.kinesis", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	kinesisRequest2 := kinesisRequest
@@ -665,15 +800,22 @@ func TestRemapsAllInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.kinesis", span2.Meta[operationName])
-	assert.Equal(t, "new-name", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
+	assert.Equal(t, "accepted-name", span2.Service)
 }
 
 func TestRemapsSpecificInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "kinesisStream:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"kinesisStream": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 	// Load the original event
 	var kinesisRequest events.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
@@ -683,7 +825,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.kinesis", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	kinesisRequest2 := kinesisRequest
@@ -695,8 +837,6 @@ func TestRemapsSpecificInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.kinesis", span2.Meta[operationName])
 	assert.Equal(t, "kinesis", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestEnrichInferredSpanWithDynamoDBEvent(t *testing.T) {
@@ -725,9 +865,18 @@ func TestEnrichInferredSpanWithDynamoDBEvent(t *testing.T) {
 }
 
 func TestRemapsAllInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "lambda_dynamodb:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"lambda_dynamodb": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 	// Load the original event
 	var dynamoRequest events.DynamoDBEvent
 	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
@@ -737,7 +886,7 @@ func TestRemapsAllInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.dynamodb", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	dynamoRequest2 := dynamoRequest
@@ -748,15 +897,22 @@ func TestRemapsAllInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
 
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.dynamodb", span2.Meta[operationName])
-	assert.Equal(t, "new-name", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
+	assert.Equal(t, "accepted-name", span2.Service)
 }
 
 func TestRemapsSpecificInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
-	// Set the environment variable
-	os.Setenv("DD_SERVICE_MAPPING", "ExampleTableWithStream:new-name")
+	// Store the original service mapping
+	origServiceMapping := GetServiceMapping()
 
+	// Clean up: Reset the service mapping to its original state after this test
+	defer func() {
+		SetServiceMapping(origServiceMapping)
+	}()
+	// Set up the service mapping
+	newServiceMapping := map[string]string{
+		"ExampleTableWithStream": "accepted-name",
+	}
+	SetServiceMapping(newServiceMapping)
 	// Load the original event
 	var dynamoRequest events.DynamoDBEvent
 	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
@@ -766,7 +922,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
 
 	span1 := inferredSpan.Span
 	assert.Equal(t, "aws.dynamodb", span1.Meta[operationName])
-	assert.Equal(t, "new-name", span1.Service)
+	assert.Equal(t, "accepted-name", span1.Service)
 
 	// Create a copy of the original event and modify it
 	dynamoRequest2 := dynamoRequest
@@ -778,8 +934,6 @@ func TestRemapsSpecificInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
 	span2 := inferredSpan2.Span
 	assert.Equal(t, "aws.dynamodb", span2.Meta[operationName])
 	assert.Equal(t, "dynamodb", span2.Service)
-
-	os.Unsetenv("DD_SERVICE_MAPPING")
 }
 
 func TestFormatISOStartTime(t *testing.T) {
