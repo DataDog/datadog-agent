@@ -93,7 +93,7 @@ func (cm CollectorMetadata) FullName() string {
 	return cm.Name
 }
 
-// OrchestratorInformerFactory contains all informer factory used by orchestration check
+// OrchestratorInformerFactory contains all informer factories used by the orchestration check
 type OrchestratorInformerFactory struct {
 	InformerFactory              informers.SharedInformerFactory
 	UnassignedPodInformerFactory informers.SharedInformerFactory
