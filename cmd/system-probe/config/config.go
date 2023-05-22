@@ -110,7 +110,7 @@ func newSysprobeConfig(configPath string, loadSecrets bool) (*Config, error) {
 
 func load() (*Config, error) {
 	cfg := aconfig.SystemProbe
-	adjustConfig(cfg)
+	Adjust(cfg)
 
 	c := &Config{
 		Enabled:             cfg.GetBool(spNS("enabled")),
@@ -157,7 +157,7 @@ func load() (*Config, error) {
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0
-	// only allowed raw config adjustments here, otherwise use adjustConfig function
+	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled)
 
 	return c, nil

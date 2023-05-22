@@ -7,13 +7,22 @@ package config
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// adjustConfig makes changes to the raw config based on deprecations and inferences.
-func adjustConfig(cfg config.Config) {
+var adjustMtx sync.Mutex
+
+// Adjust makes changes to the raw config based on deprecations and inferences.
+func Adjust(cfg config.Config) {
+	if IsAdjusted(cfg) {
+		return
+	}
+	adjustMtx.Lock()
+	defer adjustMtx.Unlock()
+
 	deprecateString(cfg, spNS("log_level"), "log_level")
 	deprecateString(cfg, spNS("log_file"), "log_file")
 
@@ -36,6 +45,15 @@ func adjustConfig(cfg config.Config) {
 	adjustNetwork(cfg)
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
+
+	cfg.Set(spNS("adjusted"), true)
+}
+
+// IsAdjusted returns whether the configuration has already been adjusted by Adjust
+func IsAdjusted(cfg config.Config) bool {
+	adjustMtx.Lock()
+	defer adjustMtx.Unlock()
+	return cfg.GetBool(spNS("adjusted"))
 }
 
 // validateString validates the string configuration value at `key` using a custom provided function `valFn`.
