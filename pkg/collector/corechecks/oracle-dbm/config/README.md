@@ -8,6 +8,7 @@ Currently supported configurations
 Currently implemented features
 ------------------------------
 - Activity sample profiling
+- Query metrics (as of beta custom build 0.23)
 
 Database
 --------

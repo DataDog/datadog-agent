@@ -4,22 +4,19 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
 
 package http
 
 import (
 	"time"
 
-	"go.uber.org/atomic"
-
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 )
 
-type telemetry struct {
-	then *atomic.Int64
-
+type Telemetry struct {
+	LastCheck                                   *atomic.Int64
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
 	totalHits    *libtelemetry.Metric
@@ -27,23 +24,32 @@ type telemetry struct {
 	rejected     *libtelemetry.Metric // this happens when an user-defined reject-filter matches a request
 	malformed    *libtelemetry.Metric // this happens when the request doesn't have the expected format
 	aggregations *libtelemetry.Metric
+
+	newIncomplete    *libtelemetry.Metric
+	totalIncomplete  *libtelemetry.Metric
+	joinedIncomplete *libtelemetry.Metric
 }
 
-func newTelemetry() (*telemetry, error) {
+func NewTelemetry() (*Telemetry, error) {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
 		libtelemetry.OptMonotonic,
 	)
 
-	t := &telemetry{
-		then:         atomic.NewInt64(time.Now().Unix()),
+	t := &Telemetry{
+		LastCheck:    atomic.NewInt64(time.Now().Unix()),
 		hits1XX:      metricGroup.NewMetric("hits1xx"),
 		hits2XX:      metricGroup.NewMetric("hits2xx"),
 		hits3XX:      metricGroup.NewMetric("hits3xx"),
 		hits4XX:      metricGroup.NewMetric("hits4xx"),
 		hits5XX:      metricGroup.NewMetric("hits5xx"),
 		aggregations: metricGroup.NewMetric("aggregations"),
+
+		// metrics from `incompleteBuffer`
+		newIncomplete:    metricGroup.NewMetric("new_incomplete"),
+		totalIncomplete:  metricGroup.NewMetric("total_incomplete"),
+		joinedIncomplete: metricGroup.NewMetric("joined_incomplete"),
 
 		// these metrics are also exported as statsd metrics
 		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd),
@@ -52,10 +58,12 @@ func newTelemetry() (*telemetry, error) {
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
 	}
 
+	t.LastCheck.Store(time.Now().Unix())
+
 	return t, nil
 }
 
-func (t *telemetry) count(tx httpTX) {
+func (t *Telemetry) Count(tx HttpTX) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
 	case 100:
@@ -72,19 +80,26 @@ func (t *telemetry) count(tx httpTX) {
 	t.totalHits.Add(1)
 }
 
-func (t *telemetry) log() {
+func (t *Telemetry) Log() {
 	now := time.Now().Unix()
-	then := t.then.Swap(now)
 
+	if t.LastCheck.Load() == 0 {
+		t.LastCheck.Store(now)
+		return
+	}
 	totalRequests := t.totalHits.Delta()
 	dropped := t.dropped.Delta()
 	rejected := t.rejected.Delta()
 	malformed := t.malformed.Delta()
 	aggregations := t.aggregations.Delta()
-	elapsed := now - then
+	newIncomplete := t.newIncomplete.Delta()
+	joinedIncomplete := t.joinedIncomplete.Delta()
+	totalIncomplete := t.totalIncomplete.Delta()
+	elapsed := now - t.LastCheck.Load()
+	t.LastCheck.Store(now)
 
 	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
+		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) incomplete_parts=%d(%.2f/s) incomplete_parts_joined=%d(%.2f/s) incomplete_parts_accumulated=%d aggregations=%d",
 		totalRequests,
 		float64(totalRequests)/float64(elapsed),
 		dropped,
@@ -93,6 +108,11 @@ func (t *telemetry) log() {
 		float64(rejected)/float64(elapsed),
 		malformed,
 		float64(malformed)/float64(elapsed),
+		newIncomplete,
+		float64(newIncomplete)/float64(elapsed),
+		joinedIncomplete,
+		float64(joinedIncomplete)/float64(elapsed),
+		totalIncomplete,
 		aggregations,
 	)
 }

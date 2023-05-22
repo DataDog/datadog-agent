@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package kprobe
 
@@ -19,6 +18,7 @@ import (
 func TestTracerCompile(t *testing.T) {
 	cfg := config.New()
 	cfg.BPFDebug = true
-	_, err := getRuntimeCompiledTracer(cfg)
+	out, err := getRuntimeCompiledTracer(cfg)
 	require.NoError(t, err)
+	_ = out.Close()
 }

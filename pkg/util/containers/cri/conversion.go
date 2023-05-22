@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build cri
-// +build cri
 
 /*
 Copyright 2021 The Kubernetes Authors.

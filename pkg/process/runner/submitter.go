@@ -361,7 +361,6 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 				updateRTStatus = true
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.ConnectionsCheckName:
-				updateRTStatus = true
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			// Pod check metadata
 			case checks.PodCheckName:

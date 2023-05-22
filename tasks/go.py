@@ -12,7 +12,7 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from .build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from .licenses import get_licenses_list
 from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
@@ -300,3 +300,16 @@ def check_go_version(ctx):
 
     if dot_go_version != running_go_version:
         raise Exit(message=f"Expected {dot_go_version} (from `.go-version`), but running {running_go_version}")
+
+
+@task
+def go_fix(ctx, fix=None):
+    if fix:
+        fixarg = f" -fix {fix}"
+    oslist = ["linux", "windows", "darwin"]
+
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            for osname in oslist:
+                tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
+                ctx.run(f"go fix{fixarg} -tags {','.join(tags)} ./...")

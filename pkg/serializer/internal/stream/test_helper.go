@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package stream
 

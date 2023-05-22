@@ -26,6 +26,7 @@ const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace = "system_probe_config"
 	spNS      = Namespace
+	netNS     = "network_config"
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
 	diNS      = "dynamic_instrumentation"
@@ -51,9 +52,8 @@ func key(pieces ...string) string {
 
 // Config represents the configuration options for the system-probe
 type Config struct {
-	Enabled             bool
-	EnabledModules      map[ModuleName]struct{}
-	ClosedSourceAllowed bool
+	Enabled        bool
+	EnabledModules map[ModuleName]struct{}
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
@@ -131,7 +131,6 @@ func load() (*Config, error) {
 	c := &Config{
 		Enabled:             cfg.GetBool(key(spNS, "enabled")),
 		EnabledModules:      make(map[ModuleName]struct{}),
-		ClosedSourceAllowed: isClosedSourceAllowed(),
 		ExternalSystemProbe: cfg.GetBool(key(spNS, "external")),
 
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
@@ -155,6 +154,8 @@ func load() (*Config, error) {
 		c.LogFile = cfg.GetString(key(spNS, "log_file"))
 		cfg.Set("log_file", c.LogFile)
 	}
+
+	handleBackwardCompatibilityForUsmConfig(cfg)
 
 	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {
 		log.Warn("Overriding the configured connections count per message limit because it exceeds maximum")
@@ -261,4 +262,17 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		return err
 	}
 	return nil
+}
+
+func handleBackwardCompatibilityForUsmConfig(cfg aconfig.Config) {
+	// This code block handles the backward compatibility logic for the enable_http_monitoring configuration value
+	deprecatedEnableHttpMonitoringKey := key(netNS, "enable_http_monitoring")
+	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
+		enableHttpMonitoringKey := key(smNS, "enable_http_monitoring")
+		log.Infof("%q is deprecated, use %q instead",
+			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
+		if !cfg.IsSet(enableHttpMonitoringKey) {
+			cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
+		}
+	}
 }

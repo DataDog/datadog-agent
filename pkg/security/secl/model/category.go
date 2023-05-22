@@ -6,8 +6,6 @@
 package model
 
 import (
-	"golang.org/x/exp/slices"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -71,11 +69,4 @@ func GetEventTypePerCategory() map[EventCategory][]eval.EventType {
 	}
 
 	return categories
-}
-
-// IsAnomalyDetectionEvent returns true for the event types that have a security profile context
-func IsAnomalyDetectionEvent(eventyType eval.EventType) bool {
-	return slices.Contains([]eval.EventType{
-		"anomaly_detection_syscall",
-	}, eventyType)
 }

@@ -96,6 +96,7 @@ message ClientAgent {
   string version = 2;
   string cluster_name = 3;
   string cluster_id = 4;
+  repeated string cws_workloads = 5;
 }
 
 message ConfigState {

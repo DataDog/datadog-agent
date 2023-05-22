@@ -60,7 +60,7 @@ To start working on the Agent, you can build the `main` branch:
        invoke agent.build \
          --python-runtimes 2,3 \
          --python-home-2=$GOPATH/src/github.com/DataDog/datadog-agent/venv2 \
-         --python-home-3=$GOPATH/src/github.com/DataDog/datadog-agent/venv3 .
+         --python-home-3=$GOPATH/src/github.com/DataDog/datadog-agent/venv3
 
     Running `invoke agent.build`:
 
