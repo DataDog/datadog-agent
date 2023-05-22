@@ -8,8 +8,6 @@
 package probe
 
 import (
-	"fmt"
-	"os"
 	"os/exec"
 	"regexp"
 	"syscall"
@@ -27,31 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-const oomKilledPython = `
-l = []
-while True:
-	l.append("." * (1024 * 1024))
-`
-
-const oomKilledBashScript = `
-exec systemd-run --scope -p MemoryLimit=1M python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
-`
-
 var kv = kernel.MustHostVersion()
-
-func writeTempFile(pattern string, content string) (*os.File, error) {
-	f, err := os.CreateTemp("", pattern)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	if _, err := f.WriteString(content); err != nil {
-		return nil, err
-	}
-
-	return f, nil
-}
 
 func TestOOMKillCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
@@ -80,19 +54,7 @@ func TestOOMKillProbe(t *testing.T) {
 		}
 		t.Cleanup(oomKillProbe.Close)
 
-		pf, err := writeTempFile("oom-kill-py", oomKilledPython)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.Remove(pf.Name())
-
-		bf, err := writeTempFile("oom-trigger-sh", fmt.Sprintf(oomKilledBashScript, pf.Name()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.Remove(bf.Name())
-
-		cmd := exec.Command("bash", bf.Name())
+		cmd := exec.Command("systemd-run", "--scope", "-p", "MemoryLimit=1M", "dd", "if=/dev/zero", "of=/dev/null", "bs=2M")
 		err = cmd.Start()
 		require.NoError(t, err)
 
@@ -103,7 +65,7 @@ func TestOOMKillProbe(t *testing.T) {
 			select {
 			case <-time.After(to):
 				manuallyKilled = true
-				cmd.Process.Kill()
+				_ = cmd.Process.Kill()
 				return
 			case <-done:
 				return
@@ -140,8 +102,8 @@ func TestOOMKillProbe(t *testing.T) {
 
 				assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
 				assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
-				assert.Equal(t, "python3", result.FComm, "fcomm")
-				assert.Equal(t, "python3", result.TComm, "tcomm")
+				assert.Equal(t, "dd", result.FComm, "fcomm")
+				assert.Equal(t, "dd", result.TComm, "tcomm")
 				assert.NotZero(t, result.Pages, "pages")
 				assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
 				break
