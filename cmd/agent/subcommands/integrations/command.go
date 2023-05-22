@@ -78,13 +78,14 @@ type cliParams struct {
 	// args are the positional command-line arguments
 	args []string
 
-	allowRoot          bool
-	verbose            int
-	useSysPython       bool
-	versionOnly        bool
-	localWheel         bool
-	thirdParty         bool
-	pythonMajorVersion string
+	allowRoot          		  bool
+	verbose            		  int
+	useSysPython       		  bool
+	versionOnly        		  bool
+	localWheel         		  bool
+	thirdParty         		  bool
+	pythonMajorVersion 		  string
+	unsafeDisableVerification bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -133,6 +134,10 @@ You must specify a version of the package to install using the syntax: <package>
 	installCmd.Flags().BoolVarP(
 		&cliParams.thirdParty, "third-party", "t", false, "install a community or vendor-contributed integration",
 	)
+	installCmd.Flags().BoolVarP(
+		&cliParams.unsafeDisableVerification, "unsafe-disable-verification", "u", false, "Disable TUF and in-toto integrity verification",
+	)
+
 	integrationCmd.AddCommand(installCmd)
 
 	removeCmd := &cobra.Command{
