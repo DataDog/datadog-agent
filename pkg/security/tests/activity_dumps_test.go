@@ -293,24 +293,24 @@ func TestActivityDumps(t *testing.T) {
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
-			var exitOK, execveOK bool
+			var exitOK, bindOK bool
 			for _, node := range nodes {
 				for _, s := range node.Syscalls {
 					if s == int(model.SysExit) || s == int(model.SysExitGroup) {
 						exitOK = true
 					}
-					if s == int(model.SysExecve) || s == int(model.SysExecveat) {
-						execveOK = true
+					if s == int(model.SysBind) {
+						bindOK = true
 					}
 				}
 			}
 			if !exitOK {
 				t.Errorf("exit syscall not found in activity dump")
 			}
-			if !execveOK {
-				t.Errorf("execve syscall not found in activity dump")
+			if !bindOK {
+				t.Errorf("bind syscall not found in activity dump")
 			}
-			return exitOK && execveOK
+			return exitOK && bindOK
 		}, nil)
 	})
 
