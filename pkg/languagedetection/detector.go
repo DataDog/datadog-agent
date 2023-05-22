@@ -32,7 +32,7 @@ type languageFromCLI struct {
 var knownPrefixes = map[string]languageFromCLI{
 	"python": {name: python},
 	"java": {name: java, validator: func(exe string) bool {
-		if exe == "javac" {
+		if exe == "javac" || exe == "javac.exe" {
 			return false
 		}
 		return true
