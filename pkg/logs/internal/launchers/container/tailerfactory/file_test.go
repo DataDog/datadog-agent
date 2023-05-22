@@ -51,10 +51,12 @@ func fileTestSetup(t *testing.T) {
 	})
 }
 
-func makeTestPod() *workloadmeta.KubernetesPod {
-	return &workloadmeta.KubernetesPod{
+func makeTestPod() (*workloadmeta.KubernetesPod, *workloadmeta.Container) {
+	podID := "poduuid"
+	containerID := "containeruuid"
+	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
-			ID:   "poduuid",
+			ID:   podID,
 			Kind: workloadmeta.KindKubernetesPod,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
@@ -71,6 +73,19 @@ func makeTestPod() *workloadmeta.KubernetesPod {
 			},
 		},
 	}
+
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+	}
+
+	return pod, container
 }
 
 func TestMakeFileSource_docker_success(t *testing.T) {
@@ -169,7 +184,9 @@ func TestMakeK8sSource(t *testing.T) {
 	wildcard := filepath.Join(dir, "*.log")
 
 	store := workloadmeta.NewMockStore()
-	store.SetEntity(makeTestPod())
+	pod, container := makeTestPod()
+	store.SetEntity(pod)
+	store.SetEntity(container)
 
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
