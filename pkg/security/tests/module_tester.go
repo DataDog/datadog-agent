@@ -1689,7 +1689,7 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 	}
 	p := &api.ActivityDumpParams{
 		Comm:              comm,
-		Timeout:           1,
+		Timeout:           "1s",
 		DifferentiateArgs: true,
 		Storage: &api.StorageRequestParams{
 			LocalStorageDirectory:    outputDir,
