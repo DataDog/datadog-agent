@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -570,7 +569,6 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 }
 
 func newHTTPMonitor(t *testing.T) *Monitor {
-	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)

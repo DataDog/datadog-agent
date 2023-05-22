@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
@@ -59,7 +58,6 @@ func (tdh *TestDriverHandleInfiniteLoop) Close() error {
 }
 
 func TestConnectionStatsInfiniteLoop(t *testing.T) {
-	_, _ = sysconfig.New("/doesnotexist")
 	startSize := 10
 	minSize := 10
 

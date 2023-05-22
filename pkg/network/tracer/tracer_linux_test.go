@@ -35,7 +35,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -1603,7 +1602,6 @@ func TestShortWrite(t *testing.T) {
 }
 
 func TestKprobeAttachWithKprobeEvents(t *testing.T) {
-	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	cfg.AttachKprobesWithKprobeEventsABI = true
 
@@ -1790,7 +1788,6 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 		{true, true, true, true, assert.AnError, false},
 	}
 
-	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	if kv >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
@@ -1857,7 +1854,6 @@ func TestConntrackerFallback(t *testing.T) {
 }
 
 func testConfig() *config.Config {
-	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	if os.Getenv("BPF_DEBUG") != "" {
 		cfg.BPFDebug = true

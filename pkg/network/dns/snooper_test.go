@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -535,6 +534,5 @@ func nxDomainHandler(w dns.ResponseWriter, r *dns.Msg) {
 }
 
 func testConfig() *config.Config {
-	_, _ = sysconfig.New("/doesnotexist")
 	return config.New()
 }

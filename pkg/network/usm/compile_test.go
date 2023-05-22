@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -24,7 +23,6 @@ func TestHttpCompile(t *testing.T) {
 	if currKernelVersion < http.MinimumKernelVersion {
 		t.Skip("USM Runtime compilation not supported on this kernel version")
 	}
-	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	cfg.BPFDebug = true
 	out, err := getRuntimeCompiledUSM(cfg)

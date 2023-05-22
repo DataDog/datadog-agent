@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -255,6 +256,9 @@ func join(pieces ...string) string {
 // New creates a config for the network tracer
 func New() *Config {
 	cfg := ddconfig.SystemProbe
+	if !sysconfig.IsAdjusted(cfg) {
+		sysconfig.Adjust(cfg)
+	}
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),

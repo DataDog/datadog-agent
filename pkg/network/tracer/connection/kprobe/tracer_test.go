@@ -15,7 +15,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -203,7 +202,6 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 		return nil, nil
 	}
 
-	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	for _, te := range tests {
 		t.Run(desc, func(t *testing.T) {
@@ -263,7 +261,6 @@ func TestCORETracerSupported(t *testing.T) {
 
 	hostInfo := host.GetStatusInformation()
 
-	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	cfg.EnableCORE = true
 	cfg.AllowRuntimeCompiledFallback = false

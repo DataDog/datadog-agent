@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,6 @@ const (
 )
 
 func TestGRPCScenarios(t *testing.T) {
-	_, _ = sysconfig.New("/doesnotexist")
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
