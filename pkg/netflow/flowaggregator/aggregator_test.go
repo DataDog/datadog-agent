@@ -41,7 +41,7 @@ import (
 
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
-
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -84,6 +84,7 @@ func TestAggregator(t *testing.T) {
 	// language=json
 	event := []byte(`
 {
+  "flush_time": 1550505606000,
   "type": "netflow9",
   "sampling_rate": 0,
   "direction": "ingress",
@@ -159,9 +160,8 @@ func TestAggregator(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	aggregator.timeNowFunction = func() time.Time {
-		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
-		return t
+	aggregator.TimeNowFunction = func() time.Time {
+		return flushTime
 	}
 	inChan := aggregator.GetFlowInChan()
 
@@ -210,6 +210,7 @@ stopLoop:
 
 func TestAggregator_withMockPayload(t *testing.T) {
 	port := uint16(52056)
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -258,9 +259,8 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	aggregator.timeNowFunction = func() time.Time {
-		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
-		return t
+	aggregator.TimeNowFunction = func() time.Time {
+		return flushTime
 	}
 
 	stoppedFlushLoop := make(chan struct{})

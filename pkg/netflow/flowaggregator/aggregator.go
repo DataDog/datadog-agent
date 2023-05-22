@@ -44,7 +44,7 @@ type FlowAggregator struct {
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
-	timeNowFunction              func() time.Time // Allows to mock time in tests
+	TimeNowFunction              func() time.Time // Allows to mock time in tests
 }
 
 // NewFlowAggregator returns a new FlowAggregator
@@ -66,7 +66,7 @@ func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPl
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
-		timeNowFunction:              time.Now,
+		TimeNowFunction:              time.Now,
 	}
 }
 
@@ -105,7 +105,7 @@ func (agg *FlowAggregator) run() {
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
 	for _, flow := range flows {
-		flowPayload := buildPayload(flow, agg.hostname)
+		flowPayload := buildPayload(flow, agg.hostname, flushTime)
 		payloadBytes, err := json.Marshal(flowPayload)
 		if err != nil {
 			log.Errorf("Error marshalling device metadata: %s", err)
@@ -114,10 +114,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 
 		log.Tracef("flushed flow: %s", string(payloadBytes))
 
-		m := &message.Message{
-			Content:            payloadBytes,
-			IngestionTimestamp: flushTime.UnixNano(),
-		}
+		m := &message.Message{Content: payloadBytes}
 		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
 			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
@@ -219,7 +216,7 @@ func (agg *FlowAggregator) flushLoop() {
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
-	flushTime := agg.timeNowFunction()
+	flushTime := agg.TimeNowFunction()
 	flowsToFlush := agg.flowAcc.flush()
 	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 

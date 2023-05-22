@@ -40,6 +40,7 @@ type ObservationPoint struct {
 
 // FlowPayload contains network devices flows
 type FlowPayload struct {
+	FlushTime    int64            `json:"flush_time"`
 	FlowType     string           `json:"type"`
 	SamplingRate uint64           `json:"sampling_rate"`
 	Direction    string           `json:"direction"`

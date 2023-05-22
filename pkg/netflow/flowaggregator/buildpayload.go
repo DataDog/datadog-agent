@@ -10,11 +10,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/enrichment"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
 	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
+	"time"
 )
 
-func buildPayload(aggFlow *common.Flow, hostname string) payload.FlowPayload {
+func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
 	return payload.FlowPayload{
 		// TODO: Implement Tos
+		FlushTime:    flushTime.UnixMilli(),
 		FlowType:     string(aggFlow.FlowType),
 		SamplingRate: aggFlow.SamplingRate,
 		Direction:    enrichment.RemapDirection(aggFlow.Direction),

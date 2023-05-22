@@ -25,6 +25,7 @@ import (
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 	// Setup NetFlow feature config
 	port := uint16(52055)
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
@@ -51,6 +52,10 @@ network_devices:
 	server, err := NewNetflowServer(sender, epForwarder)
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
+
+	server.flowAgg.TimeNowFunction = func() time.Time {
+		return flushTime
+	}
 
 	// Send netflowV5Data twice to test aggregator
 	// Flows will have 2x bytes/packets after aggregation

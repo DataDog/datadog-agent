@@ -7,6 +7,7 @@ package flowaggregator
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -15,6 +16,7 @@ import (
 )
 
 func Test_buildPayload(t *testing.T) {
+	curTime := time.Now()
 	tests := []struct {
 		name            string
 		flow            common.Flow
@@ -49,6 +51,7 @@ func Test_buildPayload(t *testing.T) {
 				TCPFlags:        uint32(19), // 19 = SYN,ACK,FIN
 			},
 			expectedPayload: payload.FlowPayload{
+				FlushTime:    curTime.UnixMilli(),
 				FlowType:     "netflow9",
 				SamplingRate: 10,
 				Direction:    "egress",
@@ -113,6 +116,7 @@ func Test_buildPayload(t *testing.T) {
 				TCPFlags:        uint32(19), // 19 = SYN,ACK,FIN
 			},
 			expectedPayload: payload.FlowPayload{
+				FlushTime:    curTime.UnixMilli(),
 				FlowType:     "netflow9",
 				SamplingRate: 10,
 				Direction:    "egress",
@@ -177,6 +181,7 @@ func Test_buildPayload(t *testing.T) {
 				TCPFlags:        uint32(19), // 19 = SYN,ACK,FIN
 			},
 			expectedPayload: payload.FlowPayload{
+				FlushTime:    curTime.UnixMilli(),
 				FlowType:     "netflow9",
 				SamplingRate: 10,
 				Direction:    "egress",
@@ -215,7 +220,7 @@ func Test_buildPayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			flowPayload := buildPayload(&tt.flow, "my-hostname")
+			flowPayload := buildPayload(&tt.flow, "my-hostname", curTime)
 			assert.Equal(t, tt.expectedPayload, flowPayload)
 		})
 	}
