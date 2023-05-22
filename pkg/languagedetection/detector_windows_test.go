@@ -32,11 +32,7 @@ func TestLanguageFromCommandline(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			detected, err := languageNameFromCommandLine(tc.cmdline)
-			assert.Equal(t, tc.expected, detected)
-			if tc.error {
-				assert.Error(t, err)
-			}
+			assert.Equal(t, tc.expected, languageNameFromCommandLine(tc.cmdline))
 		})
 	}
 }

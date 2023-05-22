@@ -6,11 +6,9 @@
 package languagedetection
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type LanguageName string
@@ -46,12 +44,12 @@ var exactMatches = map[string]languageFromCLI{
 	"py": {name: python},
 }
 
-func languageNameFromCommandLine(cmdline []string) (LanguageName, error) {
+func languageNameFromCommandLine(cmdline []string) LanguageName {
 	exe := getExe(cmdline)
 
 	// First check to see if there is an exact match
 	if lang, ok := exactMatches[exe]; ok {
-		return lang.name, nil
+		return lang.name
 	}
 
 	for prefix, language := range knownPrefixes {
@@ -62,21 +60,18 @@ func languageNameFromCommandLine(cmdline []string) (LanguageName, error) {
 					continue
 				}
 			}
-			return language.name, nil
+			return language.name
 		}
 	}
 
-	return unknown, fmt.Errorf("unknown executable: %q", exe)
+	return unknown
 }
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
 func DetectLanguage(procs []*procutil.Process) []*Language {
 	langs := make([]*Language, len(procs))
 	for i, proc := range procs {
-		languageName, err := languageNameFromCommandLine(proc.Cmdline)
-		if err == nil {
-			log.Trace("detected languageName:", languageName)
-		}
+		languageName := languageNameFromCommandLine(proc.Cmdline)
 		langs[i] = &Language{Name: languageName}
 	}
 	return langs
