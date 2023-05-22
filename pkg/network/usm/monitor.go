@@ -4,22 +4,19 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"syscall"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -27,6 +24,7 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 type monitorState = string
@@ -78,7 +76,7 @@ type staticTableEntry struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
+func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
@@ -104,7 +102,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, connectionPr
 		}
 	}
 
-	mgr, err := newEBPFProgram(c, offsets, connectionProtocolMap, sockFD, bpfTelemetry)
+	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
 	}
@@ -254,9 +252,8 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	}
 
 	if m != nil {
-		response["last_check"] = m.httpTelemetry.Then
+		response["last_check"] = m.httpTelemetry.LastCheck.Load()
 	}
-
 	return response
 }
 
@@ -267,8 +264,9 @@ func (m *Monitor) GetHTTPStats() map[http.Key]*http.RequestStats {
 		return nil
 	}
 
+	defer m.httpTelemetry.Log()
+
 	m.httpConsumer.Sync()
-	m.httpTelemetry.Log()
 	return m.httpStatkeeper.GetAndResetAllStats()
 }
 
@@ -279,8 +277,9 @@ func (m *Monitor) GetHTTP2Stats() map[http.Key]*http.RequestStats {
 		return nil
 	}
 
+	defer m.http2Telemetry.Log()
+
 	m.http2Consumer.Sync()
-	m.http2Telemetry.Log()
 	return m.http2Statkeeper.GetAndResetAllStats()
 }
 
@@ -290,8 +289,9 @@ func (m *Monitor) GetKafkaStats() map[kafka.Key]*kafka.RequestStat {
 		return nil
 	}
 
+	defer m.kafkaTelemetry.Log()
+
 	m.kafkaConsumer.Sync()
-	m.kafkaTelemetry.Log()
 	return m.kafkaStatkeeper.GetAndResetAllStats()
 }
 
@@ -310,6 +310,10 @@ func (m *Monitor) Stop() {
 	}
 	if m.kafkaEnabled {
 		m.kafkaConsumer.Stop()
+	}
+	m.httpStatkeeper.Close()
+	if m.http2Statkeeper != nil {
+		m.http2Statkeeper.Close()
 	}
 	m.closeFilterFn()
 }

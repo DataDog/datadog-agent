@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -78,7 +77,7 @@ func (d *DiscarderMonitor) SendStats() error {
 	}
 
 	d.activeStatsBuffer = 1 - d.activeStatsBuffer
-	return d.bufferSelector.Put(ebpf.BufferSelectorERPCMonitorKey, d.activeStatsBuffer)
+	return d.bufferSelector.Put(ebpf.BufferSelectorDiscarderMonitorKey, d.activeStatsBuffer)
 }
 
 // NewDiscarderMonitor returns a new DiscarderMonitor

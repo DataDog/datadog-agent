@@ -38,6 +38,7 @@ PATH_EXCLUSION_REGEX = [
     '/internal/patch/grpc-go-insecure/',
     '/internal/patch/logr/funcr/funcr(_test){,1}.go',
     '/internal/patch/logr/funcr/internal/logr/',
+    '/internal/third_party/client-go/',
     '/internal/third_party/golang/',
     '/internal/third_party/kubernetes/',
     '/pkg/collector/corechecks/cluster/ksm/customresources/utils.go',
@@ -54,6 +55,7 @@ HEADER_EXCLUSION_REGEX = [
     '^// This file includes software developed at CoreOS',
     '^// Copyright 2017 Kinvolk',
     '^// Copyright 2021 The Vitess Authors.',
+    '^// This file is licensed under the MIT License.',
 ]
 
 

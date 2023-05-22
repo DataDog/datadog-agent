@@ -276,6 +276,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 func (r *Repository) UpdateApplyStatus(cfgPath string, status ApplyStatus) {
 	if m, ok := r.metadata[cfgPath]; ok {
 		m.ApplyStatus = status
+		r.metadata[cfgPath] = m
 	}
 }
 

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package activity_tree
 
@@ -57,7 +56,7 @@ func TestInsertFileEvent(t *testing.T) {
 			},
 			FieldHandlers: &model.DefaultFieldHandlers{},
 		}
-		pan.InsertFileEvent(&event.Open.File, event, Unknown, stats, false, false)
+		pan.InsertFileEvent(&event.Open.File, event, Unknown, stats, false)
 	}
 
 	var builder strings.Builder

@@ -39,6 +39,9 @@ func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 	err := cmd.Start()
 	require.NoErrorf(t, err, "could not start %s with docker-compose", serverName)
 	t.Cleanup(func() {
+		cancel()
+		_ = cmd.Wait()
+
 		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
 		c.Env = append(c.Env, env...)
 		_ = c.Run()
@@ -85,8 +88,8 @@ func RunHostServer(t *testing.T, command []string, env []string, serverStartRege
 	err := cmd.Start()
 	require.NoErrorf(t, err, "could not start %s on host", serverName)
 	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Process.Release()
+		cancel()
+		_ = cmd.Wait()
 	})
 
 	for {

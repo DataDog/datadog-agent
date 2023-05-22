@@ -4,7 +4,6 @@
 // Copyright 2020-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package traps
 

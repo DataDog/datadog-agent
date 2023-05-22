@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package http
 
@@ -12,10 +11,18 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/http2/hpack"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+)
+
+const (
+	http2MaxPathLen     = 30
+	compressedPathLen   = 21
+	decompressedPathLen = 28
 )
 
 func TestOrphanEntries(t *testing.T) {
@@ -67,5 +74,77 @@ func TestOrphanEntries(t *testing.T) {
 		now = now.Add(35 * time.Second)
 		_ = buffer.Flush(now)
 		assert.True(t, len(buffer.data) == 0)
+	})
+}
+
+func TestBufferLimit(t *testing.T) {
+	now := time.Now()
+	tel, err := NewTelemetry()
+	require.NoError(t, err)
+
+	buffer := newIncompleteBuffer(config.New(), tel)
+
+	// Attempt to insert more data than allowed
+	// Since all incomplete parts share the same tuple, this will generate
+	// *one* map key, with many "parts" appended to it
+	//
+	// We're asserting here that our buffer counts the total number of entries
+	// included in the nested structures, and not only the map keys
+	for i := 0; i < 2*buffer.maxEntries; i++ {
+		request := &EbpfHttpTx{
+			Request_fragment: requestFragment([]byte("GET /foo/bar")),
+			Request_started:  uint64(now.UnixNano()),
+		}
+		request.Tup.Sport = 60000
+		buffer.Add(request)
+	}
+
+	// Count total entries
+	total := 0
+	for _, parts := range buffer.data {
+		total += len(parts.requests) + len(parts.responses)
+	}
+
+	// Assert that buffer honored the max number of entries allowed
+	assert.Equal(t, buffer.maxEntries, total)
+}
+
+func TestHTTP2Path(t *testing.T) {
+	t.Run("validate http2 path backslash", func(t *testing.T) {
+		// create a buffer to store the encoded data
+		paths := []string{"/hello.HelloService/SayHello", "hello.HelloService/SayHello"}
+		results := []bool{true, false}
+		pathsResults := []string{"/hello.HelloService/SayHello", ""}
+
+		for index, currentString := range paths {
+			var buf []byte
+			var arr [http2MaxPathLen]uint8
+			buf = hpack.AppendHuffmanString(buf, currentString)
+			copy(arr[:], buf[:30])
+
+			request := &EbpfHttp2Tx{
+				Request_path: arr,
+				Path_size:    compressedPathLen,
+			}
+
+			outBuf := make([]byte, decompressedPathLen)
+
+			path, ok := request.Path(outBuf)
+			assert.Equal(t, results[index], ok)
+			assert.Equal(t, pathsResults[index], string(path))
+		}
+
+	})
+
+	t.Run("empty path", func(t *testing.T) {
+		request := &EbpfHttp2Tx{
+			Request_path: [http2MaxPathLen]uint8{},
+			Path_size:    compressedPathLen,
+		}
+		outBuf := make([]byte, decompressedPathLen)
+
+		path, ok := request.Path(outBuf)
+		assert.Equal(t, ok, false)
+		assert.Nil(t, path)
 	})
 }

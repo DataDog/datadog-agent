@@ -4,19 +4,24 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package profile
 
 import (
+	"fmt"
+	"io"
+	"os"
 	"sync"
 
 	"golang.org/x/exp/slices"
 
+	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -28,8 +33,7 @@ type SecurityProfile struct {
 	selector               cgroupModel.WorkloadSelector
 	profileCookie          uint64
 	anomalyDetectionEvents []model.EventType
-	lastAnomalyNano        uint64
-	autolearnEnabled       bool
+	lastAnomalyNano        map[model.EventType]uint64
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -41,7 +45,7 @@ type SecurityProfile struct {
 	Version string
 
 	// Metadata contains metadata for the current profile
-	Metadata dump.Metadata
+	Metadata mtdt.Metadata
 
 	// Tags defines the tags used to compute this profile
 	Tags []string
@@ -63,6 +67,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 	return &SecurityProfile{
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
+		lastAnomalyNano:        make(map[model.EventType]uint64),
 	}
 }
 
@@ -117,8 +122,36 @@ func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode
 }
 
 // IsAnomalyDetectionEvent returns true if the provided event type is a kernel generated anomaly detection event type
-func IsAnomalyDetectionEvent(eventyType model.EventType) bool {
-	return slices.Contains([]model.EventType{
-		model.AnomalyDetectionSyscallEventType,
-	}, eventyType)
+func IsAnomalyDetectionEvent(eventType model.EventType) bool {
+	return model.AnomalyDetectionSyscallEventType == eventType
+}
+
+func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open profile: %w", err)
+	}
+	defer f.Close()
+
+	raw, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open profile: %w", err)
+	}
+
+	profile := &proto.SecurityProfile{}
+	if err = profile.UnmarshalVT(raw); err != nil {
+		return nil, fmt.Errorf("couldn't decode protobuf profile: %w", err)
+	}
+
+	if len(utils.GetTagValue("image_tag", profile.Tags)) == 0 {
+		profile.Tags = append(profile.Tags, "image_tag:latest")
+	}
+	return profile, nil
+}
+
+// SendStats sends profile stats
+func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
+	profile.Lock()
+	defer profile.Unlock()
+	return profile.ActivityTree.SendStats(client)
 }

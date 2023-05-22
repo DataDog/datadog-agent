@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package probes
 
@@ -137,6 +136,9 @@ const (
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
 
+	UDPv6DestroySock       ProbeFuncName = "kprobe__udpv6_destroy_sock"
+	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
+
 	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
 	TCPRetransmit ProbeFuncName = "kprobe__tcp_retransmit_skb"
 	// TCPRetransmitPre470 traces the params for the tcp_retransmit_skb() system call on kernel version < 4.7
@@ -204,7 +206,6 @@ const (
 	KafkaClientIDBufMap               BPFMapName = "kafka_client_id"
 	KafkaTopicNameBufMap              BPFMapName = "kafka_topic_name"
 	ConnectionProtocolMap             BPFMapName = "connection_protocol"
-	TLSConnectionMap                  BPFMapName = "tls_connection"
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 	ClassificationProgsMap            BPFMapName = "classification_progs"
 	TCPCloseProgsMap                  BPFMapName = "tcp_close_progs"

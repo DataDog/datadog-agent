@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package profile
 
@@ -22,6 +21,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -100,7 +100,7 @@ func (dp *DirectoryProvider) Start(ctx context.Context) error {
 	if dp.watcherEnabled {
 		var err error
 		if dp.watcher, err = fsnotify.NewWatcher(); err != nil {
-			return err
+			return fmt.Errorf("coudln't setup inotify watcher: %w", err)
 		}
 
 		if err = dp.watcher.Add(dp.directory); err != nil {
@@ -155,7 +155,7 @@ func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 		for profileSelector, profilePath := range dp.profileMapping {
 			if selector.Match(profileSelector) {
 				// read and parse profile
-				profile, err := dp.parseProfile(profilePath.path)
+				profile, err := LoadProfileFromFile(profilePath.path)
 				if err != nil {
 					seclog.Warnf("couldn't load profile %s: %v", profilePath, err)
 					continue
@@ -171,23 +171,6 @@ func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 // SetOnNewProfileCallback sets the onNewProfileCallback function
 func (dp *DirectoryProvider) SetOnNewProfileCallback(onNewProfileCallback func(selector cgroupModel.WorkloadSelector, profile *proto.SecurityProfile)) {
 	dp.onNewProfileCallback = onNewProfileCallback
-}
-
-func (dp *DirectoryProvider) parseProfile(filepath string) (*proto.SecurityProfile, error) {
-	raw, err := os.ReadFile(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't open profile: %w", err)
-	}
-
-	profile := &proto.SecurityProfile{}
-	if err = profile.UnmarshalVT(raw); err != nil {
-		return nil, fmt.Errorf("couldn't decode protobuf profile: %w", err)
-	}
-
-	if len(utils.GetTagValue("image_tag", profile.Tags)) == 0 {
-		profile.Tags = append(profile.Tags, "image_tag:latest")
-	}
-	return profile, nil
 }
 
 func (dp *DirectoryProvider) listProfiles() ([]string, error) {
@@ -214,7 +197,7 @@ func (dp *DirectoryProvider) listProfiles() ([]string, error) {
 }
 
 func (dp *DirectoryProvider) loadProfile(profilePath string) error {
-	profile, err := dp.parseProfile(profilePath)
+	profile, err := LoadProfileFromFile(profilePath)
 	if err != nil {
 		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}

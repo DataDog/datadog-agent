@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package activity_tree
 
@@ -28,13 +27,11 @@ type NodeDroppedReason string
 
 var (
 	eventTypeReason       NodeDroppedReason = "event_type"
-	brokenLineageReason   NodeDroppedReason = "broken_lineage"
 	invalidRootNodeReason NodeDroppedReason = "invalid_root_node"
 	bindFamilyReason      NodeDroppedReason = "bind_family"
 	brokenEventReason     NodeDroppedReason = "broken_event"
 	allDropReasons                          = []NodeDroppedReason{
 		eventTypeReason,
-		brokenLineageReason,
 		invalidRootNodeReason,
 		bindFamilyReason,
 		brokenEventReason,
@@ -54,6 +51,10 @@ const (
 	Snapshot NodeGenerationType = 2
 	// ProfileDrift is a node that was added because of a drift from a security profile
 	ProfileDrift NodeGenerationType = 3
+	// WorkloadWarmup is a node that was added of a drift in a warming up profile
+	WorkloadWarmup NodeGenerationType = 4
+	// MaxNodeGenerationType is the maximum node type
+	MaxNodeGenerationType NodeGenerationType = 4
 )
 
 func (genType NodeGenerationType) String() string {
@@ -64,6 +65,8 @@ func (genType NodeGenerationType) String() string {
 		return "snapshot"
 	case ProfileDrift:
 		return "profile_drift"
+	case WorkloadWarmup:
+		return "workload_warmup"
 	default:
 		return "unknown"
 	}
@@ -81,7 +84,6 @@ type ActivityTree struct {
 	Stats *ActivityTreeStats
 
 	treeType          string
-	shouldMergePaths  bool
 	differentiateArgs bool
 
 	validator ActivityTreeOwner
@@ -119,6 +121,42 @@ func (at *ActivityTree) ComputeSyscallsList() []uint32 {
 	return output
 }
 
+// ComputeActivityTreeStats computes the initial counts of the activity tree stats
+func (at *ActivityTree) ComputeActivityTreeStats() {
+	pnodes := at.ProcessNodes
+	var fnodes []*FileNode
+
+	for len(pnodes) > 0 {
+		node := pnodes[0]
+
+		at.Stats.ProcessNodes += 1
+		pnodes = append(pnodes, node.Children...)
+
+		at.Stats.dnsNodes += int64(len(node.DNSNames))
+		at.Stats.socketNodes += int64(len(node.Sockets))
+
+		for _, f := range node.Files {
+			fnodes = append(fnodes, f)
+		}
+
+		pnodes = pnodes[1:]
+	}
+
+	for len(fnodes) > 0 {
+		node := fnodes[0]
+
+		if node.File != nil {
+			at.Stats.fileNodes += 1
+		}
+
+		for _, f := range node.Children {
+			fnodes = append(fnodes, f)
+		}
+
+		fnodes = fnodes[1:]
+	}
+}
+
 // IsEmpty returns true if the tree is empty
 func (at *ActivityTree) IsEmpty() bool {
 	return len(at.ProcessNodes) == 0
@@ -142,11 +180,6 @@ func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.Resolver) {
 		current.scrubAndReleaseArgsEnvs(resolver)
 		openList = append(openList[:len(openList)-1], current.Children...)
 	}
-}
-
-// EnablePathsMerge enables the paths merge algorithm
-func (at *ActivityTree) EnablePathsMerge() {
-	at.shouldMergePaths = true
 }
 
 // DifferentiateArgs enables the args differentiation feature
@@ -203,19 +236,13 @@ func (at *ActivityTree) Contains(event *model.Event, generationType NodeGenerati
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
 func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType NodeGenerationType) (bool, error) {
 	// sanity check
-	if generationType == Unknown || generationType > ProfileDrift {
+	if generationType == Unknown || generationType > MaxNodeGenerationType {
 		return false, fmt.Errorf("invalid generation type: %v", generationType)
 	}
 
 	// check if this event type is traced
 	if valid, err := at.isEventValid(event, dryRun); !valid || err != nil {
 		return false, fmt.Errorf("invalid event: %s", err)
-	}
-
-	// find the node where the event should be inserted
-	if !event.ProcessCacheEntry.HasCompleteLineage() && !dryRun { // check that the process context lineage is complete, otherwise drop it
-		at.Stats.droppedCount[event.GetEventType()][brokenLineageReason].Inc()
-		return false, fmt.Errorf("incomplete lineage")
 	}
 
 	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, generationType, dryRun)
@@ -250,13 +277,13 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, at.shouldMergePaths, dryRun)
+		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun), nil
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun)
+		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun), nil
 	case model.BindEventType:
-		return node.InsertBindEvent(event, generationType, at.Stats, dryRun)
+		return node.InsertBindEvent(event, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
-		return node.InsertSyscalls(event, at.SyscallsMask)
+		return node.InsertSyscalls(event, at.SyscallsMask), nil
 	}
 
 	return false, nil
@@ -371,7 +398,7 @@ func (at *ActivityTree) FindMatchingRootNodes(basename string) []*ProcessNode {
 // Snapshot uses procfs to snapshot the nodes of the tree
 func (at *ActivityTree) Snapshot(newEvent func() *model.Event) error {
 	for _, pn := range at.ProcessNodes {
-		if err := pn.snapshot(at.validator, at.shouldMergePaths, at.Stats, newEvent); err != nil {
+		if err := pn.snapshot(at.validator, at.Stats, newEvent); err != nil {
 			return err
 		}
 		// iterate slowly

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -17,16 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
-
-	manager "github.com/DataDog/ebpf-manager"
+	"go4.org/netipx"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -55,21 +51,17 @@ func TestConntrackers(t *testing.T) {
 
 				netlinktestutil.SetupDNAT(t)
 
-				testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct)
+				testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct, cfg)
 			})
 			t.Run("IPv6", func(t *testing.T) {
 				cfg := config.New()
-				if !isTestIPv6Enabled(cfg) {
-					t.Skip("IPv6 disabled")
-				}
-
 				ct, err := conntracker.create(t, cfg)
 				require.NoError(t, err)
 				defer ct.Close()
 
 				netlinktestutil.SetupDNAT6(t)
 
-				testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct)
+				testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct, cfg)
 			})
 			t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
 				if conntracker.name == "netlink" {
@@ -102,23 +94,19 @@ func TestConntrackers(t *testing.T) {
 	}
 }
 
-func getTracerOffsets(t *testing.T, cfg *config.Config) ([]manager.ConstantEditor, error) {
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
-	require.NoError(t, err, "could not read offset bpf module")
-	defer offsetBuf.Close()
-	return runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser)
-}
-
 func setupPrebuiltEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
-	consts, err := getTracerOffsets(t, cfg)
-	require.NoError(t, err)
-	return NewEBPFConntracker(cfg, nil, consts)
+	// prebuilt on 5.18+ does not support UDPv6
+	if kv >= kernel.VersionCode(5, 18, 0) {
+		cfg.CollectUDPv6Conns = false
+	}
+	cfg.EnableRuntimeCompiler = false
+	return NewEBPFConntracker(cfg, nil)
 }
 
 func setupRuntimeEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.EnableRuntimeCompiler = true
 	cfg.AllowPrecompiledFallback = false
-	return NewEBPFConntracker(cfg, nil, nil)
+	return NewEBPFConntracker(cfg, nil)
 }
 
 func setupNetlinkConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
@@ -129,75 +117,83 @@ func setupNetlinkConntracker(t *testing.T, cfg *config.Config) (netlink.Conntrac
 	return ct, err
 }
 
-func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntracker) {
-	srv1 := nettestutil.StartServerTCP(t, serverIP, natPort)
-	defer srv1.Close()
-	srv2 := nettestutil.StartServerTCP(t, serverIP, nonNatPort)
-	defer srv2.Close()
-	srv3 := nettestutil.StartServerUDP(t, serverIP, natPort)
-	defer srv3.Close()
+func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntracker, cfg *config.Config) {
+	isIPv6 := false
+	if cip, _ := netipx.FromStdIP(clientIP); cip.Is6() {
+		isIPv6 = true
+	}
 
-	localAddr := nettestutil.PingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
+	family := network.AFINET
+	if isIPv6 {
+		family = network.AFINET6
+	}
+
 	curNs, err := util.GetCurrentIno()
 	require.NoError(t, err)
 	t.Logf("ns: %d", curNs)
 
-	family := network.AFINET
-	if len(localAddr.IP) == net.IPv6len {
-		family = network.AFINET6
-	}
+	t.Run("TCP", func(t *testing.T) {
+		srv1 := nettestutil.StartServerTCP(t, serverIP, natPort)
+		defer srv1.Close()
+		srv2 := nettestutil.StartServerTCP(t, serverIP, nonNatPort)
+		defer srv2.Close()
 
-	var trans *network.IPTranslation
-	cs := network.ConnectionStats{
-		Source: util.AddressFromNetIP(localAddr.IP),
-		SPort:  uint16(localAddr.Port),
-		Dest:   util.AddressFromNetIP(clientIP),
-		DPort:  uint16(natPort),
-		Type:   network.TCP,
-		Family: family,
-		NetNS:  curNs,
-	}
-	require.Eventually(t, func() bool {
+		localAddr := nettestutil.PingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
+		var trans *network.IPTranslation
+		cs := network.ConnectionStats{
+			Source: util.AddressFromNetIP(localAddr.IP),
+			SPort:  uint16(localAddr.Port),
+			Dest:   util.AddressFromNetIP(clientIP),
+			DPort:  uint16(natPort),
+			Type:   network.TCP,
+			Family: family,
+			NetNS:  curNs,
+		}
+		require.Eventually(t, func() bool {
+			trans = ct.GetTranslationForConn(cs)
+			return trans != nil
+		}, 5*time.Second, 1*time.Second, "timed out waiting for TCP NAT conntrack entry for %s", cs.String())
+		assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
+
+		// now dial TCP directly
+		localAddr = nettestutil.PingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
+
+		cs = network.ConnectionStats{
+			Source: util.AddressFromNetIP(localAddr.IP),
+			SPort:  uint16(localAddr.Port),
+			Dest:   util.AddressFromNetIP(serverIP),
+			DPort:  uint16(nonNatPort),
+			Type:   network.TCP,
+			NetNS:  curNs,
+		}
 		trans = ct.GetTranslationForConn(cs)
-		return trans != nil
-	}, 5*time.Second, 1*time.Second, "timed out waiting for TCP NAT conntrack entry for %s", cs.String())
-	assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
+		assert.Nil(t, trans)
+	})
+	t.Run("UDP", func(t *testing.T) {
+		if isIPv6 && !cfg.CollectUDPv6Conns {
+			t.Skip("UDPv6 disabled")
+		}
 
-	localAddrUDP := nettestutil.PingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
+		srv3 := nettestutil.StartServerUDP(t, serverIP, natPort)
+		defer srv3.Close()
 
-	family = network.AFINET
-	if len(localAddrUDP.IP) == net.IPv6len {
-		family = network.AFINET6
-	}
-
-	cs = network.ConnectionStats{
-		Source: util.AddressFromNetIP(localAddrUDP.IP),
-		SPort:  uint16(localAddrUDP.Port),
-		Dest:   util.AddressFromNetIP(clientIP),
-		DPort:  uint16(natPort),
-		Type:   network.UDP,
-		Family: family,
-		NetNS:  curNs,
-	}
-	require.Eventually(t, func() bool {
-		trans = ct.GetTranslationForConn(cs)
-		return trans != nil
-	}, 5*time.Second, 1*time.Second, "timed out waiting for UDP NAT conntrack entry for %s", cs.String())
-	assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
-
-	// now dial TCP directly
-	localAddr = nettestutil.PingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
-
-	cs = network.ConnectionStats{
-		Source: util.AddressFromNetIP(localAddr.IP),
-		SPort:  uint16(localAddr.Port),
-		Dest:   util.AddressFromNetIP(serverIP),
-		DPort:  uint16(nonNatPort),
-		Type:   network.TCP,
-		NetNS:  curNs,
-	}
-	trans = ct.GetTranslationForConn(cs)
-	assert.Nil(t, trans)
+		localAddrUDP := nettestutil.PingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
+		var trans *network.IPTranslation
+		cs := network.ConnectionStats{
+			Source: util.AddressFromNetIP(localAddrUDP.IP),
+			SPort:  uint16(localAddrUDP.Port),
+			Dest:   util.AddressFromNetIP(clientIP),
+			DPort:  uint16(natPort),
+			Type:   network.UDP,
+			Family: family,
+			NetNS:  curNs,
+		}
+		require.Eventually(t, func() bool {
+			trans = ct.GetTranslationForConn(cs)
+			return trans != nil
+		}, 5*time.Second, 1*time.Second, "timed out waiting for UDP NAT conntrack entry for %s", cs.String())
+		assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
+	})
 }
 
 func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {

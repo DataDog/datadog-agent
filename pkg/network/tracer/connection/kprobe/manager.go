@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package kprobe
 
@@ -58,6 +57,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.InetCskListenStop,
 	probes.UDPDestroySock,
 	probes.UDPDestroySockReturn,
+	probes.UDPv6DestroySock,
+	probes.UDPv6DestroySockReturn,
 	probes.InetBind,
 	probes.Inet6Bind,
 	probes.InetBindRet,

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -41,6 +42,7 @@ type cliParams struct {
 	jsonStatus      bool
 	prettyPrintJSON bool
 	statusFilePath  string
+	verbose         bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -74,6 +76,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
 	cmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	cmd.Flags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
+	cmd.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
 
 	componentCmd := &cobra.Command{
 		Use:   "component",
@@ -141,8 +144,20 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/status", ipcAddress, config.GetInt("cmd_port"))
-	r, err := makeRequest(urlstr)
+
+	v := url.Values{}
+	if cliParams.verbose {
+		v.Set("verbose", "true")
+	}
+
+	url := url.URL{
+		Scheme:   "https",
+		Host:     fmt.Sprintf("%v:%v", ipcAddress, config.GetInt("cmd_port")),
+		Path:     "/agent/status",
+		RawQuery: v.Encode(),
+	}
+
+	r, err := makeRequest(url.String())
 	if err != nil {
 		return err
 	}

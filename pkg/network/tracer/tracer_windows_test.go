@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package tracer
 
@@ -24,6 +23,7 @@ func classificationSupported(config *config.Config) bool {
 	return true
 }
 
-func isTestIPv6Enabled(cfg *config.Config) bool {
-	return true
+func testConfig() *config.Config {
+	cfg := config.New()
+	return cfg
 }

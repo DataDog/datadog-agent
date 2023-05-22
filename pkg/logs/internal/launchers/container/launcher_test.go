@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package container
 
@@ -19,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/container/tailerfactory"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -39,7 +39,8 @@ func TestStartStop(t *testing.T) {
 	sp := launchers.NewMockSourceProvider()
 	pl := pipeline.NewMockProvider()
 	reg := auditor.New("/run", "agent", 0, nil)
-	l.Start(sp, pl, reg)
+	tailerTracker := tailers.NewTailerTracker()
+	l.Start(sp, pl, reg, tailerTracker)
 
 	require.NotNil(t, l.cancel)
 	require.NotNil(t, l.stopped)

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package activity_tree
 
@@ -29,25 +28,23 @@ type ActivityTreeStats struct {
 	processedCount map[model.EventType]*atomic.Uint64
 	addedCount     map[model.EventType]map[NodeGenerationType]*atomic.Uint64
 	droppedCount   map[model.EventType]map[NodeDroppedReason]*atomic.Uint64
-
-	pathMergedCount *atomic.Uint64
 }
 
 func NewActivityTreeNodeStats() *ActivityTreeStats {
 	ats := &ActivityTreeStats{
-		processedCount:  make(map[model.EventType]*atomic.Uint64),
-		addedCount:      make(map[model.EventType]map[NodeGenerationType]*atomic.Uint64),
-		droppedCount:    make(map[model.EventType]map[NodeDroppedReason]*atomic.Uint64),
-		pathMergedCount: atomic.NewUint64(0),
+		processedCount: make(map[model.EventType]*atomic.Uint64),
+		addedCount:     make(map[model.EventType]map[NodeGenerationType]*atomic.Uint64),
+		droppedCount:   make(map[model.EventType]map[NodeDroppedReason]*atomic.Uint64),
 	}
 
 	// generate counters
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		ats.processedCount[i] = atomic.NewUint64(0)
 		ats.addedCount[i] = map[NodeGenerationType]*atomic.Uint64{
-			Runtime:      atomic.NewUint64(0),
-			Snapshot:     atomic.NewUint64(0),
-			ProfileDrift: atomic.NewUint64(0),
+			Runtime:        atomic.NewUint64(0),
+			Snapshot:       atomic.NewUint64(0),
+			ProfileDrift:   atomic.NewUint64(0),
+			WorkloadWarmup: atomic.NewUint64(0),
 		}
 
 		ats.droppedCount[i] = make(map[NodeDroppedReason]*atomic.Uint64)
@@ -103,10 +100,5 @@ func (stats *ActivityTreeStats) SendStats(client statsd.ClientInterface, treeTyp
 		}
 	}
 
-	if value := stats.pathMergedCount.Swap(0); value > 0 {
-		if err := client.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), []string{treeTypeTag}, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
-		}
-	}
 	return nil
 }

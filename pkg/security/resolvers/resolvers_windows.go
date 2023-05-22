@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package resolvers
 
@@ -18,7 +17,7 @@ import (
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	ProcessResolver *process.ProcessResolver
-	TagsResolver    *tags.Resolver
+	TagsResolver    tags.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers

@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build otlp
-// +build otlp
 
 package otlp
 
@@ -24,34 +23,6 @@ func buildKey(keys ...string) string {
 	return strings.Join(keys, confmap.KeyDelimiter)
 }
 
-// defaultTracesConfig is the base traces OTLP pipeline configuration.
-// This pipeline is extended through the datadog.yaml configuration values.
-// It is written in YAML because it is easier to read and write than a map.
-const defaultTracesConfig string = `
-receivers:
-  otlp:
-
-processors:
-  batch:
-    timeout: 10s
-
-exporters:
-  otlp:
-    tls:
-      insecure: true
-    compression: none
-
-service:
-  telemetry:
-    metrics:
-      level: none
-  pipelines:
-    traces:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [otlp]
-`
-
 func buildTracesMap(tracePort uint) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultTracesConfig)
 	if err != nil {
@@ -65,29 +36,6 @@ func buildTracesMap(tracePort uint) (*confmap.Conf, error) {
 	}
 	return baseMap, err
 }
-
-// defaultMetricsConfig is the metrics OTLP pipeline configuration.
-const defaultMetricsConfig string = `
-receivers:
-  otlp:
-
-processors:
-  batch:
-    timeout: 10s
-
-exporters:
-  serializer:
-
-service:
-  telemetry:
-    metrics:
-      level: none
-  pipelines:
-    metrics:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [serializer]
-`
 
 func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultMetricsConfig)

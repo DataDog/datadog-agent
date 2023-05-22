@@ -70,7 +70,7 @@ func TestConvertFlow(t *testing.T) {
 		DstPort:        uint32(80),
 		InIf:           10,
 		OutIf:          20,
-		IPTos:          3,
+		IpTos:          3,
 		NextHop:        []byte{10, 10, 10, 30},
 	}
 	expectedFlow := common.Flow{

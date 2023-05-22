@@ -2,11 +2,17 @@
 #define __IP_H
 
 #include "ktypes.h"
-#include "bpf_tracing.h"
+#include "bpf_builtins.h"
 #include "bpf_core_read.h"
 #include "bpf_endian.h"
+#include "bpf_tracing.h"
+#include "compiler.h"
 
-#include "tracer.h"
+#include "conn_tuple.h"
+
+#define TCPHDR_FIN 0x01
+#define TCPHDR_RST 0x04
+#define TCPHDR_ACK 0x10
 
 #ifdef COMPILE_CORE
 #define AF_INET 2 /* Internet IP Protocol */
@@ -106,6 +112,17 @@ static __always_inline void read_ipv4_skb(struct __sk_buff *skb, __u64 off, __u6
     *addr = __load_word(skb, off);
     *addr = bpf_ntohll(*addr) >> 32;
 }
+
+// skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
+// some ancillary data such as the data offset (the byte offset pointing to
+// where the application payload begins) and the TCP flags if applicable.
+// This struct is populated by calling `read_conn_tuple_skb` from a program type
+// that manipulates a `__sk_buff` object.
+typedef struct {
+    __u32 data_off;
+    __u32 tcp_seq;
+    __u8 tcp_flags;
+} skb_info_t;
 
 // On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
