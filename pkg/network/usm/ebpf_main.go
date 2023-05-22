@@ -194,7 +194,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 	}
 
 	if c.EnableJavaTLSSupport {
-		tailCalls = append(tailCalls, GetJavaHandlersTailCallRoutes()...)
+		tailCalls = append(tailCalls, GetJavaTlsTailCallRoutes()...)
 	}
 
 	program := &ebpfProgram{

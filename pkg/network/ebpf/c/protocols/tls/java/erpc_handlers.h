@@ -155,6 +155,7 @@ int kprobe_handle_async_payload(struct pt_regs *ctx) {
         return 1;
     }
 
+    // we need to copy the connection on the stack to be able to call bpf_map_update_elem on old kernels
     conn_tuple_t conn_on_stack = *actual_connection;
     log_debug("[handle_async_payload] found correlation conn src port: %d dst port: %d\n",
              actual_connection->sport,
