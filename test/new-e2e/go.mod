@@ -7,11 +7,13 @@ go 1.18
 // TODO: Implement hard check in CI
 
 require (
+	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230522140836-d5fef93f2760
 	github.com/DataDog/test-infra-definitions v0.0.0-20230523141914-dd356f2194c1
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
 	github.com/cenkalti/backoff v2.2.1+incompatible
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/pulumi/pulumi-command/sdk v0.7.2
 	github.com/pulumi/pulumi/sdk/v3 v3.68.0
 	github.com/stretchr/testify v1.8.3
@@ -21,6 +23,7 @@ require (
 )
 
 require (
+	github.com/DataDog/agent-payload/v5 v5.0.73 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230518184743-7afd39499903 // indirect
@@ -41,7 +44,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.0 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
-	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cheggaaa/pb v1.0.29 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
