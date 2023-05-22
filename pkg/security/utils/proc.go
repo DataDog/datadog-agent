@@ -323,6 +323,10 @@ func EnvVars(priorityEnvsPrefixes []string, pid int32) ([]string, bool, error) {
 		}
 	}
 
+	if envCounter > MAX_ENV_VARS_COLLECTED {
+		envCounter = MAX_ENV_VARS_COLLECTED
+	}
+
 	// second pass collecting
 	scanner, err = newEnvScanner(f)
 	if err != nil {
