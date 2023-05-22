@@ -24,6 +24,8 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
+var MAX_OPEN_CONNECTIONS = 10
+
 // The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
 	SQLIDs                  map[string]int
@@ -62,6 +64,7 @@ type Check struct {
 	statementsLastRun                       time.Time
 	filePath                                string
 	isRDS                                   bool
+	sqlTraceRunsCount                       int
 }
 
 // Run executes the check.
@@ -125,6 +128,18 @@ func (c *Check) Run() error {
 			}
 		}
 	}
+	if c.config.AgentSQLTrace.Enabled {
+		log.Tracef("Traced runs %d", c.sqlTraceRunsCount)
+		c.sqlTraceRunsCount++
+		if c.sqlTraceRunsCount >= 10 {
+			c.config.AgentSQLTrace.Enabled = false
+			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
+			if err != nil {
+				log.Errorf("failed to stop SQL trace: %v %s")
+			}
+			c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
+		}
+	}
 	return nil
 }
 
@@ -161,7 +176,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 
-	db.SetMaxOpenConns(10)
+	db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 
 	if c.cdbName == "" {
 		row := db.QueryRow("SELECT /* DD */ name FROM v$database")
@@ -197,6 +212,22 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		}
 		if path == "/rdsdbdata" {
 			c.isRDS = true
+		}
+	}
+
+	if c.config.AgentSQLTrace.Enabled {
+		db.SetMaxOpenConns(1)
+		_, err := db.Exec("ALTER SESSION SET tracefile_identifier='DDAGENT'")
+		if err != nil {
+			log.Warnf("failed to set tracefile_identifier: %v")
+		}
+		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", c.config.AgentSQLTrace.Binds, c.config.AgentSQLTrace.Waits)
+		_, err = db.Exec(setEventsStatement)
+		if err != nil {
+			log.Errorf("failed to set SQL trace: %v %s", setEventsStatement)
+		}
+		if c.config.AgentSQLTrace.TracedRuns == 0 {
+			c.config.AgentSQLTrace.TracedRuns = 10
 		}
 	}
 
