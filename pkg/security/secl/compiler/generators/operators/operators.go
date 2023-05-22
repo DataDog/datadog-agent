@@ -197,7 +197,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		}
 	}
 
-	arrayOp := func(a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
+	arrayOp := func(ctx *Context, a {{ .ArrayType }}, b []{{ .ArrayType }}) bool {
 		for _, v := range b {
 			if {{ call .Op "a" "v" }} {
 				return true
@@ -210,7 +210,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return arrayOp(ea(ctx), eb(ctx))
+			return arrayOp(ctx, ea(ctx), eb(ctx))
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -223,8 +223,11 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	if a.EvalFnc == nil && b.EvalFnc == nil {
 		ea, eb := a.Value, b.Values
 
+		ctx := NewContext(nil)
+		_ = ctx
+
 		return &{{ .FuncReturnType }}{
-			Value:     arrayOp(ea, eb),
+			Value:     arrayOp(ctx, ea, eb),
 			Weight:    a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
 		}, nil
@@ -234,7 +237,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		ea, eb := a.EvalFnc, b.Values
 
 		evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-			return arrayOp(ea(ctx), eb)
+			return arrayOp(ctx, ea(ctx), eb)
 		}
 
 		return &{{ .FuncReturnType }}{
@@ -247,7 +250,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) {{ .EvalReturnType }} {
-		return arrayOp(ea, eb(ctx))
+		return arrayOp(ctx, ea, eb(ctx))
 	}
 
 	return &{{ .FuncReturnType }}{
@@ -457,6 +460,46 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             stdCompare("<="),
+				ArrayType:      "int",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationArrayLesserThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompare("<"),
+				ArrayType:      "int",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationArrayLesserOrEqualThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompare("<="),
+				ArrayType:      "int",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationArrayGreaterThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompare(">"),
+				ArrayType:      "int",
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationArrayGreaterOrEqualThan",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntArrayEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompare(">="),
 				ArrayType:      "int",
 				ValueType:      "ScalarValueType",
 			},

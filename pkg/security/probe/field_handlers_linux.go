@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -29,7 +28,7 @@ type FieldHandlers struct {
 // ResolveFilePath resolves the inode to a full path
 func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
+		path, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, ev.ContainerContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -116,6 +115,18 @@ func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountE
 	return e.MountSourcePath
 }
 
+// ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
+func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
+	if ev.ContainerContext.ID != "" {
+		if ev.ContainerContext == eventZero.ContainerContext {
+			if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); containerContext != nil {
+				ev.ContainerContext = &containerContext.ContainerContext
+			}
+		}
+	}
+	return ev.ContainerContext, ev.ContainerContext != nil
+}
+
 // ResolveContainerID resolves the container ID of the event
 func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
@@ -129,10 +140,8 @@ func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerC
 // ResolveContainerCreatedAt resolves the container creation time of the event
 func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
 	if e.CreatedAt == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil && entry.ContainerID != "" {
-			if cgroup, _ := fh.resolvers.CGroupResolver.GetWorkload(entry.ContainerID); cgroup != nil {
-				e.CreatedAt = cgroup.CreationTime
-			}
+		if containerContext, _ := fh.ResolveContainerContext(ev); containerContext != nil {
+			e.CreatedAt = containerContext.CreatedAt
 		}
 	}
 	return int(e.CreatedAt)
@@ -283,28 +292,28 @@ func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinu
 	return e.BoolName
 }
 
+// GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
+func (fh *FieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.Inode, false)
+	if ev.ProcessCacheEntry == nil {
+		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
+		return ev.ProcessCacheEntry, false
+	}
+	return ev.ProcessCacheEntry, true
+}
+
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	if ev.PIDContext.IsKworker {
 		return model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
 	}
 
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.Inode)
+	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
+		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.Inode, true)
 	}
 
 	if ev.ProcessCacheEntry == nil {
-		// keep the original PIDContext
-		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
-		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
-
-		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
-		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
-
-		// mark interpreter as resolved too
-		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
-		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
-
+		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
 		return ev.ProcessCacheEntry, false
 	}
 
@@ -398,8 +407,8 @@ func (fh *FieldHandlers) ResolveFileFieldsUser(ev *model.Event, e *model.FileFie
 	return e.User
 }
 
-// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
-func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
+// ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
+func (fh *FieldHandlers) ResolveEventTime(ev *model.Event) time.Time {
 	if ev.Timestamp.IsZero() {
 		fh := ev.FieldHandlers.(*FieldHandlers)
 
@@ -409,6 +418,11 @@ func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
 		}
 	}
 	return ev.Timestamp
+}
+
+// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
+func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) int {
+	return int(fh.ResolveEventTime(ev).UnixNano())
 }
 
 // ResolveAsync resolves the async flag

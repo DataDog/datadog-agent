@@ -570,6 +570,24 @@ func TestNoAPMConfig(t *testing.T) {
 	assert.Equal(t, 28125, cfg.StatsdPort)
 }
 
+func TestDisableLoggingConfig(t *testing.T) {
+
+	config := fxutil.Test[Component](t, fx.Options(
+		corecomp.MockModule,
+		fx.Replace(corecomp.MockParams{
+			Params:      corecomp.Params{ConfFilePath: "./testdata/disable_file_logging.yaml"},
+			SetupConfig: true,
+		}),
+		fx.Supply(Params{}),
+		MockModule,
+	))
+	cfg := config.Object()
+
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, "", cfg.LogFilePath)
+}
+
 func TestFullYamlConfig(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 // Package integrations implements 'agent integration'.
 package integrations

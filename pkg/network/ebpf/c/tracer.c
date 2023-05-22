@@ -13,9 +13,9 @@
 #include "skb.h"
 #include "sockfd.h"
 #include "tracer/events.h"
+#include "tracer/maps.h"
 #include "tracer/port.h"
 #include "tracer/tcp_recv.h"
-#include "protocols/classification/tracer-maps.h"
 #include "protocols/classification/protocol-classification.h"
 
 SEC("socket/classifier_entry")
@@ -201,7 +201,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
-    cleanup_conn(&t, sk);
+    cleanup_conn(ctx, &t, sk);
 
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
     // so, there is no one to use the map and clean it.
@@ -933,14 +933,14 @@ int kprobe__inet_csk_listen_stop(struct pt_regs *ctx) {
     return 0;
 }
 
-static __always_inline int handle_udp_destroy_sock(struct sock *skp) {
+static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(&tup, skp);
+        cleanup_conn(ctx, &tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
@@ -964,13 +964,13 @@ static __always_inline int handle_udp_destroy_sock(struct sock *skp) {
 SEC("kprobe/udp_destroy_sock")
 int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    return handle_udp_destroy_sock(sk);
+    return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("kprobe/udpv6_destroy_sock")
 int kprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    return handle_udp_destroy_sock(sk);
+    return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("kretprobe/udp_destroy_sock")
@@ -1221,6 +1221,8 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     sock_tup.pid = 0;
 
     if (!is_equal(&skb_tup, &sock_tup)) {
+        normalize_tuple(&skb_tup);
+        normalize_tuple(&sock_tup);
         bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST);
     }
 

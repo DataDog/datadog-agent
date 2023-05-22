@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -20,8 +19,6 @@ const (
 	// ServiceEnvVar environment variable used to report service
 	ServiceEnvVar = "DD_SERVICE"
 )
-
-var eventZero model.Event
 
 // NewModel returns a new model with some extra field validation
 func NewModel(probe *Probe) *model.Model {
@@ -47,6 +44,7 @@ func NewModel(probe *Probe) *model.Model {
 // NewEvent returns a new event
 func NewEvent(fh *FieldHandlers) *model.Event {
 	return &model.Event{
-		FieldHandlers: fh,
+		FieldHandlers:    fh,
+		ContainerContext: &model.ContainerContext{},
 	}
 }

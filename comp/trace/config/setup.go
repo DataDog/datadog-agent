@@ -79,22 +79,26 @@ func LoadConfigFile(path string, c corecompcfg.Component) (*config.AgentConfig, 
 
 func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
-	cfg.LogFilePath = DefaultLogFilePath
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
 
 	// the core config can be assumed to already be set-up as it has been
 	// injected as a component dependency
-	// TODO: do not interface directly with pkg/config
+	// TODO: do not interface directly with pkg/config anywhere
+	coreConfigObject := c.Object()
+	if coreConfigObject == nil {
+		return nil, fmt.Errorf("No core config found! Bailing out.")
+	}
+
+	if !coreConfigObject.GetBool("disable_file_logging") {
+		cfg.LogFilePath = DefaultLogFilePath
+	}
+
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
 	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
 	if p := coreconfig.Datadog.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
-	}
-	coreConfigObject := c.Object()
-	if coreConfigObject == nil {
-		return nil, fmt.Errorf("No core config found! Bailing out.")
 	}
 
 	if coreConfigObject.GetBool("remote_configuration.enabled") && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
@@ -185,8 +189,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.enabled") {
 		c.Enabled = core.GetBool("apm_config.enabled")
 	}
-	if core.IsSet("apm_config.log_file") {
-		c.LogFilePath = core.GetString("apm_config.log_file")
+	if coreconfig.Datadog.IsSet("apm_config.log_file") {
+		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
 
 	if env := coreconfig.GetTraceAgentDefaultEnv(); env != "" {

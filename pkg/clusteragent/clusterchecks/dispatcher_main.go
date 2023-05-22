@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -22,9 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const firstRunnerStatsMinutes = 2  // collect runner stats after the first 2 minutes
-const secondRunnerStatsMinutes = 5 // collect runner stats after the first 7 minutes
-const finalRunnerStatsMinutes = 10 // collect runner stats endlessly every 10 minutes
+const (
+	firstRunnerStatsMinutes  = 2  // collect runner stats after the first 2 minutes
+	secondRunnerStatsMinutes = 5  // collect runner stats after the first 7 minutes
+	finalRunnerStatsMinutes  = 10 // collect runner stats endlessly every 10 minutes
+)
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {

@@ -35,9 +35,9 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 		DstPort:         int32(srcFlow.DstPort),
 		InputInterface:  srcFlow.InIf,
 		OutputInterface: srcFlow.OutIf,
-		Tos:             srcFlow.IPTos,
+		Tos:             srcFlow.IpTos,
 		NextHop:         srcFlow.NextHop,
-		TCPFlags:        srcFlow.TCPFlags,
+		TCPFlags:        srcFlow.TcpFlags,
 	}
 }
 

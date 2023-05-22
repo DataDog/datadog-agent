@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf || (windows && npm)
-// +build linux_bpf windows,npm
 
 package tracer
 
@@ -64,7 +63,7 @@ func TestMain(m *testing.M) {
 		fmt.Println("Failed to get kernel version, halting the tests", err)
 		os.Exit(1)
 	}
-	driver.Init(&syscfg.Config{ClosedSourceAllowed: true})
+	driver.Init(&syscfg.Config{})
 	os.Exit(m.Run())
 }
 

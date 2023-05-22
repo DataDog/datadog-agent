@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package process
 
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -48,8 +48,9 @@ const (
 )
 
 const (
-	procResolveMaxDepth = 16
-	maxParallelArgsEnvs = 512 // == number of parallel starting processes
+	procResolveMaxDepth       = 16
+	maxParallelArgsEnvs       = 512              // == number of parallel starting processes
+	procFallbackLimiterPeriod = 30 * time.Second // proc fallback period by pid
 )
 
 // ResolverOpts options of resolver
@@ -73,6 +74,7 @@ type Resolver struct {
 	userGroupResolver *usergroup.Resolver
 	timeResolver      *stime.Resolver
 	pathResolver      spath.ResolverInterface
+	envVarsResolver   *envvars.Resolver
 
 	execFileCacheMap *lib.Map
 	procCacheMap     *lib.Map
@@ -98,6 +100,9 @@ type Resolver struct {
 	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
 
 	processCacheEntryPool *ProcessCacheEntryPool
+
+	// limiters
+	procFallbackLimiter *utils.Limiter[uint32]
 
 	exitedQueue []uint32
 }
@@ -361,7 +366,8 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	// resolve container path with the MountResolver
 	entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't get the filesystem: %w", proc.Pid, err)
+		entry.FileEvent.Filesystem = model.UnknownFS
+		seclog.Debugf("snapshot failed for %d: couldn't get the filesystem: %s", proc.Pid, err)
 	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
@@ -394,8 +400,9 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	}
 
 	entry.EnvsEntry = &model.EnvsEntry{}
-	if envs, err := utils.EnvVars(proc.Pid); err == nil {
+	if envs, truncated, err := p.envVarsResolver.ResolveEnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry.Values = envs
+		entry.EnvsEntry.Truncated = truncated
 	}
 
 	// Heuristic to detect likely interpreter event
@@ -509,7 +516,7 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin uint64
 
 	parent := p.entryCache[entry.PPid]
 	if parent == nil && entry.PPid >= 1 {
-		parent = p.resolve(entry.PPid, entry.PPid, entry.Inode)
+		parent = p.resolve(entry.PPid, entry.PPid, entry.Inode, true)
 	}
 
 	if parent != nil {
@@ -553,14 +560,14 @@ func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.resolve(pid, tid, inode)
+	return p.resolve(pid, tid, inode, useProcFS)
 }
 
-func (p *Resolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+func (p *Resolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *model.ProcessCacheEntry {
 	if entry := p.resolveFromCache(pid, tid, inode); entry != nil {
 		p.hitsStats[metrics.CacheTag].Inc()
 		return entry
@@ -576,10 +583,19 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64) *model.ProcessCacheEnt
 		return entry
 	}
 
-	// fallback to /proc, the in-kernel LRU may have deleted the entry
-	if entry := p.resolveFromProcfs(pid, procResolveMaxDepth); entry != nil {
-		p.hitsStats[metrics.ProcFSTag].Inc()
-		return entry
+	if !useProcFS {
+		p.missStats.Inc()
+		return nil
+	}
+
+	if p.procFallbackLimiter.IsAllowed(pid) {
+		p.procFallbackLimiter.Count(pid)
+
+		// fallback to /proc, the in-kernel LRU may have deleted the entry
+		if entry := p.resolveFromProcfs(pid, procResolveMaxDepth); entry != nil {
+			p.hitsStats[metrics.ProcFSTag].Inc()
+			return entry
+		}
 	}
 
 	p.missStats.Inc()
@@ -785,18 +801,26 @@ func (p *Resolver) ResolveFromProcfs(pid uint32) *model.ProcessCacheEntry {
 }
 
 func (p *Resolver) resolveFromProcfs(pid uint32, maxDepth int) *model.ProcessCacheEntry {
-	if maxDepth < 1 || pid == 0 {
+	if maxDepth < 1 {
+		seclog.Tracef("max depth reached during procfs resolution: %d", pid)
+		return nil
+	}
+
+	if pid == 0 {
+		seclog.Tracef("no pid: %d", pid)
 		return nil
 	}
 
 	var ppid uint32
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
+		seclog.Tracef("unable to find pid: %d", pid)
 		return nil
 	}
 
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
+	filledProc, err := utils.GetFilledProcess(proc)
+	if err != nil {
+		seclog.Tracef("unable to get a filled process for pid %d: %d", pid, err)
 		return nil
 	}
 
@@ -1068,8 +1092,9 @@ func (p *Resolver) SyncCache(proc *process.Process) bool {
 	p.Lock()
 	defer p.Unlock()
 
-	filledProc := utils.GetFilledProcess(proc)
-	if filledProc == nil {
+	filledProc, err := utils.GetFilledProcess(proc)
+	if err != nil {
+		seclog.Tracef("unable to get a filled process for %d: %v", proc.Pid, err)
 		return false
 	}
 
@@ -1225,6 +1250,14 @@ func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	}
 }
 
+// HasCompleteLineage returns whether the lineage is complete
+func (p *Resolver) HasCompleteLineage(entry *model.ProcessCacheEntry) bool {
+	p.RLock()
+	defer p.RUnlock()
+
+	return entry.HasCompleteLineage()
+}
+
 // NewResolver returns a new process resolver
 func NewResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
@@ -1263,11 +1296,18 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 		userGroupResolver:         userGroupResolver,
 		timeResolver:              timeResolver,
 		pathResolver:              pathResolver,
+		envVarsResolver:           envvars.NewEnvVarsResolver(config),
 	}
 	for _, t := range metrics.AllTypesTags {
 		p.hitsStats[t] = atomic.NewInt64(0)
 	}
 	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
+
+	limiter, err := utils.NewLimiter[uint32](128, procFallbackLimiterPeriod)
+	if err != nil {
+		return nil, err
+	}
+	p.procFallbackLimiter = limiter
 
 	return p, nil
 }

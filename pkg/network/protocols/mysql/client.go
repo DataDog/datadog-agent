@@ -54,6 +54,7 @@ func NewClient(opts Options) (*Client, error) {
 	}
 
 	if err := db.Ping(); err != nil {
+		db.Close()
 		return nil, err
 	}
 
