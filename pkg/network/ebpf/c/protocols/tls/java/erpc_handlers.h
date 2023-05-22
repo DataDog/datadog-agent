@@ -133,16 +133,8 @@ int kprobe_handle_async_payload(struct pt_regs *ctx) {
     //interactive pointer to read the data buffer
     void* bufferPtr = GET_DATA_PTR(ctx);
 
-    // Allocate the buffer from a per-cpu array map, where the connection_by_peer_key_t struct will be read into.
-    // Meant to avoid hitting the stack size limit of 512 bytes
-    const u32 key = 0;
-    connection_by_peer_key_t* peer_key = bpf_map_lookup_elem(&java_tls_peer, &key);
-    if (peer_key == NULL) {
-        log_debug("[handle_async_payload] could not get peer buffer from map");
-        return 1;
-    }
-
-    bpf_memset(peer_key, 0, sizeof(connection_by_peer_key_t));
+    connection_by_peer_key_t peer_key ={0};
+    //bpf_memset(peer_key, 0, sizeof(connection_by_peer_key_t));
     u64 pid_tgid = bpf_get_current_pid_tgid();
     peer_key->pid = pid_tgid >> 32;
 
