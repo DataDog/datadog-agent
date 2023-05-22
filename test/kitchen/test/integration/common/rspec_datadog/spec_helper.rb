@@ -11,7 +11,7 @@ require 'tempfile'
 # logged.
 RSpec.configure do |c|
   c.add_formatter "documentation"
-  c.add_formatter "RspecJunitFormatter"
+  c.add_formatter("RspecJunitFormatter", "/tmp/kitchen/rspec.xml")
 end
 
 os_cache = nil
