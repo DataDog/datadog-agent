@@ -262,8 +262,8 @@ func TestFindK8sLogPath(t *testing.T) {
 			defer func() {
 				require.NoError(t, os.RemoveAll(podLogsBasePath))
 			}()
-
-			gotPattern := findK8sLogPath(makeTestPod(), "cname")
+			pod, _ := makeTestPod()
+			gotPattern := findK8sLogPath(pod, "cname")
 			require.Equal(t, filepath.Join(podLogsBasePath, expectedPattern), gotPattern)
 		})
 	}
