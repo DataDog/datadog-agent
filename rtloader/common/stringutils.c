@@ -8,36 +8,30 @@
 #include "rtloader_types.h"
 #include "stringutils.h"
 
-PyObject *yload = NULL;
-PyObject *ydump = NULL;
-PyObject *loader = NULL;
-PyObject *dumper = NULL;
+
+PyObject * yload = NULL;
+PyObject * ydump = NULL;
+PyObject * loader = NULL;
+PyObject * dumper = NULL;
 
 /**
  * returns a C (NULL terminated UTF-8) string from a python string.
  *
  * \param object  A Python string to be converted to C-string.
- * \param stringObject Output Python object to keep return value valid
- * until this stringObject is valid.
  *
  * \return A standard C string (NULL terminated character pointer)
- *  The returned pointer is embedded within a PyObject. When the returned
- *   string pointer is no longer needed, `stringObject` reference needs to be
- *   decremented. It avoids intermediate memory allocation while having access
- *   to the underlying string (to copy into another buffer or get its length).
- *   The function effectively exposes a direct pointer to the underlying string
- *  while pinning a python string object for safety and requires its release
- *  externally.
+ *  The returned pointer is allocated from the heap and must be
+ * deallocated (free()ed) by the caller
  */
-char *as_embedded_string(PyObject *object, PyObject **stringObject)
+char *as_string(PyObject *object)
 {
-    char *retval = NULL;
-    PyObject *temp_bytes = NULL;
     if (object == NULL) {
         return NULL;
     }
 
-    // DATADOG_AGENT_THREE implementation is the default
+    char *retval = NULL;
+
+// DATADOG_AGENT_THREE implementation is the default
 #ifdef DATADOG_AGENT_TWO
     if (!PyString_Check(object) && !PyUnicode_Check(object)) {
         return NULL;
@@ -50,12 +44,10 @@ char *as_embedded_string(PyObject *object, PyObject **stringObject)
         PyErr_Clear();
         return NULL;
     }
-
-    temp_bytes = object;
-    retval = tmp;
-    Py_INCREF(temp_bytes);
-    *stringObject = temp_bytes;
+    retval = strdupe(tmp);
 #else
+    PyObject *temp_bytes = NULL;
+
     if (PyBytes_Check(object)) {
         // We already have an encoded string, we suppose it has the correct encoding (UTF-8)
         temp_bytes = object;
@@ -73,131 +65,14 @@ char *as_embedded_string(PyObject *object, PyObject **stringObject)
         return NULL;
     }
 
-    retval = PyBytes_AS_STRING(temp_bytes);
-    *stringObject = temp_bytes;
+    retval = strdupe(PyBytes_AS_STRING(temp_bytes));
+    Py_XDECREF(temp_bytes);
 #endif
 
     return retval;
 }
 
-/**
- * returns a C (NULL terminated UTF-8) string from a python string.
- *
- * \param object  A Python string to be converted to C-string.
- *
- * \return A standard C string (NULL terminated character pointer)
- *  The returned pointer is allocated from the heap and must be
- * deallocated (free-ed) by the caller
- */
-char *as_string(PyObject *object)
-{
-    PyObject *temp_bytes = NULL;
-    char *retval = NULL;
-    char *tmp = NULL;
-
-    if (object == NULL) {
-        return NULL;
-    }
-
-    tmp = as_embedded_string(object, &temp_bytes);
-    if (tmp != NULL && temp_bytes != NULL) {
-        retval = strdupe(tmp);
-        Py_XDECREF(temp_bytes);
-    }
-
-    return retval;
-}
-
-long attr_as_long(PyObject *object, const char *attributeName)
-{
-    if (object == NULL) {
-        return -1;
-    }
-
-    long value = -1;
-    PyObject *py_attr = NULL;
-
-    py_attr = PyObject_GetAttrString(object, attributeName);
-    if (py_attr != NULL) {
-        value = PyLong_AsLong(py_attr);
-    }
-
-    Py_XDECREF(py_attr);
-
-    return value;
-}
-
-size_t attr_as_string_size(PyObject *object, const char *attributeName)
-{
-    PyObject *temp_bytes = NULL;
-    char *tmp = NULL;
-    size_t size = 0;
-
-    if (object == NULL) {
-        return 0;
-    }
-
-    PyObject *py_attr = PyObject_GetAttrString(object, attributeName);
-    if (py_attr != NULL && PyUnicode_Check(py_attr)) {
-        tmp = as_embedded_string(py_attr, &temp_bytes);
-        if (tmp != NULL && temp_bytes != NULL) {
-            size = strlen(tmp) + 1;
-            Py_XDECREF(temp_bytes);
-        }
-    } else {
-        PyErr_Clear();
-    }
-
-    Py_XDECREF(py_attr);
-
-    return size;
-}
-
-size_t copy_attr_as_string(PyObject *object, const char *attributeName, char *buffer, size_t bufferLength)
-{
-    PyObject *temp_bytes = NULL;
-    char *tmp = NULL;
-    size_t size = 0;
-
-    if (object == NULL) {
-        return 0;
-    }
-
-    PyObject *py_attr = PyObject_GetAttrString(object, attributeName);
-    if (py_attr != NULL && PyUnicode_Check(py_attr)) {
-        tmp = as_embedded_string(py_attr, &temp_bytes);
-        if (tmp != NULL && temp_bytes != NULL) {
-            if (size <= bufferLength) {
-                strncpy(buffer, tmp, bufferLength);
-                // in case if dest buffer is too small we need to make sure it is 0 terminated
-                buffer[bufferLength - 1];
-                size = strlen(buffer) + 1;
-            }
-            Py_XDECREF(temp_bytes);
-        }
-    } else {
-        PyErr_Clear();
-    }
-
-    Py_XDECREF(py_attr);
-
-    return size;
-}
-
-char *string_buf_from_offset(void *buf, size_t offset)
-{
-    return (char *)buf + offset;
-}
-
-size_t copy_attr_as_string_at(PyObject *object, const char *attributeName, void *buf, size_t bufOffset,
-                              size_t bufLength)
-{
-    size_t length = bufLength > bufOffset ? bufLength - bufOffset : 0;
-    return copy_attr_as_string(object, attributeName, string_buf_from_offset(buf, bufOffset), length);
-}
-
-int init_stringutils(void)
-{
+int init_stringutils(void) {
     PyObject *yaml = NULL;
     int ret = EXIT_FAILURE;
 
@@ -251,8 +126,7 @@ done:
     return ret;
 }
 
-PyObject *from_yaml(const char *data)
-{
+PyObject *from_yaml(const char *data) {
     PyObject *args = NULL;
     PyObject *kwargs = NULL;
     PyObject *retval = NULL;
@@ -280,8 +154,7 @@ done:
     return retval;
 }
 
-char *as_yaml(PyObject *object)
-{
+char *as_yaml(PyObject *object) {
     char *retval = NULL;
     PyObject *dumped = NULL;
 
@@ -295,7 +168,7 @@ char *as_yaml(PyObject *object)
     retval = as_string(dumped);
 
 done:
-    // Py_XDECREF can accept (and ignore) NULL references
+    //Py_XDECREF can accept (and ignore) NULL references
     Py_XDECREF(dumped);
     Py_XDECREF(kwargs);
     Py_XDECREF(args);

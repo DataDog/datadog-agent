@@ -12,7 +12,6 @@
 #include "cgo_free.h"
 #include "containers.h"
 #include "datadog_agent.h"
-#include "diagnoseutils.h"
 #include "kubeutil.h"
 #include "rtloader_mem.h"
 #include "stringutils.h"
@@ -538,64 +537,36 @@ done:
     return warnings;
 }
 
-diagnosis_set_t *Three::getCheckDiagnoses(RtLoaderPyObject *check)
+char *Three::getCheckDiagnoses(RtLoaderPyObject *check)
 {
     if (check == NULL) {
         return NULL;
     }
 
     PyObject *py_check = reinterpret_cast<PyObject *>(check);
-    diagnosis_set_t *diagnoses = NULL;
-    size_t bufferSize = 0;
 
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret = NULL;
     char func_name[] = "get_diagnoses";
-    Py_ssize_t numDiagnoses;
+    PyObject *result = NULL;
 
-    PyObject *diagnoses_list = PyObject_CallMethod(py_check, func_name, NULL);
-    if (diagnoses_list == NULL) {
+    result = PyObject_CallMethod(py_check, func_name, NULL);
+    if (result == NULL || !PyUnicode_Check(result)) {
+        setError("error invoking 'get_diagnoses' method: " + _fetchPythonError());
         goto done;
     }
 
-    numDiagnoses = PyList_Size(diagnoses_list);
-    // docs are not clear but `PyList_Size` can actually fail and in case it would
-    // return -1, see https://github.com/python/cpython/blob/3.8/Objects/listobject.c#L223
-    if (numDiagnoses == -1) {
-        setError("error computing 'len(diagnoses)': " + _fetchPythonError());
+    ret = as_string(result);
+    if (ret == NULL) {
+        // as_string clears the error, so we can't fetch it here
+        setError("error converting 'get_diagnoses' result to string");
         goto done;
     }
-
-    if (numDiagnoses == 0) {
-        goto done;
-    }
-
-    // Calculate and allocate buffer size
-    bufferSize = get_diagnoses_mem_size(numDiagnoses, diagnoses_list);
-    if (bufferSize == 0) {
-        setError("there was an error browsing 'diagnoses' list: " + _fetchPythonError());
-        goto error;
-    }
-    diagnoses = (diagnosis_set_t *)_malloc(bufferSize);
-    if (!diagnoses) {
-        setError("could not allocate memory to store diagnoses");
-        goto done;
-    }
-    memset(diagnoses, 0, bufferSize);
-
-    // Serialize diagnoses
-    if (serialize_diagnoses(numDiagnoses, diagnoses_list, diagnoses, bufferSize) != 0) {
-        setError("there was an error browsing 'diagnoses' list: " + _fetchPythonError());
-        goto error;
-    }
-    goto done;
-
-error:
-    _free(diagnoses);
-
-    diagnoses = NULL;
 
 done:
-    Py_XDECREF(diagnoses_list);
-    return diagnoses;
+    Py_XDECREF(result);
+    return ret;
 }
 
 // return new reference

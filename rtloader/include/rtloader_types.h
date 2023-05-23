@@ -72,38 +72,6 @@ typedef struct event_s {
     char *event_type;
 } event_t;
 
-// From
-//    datadog-agent\pkg\diagnose\diagnosis\loader.go and
-//    datadog-agent\rtloader\include\rtloader_types.h
-typedef enum {
-    DATADOG_AGENT_RTLOADER_DIAGNOSIS_SUCCESS = 0,
-    DATADOG_AGENT_RTLOADER_DIAGNOSIS_FAIL = 1,
-    DATADOG_AGENT_RTLOADER_DIAGNOSIS_WARNING = 2,
-    DATADOG_AGENT_RTLOADER_DIAGNOSIS_UNEXPECTED_ERROR = 3,
-} DiagnosisResult;
-
-// All pointers point to portion of memory contained completely within diagnosis_set_t buffer
-// size_t or pointers are needed to avoid Go vs. CGO misalignments
-typedef struct diagnosis_s {
-    // required fields
-    size_t result;
-    char *name;
-    char *diagnosis;
-
-    // optional fields
-    char *description;
-    char *remediation;
-    char *raw_error;
-} diagnosis_t;
-
-// Self-contained array of diagnosis. All pointers point to portion of memory contained
-// completely within the diagnosis_set_t buffer. size_t or pointers are needed to avoid Go vs. CGO misalignments
-typedef struct diagnosis_set_s {
-    size_t byteCount;
-    size_t diangosesCount;
-    diagnosis_t *diagnosesItems;
-} diagnosis_set_t;
-
 typedef struct py_info_s {
     const char *version; // returned by Py_GetInfo(); is static string owned by python
     char *path; // allocated within getPyInfo()

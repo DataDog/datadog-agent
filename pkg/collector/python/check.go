@@ -9,6 +9,7 @@
 package python
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
@@ -34,7 +35,6 @@ import (
 #include "rtloader_mem.h"
 
 char *getStringAddr(char **array, unsigned int idx);
-diagnosis_t *getDiagnosisAddr(diagnosis_set_t *diagnoses, unsigned int idx);
 */
 import "C"
 
@@ -51,6 +51,19 @@ type PythonCheck struct {
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
+}
+
+// It is an identical structure to the diagnosis.Diagnosis. It is possible
+// that in future diagnosis.Diagnosis will have its own JSON mapping but
+// at this stage this single usa case is insufficient to change base struct type
+type diagnosisJSON struct {
+	Result      int    `json:"result"`
+	Name        string `json:"name"`
+	Diagnosis   string `json:"diagnosis"`
+	Category    string `json:"category"`
+	Description string `json:"description"`
+	Remediation string `json:"remediation"`
+	Raw_error   string `json:"raw_error"`
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -342,35 +355,43 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	}
 	defer gstate.unlock()
 
-	// Get an array of diagnoses. CGO packaging is implemented in
-	// diagnosis_set_t* Three|Two::getCheckDiagnoses(RtLoaderPyObject* check) method
+	// Get serialized diagnoses. CGO packaging is implemented in
+	//Three|Two::getCheckDiagnoses(RtLoaderPyObject* check) methods
 	// in datadog-agent\\rtloader\\three\\three.cpp (and two.cpp).
+	//
+	// It is serialized as JSON by Python. Handcrafted and significantly more complicated
+	// manual serialization was only 2-2.5 times faster and hence not worth it for low-rate calls like this
 	pyDiagnoses := C.get_check_diagnoses(rtloader, c.instance)
 	if pyDiagnoses == nil {
 		return nil, nil
 	}
+	defer C.rtloader_free(rtloader, unsafe.Pointer(pyDiagnoses))
 
+	// Deserialize it
+	s := C.GoString(pyDiagnoses)
+	var diagnosesJSON []diagnosisJSON
+	err = json.Unmarshal([]byte(s), &diagnosesJSON)
+	if err != nil || diagnosesJSON == nil {
+		return nil, err
+	}
+
+	// Copy it over (in future we may be able to deserialize
+	// directly into target data)
 	var diagnoses []diagnosis.Diagnosis
-	for i := 0; ; i++ {
-		// Get diagnosis_t* as an entry in array of pointers
-		diagnosisPtr := C.getDiagnosisAddr(pyDiagnoses, C.uint(i))
-		if diagnosisPtr == nil {
-			break
+	for _, dj := range diagnosesJSON {
+		d := diagnosis.Diagnosis{
+			Name:        dj.Name,
+			Diagnosis:   dj.Diagnosis,
+			Category:    dj.Category,
+			Description: dj.Description,
+			Remediation: dj.Remediation,
 		}
-
-		d := diagnosis.Diagnosis{}
 
 		// Convert result and error
-		d.Result = diagnosis.Result(diagnosisPtr.result)
-		if diagnosisPtr.raw_error != nil {
-			d.RawError = errors.New(C.GoString(diagnosisPtr.raw_error))
+		d.Result = diagnosis.Result(dj.Result)
+		if len(dj.Raw_error) > 0 {
+			d.RawError = errors.New(dj.Raw_error)
 		}
-
-		// Convert string fields
-		d.Name = C.GoString(diagnosisPtr.name)
-		d.Diagnosis = C.GoString(diagnosisPtr.diagnosis)
-		d.Description = C.GoString(diagnosisPtr.description)
-		d.Remediation = C.GoString(diagnosisPtr.remediation)
 
 		// Extra validation diagnosis for consistency. Checked required fields and status range
 		if d.Result < diagnosis.DiagnosisResultMIN ||
@@ -394,9 +415,6 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 
 		diagnoses = append(diagnoses, d)
 	}
-
-	// Finallty free CGO memory of returned array of diagnosis_t
-	C.rtloader_free(rtloader, unsafe.Pointer(pyDiagnoses))
 
 	return diagnoses, nil
 }

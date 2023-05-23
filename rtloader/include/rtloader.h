@@ -125,10 +125,9 @@ public:
     //! Pure virtual getCheckDiagnoses member.
     /*!
       \param check The python object pointer to the check we wish to collect diagnoses for.
-      \return diagnosis_set_t (an array diagnosis_set_t of diagnosis_t containing all diagnoses for the
-      check instance.
+      \return serialized diagnoses for the check as a C-string or NULL if none exists or an error occurred.
     */
-    virtual diagnosis_set_t *getCheckDiagnoses(RtLoaderPyObject *check) = 0;
+    virtual char *getCheckDiagnoses(RtLoaderPyObject *check) = 0;
 
     //! clearError member.
     /*!

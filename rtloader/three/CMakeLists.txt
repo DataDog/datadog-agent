@@ -39,7 +39,6 @@ add_library(datadog-agent-three SHARED
     three_mem.cpp
     ../common/cgo_free.c
     ../common/stringutils.c
-    ../common/diagnoseutils.c
     ../common/log.c
     ../common/builtins/aggregator.c
     ../common/builtins/datadog_agent.c

@@ -45,14 +45,6 @@ char *getStringAddr(char **array, unsigned int idx) {
 	return array[idx];
 }
 
-diagnosis_t *getDiagnosisAddr(diagnosis_set_t *diagnoses, unsigned int idx) {
-	if (diagnoses == NULL || diagnoses->diangosesCount == 0 || idx >= diagnoses->diangosesCount) {
-		return NULL;
-	}
-
-	return diagnoses->diagnosesItems + idx;
-}
-
 //
 // init memory tracking facilities method
 //
