@@ -123,6 +123,15 @@ runtime_security_config:
     tag_rules:
       enabled: {{ .ActivityDumpTagRules }}
     dump_duration: {{ .ActivityDumpDuration }}
+    {{if .ActivityDumpLoadControllerPeriod }}
+    load_controller_period: {{ .ActivityDumpLoadControllerPeriod }}
+    {{end}}
+    {{if .ActivityDumpCleanupPeriod }}
+    cleanup_period: {{ .ActivityDumpCleanupPeriod }}
+    {{end}}
+    {{if .ActivityDumpLoadControllerTimeout }}
+    min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
+    {{end}}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
@@ -220,6 +229,9 @@ type testOpts struct {
 	activityDumpRateLimiter             int
 	activityDumpTagRules                bool
 	activityDumpDuration                time.Duration
+	activityDumpLoadControllerPeriod    time.Duration
+	activityDumpCleanupPeriod           time.Duration
+	activityDumpLoadControllerTimeout   time.Duration
 	activityDumpTracedCgroupsCount      int
 	activityDumpTracedEventTypes        []string
 	activityDumpLocalStorageDirectory   string
@@ -257,7 +269,9 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.activityDumpTagRules == opts.activityDumpTagRules &&
 		to.activityDumpDuration == opts.activityDumpDuration &&
+		to.activityDumpLoadControllerPeriod == opts.activityDumpLoadControllerPeriod &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
+		to.activityDumpLoadControllerTimeout == opts.activityDumpLoadControllerTimeout &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
 		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
@@ -742,6 +756,9 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
 		"ActivityDumpTagRules":                opts.activityDumpTagRules,
 		"ActivityDumpDuration":                opts.activityDumpDuration,
+		"ActivityDumpLoadControllerPeriod":    opts.activityDumpLoadControllerPeriod,
+		"ActivityDumpLoadControllerTimeout":   opts.activityDumpLoadControllerTimeout,
+		"ActivityDumpCleanupPeriod":           opts.activityDumpCleanupPeriod,
 		"ActivityDumpTracedCgroupsCount":      opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":   opts.activityDumpLocalStorageDirectory,
@@ -1909,7 +1926,7 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, i
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) triggerLoadControlerReducer(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) {
+func (tm *testModule) triggerLoadControllerReducer(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return

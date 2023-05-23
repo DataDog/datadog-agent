@@ -25,7 +25,10 @@ const (
 	testActivityDumpTracedCgroupsCount = 3
 )
 
-var testActivityDumpDuration = time.Minute * 11
+var (
+	testActivityDumpDuration             = time.Second * 30
+	testActivityDumpLoadControllerPeriod = time.Second * 10
+)
 
 func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string,
 	activityDumpValidator func(ad *dump.ActivityDump) bool,
