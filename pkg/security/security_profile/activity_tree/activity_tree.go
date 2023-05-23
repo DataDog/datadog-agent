@@ -385,10 +385,10 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 	return node, true, nil
 }
 
-func (at *ActivityTree) FindMatchingRootNodes(basename string) []*ProcessNode {
+func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	var res []*ProcessNode
 	for _, node := range at.ProcessNodes {
-		if node.Process.FileEvent.BasenameStr == basename {
+		if node.Process.Argv0 == arg0 {
 			res = append(res, node)
 		}
 	}

@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -667,7 +668,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 	if ps.IsNotKworker() {
 		argv, argvTruncated := resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
 		envs, EnvsTruncated := resolvers.ProcessResolver.GetProcessEnvs(ps)
-		argv0, _ := resolvers.ProcessResolver.GetProcessArgv0(ps)
+		argv0, _ := sprocess.GetProcessArgv0(ps)
 
 		psSerializer := &ProcessSerializer{
 			ForkTime: getTimeIfNotZero(ps.ForkTime),
