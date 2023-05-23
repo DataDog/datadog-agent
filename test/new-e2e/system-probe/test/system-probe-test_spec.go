@@ -6,7 +6,6 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -26,8 +25,8 @@ const (
 )
 
 var BaseEnv = map[string]interface{}{
-	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join("/opt/system-probe-tests", "pkg/ebpf/bytecode/build"),
-	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join("/opt/system-probe-tests", "pkg/network/java"),
+	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join(TestDirRoot, "pkg/ebpf/bytecode/build"),
+	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join(TestDirRoot, "pkg/network/java"),
 }
 
 type testConfig struct {
@@ -83,7 +82,7 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 
 		present, err := regexp.Match(filePattern, []byte(d.Name()))
 		if err != nil {
-			return err
+			return fmt.Errorf("file regexp match: %s", err)
 		}
 
 		if d.IsDir() || !present {
@@ -95,19 +94,13 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 		return nil
 	})
 	if err != nil {
-		return []string{}, err
+		return nil, err
 	}
-
 	return matches, nil
 }
 
 func generatePackageName(file string) string {
-	pkg := strings.Trim(
-		strings.TrimPrefix(
-			strings.TrimSuffix(file, Testsuite),
-			TestDirRoot,
-		), "/")
-
+	pkg, _ := filepath.Rel(TestDirRoot, filepath.Dir(file))
 	return pkg
 }
 
@@ -145,17 +138,6 @@ func mergeEnv(env ...map[string]interface{}) []string {
 	return mergedEnv
 }
 
-func runCommandAndStreamOutput(cmd *exec.Cmd, commandOutput io.Reader) error {
-	go func() {
-		scanner := bufio.NewScanner(commandOutput)
-		for scanner.Scan() {
-			_, _ = os.Stdout.Write([]byte(scanner.Text() + "\n"))
-		}
-	}()
-
-	return cmd.Run()
-}
-
 func filterPackagesFn(filter filterPaths) func(path string) bool {
 	return func(path string) bool {
 		for _, p := range filter.paths {
@@ -175,21 +157,25 @@ func concatenateBundleJsons(bundle string) error {
 	bundleJSONPath := filepath.Join("/", "pkgjson", bundle)
 	matches, err := glob(bundleJSONPath, `*\.json`, func(path string) bool { return true })
 	if err != nil {
-		return err
+		return fmt.Errorf("json glob: %s", err)
 	}
 
 	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		return nil
+		return fmt.Errorf("open %s: %s", testJsonFile, err)
 	}
 	defer f.Close()
 
 	for _, jsonFile := range matches {
-		data, err := os.ReadFile(jsonFile)
+		jf, err := os.Open(jsonFile)
 		if err != nil {
-			return err
+			return fmt.Errorf("open %s: %s", jsonFile, err)
 		}
-		f.Write(data)
+		_, err = io.Copy(f, jf)
+		_ = jf.Close()
+		if err != nil {
+			return fmt.Errorf("%s copy: %s", jsonFile, err)
+		}
 	}
 
 	return nil
@@ -198,7 +184,7 @@ func concatenateBundleJsons(bundle string) error {
 func testPass(config testConfig) error {
 	matches, err := glob(TestDirRoot, Testsuite, filterPackagesFn(config.filterPackages))
 	if err != nil {
-		return err
+		return fmt.Errorf("test glob: %s", err)
 	}
 
 	if err := os.RemoveAll("/junit/"); err != nil {
@@ -233,12 +219,13 @@ func testPass(config testConfig) error {
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			return err
+			return fmt.Errorf("cmd run %s: %s", file, err)
 		}
 	}
 
-	concatenateBundleJsons(config.bundle)
-
+	if err := concatenateBundleJsons(config.bundle); err != nil {
+		return fmt.Errorf("concat bundle %s json: %s", config.bundle, err)
+	}
 	return nil
 }
 
@@ -250,12 +237,12 @@ func fixAssetPermissions() error {
 		}),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("glob assets: %s", err)
 	}
 
 	for _, file := range matches {
 		if err := os.Chown(file, 0, 0); err != nil {
-			return err
+			return fmt.Errorf("chown %s: %s", file, err)
 		}
 	}
 
@@ -263,8 +250,14 @@ func fixAssetPermissions() error {
 }
 
 func main() {
-	if err := fixAssetPermissions(); err != nil {
+	if err := run(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func run() error {
+	if err := fixAssetPermissions(); err != nil {
+		return err
 	}
 
 	if err := testPass(testConfig{
@@ -275,7 +268,7 @@ func main() {
 		},
 		filterPackages: skipPrebuiltTests,
 	}); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := testPass(testConfig{
 		bundle: "runtime",
@@ -286,7 +279,7 @@ func main() {
 		},
 		filterPackages: runtimeCompiledTests,
 	}); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := testPass(testConfig{
 		bundle: "co-re",
@@ -298,7 +291,7 @@ func main() {
 		},
 		filterPackages: coreTests,
 	}); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	if err := testPass(testConfig{
 		bundle: "fentry",
@@ -310,6 +303,7 @@ func main() {
 		},
 		filterPackages: fentryTests,
 	}); err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }
