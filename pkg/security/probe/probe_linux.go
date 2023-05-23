@@ -1352,7 +1352,7 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid); err != nil {
+	if err := p.resolvers.MountResolver.Insert(*m); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
