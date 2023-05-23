@@ -94,11 +94,12 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
 	}
 
-	enabledProtocols, err := initProtocols(c, mgr)
+	enabledProtocols, excludedFunctions, err := initProtocols(c, mgr)
 	if err != nil {
 		return nil, err
 	}
 	mgr.protocols = enabledProtocols
+	mgr.excludedFunctions = excludedFunctions
 
 	if len(enabledProtocols) == 0 {
 		state = Disabled
@@ -436,13 +437,14 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 	return nil
 }
 
-func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, error) {
+func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, []string, error) {
 	enabledProtocols := make([]protocols.Protocol, 0)
+	excludedFunctions := make([]string, 0)
 
 	for _, spec := range protocols.KnownProtocols {
 		protocol, err := spec.Factory(c)
 		if err != nil {
-			return nil, &errNotSupported{err}
+			return nil, nil, &errNotSupported{err}
 		}
 
 		if protocol != nil {
@@ -452,11 +454,11 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, er
 
 			enabledProtocols = append(enabledProtocols, protocol)
 		} else {
-			// TODO: exclude functions
-			// opts.ExcludedFunctions = append(opts.ExcludedFunctions, spec.Probes...)
-			// opts.ExcludedFunctions = append(opts.ExcludedFunctions, spec.TailCalls...)
+			for _, tc := range spec.TailCalls {
+				excludedFunctions = append(excludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
+			}
 		}
 	}
 
-	return enabledProtocols, nil
+	return enabledProtocols, excludedFunctions, nil
 }

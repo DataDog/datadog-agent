@@ -55,7 +55,9 @@ type ebpfProgram struct {
 	mapCleaner            *ddebpf.MapCleaner
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
-	protocols             []protocols.Protocol
+
+	protocols         []protocols.Protocol
+	excludedFunctions []string
 }
 
 type probeResolver interface {
@@ -367,6 +369,9 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	for _, p := range e.protocols {
 		p.ConfigureOptions(e.Manager.Manager, &options)
 	}
+
+	// Add excluded functions from disabled protocols
+	options.ExcludedFunctions = append(options.ExcludedFunctions, e.excludedFunctions...)
 
 	// Configure event streams
 	if e.cfg.EnableHTTP2Monitoring {
