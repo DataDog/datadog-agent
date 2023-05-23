@@ -228,8 +228,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		 * in go-ora with passing bool parameters to PL/SQL. As a mitigation, we are asserting that the
 		 * parameters are bool
 		 */
-		binds := returnFalseIfNotBool(c.config.AgentSQLTrace.Binds)
-		waits := returnFalseIfNotBool(c.config.AgentSQLTrace.Waits)
+		binds := assertBool(c.config.AgentSQLTrace.Binds)
+		waits := assertBool(c.config.AgentSQLTrace.Waits)
 		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
 		log.Trace("trace statement: %s", setEventsStatement)
 		_, err = db.Exec(setEventsStatement)
@@ -244,7 +244,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	return db, nil
 }
 
-func isTrue(val bool) bool {
+func assertBool(val bool) bool {
 	return val
 }
 
