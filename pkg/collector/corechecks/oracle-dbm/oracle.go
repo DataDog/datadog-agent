@@ -244,9 +244,8 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	return db, nil
 }
 
-func returnFalseIfNotBool(input interface{}) bool {
-	retValue, _ := input.(bool)
-	return retValue
+func isTrue(val bool) bool {
+	return val
 }
 
 // Teardown cleans up resources used throughout the check.
