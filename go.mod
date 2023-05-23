@@ -59,7 +59,7 @@ require (
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.0
 	github.com/DataDog/sketches-go v1.4.2
