@@ -159,7 +159,7 @@ def download_artifacts(run_id, destination="."):
     Download all artifacts for a given job in the specified location.
     """
     print(color_message(f"Downloading artifacts for run {run_id} to {destination}", "blue"))
-
+    import os
     github_workflows = create_or_refresh_macos_build_github_workflows()
     run_artifacts = github_workflows.workflow_run_artifacts(run_id)
     if run_artifacts is None:
@@ -178,3 +178,5 @@ def download_artifacts(run_id, destination="."):
             # Unzip it in the target destination
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(destination)
+            os.system('ls -l')
+    os.system('ls -l')
