@@ -41,7 +41,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
-	github.com/DataDog/agent-payload/v5 v5.0.82
+	github.com/DataDog/agent-payload/v5 v5.0.85
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
 	github.com/DataDog/datadog-agent/pkg/gohai v0.0.0-20230512151819-dfebac949c96
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
