@@ -127,7 +127,7 @@ platforms:
           volume_type: gp2
           volume_size: 100
           delete_on_termination: true
-    <% if allow_rsa_key || al2022 || al2023 %>
+    <% if allow_rsa_key || al2022 || al2023 || fedora %>
     user_data: |
       #!/bin/sh
     <% end %>
@@ -135,7 +135,7 @@ platforms:
       echo PubkeyAcceptedKeyTypes=+ssh-rsa >> /etc/ssh/sshd_config
       service ssh reload
     <% end %>
-    <% if al2022 || al2023 %>
+    <% if al2022 || al2023 || fedora %>
       sudo dnf install -y libxcrypt-compat
     <% end %>
   <% if (ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH']) || al2022 || al2023 || fedora %>
@@ -148,10 +148,7 @@ platforms:
         sudo chmod a+rwx <%= ENV['KITCHEN_CI_MOUNT_PATH'] %>;
         sudo ln -s <%= ENV['KITCHEN_CI_MOUNT_PATH'] %> <%= ENV['KITCHEN_CI_ROOT_PATH'] %>;
   <% end %>
-  <% if fedora %>
-    - remote: sudo dnf install -y libxcrypt-compat
-  <% end %>
-  <% if al2022 || al2023 %>
+  <% if al2022 || al2023 || fedora %>
   # Add a hook after creating the host, to make sure we wait until the user_data
   # script has been run.
   # Snippet taken from the kitchen docs: https://kitchen.ci/docs/reference/lifecycle-hooks/
