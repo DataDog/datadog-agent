@@ -13,7 +13,7 @@ import (
 
 type LanguageName string
 
-var (
+const (
 	python  LanguageName = "python"
 	java    LanguageName = "java"
 	unknown LanguageName = ""
