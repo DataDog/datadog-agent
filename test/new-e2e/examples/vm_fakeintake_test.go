@@ -1,9 +1,9 @@
-package examples
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+package examples
 
 import (
 	_ "embed"
@@ -26,7 +26,7 @@ type vmFakeintakeSuite struct {
 }
 
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, e2e.AgentStackDef([]e2e.Ec2VMOption{ec2vm.WithArch(os.AmazonLinuxOS, commonos.AMD64Arch)}))
+	e2e.Run(t, &vmFakeintakeSuite{}, e2e.AgentStackDef([]e2e.Ec2VMOption{ec2vm.WithArch(os.WindowsOS, commonos.AMD64Arch)}))
 }
 
 func (s *vmFakeintakeSuite) TestVM() {
