@@ -10,4 +10,4 @@ enhancements:
   - |
     Inject container tags in instrumentation telemetry payloads
   - |
-    Extract the task_arn tag from container tags and add it as it's own header
+    Extract the `task_arn` tag from container tags and add it as its own header.
