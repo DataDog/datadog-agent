@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package runner
+package endpoint
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ func GetAPIEndpoints(config ddconfig.ConfigReader) (eps []apicfg.Endpoint, err e
 	return getAPIEndpointsWithKeys(config, "https://process.", "process_config.process_dd_url", "process_config.additional_endpoints")
 }
 
-func getEventsAPIEndpoints(config ddconfig.ConfigReader) (eps []apicfg.Endpoint, err error) {
+func GetEventsAPIEndpoints(config ddconfig.ConfigReader) (eps []apicfg.Endpoint, err error) {
 	return getAPIEndpointsWithKeys(config, "https://process-events.", "process_config.events_dd_url", "process_config.events_additional_endpoints")
 }
 

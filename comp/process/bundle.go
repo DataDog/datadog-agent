@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/podcheck"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
@@ -49,6 +50,7 @@ var Bundle = fxutil.Bundle(
 	hostinfo.Module,
 	expvars.Module,
 	apiserver.Module,
+	forwarders.Module,
 
 	core.Bundle,
 )
