@@ -456,6 +456,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
 	msg.tags = append(msg.tags, rule.Tags...)
 	msg.tags = append(msg.tags, event.GetTags()...)
+	msg.tags = append(msg.tags, QueryAccountIdTag())
 
 	a.enqueue(msg)
 }
