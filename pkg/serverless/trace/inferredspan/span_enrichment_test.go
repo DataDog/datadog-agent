@@ -34,7 +34,6 @@ func TestCreateServiceMapping(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(result, expectedOutput), "NewServiceMapping failed, expected %v, got %v", expectedOutput, result)
 }
 
-
 // TestDetermineServiceName checks if the function correctly selects a service name from the map.
 func TestDetermineServiceName(t *testing.T) {
 	serviceMapping := map[string]string{
@@ -100,9 +99,9 @@ func TestRemapsAllInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
 		SetServiceMapping(origServiceMapping)
 	}()
 	newServiceMapping := map[string]string{
-		"apiId_from_event": "ignored-name",
+		"apiId_from_event":   "ignored-name",
 		"lambda_api_gateway": "accepted-name",
-    }
+	}
 	// Set up test case
 	SetServiceMapping(newServiceMapping)
 	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
@@ -534,7 +533,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
 		"example-bucket": "accepted-name",
 	}
 	SetServiceMapping(newServiceMapping)
-	
+
 	// Load the original event
 	var s3Event events.S3Event
 	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Event)

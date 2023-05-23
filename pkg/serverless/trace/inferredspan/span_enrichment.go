@@ -48,8 +48,8 @@ func GetServiceMapping() map[string]string {
 	return serviceMapping
 }
 
-
-func DetermineServiceName(serviceMapping map[string]string, specificKey string, genericKey string, defaultValue string) string{	var serviceName string
+func DetermineServiceName(serviceMapping map[string]string, specificKey string, genericKey string, defaultValue string) string {
+	var serviceName string
 	if val, ok := serviceMapping[specificKey]; ok {
 		serviceName = val
 	} else if val, ok := serviceMapping[genericKey]; ok {
@@ -59,7 +59,6 @@ func DetermineServiceName(serviceMapping map[string]string, specificKey string, 
 	}
 	return serviceName
 }
-
 
 // EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
@@ -297,7 +296,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithDynamoDBEvent(eventPaylo
 	eventRecord := eventPayload.Records[0]
 	parsedTableName := strings.Split(eventRecord.EventSourceArn, "/")[1]
 	eventMessage := eventRecord.Change
-	serviceName := DetermineServiceName(serviceMapping, parsedTableName, "lambda_dynamodb", "dynamodb") 
+	serviceName := DetermineServiceName(serviceMapping, parsedTableName, "lambda_dynamodb", "dynamodb")
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.dynamodb"
 	inferredSpan.Span.Service = serviceName
