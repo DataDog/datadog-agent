@@ -1,6 +1,3 @@
-param (
-    [Parameter(Mandatory=$true)][string]$winget_pat
-)
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
@@ -9,7 +6,7 @@ pip3 install -r requirements.txt
 
 # Update the repo
 winget install --id GitHub.cli
-git clone ("https://robot-github-winget-datadog-agent@{0}:github.com/robot-github-winget-datadog-agent/winget-pkgs.git" -f $winget_pat)
+git clone ("https://robot-github-winget-datadog-agent@{0}:github.com/robot-github-winget-datadog-agent/winget-pkgs.git" -f ${env:WINGET_GITHUB_ACCESS_TOKEN})
 cd winget-pkgs
 gh repo sync -force microsoft/winget-pkgs -b master
 cd ..
