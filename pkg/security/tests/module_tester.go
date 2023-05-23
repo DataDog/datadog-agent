@@ -397,6 +397,12 @@ func assertTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
 }
 
 //nolint:deadcode,unused
+func assertNotTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
+	tb.Helper()
+	return assert.NotEqual(tb, id, r.ID, "wrong triggered rule")
+}
+
+//nolint:deadcode,unused
 func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 	tb.Helper()
 	return assert.Equal(tb, expected, retval, "wrong return value")

@@ -174,9 +174,13 @@ type BitOperation struct {
 type ArithmeticOperation struct {
 	Pos lexer.Position
 
-	BitOperation *BitOperation        `parser:"@@"`
-	Op           *string              `parser:"[ @( \"+\" | \"-\" )"`
-	Next         *ArithmeticOperation `parser:"@@ ]"`
+	First *BitOperation        `parser:"@@"`
+	Rest  []*ArithmeticElement `parser:"[ @@ { @@ } ]"`
+}
+
+type ArithmeticElement struct {
+	Op      string        `parser:"@( \"+\" | \"-\" )"`
+	Operand *BitOperation `parser:"@@"`
 }
 
 // Unary describes an unary operation like logical not, binary not, minus

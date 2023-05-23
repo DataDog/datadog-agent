@@ -474,42 +474,53 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		return unary, obj.Pos, nil
 
 	case *ast.ArithmeticOperation:
-		unary, pos, err = nodeToEvaluator(obj.BitOperation, opts, state)
+		// Process the first operand
+		first, pos, err := nodeToEvaluator(obj.First, opts, state)
 		if err != nil {
 			return nil, pos, err
 		}
-		if obj.Op != nil {
-			currInt, ok := unary.(*IntEvaluator)
-			if !ok {
-				return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Int)
-			}
-			next, pos, err = nodeToEvaluator(obj.Next, opts, state)
+
+		// If it's just one element (is a bitoperation: maybe a string, an int ....)
+		if len(obj.Rest) == 0 {
+			return first, obj.Pos, nil
+		}
+
+		// Else it's an operation, so it must be an int
+		currInt, ok := first.(*IntEvaluator)
+		if !ok {
+			return nil, obj.Pos, NewTypeError(obj.Pos, reflect.Int)
+		}
+
+		// Process the remaining operations and operands
+		for _, arithElem := range obj.Rest {
+			// Handle the operand
+			operand, pos, err := nodeToEvaluator(arithElem.Operand, opts, state)
 			if err != nil {
 				return nil, pos, err
 			}
-			nextInt, ok := next.(*IntEvaluator)
+			operandInt, ok := operand.(*IntEvaluator)
 			if !ok {
 				return nil, pos, NewTypeError(pos, reflect.Int)
 			}
 
-			switch *obj.Op {
+			// Perform the operation on the current and next operands
+			switch arithElem.Op {
 			case "+":
-				IntEvaluator, err := IntPlus(currInt, nextInt, state)
+				currInt, err = IntPlus(currInt, operandInt, state)
 				if err != nil {
 					return nil, pos, err
 				}
-				return IntEvaluator, obj.Pos, nil
 
 			case "-":
-				IntEvaluator, err := IntMinus(currInt, nextInt, state)
+				currInt, err = IntMinus(currInt, operandInt, state)
 				if err != nil {
 					return nil, pos, err
 				}
-				return IntEvaluator, obj.Pos, nil
 			}
-
 		}
-		return unary, obj.Pos, nil
+
+		// Return the final result after processing all operations and operands
+		return currInt, obj.Pos, nil
 
 	case *ast.Comparison:
 		unary, pos, err = nodeToEvaluator(obj.ArithmeticOperation, opts, state)
