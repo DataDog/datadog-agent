@@ -169,9 +169,11 @@ def download_artifacts(run_id, destination="."):
     # Create temp directory to store the artifact zips
     with tempfile.TemporaryDirectory() as tmpdir:
         for artifact in run_artifacts["artifacts"]:
+            print("Artifact:", artifact)
             # Download artifact
             github_workflows = create_or_refresh_macos_build_github_workflows(github_workflows)
             zip_path = github_workflows.download_artifact(artifact["id"], tmpdir)
+            print("Zip path:", zip_path)
 
             # Unzip it in the target destination
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
