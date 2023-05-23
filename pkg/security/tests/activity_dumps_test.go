@@ -44,7 +44,7 @@ func TestActivityDumps(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -383,7 +383,7 @@ func TestActivityDumps(t *testing.T) {
 		defer dockerInstance.stop()
 
 		// check that the dump is still alive
-		time.Sleep((testActivityDumpCgroupDumpTimeout*60 - 20) * time.Second)
+		time.Sleep(testActivityDumpDuration - 20*time.Second)
 		assert.Equal(t, true, test.isDumpRunning(dump))
 
 		// check that the dump has timeouted after the cleanup period (30s) + 2s

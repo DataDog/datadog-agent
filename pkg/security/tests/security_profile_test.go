@@ -45,7 +45,7 @@ func TestSecurityProfile(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -227,7 +227,7 @@ func TestAnomalyDetection(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -409,7 +409,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -418,7 +418,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		securityProfileDir:                  outputDir,
 		securityProfileWatchDir:             true,
 		anomalyDetectionMinimumStablePeriod: 0,
-		anomalyDetectionWarmupPeriod:        17,
+		anomalyDetectionWarmupPeriod:        17 * time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -511,12 +511,12 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	outputDir := t.TempDir()
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
-	reinsertPeriod := 10
+
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -524,7 +524,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		enableSecurityProfile:               true,
 		securityProfileDir:                  outputDir,
 		securityProfileWatchDir:             true,
-		anomalyDetectionMinimumStablePeriod: reinsertPeriod,
+		anomalyDetectionMinimumStablePeriod: 10 * time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)
