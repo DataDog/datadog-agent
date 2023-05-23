@@ -1912,7 +1912,7 @@ api_key:
 
 ## @param dogstatsd_logging_enabled - boolean - optional - default: true
 ## Set to true to write DogstatsD metrics received by the Agent to dogstats_stats log files.
-## Requires `dogstatsd_stats_enable: true` .
+## Requires `dogstatsd_stats_enable: true`.
 #
 # dogstatsd_logging_enabled: true
 
