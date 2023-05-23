@@ -78,13 +78,13 @@ type cliParams struct {
 	// args are the positional command-line arguments
 	args []string
 
-	allowRoot          		  bool
-	verbose            		  int
-	useSysPython       		  bool
-	versionOnly        		  bool
-	localWheel         		  bool
-	thirdParty         		  bool
-	pythonMajorVersion 		  string
+	allowRoot                 bool
+	verbose                   int
+	useSysPython              bool
+	versionOnly               bool
+	localWheel                bool
+	thirdParty                bool
+	pythonMajorVersion        string
 	unsafeDisableVerification bool
 }
 
