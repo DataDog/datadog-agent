@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 
 	pulumiCommand "github.com/pulumi/pulumi-command/sdk/go/command"
-	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
