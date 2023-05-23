@@ -55,9 +55,9 @@ type CheckSubmitter struct {
 	podResults         *api.WeightedQueue
 
 	// Forwarders
-	processForwarder     *forwarder.DefaultForwarder
-	rtProcessForwarder   *forwarder.DefaultForwarder
-	connectionsForwarder *forwarder.DefaultForwarder
+	processForwarder     defaultforwarder.Component
+	rtProcessForwarder   defaultforwarder.Component
+	connectionsForwarder defaultforwarder.Component
 	podForwarder         *forwarder.DefaultForwarder
 	eventForwarder       defaultforwarder.Component
 
@@ -127,16 +127,6 @@ func NewSubmitter(config config.Component, forwarders forwarders.Component, host
 	if err != nil {
 		return nil, err
 	}
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
-	processForwarderOpts.DisableAPIKeyChecking = true
-	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	processForwarder := forwarder.NewDefaultForwarder(config, processForwarderOpts)
-
-	// rt forwarder reuses processForwarder's config
-	rtProcessForwarder := forwarder.NewDefaultForwarder(config, processForwarderOpts)
-
-	// connections forwarder reuses processForwarder's config
-	connectionsForwarder := forwarder.NewDefaultForwarder(config, processForwarderOpts)
 
 	podForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
@@ -156,9 +146,9 @@ func NewSubmitter(config config.Component, forwarders forwarders.Component, host
 		connectionsResults: connectionsResults,
 		podResults:         podResults,
 
-		processForwarder:     processForwarder,
-		rtProcessForwarder:   rtProcessForwarder,
-		connectionsForwarder: connectionsForwarder,
+		processForwarder:     forwarders.GetProcessForwarder(),
+		rtProcessForwarder:   forwarders.GetRTProcessForwarder(),
+		connectionsForwarder: forwarders.GetConnectionsForwarder(),
 		podForwarder:         podForwarder,
 		eventForwarder:       forwarders.GetEventForwarder(),
 

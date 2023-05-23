@@ -24,40 +24,64 @@ type dependencies struct {
 }
 
 type forwarders struct {
-	eventForwarder defaultforwarder.Component
+	eventForwarder       defaultforwarder.Component
+	processForwarder     defaultforwarder.Component
+	rtProcessForwarder   defaultforwarder.Component
+	connectionsForwarder defaultforwarder.Component
 }
 
 func newForwarders(deps dependencies) (Component, error) {
-	queueBytes := deps.Config.GetInt("process_config.process_queue_bytes")
+	config := deps.Config
+	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		deps.Logger.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
 		queueBytes = ddconfig.DefaultProcessQueueBytes
 	}
 
-	eventForwarderOpts, err := createParams(deps.Config, queueBytes)
+	eventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
 
+	eventForwarderOpts := createParams(deps.Config, queueBytes, eventsAPIEndpoints)
+
+	processAPIEndpoints, err := endpoint.GetAPIEndpoints(config)
+	if err != nil {
+		return nil, err
+	}
+
+	processForwarderOpts := createParams(deps.Config, queueBytes, processAPIEndpoints)
+
 	return &forwarders{
-		eventForwarder: defaultforwarder.NewForwarder(deps.Config, eventForwarderOpts),
+		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, eventForwarderOpts),
+		processForwarder:     defaultforwarder.NewForwarder(deps.Config, processForwarderOpts),
+		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, processForwarderOpts),
+		connectionsForwarder: defaultforwarder.NewForwarder(deps.Config, processForwarderOpts),
 	}, nil
 
 }
 
-func createParams(config config.Component, queueBytes int) (defaultforwarder.Params, error) {
-	apiEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
-	if err != nil {
-		return defaultforwarder.Params{}, err
-	}
-	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(apiEndpoints)))
+func createParams(config config.Component, queueBytes int, endpoints []apicfg.Endpoint) defaultforwarder.Params {
+	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints)))
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	return defaultforwarder.Params{Options: forwarderOpts}, nil
+	return defaultforwarder.Params{Options: forwarderOpts}
 }
 
 func (f *forwarders) GetEventForwarder() defaultforwarder.Component {
 	return f.eventForwarder
+}
+
+func (f *forwarders) GetProcessForwarder() defaultforwarder.Component {
+	return f.processForwarder
+}
+
+func (f *forwarders) GetRTProcessForwarder() defaultforwarder.Component {
+	return f.rtProcessForwarder
+}
+
+func (f *forwarders) GetConnectionsForwarder() defaultforwarder.Component {
+	return f.connectionsForwarder
 }
 
 func newMockForwarders(deps dependencies) (Component, error) {

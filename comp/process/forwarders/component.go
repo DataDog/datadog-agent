@@ -17,6 +17,9 @@ import (
 
 type Component interface {
 	GetEventForwarder() defaultforwarder.Component
+	GetProcessForwarder() defaultforwarder.Component
+	GetRTProcessForwarder() defaultforwarder.Component
+	GetConnectionsForwarder() defaultforwarder.Component
 }
 
 // Module defines the fx options for this component.
