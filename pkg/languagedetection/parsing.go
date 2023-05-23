@@ -30,6 +30,10 @@ func parseExeStartWithSymbol(exe string) string {
 }
 
 func getExe(cmd []string) string {
+	if len(cmd) == 0 {
+		return ""
+	}
+
 	exe := cmd[0]
 	// check if all args are packed into the first argument
 	if len(cmd) == 1 {
@@ -53,6 +57,8 @@ func getExe(cmd []string) string {
 	return exe
 }
 
+// removeFilePath removes the base path from the string
+// Note that it's behavior is os dependent
 func removeFilePath(s string) string {
 	if s != "" {
 		return filepath.Base(s)

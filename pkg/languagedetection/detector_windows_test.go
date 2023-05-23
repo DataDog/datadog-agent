@@ -41,3 +41,28 @@ func TestLanguageFromCommandline(t *testing.T) {
 		})
 	}
 }
+
+func TestGetExe(t *testing.T) {
+	type test struct {
+		name     string
+		cmdline  []string
+		expected string
+	}
+
+	for _, tc := range []test{
+		{
+			name:     "windows",
+			cmdline:  []string{"C:\\Program Files\\Python\\python.exe", "test.py"},
+			expected: "python",
+		},
+		{
+			name:     "quotes",
+			cmdline:  []string{"\"C:\\Program Files\\Python\\python.exe\"", "test.py"},
+			expected: "python",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getExe(tc.cmdline))
+		})
+	}
+}

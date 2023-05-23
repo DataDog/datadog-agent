@@ -76,6 +76,41 @@ func TestLanguageFromCommandline(t *testing.T) {
 	}
 }
 
+func TestGetExe(t *testing.T) {
+	type test struct {
+		name     string
+		cmdline  []string
+		expected string
+	}
+
+	for _, tc := range []test{
+		{
+			name:     "blank",
+			cmdline:  []string{},
+			expected: "",
+		},
+		{
+			name:     "python",
+			cmdline:  []string{"/usr/bin/python", "test.py"},
+			expected: "python",
+		},
+		{
+			name:     "numeric ending",
+			cmdline:  []string{"/usr/bin/python3.9", "test.py"},
+			expected: "python3.9",
+		},
+		{
+			name:     "packed args",
+			cmdline:  []string{"java -jar Test.jar"},
+			expected: "java",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getExe(tc.cmdline))
+		})
+	}
+}
+
 func BenchmarkDetectLanguage(b *testing.B) {
 	commands := [][]string{
 		{"Python", "--version"},
