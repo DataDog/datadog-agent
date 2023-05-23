@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -41,7 +40,7 @@ func queryAccountId(ctx context.Context) (string, string, error) {
 				return "", "", fmt.Errorf("could not detect cloud provider account ID: %w", err)
 			}
 
-			log.Infof("Detecting `%s` from %s cloud provider: %+q", inventories.HostCloudProviderAccountID, cloudDetector.name, accountID)
+			log.Infof("Detecting account id from %s cloud provider: %+q", cloudDetector.name, accountID)
 
 			return cloudDetector.accountIdName, accountID, nil
 		}
