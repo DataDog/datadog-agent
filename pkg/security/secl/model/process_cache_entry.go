@@ -44,10 +44,10 @@ func (pc *ProcessContext) GetNextAncestorBinary() *ProcessCacheEntry {
 	current := pc
 	ancestor := pc.Ancestor
 	for ancestor != nil {
-		if ancestor.Inode == 0 {
+		if ancestor.FileEvent.Inode == 0 {
 			return nil
 		}
-		if current.Inode != ancestor.Inode {
+		if current.FileEvent.Inode != ancestor.FileEvent.Inode {
 			return ancestor
 		}
 		current = &ancestor.ProcessContext

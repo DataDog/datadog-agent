@@ -102,6 +102,11 @@ func (m *Monitor) GetActivityDumpManager() *dump.ActivityDumpManager {
 	return m.activityDumpManager
 }
 
+// GetSecurityProfileManager returns the activity dump manager
+func (m *Monitor) GetSecurityProfileManager() *profile.SecurityProfileManager {
+	return m.securityProfileManager
+}
+
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	delta := 1

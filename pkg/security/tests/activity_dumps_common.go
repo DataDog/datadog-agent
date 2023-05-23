@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build functionaltests || stresstests
 
 package tests
 
@@ -12,17 +12,23 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
 // v see test/kitchen/test/integration/security-agent-test/rspec/security-agent-test_spec.rb
-const dedicatedADNodeForTestsEnv = "DEDICATED_ACTIVITY_DUMP_NODE"
+const (
+	dedicatedADNodeForTestsEnv         = "DEDICATED_ACTIVITY_DUMP_NODE"
+	testActivityDumpRateLimiter        = 200
+	testActivityDumpTracedCgroupsCount = 3
+)
 
-const testActivityDumpRateLimiter = 200
-const testActivityDumpTracedCgroupsCount = 3
-const testActivityDumpCgroupDumpTimeout = 11 // probe.MinDumpTimeout(10) + 1
+var (
+	testActivityDumpDuration             = time.Second * 30
+	testActivityDumpLoadControllerPeriod = time.Second * 10
+)
 
 func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string,
 	activityDumpValidator func(ad *dump.ActivityDump) bool,

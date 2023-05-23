@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -37,13 +38,14 @@ func (c *Context) release() {
 
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
-	contextsByKey map[ckey.ContextKey]*Context
-	countsByMtype []uint64
-	tagsCache     *tags.Store
-	keyGenerator  *ckey.KeyGenerator
-	taggerBuffer  *tagset.HashingTagsAccumulator
-	metricBuffer  *tagset.HashingTagsAccumulator
-	limiter       *limiter.Limiter
+	contextsByKey   map[ckey.ContextKey]*Context
+	countsByMtype   []uint64
+	tagsCache       *tags.Store
+	keyGenerator    *ckey.KeyGenerator
+	taggerBuffer    *tagset.HashingTagsAccumulator
+	metricBuffer    *tagset.HashingTagsAccumulator
+	contextsLimiter *limiter.Limiter
+	tagsLimiter     *tags_limiter.Limiter
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -51,15 +53,16 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 	return cr.keyGenerator.GenerateWithTags2(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.taggerBuffer, cr.metricBuffer)
 }
 
-func newContextResolver(cache *tags.Store, limiter *limiter.Limiter) *contextResolver {
+func newContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter) *contextResolver {
 	return &contextResolver{
-		contextsByKey: make(map[ckey.ContextKey]*Context),
-		countsByMtype: make([]uint64, metrics.NumMetricTypes),
-		tagsCache:     cache,
-		keyGenerator:  ckey.NewKeyGenerator(),
-		taggerBuffer:  tagset.NewHashingTagsAccumulator(),
-		metricBuffer:  tagset.NewHashingTagsAccumulator(),
-		limiter:       limiter,
+		contextsByKey:   make(map[ckey.ContextKey]*Context),
+		countsByMtype:   make([]uint64, metrics.NumMetricTypes),
+		tagsCache:       cache,
+		keyGenerator:    ckey.NewKeyGenerator(),
+		taggerBuffer:    tagset.NewHashingTagsAccumulator(),
+		metricBuffer:    tagset.NewHashingTagsAccumulator(),
+		contextsLimiter: contextsLimiter,
+		tagsLimiter:     tagsLimiter,
 	}
 }
 
@@ -72,7 +75,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
-		if !cr.tryAdd() {
+		if !cr.tryAdd(taggerKey) {
 			return contextKey, false
 		}
 
@@ -91,8 +94,11 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	return contextKey, true
 }
 
-func (cr *contextResolver) tryAdd() bool {
-	return cr.limiter.Track(cr.taggerBuffer.Get())
+func (cr *contextResolver) tryAdd(taggerKey ckey.TagsKey) bool {
+	taggerTags := cr.taggerBuffer.Get()
+	metricTags := cr.metricBuffer.Get()
+	// tagsLimiter should come first, contextsLimiter is stateful and successful calls to Track must be paired with Remove.
+	return cr.tagsLimiter.Check(taggerKey, taggerTags, metricTags) && cr.contextsLimiter.Track(taggerTags)
 }
 
 func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {
@@ -111,7 +117,7 @@ func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 
 		if context != nil {
 			cr.countsByMtype[context.mtype]--
-			cr.limiter.Remove(context.taggerTags.Tags())
+			cr.contextsLimiter.Remove(context.taggerTags.Tags())
 			context.release()
 		}
 	}
@@ -154,7 +160,8 @@ func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.
 }
 
 func (c *contextResolver) sendLimiterTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
-	c.limiter.SendTelemetry(timestamp, series, hostname, constTags)
+	c.contextsLimiter.SendTelemetry(timestamp, series, hostname, constTags)
+	c.tagsLimiter.SendTelemetry(timestamp, series, hostname, constTags)
 }
 
 // timestampContextResolver allows tracking and expiring contexts based on time.
@@ -163,9 +170,9 @@ type timestampContextResolver struct {
 	lastSeenByKey map[ckey.ContextKey]float64
 }
 
-func newTimestampContextResolver(cache *tags.Store, limiter *limiter.Limiter) *timestampContextResolver {
+func newTimestampContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver:      newContextResolver(cache, limiter),
+		resolver:      newContextResolver(cache, contextsLimiter, tagsLimiter),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
 	}
 }
@@ -184,7 +191,9 @@ func (cr *timestampContextResolver) updateTrackedContext(contextKey ckey.Context
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *timestampContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext, currentTimestamp float64) (ckey.ContextKey, bool) {
 	contextKey, ok := cr.resolver.trackContext(metricSampleContext)
-	cr.lastSeenByKey[contextKey] = currentTimestamp
+	if ok {
+		cr.lastSeenByKey[contextKey] = currentTimestamp
+	}
 	return contextKey, ok
 }
 
@@ -242,7 +251,7 @@ type countBasedContextResolver struct {
 
 func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(cache, nil),
+		resolver:            newContextResolver(cache, nil, nil),
 		expireCountByKey:    make(map[ckey.ContextKey]int64),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
