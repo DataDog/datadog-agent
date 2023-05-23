@@ -26,4 +26,4 @@ CODE=0
 tar czvf /testjson-$IP.tar.gz /testjson
 tar czvf /junit-$IP.tar.gz /junit
 
-exit $?
+exit $CODE
