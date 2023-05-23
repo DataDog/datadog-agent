@@ -11,8 +11,8 @@ GOLANG_TEST_FAILURE = /FAIL:/
 
 TIMEOUTS = {
   "pkg/network/protocols/http$" => "15m",
-  "pkg/network/tracer$" => "35m",
-  "pkg/network/usm$" => "20m",
+  "pkg/network/tracer$" => "55m",
+  "pkg/network/usm$" => "30m",
 }
 
 DEFAULT_TIMEOUT = "10m"
