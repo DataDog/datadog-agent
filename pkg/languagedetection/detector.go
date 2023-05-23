@@ -15,8 +15,8 @@ import (
 type LanguageName string
 
 const (
-	Python  LanguageName = "Python"
-	Java    LanguageName = "Java"
+	Python  LanguageName = "python"
+	Java    LanguageName = "java"
 	Unknown LanguageName = ""
 )
 
@@ -32,8 +32,8 @@ type languageFromCLI struct {
 
 // knownPrefixes maps languages names to their prefix
 var knownPrefixes = map[string]languageFromCLI{
-	"Python": {name: Python},
-	"Java": {name: Java, validator: func(exe string) bool {
+	"python": {name: Python},
+	"java": {name: Java, validator: func(exe string) bool {
 		if exe == "javac" {
 			return false
 		}

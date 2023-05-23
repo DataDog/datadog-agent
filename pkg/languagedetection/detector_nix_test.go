@@ -104,6 +104,11 @@ func TestGetExe(t *testing.T) {
 			cmdline:  []string{"java -jar Test.jar"},
 			expected: "java",
 		},
+		{
+			name:     "uppercase",
+			cmdline:  []string{"/usr/bin/MyBinary"},
+			expected: "mybinary",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, getExe(tc.cmdline))
