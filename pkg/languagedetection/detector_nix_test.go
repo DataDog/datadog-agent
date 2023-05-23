@@ -30,44 +30,44 @@ func TestLanguageFromCommandline(t *testing.T) {
 		expected LanguageName
 	}{
 		{
-			name:     "python3",
-			cmdline:  []string{"/opt/python/2.7.11/bin/python2.7", "/opt/foo/bar/baz", "--config=asdf"},
-			expected: python,
+			name:     "python2",
+			cmdline:  []string{"/opt/Python/2.7.11/bin/python2.7", "/opt/foo/bar/baz", "--config=asdf"},
+			expected: Python,
 		},
 		{
-			name:     "java",
-			cmdline:  []string{"/usr/bin/java", "-Xfoo=true", "org.elasticsearch.bootstrap.Elasticsearch"},
-			expected: java,
+			name:     "Java",
+			cmdline:  []string{"/usr/bin/Java", "-Xfoo=true", "org.elasticsearch.bootstrap.Elasticsearch"},
+			expected: Java,
 		},
 		{
-			name:     "unknown",
+			name:     "Unknown",
 			cmdline:  []string{"mine-bitcoins", "--all"},
-			expected: unknown,
+			expected: Unknown,
 		},
 		{
-			name:     "python with space and special chars in path",
-			cmdline:  []string{"//..//path/\"\\ to/python", "asdf"},
-			expected: python,
+			name:     "Python with space and special chars in path",
+			cmdline:  []string{"//..//path/\"\\ to/Python", "asdf"},
+			expected: Python,
 		},
 		{
 			name:     "args in first element",
-			cmdline:  []string{"/usr/bin/python myapp.py --config=/etc/mycfg.yaml"},
-			expected: python,
+			cmdline:  []string{"/usr/bin/Python myapp.py --config=/etc/mycfg.yaml"},
+			expected: Python,
 		},
 		{
-			name:     "javac is not java",
-			cmdline:  []string{"javac", "main.java"},
-			expected: unknown,
+			name:     "javac is not Java",
+			cmdline:  []string{"javac", "main.Java"},
+			expected: Unknown,
 		},
 		{
-			name:     "py is python",
+			name:     "py is Python",
 			cmdline:  []string{"py", "test.py"},
-			expected: python,
+			expected: Python,
 		},
 		{
 			name:     "py is not a prefix",
 			cmdline:  []string{"pyret", "main.pyret"},
-			expected: unknown,
+			expected: Unknown,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -78,22 +78,22 @@ func TestLanguageFromCommandline(t *testing.T) {
 
 func BenchmarkDetectLanguage(b *testing.B) {
 	commands := [][]string{
-		{"python", "--version"},
+		{"Python", "--version"},
 		{"python3", "--version"},
 		{"py", "--version"},
-		{"python", "-c", "import platform; print(platform.python_version())"},
+		{"Python", "-c", "import platform; print(platform.python_version())"},
 		{"python3", "-c", "import platform; print(platform.python_version())"},
 		{"py", "-c", "import platform; print(platform.python_version())"},
-		{"python", "-c", "import sys; print(sys.version)"},
+		{"Python", "-c", "import sys; print(sys.version)"},
 		{"python3", "-c", "import sys; print(sys.version)"},
 		{"py", "-c", "import sys; print(sys.version)"},
-		{"python", "-c", "print('Python')"},
+		{"Python", "-c", "print('Python')"},
 		{"python3", "-c", "print('Python')"},
 		{"py", "-c", "print('Python')"},
-		{"java", "-version"},
-		{"java", "-jar", "myapp.jar"},
-		{"java", "-cp", ".", "MyClass"},
-		{"javac", "MyClass.java"},
+		{"Java", "-version"},
+		{"Java", "-jar", "myapp.jar"},
+		{"Java", "-cp", ".", "MyClass"},
+		{"javac", "MyClass.Java"},
 		{"javap", "-c", "MyClass"},
 	}
 

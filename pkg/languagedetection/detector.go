@@ -11,14 +11,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
+// LanguageName is a string enum that represents a detected language name.
 type LanguageName string
 
 const (
-	python  LanguageName = "python"
-	java    LanguageName = "java"
-	unknown LanguageName = ""
+	Python  LanguageName = "Python"
+	Java    LanguageName = "Java"
+	Unknown LanguageName = ""
 )
 
+// Language contains metadata collected from the call to `DetectLanguage`
 type Language struct {
 	Name LanguageName
 }
@@ -30,8 +32,8 @@ type languageFromCLI struct {
 
 // knownPrefixes maps languages names to their prefix
 var knownPrefixes = map[string]languageFromCLI{
-	"python": {name: python},
-	"java": {name: java, validator: func(exe string) bool {
+	"Python": {name: Python},
+	"Java": {name: Java, validator: func(exe string) bool {
 		if exe == "javac" || exe == "javac.exe" {
 			return false
 		}
@@ -41,7 +43,9 @@ var knownPrefixes = map[string]languageFromCLI{
 
 // exactMatches maps an exact exe name match to a prefix
 var exactMatches = map[string]languageFromCLI{
-	"py": {name: python},
+	"py":     {name: Python},
+	"python": {name: Python},
+	"java":   {name: Java},
 }
 
 func languageNameFromCommandLine(cmdline []string) LanguageName {
@@ -64,7 +68,7 @@ func languageNameFromCommandLine(cmdline []string) LanguageName {
 		}
 	}
 
-	return unknown
+	return Unknown
 }
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language

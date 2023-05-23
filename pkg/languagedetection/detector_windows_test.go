@@ -21,19 +21,19 @@ func TestLanguageFromCommandline(t *testing.T) {
 		error    bool
 	}{
 		{
-			name:     "python",
-			cmdline:  []string{"C:\\Program Files\\Python3.9\\python.exe", "test.py"},
-			expected: python,
+			name:     "Python",
+			cmdline:  []string{"C:\\Program Files\\Python3.9\\Python.exe", "test.py"},
+			expected: Python,
 		},
 		{
-			name:     "java",
-			cmdline:  []string{"C:\\Program Files\\Java\\java.exe", "main.java"},
-			expected: java,
+			name:     "Java",
+			cmdline:  []string{"C:\\Program Files\\Java\\Java.exe", "main.Java"},
+			expected: Java,
 		},
 		{
 			name:     "ingore javac",
-			cmdline:  []string{"C:\\Program Files\\Java\\javac.exe", "main.java"},
-			expected: unknown,
+			cmdline:  []string{"C:\\Program Files\\Java\\javac.exe", "main.Java"},
+			expected: Unknown,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

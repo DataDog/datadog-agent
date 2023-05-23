@@ -11,8 +11,8 @@ import (
 	"unicode"
 )
 
-func isRuneLetterAt(s string, position int) bool {
-	return len(s) > position && unicode.IsLetter(rune(s[position]))
+func isRuneAlphanumeric(s string, position int) bool {
+	return len(s) > position && (unicode.IsLetter(rune(s[position])) || unicode.IsNumber(rune(s[position])))
 }
 
 // parseExeStartWithSymbol deals with exe that starts with special chars like "(", "-" or "["
@@ -23,7 +23,7 @@ func parseExeStartWithSymbol(exe string) string {
 	// drop the first character
 	result := exe[1:]
 	// if last character is also special character, also drop it
-	if result != "" && !isRuneLetterAt(result, len(result)-1) {
+	if result != "" && !isRuneAlphanumeric(result, len(result)-1) {
 		result = result[:len(result)-1]
 	}
 	return result
@@ -43,9 +43,13 @@ func getExe(cmd []string) string {
 
 	// Extract executable from commandline args
 	exe = removeFilePath(exe)
-	if !isRuneLetterAt(exe, 0) {
+	if !isRuneAlphanumeric(exe, 0) {
 		exe = parseExeStartWithSymbol(exe)
 	}
+
+	// For windows executables, trim the .exe suffix if there is one
+	exe = strings.TrimSuffix(exe, ".exe")
+
 	return exe
 }
 
