@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/datadog-agent-runner-circle:go1206
+      - image: datadog/agent-buildimages-circleci-runner_test_only:v17615609-607789c
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -59,12 +59,6 @@ jobs:
       - restore_cache: *restore_source
       - restore_cache: *restore_deps
       - run:
-          name: setup python deps
-          command: |
-            python3 -m pip install wheel
-            python3 -m pip install -r requirements.txt
-            python3 -m pip install -r .circleci/requirements.txt
-      - run:
           name: check go version
           command: |
             inv -e check-go-version
@@ -95,7 +89,6 @@ jobs:
             - /go/pkg/mod
             - /go/bin
             - /go/src/github.com/DataDog/datadog-agent/dev
-            - /usr/local/lib/python3.8/dist-packages
             - /usr/local/bin
 
   unit_tests:
