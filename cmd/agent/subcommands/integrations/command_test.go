@@ -37,7 +37,7 @@ func TestInstallSkipVerificationCommand(t *testing.T) {
 		install,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"foo==1.0"}, cliParams.args)
-			require.Equal(t, 1, cliParams.unsafeDisableVerification)
+			require.Equal(t, true, cliParams.unsafeDisableVerification)
 		})
 }
 
