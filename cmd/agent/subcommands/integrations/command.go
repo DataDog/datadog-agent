@@ -522,6 +522,10 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", cliParams.verbose)))
 	}
 
+	if cliParams.unsafeDisableVerification {
+		args = append(args, "--unsafe-disable-verification")
+	}
+
 	downloaderCmd := exec.Command(pyPath, args...)
 
 	// We do all of the following so that when we call our downloader, which will
