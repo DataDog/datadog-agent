@@ -120,19 +120,17 @@ func extractFargateTask(containerTags string) (string, bool) {
 }
 
 func extractTag(tags string, name string) (string, bool) {
-	{
-		leftoverTags := tags
-		for {
-			if leftoverTags == "" {
-				return "", false
-			}
-			var tag string
-			tag, leftoverTags, _ = strings.Cut(leftoverTags, ",")
+	leftoverTags := tags
+	for {
+		if leftoverTags == "" {
+			return "", false
+		}
+		var tag string
+		tag, leftoverTags, _ = strings.Cut(leftoverTags, ",")
 
-			tagName, value, hasValue := strings.Cut(tag, ":")
-			if hasValue && tagName == name {
-				return value, true
-			}
+		tagName, value, hasValue := strings.Cut(tag, ":")
+		if hasValue && tagName == name {
+			return value, true
 		}
 	}
 }
