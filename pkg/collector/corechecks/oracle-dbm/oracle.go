@@ -102,7 +102,7 @@ func (c *Check) Run() error {
 		}
 	}
 
-  if c.dbmEnabled {
+	if c.dbmEnabled {
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
