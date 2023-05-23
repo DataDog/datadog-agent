@@ -28,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
@@ -63,7 +64,7 @@ func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 
 	occurrences := 0
 	require.Eventually(t, func() bool {
-		stats := monitor.GetHTTPStats()
+		stats := monitor.GetProtocolStats()[protocols.Http].(map[http.Key]*http.RequestStats)
 		occurrences += countRequestOccurrences(stats, req)
 		return occurrences == expectedOccurrences
 	}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expectedOccurrences, occurrences)
@@ -108,7 +109,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	// then we are using a variable to check if "we ever found it" among the iterations.
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := monitor.GetHTTPStats()
+		stats := getHttpStats(t, monitor)
 		for req := range abortedRequests {
 			requestNotIncluded(t, stats, req)
 		}
@@ -232,7 +233,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 
 			// Ensure all captured transactions get sent to user-space
 			time.Sleep(10 * time.Millisecond)
-			stats := monitor.GetHTTPStats()
+			stats := getHttpStats(t, monitor)
 
 			if tt.shouldCapture {
 				includesRequest(t, stats, req)
@@ -297,7 +298,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 	}
 
 	time.Sleep(10 * time.Millisecond)
-	stats := monitor.GetHTTPStats()
+	stats := getHttpStats(t, monitor)
 
 	for key := range stats {
 		if key.Method == http.MethodUnknown {
@@ -333,7 +334,7 @@ func TestRSTPacketRegression(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Assert that the HTTP request was correctly handled despite its forceful termination
-	stats := monitor.GetHTTPStats()
+	stats := getHttpStats(t, monitor)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	includesRequest(t, stats, &nethttp.Request{URL: url})
@@ -404,7 +405,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	requestsExist := make([]bool, len(requests))
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := monitor.GetHTTPStats()
+		stats := getHttpStats(t, monitor)
 		for reqIndex, req := range requests {
 			included, err := isRequestIncludedOnce(stats, req)
 			require.NoError(t, err)
@@ -551,6 +552,18 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 		return false, nil
 	}
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
+}
+
+func getHttpStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
+	t.Helper()
+
+	allStats := mon.GetProtocolStats()
+	require.NotNil(t, allStats)
+
+	httpStats, ok := allStats[protocols.Http]
+	require.True(t, ok)
+
+	return httpStats.(map[http.Key]*http.RequestStats)
 }
 
 func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) int {

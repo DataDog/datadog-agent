@@ -11,9 +11,11 @@ import (
 	"errors"
 	"fmt"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -47,7 +49,6 @@ var (
 type Monitor struct {
 	protocols []protocols.Protocol
 
-	httpConsumer    *events.Consumer
 	http2Consumer   *events.Consumer
 	ebpfProgram     *ebpfProgram
 	http2Telemetry  *http.Telemetry
@@ -64,6 +65,8 @@ type Monitor struct {
 	kafkaStatkeeper *kafka.KafkaStatKeeper
 	// termination
 	closeFilterFn func()
+
+	lastUpdateTime *atomic.Int64
 }
 
 // The staticTableEntry represents an entry in the static table that contains an index in the table and a value.
@@ -91,10 +94,11 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
 	}
 
-	enabledProtocols, err := initProtocols(c)
+	enabledProtocols, err := initProtocols(c, mgr)
 	if err != nil {
 		return nil, err
 	}
+	mgr.protocols = enabledProtocols
 
 	if len(enabledProtocols) == 0 {
 		state = Disabled
@@ -119,7 +123,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
-		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
+		return nil, fmt.Errorf("error enabling traffic inspection: %s", err)
 	}
 
 	processMonitor := monitor.GetProcessMonitor()
@@ -155,6 +159,8 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		usmMonitor.kafkaStatkeeper = kafkaStatkeeper
 	}
 
+	usmMonitor.lastUpdateTime = atomic.NewInt64(time.Now().Unix())
+
 	return usmMonitor, nil
 }
 
@@ -179,15 +185,12 @@ func (m *Monitor) Start() error {
 		}
 	}()
 
-	m.httpConsumer, err = events.NewConsumer(
-		"http",
-		m.ebpfProgram.Manager.Manager,
-		m.processHTTP,
-	)
-	if err != nil {
-		return err
+	for _, protocol := range m.protocols {
+		err = protocol.PreStart(m.ebpfProgram.Manager.Manager)
+		if err != nil {
+			return err
+		}
 	}
-	m.httpConsumer.Start()
 
 	if m.http2Enabled {
 		m.http2Consumer, err = events.NewConsumer(
@@ -218,6 +221,10 @@ func (m *Monitor) Start() error {
 		return err
 	}
 
+	for _, protocol := range m.protocols {
+		protocol.PostStart(m.ebpfProgram.Manager.Manager)
+	}
+
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
 	if m.httpTLSEnabled {
 		err = m.processMonitor.Initialize()
@@ -235,22 +242,30 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	}
 
 	if m != nil {
-		response["last_check"] = m.httpTelemetry.LastCheck.Load()
+		response["last_check"] = m.lastUpdateTime
 	}
 	return response
 }
 
-// GetHTTPStats returns a map of HTTP stats stored in the following format:
-// [source, dest tuple, request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[http.Key]*http.RequestStats {
+func (m *Monitor) GetProtocolStats() map[protocols.ProtocolKind]interface{} {
 	if m == nil {
 		return nil
 	}
 
-	defer m.httpTelemetry.Log()
+	defer func() {
+		// Update update time
+		now := time.Now().Unix()
+		m.lastUpdateTime.Swap(now)
+	}()
 
-	m.httpConsumer.Sync()
-	return m.httpStatkeeper.GetAndResetAllStats()
+	ret := make(map[protocols.ProtocolKind]interface{})
+
+	for _, p := range m.protocols {
+		ps := p.GetStats()
+		ret[ps.Kind] = ps.Stats
+	}
+
+	return ret
 }
 
 // GetHTTP2Stats returns a map of HTTP2 stats stored in the following format:
@@ -284,27 +299,27 @@ func (m *Monitor) Stop() {
 		return
 	}
 
+	for _, protocol := range m.protocols {
+		protocol.PreStop(m.ebpfProgram.Manager.Manager)
+	}
+
 	m.processMonitor.Stop()
 	m.ebpfProgram.Close()
 
-	m.httpConsumer.Stop()
 	if m.http2Enabled {
 		m.http2Consumer.Stop()
 	}
 	if m.kafkaEnabled {
 		m.kafkaConsumer.Stop()
 	}
-	m.httpStatkeeper.Close()
 	if m.http2Statkeeper != nil {
 		m.http2Statkeeper.Close()
 	}
 	m.closeFilterFn()
-}
 
-func (m *Monitor) processHTTP(data []byte) {
-	tx := (*http.EbpfHttpTx)(unsafe.Pointer(&data[0]))
-	m.httpTelemetry.Count(tx)
-	m.httpStatkeeper.Process(tx)
+	for _, protocol := range m.protocols {
+		protocol.PostStop(m.ebpfProgram.Manager.Manager)
+	}
 }
 
 func (m *Monitor) processHTTP2(data []byte) {
@@ -421,17 +436,25 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 	return nil
 }
 
-func initProtocols(c *config.Config) ([]protocols.Protocol, error) {
-	enabledProtocols := make([]protocols.Protocol, 5)
+func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, error) {
+	enabledProtocols := make([]protocols.Protocol, 0)
 
-	for _, factory := range protocols.KnownProtocols {
-		protocol, err := factory(c)
+	for _, spec := range protocols.KnownProtocols {
+		protocol, err := spec.Factory(c)
 		if err != nil {
 			return nil, &errNotSupported{err}
 		}
 
 		if protocol != nil {
+			// Configure the manager
+			mgr.Maps = append(mgr.Maps, spec.Maps...)
+			mgr.tailCallRouter = append(mgr.tailCallRouter, spec.TailCalls...)
+
 			enabledProtocols = append(enabledProtocols, protocol)
+		} else {
+			// TODO: exclude functions
+			// opts.ExcludedFunctions = append(opts.ExcludedFunctions, spec.Probes...)
+			// opts.ExcludedFunctions = append(opts.ExcludedFunctions, spec.TailCalls...)
 		}
 	}
 

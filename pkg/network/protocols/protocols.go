@@ -8,7 +8,14 @@
 
 package protocols
 
-import "github.com/DataDog/datadog-agent/pkg/network/config"
+import (
+	"strings"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+)
 
 type ProtocolKind uint8
 
@@ -16,27 +23,54 @@ const (
 	Http ProtocolKind = iota
 )
 
+const ProtocolDispatcherProgramsMap = "protocols_progs"
+
 type EbpfProgram interface {
-	// ConfigureEbpfManager() error
+	ConfigureOptions(*manager.Manager, *manager.Options)
 
-	// PreStart()
-	// PostStart()
+	PreStart(*manager.Manager) error
+	PostStart(*manager.Manager)
 
-	// PreStop()
-	// PostStop()
+	PreStop(*manager.Manager)
+	PostStop(*manager.Manager)
+
+	DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map)
 }
 
-// type Protocol[K comparable, V any] interface {
+type ProtocolStats struct {
+	Kind  ProtocolKind
+	Stats interface{}
+}
+
 type Protocol interface {
 	EbpfProgram
-	// GetStats() map[K]V
+	GetStats() *ProtocolStats
 }
 
 type protocolFactory func(*config.Config) (Protocol, error)
-type protocolFactoriesMap map[ProtocolKind]protocolFactory
+type ProtocolSpec struct {
+	Factory   protocolFactory
+	Maps      []*manager.Map
+	TailCalls []manager.TailCallRoute
+}
+type protocolSpecsMap map[ProtocolKind]ProtocolSpec
 
-var KnownProtocols = make(protocolFactoriesMap)
+var KnownProtocols = make(protocolSpecsMap)
 
-func RegisterProtocolFactory(protocolKind ProtocolKind, factory protocolFactory) {
-	KnownProtocols[protocolKind] = factory
+func RegisterProtocol(protocolKind ProtocolKind, spec ProtocolSpec) {
+	KnownProtocols[protocolKind] = spec
+}
+
+func AddBoolConst(options *manager.Options, flag bool, name string) {
+	val := uint64(1)
+	if !flag {
+		val = uint64(0)
+	}
+
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  name,
+			Value: val,
+		},
+	)
 }

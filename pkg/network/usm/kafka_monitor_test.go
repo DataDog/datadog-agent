@@ -308,7 +308,7 @@ func TestKafkaProtocolParsing(t *testing.T) {
 
 				occurrences := 0
 				require.Eventually(t, func() bool {
-					httpStats := monitor.GetHTTPStats()
+					httpStats := getHttpStats(t, monitor)
 					occurrences += countRequestOccurrences(httpStats, req)
 					return occurrences == expectedOccurrences
 				}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expectedOccurrences, occurrences)
