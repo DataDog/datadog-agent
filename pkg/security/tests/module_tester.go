@@ -2146,3 +2146,35 @@ func WalkActivityTree(at *activity_tree.ActivityTree, walkFunc func(node *Proces
 	}
 	return result
 }
+
+func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupModel.WorkloadSelector, error) {
+	ad, err := tm.getADFromDumpId(dumpID)
+	if err != nil {
+		return nil, err
+	}
+
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+	return &selector, err
+}
+
+func (tm *testModule) SetProfileStatus(selector *cgroupModel.WorkloadSelector, newStatus model.Status) error {
+	monitor := tm.probe.GetMonitor()
+	if monitor == nil {
+		return errors.New("No monitor")
+	}
+
+	spm := monitor.GetSecurityProfileManager()
+	if spm == nil {
+		return errors.New("No security profile manager")
+	}
+
+	profile := spm.GetProfile(*selector)
+	if profile == nil || profile.Status == 0 {
+		return errors.New("No profile found for given selector")
+	}
+
+	profile.Lock()
+	profile.Status = newStatus
+	profile.Unlock()
+	return nil
+}

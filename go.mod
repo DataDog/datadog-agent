@@ -33,6 +33,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
+	github.com/Datadog/datadog-agent/pkg/gohai => ./pkg/gohai
 )
 
 require (
@@ -42,6 +43,7 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.0
 	github.com/DataDog/agent-payload/v5 v5.0.82
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
+	github.com/DataDog/datadog-agent/pkg/gohai v0.0.0-20230512151819-dfebac949c96
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.45.0-rc.3
@@ -55,7 +57,6 @@ require (
 	github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c
 	github.com/DataDog/go-libddwaf v1.0.0
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
-	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.0
@@ -177,7 +178,7 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/streadway/amqp v1.0.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.1.8
 	github.com/twmb/murmur3 v1.1.6
