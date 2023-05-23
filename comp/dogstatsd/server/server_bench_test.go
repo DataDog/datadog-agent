@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -17,16 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
 
-func mockDemultiplexer() aggregator.Demultiplexer {
-	return mockDemultiplexerWithFlushInterval(time.Millisecond * 10)
+func mockDemultiplexer(log log.Component) aggregator.Demultiplexer {
+	return mockDemultiplexerWithFlushInterval(log, time.Millisecond*10)
 }
 
-func mockDemultiplexerWithFlushInterval(d time.Duration) aggregator.Demultiplexer {
+func mockDemultiplexerWithFlushInterval(log log.Component, d time.Duration) aggregator.Demultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = d
 	opts.DontStartForwarders = true
 	forwarder := forwarder.NewDefaultForwarder(config.Datadog, forwarder.NewOptions(config.Datadog, nil))
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
+
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, "hostname")
 	return demux
 }
 
@@ -49,7 +51,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	demux := aggregator.InitTestAgentDemultiplexer()
+	demux := aggregator.InitTestAgentDemultiplexer(deps.Log)
 	defer demux.Stop(false)
 	_ = s.Start(demux)
 	defer s.Stop()
@@ -98,7 +100,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	demux := aggregator.InitTestAgentDemultiplexer()
+	demux := aggregator.InitTestAgentDemultiplexer(deps.Log)
 	_ = s.Start(demux)
 	defer s.Stop()
 
@@ -151,7 +153,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	config.SetupLogger("", "off", "", "", false, true, false)
 
-	demux := aggregator.InitTestAgentDemultiplexer()
+	demux := aggregator.InitTestAgentDemultiplexer(deps.Log)
 	_ = s.Start(demux)
 	defer s.Stop()
 

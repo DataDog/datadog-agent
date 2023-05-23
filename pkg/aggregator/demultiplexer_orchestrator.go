@@ -8,10 +8,11 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orch "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 )
 
-func buildOrchestratorForwarder() defaultforwarder.Forwarder {
-	return orch.NewOrchestratorForwarder()
+func buildOrchestratorForwarder(log log.Component) defaultforwarder.Forwarder {
+	return orch.NewOrchestratorForwarder(log)
 }

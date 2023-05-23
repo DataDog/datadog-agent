@@ -8,12 +8,14 @@ package aggregator
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func benchmarkAddBucket(bucketValue int64, b *testing.B) {
@@ -25,7 +27,8 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, forwarderOpts)
-	demux := InitAndStartAgentDemultiplexer(sharedForwarder, options, "hostname")
+	log := fxutil.Test[log.Component](b, log.MockModule)
+	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, options, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
