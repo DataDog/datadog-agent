@@ -6,7 +6,6 @@
 package systemProbe
 
 import (
-	"bufio"
 	"context"
 	_ "embed"
 	"fmt"
@@ -19,12 +18,13 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/command"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
+	pulumiCommand "github.com/pulumi/pulumi-command/sdk/go/command"
+	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/sethvargo/go-retry"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 
-	pulumiCommand "github.com/pulumi/pulumi-command/sdk/go/command"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -74,14 +74,12 @@ func outputsToFile(output auto.OutputMap) error {
 	}
 	defer f.Close()
 
-	w := bufio.NewWriter(f)
-
 	for key, value := range output {
-		fmt.Fprintf(w, "%s %s\n", key, value.Value.(string))
+		if _, err := f.WriteString(fmt.Sprintf("%s %s\n", key, value.Value.(string))); err != nil {
+			return fmt.Errorf("write string: %s", err)
+		}
 	}
-	w.Flush()
-
-	return nil
+	return f.Sync()
 }
 
 func GetEnv(key, fallback string) string {
