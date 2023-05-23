@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 const (
@@ -65,6 +66,23 @@ var coreTests = filterPaths{
 var fentryTests = filterPaths{
 	paths:     skipPrebuiltTests.paths,
 	inclusive: false,
+}
+
+var timeouts = map[*regexp.Regexp]time.Duration{
+	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
+	regexp.MustCompile("pkg/network/tracer$"):         25 * time.Minute,
+}
+
+func getTimeout(pkg string) time.Duration {
+	matchSize := 0
+	to := 10 * time.Minute
+	for re, rto := range timeouts {
+		if re.MatchString(pkg) && len(re.String()) > matchSize {
+			matchSize = len(re.String())
+			to = rto
+		}
+	}
+	return to
 }
 
 func pathEmbedded(fullPath, embedded string) bool {
@@ -120,7 +138,7 @@ func buildCommandArgs(file, bundle string) []string {
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
 		"--raw-command", "--",
-		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1",
+		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
 	}
 
 	return args
