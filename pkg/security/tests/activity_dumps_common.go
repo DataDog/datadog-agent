@@ -22,7 +22,7 @@ const dedicatedADNodeForTestsEnv = "DEDICATED_ACTIVITY_DUMP_NODE"
 
 const testActivityDumpRateLimiter = 200
 const testActivityDumpTracedCgroupsCount = 3
-const testActivityDumpCgroupDumpTimeout = 11 // probe.MinDumpTimeout(10) + 1
+const testActivityDumpCgroupDumpTimeout = 11 * 60 // probe.MinDumpTimeout(10) + 1
 
 func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string,
 	activityDumpValidator func(ad *dump.ActivityDump) bool,
