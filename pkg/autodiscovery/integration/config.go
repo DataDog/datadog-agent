@@ -112,6 +112,7 @@ type CommonInstanceConfig struct {
 	Service               string   `yaml:"service"`
 	Name                  string   `yaml:"name"`
 	Namespace             string   `yaml:"namespace"`
+	NoIndex               bool     `yaml:"no_index"`
 }
 
 // CommonGlobalConfig holds the reserved fields for the yaml init_config data

@@ -65,6 +65,7 @@ AGENT_CORECHECKS = [
     "winkmem",
     "winproc",
     "jetson",
+    "openmetrics",
 ]
 
 IOT_AGENT_CORECHECKS = [
