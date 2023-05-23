@@ -1,8 +1,18 @@
+param (
+    [Parameter(Mandatory=$true)][string]$winget_pat
+)
 $ErrorActionPreference = 'Stop';
 Set-Location c:\mnt
 
 # Install dev tools, including invoke
 pip3 install -r requirements.txt
+
+# Update the repo
+winget install --id GitHub.cli
+git clone ("https://robot-github-winget-datadog-agent@{0}:github.com/robot-github-winget-datadog-agent/winget-pkgs.git" -f $winget_pat)
+cd winget-pkgs
+gh repo sync -force microsoft/winget-pkgs -b master
+cd ..
 
 $rawAgentVersion = (inv agent.version)
 Write-Host "Detected agent version ${rawAgentVersion}"
