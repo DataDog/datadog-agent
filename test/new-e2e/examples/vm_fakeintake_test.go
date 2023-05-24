@@ -35,11 +35,10 @@ func (s *vmFakeintakeSuite) TestVM() {
 }
 
 func (s *vmFakeintakeSuite) TestAgent() {
-	output := s.Env().Agent.Status()
-
-	require.Contains(s.T(), output.Content, "Getting the status from the agent")
 	err := s.Env().Agent.WaitForReady()
 	require.NoError(s.T(), err)
+	output := s.Env().Agent.Status()
+	require.Contains(s.T(), output.Content, "Getting the status from the agent")
 	isReady, err := s.Env().Agent.IsReady()
 	require.NoError(s.T(), err)
 	assert.True(s.T(), isReady, "Agent is not ready")
