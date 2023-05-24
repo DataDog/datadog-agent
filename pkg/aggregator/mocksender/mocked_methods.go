@@ -96,6 +96,10 @@ func (m *MockSender) SetCheckService(service string) {
 	m.Called(service)
 }
 
+func (m *MockSender) SetNoIndex(noIndex bool) {
+	m.Called(noIndex)
+}
+
 // FinalizeCheckServiceTag enables the sending of check service tag mock call.
 func (m *MockSender) FinalizeCheckServiceTag() {
 	m.Called()

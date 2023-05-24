@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var testActivityDumpCleanupPeriod = 15 * time.Second
+
 func TestActivityDumps(t *testing.T) {
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
@@ -44,11 +46,12 @@ func TestActivityDumps(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -293,24 +296,24 @@ func TestActivityDumps(t *testing.T) {
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
-			var exitOK, execveOK bool
+			var exitOK, bindOK bool
 			for _, node := range nodes {
 				for _, s := range node.Syscalls {
 					if s == int(model.SysExit) || s == int(model.SysExitGroup) {
 						exitOK = true
 					}
-					if s == int(model.SysExecve) || s == int(model.SysExecveat) {
-						execveOK = true
+					if s == int(model.SysBind) {
+						bindOK = true
 					}
 				}
 			}
 			if !exitOK {
 				t.Errorf("exit syscall not found in activity dump")
 			}
-			if !execveOK {
-				t.Errorf("execve syscall not found in activity dump")
+			if !bindOK {
+				t.Errorf("bind syscall not found in activity dump")
 			}
-			return exitOK && execveOK
+			return exitOK && bindOK
 		}, nil)
 	})
 
@@ -383,11 +386,11 @@ func TestActivityDumps(t *testing.T) {
 		defer dockerInstance.stop()
 
 		// check that the dump is still alive
-		time.Sleep((testActivityDumpCgroupDumpTimeout*60 - 20) * time.Second)
+		time.Sleep(testActivityDumpDuration - 10*time.Second)
 		assert.Equal(t, true, test.isDumpRunning(dump))
 
-		// check that the dump has timeouted after the cleanup period (30s) + 2s
-		time.Sleep(1 * time.Minute)
+		// check that the dump has timeouted after the cleanup period + 10s + 2s
+		time.Sleep(testActivityDumpCleanupPeriod + 12*time.Second)
 		assert.Equal(t, false, test.isDumpRunning(dump))
 	})
 

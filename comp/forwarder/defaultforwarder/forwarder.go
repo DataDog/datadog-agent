@@ -17,10 +17,14 @@ type dependencies struct {
 }
 
 func newForwarder(dep dependencies) Component {
-	if dep.Params.UseNoopForwarder {
+	return NewForwarder(dep.Config, dep.Params)
+}
+
+func NewForwarder(config config.Component, params Params) Component {
+	if params.UseNoopForwarder {
 		return NoopForwarder{}
 	}
-	return NewDefaultForwarder(dep.Config, dep.Params.Options)
+	return NewDefaultForwarder(config, params.Options)
 }
 
 func newMockForwarder(config config.Component) Component {

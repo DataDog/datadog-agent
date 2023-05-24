@@ -264,7 +264,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 				return
 			}
 			for _, rule := range benchmark.Rules {
-				events := EvaluateXCCDFRule(ctx, a.opts.Hostname, benchmark, rule)
+				events := EvaluateXCCDFRule(ctx, a.opts.Hostname, a.opts.StatsdClient, benchmark, rule)
 				a.reportEvents(ctx, benchmark, events)
 				if sleepAborted(ctx, throttler.C) {
 					return

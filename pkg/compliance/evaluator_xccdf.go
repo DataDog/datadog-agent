@@ -20,9 +20,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -183,15 +186,15 @@ func (p *oscapIO) Stop() {
 	close(p.ErrorCh)
 }
 
-func EvaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmark, rule *Rule) []*CheckEvent {
+func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	if !rule.IsXCCDF() {
 		log.Errorf("given rule is not an XCCDF rule %s", rule.ID)
 		return nil
 	}
-	return evaluateXCCDFRule(ctx, hostname, benchmark, rule, rule.InputSpecs[0].XCCDF)
+	return evaluateXCCDFRule(ctx, hostname, statsdClient, benchmark, rule, rule.InputSpecs[0].XCCDF)
 }
 
-func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmark, rule *Rule, spec *InputSpecXCCDF) []*CheckEvent {
+func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule, spec *InputSpecXCCDF) []*CheckEvent {
 	oscapIOsMu.Lock()
 	file := filepath.Join(benchmark.dirname, spec.Name)
 	p := oscapIOs[file]
@@ -216,6 +219,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmar
 		reqs = append(reqs, &oscapIORule{Profile: spec.Profile, Rule: spec.Rule})
 	}
 
+	start := time.Now()
 	for _, req := range reqs {
 		select {
 		case <-ctx.Done():
@@ -256,6 +260,20 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, benchmark *Benchmar
 			if event != nil {
 				events = append(events, event)
 			}
+		}
+	}
+
+	if statsdClient != nil {
+		tags := []string{
+			"rule_id:" + rule.ID,
+			"rule_input_type:xccdf",
+			"agent_version:" + version.AgentVersion,
+		}
+		if err := statsdClient.Count(metrics.MetricInputsHits, int64(len(reqs)), tags, 1.0); err != nil {
+			log.Errorf("failed to send input metric: %v", err)
+		}
+		if err := statsdClient.Timing(metrics.MetricInputsDuration, time.Since(start), tags, 1.0); err != nil {
+			log.Errorf("failed to send input metric: %v", err)
 		}
 	}
 
