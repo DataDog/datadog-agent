@@ -13,7 +13,7 @@
     - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
-      -m 4096M
+      -m 8192M
       -v "$(Get-Location):c:\mnt"
       -e CI_JOB_ID=${CI_JOB_ID}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
@@ -100,7 +100,7 @@ windows_zip_agent_binaries_x64-a7:
     - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
-      -m 4096M
+      -m 8192M
       -v "$(Get-Location):c:\mnt"
       -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
       -e OMNIBUS_TARGET=${OMNIBUS_TARGET}

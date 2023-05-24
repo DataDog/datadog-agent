@@ -16,14 +16,18 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -51,11 +55,11 @@ type CheckSubmitter struct {
 	podResults         *api.WeightedQueue
 
 	// Forwarders
-	processForwarder     *forwarder.DefaultForwarder
-	rtProcessForwarder   *forwarder.DefaultForwarder
-	connectionsForwarder *forwarder.DefaultForwarder
+	processForwarder     defaultforwarder.Component
+	rtProcessForwarder   defaultforwarder.Component
+	connectionsForwarder defaultforwarder.Component
 	podForwarder         *forwarder.DefaultForwarder
-	eventForwarder       *forwarder.DefaultForwarder
+	eventForwarder       defaultforwarder.Component
 
 	orchestrator *oconfig.OrchestratorConfig
 	hostname     string
@@ -75,7 +79,7 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 }
 
-func NewSubmitter(config config.Component, hostname string) (*CheckSubmitter, error) {
+func NewSubmitter(config config.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
@@ -119,34 +123,20 @@ func NewSubmitter(config config.Component, hostname string) (*CheckSubmitter, er
 	status.UpdateDropCheckPayloads(dropCheckPayloads)
 
 	// Forwarder initialization
-	processAPIEndpoints, err := GetAPIEndpoints(config)
+	processAPIEndpoints, err := endpoint.GetAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
-	processForwarderOpts.DisableAPIKeyChecking = true
-	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	processForwarder := forwarder.NewDefaultForwarder(config, processForwarderOpts)
-
-	// rt forwarder reuses processForwarder's config
-	rtProcessForwarder := forwarder.NewDefaultForwarder(config, processForwarderOpts)
-
-	// connections forwarder reuses processForwarder's config
-	connectionsForwarder := forwarder.NewDefaultForwarder(config, processForwarderOpts)
 
 	podForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(config, podForwarderOpts)
 
-	processEventsAPIEndpoints, err := getEventsAPIEndpoints(config)
+	processEventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
-	eventForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processEventsAPIEndpoints)))
-	eventForwarderOpts.DisableAPIKeyChecking = true
-	eventForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	eventForwarder := forwarder.NewDefaultForwarder(config, eventForwarderOpts)
 
 	printStartMessage(hostname, processAPIEndpoints, processEventsAPIEndpoints, orchestrator.OrchestratorEndpoints)
 	return &CheckSubmitter{
@@ -156,11 +146,11 @@ func NewSubmitter(config config.Component, hostname string) (*CheckSubmitter, er
 		connectionsResults: connectionsResults,
 		podResults:         podResults,
 
-		processForwarder:     processForwarder,
-		rtProcessForwarder:   rtProcessForwarder,
-		connectionsForwarder: connectionsForwarder,
+		processForwarder:     forwarders.GetProcessForwarder(),
+		rtProcessForwarder:   forwarders.GetRTProcessForwarder(),
+		connectionsForwarder: forwarders.GetConnectionsForwarder(),
 		podForwarder:         podForwarder,
-		eventForwarder:       eventForwarder,
+		eventForwarder:       forwarders.GetEventForwarder(),
 
 		orchestrator: orchestrator,
 		hostname:     hostname,

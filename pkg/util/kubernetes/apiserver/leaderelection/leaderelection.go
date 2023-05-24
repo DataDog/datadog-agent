@@ -15,15 +15,13 @@ import (
 	"sync"
 	"time"
 
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/discovery"
 	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -59,7 +57,6 @@ type LeaderEngine struct {
 	ServiceName         string
 	leaderIdentityMutex sync.RWMutex
 	leaderElector       *leaderelection.LeaderElector
-	lockType            string
 
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
@@ -140,21 +137,16 @@ func (le *LeaderEngine) init() error {
 	}
 
 	le.coreClient = apiClient.Cl.CoreV1()
-	le.coordClient = apiClient.Cl.CoordinationV1()
+	// Will be required once we migrate to Kubernetes deps >= 0.24
+	le.coordClient = nil
 
-	usingLease, err := CanUseLease(apiClient.DiscoveryCl)
-	if err != nil {
-		log.Errorf("Unable to retrieve available resources: %v", err)
+	// check if we can get ConfigMap.
+	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
+	if err != nil && errors.IsNotFound(err) == false {
+		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", le.LeaderNamespace, err)
 		return err
 	}
-	if usingLease {
-		log.Debugf("leader election will use Leases to store the leader token")
-		le.lockType = rl.LeasesResourceLock
-	} else {
-		// for kubernetes <= 1.13
-		log.Debugf("leader election will use ConfigMaps to store the leader token")
-		le.lockType = configmaplock.ConfigMapsResourceLock
-	}
+
 	le.leaderElector, err = le.newElection()
 	if err != nil {
 		log.Errorf("Could not initialize the Leader Election process: %s", err)
@@ -260,37 +252,18 @@ func (le *LeaderEngine) Subscribe() <-chan struct{} {
 	return c
 }
 
-func CanUseLease(client discovery.DiscoveryInterface) (bool, error) {
-	resourceList, err := client.ServerResourcesForGroupVersion("coordination.k8s.io/v1")
-	if kerrors.IsNotFound(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	for _, actualResource := range resourceList.APIResources {
-		if actualResource.Name == "leases" {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface) (rl.LeaderElectionRecord, error) {
-	var empty rl.LeaderElectionRecord
-	lease, err := client.Leases(common.GetResourcesNamespace()).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
-	if err != nil {
-		return empty, err
-	}
-	log.Debugf("LeaderElection lease is %#v", lease)
-	record := rl.LeaseSpecToLeaderElectionRecord(&lease.Spec)
-	return *record, nil
-}
-
-func getConfigMapLeaderElectionRecord(client corev1.CoreV1Interface) (rl.LeaderElectionRecord, error) {
+// GetLeaderElectionRecord is used in for the Flare and for the Status commands.
+func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error) {
 	var led rl.LeaderElectionRecord
-	leaderElectionCM, err := client.ConfigMaps(common.GetResourcesNamespace()).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
+	client, err := apiserver.GetAPIClient()
+	if err != nil {
+		return led, err
+	}
+
+	c := client.Cl.CoreV1()
+
+	leaderNamespace := common.GetResourcesNamespace()
+	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}
@@ -304,21 +277,4 @@ func getConfigMapLeaderElectionRecord(client corev1.CoreV1Interface) (rl.LeaderE
 		return led, err
 	}
 	return led, nil
-}
-
-// GetLeaderElectionRecord is used in for the Flare and for the Status commands.
-func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error) {
-	var led rl.LeaderElectionRecord
-	client, err := apiserver.GetAPIClient()
-	if err != nil {
-		return led, err
-	}
-	usingLease, err := CanUseLease(client.DiscoveryCl)
-	if err != nil {
-		return led, err
-	}
-	if usingLease {
-		return getLeaseLeaderElectionRecord(client.Cl.CoordinationV1())
-	}
-	return getConfigMapLeaderElectionRecord(client.Cl.CoreV1())
 }

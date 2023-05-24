@@ -191,7 +191,6 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
     event->pid_entry.fork_timestamp = ts;
 
-    bpf_get_current_comm(event->proc_entry.comm, sizeof(event->proc_entry.comm));
     struct process_context_t *on_stack_process = &event->process;
     fill_process_context(on_stack_process);
     fill_span_context(&event->span);
@@ -222,7 +221,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         struct proc_cache_t *parent_pc = get_proc_from_cookie(on_stack_cookie);
         if (parent_pc) {
             fill_container_context(parent_pc, &event->container);
-            copy_proc_entry_except_comm(&parent_pc->entry, &event->proc_entry);
+            copy_proc_entry(&parent_pc->entry, &event->proc_entry);
         }
     }
 
@@ -614,41 +613,83 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
 
     bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
-    if (pid_entry) {
-        u32 cookie = pid_entry->cookie;
-        struct proc_cache_t *pc = bpf_map_lookup_elem(&proc_cache, &cookie);
-        if (pc) {
-            struct process_event_t *event = new_process_event(0);
-            if (event == NULL) {
-                return 0;
-            }
+    struct proc_cache_t pc = {
+        .entry = {
+            .executable = {
+                .path_key = {
+                    .ino = syscall->exec.file.path_key.ino,
+                    .mount_id = syscall->exec.file.path_key.mount_id,
+                    .path_id = syscall->exec.file.path_key.path_id,
+                },
+                .flags = syscall->exec.file.flags
+            },
+            .exec_timestamp = bpf_ktime_get_ns(),
+        },
+        .container = {},
+    };
+    fill_file_metadata(syscall->exec.dentry, &pc.entry.executable.metadata);
+    bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
 
-            // copy proc_cache data
-            fill_container_context(pc, &event->container);
-            copy_proc_entry_except_comm(&pc->entry, &event->proc_entry);
-            bpf_get_current_comm(&event->proc_entry.comm, sizeof(event->proc_entry.comm));
-
-            // copy pid_cache entry data
-            copy_pid_cache_except_exit_ts(pid_entry, &event->pid_entry);
-
-            // add pid / tid context
-            struct process_context_t *on_stack_process = &event->process;
-            fill_process_context(on_stack_process);
-
-            copy_span_context(&syscall->exec.span_context, &event->span);
-            fill_args_envs(event, syscall);
-
-            // [activity_dump] check if this process should be traced
-            should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);
-
-            // add interpreter path info
-            event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
-
-            // send the entry to maintain userspace cache
-            send_event_ptr(ctx, EVENT_EXEC, event);
+    // select the previous cookie entry in cache of the current process
+    // (this entry was created by the fork of the current process)
+    struct pid_cache_t *fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+    if (fork_entry) {
+        // Fetch the parent proc cache entry
+        u32 parent_cookie = fork_entry->cookie;
+        struct proc_cache_t *parent_pc = get_proc_from_cookie(parent_cookie);
+        if (parent_pc) {
+            // inherit the parent container context
+            fill_container_context(parent_pc, &pc.container);
         }
     }
+
+    // Insert new proc cache entry (Note: do not move the order of this block with the previous one, we need to inherit
+    // the container ID before saving the entry in proc_cache. Modifying entry after insertion won't work.)
+    u32 cookie = bpf_get_prandom_u32();
+    bpf_map_update_elem(&proc_cache, &cookie, &pc, BPF_ANY);
+
+    // update pid <-> cookie mapping
+    if (fork_entry) {
+        fork_entry->cookie = cookie;
+    } else {
+        struct pid_cache_t new_pid_entry = {
+            .cookie = cookie,
+        };
+        bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_ANY);
+        fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+        if (fork_entry == NULL) {
+            // should never happen, ignore
+            return 0;
+        }
+    }
+
+    struct process_event_t *event = new_process_event(0);
+    if (event == NULL) {
+        return 0;
+    }
+
+    // copy proc_cache data
+    fill_container_context(&pc, &event->container);
+    copy_proc_entry(&pc.entry, &event->proc_entry);
+
+    // copy pid_cache entry data
+    copy_pid_cache_except_exit_ts(fork_entry, &event->pid_entry);
+
+    // add pid / tid context
+    struct process_context_t *on_stack_process = &event->process;
+    fill_process_context(on_stack_process);
+
+    copy_span_context(&syscall->exec.span_context, &event->span);
+    fill_args_envs(event, syscall);
+
+    // [activity_dump] check if this process should be traced
+    should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);
+
+    // add interpreter path info
+    event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
+
+    // send the entry to maintain userspace cache
+    send_event_ptr(ctx, EVENT_EXEC, event);
 
     return 0;
 }

@@ -39,6 +39,8 @@
              InstallPrivileges="elevated"
              Compressed="yes" />
 
+    <Condition Message="This application is only supported on Windows Server 2012 or Windows 8.1, and later."><![CDATA[(((VersionNT64 >= 602 AND WindowsBuild >= 9200) AND MsiNTProductType >= 2) OR ((VersionNT64 >= 603 AND WindowsBuild >= 9600) AND MsiNTProductType = 1))]]></Condition>
+
     <!-- This removes entirely the previous version -->
     <Upgrade Id="$(var.UpgradeCode)">
         <UpgradeVersion OnlyDetect='no'
