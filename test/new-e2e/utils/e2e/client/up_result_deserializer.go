@@ -6,6 +6,8 @@
 package client
 
 import (
+	"testing"
+
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
@@ -16,11 +18,11 @@ type clientService[T any] interface {
 }
 
 type clientServiceInitializer[T any] interface {
-	initService(*T) error
+	initService(*testing.T, *T) error
 }
 
 // UpResultDeserializer is an helper to build a new type that can be used in an environment.
-// It is designed to be used as an embeded field.
+// It is designed to be used as an embedded field.
 // See VM type in this package for an example of usage.
 type UpResultDeserializer[T any] struct {
 	initializer  clientServiceInitializer[T]
@@ -39,10 +41,10 @@ func NewUpResultDeserializer[T any](
 	}
 }
 
-func (d *UpResultDeserializer[T]) setStack(stackResult auto.UpResult) error {
+func (d *UpResultDeserializer[T]) setStack(t *testing.T, stackResult auto.UpResult) error {
 	value, err := d.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err
 	}
-	return d.initializer.initService(value)
+	return d.initializer.initService(t, value)
 }

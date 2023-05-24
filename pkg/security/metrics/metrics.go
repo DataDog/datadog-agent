@@ -76,6 +76,12 @@ var (
 	// MetricEventDiscarded is the number of event discarded
 	// Tags: discarder_type, event_type
 	MetricEventDiscarded = newRuntimeMetric(".discarders.event_discarded")
+	// MetricApproverAdded is the number of approvers added
+	// Tags: approver_type, event_type
+	MetricApproverAdded = newRuntimeMetric(".approvers.approver_added")
+	// MetricEventApproved is the number of events approved
+	// Tags: approver_type, event_type
+	MetricEventApproved = newRuntimeMetric(".approvers.event_approved")
 
 	// Perf buffer metrics
 
@@ -248,7 +254,7 @@ var (
 	// Tags: - event_type
 	MetricSecurityProfileAnomalyDetectionSent = newRuntimeMetric(".security_profile.anomaly_detection.sent")
 	// MetricSecurityProfileEventFiltering
-	// Tags: - event_type, in_profile ('true', 'false', 'no_profile' or 'unstable_profile')
+	// Tags: - event_type, profile_state ('no_profile', 'unstable', 'stable', 'auto_learning', 'workload_warmup'), in_profile ('true', 'false' or none)
 	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
 
 	// Namespace resolver metrics

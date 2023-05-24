@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -28,7 +27,7 @@ import (
 const (
 	maxRouteCacheSize       = int(^uint(0) >> 1) // max int
 	maxSubnetCacheSize      = 1024
-	gatewayLookupModuleName = "gateway_lookup"
+	gatewayLookupModuleName = "network_tracer__gateway_lookup"
 )
 
 // Telemetry

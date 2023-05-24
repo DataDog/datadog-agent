@@ -101,6 +101,7 @@ const (
 	AgentLogsEnabled                    AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                    AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                     AgentMetadataName = "feature_apm_enabled"
+	AgentIMDSv2Enabled                  AgentMetadataName = "feature_imdsv2_enabled"
 
 	// Those are reserved fields for the agentMetadata payload.
 	agentProvidedConf AgentMetadataName = "provided_configuration"
@@ -111,7 +112,7 @@ const (
 	HostCloudProvider          AgentMetadataName = "cloud_provider"
 	HostCloudProviderSource    AgentMetadataName = "cloud_provider_source"
 	HostCloudProviderAccountID AgentMetadataName = "cloud_provider_account_id"
-	HostCloudProviderID        AgentMetadataName = "cloud_provider_host_id"
+	HostCloudProviderHostID    AgentMetadataName = "cloud_provider_host_id"
 )
 
 // Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed
@@ -425,7 +426,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
 	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
-	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("network_config.enable_http_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
 	SetAgentMetadata(AgentUSMKafkaEnabled, config.Datadog.GetBool("data_streams_config.enabled"))
 	SetAgentMetadata(AgentRemoteConfigEnabled, config.Datadog.GetBool("remote_configuration.enabled"))
@@ -437,6 +438,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
+	SetAgentMetadata(AgentIMDSv2Enabled, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	// NOTE: until otlp config stabilizes, we set AgentOTLPEnabled in cmd/agent/app/run.go
 	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
 	// case like that, we should move otlp.IsEnabled to pkg/config/otlp

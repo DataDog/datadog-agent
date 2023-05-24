@@ -4,19 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && kubeapiserver
-// +build !windows,kubeapiserver
 
 package start
 
 import (
 	"context"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
-	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
-	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -26,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"k8s.io/client-go/dynamic"
 )
 
 const (
@@ -81,7 +78,10 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 	stopper.Add(ctx)
 
 	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-	reporter, err := event.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
+	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
+	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+
+	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	if err != nil {
 		return err
 	}
@@ -89,36 +89,27 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 	runner := runner.NewRunner()
 	stopper.Add(runner)
 
-	scheduler := scheduler.NewScheduler(runner.GetChan())
-	runner.SetScheduler(scheduler)
-
-	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
-	checkMaxEvents := coreconfig.Datadog.GetInt("compliance_config.check_max_events_per_run")
-	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
-
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
 	}
-	agent, err := agent.New(
-		reporter,
-		scheduler,
-		configDir,
-		endpoints,
-		checks.WithInterval(checkInterval),
-		checks.WithMaxEvents(checkMaxEvents),
-		checks.WithHostname(hname),
-		checks.WithMatchRule(func(rule *compliance.RuleCommon) bool {
-			return rule.Scope.Includes(compliance.KubernetesClusterScope)
-		}),
-		checks.WithKubernetesClient(apiCl.DynamicCl, ""),
-		checks.WithIsLeader(isLeader),
-		checks.WithConfigDir(configDir),
-	)
-	if err != nil {
-		return err
-	}
-	err = agent.Run()
+
+	agent := compliance.NewAgent(compliance.AgentOptions{
+		ConfigDir:     configDir,
+		Reporter:      reporter,
+		CheckInterval: checkInterval,
+		RuleFilter: func(rule *compliance.Rule) bool {
+			return rule.HasScope(compliance.KubernetesClusterScope)
+		},
+		ResolverOptions: compliance.ResolverOptions{
+			Hostname:           hname,
+			HostRoot:           os.Getenv("HOST_ROOT"),
+			DockerProvider:     compliance.DefaultDockerProvider,
+			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
+			KubernetesProvider: wrapKubernetesClient(apiCl.DynamicCl, isLeader),
+		},
+	})
+	err = agent.Start()
 	if err != nil {
 		return log.Errorf("Error starting compliance agent, exiting: %v", err)
 	}
@@ -126,4 +117,13 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 
 	log.Infof("Running compliance checks every %s", checkInterval.String())
 	return nil
+}
+
+func wrapKubernetesClient(client dynamic.Interface, isLeader func() bool) compliance.KubernetesProvider {
+	return func(ctx context.Context) (dynamic.Interface, error) {
+		if isLeader() {
+			return client, nil
+		}
+		return nil, compliance.ErrIncompatibleEnvironment
+	}
 }

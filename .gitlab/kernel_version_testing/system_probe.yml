@@ -33,7 +33,7 @@ pull_test_dockers_arm64:
   stage: kernel_matrix_testing
   rules:
     !reference [.on_system_probe_changes_or_manual]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["runner:main"]
   script:
     # Build dependencies directory

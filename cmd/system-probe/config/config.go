@@ -26,6 +26,7 @@ const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace = "system_probe_config"
 	spNS      = Namespace
+	netNS     = "network_config"
 	smNS      = "service_monitoring_config"
 	dsmNS     = "data_streams_config"
 	diNS      = "dynamic_instrumentation"
@@ -154,6 +155,8 @@ func load() (*Config, error) {
 		cfg.Set("log_file", c.LogFile)
 	}
 
+	handleBackwardCompatibilityForUsmConfig(cfg)
+
 	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {
 		log.Warn("Overriding the configured connections count per message limit because it exceeds maximum")
 		c.MaxConnsPerMessage = defaultConnsMessageBatchSize
@@ -259,4 +262,17 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		return err
 	}
 	return nil
+}
+
+func handleBackwardCompatibilityForUsmConfig(cfg aconfig.Config) {
+	// This code block handles the backward compatibility logic for the enable_http_monitoring configuration value
+	deprecatedEnableHttpMonitoringKey := key(netNS, "enable_http_monitoring")
+	if cfg.IsSet(deprecatedEnableHttpMonitoringKey) {
+		enableHttpMonitoringKey := key(smNS, "enable_http_monitoring")
+		log.Infof("%q is deprecated, use %q instead",
+			deprecatedEnableHttpMonitoringKey, enableHttpMonitoringKey)
+		if !cfg.IsSet(enableHttpMonitoringKey) {
+			cfg.Set(enableHttpMonitoringKey, cfg.GetBool(deprecatedEnableHttpMonitoringKey))
+		}
+	}
 }

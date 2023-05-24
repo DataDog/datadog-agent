@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package connection
 
 import (
 	"sync"
 	"time"
+	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -27,8 +27,8 @@ var closerConsumerTelemetry = struct {
 	perfReceived telemetry.Counter
 	perfLost     telemetry.Counter
 }{
-	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_received", []string{}, "Counter measuring the number of closed connection batches received"),
-	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_lost", []string{}, "Counter measuring the number of batches lost (were transmitted from ebpf but never received)"),
+	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_received", []string{}, "Counter measuring the number of closed connections received"),
+	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_lost", []string{}, "Counter measuring the number of connections lost (were transmitted from ebpf but never received)"),
 }
 
 type tcpCloseConsumer struct {
@@ -69,6 +69,13 @@ func (c *tcpCloseConsumer) Stop() {
 	})
 }
 
+func (c *tcpCloseConsumer) extractConn(data []byte) {
+	ct := (*netebpf.Conn)(unsafe.Pointer(&data[0]))
+	conn := c.buffer.Next()
+	populateConnStats(conn, &ct.Tup, &ct.Conn_stats)
+	updateTCPStats(conn, ct.Conn_stats.Cookie, &ct.Tcp_stats)
+}
+
 func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	if c == nil {
 		return
@@ -76,8 +83,8 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 
 	var (
 		then        time.Time = time.Now()
-		closedCount int
-		lostCount   int
+		closedCount uint64
+		lostCount   uint64
 	)
 	go func() {
 		for {
@@ -87,10 +94,20 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 					return
 				}
 
-				closerConsumerTelemetry.perfReceived.Inc()
-				batch := netebpf.ToBatch(batchData.Data)
-				c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
-				closedCount += c.buffer.Len()
+				l := len(batchData.Data)
+				switch {
+				case l >= netebpf.SizeofBatch:
+					batch := netebpf.ToBatch(batchData.Data)
+					c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
+				case l >= netebpf.SizeofConn:
+					c.extractConn(batchData.Data)
+				default:
+					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d or %d", len(batchData.Data), netebpf.SizeofConn, netebpf.SizeofBatch)
+					continue
+				}
+
+				closerConsumerTelemetry.perfReceived.Add(float64(c.buffer.Len()))
+				closedCount += uint64(c.buffer.Len())
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
 				batchData.Done()
@@ -98,8 +115,8 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
-				closerConsumerTelemetry.perfLost.Add(float64(lc))
-				lostCount += netebpf.BatchSize
+				closerConsumerTelemetry.perfLost.Add(float64(lc * netebpf.BatchSize))
+				lostCount += lc * netebpf.BatchSize
 			case request, ok := <-c.requests:
 				if !ok {
 					return
@@ -110,7 +127,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				callback(oneTimeBuffer.Connections())
 				close(request)
 
-				closedCount += oneTimeBuffer.Len()
+				closedCount += uint64(oneTimeBuffer.Len())
 				now := time.Now()
 				elapsed := now.Sub(then)
 				then = now

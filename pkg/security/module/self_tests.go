@@ -34,7 +34,7 @@ func NewSelfTestEvent(success []string, fails []string) (*rules.Rule, *events.Cu
 	}
 	evt.FillCustomEventCommonFields()
 
-	return events.NewCustomRule(events.SelfTestRuleID),
+	return events.NewCustomRule(events.SelfTestRuleID, events.SelfTestRuleDesc),
 		events.NewCustomEvent(model.CustomSelfTestEventType, evt)
 }
 
@@ -51,5 +51,5 @@ func ReportSelfTest(sender EventSender, statsdClient statsd.ClientInterface, suc
 
 	// send the custom event with the list of succeed and failed self tests
 	rule, event := NewSelfTestEvent(success, fails)
-	sender.SendEvent(rule, event, func() []string { return nil }, "")
+	sender.SendEvent(rule, event, nil, "")
 }
