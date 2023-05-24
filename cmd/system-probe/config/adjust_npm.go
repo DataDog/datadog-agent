@@ -39,7 +39,7 @@ func adjustNetwork(cfg config.Config) {
 
 	if runtime.GOOS == "windows" {
 		validateInt(cfg, spNS("closed_connection_flush_threshold"), 0, func(v int) error {
-			if v < 1024 {
+			if v != 0 && v < 1024 {
 				return fmt.Errorf("closed connection notification threshold set to invalid value %d. resetting to default", v)
 			}
 			return nil
