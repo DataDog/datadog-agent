@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package module
+package common
 
 import (
 	"context"
@@ -26,9 +26,9 @@ type cloudProviderDetector struct {
 
 func queryAccountId(ctx context.Context) (string, string, error) {
 	detectors := []cloudProviderDetector{
-		{name: ec2.CloudProviderName, accountIdName: "cws_account_id", callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
-		{name: gce.CloudProviderName, accountIdName: "cws_project_id", callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
-		{name: azure.CloudProviderName, accountIdName: "cws_subscription_id", callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
+		{name: ec2.CloudProviderName, accountIdName: "aws_account", callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
+		{name: gce.CloudProviderName, accountIdName: "project_id", callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
+		{name: azure.CloudProviderName, accountIdName: "subscription_id", callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
 	}
 
 	for _, cloudDetector := range detectors {
