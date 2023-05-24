@@ -520,6 +520,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		}
 
 		// Return the final result after processing all operations and operands
+		currInt.isFromArithmeticOperation = true
 		return currInt, obj.Pos, nil
 
 	case *ast.Comparison:
@@ -929,31 +930,73 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				switch nextInt := next.(type) {
 				case *IntEvaluator:
 					if nextInt.isDuration {
-						switch *obj.ScalarComparison.Op {
-						case "<":
-							boolEvaluator, err = DurationLesserThan(unary, nextInt, state)
-							if err != nil {
-								return nil, obj.Pos, err
+						if unary.isFromArithmeticOperation {
+							switch *obj.ScalarComparison.Op {
+							case "<":
+								boolEvaluator, err = DurationLesserThanArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case "<=":
+								boolEvaluator, err = DurationLesserOrEqualThanArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case ">":
+								boolEvaluator, err = DurationGreaterThanArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case ">=":
+								boolEvaluator, err = DurationGreaterOrEqualThanArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case "==":
+								boolEvaluator, err = DurationEqualArithmeticOperation(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
 							}
-							return boolEvaluator, obj.Pos, nil
-						case "<=":
-							boolEvaluator, err = DurationLesserOrEqualThan(unary, nextInt, state)
-							if err != nil {
-								return nil, obj.Pos, err
+
+						} else {
+							switch *obj.ScalarComparison.Op {
+							case "<":
+								boolEvaluator, err = DurationLesserThan(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case "<=":
+								boolEvaluator, err = DurationLesserOrEqualThan(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case ">":
+								boolEvaluator, err = DurationGreaterThan(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case ">=":
+								boolEvaluator, err = DurationGreaterOrEqualThan(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
+							case "==":
+								boolEvaluator, err = DurationEqual(unary, nextInt, state)
+								if err != nil {
+									return nil, obj.Pos, err
+								}
+								return boolEvaluator, obj.Pos, nil
 							}
-							return boolEvaluator, obj.Pos, nil
-						case ">":
-							boolEvaluator, err = DurationGreaterThan(unary, nextInt, state)
-							if err != nil {
-								return nil, obj.Pos, err
-							}
-							return boolEvaluator, obj.Pos, nil
-						case ">=":
-							boolEvaluator, err = DurationGreaterOrEqualThan(unary, nextInt, state)
-							if err != nil {
-								return nil, obj.Pos, err
-							}
-							return boolEvaluator, obj.Pos, nil
 						}
 					} else {
 						switch *obj.ScalarComparison.Op {

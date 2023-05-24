@@ -111,7 +111,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 
 		ctx := NewContext(nil)
 		_ = ctx
-
+		
 		return &{{ .FuncReturnType }}{
 			Value: {{ call .Op "ea" "eb" }},
 			isDeterministic: isDc,
@@ -273,6 +273,12 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 		}
 	}
 
+	durationCompareArithmeticOperation := func(op string) func(a string, b string) string {
+		return func(a string, b string) string {
+			return fmt.Sprintf("int64(%s) %s int64(%s)", a, op, b)
+		}
+	}
+
 	durationCompare := func(op string) func(a string, b string) string {
 		return func(a string, b string) string {
 			return fmt.Sprintf("ctx.Now().UnixNano() - int64(%s) %s int64(%s)", a, op, b)
@@ -417,6 +423,60 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             durationCompare(">="),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationEqual",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompare("=="),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationLesserThanArithmeticOperation",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompareArithmeticOperation("<"),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationLesserOrEqualThanArithmeticOperation",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompareArithmeticOperation("<="),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationGreaterThanArithmeticOperation",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompareArithmeticOperation(">"),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationGreaterOrEqualThanArithmeticOperation",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompareArithmeticOperation(">="),
+				ValueType:      "ScalarValueType",
+			},
+			{
+				FuncName:       "DurationEqualArithmeticOperation",
+				Arg1Type:       "IntEvaluator",
+				Arg2Type:       "IntEvaluator",
+				FuncReturnType: "BoolEvaluator",
+				EvalReturnType: "bool",
+				Op:             durationCompareArithmeticOperation("=="),
 				ValueType:      "ScalarValueType",
 			},
 		},

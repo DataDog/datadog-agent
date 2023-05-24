@@ -1041,6 +1041,432 @@ func DurationGreaterOrEqualThan(a *IntEvaluator, b *IntEvaluator, state *State) 
 	}, nil
 }
 
+func DurationEqual(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
+
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return ctx.Now().UnixNano()-int64(ea(ctx)) == int64(eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		ctx := NewContext(nil)
+		_ = ctx
+
+		return &BoolEvaluator{
+			Value:           ctx.Now().UnixNano()-int64(ea) == int64(eb),
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) bool {
+			return ctx.Now().UnixNano()-int64(ea(ctx)) == int64(eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		return ctx.Now().UnixNano()-int64(ea) == int64(eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
+func DurationLesserThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
+
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) < int64(eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		ctx := NewContext(nil)
+		_ = ctx
+
+		return &BoolEvaluator{
+			Value:           int64(ea) < int64(eb),
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) < int64(eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		return int64(ea) < int64(eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
+func DurationLesserOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
+
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) <= int64(eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		ctx := NewContext(nil)
+		_ = ctx
+
+		return &BoolEvaluator{
+			Value:           int64(ea) <= int64(eb),
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) <= int64(eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		return int64(ea) <= int64(eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
+func DurationGreaterThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
+
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) > int64(eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		ctx := NewContext(nil)
+		_ = ctx
+
+		return &BoolEvaluator{
+			Value:           int64(ea) > int64(eb),
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) > int64(eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		return int64(ea) > int64(eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
+func DurationGreaterOrEqualThanArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
+
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) >= int64(eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		ctx := NewContext(nil)
+		_ = ctx
+
+		return &BoolEvaluator{
+			Value:           int64(ea) >= int64(eb),
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) >= int64(eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		return int64(ea) >= int64(eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
+func DurationEqualArithmeticOperation(a *IntEvaluator, b *IntEvaluator, state *State) (*BoolEvaluator, error) {
+
+	isDc := isArithmDeterministic(a, b, state)
+
+	if a.Field != "" {
+		if err := state.UpdateFieldValues(a.Field, FieldValue{Value: b.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if b.Field != "" {
+		if err := state.UpdateFieldValues(b.Field, FieldValue{Value: a.Value, Type: ScalarValueType}); err != nil {
+			return nil, err
+		}
+	}
+
+	if a.EvalFnc != nil && b.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.EvalFnc
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) == int64(eb(ctx))
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Weight:          a.Weight + b.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc == nil && b.EvalFnc == nil {
+		ea, eb := a.Value, b.Value
+
+		ctx := NewContext(nil)
+		_ = ctx
+
+		return &BoolEvaluator{
+			Value:           int64(ea) == int64(eb),
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	if a.EvalFnc != nil {
+		ea, eb := a.EvalFnc, b.Value
+
+		evalFnc := func(ctx *Context) bool {
+			return int64(ea(ctx)) == int64(eb)
+		}
+
+		return &BoolEvaluator{
+			EvalFnc:         evalFnc,
+			Field:           a.Field,
+			Weight:          a.Weight,
+			isDeterministic: isDc,
+		}, nil
+	}
+
+	ea, eb := a.Value, b.EvalFnc
+
+	evalFnc := func(ctx *Context) bool {
+		return int64(ea) == int64(eb(ctx))
+	}
+
+	return &BoolEvaluator{
+		EvalFnc:         evalFnc,
+		Field:           b.Field,
+		Weight:          b.Weight,
+		isDeterministic: isDc,
+	}, nil
+}
+
 func IntArrayEquals(a *IntEvaluator, b *IntArrayEvaluator, state *State) (*BoolEvaluator, error) {
 
 	isDc := isArithmDeterministic(a, b, state)

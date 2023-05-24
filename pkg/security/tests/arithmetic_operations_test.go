@@ -31,6 +31,14 @@ func TestArithmeticOperation(t *testing.T) {
 			ID:         "test_with_parentheses",
 			Expression: `1 - 2 + 3 - (1 - 4) - (1 + 4) == 0 && exec.comm in ["pwd"]`,
 		},
+		{
+			ID:         "test_with_time",
+			Expression: `10s + 40s == 50s && exec.comm in ["cat"]`,
+		},
+		{
+			ID:         "test_with_time_2",
+			Expression: `process.created_at < 5s && exec.comm in ["grep"]`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
@@ -75,6 +83,26 @@ func TestArithmeticOperation(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_with_parentheses")
+		})
+	})
+
+	t.Run("test_with_time", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command("cat")
+			cmd.Run()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_with_time")
+		})
+	})
+
+	t.Run("test_with_time_2", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command("grep")
+			cmd.Run()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_with_time_2")
 		})
 	})
 }
