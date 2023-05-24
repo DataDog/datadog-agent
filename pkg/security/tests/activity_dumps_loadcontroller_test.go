@@ -132,29 +132,42 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	defer dockerInstance.stop()
 
 	for activeEventTypes := activitydump.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
-		// add all event types to the dump
-		test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
-		time.Sleep(time.Second * 3)
-		// trigger reducer
-		test.triggerLoadControllerReducer(dockerInstance, dump)
-		// find the new dump
-		nextDump, err := test.findNextPartialDump(dockerInstance, dump)
-		if err != nil {
-			t.Fatal(err)
+		testName := ""
+		for i, activeEventType := range activeEventTypes {
+			if i > 0 {
+				testName += "-"
+			}
+			testName += activeEventType.String()
 		}
+		if testName == "" {
+			testName = "none"
+		}
+		t.Run(testName, func(t *testing.T) {
+			// add all event types to the dump
+			test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
+			time.Sleep(time.Second * 3)
+			// trigger reducer
+			test.triggerLoadControllerReducer(dockerInstance, dump)
+			// find the new dump
+			nextDump, err := test.findNextPartialDump(dockerInstance, dump)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		// extract all present event types present on the first dump
-		presentEventTypes, err := test.extractAllDumpEventTypes(dump)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !isEventTypesStringSlicesEqual(activeEventTypes, presentEventTypes) {
-			t.Fatalf("Dump's event types are different as expected (%v) vs (%v)", activeEventTypes, presentEventTypes)
-		}
+			// extract all present event types present on the first dump
+			presentEventTypes, err := test.extractAllDumpEventTypes(dump)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !isEventTypesStringSlicesEqual(activeEventTypes, presentEventTypes) {
+				t.Fatalf("Dump's event types are different as expected (%v) vs (%v)", activeEventTypes, presentEventTypes)
+			}
+			dump = nextDump
+		})
+
 		if len(activeEventTypes) == 0 {
 			break
 		}
-		dump = nextDump
 	}
 }
 
