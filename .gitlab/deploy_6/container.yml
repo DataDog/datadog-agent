@@ -14,6 +14,7 @@
   stage: deploy6
   dependencies: []
   before_script:
+    - source /root/.bashrc
     - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv -e agent.version --major-version 6 --url-safe)"; fi
     - export IMG_SOURCES="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6${JMX}-arm64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${JMX}"

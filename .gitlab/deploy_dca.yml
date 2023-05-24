@@ -14,6 +14,7 @@
   stage: deploy_dca
   dependencies: []
   before_script:
+    - source /root/.bashrc
     - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv -e agent.version --major-version 7 --url-safe)"; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi
     - export IMG_BASE_SRC="${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
