@@ -10,6 +10,7 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"io"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -83,6 +84,7 @@ func (agg *Aggregator[P]) GetNames() []string {
 	for name := range agg.payloadsByName {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
 }
 
