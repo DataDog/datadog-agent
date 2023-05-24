@@ -332,7 +332,7 @@ func (p *Probe) sendAnomalyDetection(event *model.Event) {
 	}
 
 	p.DispatchCustomEvent(
-		events.NewCustomRule(events.AnomalyDetectionRuleID),
+		events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc),
 		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 	)
 	p.anomalyDetectionSent[event.GetEventType()].Inc()
