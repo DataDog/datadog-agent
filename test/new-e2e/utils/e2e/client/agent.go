@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/cenkalti/backoff"
 )
 
