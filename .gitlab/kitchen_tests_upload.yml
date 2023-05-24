@@ -3,10 +3,12 @@ kitchen_tests_upload_common:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   allow_failure: true
-  when: manual
-  dependencies:
-    - kitchen_centos_fips_install_script_agent-a7
-    - kitchen_debian_install_script_agent-a7_x64
+  when: always
+  needs:
+    - job : kitchen_centos_fips_install_script_agent-a7
+      artifacts: true
+    - job : kitchen_debian_install_script_agent-a7_x64
+      artifacts: true
   variables:
     DD_ENV: ci
   script:
