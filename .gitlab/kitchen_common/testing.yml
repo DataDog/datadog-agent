@@ -8,7 +8,7 @@
     when: always
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
-      - $CI_PROJECT_DIR/kitchen-rspec-*.xml
+      - **/kitchen-rspec-*.xml
   retry: 1
 
 # Kitchen: providers
