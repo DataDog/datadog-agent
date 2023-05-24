@@ -899,6 +899,71 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "inject all error - bad json",
+			pod: fakePodWithAnnotations(map[string]string{
+				// TODO: we might not want to be injecting the libraries if the config is malformed
+				"admission.datadoghq.com/all-lib.version":   "latest",
+				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "RUBYOPT",
+					Value: " -r/datadog-lib/auto_inject",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar",
+				},
+				{
+					Name:  "DD_DOTNET_TRACER_HOME",
+					Value: "/datadog-lib",
+				},
+				{
+					Name:  "CORECLR_ENABLE_PROFILING",
+					Value: "1",
+				},
+				{
+					Name:  "CORECLR_PROFILER",
+					Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+				},
+				{
+					Name:  "CORECLR_PROFILER_PATH",
+					Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
+				},
+				{
+					Name:  "DD_TRACE_LOG_DIRECTORY",
+					Value: "/datadog-lib/logs",
+				},
+				{
+					Name:  "LD_PRELOAD",
+					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "inject java bad json",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/java-lib.version":   "latest",
+				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar",
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
