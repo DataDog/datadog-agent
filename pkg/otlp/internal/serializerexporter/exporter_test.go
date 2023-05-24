@@ -57,8 +57,8 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 	const (
 		histogramMetricName        = "test.histogram"
 		numberMetricName           = "test.gauge"
-		histogramRuntimeMetricName = "process.runtime.test.histogram"
-		numberRuntimeMetricName    = "process.runtime.test.gauge"
+		histogramRuntimeMetricName = "process.runtime.dotnet.exceptions.count"
+		numberRuntimeMetricName    = "process.runtime.go.goroutines"
 	)
 	tests := []struct {
 		name           string
@@ -126,7 +126,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			),
 		},
 		{
-			name: "no tags",
+			name: "runtime metrics, no tags",
 			genMetrics: func(t *testing.T) pmetric.Metrics {
 				h := pmetric.NewHistogramDataPoint()
 				h.BucketCounts().FromRaw([]uint64{100})

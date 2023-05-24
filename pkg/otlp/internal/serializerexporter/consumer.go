@@ -127,7 +127,7 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 		c.series = append(c.series, &metrics.Serie{
 			Name:           "datadog.agent.otlp.runtime_metrics",
 			Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
-			Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("language: %v", lang)}),
+			Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("language:%v", lang)}),
 			Host:           hostname,
 			MType:          metrics.APIGaugeType,
 			SourceTypeName: "System",
