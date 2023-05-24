@@ -4,11 +4,12 @@ kitchen_tests_upload_common:
   tags: ["runner:main"]
   allow_failure: true
   when: manual
-  needs: []
   variables:
     DD_ENV: ci
   script:
-    # pack all xml into a tar
+    - set +e
+    - find . -name "kitchen-rspec-*.xml"
+    - set -e
     - tar -czvf kitchen-rspec-common.tar.gz -C $CI_PROJECT_DIR/test/kitchen/ $CI_PROJECT_DIR/test/kitchen/kitchen-rspec-*.xml 
     - set +x
     - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
