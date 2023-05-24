@@ -29,7 +29,7 @@ func TestArithmeticOperation(t *testing.T) {
 		},
 		{
 			ID:         "test_with_parentheses",
-			Expression: `1 - 2 + 3 - (1 - 4) - (1 + 4) == 0 && exec.comm in ["pwd"]`,
+			Expression: `1 - 2 + 3 - (1 - 4) - (1 - 5) == 9 && exec.comm in ["pwd"]`,
 		},
 		{
 			ID:         "test_with_time",
@@ -38,6 +38,10 @@ func TestArithmeticOperation(t *testing.T) {
 		{
 			ID:         "test_with_time_2",
 			Expression: `process.created_at < 5s && exec.comm in ["grep"]`,
+		},
+		{
+			ID:         "test_with_time_3",
+			Expression: `event.timestamp - process.created_at + 3s <= 5s && exec.comm in ["echo"]`,
 		},
 	}
 
@@ -103,6 +107,16 @@ func TestArithmeticOperation(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_with_time_2")
+		})
+	})
+
+	t.Run("test_with_time_3", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			cmd := exec.Command("echo")
+			cmd.Run()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_with_time_3")
 		})
 	})
 }
