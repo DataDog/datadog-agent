@@ -81,30 +81,35 @@ func fieldIsValue(fieldTy reflect.StructField) bool {
 // fieldIsExportable checks if a field can be exported by AsJSON.
 //
 // A field can be exported if it has type Value, it is exported by the struct and has a json tag.
-// The function returns whether a field can be exported as well as its json tag if so.
-func fieldIsExportable(fieldTy reflect.StructField) (string, bool) {
+// The function the json tag, the suffix tag and whether the field can be exported.
+//
+// The returned strings are only valid if the field is exportable.
+func fieldIsExportable(fieldTy reflect.StructField) (string, string, bool) {
 	// check if field has type Value
 	if !fieldIsValue(fieldTy) {
-		return "", false
+		return "", "", false
 	}
 
 	// check if field is exported
 	if !fieldTy.IsExported() {
-		return "", false
+		return "", "", false
 	}
 
 	// check if field has a json tag
 	fieldName, ok := fieldTy.Tag.Lookup("json")
 	if !ok {
-		return "", false
+		return "", "", false
 	}
 
-	return fieldName, true
+	// Get returns an empty string if the key does not exists
+	suffix := fieldTy.Tag.Get("suffix")
+
+	return fieldName, suffix, true
 }
 
 // renderValue converts the given value to a string, and return a boolean indicating
 // whether it succeeded
-func renderValue(value reflect.Value) (string, bool) {
+func renderValue(value reflect.Value, suffix string) (string, bool) {
 	var rendered string
 	switch value.Kind() {
 	// case reflect.Bool:
@@ -150,7 +155,7 @@ func renderValue(value reflect.Value) (string, bool) {
 		return "", false
 	}
 
-	return rendered, true
+	return fmt.Sprintf("%s%s", rendered, suffix), true
 }
 
 // AsJSON takes an Info struct and returns a marshal-able object representing the fields of the struct,
@@ -176,7 +181,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 	errors := []error{}
 
 	for i := 0; i < reflVal.NumField(); i++ {
-		fieldName, isExportable := fieldIsExportable(reflType.Field(i))
+		fieldName, suffix, isExportable := fieldIsExportable(reflType.Field(i))
 		if !isExportable {
 			continue
 		}
@@ -197,7 +202,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 			retValue = reflect.Zero(retValue.Type())
 		}
 
-		renderedValue, ok := renderValue(retValue)
+		renderedValue, ok := renderValue(retValue, suffix)
 		if !ok {
 			continue
 		}
@@ -236,7 +241,7 @@ func Initialize[T any](info *T) error {
 	}
 
 	for i := 0; i < reflVal.NumField(); i++ {
-		fieldName, isExportable := fieldIsExportable(reflType.Field(i))
+		fieldName, _, isExportable := fieldIsExportable(reflType.Field(i))
 		if !isExportable {
 			continue
 		}

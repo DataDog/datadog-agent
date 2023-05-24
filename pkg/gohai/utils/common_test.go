@@ -189,6 +189,60 @@ func TestAsJsonWarns(t *testing.T) {
 	require.JSONEq(t, expected, string(marshalled))
 }
 
+func TestAsJSONSuffix(t *testing.T) {
+	errs := []error{
+		errors.New("this is the first error"),
+		errors.New("this is the second error"),
+		errors.New("this is the third error"),
+	}
+	info := &struct {
+		FieldOne   Value[int] `json:"field_one"`
+		FieldTwo   Value[int] `json:"field_two" suffix:""`
+		FieldThree Value[int] `json:"field_three" suffix:"kb"`
+		FieldFour  Value[int] `json:"field_four"`
+		FieldFive  Value[int] `json:"field_five" suffix:""`
+		FieldSix   Value[int] `json:"field_six" suffix:"M"`
+	}{
+		FieldOne:   NewValue(1),
+		FieldTwo:   NewValue(2),
+		FieldThree: NewValue(3),
+		FieldFour:  NewErrorValue[int](errs[0]),
+		FieldFive:  NewErrorValue[int](errs[1]),
+		FieldSix:   NewErrorValue[int](errs[2]),
+	}
+
+	marshallable, warns, err := AsJSON(info, false)
+	require.NoError(t, err)
+	require.ElementsMatch(t, errs, warns)
+
+	marshalled, err := json.Marshal(marshallable)
+	require.NoError(t, err)
+
+	expected := `{
+		"field_one": "1",
+		"field_two": "2",
+		"field_three": "3kb"
+	}`
+	require.JSONEq(t, expected, string(marshalled))
+
+	marshallable, warns, err = AsJSON(info, true)
+	require.NoError(t, err)
+	require.ElementsMatch(t, errs, warns)
+
+	marshalled, err = json.Marshal(marshallable)
+	require.NoError(t, err)
+
+	expected = `{
+		"field_one": "1",
+		"field_two": "2",
+		"field_three": "3kb",
+		"field_four": "0",
+		"field_five": "0",
+		"field_six": "0M"
+	}`
+	require.JSONEq(t, expected, string(marshalled))
+}
+
 func TestGetPkgName(t *testing.T) {
 	require.Equal(t, "", GetPkgName(""))
 
