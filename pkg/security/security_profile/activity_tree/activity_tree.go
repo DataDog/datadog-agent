@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -187,12 +186,6 @@ func (at *ActivityTree) DifferentiateArgs() {
 	at.differentiateArgs = true
 }
 
-// isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
-func (at *ActivityTree) isValidRootNode(entry *model.ProcessContext) bool {
-	// TODO: evaluate if the same issue affects other container runtimes
-	return !(strings.HasPrefix(entry.FileEvent.BasenameStr, "runc") || strings.HasPrefix(entry.FileEvent.BasenameStr, "containerd-shim"))
-}
-
 // isEventValid evaluates if the provided event is valid
 func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, error) {
 	// check event type
@@ -339,12 +332,9 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 			}
 		}
 
-		// we're about to add a root process node, make sure this root node passes the root node sanitizer
-		if !at.isValidRootNode(&entry.ProcessContext) {
-			if !dryRun {
-				at.Stats.droppedCount[model.ExecEventType][invalidRootNodeReason].Inc()
-			}
-			return nil, false, fmt.Errorf("invalid root node")
+		// ignore non overlay fs node
+		if !entry.FileEvent.IsOverlayFS() {
+			return nil, false, nil
 		}
 
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry

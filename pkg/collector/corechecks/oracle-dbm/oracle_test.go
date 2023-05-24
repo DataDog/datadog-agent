@@ -127,8 +127,6 @@ func TestChkRun(t *testing.T) {
 	initAndStartAgentDemultiplexer()
 
 	chk.dbmEnabled = true
-	//chk.config.QueryMetrics = true
-
 	chk.config.InstanceConfig.InstantClient = false
 
 	type RowsStruct struct {
@@ -167,7 +165,8 @@ func TestLicense(t *testing.T) {
 	if err != nil {
 		fmt.Printf("failed to ping oracle instance: %s", err)
 	}
-	row := db.QueryRow(`SELECT SUM(detected_usages) 
+	var usedFeaturesCount int
+	err = db.Get(&usedFeaturesCount, `SELECT NVL(SUM(detected_usages),0)
 	FROM dba_feature_usage_statistics
  	WHERE name in (
 		'ADDM', 
@@ -185,10 +184,9 @@ func TestLicense(t *testing.T) {
 		'SQL Tuning Set (user)'
 		)
  `)
-	var usedFeaturesCount int
-	err = row.Scan(&usedFeaturesCount)
+	//err = row.Scan(&usedFeaturesCount)
 	if err != nil {
-		fmt.Printf("failed to query hostname and version: %s", err)
+		fmt.Printf("failed to query license info: %s", err)
 	}
 	assert.Equal(t, 0, usedFeaturesCount)
 }

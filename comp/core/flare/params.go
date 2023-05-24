@@ -22,23 +22,27 @@ type Params struct {
 
 	// defaultJMXLogFile the path to the default JMX log file
 	defaultJMXLogFile string
+
+	// defaultDogstatsdLogFile the path to the default JMX log file
+	defaultDogstatsdLogFile string
 }
 
 // NewLocalParams returns parameters for to initialize a local flare component. Local flares are meant to be created by
 // the CLI process instead of the main Agent one.
-func NewLocalParams(distPath string, pythonChecksPath string, defaultLogFile string, defaultJMXLogFile string) Params {
-	p := NewParams(distPath, pythonChecksPath, defaultLogFile, defaultJMXLogFile)
+func NewLocalParams(distPath string, pythonChecksPath string, defaultLogFile string, defaultJMXLogFile string, defaultDogstatsdLogFile string) Params {
+	p := NewParams(distPath, pythonChecksPath, defaultLogFile, defaultJMXLogFile, defaultDogstatsdLogFile)
 	p.local = true
 	return p
 }
 
 // NewLocalParams returns parameters for to initialize a non local flare component
-func NewParams(distPath string, pythonChecksPath string, defaultLogFile string, defaultJMXLogFile string) Params {
+func NewParams(distPath string, pythonChecksPath string, defaultLogFile string, defaultJMXLogFile string, defaultDogstatsdLogFile string) Params {
 	return Params{
-		local:             false,
-		distPath:          distPath,
-		pythonChecksPath:  pythonChecksPath,
-		defaultLogFile:    defaultLogFile,
-		defaultJMXLogFile: defaultJMXLogFile,
+		local:                   false,
+		distPath:                distPath,
+		pythonChecksPath:        pythonChecksPath,
+		defaultLogFile:          defaultLogFile,
+		defaultJMXLogFile:       defaultJMXLogFile,
+		defaultDogstatsdLogFile: defaultDogstatsdLogFile,
 	}
 }
