@@ -172,3 +172,28 @@ instances:
     # tags:
     #   - <KEY_1>:<VALUE_1>
     #   - <KEY_2>:<VALUE_2>
+
+  ## Start SQL trace for agent queries
+  ## Requires execute the execute privilege on `dbms_monitor` to datadog user
+  #
+  # agent_sql_trace:
+
+      ## @param enabled - boolean - optional - default: false
+      ## Enable SQL trace
+      #
+      # enabled: false
+
+      ## @param enabled - boolean - optional - default: false
+      ## include bind variables in trace
+      #
+      # binds: false
+
+      ## @param enabled - boolean - optional - default: false
+      ## include wait events in trace
+      #
+      # waits: false
+
+      ## @param enabled - int - optional - default: 10
+      ## Limit the number of traced check executions to avoid filling the file system.
+      #
+      # traced_runs: 10

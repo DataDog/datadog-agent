@@ -97,7 +97,7 @@ apm_config:
 			if err := r.PostMsgpack("/"+string(tt.version)+"/traces", payload); err != nil {
 				t.Fatal(err)
 			}
-			waitForTrace(t, &r, func(v pb.AgentPayload) {
+			waitForTrace(t, &r, func(v *pb.AgentPayload) {
 				payloadsEqual(t, traces, v)
 				assert.Equal(t, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"], tt.out)
 			})

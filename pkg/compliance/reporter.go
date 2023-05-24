@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -31,6 +32,7 @@ type LogReporter struct {
 	logSource *sources.LogSource
 	logChan   chan *message.Message
 	endpoints *config.Endpoints
+	tags      []string
 }
 
 // NewLogReporter instantiates a new log LogReporter
@@ -57,11 +59,13 @@ func NewLogReporter(stopper startstop.Stopper, sourceName, sourceType, runPath s
 		},
 	)
 	logChan := pipelineProvider.NextPipelineChan()
+	tags := []string{common.QueryAccountIdTag()}
 
 	return &LogReporter{
 		logSource: logSource,
 		logChan:   logChan,
 		endpoints: endpoints,
+		tags:      tags,
 	}, nil
 }
 
@@ -70,6 +74,8 @@ func (r *LogReporter) Endpoints() *config.Endpoints {
 }
 
 func (r *LogReporter) ReportRaw(content []byte, service string, tags ...string) {
+	tags = append(tags, r.tags...)
+
 	origin := message.NewOrigin(r.logSource)
 	origin.SetTags(tags)
 	origin.SetService(service)

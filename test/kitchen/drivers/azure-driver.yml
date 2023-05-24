@@ -98,7 +98,6 @@ platforms:
 
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
-      windows2008 = windows && platform_name.include?("2008")
       debian9 = platform_name.include?("debian-9")
 
       if windows
@@ -146,15 +145,6 @@ platforms:
     location: <%= location %>
     <% if windows %>
     vm_name: ddat<%= platform[0] %>
-    <% if windows2008 %>
-    winrm_powershell_script: |-
-      winrm quickconfig -q
-      winrm set winrm/config/winrs '@{MaxMemoryPerShellMB="2048"}'
-      winrm set winrm/config '@{MaxTimeoutms="1800000"}'
-      winrm set winrm/config/service '@{AllowUnencrypted="true"}'
-      winrm set winrm/config/service/auth '@{Basic="true"}'
-      netsh advfirewall firewall set rule name="Windows Remote Management (HTTP-In)" profile=public protocol=tcp localport=5985 remoteip=localsubnet new remoteip=any
-    <% end %>
     <% else %>
     vm_name: dd-agent-testing-<%= platform[0] %>-azure
     <% end %>
