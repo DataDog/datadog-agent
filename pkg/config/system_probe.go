@@ -139,6 +139,12 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_tcp"), false, "DD_DISABLE_TCP_TRACING")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_udp"), false, "DD_DISABLE_UDP_TRACING")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_ipv6"), false, "DD_DISABLE_IPV6_TRACING")
+
+	cfg.SetDefault(join(netNS, "collect_tcp_v4"), true)
+	cfg.SetDefault(join(netNS, "collect_tcp_v6"), true)
+	cfg.SetDefault(join(netNS, "collect_udp_v4"), true)
+	cfg.SetDefault(join(netNS, "collect_udp_v6"), true)
+
 	cfg.BindEnvAndSetDefault(join(spNS, "offset_guess_threshold"), int64(defaultOffsetThreshold))
 
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
