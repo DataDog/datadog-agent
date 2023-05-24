@@ -56,15 +56,15 @@ const (
 func (efr EventFilteringProfileState) toTag() string {
 	switch efr {
 	case NoProfile:
-		return fmt.Sprintf("profile_state:no_profile")
+		return "profile_state:no_profile"
 	case UnstableProfile:
-		return fmt.Sprintf("profile_state:unstable_profile")
+		return "profile_state:unstable_profile"
 	case StableProfile:
-		return fmt.Sprintf("profile_state:stable_profile")
+		return "profile_state:stable_profile"
 	case AutoLearning:
-		return fmt.Sprintf("profile_state:auto_learning")
+		return "profile_state:auto_learning"
 	case WorkloadWarmup:
-		return fmt.Sprintf("profile_state:workload_warmup")
+		return "profile_state:workload_warmup"
 	}
 	return ""
 }
@@ -73,22 +73,22 @@ func (efr EventFilteringProfileState) toTag() string {
 type EventFilteringResult uint8
 
 const (
+	// Not applicable, for profil NoProfile and UnstableProfile state
+	NA EventFilteringResult = iota
 	// InProfile is used to count the events that matched a profile
-	InProfile EventFilteringResult = iota
+	InProfile
 	// NotInProfile is used to count the events that didn't match their profile
 	NotInProfile
-	// Not applicable, for profil NoProfile and UnstableProfile state
-	NA
 )
 
 func (efr EventFilteringResult) toTag() string {
 	switch efr {
-	case InProfile:
-		return fmt.Sprintf("in_profile:true")
-	case NotInProfile:
-		return fmt.Sprintf("in_profile:false")
 	case NA:
-		return fmt.Sprintf("")
+		return ""
+	case InProfile:
+		return "in_profile:true"
+	case NotInProfile:
+		return "in_profile:false"
 	}
 	return ""
 }
