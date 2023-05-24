@@ -238,7 +238,6 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 	if err != nil {
 		return fmt.Errorf("reporter: could not create: %w", err)
 	}
-
 	for _, event := range events {
 		buf, err := json.Marshal(event)
 		if err != nil {
