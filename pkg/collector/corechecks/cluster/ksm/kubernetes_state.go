@@ -331,12 +331,7 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 }
 
 func filterUnknownCollectors(client discovery.DiscoveryInterface, collectors []string) ([]*v1.APIResourceList, []string, error) {
-	collectorSet := make(map[string]struct{}, len(collectors))
-	for i := range collectors {
-		collectorSet[collectors[i]] = struct{}{}
-	}
-
-	filteredCollectors := make([]string, 0, len(collectors))
+	resourcesSet := make(map[string]struct{}, len(collectors))
 	resources, err := client.ServerResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
@@ -349,9 +344,16 @@ func filterUnknownCollectors(client discovery.DiscoveryInterface, collectors []s
 	}
 	for _, resourceList := range resources {
 		for _, resource := range resourceList.APIResources {
-			if _, ok := collectorSet[resource.Name]; ok {
-				filteredCollectors = append(filteredCollectors, resource.Name)
-			}
+			resourcesSet[resource.Name] = struct{}{}
+		}
+	}
+
+	filteredCollectors := make([]string, 0, len(collectors))
+	for i := range collectors {
+		if _, ok := resourcesSet[collectors[i]]; ok {
+			filteredCollectors = append(filteredCollectors, collectors[i])
+		} else {
+			log.Warnf("resource %v is unknown and will not be collected", collectors[i])
 		}
 	}
 	return resources, filteredCollectors, nil
