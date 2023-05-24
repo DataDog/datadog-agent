@@ -32,6 +32,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"gopkg.in/yaml.v2"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
@@ -232,8 +233,21 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 
 	builder := kubestatemetrics.New()
 
+	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
+	// So we are waiting for a reasonable amount of time here in case.
+	// We cannot wait forever as there's no way to be notified of shutdown
+	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
+	defer apiCancel()
+	c, err := apiserver.WaitForAPIClient(apiCtx)
+	if err != nil {
+		return err
+	}
+
 	// Prepare the collectors for the resources specified in the configuration file.
-	collectors := k.instance.Collectors
+	resources, collectors, err := filterUnknownCollectors(c.DiscoveryCl, k.instance.Collectors)
+	if err != nil {
+		return err
+	}
 
 	// Enable the KSM default collectors if the config collectors list is empty.
 	if len(collectors) == 0 {
@@ -270,16 +284,6 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 
-	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
-	// So we are waiting for a reasonable amount of time here in case.
-	// We cannot wait forever as there's no way to be notified of shutdown
-	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
-	defer apiCancel()
-	c, err := apiserver.WaitForAPIClient(apiCtx)
-	if err != nil {
-		return err
-	}
-
 	builder.WithKubeClient(c.Cl)
 
 	builder.WithVPAClient(c.VPAClient)
@@ -299,7 +303,7 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 
 	// configure custom resources required for extended features and
 	// compatibility across deprecated/removed versions of APIs
-	cr := k.discoverCustomResources(c, collectors)
+	cr := k.discoverCustomResources(c, collectors, resources)
 	builder.WithGenerateCustomResourceStoresFunc(builder.GenerateCustomResourceStoresFunc)
 	builder.WithCustomResourceStoreFactories(cr.factories...)
 	builder.WithCustomResourceClients(cr.clients)
@@ -326,6 +330,33 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 	return nil
 }
 
+func filterUnknownCollectors(client discovery.DiscoveryInterface, collectors []string) ([]*v1.APIResourceList, []string, error) {
+	collectorSet := make(map[string]struct{}, len(collectors))
+	for i := range collectors {
+		collectorSet[collectors[i]] = struct{}{}
+	}
+
+	filteredCollectors := make([]string, 0, len(collectors))
+	resources, err := client.ServerResources()
+	if err != nil {
+		if !discovery.IsGroupDiscoveryFailedError(err) {
+			return nil, nil, fmt.Errorf("unable to perform resource discovery: %s", err)
+		} else {
+			for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+				log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
+			}
+		}
+	}
+	for _, resourceList := range resources {
+		for _, resource := range resourceList.APIResources {
+			if _, ok := collectorSet[resource.Name]; ok {
+				filteredCollectors = append(filteredCollectors, resource.Name)
+			}
+		}
+	}
+	return resources, filteredCollectors, nil
+}
+
 func (c *KSMConfig) parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
@@ -336,7 +367,7 @@ type customResources struct {
 	clients    map[string]interface{}
 }
 
-func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []string) customResources {
+func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []string, resources []*v1.APIResourceList) customResources {
 	// automatically add extended collectors if their standard ones are
 	// enabled
 	for _, c := range collectors {
@@ -354,7 +385,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewExtendedPodFactory(c),
 	}
 
-	factories = manageResourcesReplacement(c, factories)
+	factories = manageResourcesReplacement(c, factories, resources)
 
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
@@ -369,21 +400,10 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	}
 }
 
-func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory) []customresource.RegistryFactory {
+func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
 	if c.DiscoveryCl == nil {
 		log.Warn("Kubernetes discovery client has not been properly initialized")
 		return factories
-	}
-
-	_, resources, err := c.DiscoveryCl.ServerGroupsAndResources()
-	if err != nil {
-		if !discovery.IsGroupDiscoveryFailedError(err) {
-			log.Warnf("unable to perform resource discovery: %s", err)
-		} else {
-			for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-				log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
-			}
-		}
 	}
 
 	// backwards/forwards compatibility resource factories are only
