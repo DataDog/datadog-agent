@@ -7,6 +7,7 @@ package languagedetection
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode"
 )
@@ -52,7 +53,9 @@ func getExe(cmd []string) string {
 	}
 
 	// For windows executables, trim the .exe suffix if there is one
-	exe = strings.TrimSuffix(exe, ".exe")
+	if runtime.GOOS == "windows" {
+		exe = strings.TrimSuffix(exe, ".exe")
+	}
 
 	// Lowercase the exe so that we don't need to worry about case sensitivity
 	exe = strings.ToLower(exe)

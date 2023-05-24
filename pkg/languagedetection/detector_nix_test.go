@@ -109,6 +109,11 @@ func TestGetExe(t *testing.T) {
 			cmdline:  []string{"/usr/bin/MyBinary"},
 			expected: "mybinary",
 		},
+		{
+			name:     "dont trim .exe on linux",
+			cmdline:  []string{"/usr/bin/helloWorld.exe"},
+			expected: "helloworld.exe",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, getExe(tc.cmdline))
