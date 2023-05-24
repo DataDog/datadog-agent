@@ -199,6 +199,13 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
+
+	// Stream to console if debug mode is enabled
+	// TODO need to figure out a better way of handling protobuf vs json
+	if eventType == EventTypeContainerSBOM || eventType == EventTypeContainerImages || eventType == EventTypeContainerLifecycle {
+		p.messageReceiver.HandleMessage(*e, eventType, http.ProtobufContentType)
+	}
+
 	select {
 	case p.in <- e:
 		return nil
@@ -267,10 +274,11 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender   *sender.Sender
-	strategy sender.Strategy
-	in       chan *message.Message
-	auditor  auditor.Auditor
+	sender          *sender.Sender
+	strategy        sender.Strategy
+	in              chan *message.Message
+	auditor         auditor.Auditor
+	messageReceiver *BufferedMessageReceiver
 }
 
 type passthroughPipelineDesc struct {
@@ -348,10 +356,11 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 10),
-		strategy: strategy,
-		in:       inputChan,
-		auditor:  a,
+		sender:          sender.NewSender(senderInput, a.Channel(), destinations, 10),
+		strategy:        strategy,
+		in:              inputChan,
+		auditor:         a,
+		messageReceiver: NewBufferedMessageReceiver(),
 	}, nil
 }
 
