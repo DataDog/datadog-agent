@@ -4,6 +4,9 @@ kitchen_tests_upload_common:
   tags: ["runner:main"]
   allow_failure: true
   when: manual
+  dependencies:
+    - kitchen_centos_fips_install_script_agent-a7
+    - kitchen_debian_install_script_agent-a7_x64
   variables:
     DD_ENV: ci
   script:
