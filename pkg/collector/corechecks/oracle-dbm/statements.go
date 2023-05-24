@@ -653,10 +653,9 @@ func (c *Check) StatementMetrics() (int, error) {
 					}
 					continue
 				}
-				rows.Close()
-
 				rows.Next()
 				cols, err := rows.SliceScan()
+				rows.Close()
 				totalSQLTextTimeUs += time.Since(startSQLText).Microseconds()
 
 				if err != nil {
