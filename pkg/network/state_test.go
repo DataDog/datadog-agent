@@ -1407,8 +1407,8 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	httpStats := make(map[http.Key]*http.RequestStats)
 	httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
 
-	usmStats := make(map[protocols.ProtocolKind]interface{})
-	usmStats[protocols.Http] = httpStats
+	usmStats := make(map[protocols.ProtocolType]interface{})
+	usmStats[protocols.HTTP] = httpStats
 
 	// Register client & pass in HTTP stats
 	state := newDefaultState()
@@ -1473,13 +1473,13 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 		DPort:  80,
 	}
 
-	getStats := func(path string) map[protocols.ProtocolKind]interface{} {
+	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		httpStats := make(map[http.Key]*http.RequestStats)
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
 		httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
 
-		usmStats := make(map[protocols.ProtocolKind]interface{})
-		usmStats[protocols.Http] = httpStats
+		usmStats := make(map[protocols.ProtocolType]interface{})
+		usmStats[protocols.HTTP] = httpStats
 
 		return usmStats
 	}

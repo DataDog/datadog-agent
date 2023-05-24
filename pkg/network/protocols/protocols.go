@@ -17,12 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-type ProtocolKind uint8
-
-const (
-	Http ProtocolKind = iota
-)
-
 const ProtocolDispatcherProgramsMap = "protocols_progs"
 
 type EbpfProgram interface {
@@ -38,7 +32,7 @@ type EbpfProgram interface {
 }
 
 type ProtocolStats struct {
-	Kind  ProtocolKind
+	Type  ProtocolType
 	Stats interface{}
 }
 
@@ -53,12 +47,12 @@ type ProtocolSpec struct {
 	Maps      []*manager.Map
 	TailCalls []manager.TailCallRoute
 }
-type protocolSpecsMap map[ProtocolKind]ProtocolSpec
+type protocolSpecsMap map[ProtocolType]ProtocolSpec
 
 var KnownProtocols = make(protocolSpecsMap)
 
-func RegisterProtocol(protocolKind ProtocolKind, spec ProtocolSpec) {
-	KnownProtocols[protocolKind] = spec
+func RegisterProtocol(protocolType ProtocolType, spec ProtocolSpec) {
+	KnownProtocols[protocolType] = spec
 }
 
 func AddBoolConst(options *manager.Options, flag bool, name string) {

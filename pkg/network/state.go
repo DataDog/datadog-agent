@@ -75,7 +75,7 @@ type State interface {
 		latestTime uint64,
 		active []ConnectionStats,
 		dns dns.StatsByKeyByNameByType,
-		usmStats map[protocols.ProtocolKind]interface{},
+		usmStats map[protocols.ProtocolType]interface{},
 		http2 map[http.Key]*http.RequestStats,
 		kafka map[kafka.Key]*kafka.RequestStat,
 	) Delta
@@ -246,7 +246,7 @@ func (ns *networkState) GetDelta(
 	latestTime uint64,
 	active []ConnectionStats,
 	dnsStats dns.StatsByKeyByNameByType,
-	usmStats map[protocols.ProtocolKind]interface{},
+	usmStats map[protocols.ProtocolType]interface{},
 	http2Stats map[http.Key]*http.RequestStats,
 	kafkaStats map[kafka.Key]*kafka.RequestStat,
 ) Delta {
@@ -272,7 +272,7 @@ func (ns *networkState) GetDelta(
 
 	for k, s := range usmStats {
 		switch k {
-		case protocols.Http:
+		case protocols.HTTP:
 			stats := s.(map[http.Key]*http.RequestStats)
 			ns.storeHTTPStats(stats)
 		}

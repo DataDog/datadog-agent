@@ -248,7 +248,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	return response
 }
 
-func (m *Monitor) GetProtocolStats() map[protocols.ProtocolKind]interface{} {
+func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 	if m == nil {
 		return nil
 	}
@@ -259,11 +259,11 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolKind]interface{} {
 		m.lastUpdateTime.Swap(now)
 	}()
 
-	ret := make(map[protocols.ProtocolKind]interface{})
+	ret := make(map[protocols.ProtocolType]interface{})
 
 	for _, p := range m.protocols {
 		ps := p.GetStats()
-		ret[ps.Kind] = ps.Stats
+		ret[ps.Type] = ps.Stats
 	}
 
 	return ret

@@ -189,13 +189,13 @@ func (p *httpProtocol) GetStats() *protocols.ProtocolStats {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
 	return &protocols.ProtocolStats{
-		Kind:  protocols.Http,
+		Type:  protocols.HTTP,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
 }
 
 func init() {
-	protocols.RegisterProtocol(protocols.Http, protocols.ProtocolSpec{
+	protocols.RegisterProtocol(protocols.HTTP, protocols.ProtocolSpec{
 		Factory: newHttpProtocol,
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
