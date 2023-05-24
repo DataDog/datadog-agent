@@ -288,6 +288,24 @@ func (agg *FlowAggregator) flush() int {
 // Since we track per exporterIP, the returned delta is only accurate when for the specific exporterIP there is
 // only one NetFlow9/IPFIX observation domain, NetFlow5 engineType/engineId, sFlow agent/subagent.
 func (agg *FlowAggregator) getSequenceDelta(flowsToFlush []*common.Flow) map[SequenceDeltaKey]SequenceDeltaValue {
+	promMetrics, err := agg.goflowPrometheusGatherer.Gather()
+	if err != nil {
+		log.Errorf("error getting prometheus metrics: %s", err)
+	}
+	for _, metricFamily := range promMetrics {
+		metricName := metricFamily.GetName()
+		if !(metricName == "flow_process_nf_flowset_sum" || metricName == "flow_process_nf_count" || metricName == "flow_process_sf_count") {
+			continue
+		}
+		for _, metric := range metricFamily.Metric {
+			metricType, name, value, tags, err := goflowlib.ConvertMetric(metric, metricFamily)
+			if err != nil {
+				log.Tracef("Error converting prometheus metric: %s", err)
+				continue
+			}
+		}
+	}
+
 	maxSequencePerExporter := make(map[SequenceDeltaKey]uint32)
 	for _, flow := range flowsToFlush {
 		key := SequenceDeltaKey{
