@@ -26,7 +26,7 @@ type vmFakeintakeSuite struct {
 }
 
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, e2e.AgentStackDef([]e2e.Ec2VMOption{ec2vm.WithArch(os.WindowsOS, commonos.AMD64Arch)}))
+	e2e.Run(t, &vmFakeintakeSuite{}, e2e.AgentStackDef([]e2e.Ec2VMOption{ec2vm.WithArch(os.UbuntuOS, commonos.AMD64Arch)}))
 }
 
 func (s *vmFakeintakeSuite) TestVM() {
