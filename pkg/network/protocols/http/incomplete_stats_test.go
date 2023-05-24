@@ -77,8 +77,7 @@ func TestOrphanEntries(t *testing.T) {
 
 func TestBufferLimit(t *testing.T) {
 	now := time.Now()
-	tel, err := NewTelemetry()
-	require.NoError(t, err)
+	tel := NewTelemetry()
 
 	buffer := newIncompleteBuffer(config.New(), tel)
 
