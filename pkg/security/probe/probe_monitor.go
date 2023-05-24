@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -101,6 +100,11 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 // GetActivityDumpManager returns the activity dump manager
 func (m *Monitor) GetActivityDumpManager() *dump.ActivityDumpManager {
 	return m.activityDumpManager
+}
+
+// GetSecurityProfileManager returns the activity dump manager
+func (m *Monitor) GetSecurityProfileManager() *profile.SecurityProfileManager {
+	return m.securityProfileManager
 }
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
@@ -208,7 +212,7 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
 		m.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.AbnormalPathRuleID, event, m.probe, pathErr.Err),
+			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, m.probe, pathErr.Err),
 		)
 		return
 	}
@@ -216,7 +220,7 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 	var processContextErr *ErrNoProcessContext
 	if errors.As(event.Error, &processContextErr) {
 		m.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.NoProcessContextErrorRuleID, event, m.probe, event.Error),
+			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, m.probe, event.Error),
 		)
 		return
 	}
@@ -224,7 +228,7 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 	var brokenLineageErr *ErrProcessBrokenLineage
 	if errors.As(event.Error, &brokenLineageErr) {
 		m.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, event, m.probe, event.Error),
+			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, m.probe, event.Error),
 		)
 		return
 	}

@@ -4,7 +4,6 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build !clusterchecks && !kubeapiserver
-// +build !clusterchecks,!kubeapiserver
 
 package v1
 

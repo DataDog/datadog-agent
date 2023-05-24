@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker && trivy
-// +build docker,trivy
 
 package docker
 
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -64,6 +64,10 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbo
 	dockerScanRequest, ok := request.(*ScanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
+	}
+
+	if dockerScanRequest.ImageMeta != nil {
+		log.Infof("docker scan request [%v]: scanning image %v", dockerScanRequest.ID(), dockerScanRequest.ImageMeta.Name)
 	}
 
 	report, err := c.trivyCollector.ScanDockerImage(

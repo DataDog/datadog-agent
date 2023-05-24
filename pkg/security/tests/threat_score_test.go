@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -67,7 +66,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,

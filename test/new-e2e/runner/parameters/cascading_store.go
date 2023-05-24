@@ -9,6 +9,8 @@ import (
 	"errors"
 )
 
+var _ valueStore = &CascadingValueStore{}
+
 type CascadingValueStore struct {
 	valueStores []valueStore
 }
@@ -19,7 +21,7 @@ func NewCascadingStore(valueStores ...valueStore) Store {
 	})
 }
 
-func (s CascadingValueStore) get(key string) (string, error) {
+func (s CascadingValueStore) get(key StoreKey) (string, error) {
 	for _, valueStore := range s.valueStores {
 		v, err := valueStore.get(key)
 

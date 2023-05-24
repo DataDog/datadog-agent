@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package probe
 
@@ -40,5 +39,10 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 	if ev.ProcessCacheEntry != nil {
 		return ev.ProcessCacheEntry, true
 	}
+	return nil, false
+}
+
+// ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
+func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return nil, false
 }

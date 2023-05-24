@@ -33,6 +33,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
+	github.com/Datadog/datadog-agent/pkg/gohai => ./pkg/gohai
 )
 
 require (
@@ -40,8 +41,9 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.0
-	github.com/DataDog/agent-payload/v5 v5.0.81
+	github.com/DataDog/agent-payload/v5 v5.0.85
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
+	github.com/DataDog/datadog-agent/pkg/gohai v0.0.0-20230512151819-dfebac949c96
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.45.0-rc.3
@@ -55,7 +57,6 @@ require (
 	github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c
 	github.com/DataDog/go-libddwaf v1.0.0
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
-	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.0
@@ -68,14 +69,12 @@ require (
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/semver/v3 v3.2.1
-	github.com/Masterminds/sprig/v3 v3.2.3
+	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/Microsoft/hcsshim v0.9.8
 	github.com/acobaugh/osrelease v0.1.0
-	github.com/alecthomas/participle v0.7.1
-	github.com/alecthomas/repr v0.2.0
+	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000 // keep this proto version to not confuse dependabot
 	github.com/aquasecurity/trivy-db v0.0.0-20230105123735-5ce110fc82e1
 	github.com/avast/retry-go/v4 v4.3.4
 	github.com/aws/aws-lambda-go v1.37.0
@@ -163,7 +162,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.15.0
 	github.com/prometheus/client_model v0.3.0
-	github.com/prometheus/procfs v0.9.0
+	github.com/prometheus/procfs v0.10.0
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.37.0
@@ -173,15 +172,15 @@ require (
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sirupsen/logrus v1.9.0
 	github.com/skydive-project/go-debouncer v1.0.0
-	github.com/smira/go-xz v0.0.0-20220607140411-c2a07d4bedda
+	github.com/smira/go-xz v0.1.0
 	github.com/spf13/afero v1.9.3
-	github.com/spf13/cast v1.5.0
+	github.com/spf13/cast v1.5.1
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/streadway/amqp v1.0.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
-	github.com/tinylib/msgp v1.1.6
+	github.com/tinylib/msgp v1.1.8
 	github.com/twmb/murmur3 v1.1.6
 	github.com/uptrace/bun v1.1.12
 	github.com/uptrace/bun/dialect/pgdialect v1.1.12
@@ -214,15 +213,15 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.3.0
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
-	golang.org/x/net v0.9.0
-	golang.org/x/sync v0.1.0
+	golang.org/x/net v0.10.0
+	golang.org/x/sync v0.2.0
 	golang.org/x/sys v0.8.0
 	golang.org/x/text v0.9.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.8.0
+	golang.org/x/tools v0.9.1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
-	google.golang.org/genproto v0.0.0-20230320184635-7606e756e683
-	google.golang.org/grpc v1.54.0
+	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
+	google.golang.org/grpc v1.55.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.49.1
@@ -250,9 +249,9 @@ require (
 
 require (
 	cloud.google.com/go v0.110.0 // indirect
-	cloud.google.com/go/compute v1.18.0 // indirect
+	cloud.google.com/go/compute v1.19.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	cloud.google.com/go/iam v0.12.0 // indirect
+	cloud.google.com/go/iam v0.13.0 // indirect
 	cloud.google.com/go/storage v1.30.1 // indirect
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
@@ -368,7 +367,7 @@ require (
 	github.com/go-test/deep v1.0.7 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
-	github.com/golang/glog v1.0.0 // indirect
+	github.com/golang/glog v1.1.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.3.0
@@ -457,7 +456,7 @@ require (
 	github.com/package-url/packageurl-go v0.1.1-0.20220428063043-89078438f170 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
-	github.com/philhofer/fwd v1.1.1 // indirect
+	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
@@ -536,7 +535,7 @@ require (
 	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/oauth2 v0.6.0 // indirect
-	golang.org/x/term v0.7.0 // indirect
+	golang.org/x/term v0.8.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
 	google.golang.org/api v0.114.0 // indirect
@@ -567,14 +566,19 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/proto v0.46.0-20230514-devel
+	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
-	github.com/sijms/go-ora/v2 v2.6.12
+	github.com/kr/pretty v0.3.1
+	github.com/sijms/go-ora/v2 v2.7.6
 )
 
 require (
 	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.9.0 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/sigstore/rekor v1.0.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect

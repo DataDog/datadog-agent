@@ -93,6 +93,7 @@ def normalize_traces(stage):
         replace(r'("architecture":)"(x86_64|arm64)"', r'\1"XXX"'),
         replace(r'("process_id":)[0-9]+', r'\1null'),
         replace(r'("otel.trace_id":")[a-zA-Z0-9]+"', r'\1null"'),
+        replace(r'("faas.execution":")[a-zA-Z0-9-]+"', r'\1null"'),
         replace(stage, 'XXXXXX'),
         exclude(r'[ ]$'),
         sort_by(trace_sort_key),
