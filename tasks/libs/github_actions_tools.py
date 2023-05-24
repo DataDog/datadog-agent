@@ -159,7 +159,7 @@ def download_artifacts(run_id, destination="."):
     Download all artifacts for a given job in the specified location.
     """
     print(color_message(f"Downloading artifacts for run {run_id} to {destination}", "blue"))
-    import os
+
     github_workflows = create_or_refresh_macos_build_github_workflows()
     run_artifacts = github_workflows.workflow_run_artifacts(run_id)
     if run_artifacts is None:
@@ -169,14 +169,10 @@ def download_artifacts(run_id, destination="."):
     # Create temp directory to store the artifact zips
     with tempfile.TemporaryDirectory() as tmpdir:
         for artifact in run_artifacts["artifacts"]:
-            print("Artifact:", artifact)
             # Download artifact
             github_workflows = create_or_refresh_macos_build_github_workflows(github_workflows)
             zip_path = github_workflows.download_artifact(artifact["id"], tmpdir)
-            print("Zip path:", zip_path)
 
             # Unzip it in the target destination
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(destination)
-            os.system('ls -l')
-    os.system('ls -l')
