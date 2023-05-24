@@ -135,7 +135,7 @@ You must specify a version of the package to install using the syntax: <package>
 		&cliParams.thirdParty, "third-party", "t", false, "install a community or vendor-contributed integration",
 	)
 	installCmd.Flags().BoolVar(
-		&cliParams.unsafeDisableVerification, "unsafe-disable-verification", false, "Disable TUF and in-toto integrity verification",
+		&cliParams.unsafeDisableVerification, "unsafe-disable-verification", false, "Disable trust and safety checks (only in case of unanticipated issues and when advised by customer support)",
 	)
 
 	integrationCmd.AddCommand(installCmd)
