@@ -1,4 +1,4 @@
-kitchen_tests__upload_common:
+kitchen_tests_upload_common:
   stage: kitchen_tests_upload
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
@@ -8,7 +8,7 @@ kitchen_tests__upload_common:
     DD_ENV: ci
   script:
     # pack all xml into a tar
-    - tar -C $CI_PROJECT_DIR/kitchen-rspec-*.xml kitchen-rspec-common.tar.gz
+    - tar -czvf kitchen-rspec-common.tar.gz -C $CI_PROJECT_DIR/test/kitchen/ kitchen-rspec-*.xml 
     - set +x
     - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - set -x
