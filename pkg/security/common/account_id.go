@@ -26,7 +26,7 @@ type cloudProviderDetector struct {
 
 func queryAccountId(ctx context.Context) (string, string, error) {
 	detectors := []cloudProviderDetector{
-		{name: ec2.CloudProviderName, accountIdName: "aws_account", callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
+		{name: ec2.CloudProviderName, accountIdName: "account_id", callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
 		{name: gce.CloudProviderName, accountIdName: "project_id", callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
 		{name: azure.CloudProviderName, accountIdName: "subscription_id", callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
 	}
