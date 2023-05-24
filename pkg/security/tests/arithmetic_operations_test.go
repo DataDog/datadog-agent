@@ -17,7 +17,7 @@ func TestArithmeticOperation(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_simple_addition",
-			Expression: `1 + 2 == 3 && exec.comm in ["ls"]`,
+			Expression: `1 + 2 == 5 - 2 && exec.comm in ["ls"]`,
 		},
 		{
 			ID:         "test_simple_addition_false",
