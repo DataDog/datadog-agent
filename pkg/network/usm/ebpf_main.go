@@ -52,7 +52,6 @@ type ebpfProgram struct {
 	cfg                   *config.Config
 	subprograms           []subprogram
 	probesResolvers       []probeResolver
-	mapCleaner            *ddebpf.MapCleaner
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
