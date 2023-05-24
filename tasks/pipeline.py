@@ -11,6 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .libs.common.color import color_message
+from .libs.common.github_api import GithubAPI, get_github_token
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
@@ -33,6 +34,8 @@ from .libs.pipeline_tools import (
 from .libs.types import SlackMessage, TeamMessage
 from .utils import (
     DEFAULT_BRANCH,
+    GITHUB_REPO_NAME,
+    check_clean_branch_state,
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
     nightly_entry_for,
@@ -688,11 +691,24 @@ def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
     Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
     Use --no-test-version to commit without the _test_only suffixes
     """
+    branch_name = verify_workspace(ctx, branch_name=branch_name)
     update_gitlab_ci(image_tag, test_version=test_version)
     update_circle_ci(image_tag, test_version=test_version)
     commit_and_push(ctx, branch_name=branch_name)
     # Trigger a build on the pipeline
     run(ctx, here=True)
+
+
+def verify_workspace(ctx, branch_name):
+    """
+    Assess we can modify files and commit without risk of local or upstream conflicts
+    """
+    if branch_name is None:
+        user_name = ctx.run("whoami", hide="out")
+        branch_name = f"{user_name.stdout.rstrip()}/test_buildimages"
+    github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
+    check_clean_branch_state(ctx, github, branch_name)
+    return branch_name
 
 
 def update_gitlab_ci(image_tag, test_version):
@@ -737,9 +753,6 @@ def update_circle_ci(image_tag, test_version):
 
 
 def commit_and_push(ctx, branch_name=None):
-    if branch_name is None:
-        user_name = ctx.run("whoami", hide="out")
-        branch_name = f"{user_name.rstrip()}/test_buildimages"
     ctx.run(f"git checkout -b {branch_name}")
     ctx.run("git add .gitlab-ci.yaml .circleci/config.yaml")
     ctx.run("git commit -m 'Update buildimages version'")
