@@ -239,14 +239,12 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 		return fmt.Errorf("reporter: could not create: %w", err)
 	}
 
-	accountTag := common.QueryAccountIdTag()
-
 	for _, event := range events {
 		buf, err := json.Marshal(event)
 		if err != nil {
 			return fmt.Errorf("reporter: could not marshal event: %w", err)
 		}
-		reporter.ReportRaw(buf, "", accountTag)
+		reporter.ReportRaw(buf, "")
 	}
 	return nil
 }
