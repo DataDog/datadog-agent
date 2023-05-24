@@ -8,7 +8,6 @@ package serializerexporter
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -171,36 +170,17 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 
 func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
 	consumer := &serializerConsumer{cardinality: e.cardinality, extraTags: e.extraTags}
-	err := e.tr.MapMetrics(ctx, ld, consumer)
+	rmt, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err
 	}
 
 	consumer.addTelemetryMetric(e.hostname)
-	if hasRuntimeMetrics(ld) {
-		consumer.addRuntimeTelemetryMetric(e.hostname)
+	if rmt.HasRuntimeMetrics {
+		consumer.addRuntimeTelemetryMetric(e.hostname, rmt.LanguageTags)
 	}
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil
-}
-
-func hasRuntimeMetrics(ld pmetric.Metrics) bool {
-	rms := ld.ResourceMetrics()
-	for i := 0; i < rms.Len(); i++ {
-		rm := rms.At(i)
-		ilms := rm.ScopeMetrics()
-		for j := 0; j < ilms.Len(); j++ {
-			ilm := ilms.At(j)
-			metricsArray := ilm.Metrics()
-			for k := 0; k < metricsArray.Len(); k++ {
-				md := metricsArray.At(k)
-				if strings.Contains(md.Name(), "process.runtime") {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
