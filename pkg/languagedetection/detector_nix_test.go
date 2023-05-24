@@ -69,6 +69,21 @@ func TestLanguageFromCommandline(t *testing.T) {
 			cmdline:  []string{"pyret", "main.pyret"},
 			expected: Unknown,
 		},
+		{
+			name:     "node",
+			cmdline:  []string{"node", "/etc/app/index.js"},
+			expected: Node,
+		},
+		{
+			name:     "npm",
+			cmdline:  []string{"npm", "start"},
+			expected: Node,
+		},
+		{
+			name:     "dotnet",
+			cmdline:  []string{"dotnet", "myApp"},
+			expected: Dotnet,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, languageNameFromCommandLine(tc.cmdline))

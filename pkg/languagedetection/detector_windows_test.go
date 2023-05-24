@@ -35,6 +35,11 @@ func TestLanguageFromCommandline(t *testing.T) {
 			cmdline:  []string{"C:\\Program Files\\Java\\javac.exe", "main.Java"},
 			expected: Unknown,
 		},
+		{
+			name:     "dotnet",
+			cmdline:  []string{"dotnet", "BankApp.dll"},
+			expected: Dotnet,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, languageNameFromCommandLine(tc.cmdline))
@@ -48,7 +53,6 @@ func TestGetExe(t *testing.T) {
 		cmdline  []string
 		expected string
 	}
-
 	for _, tc := range []test{
 		{
 			name:     "windows",
