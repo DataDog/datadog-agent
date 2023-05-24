@@ -15,6 +15,8 @@ import (
 type LanguageName string
 
 const (
+	Node    LanguageName = "node"
+	Dotnet  LanguageName = "dotnet"
 	Python  LanguageName = "python"
 	Java    LanguageName = "java"
 	Unknown LanguageName = ""
@@ -45,7 +47,13 @@ var knownPrefixes = map[string]languageFromCLI{
 var exactMatches = map[string]languageFromCLI{
 	"py":     {name: Python},
 	"python": {name: Python},
-	"java":   {name: Java},
+
+	"java": {name: Java},
+
+	"npm":  {name: Node},
+	"node": {name: Node},
+
+	"dotnet": {name: Dotnet},
 }
 
 func languageNameFromCommandLine(cmdline []string) LanguageName {
