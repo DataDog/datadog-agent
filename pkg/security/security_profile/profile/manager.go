@@ -645,12 +645,6 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 // tryAutolearn tries to autolearn the input event. It returns the profile state: stable, unstable, autolearning or workloadwarmup
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) EventFilteringProfileState {
-	// check if the unstable size limit was reached
-	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
-		m.eventFiltering[event.GetEventType()][UnstableProfile][NA].Inc()
-		return UnstableProfile
-	}
-
 	var nodeType activity_tree.NodeGenerationType
 	var profileState EventFilteringProfileState
 
@@ -681,6 +675,12 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 	// here we are either in AutoLearning or WorkloadWarmup
 
+	// check if the unstable size limit was reached
+	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
+		m.eventFiltering[event.GetEventType()][UnstableProfile][NA].Inc()
+		return UnstableProfile
+	}
+
 	// try to insert the event in the profile
 	newEntry, err := profile.ActivityTree.Insert(event, nodeType)
 	if err != nil {
@@ -698,6 +698,9 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 // ListSecurityProfiles returns the list of security profiles
 func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
 	var out api.SecurityProfileListMessage
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
 
 	for _, p := range m.profiles {
 		msg := p.ToSecurityProfileMessage(m.timeResolver, m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod)

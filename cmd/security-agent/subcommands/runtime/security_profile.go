@@ -139,7 +139,7 @@ func listSecurityProfiles(log log.Component, config config.Component, args *secu
 	if len(output.Profiles) > 0 {
 		fmt.Println("security profiles:")
 		for _, d := range output.Profiles {
-			printSecurityProfileMessage("  ", d)
+			printSecurityProfileMessage(d)
 		}
 	} else {
 		fmt.Println("no security profile found")
@@ -148,7 +148,8 @@ func listSecurityProfiles(log log.Component, config config.Component, args *secu
 	return nil
 }
 
-func printSecurityProfileMessage(prefix string, msg *api.SecurityProfileMessage) {
+func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
+	prefix := "  "
 	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
 	fmt.Printf("%s  workload_selector:\n", prefix)
 	fmt.Printf("%s    image_name: %v\n", prefix, msg.GetSelector().GetName())
