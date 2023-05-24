@@ -34,7 +34,7 @@ func NewSelfTestEvent(success []string, fails []string) (*rules.Rule, *events.Cu
 	}
 	evt.FillCustomEventCommonFields()
 
-	return events.NewCustomRule(events.SelfTestRuleID),
+	return events.NewCustomRule(events.SelfTestRuleID, events.SelfTestRuleDesc),
 		events.NewCustomEvent(model.CustomSelfTestEventType, evt)
 }
 

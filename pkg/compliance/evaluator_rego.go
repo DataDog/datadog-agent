@@ -120,6 +120,8 @@ func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs Re
 		result = CheckPassed
 	case "failing", "fail":
 		result = CheckFailed
+	case "skipped":
+		result = CheckSkipped
 	case "err", "error":
 		d, _ := m["data"].(map[string]interface{})
 		errMsg, _ := d["error"].(string)
@@ -181,6 +183,12 @@ passed_finding(resource_type, resource_id, event_data) = f {
 
 failing_finding(resource_type, resource_id, event_data) = f {
 	f := raw_finding("failing", resource_type, resource_id, event_data)
+}
+
+skipped_finding(resource_type, resource_id, error_msg) = f {
+	f := raw_finding("skipped", resource_type, resource_id, {
+		"error": error_msg
+	})
 }
 
 error_finding(resource_type, resource_id, error_msg) = f {

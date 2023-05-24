@@ -182,7 +182,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			var ruleEvents []*compliance.CheckEvent
 			switch {
 			case rule.IsXCCDF():
-				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, benchmark, rule)
+				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, statsdClient, benchmark, rule)
 			case rule.IsRego():
 				ruleEvents = compliance.ResolveAndEvaluateRegoRule(context.Background(), resolver, benchmark, rule)
 			}
