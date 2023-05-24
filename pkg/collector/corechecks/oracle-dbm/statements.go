@@ -648,12 +648,14 @@ func (c *Check) StatementMetrics() (int, error) {
 				if err != nil {
 					log.Errorf("query metrics statements error named exec %s %s %+v", err, SQLTextQuery, p)
 					SQLTextErrors++
+					if rows != nil {
+						rows.Close()
+					}
 					continue
 				}
-				defer rows.Close()
-
 				rows.Next()
 				cols, err := rows.SliceScan()
+				rows.Close()
 				totalSQLTextTimeUs += time.Since(startSQLText).Microseconds()
 
 				if err != nil {
