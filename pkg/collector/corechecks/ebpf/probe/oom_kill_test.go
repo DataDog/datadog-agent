@@ -55,10 +55,18 @@ func TestOOMKillProbe(t *testing.T) {
 		}
 		t.Cleanup(oomKillProbe.Close)
 
+		t.Cleanup(func() {
+			out, err := exec.Command("swapon", "-a").CombinedOutput()
+			if err != nil {
+				t.Logf("swapon -a: %s: %s", err, out)
+			}
+		})
+		require.NoError(t, exec.Command("swapoff", "-a").Run())
+
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 		t.Cleanup(cancel)
 
-		cmd := exec.CommandContext(ctx, "systemd-run", "--scope", "-p", "MemoryLimit=1M", "dd", "if=/dev/zero", "of=/dev/null", "bs=2M")
+		cmd := exec.CommandContext(ctx, "systemd-run", "--scope", "-p", "MemoryLimit=1M", "dd", "if=/dev/zero", "of=/dev/shm/asdf", "bs=1K", "count=2K")
 		obytes, err := cmd.CombinedOutput()
 		output := string(obytes)
 		require.Error(t, err)
