@@ -243,8 +243,14 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 		return err
 	}
 
+	// Discover resources that are currently available
+	resources, err := discoverResources(c.DiscoveryCl)
+	if err != nil {
+		return err
+	}
+
 	// Prepare the collectors for the resources specified in the configuration file.
-	resources, collectors, err := filterUnknownCollectors(c.DiscoveryCl, k.instance.Collectors)
+	collectors, err := filterUnknownCollectors(k.instance.Collectors, resources)
 	if err != nil {
 		return err
 	}
@@ -330,18 +336,22 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 	return nil
 }
 
-func filterUnknownCollectors(client discovery.DiscoveryInterface, collectors []string) ([]*v1.APIResourceList, []string, error) {
-	resourcesSet := make(map[string]struct{}, len(collectors))
+func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceList, error) {
 	resources, err := client.ServerResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
-			return nil, nil, fmt.Errorf("unable to perform resource discovery: %s", err)
+			return nil, fmt.Errorf("unable to perform resource discovery: %s", err)
 		} else {
 			for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
 				log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
 			}
 		}
 	}
+	return resources, nil
+}
+
+func filterUnknownCollectors(collectors []string, resources []*v1.APIResourceList) ([]string, error) {
+	resourcesSet := make(map[string]struct{}, len(collectors))
 	for _, resourceList := range resources {
 		for _, resource := range resourceList.APIResources {
 			resourcesSet[resource.Name] = struct{}{}
@@ -356,7 +366,7 @@ func filterUnknownCollectors(client discovery.DiscoveryInterface, collectors []s
 			log.Warnf("resource %v is unknown and will not be collected", collectors[i])
 		}
 	}
-	return resources, filteredCollectors, nil
+	return filteredCollectors, nil
 }
 
 func (c *KSMConfig) parse(data []byte) error {
