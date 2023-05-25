@@ -62,15 +62,15 @@ func New(limit int, keyTagName string, telemetryTagNames []string) *Limiter {
 
 // NewGlobal returns a limiter with a global limit which will be equally split between senders
 // will be equally distributed between origins.
-func NewGlobal(global int, maxAge int, key string, tags []string) *Limiter {
+func NewGlobal(global int, expireCountInterval int, key string, tags []string) *Limiter {
 	if global <= 0 || global == math.MaxInt {
 		return nil
 	}
 
-	return newLimiter(0, global, maxAge, key, tags)
+	return newLimiter(0, global, expireCountInterval, key, tags)
 }
 
-func newLimiter(limit, global int, maxAge int, keyTagName string, telemetryTagNames []string) *Limiter {
+func newLimiter(limit, global int, expireCountInterval int, keyTagName string, telemetryTagNames []string) *Limiter {
 	// Make sure all names end with a colon, so we don't accidentally match a part of the tag name, only the full name.
 	// e.g. keyTagName="pod_name" should not match the tag "pod_name_alias:foo"
 	if !strings.HasSuffix(keyTagName, ":") {
@@ -97,7 +97,7 @@ func newLimiter(limit, global int, maxAge int, keyTagName string, telemetryTagNa
 		limit:               limit,
 		global:              global,
 		usage:               map[string]*entry{},
-		expireCountInterval: maxAge,
+		expireCountInterval: expireCountInterval,
 	}
 }
 
