@@ -35,7 +35,7 @@ type VMEnv struct {
 // EC2VMStackDef creates a stack definition containing a virtual machine.
 // See [ec2vm.Params] for available options.
 //
-// [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#pkg-variables
+// [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#Params
 func EC2VMStackDef(options ...func(*ec2vm.Params) error) *StackDefinition[VMEnv] {
 	noop := func(vm.VM) (VMEnv, error) { return VMEnv{}, nil }
 	return CustomEC2VMStackDef(noop, options...)
@@ -68,10 +68,10 @@ type Ec2VMOption = func(*ec2vm.Params) error
 //
 // See [ec2vm.Params] for available options for vmParams.
 //
-// See [Agent functions] starting with "With" for available options for agentParams.
+// See [agent.Params] for available options for agentParams.
 //
-// [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#pkg-variables
-// [Agent functions]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#pkg-functions
+// [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#Params
+// [agent.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Params
 func AgentStackDef(vmParams []Ec2VMOption, agentParams ...func(*agent.Params) error) *StackDefinition[AgentEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*AgentEnv, error) {

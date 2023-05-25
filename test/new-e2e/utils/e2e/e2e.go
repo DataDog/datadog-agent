@@ -216,7 +216,7 @@
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 // [File Manager]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/command#FileManager
 // [EC2 VM]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM
-// [Agent]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@v0.0.0-20230523141914-dd356f2194c1/components/datadog/agent#Installer
+// [Agent]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 package e2e
 
 import (
