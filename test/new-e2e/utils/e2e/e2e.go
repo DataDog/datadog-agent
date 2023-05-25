@@ -55,7 +55,7 @@
 //		v.Env().VM.Execute("ls")
 //	}
 //
-// [suite.Env] gives the access to the components in your environment.
+// [suite.Env] gives access to the components in your environment.
 //
 // Depending on your stack definition, [e2e.Suite.Env] can provide the following objects:
 //   - [client.VM]: A virtual machine where you can execute commands.
