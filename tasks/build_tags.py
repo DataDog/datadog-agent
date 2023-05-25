@@ -92,7 +92,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 )
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {"clusterchecks", "ec2", "gce", "kubeapiserver", "kubelet", "orchestrator", "secrets", "zlib"}
+CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "secrets", "zlib", "ec2", "gce"}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "secrets"}

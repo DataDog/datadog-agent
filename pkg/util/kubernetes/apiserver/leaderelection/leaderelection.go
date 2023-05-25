@@ -24,13 +24,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	ctrmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 const (
@@ -112,22 +111,28 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 }
 
 func getSelfPodName() (string, error) {
-	selfContainerID, err := ctrmetrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	if podName, ok := os.LookupEnv("DD_POD_NAME"); ok {
+		return podName, nil
+	}
+
+	selfUTSInode, err := system.GetProcessNamespaceInode("/proc", "self", "uts")
 	if err != nil {
-		log.Warnf("Unable to determine self container id: %s", err)
+		// If we are not able to gather our own UTS Inode, in doubt, authorize fallback to `os.Hostname()`
+		log.Warnf("Unable to get self UTS inode")
 		return os.Hostname()
 	}
-	kubeutil, err := kubelet.GetKubeUtil()
-	if err != nil {
-		log.Warnf("Failed to get kubeUtil object: %s", err)
+
+	hostUTS := system.IsProcessHostUTSNamespace("/proc", selfUTSInode)
+	if hostUTS == nil {
+		// In doubt, authorize fallback to `os.Hostname()`
 		return os.Hostname()
 	}
-	pod, err := kubeutil.GetPodForContainerID(context.TODO(), selfContainerID)
-	if err != nil {
-		log.Warnf("Failed to get self pod: %s", err)
-		return os.Hostname()
+
+	if *hostUTS {
+		return "", fmt.Errorf("DD_POD_NAME is not set and running in host UTS namespace; cannot reliably determine self pod name")
 	}
-	return pod.Metadata.Name, nil
+
+	return os.Hostname()
 }
 
 func (le *LeaderEngine) init() error {
