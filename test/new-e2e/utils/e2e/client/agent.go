@@ -70,7 +70,7 @@ func (a *Agent) IsReady() (bool, error) {
 	return a.Status().isReady()
 }
 
-// WaitForReady blocks up for one minute waiting for agent to be ready.
+// WaitForReady blocks up to one minute waiting for agent to be ready.
 // Retries every 100 ms up to one minute.
 // Returns error on failure.
 func (a *Agent) WaitForReady() error {
