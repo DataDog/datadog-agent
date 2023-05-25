@@ -35,7 +35,7 @@
 //		e2e.Suite[e2e.VMEnv]
 //	}
 //
-// [e2e.VMEnv] defines the components available in your environment. See "Using existing stack definition section" for more information.
+// [e2e.VMEnv] defines the components available in your stack. See "Using existing stack definition section" for more information.
 //
 // 2. Write a regular Go test function that runs the test suite using [e2e.Run].
 //
