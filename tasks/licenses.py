@@ -61,9 +61,9 @@ CONTRIBUTORS_WITH_UNCOMMENTED_HEADER = [
     'gopkg.in/Knetic/govaluate.v3',
 ]
 
+
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
-
     # we need the full vendor tree in order to perform this analysis
     from .go import deps_vendored
 
@@ -79,16 +79,18 @@ def get_licenses_list(ctx):
 
 def licenses_csv(licenses):
     licenses.sort(key=lambda lic: lic["package"])
+
     def is_valid_quote(copyright):
         stack = []
-        quotes_to_check = ["'",'"']
+        quotes_to_check = ["'", '"']
         for c in copyright:
             if c in quotes_to_check:
-                if len(stack) !=0 and stack[-1] == c:
+                if len(stack) != 0 and stack[-1] == c:
                     stack.pop()
                 else:
                     stack.append(c)
         return len(stack) == 0
+
     def fmt_copyright(lic):
         # discards copyright with invalid quotes to ensure generated csv is valid
         copyright = [f_copyright for f_copyright in lic['copyright'] if is_valid_quote(f_copyright)]
