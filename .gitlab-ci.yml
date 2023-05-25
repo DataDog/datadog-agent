@@ -161,7 +161,7 @@ variables:
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
-  DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
+  DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
   DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
   DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}
   RPM_GPG_KEY_ID: b01082d3
