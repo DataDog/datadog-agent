@@ -7,7 +7,6 @@ package utils
 import (
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"runtime"
 	"strings"
@@ -81,7 +80,7 @@ func fieldIsValue(fieldTy reflect.StructField) bool {
 // fieldIsExportable checks if a field can be exported by AsJSON.
 //
 // A field can be exported if it has type Value, it is exported by the struct and has a json tag.
-// The function the json tag, the suffix tag and whether the field can be exported.
+// The function returns the json tag, the suffix tag and whether the field can be exported.
 //
 // The returned strings are only valid if the field is exportable.
 func fieldIsExportable(fieldTy reflect.StructField) (string, string, bool) {
@@ -219,7 +218,6 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 
 // GetPkgName returns the package name from the given package path
 func GetPkgName(pkgPath string) string {
-	fmt.Fprintln(os.Stderr, pkgPath)
 	pkg := strings.Split(pkgPath, "/")
 	if len(pkg) == 0 {
 		return pkgPath
