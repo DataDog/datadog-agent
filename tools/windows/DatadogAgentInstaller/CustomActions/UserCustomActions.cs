@@ -42,14 +42,14 @@ namespace Datadog.CustomActions
         }
 
         public UserCustomActions(ISession session)
-        : this(
-            session,
-            new Win32NativeMethods(),
-            new RegistryServices(),
-            new DirectoryServices(),
-            new FileServices(),
-            new ServiceController()
-        )
+            : this(
+                session,
+                new Win32NativeMethods(),
+                new RegistryServices(),
+                new DirectoryServices(),
+                new FileServices(),
+                new ServiceController()
+            )
         {
         }
 
@@ -89,6 +89,7 @@ namespace Datadog.CustomActions
             {
                 // Computer is not joined to a domain, it can't be a DC
             }
+
             // Computer is not a DC, default to machine name (NetBIOS name)
             return Environment.MachineName;
         }
@@ -106,11 +107,13 @@ namespace Datadog.CustomActions
             {
                 return true;
             }
+
             // Windows runas does not support the following names, but we can try to.
             if (name == ".")
             {
                 return true;
             }
+
             // Windows runas and logon screen do not support the following names, but we can try to.
             if (_nativeMethods.GetComputerName(COMPUTER_NAME_FORMAT.ComputerNameDnsHostname, out var hostname))
             {
@@ -119,6 +122,7 @@ namespace Datadog.CustomActions
                     return true;
                 }
             }
+
             if (_nativeMethods.GetComputerName(COMPUTER_NAME_FORMAT.ComputerNameDnsFullyQualified, out var fqdn))
             {
                 if (name == fqdn.ToLower())
@@ -126,6 +130,7 @@ namespace Datadog.CustomActions
                     return true;
                 }
             }
+
             return false;
         }
 
@@ -141,6 +146,7 @@ namespace Datadog.CustomActions
             {
                 return true;
             }
+
             return false;
         }
 
@@ -173,6 +179,7 @@ namespace Datadog.CustomActions
                 {
                     domain = Environment.MachineName;
                 }
+
                 return;
             }
 
@@ -212,6 +219,7 @@ namespace Datadog.CustomActions
                     out securityIdentifier,
                     out nameUse);
             }
+
             return userFound;
         }
 
@@ -490,7 +498,7 @@ namespace Datadog.CustomActions
                 {
                     throw new Exception($"Could not find user {ddAgentUserName}.");
                 }
-                
+
                 var resetPassword = _session.Property("DDAGENTUSER_RESET_PASSWORD");
                 var ddagentuserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
                 var ddagentuser = _session.Property("DDAGENTUSER_PROCESSED_NAME");
@@ -501,6 +509,7 @@ namespace Datadog.CustomActions
                     {
                         throw new InvalidOperationException("Asked to reset password, but password was not provided");
                     }
+
                     _nativeMethods.SetUserPassword(ddagentuser, ddagentuserPassword);
                 }
 
@@ -514,11 +523,13 @@ namespace Datadog.CustomActions
                 }
 
                 _nativeMethods.AddToGroup(securityIdentifier, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
-                _nativeMethods.AddToGroup(securityIdentifier, new SecurityIdentifier("S-1-5-32-573")); // Builtin\Event Log Readers
+                _nativeMethods.AddToGroup(securityIdentifier,
+                    new SecurityIdentifier("S-1-5-32-573")); // Builtin\Event Log Readers
 
                 _nativeMethods.AddPrivilege(securityIdentifier, AccountRightsConstants.SeDenyInteractiveLogonRight);
                 _nativeMethods.AddPrivilege(securityIdentifier, AccountRightsConstants.SeDenyNetworkLogonRight);
-                _nativeMethods.AddPrivilege(securityIdentifier, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
+                _nativeMethods.AddPrivilege(securityIdentifier,
+                    AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
                 _nativeMethods.AddPrivilege(securityIdentifier, AccountRightsConstants.SeServiceLogonRight);
 
                 // Necessary to allow the ddagentuser to read the registry
@@ -530,7 +541,8 @@ namespace Datadog.CustomActions
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);
                 }
-                var key = _registryServices.CreateRegistryKey(Registries.LocalMachine, "SOFTWARE\\Datadog\\Datadog Agent");
+                var key = _registryServices.CreateRegistryKey(Registries.LocalMachine,
+                    Constants.DatadogAgentRegistryKey);
                 if (key != null)
                 {
                     var registrySecurity = new RegistrySecurity();
@@ -565,18 +577,55 @@ namespace Datadog.CustomActions
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);
                 }
+                // set base permissions on APPLICATIONDATADIRECTORY, restrict access to admins only
+                {
+                    FileSystemSecurity fileSystemSecurity = new DirectorySecurity();
+                    // disable inheritance, discard inherited rules
+                    fileSystemSecurity.SetAccessRuleProtection(true, false);
+                    // Administrators FullControl
+                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                        new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                        FileSystemRights.FullControl,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow));
+                    // SYSTEM FullControl
+                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                        new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                        FileSystemRights.FullControl,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow));
+                    // Users WDAC (for backwards compat in testing)
+                    // Use AccessRuleFactory instead of a FileSystemAccessRule constructor because they all
+                    // automatically add FileSystemRights.Synchronize. Which is an okay permission to have but
+                    // the kitchen tests don't support checking for it.
+                    fileSystemSecurity.AddAccessRule((FileSystemAccessRule)fileSystemSecurity.AccessRuleFactory(
+                        new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+                        (int)FileSystemRights.ChangePermissions,
+                        false,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow));
+                    _directoryServices.SetAccessControl(
+                        _session.Property("APPLICATIONDATADIRECTORY"),
+                        (DirectorySecurity)fileSystemSecurity);
+                }
+                // add ddagentuser FullControl to select places
                 var files = new List<string>
                 {
                     _session.Property("APPLICATIONDATADIRECTORY"),
+                    // agent needs to be able to write logs
                     Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "logs"),
                     Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "logs\\agent.log"),
+                    // agent GUI needs to be able to edit config
                     Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "conf.d"),
                     Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "auth_token"),
                     Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "datadog.yaml"),
                     Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "system-probe.yaml"),
+                    // allow agent to write __pycache__
                     Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
                     Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
-
                 };
                 foreach (var filePath in files)
                 {
@@ -586,23 +635,22 @@ namespace Datadog.CustomActions
                         {
                             throw new InvalidOperationException($"The file {filePath} doesn't exist, but it should");
                         }
+
                         _session.Log($"{filePath} does not exists, skipping changing ACLs.");
                         continue;
                     }
 
                     FileSystemSecurity fileSystemSecurity;
-                    string sddl;
                     try
                     {
                         if (_directoryServices.Exists(filePath))
                         {
-                            fileSystemSecurity = _directoryServices.GetAccessControl(filePath, AccessControlSections.All);
-                            sddl = $"D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;{securityIdentifier.Value})";
+                            fileSystemSecurity =
+                                _directoryServices.GetAccessControl(filePath, AccessControlSections.All);
                         }
                         else
                         {
                             fileSystemSecurity = _fileServices.GetAccessControl(filePath, AccessControlSections.All);
-                            sddl = $"D:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;{securityIdentifier.Value})";
                         }
                     }
                     catch (Exception e)
@@ -611,50 +659,36 @@ namespace Datadog.CustomActions
                         throw;
                     }
 
-                    _session.Log($"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-
-                    // Set owner and group only if necessary
-                    if (fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.Owner) != "O:SY" ||
-                        fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.Group) != "G:SY")
-                    {
-                        fileSystemSecurity.SetSecurityDescriptorSddlForm($"O:SYG:SY{sddl}");
-                    }
-                    else
-                    {
-                        fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
-                    }
+                    _session.Log(
+                        $"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
 
                     try
                     {
+                        // disable inheritance, keep inherited rules
+                        fileSystemSecurity.SetAccessRuleProtection(true, true);
                         if (_directoryServices.Exists(filePath))
                         {
+                            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                                ddAgentUserName,
+                                FileSystemRights.FullControl,
+                                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                                PropagationFlags.None,
+                                AccessControlType.Allow));
                             _directoryServices.SetAccessControl(filePath, (DirectorySecurity)fileSystemSecurity);
                         }
                         else
                         {
+                            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                                ddAgentUserName,
+                                FileSystemRights.FullControl,
+                                AccessControlType.Allow));
                             _fileServices.SetAccessControl(filePath, (FileSecurity)fileSystemSecurity);
                         }
                     }
                     catch (Exception e)
                     {
-                        try
-                        {
-                            // Try again but without owner/group
-                            fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
-                            if (_directoryServices.Exists(filePath))
-                            {
-                                _directoryServices.SetAccessControl(filePath, (DirectorySecurity)fileSystemSecurity);
-                            }
-                            else
-                            {
-                                _fileServices.SetAccessControl(filePath, (FileSecurity)fileSystemSecurity);
-                            }
-                        }
-                        catch (Exception)
-                        {
-                            _session.Log($"Failed to set ACLs on {filePath}: {e}");
-                            throw;
-                        }
+                        _session.Log($"Failed to set ACLs on {filePath}: {e}");
+                        throw;
                     }
 
                     try
@@ -668,7 +702,8 @@ namespace Datadog.CustomActions
                             fileSystemSecurity = _fileServices.GetAccessControl(filePath);
                         }
 
-                        _session.Log($"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                        _session.Log(
+                            $"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
                     }
                     catch (Exception e)
                     {
