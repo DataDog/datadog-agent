@@ -24,9 +24,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	ctrmetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -109,13 +111,32 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 	return globalLeaderEngine, nil
 }
 
+func getSelfPodName() (string, error) {
+	selfContainerID, err := ctrmetrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	if err != nil {
+		log.Warnf("Unable to determine self container id: %s", err)
+		return os.Hostname()
+	}
+	kubeutil, err := kubelet.GetKubeUtil()
+	if err != nil {
+		log.Warnf("Failed to get kubeUtil object: %s", err)
+		return os.Hostname()
+	}
+	pod, err := kubeutil.GetPodForContainerID(context.TODO(), selfContainerID)
+	if err != nil {
+		log.Warnf("Failed to get self pod: %s", err)
+		return os.Hostname()
+	}
+	return pod.Metadata.Name, nil
+}
+
 func (le *LeaderEngine) init() error {
 	var err error
 
 	if le.HolderIdentity == "" {
-		le.HolderIdentity, err = os.Hostname()
+		le.HolderIdentity, err = getSelfPodName()
 		if err != nil {
-			log.Debugf("cannot get hostname: %s", err)
+			log.Debugf("cannot get pod name: %s", err)
 			return err
 		}
 	}
