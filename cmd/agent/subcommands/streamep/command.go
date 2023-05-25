@@ -1,4 +1,4 @@
-package streameventplatform
+package streamep
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,7 +23,7 @@ import (
 type cliParams struct {
 	*command.GlobalParams
 
-	filters epforwarder.Filters
+	filters diagnostic.Filters
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -32,7 +32,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	cmd := &cobra.Command{
-		Use:   "stream-event-platform",
+		Use:   "stream-ep",
 		Short: "Stream the event platform payloads being processed by a running agent",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {

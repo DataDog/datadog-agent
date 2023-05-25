@@ -33,11 +33,10 @@ type BufferedMessageReceiver struct {
 
 // Filters for processing log messages
 type Filters struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Source    string `json:"source"`
-	Service   string `json:"service"`
-	EventType string `json:"eventType"`
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Source  string `json:"source"`
+	Service string `json:"service"`
 }
 
 // NewBufferedMessageReceiver creates a new MessageReceiver
@@ -126,16 +125,12 @@ func shouldHandleMessage(m *messagePair, filters *Filters) bool {
 
 	shouldHandle := true
 
-	if filters.EventType != "" {
-		shouldHandle = shouldHandle && m.eventType == filters.Type
-	}
-
 	if filters.Name != "" {
 		shouldHandle = shouldHandle && m.msg.Origin.LogSource.Name == filters.Name
 	}
 
 	if filters.Type != "" {
-		shouldHandle = shouldHandle && m.msg.Origin.LogSource.Config.Type == filters.Type
+		shouldHandle = shouldHandle && (m.msg.Origin.LogSource.Config.Type == filters.Type || m.eventType == filters.Type)
 	}
 
 	if filters.Source != "" {

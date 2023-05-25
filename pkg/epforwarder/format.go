@@ -19,7 +19,6 @@ import (
 type epFormatter struct{}
 
 func (e *epFormatter) Format(m *message.Message, eventType string, redactedMsg []byte) string {
-	// TODO Need to do this a better way, but I just want something working first
 	output := fmt.Sprintf("type: %v | ", eventType)
 
 	switch eventType {
@@ -36,7 +35,7 @@ func (e *epFormatter) Format(m *message.Message, eventType string, redactedMsg [
 		proto.Unmarshal(m.Content, &msg)
 		output += msg.String()
 	default:
-		output += "UNKNOWN"
+		output += string(m.Content[:])
 	}
 	output += "\n"
 	return output

@@ -204,11 +204,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	}
 
 	// Stream to console if debug mode is enabled
-	// TODO need to figure out a better way of handling protobuf vs json
-
-	if eventType == EventTypeContainerSBOM || eventType == EventTypeContainerImages || eventType == EventTypeContainerLifecycle {
-		p.messageReceiver.HandleMessage(*e, eventType, nil)
-	}
+	p.messageReceiver.HandleMessage(*e, eventType, nil)
 
 	select {
 	case p.in <- e:
@@ -225,6 +221,10 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *messag
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
+
+	// Stream to console if debug mode is enabled
+	p.messageReceiver.HandleMessage(*e, eventType, nil)
+
 	p.in <- e
 	return nil
 }

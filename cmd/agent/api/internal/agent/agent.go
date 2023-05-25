@@ -285,7 +285,7 @@ func streamEventPlatform(w http.ResponseWriter, r *http.Request) {
 	}
 	defer epMessageReceiver.SetEnabled(false)
 
-	var filters epforwarder.Filters
+	var filters diagnostic.Filters
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
