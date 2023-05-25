@@ -16,6 +16,16 @@ func FromConfig(pipelineCount int) *Limiter {
 }
 
 func fromConfig(pipelineCount int, cgroupLimitGetter func() (uint64, error)) *Limiter {
+	// If all of the following are true:
+	//
+	// - dogstatsd_context_limiter.cgroup_memory_ratio is set to a valid value
+	// - dogstatsd_context_limiter.bytes_per_context is set to a valid value
+	// - no errors occur while fetching cgroup limit
+	//
+	// Then the mem ratio based limiting will apply.
+	//
+	// Else the static limit defined by dogstatsd_context_limiter.limit will be used.
+
 	limit := 0
 	memoryRatio := config.Datadog.GetFloat64("dogstatsd_context_limiter.cgroup_memory_ratio")
 	bytesPerContext := config.Datadog.GetInt("dogstatsd_context_limiter.bytes_per_context")
