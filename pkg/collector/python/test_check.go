@@ -628,6 +628,8 @@ func testConfigureDeprecated(t *testing.T) {
 }
 
 func testGetDiagnoses(t *testing.T) {
+	C.reset_check_mock()
+
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 
@@ -637,7 +639,6 @@ func testGetDiagnoses(t *testing.T) {
 	}
 
 	check.instance = newMockPyObjectPtr()
-	C.reset_check_mock()
 
 	C.get_check_diagnoses_return = C.CString(`[
 		{
@@ -652,7 +653,7 @@ func testGetDiagnoses(t *testing.T) {
 			"result": 1,
 			"name": "foo_check_instance_b",
 			"diagnosis": "All looks bad",
-			"raw_error": "Strange error 2"
+			"rawerror": "Strange error 2"
 		}
 	]`)
 
