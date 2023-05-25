@@ -8,7 +8,7 @@ package client
 import (
 	"testing"
 
-	commonvm "github.com/DataDog/test-infra-definitions/common/vm"
+	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
 )
 
 var _ clientService[commonvm.ClientData] = (*VM)(nil)

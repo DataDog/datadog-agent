@@ -2098,7 +2098,7 @@ func TestProcessResolution(t *testing.T) {
 			t.Errorf("not able to resolve the entry")
 		}
 
-		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid)
+		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid, inode)
 		if mapsEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}

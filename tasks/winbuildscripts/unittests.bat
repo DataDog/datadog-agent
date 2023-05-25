@@ -14,10 +14,7 @@ mkdir \dev\go\src\github.com\DataDog\datadog-agent
 cd \dev\go\src\github.com\DataDog\datadog-agent
 xcopy /e/s/h/q c:\mnt\*.*
 
-REM Setup root certificates before tests
-Powershell -C "c:\mnt\tasks\winbuildscripts\setup_certificates.ps1" || exit /b 2
-
-Powershell -C "c:\mnt\tasks\winbuildscripts\unittests.ps1" || exit /b 3
+Powershell -C "c:\mnt\tasks\winbuildscripts\unittests.ps1" || exit /b 2
 
 goto :EOF
 

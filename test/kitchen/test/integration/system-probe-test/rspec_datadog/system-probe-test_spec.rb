@@ -28,6 +28,7 @@ co_re_tests = Array.[](
 TIMEOUTS = {
   "pkg/network/protocols/http$" => "15m",
   "pkg/network/tracer$" => "25m",
+  "pkg/network/usm$" => "15m",
 }
 
 DEFAULT_TIMEOUT = "10m"

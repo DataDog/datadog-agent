@@ -332,7 +332,7 @@ func (p *Probe) sendAnomalyDetection(event *model.Event) {
 	}
 
 	p.DispatchCustomEvent(
-		events.NewCustomRule(events.AnomalyDetectionRuleID),
+		events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc),
 		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 	)
 	p.anomalyDetectionSent[event.GetEventType()].Inc()
@@ -1352,7 +1352,7 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid); err != nil {
+	if err := p.resolvers.MountResolver.Insert(*m); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
@@ -1834,4 +1834,8 @@ func (p *Probe) IsActivityDumpEnabled() bool {
 
 func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
+}
+
+func (p *Probe) IsSecurityProfileEnabled() bool {
+	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }

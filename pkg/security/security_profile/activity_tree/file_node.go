@@ -135,7 +135,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if len(currentPath) <= nextParentIndex+1 {
 			if !dryRun {
 				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, generationType)
-				stats.fileNodes++
+				stats.FileNodes++
 			}
 			break
 		} else {

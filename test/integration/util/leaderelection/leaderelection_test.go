@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -35,89 +34,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
-	"golang.org/x/mod/semver"
 )
 
 const setupTimeout = time.Second * 10
-const leaseMinVersion = "v1.14.0"
 
 type apiserverSuite struct {
 	suite.Suite
 	kubeConfigPath string
-	usingLease     bool
-}
-
-func getApiserverComposePath(version string) string {
-	return fmt.Sprintf("/tmp/apiserver-compose-%s.yaml", version)
-}
-
-func generateApiserverCompose(version string) error {
-	apiserverCompose, err := os.ReadFile("testdata/apiserver-compose.yaml")
-	if err != nil {
-		return err
-	}
-
-	newComposeFile := strings.Replace(string(apiserverCompose), "APIVERSION_PLACEHOLDER", version, -1)
-
-	err = os.WriteFile(getApiserverComposePath(version), []byte(newComposeFile), os.ModePerm)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func TestSuiteAPIServer(t *testing.T) {
-	tests := []struct {
-		name    string
-		version string
-	}{
-		{
-			"test version 1.18",
-			"v1.18.20",
-		},
-		{
-			"test version 1.13",
-			"v1.13.2",
-		},
+	mockConfig := config.Mock(t)
+	config.SetFeatures(t, config.Kubernetes)
+	s := &apiserverSuite{}
+
+	// Start compose stack
+	compose := &utils.ComposeConf{
+		ProjectName: "kube_events",
+		FilePath:    "testdata/apiserver-compose.yaml",
+		Variables:   map[string]string{},
 	}
-	for _, tt := range tests {
-		s := &apiserverSuite{}
-		require.True(t, semver.IsValid(tt.version))
-		if semver.Compare(tt.version, leaseMinVersion) < 0 {
-			s.usingLease = false
-		} else {
-			s.usingLease = true
-		}
+	output, err := compose.Start()
+	defer compose.Stop()
+	require.Nil(t, err, string(output))
 
-		err := generateApiserverCompose(tt.version)
-		require.NoError(t, err)
-		defer func() {
-			os.Remove(getApiserverComposePath(tt.version))
-		}()
+	// Init apiclient
+	pwd, err := os.Getwd()
+	require.Nil(t, err)
+	s.kubeConfigPath = filepath.Join(pwd, "testdata", "kubeconfig.json")
+	mockConfig.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
+	_, err = os.Stat(s.kubeConfigPath)
+	require.Nil(t, err, fmt.Sprintf("%v", err))
 
-		mockConfig := config.Mock(t)
-		config.SetFeatures(t, config.Kubernetes)
-
-		// Start compose stack
-		compose := &utils.ComposeConf{
-			ProjectName: "kube_events",
-			FilePath:    getApiserverComposePath(tt.version),
-			Variables:   map[string]string{},
-		}
-		output, err := compose.Start()
-		defer compose.Stop()
-		require.Nil(t, err, string(output))
-
-		// Init apiclient
-		pwd, err := os.Getwd()
-		require.Nil(t, err)
-		s.kubeConfigPath = filepath.Join(pwd, "testdata", "kubeconfig.json")
-		mockConfig.Set("kubernetes_kubeconfig_path", s.kubeConfigPath)
-		_, err = os.Stat(s.kubeConfigPath)
-		require.Nil(t, err, fmt.Sprintf("%v", err))
-
-		suite.Run(t, s)
-	}
+	suite.Run(t, s)
 }
 
 func (suite *apiserverSuite) SetupTest() {
@@ -222,40 +171,24 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	}
 
 	c, err := apiserver.GetAPIClient()
-	usingLease, err := leaderelection.CanUseLease(c.DiscoveryCl)
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), usingLease, suite.usingLease)
+	client := c.Cl.CoreV1()
 
-	if usingLease {
-		client := c.Cl.CoordinationV1()
-		require.Nil(suite.T(), err)
-		leasesList, err := client.Leases(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
-		require.Nil(suite.T(), err)
-		// 1 Lease
-		require.Len(suite.T(), leasesList.Items, 1)
-		lease := leasesList.Items[0]
-		require.Equal(suite.T(), "datadog-leader-election", lease.Name)
-		require.NotNil(suite.T(), lease.Spec.HolderIdentity)
-		require.Equal(suite.T(), testCases[0].leaderEngine.HolderIdentity, *lease.Spec.HolderIdentity)
-	} else {
-		client := c.Cl.CoreV1()
-		require.Nil(suite.T(), err)
-		cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
-		require.Nil(suite.T(), err)
-		// 1 ConfigMap
-		require.Len(suite.T(), cmList.Items, 1)
+	require.Nil(suite.T(), err)
+	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
+	require.Nil(suite.T(), err)
+	// 1 ConfigMap
+	require.Len(suite.T(), cmList.Items, 1)
 
-		var leaderAnnotation string
-		var found bool
-		for _, cm := range cmList.Items {
-			if cm.Name == "datadog-leader-election" {
-				require.False(suite.T(), found, "only one configmap match")
-				leaderAnnotation, found = cm.Annotations[rl.LeaderElectionRecordAnnotationKey]
-				require.True(suite.T(), found)
-			}
+	var leaderAnnotation string
+	var found bool
+	for _, cm := range cmList.Items {
+		if cm.Name == "datadog-leader-election" {
+			require.False(suite.T(), found, "only one configmap match")
+			leaderAnnotation, found = cm.Annotations[rl.LeaderElectionRecordAnnotationKey]
+			require.True(suite.T(), found)
 		}
-		require.Nil(suite.T(), err)
-		expectedMessage := fmt.Sprintf(`"holderIdentity":"%s"`, testCases[0].leaderEngine.HolderIdentity)
-		assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
 	}
+	require.Nil(suite.T(), err)
+	expectedMessage := fmt.Sprintf(`"holderIdentity":"%s"`, testCases[0].leaderEngine.HolderIdentity)
+	assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
 }

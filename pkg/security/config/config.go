@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -76,6 +77,9 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpTagsResolutionPeriod time.Duration
 	// ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
 	ActivityDumpLoadControlPeriod time.Duration
+	// ActivityDumpLoadControlMinDumpTimeout defines minimal duration of a activity dump recording
+	ActivityDumpLoadControlMinDumpTimeout time.Duration
+
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
@@ -181,9 +185,8 @@ func NewConfig() (*Config, error) {
 }
 
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
-	dumpDuration := time.Duration(coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.cgroup_dump_timeout")) * time.Minute
-	if dumpDuration == 0 {
-		dumpDuration = coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.dump_duration")
+	if !sysconfig.IsAdjusted(coreconfig.SystemProbe) {
+		sysconfig.Adjust(coreconfig.SystemProbe)
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
@@ -215,9 +218,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpCleanupPeriod:             coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.cleanup_period"),
 		ActivityDumpTagsResolutionPeriod:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.tags_resolution_period"),
 		ActivityDumpLoadControlPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.load_controller_period"),
+		ActivityDumpLoadControlMinDumpTimeout: coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.min_timeout"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
-		ActivityDumpCgroupDumpTimeout:         dumpDuration,
+		ActivityDumpCgroupDumpTimeout:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.dump_duration"),
 		ActivityDumpRateLimiter:               coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.rate_limiter"),
 		ActivityDumpCgroupWaitListTimeout:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
 		ActivityDumpCgroupDifferentiateArgs:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
@@ -271,16 +275,6 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
-	// if runtime is enabled then we force fim
-	if c.RuntimeEnabled {
-		c.FIMEnabled = true
-	}
-
-	// if runtime is disabled then we force disable activity dumps
-	if !c.RuntimeEnabled {
-		c.ActivityDumpEnabled = false
-	}
-
 	serviceName := utils.GetTagValue("service", coreconfig.GetGlobalConfiguredTags(true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)

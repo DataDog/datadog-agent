@@ -37,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -696,7 +696,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 }
 
 func TestFilteredByTags(t *testing.T) {
-	for _, tt := range []struct {
+	for _, tt := range []*struct {
 		require []*config.Tag
 		reject  []*config.Tag
 		span    pb.Span
@@ -1023,8 +1023,8 @@ func TestSample(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			before := new(pb.TraceChunk) // make sure tt.trace.TraceChunk never changes
-			*before = *tt.trace.TraceChunk
+			// before := traceutil.CopyTraceChunk(tt.trace.TraceChunk)
+			before := tt.trace.TraceChunk.ShallowCopy()
 			_, keep, sampled := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, tt.dropped, sampled.TraceChunk.DroppedTrace)
@@ -1661,8 +1661,8 @@ func TestSampleWithPriorityNone(t *testing.T) {
 		TraceChunk: testutil.TraceChunkWithSpan(span),
 		Root:       span,
 	}
-	before := new(pb.TraceChunk)
-	*before = *pt.TraceChunk
+	// before := traceutil.CopyTraceChunk(pt.TraceChunk)
+	before := pt.TraceChunk.ShallowCopy()
 	numEvents, keep, sampled := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep) // Score Sampler should keep the trace.
 	assert.False(t, sampled.TraceChunk.DroppedTrace)

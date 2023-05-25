@@ -31,7 +31,13 @@ type ProcessNode struct {
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
-	label := fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
+	var label string
+	if sprocess.IsBusybox(pn.Process.FileEvent.PathnameStr) {
+		arg0, _ := sprocess.GetProcessArgv0(&pn.Process)
+		label = fmt.Sprintf("%s %s", arg0, args)
+	} else {
+		label = fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
+	}
 	if len(pn.Process.FileEvent.PkgName) != 0 {
 		label += fmt.Sprintf(" \\{%s %s\\}", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion)
 	}
@@ -76,15 +82,13 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
 func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 	if pn.Process.ArgsEntry != nil {
-		_, _ = resolver.GetProcessScrubbedArgv(&pn.Process)
-		pn.Process.Argv0, _ = resolver.GetProcessArgv0(&pn.Process)
+		resolver.GetProcessScrubbedArgv(&pn.Process)
+		sprocess.GetProcessArgv0(&pn.Process)
 		pn.Process.ArgsEntry = nil
 
 	}
 	if pn.Process.EnvsEntry != nil {
-		envs, envsTruncated := resolver.GetProcessEnvs(&pn.Process)
-		pn.Process.Envs = envs
-		pn.Process.EnvsTruncated = envsTruncated
+		resolver.GetProcessEnvs(&pn.Process)
 		pn.Process.EnvsEntry = nil
 	}
 }
@@ -92,38 +96,26 @@ func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 // Matches return true if the process fields used to generate the dump are identical with the provided model.Process
 func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool) bool {
 	if pn.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr {
+		if sprocess.IsBusybox(entry.FileEvent.PathnameStr) {
+			panArg0, _ := sprocess.GetProcessArgv0(&pn.Process)
+			entryArg0, _ := sprocess.GetProcessArgv0(entry)
+			if panArg0 != entryArg0 {
+				return false
+			}
+		}
 		if matchArgs {
-			var panArgs, entryArgs []string
-			if pn.Process.ArgsEntry != nil {
-				panArgs, _ = sprocess.GetProcessArgv(&pn.Process)
-			} else {
-				panArgs = pn.Process.Argv
-			}
-			if entry.ArgsEntry != nil {
-				entryArgs, _ = sprocess.GetProcessArgv(entry)
-			} else {
-				entryArgs = entry.Argv
-			}
+			panArgs, _ := sprocess.GetProcessArgv(&pn.Process)
+			entryArgs, _ := sprocess.GetProcessArgv(entry)
 			if len(panArgs) != len(entryArgs) {
 				return false
 			}
-
-			var found bool
-			for _, arg1 := range panArgs {
-				found = false
-				for _, arg2 := range entryArgs {
-					if arg1 == arg2 {
-						found = true
-						break
-					}
-				}
-				if !found {
+			for i, arg := range panArgs {
+				if arg != entryArgs[i] {
 					return false
 				}
 			}
 			return true
 		}
-
 		return true
 	}
 	return false
@@ -173,14 +165,14 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
 			node := NewFileNode(fileEvent, event, parent, generationType)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
-			stats.fileNodes++
+			stats.FileNodes++
 			pn.Files[parent] = node
 		} else {
 			// This is an intermediary node in the branch that leads to the leaf we want to add. Create a node without the
 			// fileEvent context.
 			newChild := NewFileNode(nil, nil, parent, generationType)
 			newChild.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun)
-			stats.fileNodes++
+			stats.FileNodes++
 			pn.Files[parent] = newChild
 		}
 	}
@@ -215,7 +207,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGener
 
 	if !dryRun {
 		pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
-		stats.dnsNodes++
+		stats.DNSNodes++
 	}
 	return true
 }
@@ -238,7 +230,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGene
 	if sock == nil {
 		sock = NewSocketNode(evtFamily, generationType)
 		if !dryRun {
-			stats.socketNodes++
+			stats.SocketNodes++
 			pn.Sockets = append(pn.Sockets, sock)
 		}
 		newNode = true

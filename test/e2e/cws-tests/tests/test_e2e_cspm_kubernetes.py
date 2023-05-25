@@ -113,36 +113,6 @@ class TestE2EKubernetes(unittest.TestCase):
         ],
     }
     expectedFindingsWorkerNode = {
-        "cis-kubernetes-1.5.1-4.1.1": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.2": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.3": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.4": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.7": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.8": [
-            {
-                "result": "error",
-            }
-        ],
         "cis-kubernetes-1.5.1-4.2.1": [
             {
                 "result": "failed",

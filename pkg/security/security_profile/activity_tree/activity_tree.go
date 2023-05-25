@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -132,8 +131,8 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		at.Stats.ProcessNodes += 1
 		pnodes = append(pnodes, node.Children...)
 
-		at.Stats.dnsNodes += int64(len(node.DNSNames))
-		at.Stats.socketNodes += int64(len(node.Sockets))
+		at.Stats.DNSNodes += int64(len(node.DNSNames))
+		at.Stats.SocketNodes += int64(len(node.Sockets))
 
 		for _, f := range node.Files {
 			fnodes = append(fnodes, f)
@@ -146,7 +145,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		node := fnodes[0]
 
 		if node.File != nil {
-			at.Stats.fileNodes += 1
+			at.Stats.FileNodes += 1
 		}
 
 		for _, f := range node.Children {
@@ -185,12 +184,6 @@ func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.Resolver) {
 // DifferentiateArgs enables the args differentiation feature
 func (at *ActivityTree) DifferentiateArgs() {
 	at.differentiateArgs = true
-}
-
-// isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
-func (at *ActivityTree) isValidRootNode(entry *model.ProcessContext) bool {
-	// TODO: evaluate if the same issue affects other container runtimes
-	return !(strings.HasPrefix(entry.FileEvent.BasenameStr, "runc") || strings.HasPrefix(entry.FileEvent.BasenameStr, "containerd-shim"))
 }
 
 // isEventValid evaluates if the provided event is valid
@@ -339,12 +332,9 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 			}
 		}
 
-		// we're about to add a root process node, make sure this root node passes the root node sanitizer
-		if !at.isValidRootNode(&entry.ProcessContext) {
-			if !dryRun {
-				at.Stats.droppedCount[model.ExecEventType][invalidRootNodeReason].Inc()
-			}
-			return nil, false, fmt.Errorf("invalid root node")
+		// ignore non overlay fs node
+		if !entry.FileEvent.IsOverlayFS() {
+			return nil, false, nil
 		}
 
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
@@ -385,10 +375,10 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 	return node, true, nil
 }
 
-func (at *ActivityTree) FindMatchingRootNodes(basename string) []*ProcessNode {
+func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	var res []*ProcessNode
 	for _, node := range at.ProcessNodes {
-		if node.Process.FileEvent.BasenameStr == basename {
+		if node.Process.Argv0 == arg0 {
 			res = append(res, node)
 		}
 	}

@@ -202,7 +202,7 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
-		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 }
