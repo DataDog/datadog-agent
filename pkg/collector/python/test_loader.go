@@ -62,6 +62,57 @@ int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const c
 	return get_attr_string_return;
 }
 
+int get_check_return = 0;
+int get_check_calls = 0;
+rtloader_pyobject_t *get_check_py_class = NULL;
+const char *get_check_init_config = NULL;
+const char *get_check_instance = NULL;
+const char *get_check_check_id = NULL;
+const char *get_check_check_name = NULL;
+rtloader_pyobject_t *get_check_check = NULL;
+
+int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
+const char *check_id, const char *check_name, rtloader_pyobject_t **check) {
+
+	get_check_py_class = py_class;
+	get_check_init_config = strdup(init_config);
+	get_check_instance = strdup(instance);
+	get_check_check_id = strdup(check_id);
+	get_check_check_name = strdup(check_name);
+	*check = get_check_check;
+
+	get_check_calls++;
+	return get_check_return;
+}
+
+// get_check_deprecated MOCK
+
+int get_check_deprecated_calls = 0;
+int get_check_deprecated_return = 0;
+rtloader_pyobject_t *get_check_deprecated_py_class = NULL;
+const char *get_check_deprecated_init_config = NULL;
+const char *get_check_deprecated_instance = NULL;
+const char *get_check_deprecated_check_id = NULL;
+const char *get_check_deprecated_check_name = NULL;
+const char *get_check_deprecated_agent_config = NULL;
+rtloader_pyobject_t *get_check_deprecated_check = NULL;
+
+int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
+const char *instance, const char *agent_config, const char *check_id, const char *check_name,
+rtloader_pyobject_t **check) {
+
+	get_check_deprecated_py_class = py_class;
+	get_check_deprecated_init_config = strdup(init_config);
+	get_check_deprecated_instance = strdup(instance);
+	get_check_deprecated_check_id = strdup(check_id);
+	get_check_deprecated_check_name = strdup(check_name);
+	get_check_deprecated_agent_config = strdup(agent_config);
+	*check = get_check_deprecated_check;
+
+	get_check_deprecated_calls++;
+	return get_check_deprecated_return;
+}
+
 void reset_loader_mock() {
 	get_class_calls = 0;
 	get_class_return = 0;
@@ -77,6 +128,24 @@ void reset_loader_mock() {
 	get_attr_string_py_class = NULL;
 	get_attr_string_attr_name = NULL;
 	get_attr_string_attr_value = NULL;
+
+	get_check_return = 0;
+	get_check_calls = 0;
+	get_check_py_class = NULL;
+	get_check_init_config = NULL;
+	get_check_instance = NULL;
+	get_check_check_id = NULL;
+	get_check_check_name = NULL;
+	get_check_check = NULL;
+	get_check_deprecated_calls = 0;
+	get_check_deprecated_return = 0;
+	get_check_deprecated_py_class = NULL;
+	get_check_deprecated_init_config = NULL;
+	get_check_deprecated_instance = NULL;
+	get_check_deprecated_check_id = NULL;
+	get_check_deprecated_check_name = NULL;
+	get_check_deprecated_agent_config = NULL;
+	get_check_deprecated_check = NULL;
 }
 */
 import "C"
@@ -101,6 +170,9 @@ func testLoadCustomCheck(t *testing.T) {
 	C.get_class_py_module = newMockPyObjectPtr()
 	C.get_class_py_class = newMockPyObjectPtr()
 	C.get_attr_string_return = 0
+	C.get_check_return = 0
+	C.get_check_deprecated_check = newMockPyObjectPtr()
+	C.get_check_deprecated_return = 1
 
 	check, err := loader.Load(conf, conf.Instances[0])
 	// Remove check finalizer that may trigger race condition while testing
@@ -135,6 +207,9 @@ func testLoadWheelCheck(t *testing.T) {
 	C.get_class_dd_wheel_py_class = newMockPyObjectPtr()
 	C.get_attr_string_return = 1
 	C.get_attr_string_attr_value = C.CString("1.2.3")
+	C.get_check_return = 0
+	C.get_check_deprecated_check = newMockPyObjectPtr()
+	C.get_check_deprecated_return = 1
 
 	check, err := loader.Load(conf, conf.Instances[0])
 	// Remove check finalizer that may trigger race condition while testing

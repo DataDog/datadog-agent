@@ -546,7 +546,7 @@ char *Two::getCheckDiagnoses(RtLoaderPyObject *check)
 
     result = PyObject_CallMethod(py_check, func_name, NULL);
     if (result == NULL) {
-        setError("error invoking 'get_diagnoses' method: " + _fetchPythonError());
+        ret = _createInternalErrorDiagnoses(_fetchPythonError().c_str());
         goto done;
     }
 
@@ -554,7 +554,8 @@ char *Two::getCheckDiagnoses(RtLoaderPyObject *check)
     // deallocated along with the corresponding Python object.
     ret = PyString_AsString(result);
     if (ret == NULL) {
-        setError("error converting 'get_diagnoses' result to string: " + _fetchPythonError());
+        ret = _createInternalErrorDiagnoses("error converting 'get_diagnoses' result to string: "
+                                            + _fetchPythonError());
         goto done;
     }
 

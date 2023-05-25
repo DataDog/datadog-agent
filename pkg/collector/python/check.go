@@ -56,7 +56,7 @@ type PythonCheck struct {
 // Helper struct for deserializing Python diagnoses into diangosis.Diagnoses
 type diagnosisJSONSerWrap struct {
 	diagnosis.Diagnosis
-	Raw_error string
+	RawError string
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -374,8 +374,8 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 			d.Name = c.String()
 		}
 
-		if len(dw.Raw_error) > 0 {
-			d.RawError = errors.New(dw.Raw_error)
+		if len(dw.RawError) > 0 {
+			d.RawError = errors.New(dw.RawError)
 		}
 
 		diagnoses = append(diagnoses, d)

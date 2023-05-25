@@ -553,14 +553,14 @@ char *Three::getCheckDiagnoses(RtLoaderPyObject *check)
 
     result = PyObject_CallMethod(py_check, func_name, NULL);
     if (result == NULL || !PyUnicode_Check(result)) {
-        setError("error invoking 'get_diagnoses' method: " + _fetchPythonError());
+        ret = _createInternalErrorDiagnoses(_fetchPythonError().c_str());
         goto done;
     }
 
     ret = as_string(result);
     if (ret == NULL) {
         // as_string clears the error, so we can't fetch it here
-        setError("error converting 'get_diagnoses' result to string");
+        ret = _createInternalErrorDiagnoses("error converting 'get_diagnoses' result to string");
         goto done;
     }
 

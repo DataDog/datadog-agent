@@ -193,6 +193,8 @@ void reset_check_mock() {
 	get_check_deprecated_agent_config = NULL;
 	get_check_deprecated_check = NULL;
 
+	get_check_diagnoses_return = NULL;
+	get_check_diagnoses_calls = 0;
 }
 */
 import "C"

@@ -7,6 +7,10 @@
 #include "rtloader.h"
 #include "rtloader_mem.h"
 
+#define GET_DIANGOSES_FAILURE_DIAGNOSES_BEGIN                                                                          \
+    "[{\"result\":3, \"diagnosis\": \"check's get_diagnoses() method failed\", \"rawerror\": \""
+#define GET_DIANGOSES_FAILURE_DIAGNOSES_END "\"}]"
+
 RtLoader::RtLoader(cb_memory_tracker_t memtrack_cb)
     : _error()
     , _errorFlag(false)
@@ -54,4 +58,12 @@ void RtLoader::free(void *ptr)
     if (ptr != NULL) {
         _free(ptr);
     }
+}
+
+char *RtLoader::_createInternalErrorDiagnoses(const char *errorMessage)
+{
+    std::string getDiagnoseFailureDiagnoses
+        = std::string(GET_DIANGOSES_FAILURE_DIAGNOSES_BEGIN) + errorMessage + GET_DIANGOSES_FAILURE_DIAGNOSES_END;
+
+    return strdupe(getDiagnoseFailureDiagnoses.c_str());
 }

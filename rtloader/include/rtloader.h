@@ -469,6 +469,15 @@ public:
     {
     }
 
+protected:
+    //! _allocateInternalErrorDiagnoses member.
+    /*!
+      \param A C-string representation of the error message
+
+      This creates diagnoses indicating problem with get_diagnoses call in the same format as its regular output.
+    */
+    static char *_createInternalErrorDiagnoses(const char *errorMsg);
+
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */
     mutable bool _errorFlag; /*!< boolean indicating whether an error was set on RtLoader */
