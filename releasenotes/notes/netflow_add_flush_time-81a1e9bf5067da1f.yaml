@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [pkg/netflow] Add ``flush_time`` to payload.
+    [pkg/netflow] Add ``flush_timestamp`` to payload.
