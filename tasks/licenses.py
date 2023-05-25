@@ -85,7 +85,7 @@ def licenses_csv(licenses):
         quotes_to_check = ["'", '"']
         for c in copyright:
             if c in quotes_to_check:
-                if len(stack) != 0 and stack[-1] == c:
+                if stack and stack[-1] == c:
                     stack.pop()
                 else:
                     stack.append(c)
