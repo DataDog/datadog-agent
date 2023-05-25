@@ -53,17 +53,10 @@ type PythonCheck struct {
 	instanceConfig string
 }
 
-// It is an identical structure to the diagnosis.Diagnosis. It is possible
-// that in future diagnosis.Diagnosis will have its own JSON mapping but
-// at this stage this single usa case is insufficient to change base struct type
-type diagnosisJSON struct {
-	Result      int    `json:"result"`
-	Name        string `json:"name"`
-	Diagnosis   string `json:"diagnosis"`
-	Category    string `json:"category"`
-	Description string `json:"description"`
-	Remediation string `json:"remediation"`
-	Raw_error   string `json:"raw_error"`
+// Helper struct for deserializing Python diagnoses into diangosis.Diagnoses
+type diagnosisJSONSerWrap struct {
+	diagnosis.Diagnosis
+	Raw_error string
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -355,12 +348,9 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	}
 	defer gstate.unlock()
 
-	// Get serialized diagnoses. CGO packaging is implemented in
-	//Three|Two::getCheckDiagnoses(RtLoaderPyObject* check) methods
-	// in datadog-agent\\rtloader\\three\\three.cpp (and two.cpp).
-	//
-	// It is serialized as JSON by Python. Handcrafted and significantly more complicated
-	// manual serialization was only 2-2.5 times faster and hence not worth it for low-rate calls like this
+	// Get JSON serialized diagnoses. Handcrafted and significantly more complicated
+	// manual serialization was only 2-2.5 times faster and hence not worth it for
+	// low-rate calls like this
 	pyDiagnoses := C.get_check_diagnoses(rtloader, c.instance)
 	if pyDiagnoses == nil {
 		return nil, nil
@@ -369,48 +359,23 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 
 	// Deserialize it
 	s := C.GoString(pyDiagnoses)
-	var diagnosesJSON []diagnosisJSON
-	err = json.Unmarshal([]byte(s), &diagnosesJSON)
-	if err != nil || diagnosesJSON == nil {
+
+	var diagnosesWrap []diagnosisJSONSerWrap
+	err = json.Unmarshal([]byte(s), &diagnosesWrap)
+	if err != nil || diagnosesWrap == nil || len(diagnosesWrap) == 0 {
 		return nil, err
 	}
 
-	// Copy it over (in future we may be able to deserialize
-	// directly into target data)
-	var diagnoses []diagnosis.Diagnosis
-	for _, dj := range diagnosesJSON {
-		d := diagnosis.Diagnosis{
-			Name:        dj.Name,
-			Diagnosis:   dj.Diagnosis,
-			Category:    dj.Category,
-			Description: dj.Description,
-			Remediation: dj.Remediation,
+	diagnoses := make([]diagnosis.Diagnosis, 0, len(diagnosesWrap))
+	for _, dw := range diagnosesWrap {
+		d := dw.Diagnosis
+
+		if len(d.Name) == 0 {
+			d.Name = c.String()
 		}
 
-		// Convert result and error
-		d.Result = diagnosis.Result(dj.Result)
-		if len(dj.Raw_error) > 0 {
-			d.RawError = errors.New(dj.Raw_error)
-		}
-
-		// Extra validation diagnosis for consistency. Checked required fields and status range
-		if d.Result < diagnosis.DiagnosisResultMIN ||
-			d.Result > diagnosis.DiagnosisResultMAX ||
-			len(d.Name) == 0 ||
-			len(d.Diagnosis) == 0 {
-
-			if d.RawError != nil {
-				// If error already reported, append to it
-				d.RawError = fmt.Errorf("Required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s. Reported Error: %s",
-					d.Result, d.Name, d.Diagnosis, d.RawError.Error())
-			} else {
-				d.RawError = fmt.Errorf("Required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s", d.Result, d.Name, d.Diagnosis)
-			}
-
-			d.Result = diagnosis.DiagnosisUnexpectedError
-			if len(d.Name) == 0 {
-				d.Name = c.String()
-			}
+		if len(dw.Raw_error) > 0 {
+			d.RawError = errors.New(dw.Raw_error)
 		}
 
 		diagnoses = append(diagnoses, d)

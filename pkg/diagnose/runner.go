@@ -165,6 +165,34 @@ func getSortedDiagnoseSuites() []diagnosis.Suite {
 	return sortedSuites
 }
 
+func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+	diagnoses := ds.Diagnose(diagCfg)
+
+	// validate each diagnoses
+	for i, d := range diagnoses {
+		if d.Result < diagnosis.DiagnosisResultMIN ||
+			d.Result > diagnosis.DiagnosisResultMAX ||
+			len(d.Name) == 0 ||
+			len(d.Diagnosis) == 0 {
+
+			if d.RawError != nil {
+				// If error already reported, append to it
+				diagnoses[i].RawError = fmt.Errorf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s. Reported Error: %s",
+					d.Result, d.Name, d.Diagnosis, d.RawError.Error())
+			} else {
+				diagnoses[i].RawError = fmt.Errorf("required diagnosis fields are invalid. Result:%d, Name:%s, Diagnosis:%s", d.Result, d.Name, d.Diagnosis)
+			}
+
+			diagnoses[i].Result = diagnosis.DiagnosisUnexpectedError
+			if len(d.Name) == 0 {
+				diagnoses[i].Name = ds.SuitName
+			}
+		}
+	}
+
+	return diagnoses
+}
+
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
 func ListAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
@@ -200,7 +228,7 @@ func RunAll(diagCfg diagnosis.Config) []diagnosis.Diagnoses {
 	var suiteDiagnoses []diagnosis.Diagnoses
 	for _, ds := range suites {
 		// Run particular diagnose
-		diagnoses := ds.Diagnose(diagCfg)
+		diagnoses := getSuiteDiagnoses(ds, diagCfg)
 		if len(diagnoses) > 0 {
 			suiteDiagnoses = append(suiteDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
@@ -233,7 +261,7 @@ func RunAllStdOut(w io.Writer, diagCfg diagnosis.Config) {
 		}
 
 		// Run particular diagnose
-		diagnoses := ds.Diagnose(diagCfg)
+		diagnoses := getSuiteDiagnoses(ds, diagCfg)
 		if diagnoses == nil {
 			// No diagnoses are reported, move on to next Diagnose
 			continue
