@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	bpftelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	usmtestconfig "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/testconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -38,7 +37,7 @@ func TestConsumer(t *testing.T) {
 	}
 
 	const numEvents = 100
-	c := usmtestconfig.USMTestConfig()
+	c := config.New()
 	program, err := newEBPFProgram(c)
 	require.NoError(t, err)
 

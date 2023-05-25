@@ -26,12 +26,12 @@ import (
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	usmtestconfig "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/testconfig"
 )
 
 func registerProcessTerminationUponCleanup(t *testing.T, cmd *exec.Cmd) {
@@ -428,7 +428,7 @@ func checkWatcherStateIsClean(t *testing.T, watcher *soWatcher) {
 }
 
 func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
-	c := usmtestconfig.USMTestConfig()
+	c := config.New()
 	if !http.HTTPSSupported(c) {
 		t.Skip("https not supported for this setup")
 	}

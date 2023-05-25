@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usmtestconfig "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/testconfig"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 const (
@@ -30,7 +30,7 @@ func TestOrphanEntries(t *testing.T) {
 		now := time.Now()
 		tel, err := NewTelemetry()
 		require.NoError(t, err)
-		buffer := newIncompleteBuffer(usmtestconfig.USMTestConfig(), tel)
+		buffer := newIncompleteBuffer(config.New(), tel)
 		request := &EbpfHttpTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
 			Request_started:  uint64(now.UnixNano()),
@@ -60,7 +60,7 @@ func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries are not kept indefinitely", func(t *testing.T) {
 		tel, err := NewTelemetry()
 		require.NoError(t, err)
-		buffer := newIncompleteBuffer(usmtestconfig.USMTestConfig(), tel)
+		buffer := newIncompleteBuffer(config.New(), tel)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
 		request := &EbpfHttpTx{
@@ -82,7 +82,7 @@ func TestBufferLimit(t *testing.T) {
 	tel, err := NewTelemetry()
 	require.NoError(t, err)
 
-	buffer := newIncompleteBuffer(usmtestconfig.USMTestConfig(), tel)
+	buffer := newIncompleteBuffer(config.New(), tel)
 
 	// Attempt to insert more data than allowed
 	// Since all incomplete parts share the same tuple, this will generate
