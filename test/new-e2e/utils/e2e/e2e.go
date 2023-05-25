@@ -49,7 +49,7 @@
 //
 // The third parameter defines the environment. See "Using existing stack definition section" for more information about a stack definition.
 //
-// 3. Write your test function
+// 3. Write a test function
 //
 //	func (v *vmSuite) TestBasicVM() {
 //		v.Env().VM.Execute("ls")
