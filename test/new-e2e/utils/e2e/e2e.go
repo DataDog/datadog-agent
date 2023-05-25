@@ -47,7 +47,7 @@
 //
 // The second argument is a pointer to an empty instance of the previous defined structure (&vmSuite{} in our example)
 //
-// The third parameter defines the environment. See "Using existing stack definition section" for more information about a stack definition.
+// The third parameter defines the environment. See "Using existing stack definition section" for more information about a environment definition.
 //
 // 3. Write a test function
 //
