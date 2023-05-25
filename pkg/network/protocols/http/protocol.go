@@ -64,10 +64,6 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 }
 
 func (p *httpProtocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	if p == nil {
-		return
-	}
-
 	opts.MapSpecEditors[httpInFlightMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
@@ -79,10 +75,6 @@ func (p *httpProtocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Opti
 }
 
 func (p *httpProtocol) PreStart(mgr *manager.Manager) (err error) {
-	if p == nil {
-		return
-	}
-
 	p.eventsConsumer, err = events.NewConsumer(
 		"http",
 		mgr,
@@ -98,20 +90,12 @@ func (p *httpProtocol) PreStart(mgr *manager.Manager) (err error) {
 }
 
 func (p *httpProtocol) PostStart(mgr *manager.Manager) {
-	if p == nil {
-		return
-	}
-
 	p.setupMapCleaner(mgr)
 
 	log.Info("http monitoring enabled")
 }
 
 func (p *httpProtocol) PreStop(mgr *manager.Manager) {
-	if p == nil {
-		return
-	}
-
 	p.mapCleaner.Stop()
 	p.eventsConsumer.Stop()
 	p.statkeeper.Close()
@@ -121,10 +105,6 @@ func (p *httpProtocol) PostStop(mgr *manager.Manager) {
 }
 
 func (p *httpProtocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
-	if p == nil {
-		return
-	}
-
 	switch mapName {
 	case httpInFlightMap: // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
@@ -139,20 +119,12 @@ func (p *httpProtocol) DumpMaps(output *strings.Builder, mapName string, current
 }
 
 func (p *httpProtocol) processHTTP(data []byte) {
-	if p == nil {
-		return
-	}
-
 	tx := (*EbpfHttpTx)(unsafe.Pointer(&data[0]))
 	p.telemetry.Count(tx)
 	p.statkeeper.Process(tx)
 }
 
 func (p *httpProtocol) setupMapCleaner(mgr *manager.Manager) {
-	if p == nil {
-		return
-	}
-
 	httpMap, _, _ := mgr.GetMap(httpInFlightMap)
 	mapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(EbpfHttpTx))
 	if err != nil {
@@ -181,10 +153,6 @@ func (p *httpProtocol) setupMapCleaner(mgr *manager.Manager) {
 // GetStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
 func (p *httpProtocol) GetStats() *protocols.ProtocolStats {
-	if p == nil {
-		return nil
-	}
-
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
 	return &protocols.ProtocolStats{
