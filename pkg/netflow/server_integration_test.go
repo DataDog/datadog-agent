@@ -24,7 +24,7 @@ import (
 
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 	// Setup NetFlow feature config
-	port := uint16(52055)
+	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
@@ -72,7 +72,7 @@ network_devices:
 
 func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	// Setup NetFlow feature config
-	port := uint16(52056)
+	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
@@ -118,7 +118,7 @@ network_devices:
 
 func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	// Setup NetFlow feature config
-	port := uint16(52057)
+	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
