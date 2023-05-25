@@ -79,9 +79,21 @@ def get_licenses_list(ctx):
 
 def licenses_csv(licenses):
     licenses.sort(key=lambda lic: lic["package"])
-
+    def is_valid_quote(copyright):
+        stack = []
+        quotes_to_check = ["'",'"']
+        for c in copyright:
+            if c in quotes_to_check:
+                if len(stack) !=0 and stack[-1] == c:
+                    stack.pop()
+                else:
+                    stack.append(c)
+        return len(stack) == 0
     def fmt_copyright(lic):
-        copyright = ' | '.join(sorted(lic['copyright']))
+        # discards copyright with invalid quotes to ensure generated csv is valid
+        copyright = [f_copyright for f_copyright in lic['copyright'] if is_valid_quote(f_copyright)]
+
+        copyright = ' | '.join(sorted(copyright))
         # quote for inclusion in CSV, if necessary
         if ',' in copyright:
             copyright = copyright.replace('"', '""')
