@@ -152,7 +152,7 @@
 // In this scenario, the environment is different for each test (or for most of them).
 // [e2e.Suite.UpdateEnv] is used to update the environment.
 // Keep in mind that using [e2e.Suite.UpdateEnv] to update virtual machine settings can destroy
-// the current virtal machine and create a new one when updating the operating system for example.
+// the current virtual machine and create a new one when updating the operating system for example.
 //
 // Note: Calling twice [e2e.Suite.UpdateEnv] with the same argument does nothing.
 //
