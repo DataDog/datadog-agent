@@ -18,25 +18,54 @@ import (
 
 const ProtocolDispatcherProgramsMap = "protocols_progs"
 
+// EbpfProgram  is the interface that represents an eBPF program and provides
+// methods used to manage its lifetime and initialisation.
 type EbpfProgram interface {
+	// ConfigureOptions configures the provided Manager and Options structs with
+	// additional options that can not be defined statically via the
+	// ProtocolSpec struct, such as options depending on configuration values.
 	ConfigureOptions(*manager.Manager, *manager.Options)
 
+	// PreStart is called before the start of the provided eBPF manager.
+	// Additional initialisation steps, such as starting an event consumer,
+	// should be performed here.
 	PreStart(*manager.Manager) error
+
+	// PostStart is called after the start of the provided eBPF manager.  Final
+	// initialisation steps, such as setting up a map cleaner, should be
+	// performed here.
 	PostStart(*manager.Manager)
 
+	// PreStop is called before the provided eBPF manager is stopped.  Cleanup
+	// steps, such as stopping events consumers, should be performed here.
 	PreStop(*manager.Manager)
+
+	// PostStop is called after the provided eBPF manager is stopped. Final
+	// cleanup steps should be performed here.
 	PostStop(*manager.Manager)
 
+	// DumpMaps dumps the content of the map represented by mapName &
+	// currentMap, if it used by the eBPF program, to output.
 	DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map)
 }
 
+// ProtocolStats is a "tuple" struct that represents monitoring data from a
+// Protocol implementation. It associated a ProtocolType and stats from this
+// protocols' monitoring.
 type ProtocolStats struct {
 	Type  ProtocolType
 	Stats interface{}
 }
 
+// Protocol is the interface that represents a protocol supported by USM.
+//
+// Protocol extends EbpfProgram, and provides an additional method, GetStats, to
+// get monitoring data from that protocol monitoring.
 type Protocol interface {
 	EbpfProgram
+
+	// GetStats returns the latest monitoring data from a protocol
+	// implementation.
 	GetStats() *ProtocolStats
 }
 
