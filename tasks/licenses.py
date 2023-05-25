@@ -93,9 +93,15 @@ def licenses_csv(licenses):
 
     def fmt_copyright(lic):
         # discards copyright with invalid quotes to ensure generated csv is valid
-        copyright = [f_copyright for f_copyright in lic['copyright'] if is_valid_quote(f_copyright)]
-
-        copyright = ' | '.join(sorted(copyright))
+        filtered_copyright = []
+        for copyright in lic["copyright"]:
+            if is_valid_quote(copyright):
+                filtered_copyright.append(copyright)
+            else:
+                print(f'copyright {copyright} was discarded because it contains invalid quotes')
+        if len(copyright) == 0:
+            copyright = "UNKNOWN"
+        copyright = ' | '.join(sorted(filtered_copyright))
         # quote for inclusion in CSV, if necessary
         if ',' in copyright:
             copyright = copyright.replace('"', '""')
