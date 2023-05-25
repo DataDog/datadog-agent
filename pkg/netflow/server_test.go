@@ -7,7 +7,6 @@ package netflow
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
+	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 )
 
 func TestStartServerAndStopServer(t *testing.T) {
