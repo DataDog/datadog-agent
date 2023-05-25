@@ -77,7 +77,7 @@ func (a *Agent) WaitForReady() error {
 	return a.WaitForReadyTimeout(1 * time.Minute)
 }
 
-// WaitForReady blocks up for timeout waiting for agent to be ready.
+// WaitForReady blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
 func (a *Agent) WaitForReadyTimeout(timeout time.Duration) error {
