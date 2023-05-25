@@ -183,7 +183,7 @@ func (fh *FieldHandlers) ResolveProcessCreatedAt(ev *model.Event, e *model.Proce
 
 // ResolveProcessArgv0 resolves the first arg of the event
 func (fh *FieldHandlers) ResolveProcessArgv0(ev *model.Event, process *model.Process) string {
-	arg0, _ := fh.resolvers.ProcessResolver.GetProcessArgv0(process)
+	arg0, _ := sprocess.GetProcessArgv0(process)
 	return arg0
 }
 
