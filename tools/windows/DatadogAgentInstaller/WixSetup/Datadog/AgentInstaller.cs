@@ -249,7 +249,7 @@ namespace WixSetup.Datadog
                 {
                     document
                         .FindAll("Directory")
-                        .First(x => x.HasAttribute("Id", value => value == "DRIVER"))
+                        .First(x => x.HasAttribute("Id", value => value == "AGENT"))
                         .AddElement("Merge",
                             $"Id=ddapminstall; SourceFile={BinSource}\\agent\\ddapminstall.msm; DiskId=1; Language=1033");
                     document
