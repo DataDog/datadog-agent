@@ -84,7 +84,7 @@ func TestAggregator(t *testing.T) {
 	// language=json
 	event := []byte(`
 {
-  "flush_time": 1550505606000,
+  "flush_timestamp": 1550505606000,
   "type": "netflow9",
   "sampling_rate": 0,
   "direction": "ingress",
