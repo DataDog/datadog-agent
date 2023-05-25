@@ -26,15 +26,15 @@ func (e *epFormatter) Format(m *message.Message, eventType string, redactedMsg [
 	switch eventType {
 	case EventTypeContainerLifecycle:
 		var msg contlcycle.EventsPayload
-		proto.Unmarshal(m.Content, &msg)
+		_ = proto.Unmarshal(m.Content, &msg)
 		output += msg.String()
 	case EventTypeContainerImages:
 		var msg contimage.ContainerImagePayload
-		proto.Unmarshal(m.Content, &msg)
+		_ = proto.Unmarshal(m.Content, &msg)
 		output += msg.String()
 	case EventTypeContainerSBOM:
 		var msg sbom.SBOMPayload
-		proto.Unmarshal(m.Content, &msg)
+		_ = proto.Unmarshal(m.Content, &msg)
 		output += msg.String()
 	default:
 		output += string(m.Content[:])

@@ -127,19 +127,19 @@ func shouldHandleMessage(m *messagePair, filters *Filters) bool {
 	shouldHandle := true
 
 	if filters.Name != "" {
-		shouldHandle = shouldHandle && m.msg.Origin.LogSource.Name == filters.Name
+		shouldHandle = shouldHandle && m.msg.Origin != nil && m.msg.Origin.LogSource.Name == filters.Name
 	}
 
 	if filters.Type != "" {
-		shouldHandle = shouldHandle && (m.msg.Origin.LogSource.Config.Type == filters.Type || m.eventType == filters.Type)
+		shouldHandle = shouldHandle && ((m.msg.Origin != nil && m.msg.Origin.LogSource.Config.Type == filters.Type) || m.eventType == filters.Type)
 	}
 
 	if filters.Source != "" {
-		shouldHandle = shouldHandle && filters.Source == m.msg.Origin.Source()
+		shouldHandle = shouldHandle && m.msg.Origin != nil && filters.Source == m.msg.Origin.Source()
 	}
 
 	if filters.Service != "" {
-		shouldHandle = shouldHandle && filters.Service == m.msg.Origin.Service()
+		shouldHandle = shouldHandle && m.msg.Origin != nil && filters.Service == m.msg.Origin.Service()
 	}
 
 	return shouldHandle
