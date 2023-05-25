@@ -554,8 +554,7 @@ char *Two::getCheckDiagnoses(RtLoaderPyObject *check)
     // deallocated along with the corresponding Python object.
     ret = PyString_AsString(result);
     if (ret == NULL) {
-        std::string errorMsg = std::string)"error converting 'get_diagnoses' result to string: ")
-        + _fetchPythonError();
+        std::string errorMsg = std::string("error converting 'get_diagnoses' result to string: ") + _fetchPythonError();
         ret = _createInternalErrorDiagnoses(errorMsg.c_str());
         goto done;
     }
