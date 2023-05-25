@@ -60,6 +60,7 @@
 // Depending on your stack definition, [e2e.Suite.Env] can provide the following objects:
 //   - [client.VM]: A virtual machine where you can execute commands.
 //   - [client.Agent]: A struct that provides methods to run datadog agent commands.
+//   - [client.Fakeintake]: A struct that provides methods to run queries to a fake instance of Datadog intake.
 //
 // # Using an existing stack definition
 //
