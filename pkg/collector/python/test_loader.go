@@ -62,56 +62,33 @@ int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const c
 	return get_attr_string_return;
 }
 
-int get_check_return = 0;
-int get_check_calls = 0;
-rtloader_pyobject_t *get_check_py_class = NULL;
-const char *get_check_init_config = NULL;
-const char *get_check_instance = NULL;
-const char *get_check_check_id = NULL;
-const char *get_check_check_name = NULL;
-rtloader_pyobject_t *get_check_check = NULL;
+extern int get_check_return;
+extern int get_check_calls;
+extern rtloader_pyobject_t *get_check_py_class;
+extern const char *get_check_init_config;
+extern const char *get_check_instance;
+extern const char *get_check_check_id;
+extern const char *get_check_check_name;
+extern rtloader_pyobject_t *get_check_check;
 
 int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
-const char *check_id, const char *check_name, rtloader_pyobject_t **check) {
-
-	get_check_py_class = py_class;
-	get_check_init_config = strdup(init_config);
-	get_check_instance = strdup(instance);
-	get_check_check_id = strdup(check_id);
-	get_check_check_name = strdup(check_name);
-	*check = get_check_check;
-
-	get_check_calls++;
-	return get_check_return;
-}
+const char *check_id, const char *check_name, rtloader_pyobject_t **check);
 
 // get_check_deprecated MOCK
 
-int get_check_deprecated_calls = 0;
-int get_check_deprecated_return = 0;
-rtloader_pyobject_t *get_check_deprecated_py_class = NULL;
-const char *get_check_deprecated_init_config = NULL;
-const char *get_check_deprecated_instance = NULL;
-const char *get_check_deprecated_check_id = NULL;
-const char *get_check_deprecated_check_name = NULL;
-const char *get_check_deprecated_agent_config = NULL;
-rtloader_pyobject_t *get_check_deprecated_check = NULL;
+extern int get_check_deprecated_calls;
+extern int get_check_deprecated_return;
+extern rtloader_pyobject_t *get_check_deprecated_py_class;
+extern const char *get_check_deprecated_init_config;
+extern const char *get_check_deprecated_instance;
+extern const char *get_check_deprecated_check_id;
+extern const char *get_check_deprecated_check_name;
+extern const char *get_check_deprecated_agent_config;
+extern rtloader_pyobject_t *get_check_deprecated_check;
 
 int get_check_deprecated(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config,
 const char *instance, const char *agent_config, const char *check_id, const char *check_name,
-rtloader_pyobject_t **check) {
-
-	get_check_deprecated_py_class = py_class;
-	get_check_deprecated_init_config = strdup(init_config);
-	get_check_deprecated_instance = strdup(instance);
-	get_check_deprecated_check_id = strdup(check_id);
-	get_check_deprecated_check_name = strdup(check_name);
-	get_check_deprecated_agent_config = strdup(agent_config);
-	*check = get_check_deprecated_check;
-
-	get_check_deprecated_calls++;
-	return get_check_deprecated_return;
-}
+rtloader_pyobject_t **check);
 
 void reset_loader_mock() {
 	get_class_calls = 0;
