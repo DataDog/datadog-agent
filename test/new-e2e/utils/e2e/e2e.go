@@ -5,7 +5,7 @@
 
 // Package e2e provides the API to manage environments and organize E2E tests.
 //
-// Here is a simple example of E2E tests.
+// Here is a small example of E2E tests.
 // E2E tests use [testify Suite] and it is strongly recommended to read the documentation of
 // [testify Suite] if you are not familiar with it.
 //
