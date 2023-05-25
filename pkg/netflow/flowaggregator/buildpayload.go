@@ -16,10 +16,10 @@ import (
 func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
 	return payload.FlowPayload{
 		// TODO: Implement Tos
-		FlushTime:    flushTime.UnixMilli(),
-		FlowType:     string(aggFlow.FlowType),
-		SamplingRate: aggFlow.SamplingRate,
-		Direction:    enrichment.RemapDirection(aggFlow.Direction),
+		FlushTimestamp: flushTime.UnixMilli(),
+		FlowType:       string(aggFlow.FlowType),
+		SamplingRate:   aggFlow.SamplingRate,
+		Direction:      enrichment.RemapDirection(aggFlow.Direction),
 		Device: payload.Device{
 			Namespace: aggFlow.Namespace,
 		},
