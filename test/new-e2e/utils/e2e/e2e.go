@@ -27,7 +27,7 @@
 //		v.Env().VM.Execute("ls")
 //	}
 //
-// Writing a E2E test requires several steps.
+// To write an E2E test:
 //
 // 1. Define your own type with the embedded [e2e.Suite] struct.
 //
