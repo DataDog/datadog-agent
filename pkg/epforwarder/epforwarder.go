@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -177,6 +178,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 }
 
+var globalReceiver *diagnostic.BufferedMessageReceiver
+
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
@@ -202,8 +205,9 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 
 	// Stream to console if debug mode is enabled
 	// TODO need to figure out a better way of handling protobuf vs json
+
 	if eventType == EventTypeContainerSBOM || eventType == EventTypeContainerImages || eventType == EventTypeContainerLifecycle {
-		p.messageReceiver.HandleMessage(*e, eventType, http.ProtobufContentType)
+		p.messageReceiver.HandleMessage(*e, eventType, nil)
 	}
 
 	select {
@@ -278,7 +282,7 @@ type passthroughPipeline struct {
 	strategy        sender.Strategy
 	in              chan *message.Message
 	auditor         auditor.Auditor
-	messageReceiver *BufferedMessageReceiver
+	messageReceiver *diagnostic.BufferedMessageReceiver
 }
 
 type passthroughPipelineDesc struct {
@@ -360,7 +364,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		strategy:        strategy,
 		in:              inputChan,
 		auditor:         a,
-		messageReceiver: NewBufferedMessageReceiver(),
+		messageReceiver: GetGlobalReceiver(),
 	}, nil
 }
 
@@ -418,4 +422,12 @@ func NewNoopEventPlatformForwarder() EventPlatformForwarder {
 		p.strategy = nil
 	}
 	return f
+}
+
+func GetGlobalReceiver() *diagnostic.BufferedMessageReceiver {
+	if globalReceiver == nil {
+		globalReceiver = diagnostic.NewBufferedMessageReceiver(&epFormatter{})
+	}
+
+	return globalReceiver
 }
