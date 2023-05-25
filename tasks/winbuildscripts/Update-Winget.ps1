@@ -5,11 +5,16 @@ Set-Location c:\mnt
 pip3 install -r requirements.txt
 
 # Update the repo
-winget install --id GitHub.cli
-git clone ("https://robot-github-winget-datadog-agent@{0}:github.com/robot-github-winget-datadog-agent/winget-pkgs.git" -f ${env:WINGET_GITHUB_ACCESS_TOKEN})
-cd winget-pkgs
-gh repo sync -force microsoft/winget-pkgs -b master
-cd ..
+$ghCliInstallResult = Start-Process "msiexec" -ArgumentList "/qn /i https://github.com/cli/cli/releases/download/v2.29.0/gh_2.29.0_windows_amd64.msi /log install.log" -NoNewWindow -Wait -Passthru
+if ($ghCliInstallResult.ExitCode -ne 0) {
+    Get-Content install.log | Write-Output
+    Write-Error ("Failed to install Github CLI: {0}" -f $ghCliInstallResult.ExitCode)
+} else {
+    # Github CLI uses the GH_TOKEN
+    $env:GH_TOKEN = $env:WINGET_GITHUB_ACCESS_TOKEN
+    & 'C:\Program Files\GitHub CLI\gh.exe' repo sync https://github.com/robot-github-winget-datadog-agent/winget-pkgs.git --source microsoft/winget-pkgs
+}
+return
 
 $rawAgentVersion = (inv agent.version)
 Write-Host "Detected agent version ${rawAgentVersion}"
