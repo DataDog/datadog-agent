@@ -9,3 +9,4 @@
 enhancements:
   - |
     Added two new metrics to the Kubernetes State Core check: `kubernetes_state.configmap.count` and `kubernetes_state.secret.count`.
+ 
