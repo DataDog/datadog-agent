@@ -7,6 +7,7 @@ package netflow
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
 	"strings"
 	"testing"
 	"time"
@@ -22,7 +23,8 @@ func TestStartServerAndStopServer(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	defer demux.Stop(false)
 
-	port := uint16(52056)
+	port := testutil.GetFreePort()
+
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
@@ -59,7 +61,8 @@ func TestIsEnabled(t *testing.T) {
 
 func TestServer_Stop(t *testing.T) {
 	// Setup NetFlow config
-	port := uint16(12056)
+	port := testutil.GetFreePort()
+
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
