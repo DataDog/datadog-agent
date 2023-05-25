@@ -98,7 +98,9 @@ def licenses_csv(licenses):
             if is_valid_quote(copyright):
                 filtered_copyright.append(copyright)
             else:
-                print(f'copyright {copyright} was discarded because it contains invalid quotes')
+                print(
+                    f'copyright {copyright} was discarded because it contains invalid quotes. If you want to fix this discarded Copyright, you can modify the .copyright-overrides.yml file to fix the bad-quotes copyright'
+                )
         if len(copyright) == 0:
             copyright = "UNKNOWN"
         copyright = ' | '.join(sorted(filtered_copyright))
