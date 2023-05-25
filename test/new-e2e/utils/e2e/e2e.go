@@ -84,7 +84,7 @@
 // # Defining your stack definition
 //
 // In some special cases, you have to define a custom environment.
-// Here is an example on how to define an environment with Docker installed on a virtual machine.
+// Here is an example of an environment with Docker installed on a virtual machine.
 //
 //	type dockerSuite struct {
 //		e2e.Suite[e2e.VMEnv]
