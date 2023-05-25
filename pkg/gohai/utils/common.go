@@ -22,7 +22,7 @@ type NotCollectedError struct {
 	ValueName string
 }
 
-// NewNotCollectedError return a new NotCollectedError
+// NewNotCollectedError returns a new NotCollectedError
 func NewNotCollectedError(pkgName, valueName string) *NotCollectedError {
 	return &NotCollectedError{
 		pkgName, valueName,
