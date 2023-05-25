@@ -209,7 +209,7 @@ stopLoop:
 }
 
 func TestAggregator_withMockPayload(t *testing.T) {
-	port := uint16(52056)
+	port := testutil.GetFreePort()
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
