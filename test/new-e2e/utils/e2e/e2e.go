@@ -29,7 +29,7 @@
 //
 // To write an E2E test:
 //
-// 1. Define your own type with the embedded [e2e.Suite] struct.
+// 1. Define your own [suite] type with the embedded [e2e.Suite] struct.
 //
 //	type vmSuite struct {
 //		e2e.Suite[e2e.VMEnv]
@@ -212,6 +212,7 @@
 //	}
 //
 // [Subtests]: https://go.dev/blog/subtests
+// [suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 // [File Manager]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/command#FileManager
 // [EC2 VM]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM
