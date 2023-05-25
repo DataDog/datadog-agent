@@ -39,7 +39,7 @@ type Limiter struct {
 	maxAge int
 }
 
-// New returns a limiter with a per-key limit.
+// New returns a limiter with a per-sender limit.
 //
 // limit is the maximum number of contexts per sender. If zero or less, the limiter is disabled.
 //
