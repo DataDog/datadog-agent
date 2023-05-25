@@ -19,7 +19,6 @@ COPYRIGHT_LOCATIONS = [
     'LICENSE.md',
     'LICENSE.txt',
     'License.txt',
-    'license.txt',
     'COPYING',
     'NOTICE',
     'README',
