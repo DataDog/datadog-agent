@@ -39,7 +39,8 @@ type Filters struct {
 	Service string `json:"service"`
 }
 
-// NewBufferedMessageReceiver creates a new MessageReceiver
+// NewBufferedMessageReceiver creates a new MessageReceiver. It takes an optional Formatter as a parameter, and defaults
+// to using logFormatter if not supplied.
 func NewBufferedMessageReceiver(f Formatter) *BufferedMessageReceiver {
 	if f == nil {
 		f = &logFormatter{}

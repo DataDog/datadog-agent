@@ -14,10 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
+// Formatter defines how a particular message.Message should be formatted
 type Formatter interface {
+	// Format transforms the supplied message.Message into a more user-friendly format, for diagnostic purposes.
 	Format(*message.Message, string, []byte) string
 }
 
+// logFormatter is the default Formatter which supports transforming log pipeline messages into a more useful format.
 type logFormatter struct{}
 
 func (l *logFormatter) Format(m *message.Message, eventType string, redactedMsg []byte) string {
