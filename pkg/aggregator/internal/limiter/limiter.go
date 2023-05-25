@@ -59,7 +59,7 @@ func New(limit int, keyTagName string, telemetryTagNames []string) *Limiter {
 	return newLimiter(limit, math.MaxInt, 0, keyTagName, telemetryTagNames)
 }
 
-// NewGlobal returns a limiter with a global per-instance limit, that
+// NewGlobal returns a limiter with a global limit which will be equally split between senders
 // will be equally distributed between origins.
 func NewGlobal(global int, maxAge int, key string, tags []string) *Limiter {
 	if global <= 0 || global == math.MaxInt {
