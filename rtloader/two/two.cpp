@@ -531,41 +531,38 @@ done:
 
 char *Two::getCheckDiagnoses(RtLoaderPyObject *check)
 {
-    char *Two::runCheck(RtLoaderPyObject * check)
-    {
-        if (check == NULL) {
-            return NULL;
-        }
-
-        PyObject *py_check = reinterpret_cast<PyObject *>(check);
-
-        // result will be eventually returned as a copy and the corresponding Python
-        // string decref'ed, caller will be responsible for memory deallocation.
-        char *ret = NULL;
-        char *ret_copy = NULL;
-        char func_name[] = "get_diagnoses";
-        PyObject *result = NULL;
-
-        result = PyObject_CallMethod(py_check, func_name, NULL);
-        if (result == NULL) {
-            setError("error invoking 'get_diagnoses' method: " + _fetchPythonError());
-            goto done;
-        }
-
-        // `ret` points to the Python string internal storage and will be eventually
-        // deallocated along with the corresponding Python object.
-        ret = PyString_AsString(result);
-        if (ret == NULL) {
-            setError("error converting 'get_diagnoses' result to string: " + _fetchPythonError());
-            goto done;
-        }
-
-        ret_copy = strdupe(ret);
-
-    done:
-        Py_XDECREF(result);
-        return ret_copy;
+    if (check == NULL) {
+        return NULL;
     }
+
+    PyObject *py_check = reinterpret_cast<PyObject *>(check);
+
+    // result will be eventually returned as a copy and the corresponding Python
+    // string decref'ed, caller will be responsible for memory deallocation.
+    char *ret = NULL;
+    char *ret_copy = NULL;
+    char func_name[] = "get_diagnoses";
+    PyObject *result = NULL;
+
+    result = PyObject_CallMethod(py_check, func_name, NULL);
+    if (result == NULL) {
+        setError("error invoking 'get_diagnoses' method: " + _fetchPythonError());
+        goto done;
+    }
+
+    // `ret` points to the Python string internal storage and will be eventually
+    // deallocated along with the corresponding Python object.
+    ret = PyString_AsString(result);
+    if (ret == NULL) {
+        setError("error converting 'get_diagnoses' result to string: " + _fetchPythonError());
+        goto done;
+    }
+
+    ret_copy = strdupe(ret);
+
+done:
+    Py_XDECREF(result);
+    return ret_copy;
 }
 
 // return new reference
