@@ -270,10 +270,10 @@ func (ns *networkState) GetDelta(
 		ns.storeDNSStats(dnsStats)
 	}
 
-	for k, s := range usmStats {
-		switch k {
+	for protocolType, protocolStats := range usmStats {
+		switch protocolType {
 		case protocols.HTTP:
-			stats := s.(map[http.Key]*http.RequestStats)
+			stats := protocolStats.(map[http.Key]*http.RequestStats)
 			ns.storeHTTPStats(stats)
 		}
 	}

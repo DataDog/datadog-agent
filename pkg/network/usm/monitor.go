@@ -261,8 +261,8 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 
 	ret := make(map[protocols.ProtocolType]interface{})
 
-	for _, p := range m.protocols {
-		ps := p.GetStats()
+	for _, protocol := range m.protocols {
+		ps := protocol.GetStats()
 		ret[ps.Type] = ps.Stats
 	}
 
