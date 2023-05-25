@@ -131,8 +131,8 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		at.Stats.ProcessNodes += 1
 		pnodes = append(pnodes, node.Children...)
 
-		at.Stats.dnsNodes += int64(len(node.DNSNames))
-		at.Stats.socketNodes += int64(len(node.Sockets))
+		at.Stats.DNSNodes += int64(len(node.DNSNames))
+		at.Stats.SocketNodes += int64(len(node.Sockets))
 
 		for _, f := range node.Files {
 			fnodes = append(fnodes, f)
@@ -145,7 +145,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		node := fnodes[0]
 
 		if node.File != nil {
-			at.Stats.fileNodes += 1
+			at.Stats.FileNodes += 1
 		}
 
 		for _, f := range node.Children {

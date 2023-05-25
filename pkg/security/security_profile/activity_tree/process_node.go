@@ -153,14 +153,14 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
 			node := NewFileNode(fileEvent, event, parent, generationType)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
-			stats.fileNodes++
+			stats.FileNodes++
 			pn.Files[parent] = node
 		} else {
 			// This is an intermediary node in the branch that leads to the leaf we want to add. Create a node without the
 			// fileEvent context.
 			newChild := NewFileNode(nil, nil, parent, generationType)
 			newChild.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun)
-			stats.fileNodes++
+			stats.FileNodes++
 			pn.Files[parent] = newChild
 		}
 	}
@@ -195,7 +195,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGener
 
 	if !dryRun {
 		pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
-		stats.dnsNodes++
+		stats.DNSNodes++
 	}
 	return true
 }
@@ -218,7 +218,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGene
 	if sock == nil {
 		sock = NewSocketNode(evtFamily, generationType)
 		if !dryRun {
-			stats.socketNodes++
+			stats.SocketNodes++
 			pn.Sockets = append(pn.Sockets, sock)
 		}
 		newNode = true

@@ -10,6 +10,7 @@ package profile
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -643,12 +645,6 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 // tryAutolearn tries to autolearn the input event. It returns the profile state: stable, unstable, autolearning or workloadwarmup
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) EventFilteringProfileState {
-	// check if the unstable size limit was reached
-	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
-		m.eventFiltering[event.GetEventType()][UnstableProfile][NA].Inc()
-		return UnstableProfile
-	}
-
 	var nodeType activity_tree.NodeGenerationType
 	var profileState EventFilteringProfileState
 
@@ -679,6 +675,12 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 	// here we are either in AutoLearning or WorkloadWarmup
 
+	// check if the unstable size limit was reached
+	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
+		m.eventFiltering[event.GetEventType()][UnstableProfile][NA].Inc()
+		return UnstableProfile
+	}
+
 	// try to insert the event in the profile
 	newEntry, err := profile.ActivityTree.Insert(event, nodeType)
 	if err != nil {
@@ -691,4 +693,76 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 		m.eventFiltering[event.GetEventType()][profileState][InProfile].Inc()
 	}
 	return profileState
+}
+
+// ListSecurityProfiles returns the list of security profiles
+func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+	var out api.SecurityProfileListMessage
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	for _, p := range m.profiles {
+		msg := p.ToSecurityProfileMessage(m.timeResolver, m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod)
+		out.Profiles = append(out.Profiles, msg)
+	}
+
+	if params.GetIncludeCache() {
+		m.pendingCacheLock.Lock()
+		defer m.pendingCacheLock.Unlock()
+		for _, k := range m.pendingCache.Keys() {
+			p, ok := m.pendingCache.Peek(k)
+			if !ok {
+				continue
+			}
+			msg := p.ToSecurityProfileMessage(m.timeResolver, m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod)
+			out.Profiles = append(out.Profiles, msg)
+		}
+	}
+	return &out, nil
+}
+
+// SaveSecurityProfile saves the requested security profile to disk
+func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+	selector, err := cgroupModel.NewWorkloadSelector(params.GetSelector().GetName(), params.GetSelector().GetTag())
+	if err != nil {
+		return &api.SecurityProfileSaveMessage{
+			Error: err.Error(),
+		}, nil
+	}
+
+	p := m.GetProfile(selector)
+	if p == nil {
+		return &api.SecurityProfileSaveMessage{
+			Error: fmt.Sprintf("security profile not found"),
+		}, nil
+	}
+
+	// encode profile
+	psp := SecurityProfileToProto(p)
+	if psp == nil {
+		return &api.SecurityProfileSaveMessage{
+			Error: fmt.Sprintf("security profile not found"),
+		}, nil
+	}
+
+	raw, err := psp.MarshalVT()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't encode security profile in %s: %v", config.Protobuf, err)
+	}
+
+	// write profile to encoded profile to disk
+	f, err := os.CreateTemp("/tmp", fmt.Sprintf("%s-*.profile", p.Metadata.Name))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create temporary file: %w", err)
+	}
+	defer f.Close()
+
+	if _, err = f.Write(raw); err != nil {
+		return nil, fmt.Errorf("couldn't write to temporary file: %w", err)
+	}
+
+	return &api.SecurityProfileSaveMessage{
+		File: f.Name(),
+	}, nil
 }
