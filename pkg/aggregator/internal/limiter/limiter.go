@@ -16,7 +16,8 @@ import (
 type entry struct {
 	current  int // number of contexts currently in aggregator
 	rejected int // number of rejected samples
-	lastSeen int // epoch count when seen last
+
+	lastExpireCount int // expireCount when seen last
 
 	telemetryTags []string
 }
@@ -33,10 +34,10 @@ type Limiter struct {
 	current           int // sum(usage[*].current)
 	usage             map[string]*entry
 
-	// epoch, maxAge and lastSeen ensure eventual removal of entries that created an entry, but were
-	// never able to create contexts due to the global limit.
-	epoch  int
-	maxAge int
+	// expireCount ensure eventual removal of entries that created an entry, but were never able
+	// to create contexts due to the global limit.
+	expireCount         int
+	expireCountInterval int
 }
 
 // New returns a limiter with a per-sender limit.
@@ -91,12 +92,12 @@ func newLimiter(limit, global int, maxAge int, keyTagName string, telemetryTagNa
 	}
 
 	return &Limiter{
-		keyTagName:        keyTagName,
-		telemetryTagNames: telemetryTagNames,
-		limit:             limit,
-		global:            global,
-		usage:             map[string]*entry{},
-		maxAge:            maxAge,
+		keyTagName:          keyTagName,
+		telemetryTagNames:   telemetryTagNames,
+		limit:               limit,
+		global:              global,
+		usage:               map[string]*entry{},
+		expireCountInterval: maxAge,
 	}
 }
 
@@ -151,7 +152,7 @@ func (l *Limiter) Track(tags []string) bool {
 		l.updateLimit()
 	}
 
-	e.lastSeen = l.epoch
+	e.lastExpireCount = l.expireCount
 
 	if e.current >= l.limit || l.current >= l.global {
 		e.rejected++
@@ -201,11 +202,11 @@ func (l *Limiter) ExpireEntries() {
 		return
 	}
 
-	if l.maxAge >= 0 {
-		l.epoch++
-		tooOld := l.epoch - l.maxAge
+	if l.expireCountInterval >= 0 {
+		l.expireCount++
+		tooOld := l.expireCount - l.expireCountInterval
 		for id, e := range l.usage {
-			if e.current == 0 && e.lastSeen < tooOld {
+			if e.current == 0 && e.lastExpireCount < tooOld {
 				delete(l.usage, id)
 				l.updateLimit()
 			}
