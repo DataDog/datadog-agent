@@ -38,7 +38,7 @@ var (
 	SBOMGenerationDuration = telemetry.NewHistogramWithOpts(
 		subsystem,
 		"generation_duration",
-		[]string{},
+		[]string{"source", "type"},
 		"SBOM generation duration (in seconds)",
 		[]float64{10, 30, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600},
 		commonOpts,
