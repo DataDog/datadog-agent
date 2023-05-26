@@ -45,7 +45,7 @@ const (
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing = "APM_TRACING"
 	// ProductAgentTask is to receive agent task instruction, like a flare
-	ProductAgentTask = "DEBUG"
+	ProductAgentTask = "AGENT_TASK"
 )
 
 // ErrNoConfigVersion occurs when a target file's custom meta is missing the config version

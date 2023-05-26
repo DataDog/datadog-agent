@@ -10,19 +10,17 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ProfileData maps (pprof) profile names to the profile data.
@@ -45,7 +43,7 @@ type flare struct {
 	rcClient  *remote.Client
 }
 
-func newFlare(deps dependencies) (Component, error) {
+func newFlare(deps dependencies) (Component, rcclient.ListenerProvider, error) {
 	f := &flare{
 		log:       deps.Log,
 		config:    deps.Config,
@@ -53,27 +51,36 @@ func newFlare(deps dependencies) (Component, error) {
 		providers: deps.Providers,
 	}
 
-	c, err := remote.NewUnverifiedGRPCClient(
-		"flare-comp", version.AgentVersion, []data.Product{data.ProductAgentTask}, 2*time.Second,
-	)
-
-	// If there is an error we consider RC is not started
-	if err == nil {
-		f.rcClient = c
-
-		f.rcClient.RegisterAgentTaskUpdate(f.onAgentTaskEvent)
-
-		f.rcClient.Start()
+	rcListener := rcclient.ListenerProvider{
+		Listener: f.onAgentTaskEvent,
 	}
 
-	return f, nil
+	return f, rcListener, nil
 }
 
-func (f *flare) onAgentTaskEvent(configs map[string]state.AgentTaskConfig) {
-	f.log.Warnf("[RCM] Creating flare based on the agent task")
-	path, err := f.Create(nil, nil)
+func (f *flare) onAgentTaskEvent(task state.AgentTaskConfig) (bool, error) {
+	if task.Config.TaskType != "flare" {
+		return false, nil
+	}
+	caseID, found := task.Config.TaskArgs["case_id"]
+	if !found {
+		return true, fmt.Errorf("Case ID was not provided in the flare agent task")
+	}
+	userHandle, found := task.Config.TaskArgs["user_handle"]
+	if !found {
+		return true, fmt.Errorf("User handle was not provided in the flare agent task")
+	}
 
-	f.log.Warnf("[RCM] Flare created in %s based on the agent task: %v", path, err)
+	filePath, err := f.Create(nil, nil)
+	if err != nil {
+		return true, err
+	}
+
+	_, err = f.Send(filePath, caseID, userHandle)
+	if err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 // Send sends a flare archive to Datadog
