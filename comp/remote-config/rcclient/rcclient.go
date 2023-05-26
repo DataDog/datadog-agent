@@ -10,8 +10,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// Component is the component type.
+type Component interface {
+	// // AgentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
+	// // The RCClient can directly call back listeners, because there would be no way to send back
+	// // RCTE2 configuration applied state to RC backend.
+	// AgentTaskUpdateCallback(updates map[string]state.AgentTaskConfig)
+
+	// Start the remote config client to listen to AGENT_TASK configurations
+	Listen() error
+}
 
 // RCListener TODO
 type RCListener func(task state.AgentTaskConfig) (bool, error)
@@ -26,6 +38,7 @@ type RCClient struct {
 
 type dependencies struct {
 	fx.In
+
 	Listeners []RCListener `group:"rCListener"` // <-- Fill automatically by Fx
 }
 
@@ -34,30 +47,43 @@ var Module = fxutil.Component(
 	fx.Provide(newRemoteConfig),
 )
 
-func newRemoteConfig(deps dependencies) (RCClient, error) {
+func newRemoteConfig(deps dependencies) (Component, error) {
+	rc := RCClient{
+		listeners: deps.Listeners,
+		client:    nil,
+	}
+
+	return rc, nil
+}
+
+// Listen start the remote config client to listen to AGENT_TASK configurations
+func (rc RCClient) Listen() error {
+	log.Warnf("[RCM] Creates the AGENT_TASK client (callbacks %+v)", rc.listeners)
+
 	c, err := remote.NewUnverifiedGRPCClient(
 		"core-agent", version.AgentVersion, []data.Product{data.ProductAgentTask}, 1*time.Second,
 	)
 	if err != nil {
-		return RCClient{}, err
+		return err
 	}
 
-	rc := RCClient{
-		listeners: deps.Listeners,
-		client:    c,
-	}
+	rc.client = c
 
 	rc.client.RegisterAgentTaskUpdate(rc.agentTaskUpdateCallback)
 
 	rc.client.Start()
 
-	return rc, nil
+	log.Warnf("[RCM] AGENT_TASK client started")
+
+	return nil
 }
 
-// agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
+// AgentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
 func (rc RCClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskConfig) {
+	log.Warnf("[RCM] Received an AGENT_TASK update: %+v", updates)
+
 	for configPath, c := range updates {
 		// Check that the flare task wasn't already processed
 		if !rc.taskProcessed[c.Config.UUID] {

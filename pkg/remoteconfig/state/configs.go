@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/go-tuf/data"
 )
 
@@ -76,6 +77,7 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 	case ProductAPMTracing:
 		c, err = parseConfigAPMTracing(raw, metadata)
 	case ProductAgentTask:
+		log.Warnf("[RCM] received an AGENT_TASK config: %s", raw)
 		c, err = parseConfigAgentTask(raw, metadata)
 	default:
 		return nil, fmt.Errorf("unknown product - %s", product)
