@@ -492,52 +492,6 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// The OG installer removes inheritance from these file paths, but then sets the permissions to the same as what
-        /// would have been inherited. In order to simplify permission management we now rely on inherited ACEs where possible.
-        /// So now we must now restore inheritance for the paths to have the correct permissions.
-        /// We enable inheritance but do not otherwise modify the ACL, any non-inherited ACE will be kept.
-        /// https://datadoghq.atlassian.net/browse/WA-364
-        /// </summary>
-        private void OGCompatEnableInheritance()
-        {
-            foreach (var filePath in new List<string>
-                     {
-                         // agent needs to be able to write logs
-                         Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "logs"),
-                         Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "logs\\agent.log"),
-                         // agent GUI needs to be able to edit config
-                         Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "conf.d"),
-                         Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "auth_token"),
-                         Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "datadog.yaml"),
-                         Path.Combine(_session.Property("APPLICATIONDATADIRECTORY"), "system-probe.yaml"),
-                         // allow agent to write __pycache__
-                         Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
-                         Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
-                     })
-            {
-                if (!_fileSystemServices.Exists(filePath))
-                {
-                    _session.Log($"{filePath} does not exist, skipping changing ACLs.");
-                    continue;
-                }
-
-                FileSystemSecurity fileSystemSecurity =
-                    _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-
-                if (!fileSystemSecurity.AreAccessRulesProtected)
-                {
-                    _session.Log($"{filePath} DACL is not protected, skipping changing ACLs.");
-                    continue;
-                }
-
-                // enable inheritance
-                fileSystemSecurity.SetAccessRuleProtection(false, true);
-                _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
-                _session.Log($"{filePath} successfully enabled inheritance");
-            }
-        }
-
-        /// <summary>
         /// Add ddagentuser to groups
         /// </summary>
         /// <param name="sid"></param>
@@ -593,7 +547,7 @@ namespace Datadog.CustomActions
             }
         }
 
-        private void ConfigureFilePermissions(SecurityIdentifier sid)
+        private void ConfigureFilePermissions(SecurityIdentifier ddagentusersid)
         {
             // set base permissions on APPLICATIONDATADIRECTORY, restrict access to admins only.
             // This clears the ACL, any custom permissions added by customers will be removed.
@@ -616,18 +570,54 @@ namespace Datadog.CustomActions
                     InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                     PropagationFlags.None,
                     AccessControlType.Allow));
-                // Users WDAC (for backwards compat in testing)
-                // Use AccessRuleFactory instead of a FileSystemAccessRule constructor because they all
-                // automatically add FileSystemRights.Synchronize. Which is an okay permission to have but
-                // the kitchen tests don't support checking for it.
-                fileSystemSecurity.AddAccessRule((FileSystemAccessRule)fileSystemSecurity.AccessRuleFactory(
-                    new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
-                    (int)FileSystemRights.ChangePermissions,
-                    false,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
                 _fileSystemServices.SetAccessControl(_session.Property("APPLICATIONDATADIRECTORY"), fileSystemSecurity);
+            }
+
+            // Ensure that inheritance is enabled on all files/folders in the config directory
+            foreach (var filePath in Directory.EnumerateFileSystemEntries(_session.Property("APPLICATIONDATADIRECTORY"), "*.*", SearchOption.AllDirectories))
+            {
+                FileSystemSecurity fileSystemSecurity =
+                    _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+
+                if (!fileSystemSecurity.AreAccessRulesProtected)
+                {
+                    // inheritance is already enabled
+                    continue;
+                }
+
+                // enable inheritance
+                fileSystemSecurity.SetAccessRuleProtection(false, true);
+                // Remove explicit access rules added by the pre-7.47 installer that will now have inherited analogues
+                foreach (var sid in new SecurityIdentifier[]{
+                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                    ddagentusersid,
+                })
+                {
+                    if (fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                            sid,
+                            FileSystemRights.FullControl,
+                            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                            PropagationFlags.None,
+                            AccessControlType.Allow)))
+                    {
+                        _session.Log($"{filePath} removing explicit access rule for {sid}");
+                    }
+                }
+                // Use AccessRuleFactory instead of a FileSystemAccessRule constructor because they all
+                // automatically add FileSystemRights.Synchronize which was not included by the pre-7.47 installer.
+                if (fileSystemSecurity.RemoveAccessRule((FileSystemAccessRule)fileSystemSecurity.AccessRuleFactory(
+                        new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+                        (int)FileSystemRights.ChangePermissions,
+                        false,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow)))
+                {
+                    _session.Log($"{filePath} removing explicit access rule for Users");
+                }
+                _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
+                _session.Log($"{filePath} successfully enabled inheritance");
             }
 
             // add ddagentuser FullControl to select places
@@ -673,7 +663,7 @@ namespace Datadog.CustomActions
                 {
                     // ddagentuser FullControl, enable child inheritance of this ACE
                     fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                        sid,
+                        ddagentusersid,
                         FileSystemRights.FullControl,
                         InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                         PropagationFlags.None,
@@ -683,7 +673,7 @@ namespace Datadog.CustomActions
                 {
                     // ddagentuser FullControl
                     fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                        sid,
+                        ddagentusersid,
                         FileSystemRights.FullControl,
                         AccessControlType.Allow));
                 }
@@ -774,7 +764,6 @@ namespace Datadog.CustomActions
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);
                 }
-                OGCompatEnableInheritance();
                 ConfigureFilePermissions(securityIdentifier);
 
                 return ActionResult.Success;
