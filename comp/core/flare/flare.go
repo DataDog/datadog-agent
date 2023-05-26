@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -40,7 +39,6 @@ type flare struct {
 	config    config.Component
 	params    Params
 	providers []helpers.FlareProvider
-	rcClient  *remote.Client
 }
 
 func newFlare(deps dependencies) (Component, rcclient.ListenerProvider, error) {
