@@ -8,7 +8,6 @@
 package mutate
 
 import (
-	"fmt"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -128,7 +127,6 @@ func fakePodWithAnnotations(as, ls map[string]string, es []corev1.EnvVar) *corev
 		Name: pod.Name,
 		Env:  es,
 	})
-	fmt.Printf("%+v\n", pod)
 	return pod
 }
 

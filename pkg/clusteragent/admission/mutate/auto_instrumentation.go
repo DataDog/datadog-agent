@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strconv"
 	"strings"
 
@@ -97,19 +98,16 @@ func initContainerName(lang language) string {
 	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }
 
-func isPodFromDeployment(pod *corev1.Pod) bool {
-	// Get the owner references of the pod
+// getDeploymentReference returns the OwnerReference if it is of Kind Deployment
+func getDeploymentReference(pod *corev1.Pod) *v1.OwnerReference {
 	ownerReferences := pod.ObjectMeta.OwnerReferences
 
-	// Iterate over the owner references to find a Deployment
 	for _, ownerRef := range ownerReferences {
 		if ownerRef.Kind == "Deployment" {
-			return true
+			return &ownerRef
 		}
 	}
-
-	// Pod is not owned by a Deployment
-	return false
+	return nil
 }
 
 func injectAutoInstrumentation(pod *corev1.Pod, _ string, dc dynamic.Interface) error {
@@ -118,7 +116,7 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, dc dynamic.Interface) 
 	}
 
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
-		if !isPodFromDeployment(pod) {
+		if deployment := getDeploymentReference(pod); deployment == nil {
 			log.Debugf("Skipping pod %q as it's not from a deployment", podString(pod))
 			return nil
 		}
@@ -372,19 +370,11 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, dc dynamic.
 	// If, by this point, DD_SERVICE has not been set and apm_instrumentation_enabled is true then set the service
 	// name to the k8s deployment.
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
-		owners := pod.GetOwnerReferences()
-		if len(owners) == 0 {
-			log.Debugf("Did not find an owner reference for pod %q", podString(pod))
-			return nil
-		}
-
-		for _, o := range owners {
-			if o.Kind == "Deployment" {
-				injectEnv(pod, corev1.EnvVar{
-					Name:  "DD_SERVICE",
-					Value: o.Name,
-				})
-			}
+		if deployment := getDeploymentReference(pod); deployment != nil {
+			injectEnv(pod, corev1.EnvVar{
+				Name:  "DD_SERVICE",
+				Value: deployment.Name,
+			})
 		}
 	}
 	return lastError
