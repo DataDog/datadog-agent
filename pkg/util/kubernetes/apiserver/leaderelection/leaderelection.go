@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -29,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 const (
@@ -108,31 +106,6 @@ func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEng
 		return nil, err
 	}
 	return globalLeaderEngine, nil
-}
-
-func getSelfPodName() (string, error) {
-	if podName, ok := os.LookupEnv("DD_POD_NAME"); ok {
-		return podName, nil
-	}
-
-	selfUTSInode, err := system.GetProcessNamespaceInode("/proc", "self", "uts")
-	if err != nil {
-		// If we are not able to gather our own UTS Inode, in doubt, authorize fallback to `os.Hostname()`
-		log.Warnf("Unable to get self UTS inode")
-		return os.Hostname()
-	}
-
-	hostUTS := system.IsProcessHostUTSNamespace("/proc", selfUTSInode)
-	if hostUTS == nil {
-		// In doubt, authorize fallback to `os.Hostname()`
-		return os.Hostname()
-	}
-
-	if *hostUTS {
-		return "", fmt.Errorf("DD_POD_NAME is not set and running in host UTS namespace; cannot reliably determine self pod name")
-	}
-
-	return os.Hostname()
 }
 
 func (le *LeaderEngine) init() error {
