@@ -292,7 +292,7 @@ func parseSystemdConf(str string) map[string]string {
 		} else if section != "" {
 			parts := strings.SplitN(line, "=", 2)
 			if len(parts) == 2 {
-				conf[section+":"+parts[0]] = parts[1]
+				conf[section+"/"+parts[0]] = parts[1]
 			}
 		}
 	}
