@@ -10,7 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -58,8 +57,6 @@ func newRemoteConfig(deps dependencies) (Component, error) {
 
 // Listen start the remote config client to listen to AGENT_TASK configurations
 func (rc RCClient) Listen() error {
-	log.Warnf("[RCM] Creates the AGENT_TASK client (callbacks %+v)", rc.listeners)
-
 	c, err := remote.NewUnverifiedGRPCClient(
 		"core-agent", version.AgentVersion, []data.Product{data.ProductAgentTask}, 1*time.Second,
 	)
@@ -68,12 +65,11 @@ func (rc RCClient) Listen() error {
 	}
 
 	rc.client = c
+	rc.taskProcessed = map[string]bool{}
 
 	rc.client.RegisterAgentTaskUpdate(rc.agentTaskUpdateCallback)
 
 	rc.client.Start()
-
-	log.Warnf("[RCM] AGENT_TASK client started")
 
 	return nil
 }
@@ -82,8 +78,6 @@ func (rc RCClient) Listen() error {
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
 func (rc RCClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskConfig) {
-	log.Warnf("[RCM] Received an AGENT_TASK update: %+v", updates)
-
 	for configPath, c := range updates {
 		// Check that the flare task wasn't already processed
 		if !rc.taskProcessed[c.Config.UUID] {
