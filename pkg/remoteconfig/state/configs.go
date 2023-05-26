@@ -103,8 +103,7 @@ func parseConfigAgentTask(data []byte, metadata Metadata) (AgentTaskConfig, erro
 
 	err := json.Unmarshal(data, &d)
 	if err != nil {
-		// TODO: Fail gracefully since we use DEBUG for now
-		return AgentTaskConfig{}, nil
+		return AgentTaskConfig{}, fmt.Errorf("Unexpeced AGENT_TASK received through remote-config: %s", err)
 	}
 
 	return AgentTaskConfig{

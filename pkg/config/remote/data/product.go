@@ -22,7 +22,6 @@ const (
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
 	// ProductAgentTask is to receive agent task instruction, like a flare
-	// TODO: update the product to be AGENT_TASK
 	ProductAgentTask Product = "AGENT_TASK"
 )
 

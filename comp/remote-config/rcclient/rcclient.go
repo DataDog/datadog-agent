@@ -15,20 +15,14 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// // AgentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
-	// // The RCClient can directly call back listeners, because there would be no way to send back
-	// // RCTE2 configuration applied state to RC backend.
-	// AgentTaskUpdateCallback(updates map[string]state.AgentTaskConfig)
-
 	// Start the remote config client to listen to AGENT_TASK configurations
 	Listen() error
 }
 
-// RCListener TODO
+// RCListener is the FX-compatible listener, so RC can push updates through it
 type RCListener func(task state.AgentTaskConfig) (bool, error)
 
-// RCClient TODO
-type RCClient struct {
+type rcClient struct {
 	client        *remote.Client
 	taskProcessed map[string]bool
 
@@ -47,7 +41,7 @@ var Module = fxutil.Component(
 )
 
 func newRemoteConfig(deps dependencies) (Component, error) {
-	rc := RCClient{
+	rc := rcClient{
 		listeners: deps.Listeners,
 		client:    nil,
 	}
@@ -56,7 +50,7 @@ func newRemoteConfig(deps dependencies) (Component, error) {
 }
 
 // Listen start the remote config client to listen to AGENT_TASK configurations
-func (rc RCClient) Listen() error {
+func (rc rcClient) Listen() error {
 	c, err := remote.NewUnverifiedGRPCClient(
 		"core-agent", version.AgentVersion, []data.Product{data.ProductAgentTask}, 1*time.Second,
 	)
@@ -74,10 +68,10 @@ func (rc RCClient) Listen() error {
 	return nil
 }
 
-// AgentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
+// agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
-func (rc RCClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskConfig) {
+func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskConfig) {
 	for configPath, c := range updates {
 		// Check that the flare task wasn't already processed
 		if !rc.taskProcessed[c.Config.UUID] {
@@ -119,7 +113,7 @@ func (rc RCClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskCon
 	}
 }
 
-// ListenerProvider TODO
+// ListenerProvider defines component that can receive RC updates
 type ListenerProvider struct {
 	fx.Out
 
