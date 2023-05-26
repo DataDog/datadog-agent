@@ -637,6 +637,35 @@ func TestInjectLibInitContainer(t *testing.T) {
 	}
 }
 
+func expBasicConfig() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{
+			Name:  "DD_TRACE_RATE_LIMIT",
+			Value: "100",
+		},
+		{
+			Name:  "DD_TRACE_SAMPLE_RATE",
+			Value: "1.00",
+		},
+		{
+			Name:  "DD_RUNTIME_METRICS_ENABLED",
+			Value: "true",
+		},
+		{
+			Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
+			Value: "true",
+		},
+		{
+			Name:  "DD_TRACE_ENABLED",
+			Value: "true",
+		},
+		{
+			Name:  "DD_LOGS_INJECTION",
+			Value: "true",
+		},
+	}
+}
+
 func TestInjectAll(t *testing.T) {
 	wantAll := []libInfo{
 		{lang: java, image: "gcr.io/datadoghq/dd-lib-java-init:latest"},
@@ -1047,7 +1076,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "user-deployment",
 				},
 			}),
-			expectedEnvs: append(injectAllEnvs(), corev1.EnvVar{
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
 				Name:  "DD_SERVICE",
 				Value: "user-deployment",
 			}),
@@ -1066,7 +1095,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		{
 			name: "APM OOTB: default service name is k8s deployment",
 			pod:  fakePodWithAnnotations(map[string]string{}, map[string]string{}, []corev1.EnvVar{}),
-			expectedEnvs: append(injectAllEnvs(), corev1.EnvVar{
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
 				Name:  "DD_SERVICE",
 				Value: "test-deployment",
 			}),

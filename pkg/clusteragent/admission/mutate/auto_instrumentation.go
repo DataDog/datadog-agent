@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strconv"
 	"strings"
@@ -363,14 +364,15 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 
 	injectLibVolume(pod)
 
-	// If, by this point, DD_SERVICE has not been set and apm_instrumentation_enabled is true then set the service
-	// name to the k8s deployment.
+	// If, by this point, DD_SERVICE has not been set and apm_instrumentation_enabled is true then set any config
+	// that isn't already specified.
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
 		if deployment := getDeploymentReference(pod); deployment != nil {
-			injectEnv(pod, corev1.EnvVar{
-				Name:  "DD_SERVICE",
-				Value: deployment.Name,
-			})
+			libConfig := basicConfig()
+			libConfig.ServiceName = pointer.Ptr(deployment.Name)
+			for _, env := range libConfig.ToEnvs() {
+				_ = injectEnv(pod, env)
+			}
 		}
 	}
 	return lastError
@@ -461,6 +463,19 @@ func injectLibRequirements(pod *corev1.Pod, ctrName string, envVars []envVar) er
 	}
 
 	return nil
+}
+
+// basicConfig returns the default tracing config to inject into application pods
+// when no other config has been provided.
+func basicConfig() common.LibConfig {
+	return common.LibConfig{
+		Tracing:             pointer.Ptr(true),
+		LogInjection:        pointer.Ptr(true),
+		HealthMetrics:       pointer.Ptr(true),
+		RuntimeMetrics:      pointer.Ptr(true),
+		TracingSamplingRate: pointer.Ptr(1.0),
+		TracingRateLimit:    pointer.Ptr(100),
+	}
 }
 
 // injectLibConfig injects additional library configuration extracted from pod annotations
