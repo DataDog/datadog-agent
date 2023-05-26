@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -114,9 +113,9 @@ func (le *LeaderEngine) init() error {
 	var err error
 
 	if le.HolderIdentity == "" {
-		le.HolderIdentity, err = os.Hostname()
+		le.HolderIdentity, err = getSelfPodName()
 		if err != nil {
-			log.Debugf("cannot get hostname: %s", err)
+			log.Debugf("cannot get pod name: %s", err)
 			return err
 		}
 	}
