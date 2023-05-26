@@ -38,13 +38,6 @@ func fakeEnv(name string) corev1.EnvVar {
 	}
 }
 
-func fakeEnvValue(name, value string) corev1.EnvVar {
-	return corev1.EnvVar{
-		Name:  name,
-		Value: value,
-	}
-}
-
 func fakeContainer(name string) corev1.Container {
 	return corev1.Container{
 		Name: name,

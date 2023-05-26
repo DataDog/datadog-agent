@@ -1055,6 +1055,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			setupConfig: func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
 		},
 		{
+			name: "APM OOTB: disable with label",
+			pod: fakePodWithAnnotations(map[string]string{}, map[string]string{
+				"admission.datadoghq.com/enabled": "false",
+			}, []corev1.EnvVar{}),
+			expectedEnvs: []corev1.EnvVar{},
+			wantErr:      false,
+			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
+		},
+		{
 			name: "APM OOTB: default service name is k8s deployment",
 			pod:  fakePodWithAnnotations(map[string]string{}, map[string]string{}, []corev1.EnvVar{}),
 			expectedEnvs: append(injectAllEnvs(), corev1.EnvVar{

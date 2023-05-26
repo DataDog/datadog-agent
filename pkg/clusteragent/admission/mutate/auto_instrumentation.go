@@ -122,13 +122,9 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, dc dynamic.Interface) 
 		}
 
 		// The way to opt-out of the automatic instrumentation is to set the enabled label to false.
-		if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
-			switch val {
-			case "false":
-				log.Debugf("Skipping auto instrumentation of pod %q due to label", podString(pod))
-				return nil
-			default:
-			}
+		if pod.GetLabels()[admCommon.EnabledLabelKey] == "false" {
+			log.Debugf("Skipping auto instrumentation of pod %q due to label", podString(pod))
+			return nil
 		}
 	} else {
 		if !shouldMutatePod(pod) {
