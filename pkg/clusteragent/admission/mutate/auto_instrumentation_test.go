@@ -226,7 +226,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := injectAutoInstruConfig(tt.pod, tt.libsToInject)
+			err := injectAutoInstruConfig(tt.pod, tt.libsToInject, fake.NewSimpleDynamicClient(scheme))
 			require.False(t, (err != nil) != tt.wantErr)
 			if err != nil {
 				return
@@ -685,19 +685,68 @@ func TestInjectAll(t *testing.T) {
 	}
 }
 
+func injectAllEnvs() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{
+			Name:  "PYTHONPATH",
+			Value: "/datadog-lib/",
+		},
+		{
+			Name:  "RUBYOPT",
+			Value: " -r/datadog-lib/auto_inject",
+		},
+		{
+			Name:  "NODE_OPTIONS",
+			Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+		},
+		{
+			Name:  "JAVA_TOOL_OPTIONS",
+			Value: " -javaagent:/datadog-lib/dd-java-agent.jar",
+		},
+		{
+			Name:  "DD_DOTNET_TRACER_HOME",
+			Value: "/datadog-lib",
+		},
+		{
+			Name:  "CORECLR_ENABLE_PROFILING",
+			Value: "1",
+		},
+		{
+			Name:  "CORECLR_PROFILER",
+			Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+		},
+		{
+			Name:  "CORECLR_PROFILER_PATH",
+			Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
+		},
+		{
+			Name:  "DD_TRACE_LOG_DIRECTORY",
+			Value: "/datadog-lib/logs",
+		},
+		{
+			Name:  "LD_PRELOAD",
+			Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
+		},
+	}
+}
+
 func TestInjectAutoInstrumentation(t *testing.T) {
+	mockConfig := config.Mock(t)
 	tests := []struct {
 		name         string
 		pod          *corev1.Pod
 		expectedEnvs []corev1.EnvVar
 		wantErr      bool
+		setupConfig  func()
 	}{
 		{
 			name: "inject all",
 			pod: fakePodWithAnnotations(map[string]string{
 				"admission.datadoghq.com/all-lib.version":   "latest",
 				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
-			}),
+			}, map[string]string{
+				"admission.datadoghq.com/enabled": "true",
+			}, []corev1.EnvVar{}),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -752,14 +801,17 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
 				},
 			},
-			wantErr: false,
+			wantErr:     false,
+			setupConfig: func() {},
 		},
 		{
 			name: "inject java",
 			pod: fakePodWithAnnotations(map[string]string{
 				"admission.datadoghq.com/java-lib.version":   "latest",
 				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
-			}),
+			}, map[string]string{
+				"admission.datadoghq.com/enabled": "true",
+			}, []corev1.EnvVar{}),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -777,7 +829,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			pod: fakePodWithAnnotations(map[string]string{
 				"admission.datadoghq.com/python-lib.version":   "latest",
 				"admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
-			}),
+			}, map[string]string{
+				"admission.datadoghq.com/enabled": "true",
+			}, []corev1.EnvVar{}),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -795,7 +849,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			pod: fakePodWithAnnotations(map[string]string{
 				"admission.datadoghq.com/js-lib.version":   "latest",
 				"admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
-			}),
+			}, map[string]string{
+				"admission.datadoghq.com/enabled": "true",
+			}, []corev1.EnvVar{}),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -815,7 +871,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				"admission.datadoghq.com/js-lib.version":    "v1.10",
 				"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
-			}),
+			}, map[string]string{
+				"admission.datadoghq.com/enabled": "true",
+			}, []corev1.EnvVar{}),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -842,7 +900,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				"admission.datadoghq.com/all-lib.version":   "latest",
 				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
-			}),
+			}, map[string]string{
+				"admission.datadoghq.com/enabled": "true",
+			}, []corev1.EnvVar{}),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -905,7 +965,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				// TODO: we might not want to be injecting the libraries if the config is malformed
 				"admission.datadoghq.com/all-lib.version":   "latest",
 				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
-			}),
+			}, map[string]string{
+				"admission.datadoghq.com/enabled": "true",
+			}, []corev1.EnvVar{}),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "PYTHONPATH",
@@ -955,7 +1017,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			pod: fakePodWithAnnotations(map[string]string{
 				"admission.datadoghq.com/java-lib.version":   "latest",
 				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
-			}),
+			}, map[string]string{
+				"admission.datadoghq.com/enabled": "true",
+			}, []corev1.EnvVar{}),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
@@ -964,9 +1028,55 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "inject with enabled false",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/java-lib.version":   "latest",
+				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+			}, map[string]string{
+				"admission.datadoghq.com/enabled": "false",
+			}, []corev1.EnvVar{}),
+			expectedEnvs: []corev1.EnvVar{},
+			wantErr:      false,
+		},
+		{
+			name: "APM OOTB: user service name",
+			pod: fakePodWithAnnotations(map[string]string{}, map[string]string{}, []corev1.EnvVar{
+				{
+					Name:  "DD_SERVICE",
+					Value: "user-deployment",
+				},
+			}),
+			expectedEnvs: append(injectAllEnvs(), corev1.EnvVar{
+				Name:  "DD_SERVICE",
+				Value: "user-deployment",
+			}),
+			wantErr:     false,
+			setupConfig: func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
+		},
+		{
+			name: "APM OOTB: default service name is k8s deployment",
+			pod:  fakePodWithAnnotations(map[string]string{}, map[string]string{}, []corev1.EnvVar{}),
+			expectedEnvs: append(injectAllEnvs(), corev1.EnvVar{
+				Name:  "DD_SERVICE",
+				Value: "test-deployment",
+			}),
+			wantErr:     false,
+			setupConfig: func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
+		},
+		{
+			name:         "APM OOTB: default service name (disabled)",
+			pod:          fakePodWithAnnotations(map[string]string{}, map[string]string{}, []corev1.EnvVar{}),
+			expectedEnvs: []corev1.EnvVar{},
+			wantErr:      false,
+			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", false) },
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupConfig != nil {
+				tt.setupConfig()
+			}
 			err := injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
 			require.False(t, (err != nil) != tt.wantErr)
 

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/dynamic"
@@ -96,9 +97,46 @@ func initContainerName(lang language) string {
 	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }
 
-func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
+func isPodFromDeployment(pod *corev1.Pod) bool {
+	// Get the owner references of the pod
+	ownerReferences := pod.ObjectMeta.OwnerReferences
+
+	// Iterate over the owner references to find a Deployment
+	for _, ownerRef := range ownerReferences {
+		if ownerRef.Kind == "Deployment" {
+			return true
+		}
+	}
+
+	// Pod is not owned by a Deployment
+	return false
+}
+
+func injectAutoInstrumentation(pod *corev1.Pod, _ string, dc dynamic.Interface) error {
 	if pod == nil {
 		return errors.New("cannot inject lib into nil pod")
+	}
+
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
+		if !isPodFromDeployment(pod) {
+			log.Debugf("Skipping pod %q as it's not from a deployment", podString(pod))
+			return nil
+		}
+
+		// The way to opt-out of the automatic instrumentation is to set the enabled label to false.
+		if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
+			switch val {
+			case "false":
+				log.Debugf("Skipping auto instrumentation of pod %q due to label", podString(pod))
+				return nil
+			default:
+			}
+		}
+	} else {
+		if !shouldMutatePod(pod) {
+			log.Debugf("Skipping auto instrumentation of pod %q due to label", podString(pod))
+			return nil
+		}
 	}
 
 	for _, lang := range supportedLanguages {
@@ -120,10 +158,13 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 		log.Debugf("Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
 	}
 
-	return injectAutoInstruConfig(pod, libsToInject)
+	return injectAutoInstruConfig(pod, libsToInject, dc)
 }
 
 func isNsTargeted(ns string) bool {
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
+		return true
+	}
 	if len(targetNamespaces) == 0 {
 		return false
 	}
@@ -224,7 +265,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
 	return libInfoList
 }
 
-func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
+func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, dc dynamic.Interface) error {
 	var lastError error
 
 	initContainerToInject := make(map[language]string)
@@ -328,6 +369,24 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 
 	injectLibVolume(pod)
 
+	// If, by this point, DD_SERVICE has not been set and apm_instrumentation_enabled is true then set the service
+	// name to the k8s deployment.
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
+		owners := pod.GetOwnerReferences()
+		if len(owners) == 0 {
+			log.Debugf("Did not find an owner reference for pod %q", podString(pod))
+			return nil
+		}
+
+		for _, o := range owners {
+			if o.Kind == "Deployment" {
+				injectEnv(pod, corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: o.Name,
+				})
+			}
+		}
+	}
 	return lastError
 }
 

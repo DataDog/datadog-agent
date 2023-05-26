@@ -8,6 +8,8 @@
 package mutate
 
 import (
+	"fmt"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -34,6 +36,13 @@ func fakeEnv(name string) corev1.EnvVar {
 	return corev1.EnvVar{
 		Name:  name,
 		Value: name + "-env-value",
+	}
+}
+
+func fakeEnvValue(name, value string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name:  name,
+		Value: value,
 	}
 }
 
@@ -96,14 +105,31 @@ func fakePodWithAnnotation(k, v string) *corev1.Pod {
 	return withContainer(pod, "-container")
 }
 
-func fakePodWithAnnotations(as map[string]string) *corev1.Pod {
+func fakePodWithAnnotations(as, ls map[string]string, es []corev1.EnvVar) *corev1.Pod {
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "ns",
+		},
+	}
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "pod",
+			Namespace:   "ns",
 			Annotations: as,
+			Labels:      ls,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("Deployment")),
+			},
 		},
 	}
-	return withContainer(pod, "-container")
+	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
+		Name: pod.Name,
+		Env:  es,
+	})
+	fmt.Printf("%+v\n", pod)
+	return pod
 }
 
 func fakePodWithEnv(name, env string) *corev1.Pod {

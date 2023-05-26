@@ -18,7 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func Test_shouldInjectConf(t *testing.T) {
+func Test_shouldMutatePod(t *testing.T) {
 	mockConfig := config.Mock(t)
 	tests := []struct {
 		name        string
@@ -66,8 +66,8 @@ func Test_shouldInjectConf(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupConfig()
-			if got := shouldInjectConf(tt.pod); got != tt.want {
-				t.Errorf("shouldInjectConf() = %v, want %v", got, tt.want)
+			if got := shouldMutatePod(tt.pod); got != tt.want {
+				t.Errorf("shouldMutatePod() = %v, want %v", got, tt.want)
 			}
 		})
 	}

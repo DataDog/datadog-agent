@@ -87,7 +87,7 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		return errors.New("cannot inject config into nil pod")
 	}
 
-	if !shouldInjectConf(pod) {
+	if !shouldMutatePod(pod) {
 		return nil
 	}
 
@@ -112,9 +112,9 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	return nil
 }
 
-// shouldInjectConf returns whether the config should be injected
+// shouldMutatePod returns whether the config should be injected
 // based on the pod labels and the cluster agent config
-func shouldInjectConf(pod *corev1.Pod) bool {
+func shouldMutatePod(pod *corev1.Pod) bool {
 	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
 		switch val {
 		case "true":
