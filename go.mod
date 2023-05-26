@@ -47,7 +47,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.45.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/trace v0.45.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.45.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.45.0-rc.3
@@ -59,9 +59,9 @@ require (
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.3
 	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
@@ -199,7 +199,7 @@ require (
 	go.opentelemetry.io/collector/exporter v0.75.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.75.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rcv0011
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0012
 	go.opentelemetry.io/collector/processor/batchprocessor v0.75.0
 	go.opentelemetry.io/collector/receiver v0.75.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0
@@ -515,7 +515,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.75.0 // indirect
 	go.opentelemetry.io/collector/featuregate v0.75.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.75.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.78.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.40.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.40.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.15.0 // indirect
@@ -577,7 +577,7 @@ require (
 	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/rogpeppe/go-internal v1.9.0 // indirect
+	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
 	github.com/sigstore/rekor v1.0.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
