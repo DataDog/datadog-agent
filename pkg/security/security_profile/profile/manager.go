@@ -486,7 +486,7 @@ func (m *SecurityProfileManager) stop() {
 	}
 }
 
-func (m *SecurityProfileManager) incEventFilteringStat(eventType model.EventType, state EventFilteringProfileState, result EventFilteringResult) {
+func (m *SecurityProfileManager) incrementEventFilteringStat(eventType model.EventType, state EventFilteringProfileState, result EventFilteringResult) {
 	m.eventFiltering[eventFilteringEntry{eventType, state, result}].Inc()
 }
 
@@ -634,7 +634,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// lookup profile
 	profile := m.GetProfile(selector)
 	if profile == nil || profile.Status == 0 {
-		m.incEventFilteringStat(event.GetEventType(), NoProfile, NA)
+		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
 
@@ -655,15 +655,15 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
 		if err != nil {
 			// ignore, evaluation failed
-			m.incEventFilteringStat(event.GetEventType(), NoProfile, NA)
+			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 			return
 		}
 		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
 		if found {
 			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
-			m.incEventFilteringStat(event.GetEventType(), profileState, InProfile)
+			m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
 		} else {
-			m.incEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
+			m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 		}
 	}
 }
@@ -690,7 +690,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 		// have we reached the unstable time limit ?
 		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-			m.incEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
+			m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
 			return UnstableEventType
 		}
 
@@ -702,20 +702,20 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 	// check if the unstable size limit was reached
 	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
-		m.incEventFilteringStat(event.GetEventType(), UnstableProfile, NA)
+		m.incrementEventFilteringStat(event.GetEventType(), UnstableProfile, NA)
 		return UnstableProfile
 	}
 
 	// try to insert the event in the profile
 	newEntry, err := profile.ActivityTree.Insert(event, nodeType)
 	if err != nil {
-		m.incEventFilteringStat(event.GetEventType(), NoProfile, NA)
+		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return NoProfile
 	} else if newEntry {
 		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
-		m.incEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
+		m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 	} else { // no newEntry
-		m.incEventFilteringStat(event.GetEventType(), profileState, InProfile)
+		m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
 	}
 	return profileState
 }
