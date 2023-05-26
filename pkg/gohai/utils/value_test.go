@@ -12,6 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestValueDefault(t *testing.T) {
+	value := Value[int]{}
+	_, err := value.Value()
+	require.Error(t, err)
+}
+
 func TestNewValue(t *testing.T) {
 	value := NewValue(42)
 	v, err := value.Value()
@@ -24,12 +30,6 @@ func TestNewErrorValue(t *testing.T) {
 	value := NewErrorValue[int](myErr)
 	result, err := value.Value()
 	require.ErrorIs(t, err, myErr)
-	require.Equal(t, 0, result)
-
-	myOtherErr := errors.New("this is another error")
-	value = value.NewErrorValue(myOtherErr)
-	result, err = value.Value()
-	require.ErrorIs(t, err, myOtherErr)
 	require.Equal(t, 0, result)
 }
 

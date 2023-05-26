@@ -28,6 +28,7 @@ func TestAsJSONTypes(t *testing.T) {
 		SomeUint64  Value[uint64]  `json:"my_uint64"`
 		SomeFloat32 Value[float32] `json:"my_float32"`
 		SomeFloat64 Value[float64] `json:"my_float64"`
+		SomeString  Value[string]  `json:"my_string"`
 	}{
 		SomeInt:     NewValue(1),
 		SomeInt8:    NewValue[int8](2),
@@ -41,6 +42,7 @@ func TestAsJSONTypes(t *testing.T) {
 		SomeUint64:  NewValue[uint64](10),
 		SomeFloat32: NewValue[float32](32.),
 		SomeFloat64: NewValue(64.),
+		SomeString:  NewValue("mystr"),
 	}
 
 	marshallable, warns, err := AsJSON(info, false)
@@ -63,7 +65,8 @@ func TestAsJSONTypes(t *testing.T) {
 		"my_uint32": "9",
 		"my_uint64": "10",
 		"my_float32": "%f",
-		"my_float64": "%f"
+		"my_float64": "%f",
+		"my_string": "mystr"
 	}`, float32(32.), 64.)
 	require.JSONEq(t, expected, string(marshalled))
 }
@@ -100,43 +103,52 @@ func TestAsJsonInvalidParam(t *testing.T) {
 	require.ErrorIs(t, err, ErrArgNotStruct)
 }
 
-// TestAsJsonOmit checks that fields which should be omitted are
+// TestAsJsonFieldError checks that AsJSON returns an error when there is a field which cannot be exported
 // - type is not Value
 // - no json tag
 // - not exported
-// - Value is an error
-// - Value type is not handled (struct, ptr, bool, ...)
-func TestAsJsonOmit(t *testing.T) {
-	myerr := errors.New("this is an error")
-	info := &struct {
-		NotValue    int `json:"not_value"`
-		NoTag       Value[int]
-		notExported Value[int]      `json:"not_exported"` //nolint:govet
-		ValueError  Value[int]      `json:"value_error"`
-		ValueStruct Value[struct{}] `json:"value_struct"`
-		ValuePtr    Value[*int]     `json:"value_ptr"`
-		ValueBool   Value[bool]     `json:"value_bool"`
+// - Value inner type cannot be rendered (struct, ptr, ...)
+func TestAsJsonFieldError(t *testing.T) {
+	infoNotValue := &struct {
+		NotValue int `json:"not_value"`
 	}{
-		NotValue:    1,
-		NoTag:       NewValue(2),
-		notExported: NewValue(3),
-		ValueError:  NewErrorValue[int](myerr),
-		ValueStruct: NewValue(struct{}{}),
-		ValuePtr:    NewValue[*int](nil),
-		ValueBool:   NewValue(true),
+		NotValue: 1,
 	}
 
-	_, _, err := AsJSON(info, false)
-	require.ErrorIs(t, err, ErrNoFieldCollected)
+	_, _, err := AsJSON(infoNotValue, false)
+	require.ErrorIs(t, err, ErrNotExportable)
 
-	marshallable, warns, err := AsJSON(info, true)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []error{myerr}, warns)
+	infoNoTag := &struct {
+		NoTag Value[int]
+	}{
+		NoTag: NewValue(2),
+	}
+	_, _, err = AsJSON(infoNoTag, false)
+	require.ErrorIs(t, err, ErrNotExportable)
 
-	marshalled, err := json.Marshal(marshallable)
-	require.NoError(t, err)
-	expected := `{ "value_error": "0" }`
-	require.JSONEq(t, expected, string(marshalled))
+	infoNotExported := &struct {
+		notExported Value[int] `json:"not_exported"` //nolint:govet
+	}{
+		notExported: NewValue(3),
+	}
+	_, _, err = AsJSON(infoNotExported, false)
+	require.ErrorIs(t, err, ErrNotExportable)
+
+	infoValueStruct := &struct {
+		ValueStruct Value[struct{}] `json:"value_struct"`
+	}{
+		ValueStruct: NewValue(struct{}{}),
+	}
+	_, _, err = AsJSON(infoValueStruct, false)
+	require.ErrorIs(t, err, ErrNotExportable)
+
+	infoValuePtr := &struct {
+		ValuePtr Value[*int] `json:"value_ptr"`
+	}{
+		ValuePtr: NewValue[*int](nil),
+	}
+	_, _, err = AsJSON(infoValuePtr, false)
+	require.ErrorIs(t, err, ErrNotExportable)
 }
 
 func TestAsJsonWarns(t *testing.T) {
@@ -241,41 +253,4 @@ func TestAsJSONSuffix(t *testing.T) {
 		"field_six": "0M"
 	}`
 	require.JSONEq(t, expected, string(marshalled))
-}
-
-func TestGetPkgName(t *testing.T) {
-	require.Equal(t, "", GetPkgName(""))
-
-	longPkgPath := "github.com/DataDog/datadog-agent/pkg/gohai/utils"
-	require.Equal(t, "utils", GetPkgName(longPkgPath))
-}
-
-func TestInitializeOmit(t *testing.T) {
-	info := &struct {
-		NotValue    int `json:"not_value"`
-		NoTag       Value[int]
-		notExported Value[int] `json:"not_exported"` //nolint:govet
-	}{}
-
-	err := Initialize(info)
-	require.NoError(t, err)
-	// check that Initialize did not initialize any of the fields
-	require.Zero(t, info.NotValue)
-	require.Zero(t, info.NoTag)
-	require.Zero(t, info.notExported)
-}
-
-func TestInitialize(t *testing.T) {
-	info := &struct {
-		SomeInt Value[int] `json:"some_int"`
-	}{}
-	err := Initialize(info)
-	require.NoError(t, err)
-
-	_, err = info.SomeInt.Value()
-	var targetErr *NotCollectedError
-	require.ErrorAs(t, err, &targetErr)
-	// the struct is not declared so its package path is empty
-	require.Equal(t, "", targetErr.PkgName)
-	require.Equal(t, "some_int", targetErr.ValueName)
 }
