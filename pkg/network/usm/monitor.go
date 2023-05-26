@@ -307,11 +307,12 @@ func (m *Monitor) Stop() {
 		return
 	}
 
+	m.processMonitor.Stop()
+
 	for _, protocol := range m.protocols {
 		protocol.PreStop(m.ebpfProgram.Manager.Manager)
 	}
 
-	m.processMonitor.Stop()
 	m.ebpfProgram.Close()
 
 	if m.http2Enabled {
