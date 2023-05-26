@@ -124,6 +124,9 @@
 //
 // # Organizing your tests
 //
+// The execution order for tests in [testify Suite] is IMPLEMENTATION SPECIFIC
+// UNLIKE REGULAR GO TESTS.
+//
 // # Having a single environment
 //
 // In the simple case, there is a single environment and each test checks one specific thing.
