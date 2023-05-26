@@ -179,17 +179,37 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	return true
 }
 
-// InsertDNSEvent inserts a DNS event in a process node
-func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, dryRun bool) bool {
-	if !dryRun {
-		DNSNames.Insert(evt.DNS.Name)
+func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType uint16) bool {
+	if DNSMatchMaxDepth == 0 {
+		_, ok := pn.DNSNames[DNSName]
+		return ok
 	}
 
-	if dnsNode, ok := pn.DNSNames[evt.DNS.Name]; ok {
-		// update matched rules
-		if !dryRun {
-			dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
+	toSearch := dnsFilterSubdomains(DNSName, DNSMatchMaxDepth)
+	for name, dnsNode := range pn.DNSNames {
+		if dnsFilterSubdomains(name, DNSMatchMaxDepth) == toSearch {
+			for _, req := range dnsNode.Requests {
+				if req.Type == DNSType {
+					return true
+				}
+			}
 		}
+	}
+	return false
+}
+
+// InsertDNSEvent inserts a DNS event in a process node
+func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
+	if dryRun {
+		// Use DNSMatchMaxDepth only when searching for a node, not when trying to insert
+		return !pn.findDNSNode(evt.DNS.Name, dnsMatchMaxDepth, evt.DNS.Type)
+	}
+
+	DNSNames.Insert(evt.DNS.Name)
+	dnsNode, ok := pn.DNSNames[evt.DNS.Name]
+	if ok {
+		// update matched rules
+		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
@@ -198,17 +218,13 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGener
 			}
 		}
 
-		if !dryRun {
-			// insert the new request
-			dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
-		}
+		// insert the new request
+		dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
 		return true
 	}
 
-	if !dryRun {
-		pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
-		stats.DNSNodes++
-	}
+	pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
+	stats.DNSNodes++
 	return true
 }
 

@@ -454,6 +454,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 
 	// decode the content of the profile
 	ProtoToSecurityProfile(profile, newProfile)
+	profile.ActivityTree.DNSMatchMaxDepth = m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth
 
 	// compute activity tree initial stats
 	profile.ActivityTree.ComputeActivityTreeStats()
