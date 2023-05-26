@@ -9,6 +9,7 @@ single-machine-performance-regression_detector:
     expire_in: 1 weeks
     paths:
       - submission_metadata
+    when: always
   variables:
     SMP_VERSION: 0.7.3
     LADING_VERSION: 0.14.0
