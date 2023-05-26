@@ -199,13 +199,10 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 }
 
 // InsertDNSEvent inserts a DNS event in a process node
-func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, dryRun bool, DNSMatchMaxDepth int) bool {
+func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
 	if dryRun {
 		// Use DNSMatchMaxDepth only when searching for a node, not when trying to insert
-		if pn.findDNSNode(evt.DNS.Name, DNSMatchMaxDepth, evt.DNS.Type) {
-			return false
-		}
-		return true
+		return !pn.findDNSNode(evt.DNS.Name, dnsMatchMaxDepth, evt.DNS.Type)
 	}
 
 	DNSNames.Insert(evt.DNS.Name)
@@ -227,6 +224,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGener
 	}
 
 	pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
+	stats.DNSNodes++
 	return true
 }
 
