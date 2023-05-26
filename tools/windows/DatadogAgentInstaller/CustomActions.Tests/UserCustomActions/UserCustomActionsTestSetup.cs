@@ -14,8 +14,7 @@ namespace CustomActions.Tests.UserCustomActions
 
         public Mock<INativeMethods> NativeMethods { get; } = new();
         public Mock<IRegistryServices> RegistryServices { get; } = new();
-        public Mock<IDirectoryServices> DirectoryServices { get; } = new();
-        public Mock<IFileServices> FileServices { get; } = new();
+        public Mock<IFileSystemServices> FileSystemServices { get; } = new();
         public Mock<IServiceController> ServiceController { get; } = new();
 
         public UserCustomActionsTestSetup()
@@ -34,8 +33,7 @@ namespace CustomActions.Tests.UserCustomActions
                 Session.Object,
                 NativeMethods.Object,
                 RegistryServices.Object,
-                DirectoryServices.Object,
-                FileServices.Object,
+                FileSystemServices.Object,
                 ServiceController.Object
             );
         }

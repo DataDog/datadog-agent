@@ -61,6 +61,7 @@
     <Compile Include="Constants.cs" />
     <Compile Include="Flare.cs" />
     <Compile Include="Interfaces\IFeatureInfo.cs" />
+    <Compile Include="Interfaces\IFileSystemServices.cs" />
     <Compile Include="Interfaces\IInstallerHttpClient.cs" />
     <Compile Include="Interfaces\InstallerWebClient.cs" />
     <Compile Include="Interfaces\InstallInfoCustomActions.cs" />
@@ -75,6 +76,7 @@
     <Compile Include="Interfaces\IRegistryServices.cs" />
     <Compile Include="Interfaces\IServiceController.cs" />
     <Compile Include="Interfaces\IWindowsService.cs" />
+    <Compile Include="Native\FileSystemServices.cs" />
     <Compile Include="Native\Registries.cs" />
     <Compile Include="Native\RegistryKey.cs" />
     <Compile Include="Native\RegistryServices.cs" />
