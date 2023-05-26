@@ -78,12 +78,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/pulumi-aws/sdk/v5 v5.41.0 // indirect
 	github.com/pulumi/pulumi-awsx/sdk v1.0.2 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk v1.102.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute v1.102.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice v1.102.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network v1.102.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
-	github.com/pulumi/pulumi-eks/sdk v1.0.2 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.28.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.2 // indirect
@@ -110,7 +105,6 @@ require (
 	golang.org/x/term v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/tools v0.9.1 // indirect
-	google.golang.org/genproto v0.0.0-20230525234025-438c736192d0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230526015343-6ee61e4f9d5f // indirect
 	google.golang.org/grpc v1.55.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
