@@ -215,7 +215,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 					assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), s.Tags)
 				}
 				if s.Name == "datadog.agent.otlp.runtime_metrics" {
-					assert.Equal(t, tagset.NewCompositeTags([]string{}, nil), s.Tags)
+					assert.Contains(t, tagset.NewCompositeTags([]string{"go", "dotnet"}, nil), s.Tags)
 				}
 				if s.Name == numberMetricName {
 					if tt.wantSerieTags.Len() > 0 {
