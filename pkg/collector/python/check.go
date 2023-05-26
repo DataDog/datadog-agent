@@ -343,7 +343,7 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	// Lock the GIL and release it at the end of the run (will crash otherwise)
 	gstate, err := newStickyLock()
 	if err != nil {
-		log.Warnf("failed to cancel check %s: %s", c.id, err)
+		log.Warnf("failed to get lock for check %s: %s", c.id, err)
 		return nil, err
 	}
 	defer gstate.unlock()
@@ -353,17 +353,23 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	// low-rate calls like this
 	pyDiagnoses := C.get_check_diagnoses(rtloader, c.instance)
 	if pyDiagnoses == nil {
+		// When no actual diagnoses to report python check normally returns "[]"
+		log.Warnf("check diagnose failed to collect diagnoses JSON for %s", c.id)
 		return nil, nil
 	}
 	defer C.rtloader_free(rtloader, unsafe.Pointer(pyDiagnoses))
 
 	// Deserialize it
-	s := C.GoString(pyDiagnoses)
+	strDiagnoses := C.GoString(pyDiagnoses)
 
 	var diagnosesWrap []diagnosisJSONSerWrap
-	err = json.Unmarshal([]byte(s), &diagnosesWrap)
-	if err != nil || diagnosesWrap == nil || len(diagnosesWrap) == 0 {
-		return nil, err
+	err = json.Unmarshal([]byte(strDiagnoses), &diagnosesWrap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %s", c.id, err, strDiagnoses)
+	}
+
+	if diagnosesWrap == nil || len(diagnosesWrap) == 0 {
+		return nil, nil
 	}
 
 	diagnoses := make([]diagnosis.Diagnosis, 0, len(diagnosesWrap))
