@@ -226,7 +226,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := injectAutoInstruConfig(tt.pod, tt.libsToInject, fake.NewSimpleDynamicClient(scheme))
+			err := injectAutoInstruConfig(tt.pod, tt.libsToInject)
 			require.False(t, (err != nil) != tt.wantErr)
 			if err != nil {
 				return

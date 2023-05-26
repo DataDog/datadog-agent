@@ -110,7 +110,7 @@ func getDeploymentReference(pod *corev1.Pod) *v1.OwnerReference {
 	return nil
 }
 
-func injectAutoInstrumentation(pod *corev1.Pod, _ string, dc dynamic.Interface) error {
+func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	if pod == nil {
 		return errors.New("cannot inject lib into nil pod")
 	}
@@ -152,7 +152,7 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, dc dynamic.Interface) 
 		log.Debugf("Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
 	}
 
-	return injectAutoInstruConfig(pod, libsToInject, dc)
+	return injectAutoInstruConfig(pod, libsToInject)
 }
 
 func isNsTargeted(ns string) bool {
@@ -259,7 +259,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
 	return libInfoList
 }
 
-func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, dc dynamic.Interface) error {
+func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 	var lastError error
 
 	initContainerToInject := make(map[language]string)
