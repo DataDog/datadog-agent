@@ -433,7 +433,7 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 	return env, stackOutput, err
 }
 
-// UpdateEnv update the current environment.
+// UpdateEnv updates the current environment.
 func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
 	if stackDef != suite.currentStackDef {
 		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.skipDeleteOnFailure {
