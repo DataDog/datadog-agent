@@ -30,47 +30,10 @@ var BaseEnv = map[string]interface{}{
 	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join(TestDirRoot, "pkg/network/java"),
 }
 
-type testConfig struct {
-	bundle         string
-	env            map[string]interface{}
-	filterPackages filterPaths
-}
-
-type filterPaths struct {
-	paths     []string
-	inclusive bool
-}
-
-var skipPrebuiltTests = filterPaths{
-	paths:     []string{"pkg/collector/corechecks/ebpf/probe"},
-	inclusive: false,
-}
-
-var runtimeCompiledTests = filterPaths{
-	paths: []string{
-		"pkg/network/tracer",
-		"pkg/network/protocols/http",
-		"pkg/collector/corechecks/ebpf/probe",
-	},
-	inclusive: true,
-}
-
-var coreTests = filterPaths{
-	paths: []string{
-		"pkg/collector/corechecks/ebpf/probe",
-		"pkg/network/protocols/http",
-	},
-	inclusive: true,
-}
-
-var fentryTests = filterPaths{
-	paths:     skipPrebuiltTests.paths,
-	inclusive: false,
-}
-
 var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
-	regexp.MustCompile("pkg/network/tracer$"):         25 * time.Minute,
+	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
+	regexp.MustCompile("pkg/network/usm$"):            30 * time.Minute,
 }
 
 func getTimeout(pkg string) time.Duration {
@@ -122,15 +85,15 @@ func generatePackageName(file string) string {
 	return pkg
 }
 
-func buildCommandArgs(file, bundle string) []string {
+func buildCommandArgs(junitPath string, jsonPath string, file string) []string {
 	pkg := generatePackageName(file)
 	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 	xmlpath := filepath.Join(
-		"/", "junit", bundle,
+		junitPath,
 		fmt.Sprintf("%s.xml", junitfilePrefix),
 	)
 	jsonpath := filepath.Join(
-		"/", "pkgjson", bundle,
+		jsonPath,
 		fmt.Sprintf("%s.json", junitfilePrefix),
 	)
 	args := []string{
@@ -156,24 +119,9 @@ func mergeEnv(env ...map[string]interface{}) []string {
 	return mergedEnv
 }
 
-func filterPackagesFn(filter filterPaths) func(path string) bool {
-	return func(path string) bool {
-		for _, p := range filter.paths {
-			if pathEmbedded(path, p) && filter.inclusive {
-				return true
-			} else if !pathEmbedded(path, p) && !filter.inclusive {
-				return true
-			}
-		}
-
-		return false
-	}
-}
-
-func concatenateBundleJsons(bundle string) error {
-	testJsonFile := filepath.Join("/", "testjson", fmt.Sprintf("%s.json", bundle))
-	bundleJSONPath := filepath.Join("/", "pkgjson", bundle)
-	matches, err := glob(bundleJSONPath, `*\.json`, func(path string) bool { return true })
+func concatenateJsons(indir, outdir string) error {
+	testJsonFile := filepath.Join(outdir, "out.json")
+	matches, err := glob(indir, `*\.json`, func(path string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}
@@ -199,39 +147,35 @@ func concatenateBundleJsons(bundle string) error {
 	return nil
 }
 
-func testPass(config testConfig) error {
-	matches, err := glob(TestDirRoot, Testsuite, filterPackagesFn(config.filterPackages))
+func testPass() error {
+	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
+		return true
+	})
 	if err != nil {
 		return fmt.Errorf("test glob: %s", err)
 	}
 
-	if err := os.RemoveAll("/junit/"); err != nil {
-		return fmt.Errorf("failed to remove contents of /junit/: %w", err)
-	}
-	if err := os.RemoveAll("/pkgjson/"); err != nil {
-		return fmt.Errorf("failed to remove contents of /pkgjson/: %w", err)
-	}
+	xmlPath := "/junit"
+	jsonPath := "/pkgjson"
+	jsonOutPath := "/testjson"
 
-	bundleXMLPath := filepath.Join("/", "junit", config.bundle)
-	bundleJSONPath := filepath.Join("/", "pkgjson", config.bundle)
-
-	// create bundle if not exist
-	if _, err := os.Stat(bundleXMLPath); errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(bundleXMLPath, 0777); err != nil {
-			return fmt.Errorf("failed to create directory %s", bundleXMLPath)
+	dirs := []string{xmlPath, jsonPath, jsonOutPath}
+	for _, d := range dirs {
+		if err := os.RemoveAll(d); err != nil {
+			return fmt.Errorf("failed to remove contents of %s: %w", d, err)
 		}
-	}
-	if _, err := os.Stat(bundleJSONPath); errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(bundleJSONPath, 0777); err != nil {
-			return fmt.Errorf("failed to create directory %s", bundleJSONPath)
+		if _, err := os.Stat(d); errors.Is(err, os.ErrNotExist) {
+			if err := os.MkdirAll(d, 0777); err != nil {
+				return fmt.Errorf("failed to create directory %s", d)
+			}
 		}
 	}
 
 	for _, file := range matches {
-		args := buildCommandArgs(file, config.bundle)
+		args := buildCommandArgs(xmlPath, jsonPath, file)
 		cmd := exec.Command(GoTestSum, args...)
 
-		cmd.Env = append(cmd.Environ(), mergeEnv(config.env, BaseEnv)...)
+		cmd.Env = append(cmd.Environ(), mergeEnv(BaseEnv)...)
 		cmd.Dir = filepath.Dir(file)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -241,19 +185,16 @@ func testPass(config testConfig) error {
 		}
 	}
 
-	if err := concatenateBundleJsons(config.bundle); err != nil {
-		return fmt.Errorf("concat bundle %s json: %s", config.bundle, err)
+	if err := concatenateJsons(jsonPath, jsonOutPath); err != nil {
+		return fmt.Errorf("concat json: %s", err)
 	}
 	return nil
 }
 
 func fixAssetPermissions() error {
-	matches, err := glob(TestDirRoot, `.*\.o`,
-		filterPackagesFn(filterPaths{
-			paths:     []string{"pkg/ebpf/bytecode/build"},
-			inclusive: true,
-		}),
-	)
+	matches, err := glob(TestDirRoot, `.*\.o`, func(path string) bool {
+		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
+	})
 	if err != nil {
 		return fmt.Errorf("glob assets: %s", err)
 	}
@@ -277,51 +218,5 @@ func run() error {
 	if err := fixAssetPermissions(); err != nil {
 		return err
 	}
-
-	if err := testPass(testConfig{
-		bundle: "prebuilt",
-		env: map[string]interface{}{
-			"DD_ENABLE_RUNTIME_COMPILER": false,
-			"DD_ENABLE_CO_RE":            false,
-		},
-		filterPackages: skipPrebuiltTests,
-	}); err != nil {
-		return err
-	}
-	if err := testPass(testConfig{
-		bundle: "runtime",
-		env: map[string]interface{}{
-			"DD_ENABLE_RUNTIME_COMPILER":    true,
-			"DD_ALLOW_PRECOMPILED_FALLBACK": false,
-			"DD_ENABLE_CO_RE":               false,
-		},
-		filterPackages: runtimeCompiledTests,
-	}); err != nil {
-		return err
-	}
-	if err := testPass(testConfig{
-		bundle: "co-re",
-		env: map[string]interface{}{
-			"DD_ENABLE_CO_RE":                    true,
-			"DD_ENABLE_RUNTIME_COMPILER":         false,
-			"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": false,
-			"DD_ALLOW_PRECOMPILED_FALLBACK":      false,
-		},
-		filterPackages: coreTests,
-	}); err != nil {
-		return err
-	}
-	if err := testPass(testConfig{
-		bundle: "fentry",
-		env: map[string]interface{}{
-			"ECS_FARGATE":                   true,
-			"DD_ENABLE_CO_RE":               true,
-			"DD_ENABLE_RUNTIME_COMPILER":    false,
-			"DD_ALLOW_PRECOMPILED_FALLBACK": false,
-		},
-		filterPackages: fentryTests,
-	}); err != nil {
-		return err
-	}
-	return nil
+	return testPass()
 }
