@@ -6,6 +6,7 @@
 package compliance
 
 import (
+	"encoding/json"
 	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -18,15 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
-
-// Reporter is the interface of the output structure that the agent will send
-// the resulting evaluation results in a marshalled form.
-type Reporter interface {
-	Endpoints() *config.Endpoints
-	ReportRaw(content []byte, service string, tags ...string)
-}
 
 type LogReporter struct {
 	logSource *sources.LogSource
@@ -73,14 +68,14 @@ func (r *LogReporter) Endpoints() *config.Endpoints {
 	return r.endpoints
 }
 
-func (r *LogReporter) ReportRaw(content []byte, service string, tags ...string) {
-	tags = append(tags, r.tags...)
-
+func (r *LogReporter) ReportEvent(event interface{}) {
+	buf, err := json.Marshal(event)
+	if err != nil {
+		log.Errorf("failed to serialize compliance event: %v", err)
+		return
+	}
 	origin := message.NewOrigin(r.logSource)
-	origin.SetTags(tags)
-	origin.SetService(service)
-	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
+	origin.SetTags(r.tags)
+	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano())
 	r.logChan <- msg
 }
-
-var _ Reporter = &LogReporter{}

@@ -131,8 +131,8 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		at.Stats.ProcessNodes += 1
 		pnodes = append(pnodes, node.Children...)
 
-		at.Stats.dnsNodes += int64(len(node.DNSNames))
-		at.Stats.socketNodes += int64(len(node.Sockets))
+		at.Stats.DNSNodes += int64(len(node.DNSNames))
+		at.Stats.SocketNodes += int64(len(node.Sockets))
 
 		for _, f := range node.Files {
 			fnodes = append(fnodes, f)
@@ -145,7 +145,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		node := fnodes[0]
 
 		if node.File != nil {
-			at.Stats.fileNodes += 1
+			at.Stats.FileNodes += 1
 		}
 
 		for _, f := range node.Children {
@@ -375,10 +375,10 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 	return node, true, nil
 }
 
-func (at *ActivityTree) FindMatchingRootNodes(basename string) []*ProcessNode {
+func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	var res []*ProcessNode
 	for _, node := range at.ProcessNodes {
-		if node.Process.FileEvent.BasenameStr == basename {
+		if node.Process.Argv0 == arg0 {
 			res = append(res, node)
 		}
 	}

@@ -48,6 +48,7 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
 	events := [][]byte{
 		[]byte(`
 {
+    "flush_timestamp": 1550505606000,
     "type": "netflow5",
     "sampling_rate": 0,
     "direction": "ingress",
@@ -93,6 +94,7 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwrader *epforwarder.MockEvent
 `),
 		[]byte(`
 {
+    "flush_timestamp": 1550505606000,
     "type": "netflow5",
     "sampling_rate": 0,
     "direction": "ingress",
