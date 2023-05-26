@@ -25,7 +25,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -41,7 +43,18 @@ var (
 	emptyBody = []byte(nil)
 )
 
-func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
+type HTTPTestSuite struct {
+	suite.Suite
+}
+
+func TestHTTP(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(HTTPTestSuite))
+	})
+}
+
+func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 	serverAddr := "localhost:8081"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
@@ -71,7 +84,8 @@ func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
 // we send another request. We expect to capture the another request but not the incomplete requests.
-func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 
 	slowServerAddr := "localhost:8080"
@@ -121,7 +135,8 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	require.True(t, foundFastReq)
 }
 
-func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
+	t := s.T()
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
@@ -178,7 +193,8 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 	}
 }
 
-func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
+	t := s.T()
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
@@ -243,7 +259,8 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 	}
 }
 
-func TestHTTPMonitorIntegration(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
+	t := s.T()
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
@@ -259,7 +276,8 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 	})
 }
 
-func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithNAT() {
+	t := s.T()
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
 
@@ -277,7 +295,8 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 	})
 }
 
-func TestUnknownMethodRegression(t *testing.T) {
+func (s *HTTPTestSuite) TestUnknownMethodRegression() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
@@ -306,7 +325,8 @@ func TestUnknownMethodRegression(t *testing.T) {
 	}
 }
 
-func TestRSTPacketRegression(t *testing.T) {
+func (s *HTTPTestSuite) TestRSTPacketRegression() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 
 	serverAddr := "127.0.0.1:8080"
@@ -339,7 +359,8 @@ func TestRSTPacketRegression(t *testing.T) {
 	includesRequest(t, stats, &nethttp.Request{URL: url})
 }
 
-func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
+func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 
 	const req = "GET /200/foobar HTTP/1.1\n"
