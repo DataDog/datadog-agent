@@ -105,6 +105,12 @@ var (
 	allEventFilteringResults      = []EventFilteringResult{InProfile, NotInProfile, NA}
 )
 
+type eventFilteringEntry struct {
+	eventType model.EventType
+	state     EventFilteringProfileState
+	result    EventFilteringResult
+}
+
 // SecurityProfileManager is used to manage Security Profiles
 type SecurityProfileManager struct {
 	config         *config.Config
@@ -125,7 +131,7 @@ type SecurityProfileManager struct {
 	cacheHit         *atomic.Uint64
 	cacheMiss        *atomic.Uint64
 
-	eventFiltering map[model.EventType]map[EventFilteringProfileState]map[EventFilteringResult]*atomic.Uint64
+	eventFiltering map[eventFilteringEntry]*atomic.Uint64
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
@@ -178,14 +184,17 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		pendingCache:               profileCache,
 		cacheHit:                   atomic.NewUint64(0),
 		cacheMiss:                  atomic.NewUint64(0),
-		eventFiltering:             make(map[model.EventType]map[EventFilteringProfileState]map[EventFilteringResult]*atomic.Uint64),
+		eventFiltering:             make(map[eventFilteringEntry]*atomic.Uint64),
 	}
+
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		m.eventFiltering[i] = make(map[EventFilteringProfileState]map[EventFilteringResult]*atomic.Uint64)
 		for _, state := range allEventFilteringProfileState {
-			m.eventFiltering[i][state] = make(map[EventFilteringResult]*atomic.Uint64)
 			for _, result := range allEventFilteringResults {
-				m.eventFiltering[i][state][result] = atomic.NewUint64(0)
+				m.eventFiltering[eventFilteringEntry{
+					eventType: i,
+					state:     state,
+					result:    result,
+				}] = atomic.NewUint64(0)
 			}
 		}
 	}
@@ -477,6 +486,10 @@ func (m *SecurityProfileManager) stop() {
 	}
 }
 
+func (m *SecurityProfileManager) incEventFilteringStat(eventType model.EventType, state EventFilteringProfileState, result EventFilteringResult) {
+	m.eventFiltering[eventFilteringEntry{eventType, state, result}].Inc()
+}
+
 // SendStats sends metrics about the Security Profile manager
 func (m *SecurityProfileManager) SendStats() error {
 	m.profilesLock.Lock()
@@ -526,15 +539,11 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
-	for evtType, filteringProfileStates := range m.eventFiltering {
-		for state, filteringCounts := range filteringProfileStates {
-			for result, count := range filteringCounts {
-				tags := []string{fmt.Sprintf("event_type:%s", evtType), state.toTag(), result.toTag()}
-				if value := count.Swap(0); value > 0 {
-					if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
-						return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
-					}
-				}
+	for entry, count := range m.eventFiltering {
+		tags := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.toTag(), entry.result.toTag()}
+		if value := count.Swap(0); value > 0 {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
 			}
 		}
 	}
@@ -625,7 +634,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// lookup profile
 	profile := m.GetProfile(selector)
 	if profile == nil || profile.Status == 0 {
-		m.eventFiltering[event.GetEventType()][NoProfile][NA].Inc()
+		m.incEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
 
@@ -646,15 +655,15 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
 		if err != nil {
 			// ignore, evaluation failed
-			m.eventFiltering[event.GetEventType()][NoProfile][NA].Inc()
+			m.incEventFilteringStat(event.GetEventType(), NoProfile, NA)
 			return
 		}
 		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
 		if found {
 			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
-			m.eventFiltering[event.GetEventType()][profileState][InProfile].Inc()
+			m.incEventFilteringStat(event.GetEventType(), profileState, InProfile)
 		} else {
-			m.eventFiltering[event.GetEventType()][profileState][NotInProfile].Inc()
+			m.incEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 		}
 	}
 }
@@ -681,7 +690,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 		// have we reached the unstable time limit ?
 		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-			m.eventFiltering[event.GetEventType()][UnstableEventType][NA].Inc()
+			m.incEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
 			return UnstableEventType
 		}
 
@@ -693,20 +702,20 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 	// check if the unstable size limit was reached
 	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
-		m.eventFiltering[event.GetEventType()][UnstableProfile][NA].Inc()
+		m.incEventFilteringStat(event.GetEventType(), UnstableProfile, NA)
 		return UnstableProfile
 	}
 
 	// try to insert the event in the profile
 	newEntry, err := profile.ActivityTree.Insert(event, nodeType)
 	if err != nil {
-		m.eventFiltering[event.GetEventType()][NoProfile][NA].Inc()
+		m.incEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return NoProfile
 	} else if newEntry {
 		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
-		m.eventFiltering[event.GetEventType()][profileState][NotInProfile].Inc()
+		m.incEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 	} else { // no newEntry
-		m.eventFiltering[event.GetEventType()][profileState][InProfile].Inc()
+		m.incEventFilteringStat(event.GetEventType(), profileState, InProfile)
 	}
 	return profileState
 }
