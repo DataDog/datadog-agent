@@ -57,7 +57,7 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 			info = e.String(verbose)
 		case *ContainerImageMetadata:
 			info = e.String(verbose)
-		case *ProcessMetadata:
+		case *Process:
 			info = e.String(verbose)
 		default:
 			return "", fmt.Errorf("unsupported type %T", e)

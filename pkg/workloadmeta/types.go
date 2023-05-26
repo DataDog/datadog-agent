@@ -84,6 +84,18 @@ type Store interface {
 	// with kind KindContainerImageMetadata and the given ID.
 	GetImage(id string) (*ContainerImageMetadata, error)
 
+	// GetProcess returns metadata about a container.  It fetches the entity
+	// with kind KindProcess and the given ID.
+	GetProcess(pid string) (*Process, error)
+
+	// ListProcesses returns metadata about all known processes, equivalent
+	// to all entities with kind KindProcess.
+	ListProcesses() []*Process
+
+	// ListProcessesWithFilter returns all the processes for which the passed
+	// filter evaluates to true.
+	ListProcessesWithFilter(filterFunc ProcessFilterFunc) []*Process
+
 	// Notify notifies the store with a slice of events.  It should only be
 	// used by workloadmeta collectors.
 	Notify(events []CollectorEvent)
@@ -110,7 +122,7 @@ const (
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
-	KindProcessMetadata        Kind = "process_metadata"
+	KindProcess                Kind = "process"
 )
 
 // Source is the source name of an entity.
@@ -513,6 +525,9 @@ var _ Entity = &Container{}
 // ContainerFilterFunc is a function used to filter containers.
 type ContainerFilterFunc func(container *Container) bool
 
+// ProcessFilterFunc is a function used to filter processes.
+type ProcessFilterFunc func(container *Process) bool
+
 // GetRunningContainers is a function that evaluates to true for running containers.
 var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
 
@@ -805,39 +820,41 @@ func printHistory(out io.Writer, history v1.History) {
 
 var _ Entity = &ContainerImageMetadata{}
 
-type ProcessMetadata struct {
-	EntityID
+type Process struct {
+	EntityID // EntityID is the PID for now
 	EntityMeta
-	PID      int32
-	Command  string
-	Language string
+
+	NsPid        int
+	ContainerId  string
+	CreationTime time.Time
+	Language     *string
 }
 
-var _ Entity = &ProcessMetadata{}
+var _ Entity = &Process{}
 
 // GetID implements Entity#GetID.
-func (p ProcessMetadata) GetID() EntityID {
+func (p Process) GetID() EntityID {
 	return p.EntityID
 }
 
 // DeepCopy implements Entity#DeepCopy.
-func (p ProcessMetadata) DeepCopy() Entity {
-	cp := deepcopy.Copy(p).(ProcessMetadata)
+func (p Process) DeepCopy() Entity {
+	cp := deepcopy.Copy(p).(Process)
 	return &cp
 }
 
 // Merge implements Entity#Merge.
-func (p *ProcessMetadata) Merge(e Entity) error {
-	otherImage, ok := e.(*ProcessMetadata)
+func (p *Process) Merge(e Entity) error {
+	otherProcess, ok := e.(*Process)
 	if !ok {
 		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
 	}
 
-	return merge(p, otherImage)
+	return merge(p, otherProcess)
 }
 
 // String implements Entity#String.
-func (p ProcessMetadata) String(verbose bool) string {
+func (p Process) String(verbose bool) string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
@@ -846,12 +863,11 @@ func (p ProcessMetadata) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
 	_, _ = fmt.Fprintln(&sb, p.EntityMeta.String(verbose))
 
-	_, _ = fmt.Fprintln(&sb, "----------- Process ID -----------")
-	_, _ = fmt.Fprintln(&sb, p.PID)
-	_, _ = fmt.Fprintln(&sb, "----------- Command -----------")
-	_, _ = fmt.Fprintln(&sb, p.Command)
-	_, _ = fmt.Fprintln(&sb, "----------- Language -----------")
-	_, _ = fmt.Fprintln(&sb, p.Language)
+	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
+	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerId)
+	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
+	_, _ = fmt.Fprintln(&sb, "Language:", p.Language)
+
 	return sb.String()
 }
 

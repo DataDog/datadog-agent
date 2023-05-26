@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -138,7 +137,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
-			case workloadmeta.KindProcessMetadata:
+			case workloadmeta.KindProcess:
 				tagInfos = append(tagInfos, c.handleProcess(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
@@ -676,8 +675,8 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:
 		return fmt.Sprintf("container_image_metadata://%s", entityID.ID)
-	case workloadmeta.KindProcessMetadata:
-		return fmt.Sprintf("process://%s", entityID.ID)
+	case workloadmeta.KindProcess:
+		return fmt.Sprintf("process://%s", entityID.ID) // TODO: confirm the tagger entity name
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)
@@ -733,19 +732,19 @@ func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
 }
 func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*TagInfo {
 
-	processMetadata := ev.Entity.(*workloadmeta.ProcessMetadata)
+	process := ev.Entity.(*workloadmeta.Process)
 	tags := utils.NewTagList()
-	tags.AddLow("command", processMetadata.Command)
+	if process.Language != nil {
+		tags.AddLow("language", *process.Language)
+	}
 	low, orch, high, standard := tags.Compute()
 	return []*TagInfo{{
-		Source:               processMetaDataSource,
-		Entity:               buildTaggerEntityID(processMetadata.EntityID),
+		Source:               processSource,
+		Entity:               buildTaggerEntityID(process.EntityID),
 		HighCardTags:         high,
 		OrchestratorCardTags: orch,
 		LowCardTags:          low,
 		StandardTags:         standard,
-		DeleteEntity:         false,
-		ExpiryDate:           time.Time{},
 	},
 	}
 }

@@ -64,6 +64,43 @@ func (s *Store) ListContainersWithFilter(filter workloadmeta.ContainerFilterFunc
 	return res
 }
 
+// GetProcess implements Store#GetProcess.
+func (s *Store) GetProcess(pid string) (*workloadmeta.Process, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindProcess, pid)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.Process), nil
+}
+
+// ListProcesses implements Store#ListProcesses.
+func (s *Store) ListProcesses() []*workloadmeta.Process {
+	entities := s.listEntitiesByKind(workloadmeta.KindProcess)
+
+	// Not very efficient
+	processes := make([]*workloadmeta.Process, 0, len(entities))
+	for _, entity := range entities {
+		processes = append(processes, entity.(*workloadmeta.Process))
+	}
+
+	return processes
+}
+
+// ListProcessesWithFilter implements Store#ListProcessesWithFilter.
+func (s *Store) ListProcessesWithFilter(filter workloadmeta.ProcessFilterFunc) []*workloadmeta.Process {
+	var res []*workloadmeta.Process
+
+	// Not very efficient
+	for _, process := range s.ListProcesses() {
+		if filter(process) {
+			res = append(res, process)
+		}
+	}
+
+	return res
+}
+
 // GetKubernetesPod returns metadata about a Kubernetes pod.
 func (s *Store) GetKubernetesPod(id string) (*workloadmeta.KubernetesPod, error) {
 	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesPod, id)
