@@ -116,13 +116,13 @@ func fakePodWithParent(ns string, as, ls map[string]string, es []corev1.EnvVar, 
 		}
 		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("Deployment")))
 	} else if parentKind == "replicaset" {
-		deployment := &appsv1.ReplicaSet{
+		rs := &appsv1.ReplicaSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      parentName,
 				Namespace: ns,
 			},
 		}
-		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("ReplicaSet")))
+		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(rs, appsv1.SchemeGroupVersion.WithKind("ReplicaSet")))
 	}
 
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{

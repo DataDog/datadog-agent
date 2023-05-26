@@ -99,7 +99,7 @@ func initContainerName(lang language) string {
 	return fmt.Sprintf("datadog-lib-%s-init", lang)
 }
 
-// getDeploymentReference returns the OwnerReference if it is of Kind Deployment
+// getDeploymentReference returns the OwnerReference if it is a deployment Kind
 func getDeploymentReference(pod *corev1.Pod) *v1.OwnerReference {
 	ownerReferences := pod.ObjectMeta.OwnerReferences
 
@@ -366,8 +366,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 
 	injectLibVolume(pod)
 
-	// If, by this point, DD_SERVICE has not been set and apm_instrumentation_enabled is true then set any config
-	// that isn't already specified.
+	// Try to inject any configuration defaults that have not already been injected as env vars.
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
 		if deployment := getDeploymentReference(pod); deployment != nil {
 			libConfig := basicConfig()
