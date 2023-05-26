@@ -56,6 +56,8 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 	}
 }
 
+const ErrPathMustBeAbsolute = "all the path have to be absolute"
+
 // check that all path are absolute
 func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 	// do not support regular expression on path, currently unable to support discarder for regex value
@@ -66,7 +68,7 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 	}
 
 	if value, ok := fieldValue.Value.(string); ok {
-		errAbs := fmt.Errorf("invalid path `%s`, all the path have to be absolute", value)
+		errAbs := fmt.Errorf("invalid path `%s`, %s", value, ErrPathMustBeAbsolute)
 		errDepth := fmt.Errorf("invalid path `%s`, path depths have to be shorter than %d", value, MaxPathDepth)
 		errSegment := fmt.Errorf("invalid path `%s`, each segment of a path must be shorter than %d", value, MaxSegmentLength)
 
