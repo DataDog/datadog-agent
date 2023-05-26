@@ -20,5 +20,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/kubelet"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/kubemetadata"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/podman"
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/process"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remoteworkloadmeta"
 )

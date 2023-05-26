@@ -22,11 +22,12 @@ import (
 const (
 	workloadmetaCollectorName = "workloadmeta"
 
-	staticSource         = workloadmetaCollectorName + "-static"
-	podSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
-	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
-	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
-	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
+	staticSource          = workloadmetaCollectorName + "-static"
+	podSource             = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	taskSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
+	containerSource       = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
+	containerImageSource  = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
+	processMetaDataSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcessMetadata)
 )
 
 // CollectorPriorities holds collector priorities
