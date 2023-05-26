@@ -23,7 +23,7 @@ func NewStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error), co
 	return &StackDefinition[Env]{envFactory: envFactory, configMap: configMap}
 }
 
-// EnvFactoryStackDef create a custom stack definition
+// EnvFactoryStackDef creates a custom stack definition
 func EnvFactoryStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) *StackDefinition[Env] {
 	return NewStackDef(envFactory, runner.ConfigMap{})
 }
