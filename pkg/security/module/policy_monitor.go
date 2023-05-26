@@ -231,6 +231,6 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 	}
 	evt.FillCustomEventCommonFields()
 
-	return events.NewCustomRule(events.RulesetLoadedRuleID),
+	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
 		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
 }

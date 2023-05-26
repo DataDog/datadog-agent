@@ -183,7 +183,7 @@ func TestSecurityProfile(t *testing.T) {
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
 			func(sp *profile.SecurityProfile) bool {
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
-					if node.Node.Process.FileEvent.BasenameStr == "busybox" {
+					if node.Node.Process.Argv0 == "nslookup" {
 						return true
 					}
 					return false
@@ -710,7 +710,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpDuration:                10 * time.Second,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -763,7 +763,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			return err
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_autosuppression_dns")
-			assert.Equal(t, "busybox", event.ProcessContext.FileEvent.BasenameStr, "wrong exec file")
+			assert.Equal(t, "nslookup", event.ProcessContext.Argv0, "wrong exec file")
 		})
 	})
 

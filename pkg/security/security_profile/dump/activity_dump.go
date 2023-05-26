@@ -605,7 +605,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		Service: ad.Service,
 		Tags:    ad.Tags,
 		Storage: storage,
-		Metadata: &api.ActivityDumpMetadataMessage{
+		Metadata: &api.MetadataMessage{
 			AgentVersion:      ad.Metadata.AgentVersion,
 			AgentCommit:       ad.Metadata.AgentCommit,
 			KernelVersion:     ad.Metadata.KernelVersion,

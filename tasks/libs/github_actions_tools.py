@@ -101,7 +101,7 @@ def get_macos_workflow_run_for_ref(workflow="macos.yaml", github_action_ref="mas
 
 def follow_workflow_run(run_id):
     """
-    Follow the workflow run until completion.
+    Follow the workflow run until completion and return its conclusion.
     """
 
     try:
@@ -136,12 +136,7 @@ def follow_workflow_run(run_id):
         conclusion = run["conclusion"]
 
         if status == "completed":
-            if conclusion == "success":
-                print(color_message("Workflow run succeeded", "green"))
-                return
-            else:
-                print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
-                raise Exit(code=1)
+            return conclusion
         else:
             print(f"Workflow still running... ({minutes}m)")
             # For some unknown reason, in Gitlab these lines do not get flushed, leading to not being
@@ -150,6 +145,16 @@ def follow_workflow_run(run_id):
 
         minutes += 1
         sleep(60)
+
+
+def print_workflow_conclusion(conclusion):
+    """
+    Print the workflow conclusion
+    """
+    if conclusion == "success":
+        print(color_message("Workflow run succeeded", "green"))
+    else:
+        print(color_message(f"Workflow run ended with state: {conclusion}", "red"))
 
 
 def download_artifacts(run_id, destination="."):

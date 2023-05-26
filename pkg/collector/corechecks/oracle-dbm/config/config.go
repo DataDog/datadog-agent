@@ -47,6 +47,13 @@ type ExecutionPlansConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type AgentSQLTrace struct {
+	Enabled    bool `yaml:"enabled"`
+	Binds      bool `yaml:"binds"`
+	Waits      bool `yaml:"waits"`
+	TracedRuns int  `yaml:"traced_runs"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
 	Server                 string               `yaml:"server"`
@@ -68,6 +75,7 @@ type InstanceConfig struct {
 	Tablespaces            TablespacesConfig    `yaml:"tablespaces"`
 	ProcessMemory          ProcessMemoryConfig  `yaml:"process_memory"`
 	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
+	AgentSQLTrace          AgentSQLTrace        `yaml:"agent_sql_trace"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.

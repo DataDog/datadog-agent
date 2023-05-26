@@ -134,7 +134,7 @@ func (s *Scanner) start(ctx context.Context) {
 				scanResult.Duration = generationDuration
 
 				cancel()
-				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds())
+				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
 				sendResult(scanResult)
 				if request.opts.WaitAfter != 0 {
 					t := time.NewTimer(request.opts.WaitAfter)

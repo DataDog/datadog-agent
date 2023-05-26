@@ -83,7 +83,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("syscall_tester")
+			nodes := ad.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatalf("Node not found in activity dump: %+v", nodes)
 			}
@@ -163,7 +163,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("syscall_tester")
+			nodes := ad.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatalf("Node not found in activity dump: %+v", nodes)
 			}
@@ -208,8 +208,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			// searching busybox instead of nslookup because we test on a busybox based alpine
-			nodes := ad.FindMatchingRootNodes("busybox")
+			nodes := ad.FindMatchingRootNodes("nslookup")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -249,8 +248,7 @@ func TestActivityDumps(t *testing.T) {
 
 		tempPathParts := strings.Split(temp.Name(), "/")
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			// searching busybox instead of touch because we test on a busybox based alpine
-			nodes := ad.FindMatchingRootNodes("busybox")
+			nodes := ad.FindMatchingRootNodes("touch")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -292,7 +290,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("syscall_tester")
+			nodes := ad.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -348,7 +346,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("syscall_tester")
+			nodes := ad.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
