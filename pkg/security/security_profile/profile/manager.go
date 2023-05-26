@@ -489,6 +489,9 @@ func (m *SecurityProfileManager) SendStats() error {
 				return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
 			}
 		}
+		if profileStats[profile.Status] == nil {
+			profileStats[profile.Status] = make(map[bool]float64)
+		}
 		profileStats[profile.Status][profile.loadedInKernel] += 1
 	}
 
