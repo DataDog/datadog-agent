@@ -35,7 +35,7 @@
 //		e2e.Suite[e2e.VMEnv]
 //	}
 //
-// [e2e.VMEnv] defines the components available in your stack. See "Using existing stack definition section" for more information.
+// [e2e.VMEnv] defines the components available in your stack. See "Using existing stack definition" section for more information.
 //
 // 2. Write a regular Go test function that runs the test suite using [e2e.Run].
 //
@@ -47,7 +47,7 @@
 //
 // The second argument is a pointer to an empty instance of the previous defined structure (&vmSuite{} in our example)
 //
-// The third parameter defines the environment. See "Using existing stack definition section" for more information about a environment definition.
+// The third parameter defines the environment. See "Using existing stack definition" section for more information about a environment definition.
 //
 // 3. Write a test function
 //
@@ -55,7 +55,7 @@
 //		v.Env().VM.Execute("ls")
 //	}
 //
-// [suite.Env] gives access to the components in your environment.
+// [e2e.Suite.Env] gives access to the components in your environment.
 //
 // Depending on your stack definition, [e2e.Suite.Env] can provide the following objects:
 //   - [client.VM]: A virtual machine where you can execute commands.
@@ -333,7 +333,7 @@ func SkipDeleteOnFailure[Env any]() func(*Suite[Env]) {
 // Env returns the current environment.
 // In order to improve the efficiency, this function behaves as follow:
 //   - It creates the default environment if no environment exists.
-//   - It restores the default environment if [suite.UpdateEnv] was not already called during this test.
+//   - It restores the default environment if [e2e.Suite.UpdateEnv] was not already called during this test.
 //     This avoid having to restore the default environment for each test even if [suite.UpdateEnv] immedialy
 //     overrides the environment.
 func (suite *Suite[Env]) Env() *Env {
