@@ -75,13 +75,6 @@ type ProtocolSpec struct {
 	Maps      []*manager.Map
 	TailCalls []manager.TailCallRoute
 }
-type protocolSpecsMap map[ProtocolType]ProtocolSpec
-
-var KnownProtocols = make(protocolSpecsMap)
-
-func RegisterProtocol(protocolType ProtocolType, spec ProtocolSpec) {
-	KnownProtocols[protocolType] = spec
-}
 
 func AddBoolConst(options *manager.Options, flag bool, name string) {
 	val := uint64(1)

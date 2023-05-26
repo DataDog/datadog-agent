@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -40,6 +41,12 @@ const (
 var (
 	state        = Disabled
 	startupError error
+
+	// knownProtocols maps individual protocol types, to their specification,
+	// for the Monitor to use during its initialisation.
+	knownProtocols = map[protocols.ProtocolType]protocols.ProtocolSpec{
+		protocols.HTTP: http.HttpSpec,
+	}
 )
 
 // Monitor is responsible for:
@@ -441,7 +448,7 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, []
 	enabledProtocols := make([]protocols.Protocol, 0)
 	excludedFunctions := make([]string, 0)
 
-	for _, spec := range protocols.KnownProtocols {
+	for proto, spec := range knownProtocols {
 		protocol, err := spec.Factory(c)
 		if err != nil {
 			return nil, nil, &errNotSupported{err}
@@ -453,6 +460,8 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, []
 			mgr.tailCallRouter = append(mgr.tailCallRouter, spec.TailCalls...)
 
 			enabledProtocols = append(enabledProtocols, protocol)
+
+			log.Infof("%v monitoring enabled", proto.String())
 		} else {
 			for _, tc := range spec.TailCalls {
 				excludedFunctions = append(excludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)

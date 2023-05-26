@@ -38,6 +38,22 @@ const (
 	httpInFlightMap = "http_in_flight"
 )
 
+var HttpSpec protocols.ProtocolSpec = protocols.ProtocolSpec{
+	Factory: newHttpProtocol,
+	Maps: []*manager.Map{
+		{Name: httpInFlightMap},
+	},
+	TailCalls: []manager.TailCallRoute{
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "socket__http_filter",
+			},
+		},
+	},
+}
+
 func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTPMonitoring {
 		return nil, nil
@@ -159,24 +175,4 @@ func (p *httpProtocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.HTTP,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
-}
-
-func init() {
-	protocols.RegisterProtocol(protocols.HTTP, protocols.ProtocolSpec{
-		Factory: newHttpProtocol,
-		Maps: []*manager.Map{
-			{Name: httpInFlightMap},
-		},
-		TailCalls: []manager.TailCallRoute{
-			{
-				ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-				Key:           uint32(protocols.ProgramHTTP),
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "socket__http_filter",
-				},
-			},
-		},
-	})
-
-	log.Debug("[USM] Registered HTTP protocol factory")
 }
