@@ -97,25 +97,34 @@ func fakePodWithAnnotation(k, v string) *corev1.Pod {
 	return withContainer(pod, "-container")
 }
 
-func fakePodWithAnnotations(as, ls map[string]string, es []corev1.EnvVar) *corev1.Pod {
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-deployment",
-			Namespace: "ns",
-		},
-	}
-
+func fakePodWithParent(ns string, as, ls map[string]string, es []corev1.EnvVar, parentKind, parentName string) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "pod",
-			Namespace:   "ns",
-			Annotations: as,
-			Labels:      ls,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("Deployment")),
-			},
+			Name:            "pod",
+			Namespace:       ns,
+			Annotations:     as,
+			Labels:          ls,
+			OwnerReferences: []metav1.OwnerReference{},
 		},
 	}
+	if parentKind == "deployment" {
+		deployment := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      parentName,
+				Namespace: ns,
+			},
+		}
+		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("Deployment")))
+	} else if parentKind == "replicaset" {
+		deployment := &appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      parentName,
+				Namespace: ns,
+			},
+		}
+		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("ReplicaSet")))
+	}
+
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
 		Name: pod.Name,
 		Env:  es,

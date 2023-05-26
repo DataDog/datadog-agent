@@ -770,12 +770,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 	}{
 		{
 			name: "inject all",
-			pod: fakePodWithAnnotations(map[string]string{
-				"admission.datadoghq.com/all-lib.version":   "latest",
-				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
-			}, map[string]string{
-				"admission.datadoghq.com/enabled": "true",
-			}, []corev1.EnvVar{}),
+			pod: fakePodWithParent(
+				"ns",
+				map[string]string{
+					"admission.datadoghq.com/all-lib.version":   "latest",
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+				}, map[string]string{
+					"admission.datadoghq.com/enabled": "true",
+				}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -835,12 +837,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject java",
-			pod: fakePodWithAnnotations(map[string]string{
-				"admission.datadoghq.com/java-lib.version":   "latest",
-				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
-			}, map[string]string{
-				"admission.datadoghq.com/enabled": "true",
-			}, []corev1.EnvVar{}),
+			pod: fakePodWithParent(
+				"ns",
+				map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "latest",
+					"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+				}, map[string]string{
+					"admission.datadoghq.com/enabled": "true",
+				}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -855,12 +859,12 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject python",
-			pod: fakePodWithAnnotations(map[string]string{
+			pod: fakePodWithParent("ns", map[string]string{
 				"admission.datadoghq.com/python-lib.version":   "latest",
 				"admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
 			}, map[string]string{
 				"admission.datadoghq.com/enabled": "true",
-			}, []corev1.EnvVar{}),
+			}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -875,12 +879,12 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject node",
-			pod: fakePodWithAnnotations(map[string]string{
+			pod: fakePodWithParent("ns", map[string]string{
 				"admission.datadoghq.com/js-lib.version":   "latest",
 				"admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
 			}, map[string]string{
 				"admission.datadoghq.com/enabled": "true",
-			}, []corev1.EnvVar{}),
+			}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -895,14 +899,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject library and all",
-			pod: fakePodWithAnnotations(map[string]string{
-				"admission.datadoghq.com/all-lib.version":   "latest",
-				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
-				"admission.datadoghq.com/js-lib.version":    "v1.10",
-				"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
-			}, map[string]string{
-				"admission.datadoghq.com/enabled": "true",
-			}, []corev1.EnvVar{}),
+			pod: fakePodWithParent(
+				"ns", map[string]string{
+					"admission.datadoghq.com/all-lib.version":   "latest",
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+					"admission.datadoghq.com/js-lib.version":    "v1.10",
+					"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
+				}, map[string]string{
+					"admission.datadoghq.com/enabled": "true",
+				}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -925,13 +930,13 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject library and all no library version",
-			pod: fakePodWithAnnotations(map[string]string{
+			pod: fakePodWithParent("ns", map[string]string{
 				"admission.datadoghq.com/all-lib.version":   "latest",
 				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
 			}, map[string]string{
 				"admission.datadoghq.com/enabled": "true",
-			}, []corev1.EnvVar{}),
+			}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -990,13 +995,13 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject all error - bad json",
-			pod: fakePodWithAnnotations(map[string]string{
+			pod: fakePodWithParent("ns", map[string]string{
 				// TODO: we might not want to be injecting the libraries if the config is malformed
 				"admission.datadoghq.com/all-lib.version":   "latest",
 				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
 			}, map[string]string{
 				"admission.datadoghq.com/enabled": "true",
-			}, []corev1.EnvVar{}),
+			}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "PYTHONPATH",
@@ -1043,12 +1048,12 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject java bad json",
-			pod: fakePodWithAnnotations(map[string]string{
+			pod: fakePodWithParent("ns", map[string]string{
 				"admission.datadoghq.com/java-lib.version":   "latest",
 				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
 			}, map[string]string{
 				"admission.datadoghq.com/enabled": "true",
-			}, []corev1.EnvVar{}),
+			}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
@@ -1059,18 +1064,19 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject with enabled false",
-			pod: fakePodWithAnnotations(map[string]string{
-				"admission.datadoghq.com/java-lib.version":   "latest",
-				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
-			}, map[string]string{
-				"admission.datadoghq.com/enabled": "false",
-			}, []corev1.EnvVar{}),
+			pod: fakePodWithParent("ns",
+				map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "latest",
+					"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+				}, map[string]string{
+					"admission.datadoghq.com/enabled": "false",
+				}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{},
 			wantErr:      false,
 		},
 		{
 			name: "APM OOTB: user configuration is respected",
-			pod: fakePodWithAnnotations(map[string]string{}, map[string]string{}, []corev1.EnvVar{
+			pod: fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{
 				{
 					Name:  "DD_SERVICE",
 					Value: "user-deployment",
@@ -1099,7 +1105,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_LOGS_INJECTION",
 					Value: "false",
 				},
-			}),
+			}, "deployment", "test-deployment"),
 			expectedEnvs: append(injectAllEnvs(), []corev1.EnvVar{
 				{
 					Name:  "DD_SERVICE",
@@ -1135,16 +1141,18 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "APM OOTB: disable with label",
-			pod: fakePodWithAnnotations(map[string]string{}, map[string]string{
-				"admission.datadoghq.com/enabled": "false",
-			}, []corev1.EnvVar{}),
+			pod: fakePodWithParent(
+				"ns",
+				map[string]string{}, map[string]string{
+					"admission.datadoghq.com/enabled": "false",
+				}, []corev1.EnvVar{}, "deployment", "test-deployment"),
 			expectedEnvs: []corev1.EnvVar{},
 			wantErr:      false,
 			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
 		},
 		{
 			name: "APM OOTB: default service name is k8s deployment",
-			pod:  fakePodWithAnnotations(map[string]string{}, map[string]string{}, []corev1.EnvVar{}),
+			pod:  fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "deployment", "test-deployment"),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
 				Name:  "DD_SERVICE",
 				Value: "test-deployment",
@@ -1154,10 +1162,19 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name:         "APM OOTB: default service name (disabled)",
-			pod:          fakePodWithAnnotations(map[string]string{}, map[string]string{}, []corev1.EnvVar{}),
+			pod:          fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "deployment", "test-deployment"),
 			expectedEnvs: []corev1.EnvVar{},
 			wantErr:      false,
 			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", false) },
+		},
+		{
+			name: "APM OOTB: non-deployment should not be instrumented",
+			pod: fakePodWithParent("ns", map[string]string{}, map[string]string{
+				"admission.datadoghq.com/enabled": "false",
+			}, []corev1.EnvVar{}, "replicaset", "test-replicaset"),
+			expectedEnvs: []corev1.EnvVar{},
+			wantErr:      false,
+			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
 		},
 	}
 	for _, tt := range tests {
