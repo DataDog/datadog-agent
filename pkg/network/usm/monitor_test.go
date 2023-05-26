@@ -64,7 +64,7 @@ func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 
 	occurrences := 0
 	require.Eventually(t, func() bool {
-		stats := monitor.GetProtocolStats()[protocols.HTTP].(map[http.Key]*http.RequestStats)
+		stats := getHttpStats(t, monitor)
 		occurrences += countRequestOccurrences(stats, req)
 		return occurrences == expectedOccurrences
 	}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expectedOccurrences, occurrences)
