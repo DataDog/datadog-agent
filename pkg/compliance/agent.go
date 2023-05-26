@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -177,6 +178,12 @@ func (a *Agent) Start() error {
 		wg.Done()
 	}()
 
+	wg.Add(1)
+	go func() {
+		a.runAptConfigurationExport(ctx)
+		wg.Done()
+	}()
+
 	go func() {
 		<-ctx.Done()
 		wg.Wait()
@@ -300,6 +307,34 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 		k8sResourceType, k8sResourceData := k8sconfig.LoadConfiguration(ctx, a.opts.HostRoot)
 		k8sResourceLog := NewResourceLog(a.opts.Hostname, k8sResourceType, k8sResourceData)
 		a.opts.Reporter.ReportEvent(k8sResourceLog)
+		if sleepAborted(ctx, runTicker.C) {
+			return
+		}
+	}
+}
+
+func (a *Agent) runAptConfigurationExport(ctx context.Context) {
+	ruleFilterModel := module.NewRuleFilterModel()
+	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+	accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+		Filters: []string{aptconfig.SeclFilter},
+	})
+	if !accepted || err != nil {
+		return
+	}
+
+	runTicker := time.NewTicker(a.opts.CheckInterval)
+	defer runTicker.Stop()
+
+	for i := 0; ; i++ {
+		seed := fmt.Sprintf("%s%s%d", a.opts.Hostname, "apt-configuration", i)
+		jitter := randomJitter(seed, a.opts.RunJitterMax)
+		if sleepAborted(ctx, time.After(jitter)) {
+			return
+		}
+		aptResourceType, aptResourceData := aptconfig.LoadConfiguration(ctx, a.opts.HostRoot)
+		aptResourceLog := NewResourceLog(a.opts.Hostname, aptResourceType, aptResourceData)
+		a.opts.Reporter.ReportEvent(aptResourceLog)
 		if sleepAborted(ctx, runTicker.C) {
 			return
 		}
