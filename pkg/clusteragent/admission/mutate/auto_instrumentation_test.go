@@ -1069,17 +1069,67 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			wantErr:      false,
 		},
 		{
-			name: "APM OOTB: user service name",
+			name: "APM OOTB: user configuration is respected",
 			pod: fakePodWithAnnotations(map[string]string{}, map[string]string{}, []corev1.EnvVar{
 				{
 					Name:  "DD_SERVICE",
 					Value: "user-deployment",
 				},
+				{
+					Name:  "DD_TRACE_ENABLED",
+					Value: "false",
+				},
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "false",
+				},
+				{
+					Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
+					Value: "false",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.5",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "2",
+				},
+				{
+					Name:  "DD_LOGS_INJECTION",
+					Value: "false",
+				},
 			}),
-			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
-				Name:  "DD_SERVICE",
-				Value: "user-deployment",
-			}),
+			expectedEnvs: append(injectAllEnvs(), []corev1.EnvVar{
+				{
+					Name:  "DD_SERVICE",
+					Value: "user-deployment",
+				},
+				{
+					Name:  "DD_TRACE_ENABLED",
+					Value: "false",
+				},
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "false",
+				},
+				{
+					Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
+					Value: "false",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.5",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "2",
+				},
+				{
+					Name:  "DD_LOGS_INJECTION",
+					Value: "false",
+				},
+			}...),
 			wantErr:     false,
 			setupConfig: func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
 		},
