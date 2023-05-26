@@ -173,7 +173,7 @@ func (a *Agent) Start() error {
 
 	wg.Add(1)
 	go func() {
-		a.runKubeConfigurationsExport(ctx)
+		a.runKubernetesConfigurationsExport(ctx)
 		wg.Done()
 	}()
 
@@ -283,7 +283,11 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 	}
 }
 
-func (a *Agent) runKubeConfigurationsExport(ctx context.Context) {
+func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
+	if !config.IsKubernetes() {
+		return
+	}
+
 	runTicker := time.NewTicker(a.opts.CheckInterval)
 	defer runTicker.Stop()
 
