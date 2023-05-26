@@ -43,6 +43,8 @@ AGENT_TAG = "datadog/agent:master"
 AGENT_CORECHECKS = [
     "container",
     "containerd",
+    "container_image",
+    "container_lifecycle",
     "cpu",
     "cri",
     "snmp",
@@ -57,6 +59,7 @@ AGENT_CORECHECKS = [
     "ntp",
     "oom_kill",
     "oracle-dbm",
+    "sbom",
     "systemd",
     "tcp_queue_length",
     "uptime",
