@@ -117,6 +117,8 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 	}
 
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
+		// Note that shouldMutatePod() is not used here since it checks the mutate_unlabelled
+		// setting which we want to ignore with this setting.
 		if deployment := getDeploymentReference(pod); deployment == nil {
 			log.Debugf("Skipping pod %q as it's not from a deployment", podString(pod))
 			return nil
