@@ -22,7 +22,7 @@ type e2eSuite struct {
 
 func TestE2ESuite(t *testing.T) {
 	e2eSuite := &e2eSuite{}
-	innerSuite := NewSuite("e2eSuite", e2eSuite.createStack("default"))
+	innerSuite := newSuite("e2eSuite", e2eSuite.createStack("default"))
 	e2eSuite.Suite = innerSuite
 	e2eSuite.updateEnvStack = e2eSuite.createStack("updateEnvStack")
 	suite.Run(t, e2eSuite)
@@ -71,7 +71,7 @@ type skipDeleteOnFailureSuite struct {
 // prefixed by `Test` and so not run.
 func E2ESuiteSkipDeleteOnFailure(t *testing.T) {
 	e2e2Suite := &skipDeleteOnFailureSuite{
-		Suite: NewSuite("SkipDeleteOnFailure", nil, SkipDeleteOnFailure[struct{}]()),
+		Suite: newSuite("SkipDeleteOnFailure", nil, SkipDeleteOnFailure[struct{}]()),
 	}
 	suite.Run(t, e2e2Suite)
 	require.Equal(t, []string{"Test1"}, e2e2Suite.testsRun)
@@ -91,8 +91,14 @@ func (s *skipDeleteOnFailureSuite) Test3() {
 }
 
 func (suite *skipDeleteOnFailureSuite) updateStack(testName string) *StackDefinition[struct{}] {
-	return EnvFactoryStackDef[struct{}](func(ctx *pulumi.Context) (*struct{}, error) {
+	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*struct{}, error) {
 		suite.testsRun = append(suite.testsRun, testName)
 		return &struct{}{}, nil
 	})
+}
+
+func newSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
+	testSuite := Suite[Env]{}
+	testSuite.initSuite(stackName, stackDef, options...)
+	return &testSuite
 }

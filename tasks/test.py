@@ -93,6 +93,7 @@ TOOL_LIST = [
 ]
 
 TOOL_LIST_PROTO = [
+    'github.com/favadi/protoc-go-inject-tag',
     'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
     'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
@@ -989,6 +990,6 @@ def junit_upload(_, tgz_path):
 def junit_macos_repack(_, infile, outfile):
     """
     Repacks JUnit tgz file from macOS Github Action run, so it would
-    containt correct job name and job URL.
+    contain correct job name and job URL.
     """
     repack_macos_junit_tar(infile, outfile)

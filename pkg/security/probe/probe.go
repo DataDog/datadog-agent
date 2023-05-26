@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package probe
 
@@ -23,6 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
+
+var eventZero model.Event = model.Event{ContainerContext: &model.ContainerContext{}}
+var containerContextZero model.ContainerContext
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
@@ -92,6 +94,7 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
 	p.event.FieldHandlers = p.fieldHandlers
+	*p.event.ContainerContext = containerContextZero
 	return p.event
 }
 

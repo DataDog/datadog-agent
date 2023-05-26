@@ -240,3 +240,29 @@ func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 	}
 	return c.checkRunAggregator.GetPayloadsByName(name), nil
 }
+
+// FlushServerAndResetAggregators sends a request to delete any stored payload
+// and resets client's  aggregators
+// Call this in between tests to reset the fakeintake status on both client and server side
+func (c *Client) FlushServerAndResetAggregators() error {
+	err := c.flushPayloads()
+	if err != nil {
+		return err
+	}
+	c.checkRunAggregator.Reset()
+	c.metricAggregator.Reset()
+	c.logAggregator.Reset()
+	return nil
+}
+
+func (c *Client) flushPayloads() error {
+	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/flushPayloads", c.fakeIntakeURL))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error code %v", resp.StatusCode)
+	}
+	return nil
+}

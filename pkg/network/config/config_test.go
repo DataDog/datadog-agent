@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows
+
 package config
 
 import (
@@ -114,6 +116,26 @@ func TestEnableHTTPStatsByStatusCode(t *testing.T) {
 }
 
 func TestEnableHTTPMonitoring(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DeprecatedEnableHTTP.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig(t)
 		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
@@ -125,13 +147,56 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		newConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
 
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "false")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "false")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
+
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableHTTPMonitoring)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		cfg := New()
+
+		assert.False(t, cfg.EnableHTTPMonitoring)
 	})
 }
 
@@ -426,15 +491,14 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	t.Run("value set", func(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
-
 		cfg := New()
-		require.Equal(t, int(maxTrackedConnections-1), cfg.MaxClosedConnectionsBuffered)
+		require.Equal(t, maxTrackedConnections-1, cfg.MaxClosedConnectionsBuffered)
 	})
 
 	t.Run("value not set", func(t *testing.T) {
 		newConfig(t)
 		cfg := New()
-		require.Equal(t, int(cfg.MaxTrackedConnections), cfg.MaxClosedConnectionsBuffered)
+		require.Equal(t, cfg.MaxTrackedConnections, cfg.MaxClosedConnectionsBuffered)
 	})
 }
 
@@ -442,7 +506,6 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
-
 		cfg := New()
 		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)
 	})
@@ -453,7 +516,6 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 network_config:
   max_http_stats_buffered: 30000
 `)
-
 		assert.Equal(t, 30000, cfg.MaxHTTPStatsBuffered)
 	})
 }

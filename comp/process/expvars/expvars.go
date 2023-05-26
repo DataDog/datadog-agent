@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/runner"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -91,7 +91,7 @@ func initStatus(deps dependencies) error {
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
 	_, processModuleEnabled := deps.SysProbeConfig.Object().EnabledModules[sysconfig.ProcessModule]
-	eps, err := runner.GetAPIEndpoints(deps.Config)
+	eps, err := endpoint.GetAPIEndpoints(deps.Config)
 	if err != nil {
 		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}

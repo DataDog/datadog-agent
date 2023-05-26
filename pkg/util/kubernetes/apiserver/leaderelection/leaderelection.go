@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package leaderelection
 
@@ -16,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/mod/semver"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
@@ -135,6 +135,11 @@ func (le *LeaderEngine) init() error {
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
 		return err
+	}
+
+	serverVersion, err := common.KubeServerVersion(apiClient.DiscoveryCl, 10*time.Second)
+	if err == nil && semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.14.0") < 0 {
+		log.Warn("[DEPRECATION WARNING] DataDog will drop support of Kubernetes older than v1.14. Please update to a newer version to ensure proper functionality and security.")
 	}
 
 	le.coreClient = apiClient.Cl.CoreV1()

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || aix
-// +build linux freebsd netbsd openbsd solaris dragonfly aix
 
 package config
 

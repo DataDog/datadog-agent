@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package activity_tree
 
@@ -71,7 +70,7 @@ func (fn *FileNode) enrichFromEvent(event *model.Event) {
 		return
 	}
 	if fn.FirstSeen.IsZero() {
-		fn.FirstSeen = event.FieldHandlers.ResolveEventTimestamp(event)
+		fn.FirstSeen = event.FieldHandlers.ResolveEventTime(event)
 	}
 
 	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, event.Rules)
@@ -136,7 +135,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if len(currentPath) <= nextParentIndex+1 {
 			if !dryRun {
 				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, generationType)
-				stats.fileNodes++
+				stats.FileNodes++
 			}
 			break
 		} else {

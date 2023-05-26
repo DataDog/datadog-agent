@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -67,7 +66,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -106,7 +105,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 
 		tempPathParts := strings.Split(filePath, "/")
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes("busybox")
+			nodes := ad.ActivityTree.FindMatchingRootNodes("touch")
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}
@@ -155,7 +154,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes("busybox")
+			nodes := ad.ActivityTree.FindMatchingRootNodes("nslookup")
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}
@@ -196,7 +195,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes("syscall_tester")
+			nodes := ad.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}
@@ -242,7 +241,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes("syscall_tester")
+			nodes := ad.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}

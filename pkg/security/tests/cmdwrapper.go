@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests || stresstests
-// +build functionaltests stresstests
 
 package tests
 
@@ -94,7 +93,7 @@ func (d *dockerCmdWrapper) Command(bin string, args []string, envs []string) *ex
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
 	d.containerName = fmt.Sprintf("docker-wrapper-%s", utils.RandString(6))
-	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "600")
+	cmd := exec.Command(d.executable, "run", "--rm", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		d.containerID = strings.TrimSpace(string(out))
@@ -121,6 +120,12 @@ func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T,
 			t.Errorf("%s: %s", string(out), err)
 			return
 		}
+	})
+}
+
+func (d *dockerCmdWrapper) RunTest(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+	t.Run(name, func(t *testing.T) {
+		fnc(t, d.Type(), d.Command)
 	})
 }
 

@@ -16,9 +16,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
-	"github.com/DataDog/test-infra-definitions/aws"
-	"github.com/DataDog/test-infra-definitions/aws/scenarios/microVMs/microvms"
-	"github.com/DataDog/test-infra-definitions/command"
+	"github.com/DataDog/test-infra-definitions/components/command"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
 
 	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -105,9 +105,14 @@ func NewTestEnv(name, securityGroups, subnets, x86InstanceType, armInstanceType 
 		var depends []pulumi.Resource
 		osCommand := command.NewUnixOSCommand()
 		for _, instance := range scenarioDone.Instances {
-			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, "remote-runner-"+instance.Arch, instance.Connection, func(r *command.Runner) (*remote.Command, error) {
-				return command.WaitForCloudInit(r)
-			}, osCommand)
+			remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, command.RunnerArgs{
+				ConnectionName: "remote-runner-" + instance.Arch,
+				Connection:     instance.Connection,
+				ReadyFunc: func(r *command.Runner) (*remote.Command, error) {
+					return command.WaitForCloudInit(r)
+				},
+				OSCommand: osCommand,
+			})
 
 			// if shutdown period specified then register a cron job
 			// to automatically shutdown the ec2 instance after desired

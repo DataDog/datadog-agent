@@ -73,11 +73,12 @@ type Client struct {
 	state *state.Repository
 
 	// Listeners
-	apmListeners        []func(update map[string]state.APMSamplingConfig)
-	cwsListeners        []func(update map[string]state.ConfigCWSDD)
-	cwsCustomListeners  []func(update map[string]state.ConfigCWSCustom)
-	apmTracingListeners []func(update map[string]state.APMTracingConfig)
-	agentTaskListeners  []func(update map[string]state.AgentTaskConfig)
+	apmListeners         []func(update map[string]state.APMSamplingConfig)
+	cwsListeners         []func(update map[string]state.ConfigCWSDD)
+	cwsCustomListeners   []func(update map[string]state.ConfigCWSCustom)
+	apmTracingListeners  []func(update map[string]state.APMTracingConfig)
+	cwsProfilesListeners []func(update map[string]state.ConfigCWSProfiles)
+	agentTaskListeners   []func(update map[string]state.AgentTaskConfig)
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -296,6 +297,11 @@ func (c *Client) update() error {
 			listener(c.state.CWSCustomConfigs())
 		}
 	}
+	if containsProduct(changedProducts, state.ProductCWSProfiles) {
+		for _, listener := range c.cwsProfilesListeners {
+			listener(c.state.CWSProfilesConfigs())
+		}
+	}
 	if containsProduct(changedProducts, state.ProductAPMTracing) {
 		for _, listener := range c.apmTracingListeners {
 			listener(c.state.APMTracingConfigs())
@@ -359,6 +365,15 @@ func (c *Client) RegisterCWSCustomUpdate(fn func(update map[string]state.ConfigC
 	defer c.m.Unlock()
 	c.cwsCustomListeners = append(c.cwsCustomListeners, fn)
 	fn(c.state.CWSCustomConfigs())
+}
+
+// RegisterCWSCustomUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the CWS_SECURITY_PROFILES product.
+func (c *Client) RegisterCWSProfilesUpdate(fn func(update map[string]state.ConfigCWSProfiles)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsProfilesListeners = append(c.cwsProfilesListeners, fn)
+	fn(c.state.CWSProfilesConfigs())
 }
 
 // RegisterAPMTracing registers a callback function to be called after a successful client update that will

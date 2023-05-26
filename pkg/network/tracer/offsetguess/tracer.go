@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package offsetguess
 
@@ -27,14 +26,14 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const InterfaceLocalMulticastIPv6 = "ff01::1"
@@ -663,8 +662,6 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_rtt", Value: t.status.Offset_rtt},
 		{Name: "offset_rtt_var", Value: t.status.Offset_rtt_var},
 		{Name: "offset_daddr_ipv6", Value: t.status.Offset_daddr_ipv6},
-		{Name: "tcpv6_enabled", Value: boolToUint64(t.guessTCPv6)},
-		{Name: "udpv6_enabled", Value: boolToUint64(t.guessUDPv6)},
 		{Name: "offset_saddr_fl4", Value: t.status.Offset_saddr_fl4},
 		{Name: "offset_daddr_fl4", Value: t.status.Offset_daddr_fl4},
 		{Name: "offset_sport_fl4", Value: t.status.Offset_sport_fl4},
@@ -680,13 +677,6 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_sk_buff_transport_header", Value: t.status.Offset_sk_buff_transport_header},
 		{Name: "offset_sk_buff_head", Value: t.status.Offset_sk_buff_head},
 	}
-}
-
-func boolToUint64(b bool) uint64 {
-	if b {
-		return 1
-	}
-	return 0
 }
 
 type tracerEventGenerator struct {
@@ -940,4 +930,87 @@ func newUDPServer(addr string) (string, func(), error) {
 		<-done
 	}
 	return ln.LocalAddr().String(), doneFn, nil
+}
+
+var TracerOffsets tracerOffsets
+
+type tracerOffsets struct {
+	offsets []manager.ConstantEditor
+	err     error
+}
+
+func boolConst(name string, value bool) manager.ConstantEditor {
+	c := manager.ConstantEditor{
+		Name:  name,
+		Value: uint64(1),
+	}
+	if !value {
+		c.Value = uint64(0)
+	}
+
+	return c
+}
+
+func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
+	fromConfig := func(c *config.Config, offsets []manager.ConstantEditor) []manager.ConstantEditor {
+		var foundTcp, foundUdp bool
+		for o := range offsets {
+			switch offsets[o].Name {
+			case "tcpv6_enabled":
+				offsets[o] = boolConst("tcpv6_enabled", c.CollectTCPv6Conns)
+				foundTcp = true
+			case "udpv6_enabled":
+				offsets[o] = boolConst("udpv6_enabled", c.CollectUDPv6Conns)
+				foundUdp = true
+			}
+			if foundTcp && foundUdp {
+				break
+			}
+		}
+		if !foundTcp {
+			offsets = append(offsets, boolConst("tcpv6_enabled", c.CollectTCPv6Conns))
+		}
+		if !foundUdp {
+			offsets = append(offsets, boolConst("udpv6_enabled", c.CollectUDPv6Conns))
+		}
+
+		return offsets
+	}
+
+	if o.err != nil {
+		return nil, o.err
+	}
+
+	if cfg.CollectUDPv6Conns {
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, err
+		}
+
+		if kv >= kernel.VersionCode(5, 18, 0) {
+			_cfg := *cfg
+			_cfg.CollectUDPv6Conns = false
+			cfg = &_cfg
+		}
+	}
+
+	if len(o.offsets) > 0 {
+		// already run
+		return fromConfig(cfg, o.offsets), o.err
+	}
+
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	if err != nil {
+		o.err = fmt.Errorf("could not read offset bpf module: %s", err)
+		return nil, o.err
+	}
+	defer offsetBuf.Close()
+
+	o.offsets, o.err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
+	return fromConfig(cfg, o.offsets), o.err
+}
+
+func (o *tracerOffsets) Reset() {
+	o.err = nil
+	o.offsets = nil
 }
