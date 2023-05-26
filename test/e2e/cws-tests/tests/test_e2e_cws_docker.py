@@ -125,6 +125,14 @@ class TestE2EDocker(unittest.TestCase):
             else:
                 self.fail("check ruleset_loaded timeouted")
             self.app.check_for_ignored_policies(self, attributes)
+        
+        with Step(msg="check self_tests",emoji=":test_tube:"):
+            rule_id = "self_test"
+            event = self.app.wait_app_log(f"rule_id:{rule_id}")
+
+            attributes = event["data"][0]["attributes"]["attributes"]
+            self.assertEqual(rule_id, attributes["agent"]["rule_id"],"unable to find rule_id tag attribute")
+            self.assertEqual(0,len(attributes["failed_tests"]), f"failing test(s): {attributes["failed_tests"]}")
 
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
