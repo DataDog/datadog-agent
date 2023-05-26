@@ -433,7 +433,9 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 	return env, stackOutput, err
 }
 
-// UpdateEnv updates the current environment.
+// UpdateEnv updates the environment.
+// This affects only the test that calls this function.
+// Test functions that don't call UpdateEnv have the environment defined by [e2e.Run].
 func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
 	if stackDef != suite.currentStackDef {
 		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.skipDeleteOnFailure {
