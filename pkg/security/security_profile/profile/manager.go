@@ -258,6 +258,8 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 		defer m.pendingCacheLock.Unlock()
 		profile, ok = m.pendingCache.Get(workload.WorkloadSelector)
 		if ok {
+			m.cacheHit.Inc()
+
 			// remove profile from cache
 			_ = m.pendingCache.Remove(workload.WorkloadSelector)
 
@@ -275,6 +277,8 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			// insert the profile in the list of active profiles
 			m.profiles[workload.WorkloadSelector] = profile
 		} else {
+			m.cacheMiss.Inc()
+
 			// create a new entry
 			profile = NewSecurityProfile(workload.WorkloadSelector, m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
 			m.profiles[workload.WorkloadSelector] = profile
@@ -416,7 +420,7 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	// cleanup profile before insertion in cache
 	profile.reset()
 
-	if profile.selector.IsEmpty() {
+	if profile.selector.IsReady() {
 		// do not insert in cache
 		return
 	}
