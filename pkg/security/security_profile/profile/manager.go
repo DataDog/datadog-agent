@@ -47,6 +47,9 @@ const (
 	// UnstableProfile is used to count the events that didn't make it into a profile because their matching profile was
 	// unstable
 	UnstableProfile
+	// UnstableEventType is used to count the events that didn't make it into a profile because their matching profile was
+	// unstable for their event type
+	UnstableEventType
 	// StableProfile is used to count the events linked to a stable profile
 	StableProfile
 	// AutoLearning is used to count the event during the auto learning phase
@@ -61,6 +64,8 @@ func (efr EventFilteringProfileState) toTag() string {
 		return "profile_state:no_profile"
 	case UnstableProfile:
 		return "profile_state:unstable_profile"
+	case UnstableEventType:
+		return "profile_state:unstable_event_type"
 	case StableProfile:
 		return "profile_state:stable_profile"
 	case AutoLearning:
@@ -96,7 +101,7 @@ func (efr EventFilteringResult) toTag() string {
 }
 
 var (
-	allEventFilteringProfileState = []EventFilteringProfileState{NoProfile, UnstableProfile, StableProfile, AutoLearning, WorkloadWarmup}
+	allEventFilteringProfileState = []EventFilteringProfileState{NoProfile, UnstableProfile, UnstableEventType, StableProfile, AutoLearning, WorkloadWarmup}
 	allEventFilteringResults      = []EventFilteringResult{InProfile, NotInProfile, NA}
 )
 
@@ -476,16 +481,27 @@ func (m *SecurityProfileManager) stop() {
 func (m *SecurityProfileManager) SendStats() error {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
-	if val := float64(len(m.profiles)); val > 0 {
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileActiveProfiles, val, []string{}, 1.0); err != nil {
-			return fmt.Errorf("couldn't send MetricSecurityProfileActiveProfiles: %w", err)
-		}
-	}
 
+	profileStats := make(map[model.Status]map[bool]float64)
 	for _, profile := range m.profiles {
 		if profile.loadedInKernel { // make sure the profile is loaded
 			if err := profile.SendStats(m.statsdClient); err != nil {
 				return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
+			}
+		}
+		profileStats[profile.Status][profile.loadedInKernel] += 1
+	}
+
+	for status, counts := range profileStats {
+		for inKernel, count := range counts {
+			tags := []string{
+				fmt.Sprintf("in_kernel:%v", inKernel),
+				fmt.Sprintf("anomaly_detection:%v", status.IsEnabled(model.AnomalyDetection)),
+				fmt.Sprintf("auto_suppression:%v", status.IsEnabled(model.AutoSuppression)),
+				fmt.Sprintf("workload_hardening:%v", status.IsEnabled(model.WorkloadHardening)),
+			}
+			if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, count, tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
 			}
 		}
 	}
@@ -665,8 +681,8 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 		// have we reached the unstable time limit ?
 		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-			m.eventFiltering[event.GetEventType()][UnstableProfile][NA].Inc()
-			return UnstableProfile
+			m.eventFiltering[event.GetEventType()][UnstableEventType][NA].Inc()
+			return UnstableEventType
 		}
 
 		nodeType = activity_tree.ProfileDrift
