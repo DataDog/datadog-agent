@@ -563,9 +563,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
 
-	config.BindEnvAndSetDefault("dogstatsd_context_limiter.limit", 0) // 0 = disabled.
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.limit", 0)         // 0 = disabled.
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.entry_timeout", 1) // number of flush intervals
 	config.BindEnvAndSetDefault("dogstatsd_context_limiter.key_tag_name", "pod_name")
 	config.BindEnvAndSetDefault("dogstatsd_context_limiter.telemetry_tag_names", []string{})
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.bytes_per_context", 1500)
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.cgroup_memory_ratio", 0.0)
 
 	config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
@@ -1007,6 +1010,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
+	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
+
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
 	config.BindEnvAndSetDefault("clc_runner_id", "")

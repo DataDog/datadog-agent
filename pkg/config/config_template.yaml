@@ -1825,12 +1825,9 @@ api_key:
 {{ end -}}
 
 {{- if .SecurityAgent -}}
-##########################################
-## Security Agent Runtime Configuration ##
-##                                      ##
-## Settings to sent logs to Datadog are ##
-## fetched from section `logs_config`   ##
-##########################################
+####################################
+## Runtime Security configuration ##
+####################################
 
 # runtime_security_config:
   ## @param enabled - boolean - optional - default: false
@@ -1842,6 +1839,16 @@ api_key:
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
   # socket: /opt/datadog-agent/run/runtime-security.sock
+
+##########################################
+## Compliance monitoring configuration  ##
+##########################################
+
+# compliance_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable Cloud Security Posture Management (CSPM).
+  #
+  # enabled: false
 {{ end -}}
 {{- if .Dogstatsd }}
 
