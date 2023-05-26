@@ -48,11 +48,14 @@ jobs:
           # Defining a fixed CodeQL bundle version
           tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-20230207/codeql-bundle-linux64.tar.gz
 
-      - name: Build DataDog agent
+      - name: Install agent dependencies
         run: |
           invoke install-tools
           invoke deps
-          invoke agent.build --build-exclude=systemd
+      
+      - name: Build agent
+        run: |
+          invoke -e agent.build --build-exclude=systemd
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
