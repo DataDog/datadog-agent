@@ -711,6 +711,11 @@ func (e *FileEvent) GetPathResolutionError() string {
 	return ""
 }
 
+// IsOverlayFS returns whether it is an overlay fs
+func (e *FileEvent) IsOverlayFS() bool {
+	return e.Filesystem == "overlay"
+}
+
 // InvalidateDentryEvent defines a invalidate dentry event
 type InvalidateDentryEvent struct {
 	Inode   uint64

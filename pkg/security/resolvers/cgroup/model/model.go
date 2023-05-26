@@ -38,9 +38,9 @@ func NewWorkloadSelector(image string, tag string) (WorkloadSelector, error) {
 	}, nil
 }
 
-// IsEmpty returns true if the selector is set
-func (ws *WorkloadSelector) IsEmpty() bool {
-	return len(ws.Tag) != 0 && len(ws.Image) != 0
+// IsReady returns true if the selector is ready
+func (ws *WorkloadSelector) IsReady() bool {
+	return len(ws.Image) != 0
 }
 
 // Match returns true if the input selector matches the current selector
@@ -122,5 +122,5 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 
 // NeedsTagsResolution returns true if this workload is missing its tags
 func (cgce *CacheEntry) NeedsTagsResolution() bool {
-	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsEmpty()
+	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsReady()
 }

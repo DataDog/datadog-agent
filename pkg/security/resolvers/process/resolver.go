@@ -632,15 +632,15 @@ func (p *Resolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDC
 	return fileEvent.PathnameStr, nil
 }
 
-func isBusybox(pathname string) bool {
+func IsBusybox(pathname string) bool {
 	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
 }
 
 // SetProcessSymlink resolves process file symlink path
 func (p *Resolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 	// TODO: busybox workaround only for now
-	if isBusybox(entry.FileEvent.PathnameStr) {
-		arg0, _ := p.GetProcessArgv0(&entry.Process)
+	if IsBusybox(entry.FileEvent.PathnameStr) {
+		arg0, _ := GetProcessArgv0(&entry.Process)
 		base := path.Base(arg0)
 
 		entry.SymlinkPathnameStr[0] = "/bin/" + base
@@ -889,7 +889,7 @@ func GetProcessArgv(pr *model.Process) ([]string, bool) {
 }
 
 // GetProcessArgv0 returns the first arg of the event
-func (p *Resolver) GetProcessArgv0(pr *model.Process) (string, bool) {
+func GetProcessArgv0(pr *model.Process) (string, bool) {
 	if pr.ArgsEntry == nil {
 		return pr.Argv0, pr.ArgsTruncated
 	}

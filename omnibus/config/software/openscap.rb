@@ -52,6 +52,8 @@ build do
   patch source: "0036-Fix-leak-of-regex-structure-in-oval_fts-in-error-cas.patch", env: env
   patch source: "0037-Free-xmlDoc-structure-at-the-end-of-xccdf_session_lo.patch", env: env
   patch source: "0041-Fix-implicitly-declared-function.patch", env: env
+  patch source: "0042-Plug-a-memory-leak.patch", env: env
+  patch source: "0043-Fix-other-occurences-of-oscap_htable_add.patch", env: env
 
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
   patch source: "session_result_free.patch", env: env # add a function to free results from session

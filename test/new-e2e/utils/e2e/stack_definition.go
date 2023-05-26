@@ -10,7 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/vm"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 	ec2vm "github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2VM"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )

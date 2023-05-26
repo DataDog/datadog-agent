@@ -15,6 +15,7 @@ import (
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
+// ProtoToSecurityProfile decodes a Security Profile from its protobuf representation
 func ProtoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
 	if input == nil {
 		return

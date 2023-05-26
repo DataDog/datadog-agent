@@ -170,7 +170,7 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 
 func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
 	consumer := &serializerConsumer{cardinality: e.cardinality, extraTags: e.extraTags}
-	err := e.tr.MapMetrics(ctx, ld, consumer)
+	_, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err
 	}

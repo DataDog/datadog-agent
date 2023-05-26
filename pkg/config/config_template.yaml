@@ -1825,12 +1825,9 @@ api_key:
 {{ end -}}
 
 {{- if .SecurityAgent -}}
-##########################################
-## Security Agent Runtime Configuration ##
-##                                      ##
-## Settings to sent logs to Datadog are ##
-## fetched from section `logs_config`   ##
-##########################################
+####################################
+## Runtime Security configuration ##
+####################################
 
 # runtime_security_config:
   ## @param enabled - boolean - optional - default: false
@@ -1842,6 +1839,16 @@ api_key:
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
   # socket: /opt/datadog-agent/run/runtime-security.sock
+
+##########################################
+## Compliance monitoring configuration  ##
+##########################################
+
+# compliance_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable Cloud Security Posture Management (CSPM).
+  #
+  # enabled: false
 {{ end -}}
 {{- if .Dogstatsd }}
 
@@ -1909,6 +1916,18 @@ api_key:
 ## Publish DogStatsD's internal stats as Go expvars.
 #
 # dogstatsd_stats_enable: false
+
+## @param dogstatsd_logging_enabled - boolean - optional - default: true
+## Set to true to write DogstatsD metrics received by the Agent to dogstats_stats log files.
+## Requires `dogstatsd_stats_enable: true`.
+#
+# dogstatsd_logging_enabled: true
+
+## @param dogstatsd_log_file_max_size - custom - optional - default: 10MB
+## Maximum size of dogstatsd log file. Use either a size (for example, 10MB) or
+## provide value in bytes (for example, 10485760.)
+#
+# dogstatsd_log_file_max_size: 10MB
 
 ## @param dogstatsd_queue_size - integer - optional - default: 1024
 ## @env DD_DOGSTATSD_QUEUE_SIZE - integer - optional - default: 1024

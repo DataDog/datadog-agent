@@ -141,9 +141,9 @@ type Expression struct {
 type Comparison struct {
 	Pos lexer.Position
 
-	BitOperation     *BitOperation     `parser:"@@"`
-	ScalarComparison *ScalarComparison `parser:"[ @@"`
-	ArrayComparison  *ArrayComparison  `parser:"| @@ ]"`
+	ArithmeticOperation *ArithmeticOperation `parser:"@@"`
+	ScalarComparison    *ScalarComparison    `parser:"[ @@"`
+	ArrayComparison     *ArrayComparison     `parser:"| @@ ]"`
 }
 
 // ScalarComparison describes a scalar comparison : the operator with the right operand
@@ -169,6 +169,18 @@ type BitOperation struct {
 	Unary *Unary        `parser:"@@"`
 	Op    *string       `parser:"[ @( \"&\" | \"|\" | \"^\" )"`
 	Next  *BitOperation `parser:"@@ ]"`
+}
+
+type ArithmeticOperation struct {
+	Pos lexer.Position
+
+	First *BitOperation        `parser:"@@"`
+	Rest  []*ArithmeticElement `parser:"[ @@ { @@ } ]"`
+}
+
+type ArithmeticElement struct {
+	Op      string        `parser:"@( \"+\" | \"-\" )"`
+	Operand *BitOperation `parser:"@@"`
 }
 
 // Unary describes an unary operation like logical not, binary not, minus

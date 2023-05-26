@@ -26,6 +26,7 @@ import (
 
 var MAX_OPEN_CONNECTIONS = 10
 var DEFAULT_SQL_TRACED_RUNS = 10
+var DB_TIMEOUT = "20000"
 
 // The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
@@ -147,7 +148,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			connStr = fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
 		} else {
 			oracleDriver = "oracle"
-			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{})
+			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{"TIMEOUT": DB_TIMEOUT})
 			// https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
 			sqlx.BindDriver("oracle", sqlx.NAMED)
 		}
