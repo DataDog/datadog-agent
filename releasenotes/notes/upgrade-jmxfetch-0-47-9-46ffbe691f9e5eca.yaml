@@ -9,6 +9,5 @@
 enhancements:
   - |
     Upgraded JMXFetch to ``0.47.9`` which has fixes to improve
-    efficiency when fetching beans, a fix not leak threads in
-    specific cases, and fixes for process attachment in some JDK
-    versions.
+    efficiency when fetching beans, fixes for process attachment
+    in some JDK versions, and fixes a thread leak.
