@@ -267,7 +267,7 @@ type suiteConstraint[Env any] interface {
 	initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env]))
 }
 
-// Run run the tests defined in e2eSuite
+// Run runs the tests defined in e2eSuite
 //
 // t is an instance of type [*testing.T].
 //
