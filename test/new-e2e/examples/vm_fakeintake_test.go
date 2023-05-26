@@ -13,9 +13,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-	commonos "github.com/DataDog/test-infra-definitions/components/os"
-	ec2vm "github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2VM"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/os"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +23,7 @@ type vmFakeintakeSuite struct {
 }
 
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, e2e.AgentStackDef([]e2e.Ec2VMOption{ec2vm.WithArch(os.UbuntuOS, commonos.AMD64Arch)}))
+	e2e.Run(t, &vmFakeintakeSuite{}, e2e.AgentStackDef(nil))
 }
 
 func (s *vmFakeintakeSuite) TestVM() {
