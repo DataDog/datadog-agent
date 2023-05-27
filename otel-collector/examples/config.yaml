@@ -1,0 +1,21 @@
+receivers:
+  zipkin:
+
+
+exporters:
+  otlp:
+    endpoint: localhost:4317
+  logging:
+
+extensions:
+  trace:
+    api:
+      key: $DD_API_KEY
+
+
+service:
+  extensions: trace
+  pipelines:
+    traces:
+      receivers: [zipkin]
+      exporters: [otlp]
