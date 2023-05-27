@@ -1,8 +1,4 @@
 ---
-features:
-  - The `network_config.http_replace_rules` configuration has changed to `service_monitoring_config.http_replace_rules`.
-  - The `network_config.max_tracked_http_connections` configuration has changed to `service_monitoring_config.max_tracked_http_connections`.
-  - The `network_config.max_http_stats_buffered` configuration has changed to `service_monitoring_config.max_http_stats_buffered`.
 deprecations:
   - The `network_config.http_replace_rules` configuration has been deprecated. Use `service_monitoring_config.http_replace_rules` instead.
   - The `network_config.max_tracked_http_connections` configuration has been deprecated. Use `service_monitoring_config.max_tracked_http_connections` instead.

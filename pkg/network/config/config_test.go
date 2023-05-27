@@ -476,8 +476,6 @@ func TestHTTPReplaceRules(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
@@ -502,8 +500,6 @@ func TestHTTPReplaceRules(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
@@ -516,8 +512,6 @@ func TestHTTPReplaceRules(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
@@ -530,8 +524,6 @@ func TestHTTPReplaceRules(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
@@ -552,8 +544,6 @@ func TestHTTPReplaceRules(t *testing.T) {
         ]
         `)
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
@@ -584,8 +574,6 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
@@ -604,8 +592,6 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
@@ -615,8 +601,6 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
@@ -626,8 +610,6 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
@@ -639,8 +621,6 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1026")
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
@@ -648,8 +628,6 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 
 	t.Run("Not enabled", func(t *testing.T) {
 		newConfig(t)
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 		// Default value.
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1024))
@@ -687,8 +665,6 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "513")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
@@ -707,8 +683,6 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
@@ -718,8 +692,6 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "513")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
@@ -729,8 +701,6 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 		newConfig(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
@@ -741,8 +711,6 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "514")
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
 
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
@@ -750,8 +718,6 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 
 	t.Run("Not enabled", func(t *testing.T) {
 		newConfig(t)
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
 		cfg := New()
 		// Default value.
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 100000)
