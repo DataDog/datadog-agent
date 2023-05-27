@@ -61,9 +61,9 @@ CONTRIBUTORS_WITH_UNCOMMENTED_HEADER = [
     'gopkg.in/Knetic/govaluate.v3',
 ]
 
+
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
 def get_licenses_list(ctx):
-
     # we need the full vendor tree in order to perform this analysis
     from .go import deps_vendored
 
@@ -77,11 +77,34 @@ def get_licenses_list(ctx):
         shutil.rmtree("vendor/")
 
 
+def is_valid_quote(copyright):
+    stack = []
+    quotes_to_check = ["'", '"']
+    for c in copyright:
+        if c in quotes_to_check:
+            if stack and stack[-1] == c:
+                stack.pop()
+            else:
+                stack.append(c)
+    return len(stack) == 0
+
+
 def licenses_csv(licenses):
     licenses.sort(key=lambda lic: lic["package"])
 
     def fmt_copyright(lic):
-        copyright = ' | '.join(sorted(lic['copyright']))
+        # discards copyright with invalid quotes to ensure generated csv is valid
+        filtered_copyright = []
+        for copyright in lic["copyright"]:
+            if is_valid_quote(copyright):
+                filtered_copyright.append(copyright)
+            else:
+                print(
+                    f'copyright {copyright} was discarded because it contains invalid quotes. If you want to fix this discarded Copyright, you can modify the .copyright-overrides.yml file to fix the bad-quotes copyright'
+                )
+        if len(copyright) == 0:
+            copyright = "UNKNOWN"
+        copyright = ' | '.join(sorted(filtered_copyright))
         # quote for inclusion in CSV, if necessary
         if ',' in copyright:
             copyright = copyright.replace('"', '""')

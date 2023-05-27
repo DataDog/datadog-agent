@@ -53,6 +53,8 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 			info = e.String(verbose)
 		case *KubernetesPod:
 			info = e.String(verbose)
+		case *KubernetesNode:
+			info = e.String(verbose)
 		case *ECSTask:
 			info = e.String(verbose)
 		case *ContainerImageMetadata:

@@ -444,8 +444,8 @@ func (c *Check) StatementMetrics() (int, error) {
 			 */
 			err = c.db.Select(
 				&DDForceMatchingSignatures,
-				"SELECT distinct force_matching_signature FROM v$sqlstats WHERE sql_text like '%/* DD%' and (sysdate-last_active_time)*3600*24 < :1",
-				time.Since(c.statementsLastRun).Seconds(),
+				"SELECT distinct force_matching_signature FROM v$sqlstats WHERE sql_text like '%/* DD%' and (sysdate-last_active_time)*3600*24 <= :1",
+				time.Since(c.statementsLastRun).Seconds()+1,
 			)
 			if err != nil {
 				log.Error("error getting sql_ids from DD queries")
@@ -957,5 +957,8 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	c.statementsLastRun = start
 
+	if SQLTextErrors > 0 || planErrors > 0 {
+		return SQLCount, fmt.Errorf("SQL statements processed: %d, text errors: %d, plan erros: %d", SQLCount, SQLTextErrors, planErrors)
+	}
 	return SQLCount, nil
 }

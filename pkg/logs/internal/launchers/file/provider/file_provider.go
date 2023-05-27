@@ -74,10 +74,11 @@ const (
 
 // FileProvider implements the logic to retrieve at most filesLimit Files defined in sources
 type FileProvider struct {
-	filesLimit      int
-	wildcardOrder   wildcardOrdering
-	selectionMode   selectionStrategy
-	shouldLogErrors bool
+	filesLimit          int
+	wildcardOrder       wildcardOrdering
+	selectionMode       selectionStrategy
+	shouldLogErrors     bool
+	reachedNumFileLimit bool
 }
 
 // NewFileProvider returns a new Provider
@@ -90,10 +91,11 @@ func NewFileProvider(filesLimit int, wildcardSelection WildcardSelectionStrategy
 	}
 
 	return &FileProvider{
-		filesLimit:      filesLimit,
-		wildcardOrder:   wildcardOrder,
-		selectionMode:   selectionMode,
-		shouldLogErrors: true,
+		filesLimit:          filesLimit,
+		wildcardOrder:       wildcardOrder,
+		selectionMode:       selectionMode,
+		shouldLogErrors:     true,
+		reachedNumFileLimit: false,
 	}
 }
 
@@ -225,8 +227,11 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 		source.Messages.AddMessage(source.Config.Path, fmt.Sprintf("%d files tailed out of %d files matching", matchCnt.tracked, matchCnt.total))
 	}
 
-	if len(filesToTail) == p.filesLimit {
+	if !p.reachedNumFileLimit && len(filesToTail) == p.filesLimit {
 		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
+		p.reachedNumFileLimit = true
+	} else if len(filesToTail) < p.filesLimit {
+		p.reachedNumFileLimit = false
 	}
 
 	return filesToTail
