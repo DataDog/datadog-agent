@@ -29,7 +29,8 @@ const (
 
 type collector struct {
 	store               workloadmeta.Store
-	metaV1              *v1.Client
+	metaV1              v1.Client
+	metaV3or4			func(metaURI, metaVersion string) (v3or4.Client)
 	clusterName         string
 	hasResourceTags     bool
 	collectResourceTags bool
@@ -62,6 +63,11 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	c.metaV1, err = ecsmeta.V1()
 	if err != nil {
 		return err
+	}
+
+	// This only exists to allow overriding for testing
+	c.metaV3or4 = func(metaURI , metaVersion string) v3or4.Client {
+		return v3or4.NewClient(metaURI, metaVersion)
 	}
 
 	c.hasResourceTags = ecsutil.HasEC2ResourceTags()
@@ -247,7 +253,7 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 		return rt
 	}
 
-	metaV3orV4 := v3or4.NewClient(metaURI, metaVersion)
+	metaV3orV4 := c.metaV3or4(metaURI, metaVersion)
 	taskWithTags, err := metaV3orV4.GetTaskWithTags(ctx)
 	if err != nil {
 		log.Errorf("failed to get task with tags from metadata %s API: %s", metaVersion, err)
