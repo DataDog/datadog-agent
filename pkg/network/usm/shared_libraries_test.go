@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -27,7 +26,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -45,18 +43,7 @@ func registerProcessTerminationUponCleanup(t *testing.T, cmd *exec.Cmd) {
 	})
 }
 
-type SharedLibrarySuite struct {
-	suite.Suite
-}
-
-func TestSharedLibrary(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		suite.Run(t, new(SharedLibrarySuite))
-	})
-}
-
-func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
-	t := s.T()
+func TestSharedLibraryDetection(t *testing.T) {
 	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
@@ -105,8 +92,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	}, time.Second*10, time.Second, "")
 }
 
-func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace() {
-	t := s.T()
+func TestSharedLibraryDetectionWithPIDAndRootNameSpace(t *testing.T) {
 	_, err := os.Stat("/usr/bin/busybox")
 	if err != nil {
 		t.Skip("skip for the moment as some distro are not friendly with busybox package")
@@ -165,8 +151,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	require.Error(t, err)
 }
 
-func (s *SharedLibrarySuite) TestSameInodeRegression() {
-	t := s.T()
+func TestSameInodeRegression(t *testing.T) {
 	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "a-foo.so")
@@ -218,8 +203,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	}, time.Second*10, time.Second, "")
 }
 
-func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
-	t := s.T()
+func TestSoWatcherLeaks(t *testing.T) {
 	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
@@ -299,8 +283,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	checkWatcherStateIsClean(t, watcher)
 }
 
-func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
-	t := s.T()
+func TestSoWatcherProcessAlreadyHoldingReferences(t *testing.T) {
 	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
@@ -565,6 +548,10 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		"kprobe__" + excludeSysOpen,
 		"kretprobe__" + excludeSysOpen,
 		"kprobe__do_vfs_ioctl",
+		"kprobe_handle_sync_payload",
+		"kprobe_handle_close_connection",
+		"kprobe_handle_connection_by_peer",
+		"kprobe_handle_async_payload",
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
