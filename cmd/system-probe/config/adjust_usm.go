@@ -21,6 +21,7 @@ func adjustUSM(cfg config.Config) {
 	deprecateGeneric(cfg, netNS("http_replace_rules"), smNS("http_replace_rules"))
 	deprecateInt64(cfg, netNS("max_tracked_http_connections"), smNS("max_tracked_http_connections"))
 	deprecateInt(cfg, netNS("max_http_stats_buffered"), smNS("max_http_stats_buffered"))
+	deprecateInt(cfg, spNS("http_map_cleaner_interval_in_s"), smNS("http_map_cleaner_interval_in_s"))
 
 	if cfg.GetBool(dsmNS("enabled")) {
 		// DSM infers USM
