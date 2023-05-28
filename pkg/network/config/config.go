@@ -304,7 +304,7 @@ func New() *Config {
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
-		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(join(smNS, "http_max_request_fragment")),
 
 		EnableConntrack:                 cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:           cfg.GetInt(join(spNS, "conntrack_max_state_size")),

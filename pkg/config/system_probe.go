@@ -233,6 +233,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "http_notification_threshold"), 512)
 	cfg.BindEnv(join(smNS, "http_notification_threshold"))
 	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 160)
+	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
 
 	// list of DNS query types to be recorded
 	cfg.BindEnvAndSetDefault(join(netNS, "dns_recorded_query_types"), []string{})

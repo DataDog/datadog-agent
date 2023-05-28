@@ -24,6 +24,7 @@ func adjustUSM(cfg config.Config) {
 	deprecateInt(cfg, spNS("http_map_cleaner_interval_in_s"), smNS("http_map_cleaner_interval_in_s"))
 	deprecateInt(cfg, spNS("http_idle_connection_ttl_in_s"), smNS("http_idle_connection_ttl_in_s"))
 	deprecateInt64(cfg, netNS("http_notification_threshold"), smNS("http_notification_threshold"))
+	deprecateInt64(cfg, netNS("http_max_request_fragment"), smNS("http_max_request_fragment"))
 
 	if cfg.GetBool(dsmNS("enabled")) {
 		// DSM infers USM
@@ -53,5 +54,5 @@ func adjustUSM(cfg config.Config) {
 		return nil
 	})
 
-	limitMaxInt64(cfg, netNS("http_max_request_fragment"), maxHTTPFrag)
+	limitMaxInt64(cfg, smNS("http_max_request_fragment"), maxHTTPFrag)
 }
