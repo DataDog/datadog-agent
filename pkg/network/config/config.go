@@ -303,7 +303,7 @@ func New() *Config {
 		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
-		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
+		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
 
 		EnableConntrack:                 cfg.GetBool(join(spNS, "enable_conntrack")),
