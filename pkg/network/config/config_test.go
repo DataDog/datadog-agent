@@ -589,6 +589,18 @@ func TestNetworkConfigEnabled(t *testing.T) {
 	}
 }
 
+func TestAdjustment(t *testing.T) {
+	t.Run("first", func(t *testing.T) {
+		cfg := New()
+		require.Equal(t, cfg.EnableHTTPMonitoring, false)
+	})
+	t.Run("override", func(t *testing.T) {
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
+		cfg := New()
+		require.Equal(t, cfg.EnableHTTPMonitoring, true)
+	})
+}
+
 func configurationFromYAML(t *testing.T, yaml string) *Config {
 	f, err := os.CreateTemp("", "system-probe.*.yaml")
 	require.NoError(t, err)
