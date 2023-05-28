@@ -31,7 +31,7 @@ const (
 )
 
 type Client interface {
-	GetInstance(context.Context) (*Instance, error) 
+	GetInstance(context.Context) (*Instance, error)
 	GetTasks(context.Context) ([]Task, error)
 }
 

@@ -9,14 +9,14 @@
 package ecs
 
 import (
-	"errors"
 	"context"
-	"testing"
+	"errors"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
+	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
 
 type fakeWorkloadmetaStore struct {
@@ -37,7 +37,7 @@ func (store *fakeWorkloadmetaStore) GetContainer(id string) (*workloadmeta.Conta
 }
 
 type fakev1EcsClient struct {
-	mockGetTasks func(context.Context) ([]v1.Task, error) 
+	mockGetTasks func(context.Context) ([]v1.Task, error)
 }
 
 func (c *fakev1EcsClient) GetTasks(ctx context.Context) ([]v1.Task, error) {
@@ -50,7 +50,7 @@ func (c *fakev1EcsClient) GetInstance(ctx context.Context) (*v1.Instance, error)
 }
 
 type fakev3or4EcsClient struct {
-	mockGetTaskWithTags func(context.Context) (*v3or4.Task, error) 
+	mockGetTaskWithTags func(context.Context) (*v3or4.Task, error)
 }
 
 func (store *fakev3or4EcsClient) GetTask(ctx context.Context) (*v3or4.Task, error) {
@@ -70,24 +70,24 @@ func TestPull(t *testing.T) {
 	tags := map[string]string{"foo": "bar"}
 
 	tests := []struct {
-		name string
+		name                string
 		collectResourceTags bool
-		expectedTags map[string]string
+		expectedTags        map[string]string
 	}{
 		{
-			name: "collect tags",
+			name:                "collect tags",
 			collectResourceTags: true,
-			expectedTags: tags,
+			expectedTags:        tags,
 		},
 		{
-			name: "don't collect tags",
+			name:                "don't collect tags",
 			collectResourceTags: false,
-			expectedTags: nil,
+			expectedTags:        nil,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t * testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			c := collector{
 				resourceTags: make(map[string]resourceTags),
 				seen:         make(map[workloadmeta.EntityID]struct{}),
@@ -106,7 +106,7 @@ func TestPull(t *testing.T) {
 				},
 			}
 			c.store = &fakeWorkloadmetaStore{}
-			c.metaV3or4 = func(metaURI, metaVersion string) (v3or4.Client) {
+			c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
 				return &fakev3or4EcsClient{
 					mockGetTaskWithTags: func(context.Context) (*v3or4.Task, error) {
 						return &v3or4.Task{

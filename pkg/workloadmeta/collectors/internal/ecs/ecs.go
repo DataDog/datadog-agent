@@ -30,7 +30,7 @@ const (
 type collector struct {
 	store               workloadmeta.Store
 	metaV1              v1.Client
-	metaV3or4			func(metaURI, metaVersion string) (v3or4.Client)
+	metaV3or4           func(metaURI, metaVersion string) v3or4.Client
 	clusterName         string
 	hasResourceTags     bool
 	collectResourceTags bool
@@ -66,7 +66,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	}
 
 	// This only exists to allow overriding for testing
-	c.metaV3or4 = func(metaURI , metaVersion string) v3or4.Client {
+	c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
 		return v3or4.NewClient(metaURI, metaVersion)
 	}
 
