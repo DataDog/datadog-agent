@@ -10,8 +10,8 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
-	infraaws "github.com/DataDog/test-infra-definitions/aws"
 	commonconfig "github.com/DataDog/test-infra-definitions/common/config"
+	infraaws "github.com/DataDog/test-infra-definitions/resources/aws"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )

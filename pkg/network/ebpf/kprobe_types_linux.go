@@ -30,9 +30,8 @@ type ConnStats struct {
 	Sent_packets   uint64
 	Recv_packets   uint64
 	Direction      uint8
-	Conn_tags      uint8
 	Protocol_stack ProtocolStack
-	Pad_cgo_0      [2]byte
+	Pad_cgo_0      [3]byte
 }
 type Conn struct {
 	Tup        ConnTuple
@@ -50,8 +49,8 @@ type Batch struct {
 type Telemetry struct {
 	Tcp_failed_connect  uint64
 	Tcp_sent_miscounts  uint64
-	Missed_tcp_close    uint64
-	Missed_udp_close    uint64
+	Unbatched_tcp_close uint64
+	Unbatched_udp_close uint64
 	Udp_sends_processed uint64
 	Udp_sends_missed    uint64
 	Udp_dropped_conns   uint64
@@ -101,6 +100,8 @@ const (
 
 const BatchSize = 0x4
 const SizeofBatch = 0x1f0
+
+const SizeofConn = 0x78
 
 type ClassificationProgram = uint32
 

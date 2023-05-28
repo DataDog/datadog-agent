@@ -28,6 +28,7 @@ import (
 const (
 	// OverlayFS overlay filesystem
 	OverlayFS = "overlay"
+	UnknownFS = "unknown"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -710,6 +711,11 @@ func (e *FileEvent) GetPathResolutionError() string {
 	return ""
 }
 
+// IsOverlayFS returns whether it is an overlay fs
+func (e *FileEvent) IsOverlayFS() bool {
+	return e.Filesystem == "overlay"
+}
+
 // InvalidateDentryEvent defines a invalidate dentry event
 type InvalidateDentryEvent struct {
 	Inode   uint64
@@ -933,7 +939,7 @@ type PIDContext struct {
 	Tid       uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
 	NetNS     uint32 `field:"-"`
 	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
-	Inode     uint64 `field:"-"`          // used to track exec and event loss
+	ExecInode uint64 `field:"-"`          // used to track exec and event loss
 }
 
 // RenameEvent represents a rename event

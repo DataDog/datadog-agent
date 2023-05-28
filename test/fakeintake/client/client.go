@@ -37,7 +37,7 @@ func NewClient(fakeIntakeURL string) *Client {
 }
 
 func (c *Client) getMetrics() error {
-	payloads, err := c.getFakePayloads("api/v2/metrics")
+	payloads, err := c.getFakePayloads("/api/v2/series")
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (c *Client) getMetrics() error {
 }
 
 func (c *Client) getCheckRuns() error {
-	payloads, err := c.getFakePayloads("api/v1/check_run")
+	payloads, err := c.getFakePayloads("/api/v1/check_run")
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (c *Client) getCheckRuns() error {
 }
 
 func (c *Client) getLogs() error {
-	payloads, err := c.getFakePayloads("api/v2/logs")
+	payloads, err := c.getFakePayloads("/api/v2/logs")
 	if err != nil {
 		return err
 	}

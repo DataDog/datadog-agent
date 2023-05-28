@@ -18,6 +18,7 @@ import (
 	"github.com/vishvananda/netns"
 	"go4.org/netipx"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
@@ -33,79 +34,65 @@ const (
 )
 
 func TestConntrackers(t *testing.T) {
-	conntrackers := []struct {
-		name   string
-		create func(*testing.T, *config.Config) (netlink.Conntracker, error)
-	}{
-		{"netlink", setupNetlinkConntracker},
-		{"eBPF-prebuilt", setupPrebuiltEBPFConntracker},
-		{"eBPF-runtime", setupRuntimeEBPFConntracker},
-	}
-	for _, conntracker := range conntrackers {
-		t.Run(conntracker.name, func(t *testing.T) {
-			t.Run("IPv4", func(t *testing.T) {
-				cfg := config.New()
-				ct, err := conntracker.create(t, cfg)
-				require.NoError(t, err)
-				defer ct.Close()
-
-				netlinktestutil.SetupDNAT(t)
-
-				testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct, cfg)
-			})
-			t.Run("IPv6", func(t *testing.T) {
-				cfg := config.New()
-				ct, err := conntracker.create(t, cfg)
-				require.NoError(t, err)
-				defer ct.Close()
-
-				netlinktestutil.SetupDNAT6(t)
-
-				testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct, cfg)
-			})
-			t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
-				if conntracker.name == "netlink" {
-					kv, err := kernel.HostVersion()
-					require.NoError(t, err)
-					if kv >= kernel.VersionCode(5, 19, 0) && kv < kernel.VersionCode(6, 3, 0) {
-						// see https://lore.kernel.org/netfilter-devel/CALvGib_xHOVD2+6tKm2Sf0wVkQwut2_z2gksZPcGw30tOvOAAA@mail.gmail.com/T/#u
-						t.Skip("skip due to a kernel bug with conntrack netlink events flowing across namespaces")
-					}
-				}
-
-				cfg := config.New()
-				cfg.EnableConntrackAllNamespaces = true
-				ct, err := conntracker.create(t, cfg)
-				require.NoError(t, err)
-				defer ct.Close()
-
-				testConntrackerCrossNamespace(t, ct)
-			})
-			t.Run("cross namespace - NAT rule on root namespace", func(t *testing.T) {
-				cfg := config.New()
-				cfg.EnableConntrackAllNamespaces = true
-				ct, err := conntracker.create(t, cfg)
-				require.NoError(t, err)
-				defer ct.Close()
-
-				testConntrackerCrossNamespaceNATonRoot(t, ct)
-			})
+	t.Run("netlink", func(t *testing.T) {
+		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
+	})
+	t.Run("eBPF", func(t *testing.T) {
+		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled}, "", func(t *testing.T) {
+			runConntrackerTest(t, "eBPF", setupEBPFConntracker)
 		})
-	}
+	})
 }
 
-func setupPrebuiltEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
-	// prebuilt on 5.18+ does not support UDPv6
-	if kv >= kernel.VersionCode(5, 18, 0) {
-		cfg.CollectUDPv6Conns = false
-	}
-	cfg.EnableRuntimeCompiler = false
-	return NewEBPFConntracker(cfg, nil)
+func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *config.Config) (netlink.Conntracker, error)) {
+	t.Run("IPv4", func(t *testing.T) {
+		cfg := config.New()
+		ct, err := createFn(t, cfg)
+		require.NoError(t, err)
+		defer ct.Close()
+
+		netlinktestutil.SetupDNAT(t)
+
+		testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct, cfg)
+	})
+	t.Run("IPv6", func(t *testing.T) {
+		cfg := config.New()
+		ct, err := createFn(t, cfg)
+		require.NoError(t, err)
+		defer ct.Close()
+
+		netlinktestutil.SetupDNAT6(t)
+
+		testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct, cfg)
+	})
+	t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
+		if name == "netlink" {
+			if kv >= kernel.VersionCode(5, 19, 0) && kv < kernel.VersionCode(6, 3, 0) {
+				// see https://lore.kernel.org/netfilter-devel/CALvGib_xHOVD2+6tKm2Sf0wVkQwut2_z2gksZPcGw30tOvOAAA@mail.gmail.com/T/#u
+				t.Skip("skip due to a kernel bug with conntrack netlink events flowing across namespaces")
+			}
+		}
+
+		cfg := config.New()
+		cfg.EnableConntrackAllNamespaces = true
+		ct, err := createFn(t, cfg)
+		require.NoError(t, err)
+		defer ct.Close()
+
+		testConntrackerCrossNamespace(t, ct)
+	})
+	t.Run("cross namespace - NAT rule on root namespace", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableConntrackAllNamespaces = true
+		ct, err := createFn(t, cfg)
+		require.NoError(t, err)
+		defer ct.Close()
+
+		testConntrackerCrossNamespaceNATonRoot(t, ct)
+	})
 }
 
-func setupRuntimeEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
-	cfg.EnableRuntimeCompiler = true
-	cfg.AllowPrecompiledFallback = false
+func setupEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	return NewEBPFConntracker(cfg, nil)
 }
 

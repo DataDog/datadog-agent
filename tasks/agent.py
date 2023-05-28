@@ -18,7 +18,7 @@ from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .docker import pull_base_images
+from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
 from .rtloader import clean as rtloader_clean
@@ -45,6 +45,8 @@ AGENT_TAG = "datadog/agent:master"
 AGENT_CORECHECKS = [
     "container",
     "containerd",
+    "container_image",
+    "container_lifecycle",
     "cpu",
     "cri",
     "snmp",
@@ -59,12 +61,14 @@ AGENT_CORECHECKS = [
     "ntp",
     "oom_kill",
     "oracle-dbm",
+    "sbom",
     "systemd",
     "tcp_queue_length",
     "uptime",
     "winkmem",
     "winproc",
     "jetson",
+    "openmetrics",
 ]
 
 IOT_AGENT_CORECHECKS = [
