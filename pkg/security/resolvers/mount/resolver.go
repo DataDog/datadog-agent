@@ -9,6 +9,7 @@ package mount
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"strings"
 	"sync"
@@ -58,11 +59,6 @@ type ResolverOpts struct {
 	UseProcFS bool
 }
 
-type deviceEntry struct {
-	device  uint32
-	mountId uint32
-}
-
 // Resolver represents a cache for mountpoints and the corresponding file systems
 type Resolver struct {
 	opts            ResolverOpts
@@ -70,7 +66,6 @@ type Resolver struct {
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
 	mounts          map[uint32]*model.Mount
-	devices         map[deviceEntry]*model.Mount
 	deleteQueue     []deleteRequest
 	minMountID      uint32
 	redemption      *simplelru.LRU[uint32, *model.Mount]
@@ -156,7 +151,6 @@ func (mr *Resolver) finalize(first *model.Mount) {
 
 		// pre-work
 		delete(mr.mounts, curr.MountID)
-		delete(mr.devices, deviceEntry{device: curr.Device, mountId: curr.MountID})
 
 		// finalize children
 		for _, child := range mr.mounts {
@@ -172,11 +166,7 @@ func (mr *Resolver) finalize(first *model.Mount) {
 			continue
 		}
 
-		for entry, deviceMount := range mr.devices {
-			if entry.device != curr.Device {
-				continue
-			}
-
+		for _, deviceMount := range mr.mounts {
 			if curr.Device == deviceMount.Device && curr.MountID != deviceMount.MountID {
 				open_queue = append(open_queue, deviceMount)
 			}
@@ -233,6 +223,8 @@ func (mr *Resolver) Insert(e model.Mount) error {
 }
 
 func (mr *Resolver) insert(m *model.Mount) {
+	fmt.Printf("device id: %d; id %d; len %d\n", m.Device, m.MountID, len(mr.mounts))
+
 	// umount the previous one if exists
 	if prev, ok := mr.mounts[m.MountID]; ok {
 		// if present in the redemption that the evict function that will remove the entry
@@ -247,7 +239,6 @@ func (mr *Resolver) insert(m *model.Mount) {
 		m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
 	}
 
-	mr.devices[deviceEntry{device: m.Device, mountId: m.MountID}] = m
 	mr.mounts[m.MountID] = m
 
 	if mr.minMountID > m.MountID {
@@ -589,7 +580,6 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		statsdClient:    statsdClient,
 		cgroupsResolver: cgroupsResolver,
 		lock:            sync.RWMutex{},
-		devices:         make(map[deviceEntry]*model.Mount),
 		mounts:          make(map[uint32]*model.Mount),
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
