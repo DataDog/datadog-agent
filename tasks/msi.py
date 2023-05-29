@@ -12,7 +12,7 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.ssm import get_pfx_pass, get_signing_cert
-from tasks.utils import get_version
+from tasks.utils import get_version, load_release_versions
 
 # constants
 OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
@@ -43,8 +43,8 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', python_runtimes='3'):
-    env = {}
+def _get_env(ctx, major_version='7', python_runtimes='3', release_version='nightly'):
+    env = load_release_versions(ctx, release_version)
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
@@ -62,7 +62,16 @@ def _get_env(ctx, major_version='7', python_runtimes='3'):
     return env
 
 
-def _build(ctx, project='', vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
+def _build(
+    ctx,
+    project='',
+    vstudio_root=None,
+    arch="x65",
+    major_version='7',
+    python_runtimes='3',
+    release_version='nightly',
+    debug=False,
+):
     """
     Build the MSI installer builder, i.e. the program that can build an MSI
     """
@@ -70,7 +79,7 @@ def _build(ctx, project='', vstudio_root=None, arch="x64", major_version='7', py
         print("Building the MSI installer is only for available on Windows")
         raise Exit(code=1)
 
-    env = _get_env(ctx, major_version, python_runtimes)
+    env = _get_env(ctx, major_version, python_runtimes, release_version)
     print(f"arch is {arch}")
 
     cmd = ""
@@ -113,7 +122,9 @@ def _build(ctx, project='', vstudio_root=None, arch="x64", major_version='7', py
 
 
 @task
-def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
+def build(
+    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
+):
     """
     Build the MSI installer for the agent
     """
@@ -124,12 +135,13 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes
         arch=arch,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        release_version=release_version,
         debug=debug,
     )
     configuration = "Release"
     if debug:
         configuration = "Debug"
-    env = _get_env(ctx, major_version, python_runtimes)
+    env = _get_env(ctx, major_version, python_runtimes, release_version)
     # Run the builder to produce the MSI
     succeeded = ctx.run(
         f'cd {BUILD_SOURCE_DIR}\\WixSetup && {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\WixSetup.exe',
@@ -144,7 +156,9 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', debug=False):
+def test(
+    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
+):
     """
     Run the unit test for the MSI installer for the agent
     """
@@ -154,12 +168,13 @@ def test(ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes=
         arch=arch,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        release_version=release_version,
         debug=debug,
     )
     configuration = "Release"
     if debug:
         configuration = "Debug"
-    env = _get_env(ctx, major_version, python_runtimes)
+    env = _get_env(ctx, major_version, python_runtimes, release_version)
 
     # Generate the config file
     if not ctx.run(

@@ -427,7 +427,7 @@ def check_notify_teams(_):
         print(
             "Error: Some teams in CODEOWNERS don't have their slack notification channel specified in the GITHUB_SLACK_MAP !!"
         )
-        Exit(code=1)
+        raise Exit(code=1)
     else:
         print("All CODEOWNERS teams have their slack notification channel specified !")
 

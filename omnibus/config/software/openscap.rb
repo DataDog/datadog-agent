@@ -21,6 +21,7 @@ dependency 'apt'
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
+dependency 'dbus'
 dependency 'libacl'
 dependency 'libgcrypt'
 dependency 'libselinux'
@@ -51,6 +52,8 @@ build do
   patch source: "0036-Fix-leak-of-regex-structure-in-oval_fts-in-error-cas.patch", env: env
   patch source: "0037-Free-xmlDoc-structure-at-the-end-of-xccdf_session_lo.patch", env: env
   patch source: "0041-Fix-implicitly-declared-function.patch", env: env
+  patch source: "0042-Plug-a-memory-leak.patch", env: env
+  patch source: "0043-Fix-other-occurences-of-oscap_htable_add.patch", env: env
 
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
   patch source: "session_result_free.patch", env: env # add a function to free results from session
@@ -59,6 +62,7 @@ build do
   patch source: "dpkginfo-init.patch", env: env # fix memory leak of pkgcache in dpkginfo probe
   patch source: "shadow-chroot.patch", env: env # handle shadow probe in offline mode
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
+  patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
@@ -80,6 +84,8 @@ build do
     "-DBZIP2_LIBRARY_RELEASE:FILEPATH=#{install_dir}/embedded/lib/libbz2.so",
     "-DCURL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DCURL_LIBRARY_RELEASE:FILEPATH=#{install_dir}/embedded/lib/libcurl.so",
+    "-DDBUS_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/dbus-1.0",
+    "-DDBUS_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libdbus-1.so",
     "-DGCRYPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DGCRYPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libgcrypt.so",
     "-DLIBXML2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/libxml2",

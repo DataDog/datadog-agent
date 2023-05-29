@@ -76,6 +76,12 @@ var (
 	// MetricEventDiscarded is the number of event discarded
 	// Tags: discarder_type, event_type
 	MetricEventDiscarded = newRuntimeMetric(".discarders.event_discarded")
+	// MetricApproverAdded is the number of approvers added
+	// Tags: approver_type, event_type
+	MetricApproverAdded = newRuntimeMetric(".approvers.approver_added")
+	// MetricEventApproved is the number of events approved
+	// Tags: approver_type, event_type
+	MetricEventApproved = newRuntimeMetric(".approvers.event_approved")
 
 	// Perf buffer metrics
 
@@ -186,6 +192,9 @@ var (
 	// bytes
 	// Tags: format, storage_type, compression
 	MetricActivityDumpSizeInBytes = newRuntimeMetric(".activity_dump.size_in_bytes")
+	// MetricActivityDumpPersistedDumps is the name of the metric used to reported the number of dumps that were persisted
+	// Tags: format, storage_type, compression
+	MetricActivityDumpPersistedDumps = newRuntimeMetric(".activity_dump.persisted_dumps")
 	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
@@ -232,9 +241,9 @@ var (
 
 	// Security Profile metrics
 
-	// MetricSecurityProfileActiveProfiles is the name of the metric used to report the count of active Security Profiles
-	// Tags: -
-	MetricSecurityProfileActiveProfiles = newRuntimeMetric(".security_profile.active_profiles")
+	// MetricSecurityProfileProfiles is the name of the metric used to report the count of Security Profiles per category
+	// Tags: in_kernel (true or false), anomaly_detection (true or false), auto_suppression (true or false), workload_hardening (true or false)
+	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
 	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
 	// Tags: -
 	MetricSecurityProfileCacheLen = newRuntimeMetric(".security_profile.cache.len")
@@ -245,10 +254,10 @@ var (
 	// Tags: -
 	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
 	// MetricSecurityProfileAnomalyDetectionSent
-	// Tags: - event_type
+	// Tags: event_type
 	MetricSecurityProfileAnomalyDetectionSent = newRuntimeMetric(".security_profile.anomaly_detection.sent")
 	// MetricSecurityProfileEventFiltering
-	// Tags: - event_type, in_profile ('true', 'false', 'no_profile' or 'unstable_profile')
+	// Tags: event_type, profile_state ('no_profile', 'unstable', 'unstable_event_type', 'stable', 'auto_learning', 'workload_warmup'), in_profile ('true', 'false' or none)
 	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
 
 	// Namespace resolver metrics

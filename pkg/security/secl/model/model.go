@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output accessors_linux.go -field-handlers-tags unix -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -output accessors_unix.go -field-handlers-tags unix -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -output accessors_windows.go -field-handlers-tags windows -field-handlers field_handlers_windows.go
 
 package model
@@ -28,6 +28,7 @@ import (
 const (
 	// OverlayFS overlay filesystem
 	OverlayFS = "overlay"
+	UnknownFS = "unknown"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -37,14 +38,17 @@ type Model struct {
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
-	return &Event{}
+	return &Event{
+		ContainerContext: &ContainerContext{},
+	}
 }
 
 // NewDefaultEventWithType returns a new Event for the given type
 func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 	return &Event{
-		Type:          uint32(kind),
-		FieldHandlers: &DefaultFieldHandlers{},
+		Type:             uint32(kind),
+		FieldHandlers:    &DefaultFieldHandlers{},
+		ContainerContext: &ContainerContext{},
 	}
 }
 
@@ -133,7 +137,7 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`Chmod mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`Chmod mode constants`
+	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
 }
 
 // ChownEvent represents a chown event
@@ -146,8 +150,36 @@ type ChownEvent struct {
 	Group string    `field:"file.destination.group,handler:ResolveChownGID"` // SECLDoc[file.destination.group] Definition:`New group of the chown-ed file's owner`
 }
 
+// Releasable represents an object than can be released
+type Releasable struct {
+	onReleaseCallback func() `field:"-" json:"-"`
+}
+
+func (r *Releasable) CallReleaseCallback() {
+	if r.onReleaseCallback != nil {
+		r.onReleaseCallback()
+	}
+}
+
+// SetReleaseCallback sets a callback to be called when the cache entry is released
+func (r *Releasable) SetReleaseCallback(callback func()) {
+	previousCallback := r.onReleaseCallback
+	r.onReleaseCallback = func() {
+		callback()
+		if previousCallback != nil {
+			previousCallback()
+		}
+	}
+}
+
+// Release triggers the callback
+func (r *Releasable) OnRelease() {
+	r.onReleaseCallback()
+}
+
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
+	Releasable
 	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
 	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
@@ -210,9 +242,9 @@ type Event struct {
 	ID           string         `field:"-" json:"-"`
 	Type         uint32         `field:"-"`
 	Flags        uint32         `field:"-"`
-	Async        bool           `field:"async,handler:ResolveAsync" event:"*" platform:"linux"` // SECLDoc[async] Definition:`True if the syscall was asynchronous`
-	TimestampRaw uint64         `field:"-" json:"-"`
-	Timestamp    time.Time      `field:"-"` // Timestamp of the event
+	Async        bool           `field:"event.async,handler:ResolveAsync" event:"*" platform:"linux"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
+	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" json:"-"`      // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time      `field:"-"`
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
@@ -220,7 +252,7 @@ type Event struct {
 	PIDContext             PIDContext             `field:"-" json:"-" platform:"linux"`
 	SpanContext            SpanContext            `field:"-" json:"-" platform:"linux"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*" platform:"linux"`
-	ContainerContext       ContainerContext       `field:"container" platform:"linux"`
+	ContainerContext       *ContainerContext      `field:"container" platform:"linux"`
 	NetworkContext         NetworkContext         `field:"network" platform:"linux"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
@@ -314,7 +346,8 @@ func initMember(member reflect.Value, deja map[string]bool) {
 // NewDefaultEvent returns a new event using the default field handlers
 func NewDefaultEvent() eval.Event {
 	return &Event{
-		FieldHandlers: &DefaultFieldHandlers{},
+		FieldHandlers:    &DefaultFieldHandlers{},
+		ContainerContext: &ContainerContext{},
 	}
 }
 
@@ -400,9 +433,9 @@ func (ev *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
 	return ev.FieldHandlers.ResolveProcessCacheEntry(ev)
 }
 
-// ResolveEventTimestamp uses the field handler
-func (ev *Event) ResolveEventTimestamp() time.Time {
-	return ev.FieldHandlers.ResolveEventTimestamp(ev)
+// ResolveEventTime uses the field handler
+func (ev *Event) ResolveEventTime() time.Time {
+	return ev.FieldHandlers.ResolveEventTime(ev)
 }
 
 // GetProcessService uses the field handler
@@ -607,7 +640,7 @@ type FileFields struct {
 	User  string `field:"user,handler:ResolveFileFieldsUser"`                          // SECLDoc[user] Definition:`User of the file's owner`
 	GID   uint32 `field:"gid"`                                                         // SECLDoc[gid] Definition:`GID of the file's owner`
 	Group string `field:"group,handler:ResolveFileFieldsGroup"`                        // SECLDoc[group] Definition:`Group of the file's owner`
-	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:cacheless_resolution"` // SECLDoc[mode] Definition:`Mode of the file` SECLDoc[rights] Definition:`Rights of the file` Constants:`Chmod mode constants`
+	Mode  uint16 `field:"mode;rights,handler:ResolveRights,opts:cacheless_resolution"` // SECLDoc[mode] Definition:`Mode of the file` Constants:`Inode mode constants` SECLDoc[rights] Definition:`Rights of the file` Constants:`File mode constants`
 	CTime uint64 `field:"change_time"`                                                 // SECLDoc[change_time] Definition:`Change time of the file`
 	MTime uint64 `field:"modification_time"`                                           // SECLDoc[modification_time] Definition:`Modification time of the file`
 
@@ -678,6 +711,11 @@ func (e *FileEvent) GetPathResolutionError() string {
 	return ""
 }
 
+// IsOverlayFS returns whether it is an overlay fs
+func (e *FileEvent) IsOverlayFS() bool {
+	return e.Filesystem == "overlay"
+}
+
 // InvalidateDentryEvent defines a invalidate dentry event
 type InvalidateDentryEvent struct {
 	Inode   uint64
@@ -700,7 +738,7 @@ type LinkEvent struct {
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
-	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`Chmod mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`Chmod mode constants`
+	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`Mode of the new directory` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`Rights of the new directory` Constants:`File mode constants`
 }
 
 // ArgsEnvsEvent defines a args/envs event
@@ -756,7 +794,7 @@ type OpenEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
-	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`Chmod mode constants`
+	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
 }
 
 // SELinuxEventKind represents the event kind for SELinux events
@@ -901,7 +939,7 @@ type PIDContext struct {
 	Tid       uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
 	NetNS     uint32 `field:"-"`
 	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
-	Inode     uint64 `field:"-"`          // used to track exec and event loss
+	ExecInode uint64 `field:"-"`          // used to track exec and event loss
 }
 
 // RenameEvent represents a rename event
@@ -1224,7 +1262,8 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 // ExtraFieldHandlers handlers not hold by any field
 type ExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
-	ResolveEventTimestamp(ev *Event) time.Time
+	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
+	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
 }
 
@@ -1233,8 +1272,13 @@ func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCa
 	return nil, false
 }
 
+// ResolveContainerContext stub implementation
+func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerContext, bool) {
+	return nil, false
+}
+
 // ResolveEventTimestamp stub implementation
-func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) time.Time {
+func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
 	return ev.Timestamp
 }
 

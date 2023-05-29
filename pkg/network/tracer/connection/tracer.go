@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package connection
 
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
@@ -81,23 +81,23 @@ const (
 
 var ConnTracerTelemetry = struct {
 	connections       telemetry.Gauge
-	tcpFailedConnects telemetry.Gauge
-	TcpSentMiscounts  *nettelemetry.StatGaugeWrapper
-	missedTcpClose    telemetry.Gauge
-	missedUdpClose    telemetry.Gauge
-	UdpSendsProcessed *nettelemetry.StatGaugeWrapper
-	UdpSendsMissed    *nettelemetry.StatGaugeWrapper
-	UdpDroppedConns   telemetry.Gauge
+	tcpFailedConnects *nettelemetry.StatCounterWrapper
+	TcpSentMiscounts  *nettelemetry.StatCounterWrapper
+	unbatchedTcpClose *nettelemetry.StatCounterWrapper
+	unbatchedUdpClose *nettelemetry.StatCounterWrapper
+	UdpSendsProcessed *nettelemetry.StatCounterWrapper
+	UdpSendsMissed    *nettelemetry.StatCounterWrapper
+	UdpDroppedConns   *nettelemetry.StatCounterWrapper
 	PidCollisions     *nettelemetry.StatCounterWrapper
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "tcp_failed_connects", []string{}, "Gauge measuring the number of failed TCP connections in the EBPF map"),
-	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Gauge measuring the number of miscounted tcp sends in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "missed_tcp_close", []string{}, "Gauge measuring the number of missed TCP close events in the EBPF map"),
-	telemetry.NewGauge(connTracerModuleName, "missed_udp_close", []string{}, "Gauge measuring the number of missed UDP close events in the EBPF map"),
-	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Gauge measuring the number of processed UDP sends in EBPF"),
-	nettelemetry.NewStatGaugeWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Gauge measuring failures to process UDP sends in EBPF"),
-	telemetry.NewGauge(connTracerModuleName, "udp_dropped_conns", []string{}, "Gauge measuring the number of dropped UDP connections in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_failed_connects", []string{}, "Counter measuring the number of failed TCP connections in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Counter measuring the number of miscounted tcp sends in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "unbatched_tcp_close", []string{}, "Counter measuring the number of missed TCP close events in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "unbatched_udp_close", []string{}, "Counter measuring the number of missed UDP close events in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Counter measuring the number of processed UDP sends in EBPF"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Counter measuring failures to process UDP sends in EBPF"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_dropped_conns", []string{}, "Counter measuring the number of dropped UDP connections in the EBPF map"),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 }
 
@@ -122,7 +122,7 @@ type tracer struct {
 }
 
 // NewTracer creates a new tracer
-func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
+func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -135,15 +135,19 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			probes.ConnMap:                           {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			probes.TCPStatsMap:                       {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			probes.PortBindingsMap:                   {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			probes.UDPPortBindingsMap:                {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			probes.SockByPidFDMap:                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			probes.PidFDBySockMap:                    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			probes.ConnectionProtocolMap:             {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			probes.ConnectionTupleToSocketSKBConnMap: {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-			probes.TLSConnectionMap:                  {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries}},
+			probes.ConnMap:                           {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TCPStatsMap:                       {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.PortBindingsMap:                   {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.UDPPortBindingsMap:                {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.SockByPidFDMap:                    {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.PidFDBySockMap:                    {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.ConnectionProtocolMap:             {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.ConnectionTupleToSocketSKBConnMap: {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+		},
+		ConstantEditors: []manager.ConstantEditor{
+			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
+			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
+		},
 	}
 
 	closedChannelSize := defaultClosedChannelSize
@@ -156,20 +160,14 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	}
 
 	var tracerType TracerType = TracerTypeFentry
-	fentryOptions := mgrOptions
-	fentryOptions.ConstantEditors = []manager.ConstantEditor{
-		{Name: "tcpv6_enabled", Value: boolToUint64(config.CollectTCPv6Conns)},
-		{Name: "udpv6_enabled", Value: boolToUint64(config.CollectUDPv6Conns)},
-	}
 	var closeTracerFn func()
-	closeTracerFn, err := fentry.LoadTracer(config, m, fentryOptions, perfHandlerTCP)
+	closeTracerFn, err := fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
 	}
 
 	if err != nil {
-		mgrOptions.ConstantEditors = constants
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
@@ -226,11 +224,16 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	return tr, nil
 }
 
-func boolToUint64(b bool) uint64 {
-	if b {
-		return 1
+func boolConst(name string, value bool) manager.ConstantEditor {
+	c := manager.ConstantEditor{
+		Name:  name,
+		Value: uint64(1),
 	}
-	return 0
+	if !value {
+		c.Value = uint64(0)
+	}
+
+	return c
 }
 
 func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
@@ -272,13 +275,13 @@ func (t *tracer) FlushPending() {
 
 func (t *tracer) Stop() {
 	t.stopOnce.Do(func() {
+		close(t.exitTelemetry)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
 	})
-	close(t.exitTelemetry)
 }
 
 func (t *tracer) GetMap(name string) *ebpf.Map {
@@ -440,18 +443,18 @@ func (t *tracer) RefreshProbeTelemetry() {
 // Refreshes connection tracer telemetry on a loop
 // TODO: Replace with prometheus collector interface
 func (t *tracer) refreshProbeTelemetry() {
-	telemetry := t.getEBPFTelemetry()
-	if telemetry == nil {
+	ebpfTelemetry := t.getEBPFTelemetry()
+	if ebpfTelemetry == nil {
 		return
 	}
 
-	ConnTracerTelemetry.tcpFailedConnects.Set(float64(telemetry.Tcp_failed_connect))
-	ConnTracerTelemetry.TcpSentMiscounts.Set(int64(telemetry.Tcp_sent_miscounts))
-	ConnTracerTelemetry.missedTcpClose.Set(float64(telemetry.Missed_tcp_close))
-	ConnTracerTelemetry.missedUdpClose.Set(float64(telemetry.Missed_udp_close))
-	ConnTracerTelemetry.UdpSendsProcessed.Set(int64(telemetry.Udp_sends_processed))
-	ConnTracerTelemetry.UdpSendsMissed.Set(int64(telemetry.Udp_sends_missed))
-	ConnTracerTelemetry.UdpDroppedConns.Set(float64(telemetry.Udp_dropped_conns))
+	ConnTracerTelemetry.tcpFailedConnects.Add(int64(ebpfTelemetry.Tcp_failed_connect) - ConnTracerTelemetry.tcpFailedConnects.Load())
+	ConnTracerTelemetry.TcpSentMiscounts.Add(int64(ebpfTelemetry.Tcp_sent_miscounts) - ConnTracerTelemetry.TcpSentMiscounts.Load())
+	ConnTracerTelemetry.unbatchedTcpClose.Add(int64(ebpfTelemetry.Unbatched_tcp_close) - ConnTracerTelemetry.unbatchedTcpClose.Load())
+	ConnTracerTelemetry.unbatchedUdpClose.Add(int64(ebpfTelemetry.Unbatched_udp_close) - ConnTracerTelemetry.unbatchedUdpClose.Load())
+	ConnTracerTelemetry.UdpSendsProcessed.Add(int64(ebpfTelemetry.Udp_sends_processed) - ConnTracerTelemetry.UdpSendsProcessed.Load())
+	ConnTracerTelemetry.UdpSendsMissed.Add(int64(ebpfTelemetry.Udp_sends_missed) - ConnTracerTelemetry.UdpSendsMissed.Load())
+	ConnTracerTelemetry.UdpDroppedConns.Add(int64(ebpfTelemetry.Udp_dropped_conns) - ConnTracerTelemetry.UdpDroppedConns.Load())
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
@@ -551,11 +554,10 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Cookie:           s.Cookie,
 	}
 
-	stats.StaticTags |= uint64(s.Conn_tags)
-	if network.IsValidProtocolValue(s.Protocol) {
-		stats.Protocol = network.ProtocolType(s.Protocol)
-	} else {
-		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
+	stats.ProtocolStack = protocols.Stack{
+		Api:         protocols.API(s.Protocol_stack.Api),
+		Application: protocols.Application(s.Protocol_stack.Application),
+		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
 	}
 
 	if t.Type() == netebpf.TCP {

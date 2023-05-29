@@ -22,9 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/proto/utils"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
@@ -201,7 +201,7 @@ func (c *collector) processResponse(response *pb.WorkloadmetaStreamResponse) err
 	var collectorEvents []workloadmeta.CollectorEvent
 
 	for _, protoEvent := range response.Events {
-		workloadmetaEvent, err := utils.WorkloadmetaEventFromProtoEvent(protoEvent)
+		workloadmetaEvent, err := protoutils.WorkloadmetaEventFromProtoEvent(protoEvent)
 		if err != nil {
 			return err
 		}

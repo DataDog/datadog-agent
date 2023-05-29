@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker && linux
-// +build docker,linux
 
 package docker
 
@@ -71,8 +70,8 @@ func Test_convertMemoryStats(t *testing.T) {
 				Limit:   43,
 				Failcnt: 44,
 				Stats: map[string]uint64{
-					"rss":          45,
-					"cache":        46,
+					"total_rss":    45,
+					"total_cache":  46,
 					"kernel_stack": 47,
 					"slab":         48,
 				},

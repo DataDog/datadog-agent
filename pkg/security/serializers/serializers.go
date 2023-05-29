@@ -7,7 +7,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package serializers
 
@@ -22,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -668,7 +668,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 	if ps.IsNotKworker() {
 		argv, argvTruncated := resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
 		envs, EnvsTruncated := resolvers.ProcessResolver.GetProcessEnvs(ps)
-		argv0, _ := resolvers.ProcessResolver.GetProcessArgv0(ps)
+		argv0, _ := sprocess.GetProcessArgv0(ps)
 
 		psSerializer := &ProcessSerializer{
 			ForkTime: getTimeIfNotZero(ps.ForkTime),
@@ -710,7 +710,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 				ID: ps.ContainerID,
 			}
 			if cgroup, _ := resolvers.CGroupResolver.GetWorkload(ps.ContainerID); cgroup != nil {
-				psSerializer.Container.CreatedAt = getTimeIfNotZero(time.Unix(0, int64(cgroup.CreationTime)))
+				psSerializer.Container.CreatedAt = getTimeIfNotZero(time.Unix(0, int64(cgroup.CreatedAt)))
 			}
 		}
 		return psSerializer
@@ -1084,13 +1084,13 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		ProcessContextSerializer: newProcessContextSerializer(&pc, event, resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
-		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTimestamp(event)),
+		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),
 	}
 
-	if id := event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext); id != "" {
+	if id := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); id != "" {
 		var creationTime time.Time
 		if cgroup, _ := resolvers.CGroupResolver.GetWorkload(id); cgroup != nil {
-			creationTime = time.Unix(0, int64(cgroup.CreationTime))
+			creationTime = time.Unix(0, int64(cgroup.CreatedAt))
 		}
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        id,

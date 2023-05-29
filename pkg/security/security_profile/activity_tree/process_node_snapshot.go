@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package activity_tree
 
@@ -110,12 +109,12 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		evt.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
-		if err != nil {
-			evt.Open.File.PathnameStr = resolvedPath
+		if err != nil && len(resolvedPath) != 0 {
+			evt.Open.File.SetPathnameStr(resolvedPath)
 		} else {
-			evt.Open.File.PathnameStr = f
+			evt.Open.File.SetPathnameStr(f)
 		}
-		evt.Open.File.BasenameStr = path.Base(evt.Open.File.PathnameStr)
+		evt.Open.File.SetBasenameStr(path.Base(evt.Open.File.PathnameStr))
 		evt.Open.File.FileFields.Mode = uint16(stat.Mode)
 		evt.Open.File.FileFields.Inode = stat.Ino
 		evt.Open.File.FileFields.UID = stat.Uid
@@ -124,7 +123,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_, _ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
+		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
 	}
 	return nil
 }
@@ -223,5 +222,5 @@ func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port ui
 	}
 	evt.Bind.Addr.Port = port
 
-	_, _ = pn.InsertBindEvent(evt, Snapshot, stats, false)
+	_ = pn.InsertBindEvent(evt, Snapshot, stats, false)
 }

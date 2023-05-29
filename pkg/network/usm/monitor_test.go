@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
@@ -26,7 +25,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -42,7 +43,18 @@ var (
 	emptyBody = []byte(nil)
 )
 
-func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
+type HTTPTestSuite struct {
+	suite.Suite
+}
+
+func TestHTTP(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(HTTPTestSuite))
+	})
+}
+
+func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 	serverAddr := "localhost:8081"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
@@ -72,7 +84,8 @@ func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
 // we send another request. We expect to capture the another request but not the incomplete requests.
-func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 
 	slowServerAddr := "localhost:8080"
@@ -122,7 +135,8 @@ func TestHTTPMonitorLoadWithIncompleteBuffers(t *testing.T) {
 	require.True(t, foundFastReq)
 }
 
-func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
+	t := s.T()
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
@@ -165,6 +179,7 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
 			})
+			t.Cleanup(srvDoneFn)
 
 			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
@@ -178,7 +193,8 @@ func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
 	}
 }
 
-func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
+	t := s.T()
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
@@ -224,6 +240,7 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 				ReadTimeout:  serverTimeout,
 				SlowResponse: slowResponseTimeout,
 			})
+			t.Cleanup(srvDoneFn)
 
 			// Perform a number of random requests
 			req := requestGenerator(t, targetAddr, emptyBody)()
@@ -242,7 +259,8 @@ func TestHTTPMonitorIntegrationSlowResponse(t *testing.T) {
 	}
 }
 
-func TestHTTPMonitorIntegration(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
+	t := s.T()
 	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
@@ -258,7 +276,8 @@ func TestHTTPMonitorIntegration(t *testing.T) {
 	})
 }
 
-func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
+func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithNAT() {
+	t := s.T()
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
 
@@ -276,7 +295,8 @@ func TestHTTPMonitorIntegrationWithNAT(t *testing.T) {
 	})
 }
 
-func TestUnknownMethodRegression(t *testing.T) {
+func (s *HTTPTestSuite) TestUnknownMethodRegression() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
@@ -288,7 +308,7 @@ func TestUnknownMethodRegression(t *testing.T) {
 		EnableTLS:       false,
 		EnableKeepAlive: true,
 	})
-	defer srvDoneFn()
+	t.Cleanup(srvDoneFn)
 
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
 	for i := 0; i < 100; i++ {
@@ -305,14 +325,15 @@ func TestUnknownMethodRegression(t *testing.T) {
 	}
 }
 
-func TestRSTPacketRegression(t *testing.T) {
+func (s *HTTPTestSuite) TestRSTPacketRegression() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 		EnableKeepAlive: true,
 	})
-	defer srvDoneFn()
+	t.Cleanup(srvDoneFn)
 
 	// Create a "raw" TCP socket that will serve as our HTTP client
 	// We do this in order to configure the socket option SO_LINGER
@@ -338,7 +359,8 @@ func TestRSTPacketRegression(t *testing.T) {
 	includesRequest(t, stats, &nethttp.Request{URL: url})
 }
 
-func TestKeepAliveWithIncompleteResponseRegression(t *testing.T) {
+func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
+	t := s.T()
 	monitor := newHTTPMonitor(t)
 
 	const req = "GET /200/foobar HTTP/1.1\n"
@@ -432,6 +454,7 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o
 	monitor := newHTTPMonitor(t)
 
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
+	t.Cleanup(srvDoneFn)
 
 	// Perform a number of random requests
 	requestFn := requestGenerator(t, targetAddr, emptyBody)
@@ -569,12 +592,12 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 func newHTTPMonitor(t *testing.T) *Monitor {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(monitor.Stop)
 
-	// at this stage the test can be legitimally skipped due to missing BTF information
+	// at this stage the test can be legitimately skipped due to missing BTF information
 	// in the context of CO-RE
 	err = monitor.Start()
 	skipIfNotSupported(t, err)

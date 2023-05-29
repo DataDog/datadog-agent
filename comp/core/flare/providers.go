@@ -33,6 +33,11 @@ func (f *flare) collectLogsFiles(fb flarehelpers.FlareBuilder) error {
 		jmxLogFile = f.params.defaultJMXLogFile
 	}
 
+	dogstatsdLogFile := f.config.GetString("dogstatsd_log_file")
+	if dogstatsdLogFile == "" {
+		dogstatsdLogFile = f.params.defaultDogstatsdLogFile
+	}
+
 	shouldIncludeFunc := func(path string) bool {
 		if filepath.Ext(path) == ".log" || getFirstSuffix(path) == ".log" {
 			return true
@@ -43,6 +48,7 @@ func (f *flare) collectLogsFiles(fb flarehelpers.FlareBuilder) error {
 	f.log.Flush()
 	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)
 	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs", shouldIncludeFunc)
 	return nil
 }
 

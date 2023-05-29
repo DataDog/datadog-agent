@@ -37,7 +37,7 @@ func NewClient(fakeIntakeURL string) *Client {
 }
 
 func (c *Client) getMetrics() error {
-	payloads, err := c.getFakePayloads("api/v2/metrics")
+	payloads, err := c.getFakePayloads("/api/v2/series")
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (c *Client) getMetrics() error {
 }
 
 func (c *Client) getCheckRuns() error {
-	payloads, err := c.getFakePayloads("api/v1/check_run")
+	payloads, err := c.getFakePayloads("/api/v1/check_run")
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (c *Client) getCheckRuns() error {
 }
 
 func (c *Client) getLogs() error {
-	payloads, err := c.getFakePayloads("api/v2/logs")
+	payloads, err := c.getFakePayloads("/api/v2/logs")
 	if err != nil {
 		return err
 	}
@@ -239,4 +239,30 @@ func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 		return nil, err
 	}
 	return c.checkRunAggregator.GetPayloadsByName(name), nil
+}
+
+// FlushServerAndResetAggregators sends a request to delete any stored payload
+// and resets client's  aggregators
+// Call this in between tests to reset the fakeintake status on both client and server side
+func (c *Client) FlushServerAndResetAggregators() error {
+	err := c.flushPayloads()
+	if err != nil {
+		return err
+	}
+	c.checkRunAggregator.Reset()
+	c.metricAggregator.Reset()
+	c.logAggregator.Reset()
+	return nil
+}
+
+func (c *Client) flushPayloads() error {
+	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/flushPayloads", c.fakeIntakeURL))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error code %v", resp.StatusCode)
+	}
+	return nil
 }

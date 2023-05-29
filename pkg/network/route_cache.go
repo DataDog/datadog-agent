@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package network
 
@@ -60,6 +59,7 @@ var routeCacheTelemetry = struct {
 	misses  telemetry.Counter
 	lookups telemetry.Counter
 	expires telemetry.Counter
+	evicts  telemetry.Counter
 
 	netlinkLookups telemetry.Counter
 	netlinkErrors  telemetry.Counter
@@ -74,6 +74,7 @@ var routeCacheTelemetry = struct {
 	telemetry.NewCounter(routeCacheTelemetryModuleName, "misses", []string{}, "Counter measuring the number of route cache misses"),
 	telemetry.NewCounter(routeCacheTelemetryModuleName, "lookups", []string{}, "Counter measuring the number of route cache lookups"),
 	telemetry.NewCounter(routeCacheTelemetryModuleName, "expires", []string{}, "Counter measuring the number of route cache expirations"),
+	telemetry.NewCounter(routeCacheTelemetryModuleName, "evicts", []string{}, "Counter measuring the number of route cache evicts"),
 
 	telemetry.NewCounter(routerTelemetryModuleName, "netlink_lookups", []string{}, "Counter measuring the number of netlink lookups"),
 	telemetry.NewCounter(routerTelemetryModuleName, "netlink_errors", []string{}, "Counter measuring the number of netlink errors"),
@@ -114,6 +115,10 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 		ttl:    ttl,
 	}
 
+	rc.cache.OnEvicted = func(_ lru.Key, _ interface{}) {
+		routeCacheTelemetry.evicts.Inc()
+	}
+
 	return rc
 }
 
@@ -127,7 +132,10 @@ func (c *routeCache) Close() {
 
 func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) {
 	c.Lock()
-	defer c.Unlock()
+	defer func() {
+		routeCacheTelemetry.size.Set(float64(c.cache.Len()))
+		c.Unlock()
+	}()
 
 	routeCacheTelemetry.lookups.Inc()
 	k := newRouteKey(source, dest, netns)
@@ -138,7 +146,6 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 
 		routeCacheTelemetry.expires.Inc()
 		c.cache.Remove(k)
-		routeCacheTelemetry.size.Dec()
 	} else {
 		routeCacheTelemetry.misses.Inc()
 	}
@@ -150,7 +157,6 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 		}
 
 		c.cache.Add(k, entry)
-		routeCacheTelemetry.size.Inc()
 		return r, true
 	}
 

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
@@ -606,7 +605,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		Service: ad.Service,
 		Tags:    ad.Tags,
 		Storage: storage,
-		Metadata: &api.ActivityDumpMetadataMessage{
+		Metadata: &api.MetadataMessage{
 			AgentVersion:      ad.Metadata.AgentVersion,
 			AgentCommit:       ad.Metadata.AgentCommit,
 			KernelVersion:     ad.Metadata.KernelVersion,
