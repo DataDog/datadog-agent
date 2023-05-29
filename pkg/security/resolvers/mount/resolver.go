@@ -65,7 +65,7 @@ type Resolver struct {
 	cgroupsResolver *cgroup.Resolver
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
-	mounts          map[uint32]*model.Mount
+	mounts          MountMap
 	deleteQueue     []deleteRequest
 	minMountID      uint32
 	redemption      *simplelru.LRU[uint32, *model.Mount]
@@ -100,11 +100,12 @@ func (mr *Resolver) SyncCache(pid uint32) error {
 
 	// store the minimal mount ID found to use it as a reference
 	if pid == 1 {
-		for mountID := range mr.mounts {
+		mr.mounts.ForEach(func(mountID uint32, _ *model.Mount) bool {
 			if mr.minMountID == 0 || mr.minMountID > mountID {
 				mr.minMountID = mountID
 			}
-		}
+			return true
+		})
 	}
 
 	return err
@@ -117,7 +118,7 @@ func (mr *Resolver) syncPid(pid uint32) error {
 	}
 
 	for _, mnt := range mnts {
-		if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
+		if mr.mounts.Contains(uint32(mnt.ID)) {
 			continue
 		}
 
@@ -142,7 +143,7 @@ func (mr *Resolver) syncCache(pids ...uint32) error {
 }
 
 func (mr *Resolver) finalize(first *model.Mount) {
-	open_queue := make([]*model.Mount, 0, len(mr.mounts))
+	open_queue := make([]*model.Mount, 0, mr.mounts.OverLen())
 	open_queue = append(open_queue, first)
 
 	for len(open_queue) != 0 {
@@ -150,7 +151,7 @@ func (mr *Resolver) finalize(first *model.Mount) {
 		open_queue = rest
 
 		// pre-work
-		delete(mr.mounts, curr.MountID)
+		mr.mounts.Delete(curr.MountID)
 
 		// finalize children
 		for _, child := range mr.mounts {
@@ -175,7 +176,7 @@ func (mr *Resolver) finalize(first *model.Mount) {
 }
 
 func (mr *Resolver) delete(mount *model.Mount) {
-	if m, exists := mr.mounts[mount.MountID]; exists {
+	if m := mr.mounts.Get(mount.MountID); m != nil {
 		mr.redemption.Add(mount.MountID, m)
 	}
 }
