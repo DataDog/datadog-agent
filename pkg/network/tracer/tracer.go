@@ -374,6 +374,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	log.Tracef("GetActiveConnections clientID=%s", clientID)
 
 	t.ebpfTracer.FlushPending()
+	// Set a limit and do that periodically.
 	latestTime, err := t.getConnections(t.activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)

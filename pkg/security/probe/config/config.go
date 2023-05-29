@@ -137,9 +137,7 @@ type Config struct {
 
 // NewConfig returns a new Config object
 func NewConfig() (*Config, error) {
-	if !sysconfig.IsAdjusted(coreconfig.SystemProbe) {
-		sysconfig.Adjust(coreconfig.SystemProbe)
-	}
+	sysconfig.Adjust(coreconfig.SystemProbe)
 
 	setEnv()
 
