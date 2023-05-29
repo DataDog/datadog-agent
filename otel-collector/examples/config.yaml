@@ -1,5 +1,10 @@
 receivers:
   zipkin:
+  filelog:
+    include_file_path: true
+    poll_interval: 500ms
+    include:
+      - /var/log/**/*example*/*.log
 
 
 exporters:
@@ -16,6 +21,10 @@ extensions:
 service:
   extensions: trace
   pipelines:
+    logs:
+      receivers: [filelog]
+      exporters: [otlp]
+
     traces:
       receivers: [zipkin]
       exporters: [otlp]
