@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
@@ -371,8 +372,9 @@ func (t *Tracer) Stop() {
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
-	log.Tracef("GetActiveConnections clientID=%s", clientID)
-
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("GetActiveConnections clientID=%s", clientID)
+	}
 	t.ebpfTracer.FlushPending()
 	latestTime, active, err := t.getConnections(t.activeBuffer)
 	if err != nil {
@@ -559,7 +561,9 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 
 	t.state.RemoveConnections(toRemove)
 
-	log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("Removed %d connection entries in %s", len(toRemove), time.Now().Sub(now))
+	}
 }
 
 func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
