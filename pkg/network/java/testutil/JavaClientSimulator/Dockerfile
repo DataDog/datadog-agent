@@ -7,4 +7,3 @@ WORKDIR /app
 
 COPY target/JavaClientSimulator-1.0.jar app.jar
 ENTRYPOINT ["sh", "-c", "java -jar app.jar -c \"$JAVA_TEST_CLIENT\" -u \"$JAVA_TARGET_URL\""]
-#CMD ["sh","-jar","app.jar", "-c", "$JAVA_TEST_CLIENT", "-u", "$JAVA_TARGET_URL"]
