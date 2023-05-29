@@ -374,6 +374,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	log.Tracef("GetActiveConnections clientID=%s", clientID)
 
 	t.ebpfTracer.FlushPending()
+	// TODO: Add a limit here
 	latestTime, err := t.getConnections(t.activeBuffer)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
@@ -385,9 +386,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
 
-	ips := make([]util.Address, 0, len(delta.Conns)*2)
+	ips := make(map[util.Address]struct{}, len(delta.Conns))
 	for _, conn := range delta.Conns {
-		ips = append(ips, conn.Source, conn.Dest)
+		ips[conn.Source] = struct{}{}
+		ips[conn.Dest] = struct{}{}
 	}
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
