@@ -6,6 +6,8 @@ go 1.18
 // The plugin versions NEED to be aligned.
 // TODO: Implement hard check in CI
 
+replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
+
 require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230522140836-d5fef93f2760
 	github.com/DataDog/test-infra-definitions v0.0.0-20230526143644-ed785d3a20d5
