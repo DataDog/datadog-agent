@@ -1,19 +1,4 @@
-/*
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
- */
-
-package main // import "aws-observability.io/collector/cmd/awscollector"
+package main
 
 import (
 	"errors"
@@ -39,10 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/otel-collector/pkg/defaultcomponents"
 )
 
-// aws-otel-collector is built upon opentelemetry-collector.
-// in main() function, aws team has customized logging and configuration handling
-// logic and it only supports the selected components which have been verified by AWS
-// from opentelemetry-collector list
 func main() {
 	// get extra config
 
