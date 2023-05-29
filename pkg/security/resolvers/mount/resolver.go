@@ -58,6 +58,11 @@ type ResolverOpts struct {
 	UseProcFS bool
 }
 
+type deviceEntry struct {
+	device  uint32
+	mountId uint32
+}
+
 // Resolver represents a cache for mountpoints and the corresponding file systems
 type Resolver struct {
 	opts            ResolverOpts
@@ -65,7 +70,7 @@ type Resolver struct {
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
 	mounts          map[uint32]*model.Mount
-	devices         map[uint32]map[uint32]*model.Mount
+	devices         map[deviceEntry]*model.Mount
 	deleteQueue     []deleteRequest
 	minMountID      uint32
 	redemption      *simplelru.LRU[uint32, *model.Mount]
@@ -151,10 +156,7 @@ func (mr *Resolver) finalize(first *model.Mount) {
 
 		// pre-work
 		delete(mr.mounts, curr.MountID)
-		mounts, exists := mr.devices[curr.Device]
-		if exists {
-			delete(mounts, curr.MountID)
-		}
+		delete(mr.devices, deviceEntry{device: curr.Device, mountId: curr.MountID})
 
 		// finalize children
 		for _, child := range mr.mounts {
@@ -170,7 +172,11 @@ func (mr *Resolver) finalize(first *model.Mount) {
 			continue
 		}
 
-		for _, deviceMount := range mr.devices[curr.Device] {
+		for entry, deviceMount := range mr.devices {
+			if entry.device != curr.Device {
+				continue
+			}
+
 			if curr.Device == deviceMount.Device && curr.MountID != deviceMount.MountID {
 				open_queue = append(open_queue, deviceMount)
 			}
@@ -241,12 +247,7 @@ func (mr *Resolver) insert(m *model.Mount) {
 		m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
 	}
 
-	deviceMounts := mr.devices[m.Device]
-	if deviceMounts == nil {
-		deviceMounts = make(map[uint32]*model.Mount)
-		mr.devices[m.Device] = deviceMounts
-	}
-	deviceMounts[m.MountID] = m
+	mr.devices[deviceEntry{device: m.Device, mountId: m.MountID}] = m
 	mr.mounts[m.MountID] = m
 
 	if mr.minMountID > m.MountID {
@@ -588,7 +589,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		statsdClient:    statsdClient,
 		cgroupsResolver: cgroupsResolver,
 		lock:            sync.RWMutex{},
-		devices:         make(map[uint32]map[uint32]*model.Mount),
+		devices:         make(map[deviceEntry]*model.Mount),
 		mounts:          make(map[uint32]*model.Mount),
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
