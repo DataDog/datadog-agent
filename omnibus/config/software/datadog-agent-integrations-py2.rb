@@ -267,7 +267,7 @@ build do
     # there's no need to refer to `pip`, the interpreter will pick the right script.
     build_env = windows? ? win_build_env : nix_build_env
     specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
-    cwd = windws? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
+    cwd = windows? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
 
     command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd
     command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
