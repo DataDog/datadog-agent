@@ -129,7 +129,6 @@ func TestNTPError(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
 	mockSender.AssertNumberOfCalls(t, "Commit", 0)
 	assert.Error(t, err)
-
 }
 
 func TestNTPInvalid(t *testing.T) {
@@ -181,7 +180,6 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "Gauge", 1)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
-
 }
 
 func TestNTPResiliencyOK(t *testing.T) {

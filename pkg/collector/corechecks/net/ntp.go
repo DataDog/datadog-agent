@@ -184,7 +184,6 @@ func (c *NTPCheck) Run() error {
 	sender.Gauge("ntp.offset", clockOffset, "", nil)
 	ntpExpVar.Set(clockOffset)
 	tlmNtpOffset.Set(clockOffset)
-
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
 
 	c.lastCollection = time.Now()

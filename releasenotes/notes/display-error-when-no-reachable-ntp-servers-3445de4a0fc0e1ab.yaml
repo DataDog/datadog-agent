@@ -1,0 +1,5 @@
+
+fixes:
+  - |
+    Fixes Agent status displaying OK when all NTP servers are unreachable
+
