@@ -111,6 +111,7 @@ func (p *httpProtocol) PreStart(mgr *manager.Manager) (err error) {
 }
 
 func (p *httpProtocol) PostStart(mgr *manager.Manager) error {
+	// Setup map cleaner after manager start.
 	p.setupMapCleaner(mgr)
 
 	return nil
