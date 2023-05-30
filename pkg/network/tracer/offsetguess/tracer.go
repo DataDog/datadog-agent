@@ -267,6 +267,7 @@ func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 		return nil, err
 	}
 
+	var udpAddrs []*net.UDPAddr
 	for _, i := range ints {
 		if i.Flags&net.FlagLoopback != 0 {
 			continue
@@ -275,7 +276,6 @@ func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 		if err != nil {
 			continue
 		}
-		var udpAddrs []*net.UDPAddr
 		for _, a := range addrs {
 			if strings.HasPrefix(a.String(), "fe80::") && !strings.HasPrefix(i.Name, "dummy") {
 				// this address *may* have CIDR notation
@@ -747,7 +747,6 @@ func getUDP6Conn(flowi6 bool) (*net.UDPConn, error) {
 		return nil, nil
 	}
 	var conn *net.UDPConn
-	var err error
 	for _, a := range linkLocals {
 		conn, err = net.ListenUDP("udp6", a)
 		if err == nil {
