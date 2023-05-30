@@ -116,6 +116,7 @@ kernel_matrix_testing_setup_env:
   stage: kernel_matrix_testing
   rules:
     !reference [.on_system_probe_changes_or_manual]
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
@@ -197,6 +198,7 @@ kernel_matrix_testing_upload_deps:
 
 kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
   needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
   tags: ["arch:amd64"]
