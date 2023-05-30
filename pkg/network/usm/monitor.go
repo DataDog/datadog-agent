@@ -98,7 +98,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 
 	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
 	if err != nil {
-		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
+		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
 
 	enabledProtocols, excludedFunctions, err := initProtocols(c, mgr)
