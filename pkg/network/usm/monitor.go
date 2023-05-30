@@ -91,7 +91,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		// capture error and wrap it
 		if err != nil {
 			state = NotRunning
-			err = fmt.Errorf("could not instantiate USM monitor: %w", err)
+			err = fmt.Errorf("could not initialize USM: %w", err)
 			startupError = err
 		}
 	}()
