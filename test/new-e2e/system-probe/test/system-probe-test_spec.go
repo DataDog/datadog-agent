@@ -121,7 +121,7 @@ func mergeEnv(env ...map[string]interface{}) []string {
 
 func concatenateJsons(indir, outdir string) error {
 	testJsonFile := filepath.Join(outdir, "out.json")
-	matches, err := glob(indir, `*\.json`, func(path string) bool { return true })
+	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}
