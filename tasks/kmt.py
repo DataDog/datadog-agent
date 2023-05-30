@@ -166,7 +166,7 @@ def check_and_get_stack(stack, branch):
     if branch:
         return get_active_branch_name()
 
-    return stack
+    return f"{stack}-ddvm"
 
 
 def gen_ssh_key(ctx):
@@ -188,7 +188,7 @@ def init(ctx):
     ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_SHARED_DIR}")
     ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_KHEADERS_DIR}")
 
-    # fix libvirt conf
+    ## fix libvirt conf
     user = getpass.getuser()
     ctx.run(
         f"{sudo} sed --in-place 's/#security_driver = \"selinux\"/security_driver = \"none\"/' /etc/libvirt/qemu.conf"
@@ -228,14 +228,26 @@ def delete_domains(conn, stack):
         print(f"[+] VM {name} deleted")
 
 
+def getAllStackVolumesFn(conn, stack):
+    def getAllStackVolumes():
+        pools = get_resources_in_stack(stack, conn.listAllStoragePools)
+
+        volumes = list()
+        for pool in pools:
+            volumes += pool.listAllVolumes()
+
+        return volumes
+
+    return getAllStackVolumes
+
 def delete_volumes(conn, stack):
-    volumes = get_resources_in_stack(stack, conn.listAllVolumes)
+    volumes = get_resources_in_stack(stack, getAllStackVolumesFn(conn, stack))
     print(f"[*] {len(volumes)} storage volumes running in stack {stack}")
 
     for volume in volumes:
         name = volume.name()
-        volume.destroy()
-        volume.undefine()
+        volume.delete()
+#        volume.undefine()
         print(f"[+] Storage volume {name} deleted")
 
 
@@ -261,39 +273,40 @@ def delete_networks(conn, stack):
         print(f"[+] Network {name} deleted")
 
 
-@task
-def destroy_stack(ctx, stack=None, branch=False):
-    stack = check_and_get_stack(stack, branch)
-    if not stack_exists(stack):
-        raise Exit(f"stack {stack} not created")
-
+def destroy_stack_pulumi(ctx, stack):
     destroy_cmd = [
         "PULUMI_CONFIG_PASSPHRASE=1234",
-        "aws-vault exec sandbox-account-admin",
-        "--",
         "pulumi",
         "destroy",
-        f"-C ../test-infra-definitions/aws/scenarios/microVMs -s {stack}",
+        f"-C ../test-infra-definitions/scenarios/aws/microVMs -s {stack}",
     ]
 
     print("Run this ->\n")
     print(' '.join(destroy_cmd))
 
-##def destroy_stack(ctx, stack=None, branch=False):
-#    stack = check_and_get_stack(stack, branch)
-#    if not os.path.exists("f{KMT_STACKS_DIR}/{stack}"):
-#        raise Exit(f"stack {stack} not created")
-#
-#    print(f"[*] Destroying stack {stack}")
-#    # ctx.run(f"pulumi login {KMT_DIR}/stacks/{stack}/.pulumi")
-#    conn = libvirt.open("qemu:///system")
-#    delete_domains(conn, stack)
-#    delete_volumes(conn, stack)
-#    delete_pools(conn, stack)
-#    delete_networks(conn, stack)
-#    conn.close()
-#
-#    ctx.run("rm -r {KMT_STACKS_DIR}/{stack}")
+
+def destroy_stack_force(ctx, stack):
+    conn = libvirt.open("qemu:///system")
+    delete_domains(conn, stack)
+    delete_volumes(conn, stack)
+    delete_pools(conn, stack)
+    delete_networks(conn, stack)
+    conn.close()
+
+@task
+def destroy_stack(ctx, stack=None, branch=False, force=False):
+    stack = check_and_get_stack(stack, branch)
+    if not stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    print(f"[*] Destroying stack {stack}")
+    if force:
+        destroy_stack_force(ctx, stack)
+        ctx.run(f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions/scenarios/aws/microVMs -s {stack}")
+    else:
+        destroy_stack_pulumi(ctx, stack)
+
+    ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
 
 
 def get_active_branch_name():
@@ -647,23 +660,23 @@ def download_kernel_packages(ctx, revert=False):
 
     sudo = "sudo" if not is_root() else ""
     # download kernel packages
-    # res = ctx.run(
-    #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {KMT_PACKAGES_DIR}/{kernel_packages_tar}",
-    #    warn=True,
-    # )
-    # if not res.ok:
-    #    if revert:
-    #        revert_kernel_packages(ctx)
-    #    raise Exit("Failed to download kernel pacakges")
+    res = ctx.run(
+       f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {KMT_PACKAGES_DIR}/{kernel_packages_tar}",
+       warn=True,
+    )
+    if not res.ok:
+       if revert:
+           revert_kernel_packages(ctx)
+       raise Exit("Failed to download kernel pacakges")
 
-    # res = ctx.run(
-    #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {KMT_PACKAGES_DIR}/{kernel_packages_sum}",
-    #    warn=True,
-    # )
-    # if not res.ok:
-    #    if revert:
-    #        revert_kernel_packages(ctx)
-    #    raise Exit("Failed to download kernel pacakges checksum")
+    res = ctx.run(
+       f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {KMT_PACKAGES_DIR}/{kernel_packages_sum}",
+       warn=True,
+    )
+    if not res.ok:
+       if revert:
+           revert_kernel_packages(ctx)
+       raise Exit("Failed to download kernel pacakges checksum")
 
     # extract pacakges
     res = ctx.run(f"cd {KMT_PACKAGES_DIR} && tar xvf {kernel_packages_tar} | xargs -i tar xzf {{}}")
@@ -742,21 +755,21 @@ def download_rootfs(ctx, revert=False):
         Exit(f"Unsupported arch detected {arch}")
 
     # download rootfs
-    # res = ctx.run(
-    #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O {KMT_ROOTFS_DIR}/{rootfs}.sum"
-    # )
-    # if not res.ok:
-    #    if revert:
-    #        revert_rootfs(ctx)
-    #    raise Exit("Failed to download rootfs check sum file")
+    res = ctx.run(
+       f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O {KMT_ROOTFS_DIR}/{rootfs}.sum"
+    )
+    if not res.ok:
+       if revert:
+           revert_rootfs(ctx)
+       raise Exit("Failed to download rootfs check sum file")
 
-    # res = ctx.run(
-    #    f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.tar.gz -O {KMT_ROOTFS_DIR}/{rootfs}.tar.gz"
-    # )
-    # if not res.ok:
-    #    if revert:
-    #        revert_rootfs(ctx)
-    #    raise Exit("Failed to download rootfs")
+    res = ctx.run(
+       f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.tar.gz -O {KMT_ROOTFS_DIR}/{rootfs}.tar.gz"
+    )
+    if not res.ok:
+       if revert:
+           revert_rootfs(ctx)
+       raise Exit("Failed to download rootfs")
 
     # extract rootfs
     res = ctx.run(f"cd {KMT_ROOTFS_DIR} && tar xzvf {rootfs}.tar.gz")
@@ -857,7 +870,7 @@ def launch_stack(
         raise Exit("'test-infra-definitions' repository required to launc VMs")
 
     vm_config = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
-    micro_vm_scenario = "../test-infra-definitions/aws/scenarios/microVMs"
+    micro_vm_scenario = "../test-infra-definitions/scenarios/aws/microVMs"
 
     if ssh_key != "":
         ssh_key_file = find_ssh_key(ssh_key)
@@ -867,8 +880,6 @@ def launch_stack(
 
     pulumi_cmd = [
         "PULUMI_CONFIG_PASSPHRASE=1234",
-        "aws-vault exec sandbox-account-admin",
-        "--",
         "pulumi",
         "up",
         "-c scenario=aws/microvms",
@@ -883,6 +894,7 @@ def launch_stack(
         f"-c microvm:x86AmiID={x86_ami}",
         f"-c microvm:arm64AmiID={arm_ami}",
         f"-C {micro_vm_scenario}",
+        "-y",
         f"-s {stack}",
     ]
 
