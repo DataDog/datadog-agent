@@ -187,10 +187,12 @@ build do
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
       static_reqs_out_folder = "#{windows_safe_path(project_dir)}\\"
       static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
+      compiled_req_file_path = "#{windows_safe_path(install_dir)}\\#{agent_requirements_file}"
     else
       static_reqs_in_file = "#{project_dir}/datadog_checks_base/datadog_checks/base/data/#{agent_requirements_in}"
       static_reqs_out_folder = "#{project_dir}/"
       static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
+      compiled_req_file_path = "#{install_dir}/#{agent_requirements_file}"
     end
 
     # Remove any blacklisted requirements from the static-environment req file
@@ -254,7 +256,7 @@ build do
     if windows?
       command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
       command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{windows_safe_path(install_dir)}\\#{agent_requirements_file} #{static_reqs_out_file} " \
+      command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_req_file_path} #{static_reqs_out_file} " \
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => win_build_env
       # Pip-compiling seperately each lib that needs a custom build installation
       specific_build_env.each do |lib, env|
@@ -264,7 +266,7 @@ build do
     else
       command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
       command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{install_dir}/#{agent_requirements_file} #{static_reqs_out_file} " \
+      command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_req_file_path} #{static_reqs_out_file} " \
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => nix_build_env
       # Pip-compiling seperately each lib that needs a custom build installation
       specific_build_env.each do |lib, env|
@@ -282,14 +284,14 @@ build do
         command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
       end
       # Then we install the rest (already installed libraries will be ignored) with the main flags
-      command "#{python} -m pip install --no-deps --require-hashes -r #{windows_safe_path(install_dir)}\\#{agent_requirements_file}", :env => win_build_env
+      command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => win_build_env
     else
       # First we install the dependencies that need specific flags
       specific_build_env.each do |lib, env|
         command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
       end
       # Then we install the rest (already installed libraries will be ignored) with the main flags
-      command "#{pip} install --no-deps --require-hashes -r #{install_dir}/#{agent_requirements_file}", :env => nix_build_env
+      command "#{pip} install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => nix_build_env
     end
 
     #
