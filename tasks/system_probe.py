@@ -1550,9 +1550,10 @@ def test_microvms(
         f"--infra-env {infra_env}",
         f"--shutdown-period {shutdown_period}",
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
+        "--name kernel-matrix-testing-system"
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
     ctx.run(
-        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args}",
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
     )
