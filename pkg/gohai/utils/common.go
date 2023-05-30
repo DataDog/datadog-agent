@@ -103,11 +103,11 @@ func fieldIsValue(fieldTy reflect.StructField) (reflect.Method, bool) {
 // Fields which are not exported, don't have a json tag or are not of type Value[T] for a T which can
 // be rendered cause the function to return an error.
 //
-// The error list contain errors of fields which failed to be collected, fields which are not
+// The string list contain errors of fields which failed to be collected. Fields which are not
 // collected on the platform are ignored.
 //
 // If the error is non-nil, the first two parameters are unspecified.
-func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
+func AsJSON[T any](info *T, useDefault bool) (interface{}, []string, error) {
 	reflVal := reflect.ValueOf(info).Elem()
 	reflType := reflect.TypeOf(info).Elem()
 
@@ -117,7 +117,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 	}
 
 	values := make(map[string]interface{})
-	warns := []error{}
+	warns := []string{}
 
 	for i := 0; i < reflVal.NumField(); i++ {
 		fieldTy := reflType.Field(i)
@@ -150,7 +150,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 			// ErrNotCollectable means that the field is not implemented on the current platform
 			// ignore these errors
 			if !errors.Is(err, ErrNotCollectable) {
-				warns = append(warns, err)
+				warns = append(warns, err.Error())
 			}
 
 			// if the field is an error and we don't want to print the default value, continue
