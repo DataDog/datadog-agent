@@ -114,7 +114,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	}
 
 	if err := mgr.Init(); err != nil {
-		return nil, fmt.Errorf("error initializing http ebpf program: %w", err)
+		return nil, fmt.Errorf("error initializing ebpf program: %w", err)
 	}
 
 	if c.EnableHTTP2Monitoring {
