@@ -10,7 +10,7 @@ import (
 
 // Value represents either an error or an actual value of type T.
 //
-// The default value of the type is the default value of T (no error).
+// The default value of the type is an error saying that the value was not initialized.
 type Value[T any] struct {
 	value       T
 	err         error
@@ -47,7 +47,7 @@ func NewErrorValue[T any](err error) Value[T] {
 	}
 }
 
-// Value returns the value and error stored in the Value[T].
+// Value returns the value and the error stored in the Value[T].
 //
 // If the Value[T] represents an error, it returns the default value of type T
 // and a non-nil error, otherwise the stored value of type T and a nil error.

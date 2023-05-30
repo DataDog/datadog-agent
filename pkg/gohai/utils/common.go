@@ -18,7 +18,8 @@ var ErrNotCollectable = fmt.Errorf("cannot be collected on %s %s", runtime.GOOS,
 
 // fieldIsValue returns whether the field has type Value[T] for some T.
 //
-// # It actually checks whether the type has a function Value with correct number and types of argument and output
+// It actually checks whether the type has a function Value with correct number and
+// types of argument and output.
 //
 // Since we don't know the specific T, we can't case to an interface, and reflect doesn't have any way to check
 // a generic type as long as https://github.com/golang/go/issues/54393 is not implemented
@@ -56,7 +57,7 @@ func fieldIsExportable(fieldTy reflect.StructField) (string, string, bool) {
 	// check that the T of Value[T] can be rendered
 	valueMethod, _ := reflect.PtrTo(fieldTy.Type).MethodByName("Value")
 	value := reflect.Zero(valueMethod.Type.Out(0))
-	_, supported := renderValue(value, "")
+	_, supported := reflectValueToString(value, "")
 	if !supported {
 		return "", "", false
 	}
@@ -73,11 +74,11 @@ func fieldIsExportable(fieldTy reflect.StructField) (string, string, bool) {
 	return fieldName, suffix, true
 }
 
-// renderValue converts the given value to a string, and return a boolean indicating
+// reflectValueToString converts the given value to a string, and return a boolean indicating
 // whether it succeeded
 //
 // Supported types are int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, string
-func renderValue(value reflect.Value, suffix string) (string, bool) {
+func reflectValueToString(value reflect.Value, suffix string) (string, bool) {
 	var rendered string
 	switch value.Kind() {
 	// case reflect.Bool:
@@ -132,10 +133,13 @@ func renderValue(value reflect.Value, suffix string) (string, bool) {
 // If useDefault is true, fields which failed to be collected will be included in the marshal-able object
 // as their default value, otherwise they are ignored.
 //
-// If the error is non-nil, the first two parameters are unspecified.
-//
 // Fields which are not exported, don't have a json tag or are not of type Value[T] for a T which can
 // be rendered cause the function to return an error.
+//
+// The error list contain errors of fields which failed to be collected, fields which are not
+// collected on the platform are ignored.
+//
+// If the error is non-nil, the first two parameters are unspecified.
 func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 	reflVal := reflect.ValueOf(info).Elem()
 	reflType := reflect.TypeOf(info).Elem()
@@ -163,6 +167,9 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 		if ret[1].Interface() != nil {
 			err := ret[1].Interface().(error)
 
+			// we want errors for fields which failed to collect
+			// ErrNotCollectable means that the field is not implemented on the current platform
+			// ignore these errors
 			if !errors.Is(err, ErrNotCollectable) {
 				warns = append(warns, err)
 			}
@@ -175,7 +182,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 			retValue = reflect.Zero(retValue.Type())
 		}
 
-		renderedValue, ok := renderValue(retValue, suffix)
+		renderedValue, ok := reflectValueToString(retValue, suffix)
 		if !ok {
 			return nil, nil, fmt.Errorf("%s: %w", field.Name, ErrNotExportable)
 		}
