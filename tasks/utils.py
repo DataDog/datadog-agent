@@ -391,6 +391,7 @@ def get_version(
             version = ""
     # If we didn't load the cache
     if not version:
+        raise Exception("Version not cached correctly >:(")
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
             ctx, git_sha_length, prefix, major_version_hint=major_version
