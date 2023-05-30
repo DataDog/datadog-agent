@@ -148,6 +148,8 @@ func concatenateJsons(indir, outdir string) error {
 }
 
 func testPass() error {
+	var testError error
+
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
 		return true
 	})
@@ -181,14 +183,15 @@ func testPass() error {
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("cmd run %s: %s", file, err)
+			testError = fmt.Errorf("cmd run %s: %s", file, err)
 		}
 	}
 
 	if err := concatenateJsons(jsonPath, jsonOutPath); err != nil {
 		return fmt.Errorf("concat json: %s", err)
 	}
-	return nil
+
+	return testError
 }
 
 func fixAssetPermissions() error {
