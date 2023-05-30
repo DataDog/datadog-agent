@@ -44,7 +44,6 @@ func (c *fakev1EcsClient) GetTasks(ctx context.Context) ([]v1.Task, error) {
 	return c.mockGetTasks(ctx)
 }
 
-// TODO: can just delete?
 func (c *fakev1EcsClient) GetInstance(ctx context.Context) (*v1.Instance, error) {
 	return nil, errors.New("unimplemented")
 }
