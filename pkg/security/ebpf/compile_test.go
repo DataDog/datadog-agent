@@ -13,15 +13,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 )
 
 func TestLoaderCompile(t *testing.T) {
-	_, err := sysconfig.New("")
-	require.NoError(t, err)
-	cfg, err := config.NewConfig()
-	require.NoError(t, err)
-	out, err := getRuntimeCompiledPrograms(cfg, false, false, nil)
-	require.NoError(t, err)
-	_ = out.Close()
+	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg, err := config.NewConfig()
+		require.NoError(t, err)
+		out, err := getRuntimeCompiledPrograms(cfg, false, false, nil)
+		require.NoError(t, err)
+		_ = out.Close()
+	})
 }

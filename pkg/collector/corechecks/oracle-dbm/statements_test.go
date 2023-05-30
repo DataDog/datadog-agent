@@ -12,14 +12,12 @@ import (
 	"log"
 	"testing"
 
-	//"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUInt64Binding(t *testing.T) {
-	//aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 	initAndStartAgentDemultiplexer()
 
 	chk.dbmEnabled = true
@@ -69,7 +67,6 @@ func TestUInt64Binding(t *testing.T) {
 		assert.NoError(t, err, "query metrics with %s driver", driver)
 		assert.Equal(t, 1, n, "total query metrics captured with %s driver", driver)
 
-		//slice := []any{uint64(17202440635181618732)}
 		slice := []any{"17202440635181618732"}
 		var retValue int
 		err = chk.db.Get(&retValue, "SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (:1)", slice...)
@@ -99,5 +96,21 @@ func TestUInt64Binding(t *testing.T) {
 			}
 			assert.Equalf(t, retValue, 1, "IN uint64 with %s driver", driver)
 		}
+	}
+}
+
+func TestStatementMetrics(t *testing.T) {
+	initAndStartAgentDemultiplexer()
+	chk.config.QueryMetrics.IncludeDatadogQueries = true
+	var retValue int
+	for i := 1; i <= 2; i++ {
+		err := chk.db.Get(&retValue, "SELECT /* DD */ 1 FROM dual")
+		if err != nil {
+			log.Fatalf("row error %s", err)
+			return
+		}
+		chk.SampleSession()
+		_, err = chk.StatementMetrics()
+		assert.NoErrorf(t, err, "statement metrics check failed")
 	}
 }

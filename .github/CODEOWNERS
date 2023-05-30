@@ -116,10 +116,15 @@
 /cmd/agent/subcommands/workloadlist     @DataDog/container-integrations
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
 /cmd/agent/windows                      @DataDog/windows-agent
-/cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
-/cmd/agent/dist/conf.d/oracle-dbm.d     @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
+/cmd/agent/dist/conf.d/container.d/     @DataDog/container-integrations
+/cmd/agent/dist/conf.d/containerd.d/    @DataDog/container-integrations
+/cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
+/cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
+/cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-platform
+/cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/conf.yaml.default @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
+/cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/*.manifest                   @DataDog/agent-platform
 /cmd/agent/*.mc                         @DataDog/agent-platform
 /cmd/agent/*.rc                         @DataDog/agent-platform
@@ -294,6 +299,7 @@
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/ebpf-platform
 /pkg/util/winutil/                      @DataDog/windows-agent
+/pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/Networks
