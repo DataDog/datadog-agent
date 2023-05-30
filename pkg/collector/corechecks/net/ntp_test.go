@@ -14,7 +14,6 @@ import (
 
 	"github.com/beevik/ntp"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -123,20 +122,14 @@ func TestNTPError(t *testing.T) {
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
-	mockSender.On("ServiceCheck",
-		"ntp.in_sync",
-		metrics.ServiceCheckUnknown,
-		"",
-		[]string(nil),
-		mock.AnythingOfType("string")).Return().Times(1)
-
-	mockSender.On("Commit").Return().Times(1)
-	ntpCheck.Run()
+	err := ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
-	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
-	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
+	mockSender.AssertNumberOfCalls(t, "Commit", 0)
+	assert.Error(t, err)
+
 }
 
 func TestNTPInvalid(t *testing.T) {
@@ -151,20 +144,13 @@ func TestNTPInvalid(t *testing.T) {
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
 
-	mockSender.On("ServiceCheck",
-		"ntp.in_sync",
-		metrics.ServiceCheckUnknown,
-		"",
-		[]string(nil),
-		mock.AnythingOfType("string")).Return().Times(1)
-
-	mockSender.On("Commit").Return().Times(1)
-	ntpCheck.Run()
+	err := ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
-	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
-	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
+	mockSender.AssertNumberOfCalls(t, "Commit", 0)
+	assert.Error(t, err)
 }
 
 func TestNTPNegativeOffsetCritical(t *testing.T) {
@@ -195,6 +181,7 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "Gauge", 1)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+
 }
 
 func TestNTPResiliencyOK(t *testing.T) {
