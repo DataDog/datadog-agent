@@ -14,8 +14,7 @@ import (
 
 const SYSMETRICS_QUERY = `SELECT metric_name, value, name pdb_name 
   FROM %s s, v$containers c 
-  WHERE s.con_id = c.con_id(+)
-  ORDER BY begin_time DESC`
+  WHERE s.con_id = c.con_id(+)`
 
 type SysmetricsRowDB struct {
 	MetricName string         `db:"METRIC_NAME"`
@@ -74,14 +73,20 @@ func (c *Check) SysMetrics() error {
 		}
 	}
 
-	err = c.db.Select(&metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$sysmetric"))
+	seenInGlobalMetrics := make(map[string]bool)
+	err = c.db.Select(&metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
 	if err != nil {
 		return fmt.Errorf("failed to collect sysmetrics: %w", err)
 	}
 	for _, r := range metricRows {
 		if metric, ok := SYSMETRICS_COLS[r.MetricName]; ok {
 			if _, ok := seenInContainerMetrics[r.MetricName]; !ok {
-				sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), r.Value, "", appendPDBTag(c.tags, r.PdbName))
+				if _, ok := seenInGlobalMetrics[r.MetricName]; ok {
+					break
+				} else {
+					sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), r.Value, "", c.tags)
+					seenInGlobalMetrics[r.MetricName] = true
+				}
 			}
 		}
 	}
