@@ -150,6 +150,14 @@ func (w *Worker) ScheduleConnectionReset() {
 // callProcess will process a transaction and cancel it if we need to stop the
 // worker.
 func (w *Worker) callProcess(t transaction.Transaction) error {
+	requeue := func() {
+		select {
+		case w.RequeueChan <- t:
+		default:
+			w.log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
+		}
+	}
+
 	// poll for connection reset events first
 	select {
 	case <-w.resetConnectionChan:
@@ -171,6 +179,7 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	case <-w.stopChan:
 		// cancel current Transaction if we need to stop the worker
 		cancel()
+		requeue()
 		<-done // We still need to wait for the process func to return
 		return fmt.Errorf("Worker was requested to stop")
 	}
