@@ -445,6 +445,21 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 	return nil
 }
 
+// initProtocols takes the network configuration `c` and uses it to initialise
+// the enabled protocols' monitoring, and configures the ebpf-manager `mgr`
+// accordingly.
+//
+// For each enabled protocols, an protocol-specific instance of the Protocol
+// interface is initialised, and the required maps and tail calls routers are setup
+// in the manager.
+//
+// If a protocol is not enabled, its tail calls are instead added to the list of
+// excluded functions for them to be patched out by ebpf-manager on startup.
+//
+// It returns:
+// - a slice containing instances of the Protocol interface for each enabled protocol support
+// - a slice containing the functions to add to the list of excluded functions
+// - an error value, which is non-nil if an error occured while initialising a protocol
 func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, []string, error) {
 	enabledProtocols := make([]protocols.Protocol, 0)
 	excludedFunctions := make([]string, 0)
