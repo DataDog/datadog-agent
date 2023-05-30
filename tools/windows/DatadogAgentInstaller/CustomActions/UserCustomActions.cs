@@ -574,7 +574,8 @@ namespace Datadog.CustomActions
             }
 
             // Ensure that inheritance is enabled on all files/folders in the config directory
-            foreach (var filePath in Directory.EnumerateFileSystemEntries(_session.Property("APPLICATIONDATADIRECTORY"), "*.*", SearchOption.AllDirectories))
+            foreach (var filePath in Directory.EnumerateFileSystemEntries(_session.Property("APPLICATIONDATADIRECTORY"),
+                         "*.*", SearchOption.AllDirectories))
             {
                 FileSystemSecurity fileSystemSecurity =
                     _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
@@ -588,11 +589,12 @@ namespace Datadog.CustomActions
                 // enable inheritance
                 fileSystemSecurity.SetAccessRuleProtection(false, true);
                 // Remove explicit access rules added by the pre-7.47 installer that will now have inherited analogues
-                foreach (var sid in new SecurityIdentifier[]{
-                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                    ddagentusersid,
-                })
+                foreach (var sid in new SecurityIdentifier[]
+                         {
+                             new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                             new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                             ddagentusersid,
+                         })
                 {
                     if (fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
                             sid,
@@ -604,6 +606,7 @@ namespace Datadog.CustomActions
                         _session.Log($"{filePath} removing explicit access rule for {sid}");
                     }
                 }
+
                 // Use AccessRuleFactory instead of a FileSystemAccessRule constructor because they all
                 // automatically add FileSystemRights.Synchronize which was not included by the pre-7.47 installer.
                 if (fileSystemSecurity.RemoveAccessRule((FileSystemAccessRule)fileSystemSecurity.AccessRuleFactory(
@@ -616,23 +619,13 @@ namespace Datadog.CustomActions
                 {
                     _session.Log($"{filePath} removing explicit access rule for Users");
                 }
+
                 _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
                 _session.Log($"{filePath} successfully enabled inheritance");
             }
 
             // add ddagentuser FullControl to select places
-            var files = new List<string>
-            {
-                // agent needs to be able to write logs/
-                // agent GUI needs to be able to edit config
-                // agent needs to be able to write to run/
-                // agent needs to be able to create auth_token
-                _session.Property("APPLICATIONDATADIRECTORY"),
-                // allow agent to write __pycache__
-                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
-                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
-            };
-            foreach (var filePath in files)
+            foreach (var filePath in pathsWithAgentAccess())
             {
                 if (!_fileSystemServices.Exists(filePath))
                 {
@@ -779,6 +772,113 @@ namespace Datadog.CustomActions
         public static ActionResult ConfigureUser(Session session)
         {
             return new UserCustomActions(new SessionWrapper(session)).ConfigureUser();
+        }
+
+        private List<string> pathsWithAgentAccess()
+        {
+            return new List<string>
+            {
+                // agent needs to be able to write logs/
+                // agent GUI needs to be able to edit config
+                // agent needs to be able to write to run/
+                // agent needs to be able to create auth_token
+                _session.Property("APPLICATIONDATADIRECTORY"),
+                // allow agent to write __pycache__
+                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded2"),
+                Path.Combine(_session.Property("PROJECTLOCATION"), "embedded3"),
+            };
+        }
+
+        /// <summary>
+        /// Remove an explicit access ACE for the ddagentuser for @sid from @filePath
+        /// </summary>
+        /// <param name="sid"></param>
+        /// <param name="filePath"></param>
+        private void removeAgentAccess(SecurityIdentifier sid, string filePath)
+        {
+            var fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+            _session.Log(
+                $"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+
+            if (!fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                    sid,
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow)))
+            {
+                return;
+            }
+
+            _session.Log($"{filePath} removing explicit access rule for {sid}");
+            _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
+            fileSystemSecurity =
+                _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+            _session.Log(
+                $"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+        }
+
+        public ActionResult UninstallUser()
+        {
+            try
+            {
+                // lookup sid for ddagentuser
+                var ddAgentUserName = $"{_session.Property("DDAGENTUSER_NAME")}";
+                var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
+                    out _,
+                    out _,
+                    out var securityIdentifier,
+                    out _);
+                if (!userFound)
+                {
+                    _session.Log($"Could not find user {ddAgentUserName}");
+                    return ActionResult.Success;
+                }
+
+                // Remove explicit ACE for ddagentuser
+                {
+                    using var actionRecord = new Record(
+                        "UninstallUser",
+                        "Removing file access",
+                        ""
+                    );
+                    _session.Message(InstallMessage.ActionStart, actionRecord);
+                }
+                _session.Log($"Removing file access for ${ddAgentUserName} ({securityIdentifier})");
+                foreach (var filePath in pathsWithAgentAccess())
+                {
+                    FileSystemSecurity fileSystemSecurity;
+                    try
+                    {
+                        if (_fileSystemServices.Exists(filePath))
+                        {
+                            removeAgentAccess(securityIdentifier, filePath);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
+                    }
+                }
+
+                // We intentionally do NOT delete the ddagentuser account.
+                // For domain accounts, the account may still be in use elsewhere and we can't delete accounts from domain clients.
+                // For local accounts, sometimes even after uninstall the ddagentuser user profile is still loaded
+                // and Windows does not provide a way to remove it without a reboot.
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to uninstall user: {e}");
+                return ActionResult.Failure;
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult UninstallUser(Session session)
+        {
+            return new UserCustomActions(new SessionWrapper(session)).UninstallUser();
         }
     }
 }
