@@ -52,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -305,6 +306,7 @@ type testModule struct {
 	cmdWrapper    cmdWrapper
 	statsdClient  *StatsdClient
 	proFile       *os.File
+	ruleEngine    *rulesmodule.RuleEngine
 }
 
 var testMod *testModule
@@ -942,10 +944,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
 		testMod.cws = cws
+		testMod.ruleEngine = cws.GetRuleEngine()
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.cws.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
+		testMod.ruleEngine.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
 			for _, ruleSet := range es.RuleSets {
@@ -1002,7 +1005,7 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 
 func (tm *testModule) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {}
 
-func (tm *testModule) SendEvent(rule *rules.Rule, event module.Event, extTagsCb func() []string, service string) {
+func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
@@ -1027,7 +1030,7 @@ func (tm *testModule) reloadConfiguration() error {
 		return err
 	}
 
-	if err := tm.cws.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
+	if err := tm.ruleEngine.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
 		return fmt.Errorf("failed to reload test module: %w", err)
 	}
 
@@ -1038,7 +1041,7 @@ func (tm *testModule) Root() string {
 	return tm.st.root
 }
 
-func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
+func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	tm.eventHandlers.RLock()
 	callback := tm.eventHandlers.onRuleMatch
 	tm.eventHandlers.RUnlock()
@@ -1046,6 +1049,8 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 	if callback != nil {
 		callback(event.(*model.Event), rule)
 	}
+
+	return true
 }
 
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {

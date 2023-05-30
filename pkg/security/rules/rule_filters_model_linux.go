@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package module
+package rules
 
 import (
 	"runtime"

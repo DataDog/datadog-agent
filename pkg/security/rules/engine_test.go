@@ -5,17 +5,18 @@
 
 //go:build linux
 
-package module
+package rules
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
-func TestCWSConsumer_gatherPolicyProviders(t *testing.T) {
+func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 	type fields struct {
 		config *config.RuntimeSecurityConfig
 	}
@@ -41,11 +42,11 @@ func TestCWSConsumer_gatherPolicyProviders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &CWSConsumer{
+			e := &RuleEngine{
 				config: tt.fields.config,
 			}
 
-			got := c.gatherPolicyProviders()
+			got := e.gatherPolicyProviders()
 
 			assert.Equal(t, tt.wantLen, len(got))
 			assert.Equal(t, tt.wantType, got[0].Type())
