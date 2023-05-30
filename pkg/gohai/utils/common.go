@@ -13,72 +13,17 @@ import (
 
 var ErrNoFieldCollected = errors.New("no field was collected")
 var ErrArgNotStruct = errors.New("argument is not a struct")
-var ErrNotExportable = errors.New("cannot be exported")
 var ErrNotCollectable = fmt.Errorf("cannot be collected on %s %s", runtime.GOOS, runtime.GOARCH)
-
-// fieldIsValue returns whether the field has type Value[T] for some T.
-//
-// It actually checks whether the type has a function Value with correct number and
-// types of argument and output.
-//
-// Since we don't know the specific T, we can't case to an interface, and reflect doesn't have any way to check
-// a generic type as long as https://github.com/golang/go/issues/54393 is not implemented
-func fieldIsValue(fieldTy reflect.StructField) bool {
-	// check that a pointer to the field has a Value method
-	valueMethod, ok := reflect.PtrTo(fieldTy.Type).MethodByName("Value")
-	if !ok || valueMethod.Type.NumIn() != 1 || valueMethod.Type.NumOut() != 2 {
-		return false
-	}
-
-	// check that the second return value is an error
-	reflErrorInterface := reflect.TypeOf((*error)(nil)).Elem()
-	secondRetType := valueMethod.Type.Out(1)
-	return secondRetType.Implements(reflErrorInterface)
-}
-
-// fieldIsExportable checks if a field can be exported by AsJSON.
-//
-// A field can be exported if it has type Value, its inner type can be rendered,
-// it is exported by the struct and has a json tag.
-// The function returns the json tag, the suffix tag and whether the field can be exported.
-//
-// The returned strings are only valid if the field is exportable.
-func fieldIsExportable(fieldTy reflect.StructField) (string, string, bool) {
-	// check if field has type Value
-	if !fieldIsValue(fieldTy) {
-		return "", "", false
-	}
-
-	// check if field is exported
-	if !fieldTy.IsExported() {
-		return "", "", false
-	}
-
-	// check that the T of Value[T] can be rendered
-	valueMethod, _ := reflect.PtrTo(fieldTy.Type).MethodByName("Value")
-	value := reflect.Zero(valueMethod.Type.Out(0))
-	_, supported := reflectValueToString(value, "")
-	if !supported {
-		return "", "", false
-	}
-
-	// check if field has a json tag
-	fieldName, ok := fieldTy.Tag.Lookup("json")
-	if !ok {
-		return "", "", false
-	}
-
-	// Get returns an empty string if the key does not exists
-	suffix := fieldTy.Tag.Get("suffix")
-
-	return fieldName, suffix, true
-}
+var ErrNotExported = errors.New("field not exported by the struct")
+var ErrNotRenderable = errors.New("field inner type cannot be rendered")
+var ErrNoValueMethod = errors.New("field doesn't have the expected Value method")
+var ErrNoJSONTag = errors.New("field doesn't have a json tag")
 
 // reflectValueToString converts the given value to a string, and return a boolean indicating
 // whether it succeeded
 //
 // Supported types are int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, string
-func reflectValueToString(value reflect.Value, suffix string) (string, bool) {
+func reflectValueToString(value reflect.Value) (string, bool) {
 	var rendered string
 	switch value.Kind() {
 	// case reflect.Bool:
@@ -124,7 +69,29 @@ func reflectValueToString(value reflect.Value, suffix string) (string, bool) {
 		return "", false
 	}
 
-	return fmt.Sprintf("%s%s", rendered, suffix), true
+	return rendered, true
+}
+
+// fieldIsValue returns whether the field has a Value function with the correct arguments and return types.
+//
+// Since we don't know the specific T, we can't cast to an interface, and reflect doesn't have any way to check
+// a generic type as long as https://github.com/golang/go/issues/54393 is not implemented.
+func fieldIsValue(fieldTy reflect.StructField) (reflect.Method, bool) {
+	// check that a pointer to the field type has a Value method
+	// (Value is a method on *Value[T])
+	valueMethod, ok := reflect.PtrTo(fieldTy.Type).MethodByName("Value")
+	if !ok || valueMethod.Type.NumIn() != 1 || valueMethod.Type.NumOut() != 2 {
+		return reflect.Method{}, false
+	}
+
+	// check that the second return value is an error
+	reflErrorInterface := reflect.TypeOf((*error)(nil)).Elem()
+	secondRetType := valueMethod.Type.Out(1)
+	if !secondRetType.Implements(reflErrorInterface) {
+		return reflect.Method{}, false
+	}
+
+	return valueMethod, true
 }
 
 // AsJSON takes an Info struct and returns a marshal-able object representing the fields of the struct,
@@ -153,18 +120,30 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 	warns := []error{}
 
 	for i := 0; i < reflVal.NumField(); i++ {
-		field := reflType.Field(i)
-		fieldName, suffix, isExportable := fieldIsExportable(field)
-		if !isExportable {
-			return nil, nil, fmt.Errorf("%s: %w", field.Name, ErrNotExportable)
+		fieldTy := reflType.Field(i)
+		fieldName := fieldTy.Name
+
+		// check if field is exported
+		if !fieldTy.IsExported() {
+			return nil, nil, fmt.Errorf("%s: %w", fieldName, ErrNotExported)
 		}
 
-		// Value is a method on *Value[T] so we get a pointer to the value
-		fieldPtr := reflVal.Field(i).Addr()
-		valueMethod, _ := fieldPtr.Type().MethodByName("Value")
-		ret := valueMethod.Func.Call([]reflect.Value{fieldPtr})
+		// check if field has a json tag
+		jsonName, ok := fieldTy.Tag.Lookup("json")
+		if !ok {
+			return nil, nil, fmt.Errorf("%s: %w", fieldName, ErrNoJSONTag)
+		}
+
+		// check that the field has the expected Value method
+		valueMethod, ok := fieldIsValue(fieldTy)
+		if !ok {
+			return nil, nil, fmt.Errorf("%s: %w", fieldName, ErrNoValueMethod)
+		}
+
+		ret := valueMethod.Func.Call([]reflect.Value{reflVal.Field(i).Addr()})
 		retValue := ret[0]
 		if ret[1].Interface() != nil {
+			// get the error returned by Value
 			err := ret[1].Interface().(error)
 
 			// we want errors for fields which failed to collect
@@ -174,6 +153,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 				warns = append(warns, err)
 			}
 
+			// if the field is an error and we don't want to print the default value, continue
 			if !useDefault {
 				continue
 			}
@@ -182,14 +162,19 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []error, error) {
 			retValue = reflect.Zero(retValue.Type())
 		}
 
-		renderedValue, ok := reflectValueToString(retValue, suffix)
+		// try to render the value
+		renderedValue, ok := reflectValueToString(retValue)
 		if !ok {
-			return nil, nil, fmt.Errorf("%s: %w", field.Name, ErrNotExportable)
+			return nil, nil, fmt.Errorf("%s: %w", fieldName, ErrNotRenderable)
 		}
 
-		values[fieldName] = renderedValue
+		// Get returns an empty string if the key does not exists so no need for particular error handling
+		unit := fieldTy.Tag.Get("unit")
+
+		values[jsonName] = fmt.Sprintf("%s%s", renderedValue, unit)
 	}
 
+	// return an error if no field was successfully collected
 	if len(values) == 0 {
 		return nil, warns, ErrNoFieldCollected
 	}

@@ -127,6 +127,8 @@ func TestAsJsonFieldError(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotExportable)
 
 	infoNotExported := &struct {
+		// use a json tag to make sure the error is due to the field not being exported
+		// but govet doesn't like that
 		notExported Value[int] `json:"not_exported"` //nolint:govet
 	}{
 		notExported: NewValue(3),
@@ -209,11 +211,11 @@ func TestAsJSONSuffix(t *testing.T) {
 	}
 	info := &struct {
 		FieldOne   Value[int] `json:"field_one"`
-		FieldTwo   Value[int] `json:"field_two" suffix:""`
-		FieldThree Value[int] `json:"field_three" suffix:"kb"`
+		FieldTwo   Value[int] `json:"field_two" unit:""`
+		FieldThree Value[int] `json:"field_three" unit:"kb"`
 		FieldFour  Value[int] `json:"field_four"`
-		FieldFive  Value[int] `json:"field_five" suffix:""`
-		FieldSix   Value[int] `json:"field_six" suffix:"M"`
+		FieldFive  Value[int] `json:"field_five" unit:""`
+		FieldSix   Value[int] `json:"field_six" unit:"M"`
 	}{
 		FieldOne:   NewValue(1),
 		FieldTwo:   NewValue(2),
