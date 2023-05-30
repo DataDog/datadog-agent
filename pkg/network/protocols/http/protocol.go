@@ -79,6 +79,11 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+// ConfigureOptions add the necessary options for the http monitoring to work,
+// to be used by the manager. These are:
+// - Set the `http_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
+//
+// We also configure the http event stream with the manager and its options.
 func (p *httpProtocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[httpInFlightMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
