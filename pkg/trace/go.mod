@@ -83,6 +83,7 @@ require (
 replace (
 	github.com/DataDog/datadog-agent => ../../
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../obfuscate
+	github.com/DataDog/datadog-agent/pkg/proto => ../proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
