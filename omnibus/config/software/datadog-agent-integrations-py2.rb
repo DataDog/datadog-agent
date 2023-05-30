@@ -265,33 +265,24 @@ build do
 
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
-    if windows?
-      command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\datadog_checks_base"
-      command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_req_file_path} #{static_reqs_out_file} " \
-        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => win_build_env
-      # Pip-compiling seperately each lib that needs a custom build installation
-      win_specific_build_env.each do |lib, env|
-        command "#{python} -m piptools compile --generate-hashes --output-file  #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
-        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
-      end
-    else
-      command "#{pip} wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/datadog_checks_base"
-      command "#{pip} install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-      command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_req_file_path} #{static_reqs_out_file} " \
-        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => nix_build_env
-      # Pip-compiling seperately each lib that needs a custom build installation
-      nix_specific_build_env.each do |lib, env|
-        command "#{python} -m piptools compile --generate-hashes --output-file #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
-        "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
-      end
+    build_env = windows? ? win_build_env : nix_build_env
+    specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
+    cwd = windws? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
+
+    command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd
+    command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
+    command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_req_file_path} #{static_reqs_out_file} " \
+      "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => build_env
+    # Pip-compiling seperately each lib that needs a custom build installation
+    specific_build_env.each do |lib, env|
+      command "#{python} -m piptools compile --generate-hashes --output-file #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
+      "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
     end
 
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
-    specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
-    build_env = windows? ? win_build_env : nix_build_env
+
     # First we install the dependencies that need specific flags
     specific_build_env.each do |lib, env|
       command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
