@@ -15,7 +15,7 @@ var ErrNoFieldCollected = errors.New("no field was collected")
 var ErrArgNotStruct = errors.New("argument is not a struct")
 var ErrNotCollectable = fmt.Errorf("cannot be collected on %s %s", runtime.GOOS, runtime.GOARCH)
 var ErrNotExported = errors.New("field not exported by the struct")
-var ErrNotRenderable = errors.New("field inner type cannot be rendered")
+var ErrCannotRender = errors.New("field inner type cannot be rendered")
 var ErrNoValueMethod = errors.New("field doesn't have the expected Value method")
 var ErrNoJSONTag = errors.New("field doesn't have a json tag")
 
@@ -165,7 +165,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []string, error) {
 		// try to render the value
 		renderedValue, ok := reflectValueToString(retValue)
 		if !ok {
-			return nil, nil, fmt.Errorf("%s: %w", fieldName, ErrNotRenderable)
+			return nil, nil, fmt.Errorf("%s: %w", fieldName, ErrCannotRender)
 		}
 
 		// Get returns an empty string if the key does not exists so no need for particular error handling

@@ -116,7 +116,7 @@ func TestAsJsonFieldError(t *testing.T) {
 	}
 
 	_, _, err := AsJSON(infoNotValue, false)
-	require.ErrorIs(t, err, ErrNotExportable)
+	require.ErrorIs(t, err, ErrNoValueMethod)
 
 	infoNoTag := &struct {
 		NoTag Value[int]
@@ -124,7 +124,7 @@ func TestAsJsonFieldError(t *testing.T) {
 		NoTag: NewValue(2),
 	}
 	_, _, err = AsJSON(infoNoTag, false)
-	require.ErrorIs(t, err, ErrNotExportable)
+	require.ErrorIs(t, err, ErrNoJSONTag)
 
 	infoNotExported := &struct {
 		// use a json tag to make sure the error is due to the field not being exported
@@ -134,7 +134,7 @@ func TestAsJsonFieldError(t *testing.T) {
 		notExported: NewValue(3),
 	}
 	_, _, err = AsJSON(infoNotExported, false)
-	require.ErrorIs(t, err, ErrNotExportable)
+	require.ErrorIs(t, err, ErrNotExported)
 
 	infoValueStruct := &struct {
 		ValueStruct Value[struct{}] `json:"value_struct"`
@@ -142,7 +142,7 @@ func TestAsJsonFieldError(t *testing.T) {
 		ValueStruct: NewValue(struct{}{}),
 	}
 	_, _, err = AsJSON(infoValueStruct, false)
-	require.ErrorIs(t, err, ErrNotExportable)
+	require.ErrorIs(t, err, ErrCannotRender)
 
 	infoValuePtr := &struct {
 		ValuePtr Value[*int] `json:"value_ptr"`
@@ -150,15 +150,15 @@ func TestAsJsonFieldError(t *testing.T) {
 		ValuePtr: NewValue[*int](nil),
 	}
 	_, _, err = AsJSON(infoValuePtr, false)
-	require.ErrorIs(t, err, ErrNotExportable)
+	require.ErrorIs(t, err, ErrCannotRender)
 }
 
 func TestAsJsonWarns(t *testing.T) {
-	errs := []error{
-		errors.New("this is the first error"),
-		errors.New("this is the second error"),
-		errors.New("this is the third error"),
-		errors.New("this is the fourth error"),
+	errs := []string{
+		"this is the first error",
+		"this is the second error",
+		"this is the third error",
+		"this is the fourth error",
 	}
 	info := &struct {
 		FieldOne   Value[int] `json:"field_one"`
@@ -167,10 +167,10 @@ func TestAsJsonWarns(t *testing.T) {
 		FieldFour  Value[int] `json:"field_four"`
 		FieldFive  Value[int] `json:"field_five"`
 	}{
-		FieldOne:   NewErrorValue[int](errs[0]),
-		FieldTwo:   NewErrorValue[int](errs[1]),
-		FieldThree: NewErrorValue[int](errs[2]),
-		FieldFour:  NewErrorValue[int](errs[3]),
+		FieldOne:   NewErrorValue[int](errors.New(errs[0])),
+		FieldTwo:   NewErrorValue[int](errors.New(errs[1])),
+		FieldThree: NewErrorValue[int](errors.New(errs[2])),
+		FieldFour:  NewErrorValue[int](errors.New(errs[3])),
 		FieldFive:  NewValue(1),
 	}
 
@@ -204,10 +204,10 @@ func TestAsJsonWarns(t *testing.T) {
 }
 
 func TestAsJSONSuffix(t *testing.T) {
-	errs := []error{
-		errors.New("this is the first error"),
-		errors.New("this is the second error"),
-		errors.New("this is the third error"),
+	errs := []string{
+		"this is the first error",
+		"this is the second error",
+		"this is the third error",
 	}
 	info := &struct {
 		FieldOne   Value[int] `json:"field_one"`
@@ -220,13 +220,14 @@ func TestAsJSONSuffix(t *testing.T) {
 		FieldOne:   NewValue(1),
 		FieldTwo:   NewValue(2),
 		FieldThree: NewValue(3),
-		FieldFour:  NewErrorValue[int](errs[0]),
-		FieldFive:  NewErrorValue[int](errs[1]),
-		FieldSix:   NewErrorValue[int](errs[2]),
+		FieldFour:  NewErrorValue[int](errors.New(errs[0])),
+		FieldFive:  NewErrorValue[int](errors.New(errs[1])),
+		FieldSix:   NewErrorValue[int](errors.New(errs[2])),
 	}
 
 	marshallable, warns, err := AsJSON(info, false)
 	require.NoError(t, err)
+
 	require.ElementsMatch(t, errs, warns)
 
 	marshalled, err := json.Marshal(marshallable)
