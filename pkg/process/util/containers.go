@@ -207,6 +207,13 @@ func computeContainerStats(hostCPUCount float64, inStats *metrics.ContainerStats
 		outStats.MemCache = uint64(statValue(inStats.Memory.Cache, 0))
 		outStats.MemRss = uint64(statValue(inStats.Memory.RSS, 0))
 		outStats.MemUsage = uint64(statValue(inStats.Memory.UsageTotal, 0))
+
+		// On Linux OOM Killer (memory limit) uses ~WorkingSet, on Windows it's CommitBytes
+		if inStats.Memory.WorkingSet != nil {
+			outStats.MemAccounted = uint64(*inStats.Memory.WorkingSet)
+		} else if inStats.Memory.CommitBytes != nil {
+			outStats.MemAccounted = uint64(*inStats.Memory.CommitBytes)
+		}
 	}
 
 	if inStats.PID != nil {

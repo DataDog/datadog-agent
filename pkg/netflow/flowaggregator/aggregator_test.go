@@ -41,7 +41,7 @@ import (
 
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
-
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -84,6 +84,7 @@ func TestAggregator(t *testing.T) {
 	// language=json
 	event := []byte(`
 {
+  "flush_timestamp": 1550505606000,
   "type": "netflow9",
   "sampling_rate": 0,
   "direction": "ingress",
@@ -159,9 +160,8 @@ func TestAggregator(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	aggregator.timeNowFunction = func() time.Time {
-		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
-		return t
+	aggregator.TimeNowFunction = func() time.Time {
+		return flushTime
 	}
 	inChan := aggregator.GetFlowInChan()
 
@@ -209,7 +209,8 @@ stopLoop:
 }
 
 func TestAggregator_withMockPayload(t *testing.T) {
-	port := uint16(52056)
+	port := testutil.GetFreePort()
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -258,9 +259,8 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	aggregator.timeNowFunction = func() time.Time {
-		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
-		return t
+	aggregator.TimeNowFunction = func() time.Time {
+		return flushTime
 	}
 
 	stoppedFlushLoop := make(chan struct{})
@@ -300,8 +300,8 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.decoder.messages", 1, "", []string{"collector_type:netflow5", "worker:0"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.processed", 1, "", []string{"exporter_ip:127.0.0.1", "version:5", "flow_protocol:netflow"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flowsets", 2, "", []string{"exporter_ip:127.0.0.1", "type:data_flow_set", "version:5", "flow_protocol:netflow"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.bytes", 120, "", []string{"listener_port:52056", "exporter_ip:127.0.0.1", "collector_type:netflow5"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.packets", 1, "", []string{"listener_port:52056", "exporter_ip:127.0.0.1", "collector_type:netflow5"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.bytes", 120, "", []string{fmt.Sprintf("listener_port:%d", port), "exporter_ip:127.0.0.1", "collector_type:netflow5"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.packets", 1, "", []string{fmt.Sprintf("listener_port:%d", port), "exporter_ip:127.0.0.1", "collector_type:netflow5"})
 
 	flowState.Shutdown()
 	aggregator.Stop()

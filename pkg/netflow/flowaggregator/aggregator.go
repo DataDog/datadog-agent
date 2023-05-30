@@ -46,7 +46,7 @@ type FlowAggregator struct {
 	flushedFlowCount             *atomic.Uint64
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
-	timeNowFunction              func() time.Time // Allows to mock time in tests
+	TimeNowFunction              func() time.Time // Allows to mock time in tests
 
 	lastSequencePerExporter   map[SequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
@@ -91,7 +91,7 @@ func NewFlowAggregator(sender aggregator.Sender, epForwarder epforwarder.EventPl
 		flushedFlowCount:             atomic.NewUint64(0),
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
-		timeNowFunction:              time.Now,
+		TimeNowFunction:              time.Now,
 		lastSequencePerExporter:      make(map[SequenceDeltaKey]uint32),
 	}
 }
@@ -129,9 +129,9 @@ func (agg *FlowAggregator) run() {
 	}
 }
 
-func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
+func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
 	for _, flow := range flows {
-		flowPayload := buildPayload(flow, agg.hostname)
+		flowPayload := buildPayload(flow, agg.hostname, flushTime)
 		payloadBytes, err := json.Marshal(flowPayload)
 		if err != nil {
 			log.Errorf("Error marshalling device metadata: %s", err)
@@ -242,7 +242,7 @@ func (agg *FlowAggregator) flushLoop() {
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
-	flushTime := agg.timeNowFunction()
+	flushTime := agg.TimeNowFunction()
 	flowsToFlush := agg.flowAcc.flush()
 	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
@@ -258,7 +258,7 @@ func (agg *FlowAggregator) flush() int {
 
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
 	if len(flowsToFlush) > 0 {
-		agg.sendFlows(flowsToFlush)
+		agg.sendFlows(flowsToFlush, flushTime)
 	}
 	agg.sendExporterMetadata(flowsToFlush, flushTime)
 
