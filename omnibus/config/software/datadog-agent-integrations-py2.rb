@@ -290,21 +290,15 @@ build do
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
-    if windows?
-      # First we install the dependencies that need specific flags
-      win_specific_build_env.each do |lib, env|
-        command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
-      end
-      # Then we install the rest (already installed libraries will be ignored) with the main flags
-      command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => win_build_env
-    else
-      # First we install the dependencies that need specific flags
-      nix_specific_build_env.each do |lib, env|
-        command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
-      end
-      # Then we install the rest (already installed libraries will be ignored) with the main flags
-      command "#{pip} install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => nix_build_env
+    specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
+    build_env = windows? ? win_build_env : nix_build_env
+    # First we install the dependencies that need specific flags
+    specific_build_env.each do |lib, env|
+      command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
     end
+    # Then we install the rest (already installed libraries will be ignored) with the main flags
+    command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => build_env
+
 
     #
     # Install Core integrations
