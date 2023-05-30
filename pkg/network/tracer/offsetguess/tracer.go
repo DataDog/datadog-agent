@@ -748,7 +748,7 @@ func getUDP6Conn(flowi6 bool) (*net.UDPConn, error) {
 	}
 	var conn *net.UDPConn
 	for _, linkLocal := range linkLocals {
-		conn, err = net.ListenUDP("udp6", a)
+		conn, err = net.ListenUDP("udp6", linkLocal)
 		if err == nil {
 			return conn, err
 		}
