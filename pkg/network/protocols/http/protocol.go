@@ -113,8 +113,6 @@ func (p *httpProtocol) PreStart(mgr *manager.Manager) (err error) {
 func (p *httpProtocol) PostStart(mgr *manager.Manager) error {
 	p.setupMapCleaner(mgr)
 
-	log.Info("http monitoring enabled")
-
 	return nil
 }
 
