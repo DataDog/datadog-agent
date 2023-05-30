@@ -176,7 +176,7 @@ func NewOrchestratorForwarder(log log.Component) forwarder.Forwarder {
 	orchestratorForwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(keysPerDomain))
 	orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
-	return forwarder.NewDefaultForwarder(config.Datadog, orchestratorForwarderOpts)
+	return forwarder.NewDefaultForwarder(config.Datadog, log, orchestratorForwarderOpts)
 }
 
 func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {

@@ -17,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -25,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -124,10 +125,10 @@ func NewOptions(config config.Component, keysPerDomain map[string][]string) *Opt
 	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 	vectorMetricsURL, err := pkgconfig.GetObsPipelineURL(pkgconfig.Metrics)
 	if err != nil {
-		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
+		pkglog.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
 	if r, ok := resolvers[utils.GetInfraEndpoint(config)]; ok && vectorMetricsURL != "" {
-		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
+		pkglog.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
 		resolvers[utils.GetInfraEndpoint(config)] = resolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
 			r.GetAPIKeys(),
@@ -141,7 +142,7 @@ func NewOptions(config config.Component, keysPerDomain map[string][]string) *Opt
 func NewOptionsWithResolvers(config config.Component, domainResolvers map[string]resolver.DomainResolver) *Options {
 	validationInterval := config.GetInt("forwarder_apikey_validation_interval")
 	if validationInterval <= 0 {
-		log.Warnf(
+		pkglog.Warnf(
 			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
 			validationInterval,
 			pkgconfig.DefaultAPIKeyValidationInterval,
@@ -168,11 +169,11 @@ func NewOptionsWithResolvers(config config.Component, domainResolvers map[string
 
 	if config.IsSet(forwarderRetryQueueMaxSizeKey) {
 		if config.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
-			log.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
+			pkglog.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
 		} else {
 			forwarderRetryQueueMaxSize := config.GetInt(forwarderRetryQueueMaxSizeKey)
 			option.setRetryQueuePayloadsTotalMaxSizeFromQueueMax(forwarderRetryQueueMaxSize)
-			log.Warnf("'%v = %v' is used, but this setting is deprecated. '%v = %v' (%v * 2MB) is used instead as the maximum payload size is 2MB.",
+			pkglog.Warnf("'%v = %v' is used, but this setting is deprecated. '%v = %v' (%v * 2MB) is used instead as the maximum payload size is 2MB.",
 				forwarderRetryQueueMaxSizeKey,
 				forwarderRetryQueueMaxSize,
 				forwarderRetryQueuePayloadsMaxSizeKey,
@@ -194,6 +195,7 @@ func (o *Options) setRetryQueuePayloadsTotalMaxSizeFromQueueMax(v int) {
 // DefaultForwarder is the default implementation of the Forwarder.
 type DefaultForwarder struct {
 	config config.Component
+	log    log.Component
 
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
 	NumberOfWorkers int
@@ -213,10 +215,11 @@ type DefaultForwarder struct {
 
 // NewDefaultForwarder returns a new DefaultForwarder.
 // TODO: (components) Remove this method and other exported methods in comp/forwarder.
-func NewDefaultForwarder(config config.Component, options *Options) *DefaultForwarder {
+func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
 	f := &DefaultForwarder{
 		config:           config,
+		log:              log,
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]resolver.DomainResolver{},
@@ -358,7 +361,7 @@ func (f *DefaultForwarder) Start() error {
 		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))",
 			domain, len(dr.GetAPIKeys())))
 	}
-	log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
+	f.log.Infof("Forwarder started, sending to %v endpoint(s) with %v worker(s) each: %s",
 		len(endpointLogs), f.NumberOfWorkers, strings.Join(endpointLogs, " ; "))
 
 	f.healthChecker.Start()
@@ -368,13 +371,13 @@ func (f *DefaultForwarder) Start() error {
 
 // Stop all the component of a forwarder and free resources
 func (f *DefaultForwarder) Stop() {
-	log.Infof("stopping the Forwarder")
+	f.log.Infof("stopping the Forwarder")
 	// Lock so we can't start a Forwarder while is stopping
 	f.m.Lock()
 	defer f.m.Unlock()
 
 	if f.internalState.Load() == Stopped {
-		log.Warnf("the forwarder is already stopped")
+		f.log.Warnf("the forwarder is already stopped")
 		return
 	}
 
@@ -401,7 +404,7 @@ func (f *DefaultForwarder) Stop() {
 		select {
 		case <-donePurging:
 		case <-time.After(purgeTimeout):
-			log.Warnf("Timeout emptying new transactions before stopping the forwarder %v", purgeTimeout)
+			f.log.Warnf("Timeout emptying new transactions before stopping the forwarder %v", purgeTimeout)
 		}
 	} else {
 		for _, df := range f.domainForwarders {
@@ -483,14 +486,14 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 
 			if f.queueDurationCapacity != nil {
 				if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
-					log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
+					f.log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
 				}
 			}
 		}
 
 		if f.queueDurationCapacity != nil {
 			if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
-				log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+				f.log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
 			} else {
 				telemetry := telemetry.GetStatsTelemetryProvider()
 				metricPrefix := "datadog.agent.retry_queue_duration."
@@ -677,7 +680,7 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 					return
 				}
 			case <-time.After(defaultResponseTimeout):
-				log.Errorf("timed out waiting for responses, received %d/%d", receivedResponses, expectedResponses)
+				f.log.Errorf("timed out waiting for responses, received %d/%d", receivedResponses, expectedResponses)
 				close(results)
 				return
 			}

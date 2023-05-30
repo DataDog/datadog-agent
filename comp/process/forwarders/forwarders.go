@@ -53,10 +53,10 @@ func newForwarders(deps dependencies) (Component, error) {
 	processForwarderOpts := createParams(deps.Config, queueBytes, processAPIEndpoints)
 
 	return &forwarders{
-		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, eventForwarderOpts),
-		processForwarder:     defaultforwarder.NewForwarder(deps.Config, processForwarderOpts),
-		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, processForwarderOpts),
-		connectionsForwarder: defaultforwarder.NewForwarder(deps.Config, processForwarderOpts),
+		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, deps.Logger, eventForwarderOpts),
+		processForwarder:     defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
+		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
+		connectionsForwarder: defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
 	}, nil
 
 }
