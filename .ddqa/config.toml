@@ -42,6 +42,7 @@ jira_statuses = [
 ]
 github_team = "agent-platform"
 github_labels = ["team/agent-platform"]
+exclude_members = ["olivielpeau"]
 
 [teams."Universal Service Monitoring"]
 jira_project = "USMO"
