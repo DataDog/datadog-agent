@@ -18,7 +18,7 @@ import (
 
 const ProtocolDispatcherProgramsMap = "protocols_progs"
 
-// EbpfProgram  is the interface that represents an eBPF program and provides
+// EbpfProgram is the interface that represents an eBPF program and provides
 // methods used to manage its lifetime and initialisation.
 type EbpfProgram interface {
 	// ConfigureOptions configures the provided Manager and Options structs with
@@ -50,7 +50,7 @@ type EbpfProgram interface {
 }
 
 // ProtocolStats is a "tuple" struct that represents monitoring data from a
-// Protocol implementation. It associated a ProtocolType and stats from this
+// Protocol implementation. It associates a ProtocolType and stats from this
 // protocols' monitoring.
 type ProtocolStats struct {
 	Type  ProtocolType

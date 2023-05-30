@@ -460,7 +460,7 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 // the enabled protocols' monitoring, and configures the ebpf-manager `mgr`
 // accordingly.
 //
-// For each enabled protocols, an protocol-specific instance of the Protocol
+// For each enabled protocols, a protocol-specific instance of the Protocol
 // interface is initialised, and the required maps and tail calls routers are setup
 // in the manager.
 //
