@@ -1,7 +1,5 @@
 github.com/DataDog/agent-payload/v5 v5.0.73 h1:fnCnAR+nWY+q//fBZSab4cDFFng0scPEfmLdl9ngmQY=
 github.com/DataDog/agent-payload/v5 v5.0.73/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
-github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230522140836-d5fef93f2760 h1:q3WezOSutXHtRq7IX8ya5PlBZTUCvfbh54qjI9tEa5A=
-github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230522140836-d5fef93f2760/go.mod h1:Mse9axnNjouBfknyWFmWybezBvpjXaqA8oQZi8+f/SA=
 github.com/DataDog/test-infra-definitions v0.0.0-20230526143644-ed785d3a20d5 h1:bevg12AMVEL49W5+ZEJ6bw6PK4JWt+oEPfH3MPsOS8Q=
 github.com/DataDog/test-infra-definitions v0.0.0-20230526143644-ed785d3a20d5/go.mod h1:WmCQAFypCQB6zjmXl9CGW0qMa5s7krntwld/tt7rjcc=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2 h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=
