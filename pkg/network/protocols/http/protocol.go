@@ -110,19 +110,24 @@ func (p *httpProtocol) PreStart(mgr *manager.Manager) (err error) {
 	return
 }
 
-func (p *httpProtocol) PostStart(mgr *manager.Manager) {
+func (p *httpProtocol) PostStart(mgr *manager.Manager) error {
 	p.setupMapCleaner(mgr)
 
 	log.Info("http monitoring enabled")
+
+	return nil
 }
 
-func (p *httpProtocol) PreStop(mgr *manager.Manager) {
+func (p *httpProtocol) PreStop(mgr *manager.Manager) error {
 	p.mapCleaner.Stop()
 	p.eventsConsumer.Stop()
 	p.statkeeper.Close()
+
+	return nil
 }
 
-func (p *httpProtocol) PostStop(mgr *manager.Manager) {
+func (p *httpProtocol) PostStop(mgr *manager.Manager) error {
+	return nil
 }
 
 func (p *httpProtocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
@@ -146,7 +151,10 @@ func (p *httpProtocol) processHTTP(data []byte) {
 }
 
 func (p *httpProtocol) setupMapCleaner(mgr *manager.Manager) {
-	httpMap, _, _ := mgr.GetMap(httpInFlightMap)
+	httpMap, _, err := mgr.GetMap(httpInFlightMap)
+	if err != nil {
+		log.Errorf("error getting http_in_flight map: %s", err)
+	}
 	mapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(EbpfHttpTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)

@@ -230,7 +230,10 @@ func (m *Monitor) Start() error {
 	}
 
 	for _, protocol := range m.protocols {
-		protocol.PostStart(m.ebpfProgram.Manager.Manager)
+		err = protocol.PostStart(m.ebpfProgram.Manager.Manager)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
@@ -307,10 +310,15 @@ func (m *Monitor) Stop() {
 		return
 	}
 
+	var err error
+
 	m.processMonitor.Stop()
 
 	for _, protocol := range m.protocols {
-		protocol.PreStop(m.ebpfProgram.Manager.Manager)
+		err = protocol.PreStop(m.ebpfProgram.Manager.Manager)
+		if err != nil {
+			log.Errorf("error during protocol pre-stop: %s", err)
+		}
 	}
 
 	m.ebpfProgram.Close()
@@ -327,7 +335,10 @@ func (m *Monitor) Stop() {
 	m.closeFilterFn()
 
 	for _, protocol := range m.protocols {
-		protocol.PostStop(m.ebpfProgram.Manager.Manager)
+		err = protocol.PostStop(m.ebpfProgram.Manager.Manager)
+		if err != nil {
+			log.Errorf("error during protocol post-stop: %s", err)
+		}
 	}
 }
 

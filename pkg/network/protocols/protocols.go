@@ -34,15 +34,15 @@ type EbpfProgram interface {
 	// PostStart is called after the start of the provided eBPF manager.  Final
 	// initialisation steps, such as setting up a map cleaner, should be
 	// performed here.
-	PostStart(*manager.Manager)
+	PostStart(*manager.Manager) error
 
 	// PreStop is called before the provided eBPF manager is stopped.  Cleanup
 	// steps, such as stopping events consumers, should be performed here.
-	PreStop(*manager.Manager)
+	PreStop(*manager.Manager) error
 
 	// PostStop is called after the provided eBPF manager is stopped. Final
 	// cleanup steps should be performed here.
-	PostStop(*manager.Manager)
+	PostStop(*manager.Manager) error
 
 	// DumpMaps dumps the content of the map represented by mapName &
 	// currentMap, if it used by the eBPF program, to output.
