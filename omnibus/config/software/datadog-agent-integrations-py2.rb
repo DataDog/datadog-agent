@@ -160,8 +160,10 @@ build do
       "PIP_CONFIG_FILE" => "#{pip_config_file}",
     }
     # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
-    specific_build_env = {
+    nix_specific_build_env = {
       "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
+    }
+    win_specific_build_env = {
     }
 
 
@@ -200,12 +202,22 @@ build do
 
     # Creating a hash containing the requirements and requirements file path associated to every lib
     requirements_custom = Hash.new()
-    specific_build_env.each do |lib, env|
-      requirements_custom[lib] = {
-        "req_lines" => Array.new,
-        "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
-        "compiled_req_file_path" => windows? ? "#{windows_safe_path(install_dir)}\\agent_#{lib}_requirements-py2.txt" : "#{install_dir}/agent_#{lib}_requirements-py2.txt"
-      }
+    if windows?
+      win_specific_build_env.each do |lib, env|
+        requirements_custom[lib] = {
+          "req_lines" => Array.new,
+          "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
+          "compiled_req_file_path" => "#{windows_safe_path(install_dir)}\\agent_#{lib}_requirements-py2.txt"
+        }
+      end
+    else
+      nix_specific_build_env.each do |lib, env|
+        requirements_custom[lib] = {
+          "req_lines" => Array.new,
+          "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
+          "compiled_req_file_path" => "#{install_dir}/agent_#{lib}_requirements-py2.txt"
+        }
+      end
     end
 
     File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
@@ -259,7 +271,7 @@ build do
       command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_req_file_path} #{static_reqs_out_file} " \
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => win_build_env
       # Pip-compiling seperately each lib that needs a custom build installation
-      specific_build_env.each do |lib, env|
+      win_specific_build_env.each do |lib, env|
         command "#{python} -m piptools compile --generate-hashes --output-file  #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
       end
@@ -269,7 +281,7 @@ build do
       command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_req_file_path} #{static_reqs_out_file} " \
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => nix_build_env
       # Pip-compiling seperately each lib that needs a custom build installation
-      specific_build_env.each do |lib, env|
+      nix_specific_build_env.each do |lib, env|
         command "#{python} -m piptools compile --generate-hashes --output-file #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
         "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
       end
@@ -280,14 +292,14 @@ build do
     #
     if windows?
       # First we install the dependencies that need specific flags
-      specific_build_env.each do |lib, env|
+      win_specific_build_env.each do |lib, env|
         command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
       end
       # Then we install the rest (already installed libraries will be ignored) with the main flags
       command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => win_build_env
     else
       # First we install the dependencies that need specific flags
-      specific_build_env.each do |lib, env|
+      nix_specific_build_env.each do |lib, env|
         command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
       end
       # Then we install the rest (already installed libraries will be ignored) with the main flags
