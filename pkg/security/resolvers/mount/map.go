@@ -64,6 +64,18 @@ func (mm *MountMap) OverLen() int {
 	return LOWER_SIZE + len(mm.upper)
 }
 
+func (mm *MountMap) RealLen() int {
+	count := 0
+	for _, mount := range mm.lower {
+		if mount != nil {
+			count += 1
+		}
+	}
+
+	count += len(mm.upper)
+	return count
+}
+
 func (mm *MountMap) ForEach(f func(uint32, *model.Mount) bool) {
 	for id, mount := range mm.lower {
 		if mount != nil {

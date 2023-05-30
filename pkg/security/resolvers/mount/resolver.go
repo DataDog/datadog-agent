@@ -65,7 +65,7 @@ type Resolver struct {
 	cgroupsResolver *cgroup.Resolver
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
-	mounts          MountMap
+	mounts          *MountMap
 	deleteQueue     []deleteRequest
 	minMountID      uint32
 	redemption      *simplelru.LRU[uint32, *model.Mount]
@@ -154,24 +154,26 @@ func (mr *Resolver) finalize(first *model.Mount) {
 		mr.mounts.Delete(curr.MountID)
 
 		// finalize children
-		for _, child := range mr.mounts {
+		mr.mounts.ForEach(func(_ uint32, child *model.Mount) bool {
 			if child.ParentMountID == curr.MountID {
-				if _, exists := mr.mounts[child.MountID]; exists {
+				if mr.mounts.Contains(child.MountID) {
 					open_queue = append(open_queue, child)
 				}
 			}
-		}
+			return true
+		})
 
 		// finalize device
 		if !curr.IsOverlayFS() {
 			continue
 		}
 
-		for _, deviceMount := range mr.mounts {
+		mr.mounts.ForEach(func(_ uint32, deviceMount *model.Mount) bool {
 			if curr.Device == deviceMount.Device && curr.MountID != deviceMount.MountID {
 				open_queue = append(open_queue, deviceMount)
 			}
-		}
+			return true
+		})
 	}
 }
 
@@ -186,8 +188,8 @@ func (mr *Resolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, exists := mr.mounts[mountID]
-	if !exists {
+	mount := mr.mounts.Get(mountID)
+	if mount == nil {
 		return &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -224,10 +226,10 @@ func (mr *Resolver) Insert(e model.Mount) error {
 }
 
 func (mr *Resolver) insert(m *model.Mount) {
-	fmt.Printf("device id: %d; id %d; len %d\n", m.Device, m.MountID, len(mr.mounts))
+	fmt.Printf("device id: %d; id %d; len %d\n", m.Device, m.MountID, mr.mounts.RealLen())
 
 	// umount the previous one if exists
-	if prev, ok := mr.mounts[m.MountID]; ok {
+	if prev := mr.mounts.Get(m.MountID); prev != nil {
 		// if present in the redemption that the evict function that will remove the entry
 		if present := mr.redemption.Remove(prev.MountID); !present {
 			mr.finalize(prev)
@@ -240,7 +242,7 @@ func (mr *Resolver) insert(m *model.Mount) {
 		m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
 	}
 
-	mr.mounts[m.MountID] = m
+	mr.mounts.Insert(m.MountID, m)
 
 	if mr.minMountID > m.MountID {
 		mr.minMountID = m.MountID
@@ -252,8 +254,8 @@ func (mr *Resolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string
 		return "", err
 	}
 
-	mount, exists := mr.mounts[mountID]
-	if !exists {
+	mount := mr.mounts.Get(mountID)
+	if mount == nil {
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -308,7 +310,7 @@ func (mr *Resolver) dequeue(now time.Time) {
 		}
 
 		// check if not already replaced
-		if prev := mr.mounts[req.mount.MountID]; prev == req.mount {
+		if prev := mr.mounts.Get(req.mount.MountID); prev == req.mount {
 			mr.delete(req.mount)
 		}
 
@@ -442,8 +444,8 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 		pids = append(pids, 1)
 	}
 
-	mount, exists := mr.mounts[mountID]
-	if exists {
+	mount := mr.mounts.Get(mountID)
+	if mount != nil {
 		mr.cacheHitsStats.Inc()
 
 		// touch the redemption entry to maintain the entry
@@ -466,8 +468,8 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 		return nil, err
 	}
 
-	mount, exists = mr.mounts[mountID]
-	if exists {
+	mount = mr.mounts.Get(mountID)
+	if mount != nil {
 		mr.procMissStats.Inc()
 		return mount, nil
 	}
@@ -571,7 +573,7 @@ func (mr *Resolver) SendStats() error {
 		return err
 	}
 
-	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(len(mr.mounts)), []string{}, 1.0)
+	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(mr.mounts.RealLen()), []string{}, 1.0)
 }
 
 // NewResolver instantiates a new mount resolver
@@ -581,7 +583,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		statsdClient:    statsdClient,
 		cgroupsResolver: cgroupsResolver,
 		lock:            sync.RWMutex{},
-		mounts:          make(map[uint32]*model.Mount),
+		mounts:          NewMountMap(),
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
 		cacheMissStats:  atomic.NewInt64(0),
