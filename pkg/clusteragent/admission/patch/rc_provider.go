@@ -12,6 +12,7 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,10 +20,11 @@ import (
 
 // remoteConfigProvider consumes tracing configs from RC and delivers them to the patcher
 type remoteConfigProvider struct {
-	client        *remote.Client
-	isLeaderNotif <-chan struct{}
-	subscribers   map[TargetObjKind]chan PatchRequest
-	clusterName   string
+	client             *remote.Client
+	isLeaderNotif      <-chan struct{}
+	subscribers        map[TargetObjKind]chan PatchRequest
+	clusterName        string
+	telemetryCollector telemetry.TelemetryCollector
 }
 
 var _ patchProvider = &remoteConfigProvider{}
@@ -32,10 +34,11 @@ func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{
 		return nil, errors.New("remote config client not initialized")
 	}
 	return &remoteConfigProvider{
-		client:        client,
-		isLeaderNotif: isLeaderNotif,
-		subscribers:   make(map[TargetObjKind]chan PatchRequest),
-		clusterName:   clusterName,
+		client:             client,
+		isLeaderNotif:      isLeaderNotif,
+		subscribers:        make(map[TargetObjKind]chan PatchRequest),
+		clusterName:        clusterName,
+		telemetryCollector: telemetry.NewCollector(),
 	}, nil
 }
 
@@ -83,6 +86,25 @@ func (rcp *remoteConfigProvider) process(update map[string]state.APMTracingConfi
 		}
 		if ch, found := rcp.subscribers[req.K8sTarget.Kind]; found {
 			valid++
+			rcp.telemetryCollector.SendEvent(&telemetry.ApmRemoteConfigEvent{
+				RequestType: "apm-remote-config-event",
+				ApiVersion:  "v2",
+				Payload: telemetry.ApmRemoteConfigEventPayload{
+					EventName: "agent.k8s.patch",
+					Tags: telemetry.ApmRemoteConfigEventTags{
+						Env:                 *req.LibConfig.Env,
+						RcId:                req.ID,
+						RcClientId:          rcp.client.ID,
+						RcRevision:          req.SchemaVersion,
+						RcVersion:           req.Revision,
+						KubernetesClusterId: "",
+						KubernetesCluster:   req.K8sTarget.Cluster,
+						KubernetesNamespace: req.K8sTarget.Namespace,
+						KubernetesKind:      string(req.K8sTarget.Kind),
+						KubernetesName:      req.K8sTarget.Name,
+					},
+				},
+			})
 			log.Debugf("Publishing patch request for target %s", req.K8sTarget)
 			ch <- req
 		}
