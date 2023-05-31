@@ -437,9 +437,12 @@ func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 	defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
 	assert.Nil(t, err)
 
+	defaultProfiles, err := loadDefaultProfiles()
+	assert.Nil(t, err)
 	//fmt.Printf("%+v", defaultProfilesDef)
 
-	assert.Len(t, defaultProfilesDef, 2)
+	assert.Len(t, defaultProfilesDef, 3)
+	assert.NotNil(t, defaultProfiles)
 
 	//globalProfileConfigMap = nil
 	//
