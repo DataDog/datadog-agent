@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	legacyprocess "github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/unix"
@@ -75,16 +76,11 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	}
 
 	// list the mmaped files of the process
-	memoryMaps, err := p.MemoryMaps(false)
+	mmapedFiles, err := snapshotMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
 	if err != nil {
 		return err
 	}
-
-	for _, mm := range *memoryMaps {
-		if mm.Path != pn.Process.FileEvent.PathnameStr {
-			files = append(files, mm.Path)
-		}
-	}
+	files = append(files, mmapedFiles...)
 
 	// insert files
 	var fileinfo os.FileInfo
@@ -126,6 +122,22 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
 	}
 	return nil
+}
+
+func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {
+	fakeprocess := legacyprocess.Process{Pid: pid}
+	stats, err := fakeprocess.MemoryMaps(false)
+	if err != nil || stats == nil {
+		return nil, err
+	}
+
+	files := make([]string, 0, len(*stats))
+	for _, mm := range *stats {
+		if mm.Path != processEventPath {
+			files = append(files, mm.Path)
+		}
+	}
+	return files, nil
 }
 
 func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) error {
