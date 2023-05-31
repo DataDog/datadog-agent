@@ -125,7 +125,7 @@ class TestE2EDocker(unittest.TestCase):
             else:
                 self.fail("check ruleset_loaded timeouted")
             self.app.check_for_ignored_policies(self, attributes)
-        
+
         with Step(msg="check self_tests", emoji=":test_tube:"):
             rule_id = "self_test"
             event = self.app.wait_app_log(f"rule_id:{rule_id}")
