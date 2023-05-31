@@ -215,11 +215,6 @@ func (w *soWatcher) Start() {
 		return nil
 	})
 
-	if err := w.processMonitor.Initialize(); err != nil {
-		log.Errorf("can't initialize process monitor %s", err)
-		return
-	}
-
 	cleanupExit, err := w.processMonitor.SubscribeExit(w.registry.unregister)
 	if err != nil {
 		log.Errorf("can't subscribe to process monitor exit event %s", err)
