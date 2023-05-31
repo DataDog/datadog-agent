@@ -485,6 +485,61 @@ func TestHTTPReplaceRules(t *testing.T) {
 	})
 }
 
+func TestHTTPNotificationThreshold(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPNotificationThreshold.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+}
+
+// Testing we're not exceeding the limit for http_notification_threshold.
+func TestHTTPNotificationThresholdOverLimit(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPNotificationThresholdOverLimit.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "2000")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+	})
+}
+
 func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	maxTrackedConnections := New().MaxTrackedConnections
 
