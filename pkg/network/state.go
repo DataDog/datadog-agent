@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -404,9 +406,9 @@ func (ns *networkState) getConnsByCookie(conns []ConnectionStats) map[StatCookie
 			continue
 		}
 
-		log.TraceFunc(func() string {
-			return fmt.Sprintf("duplicate connection in collection: cookie: %d, c1: %+v, c2: %+v", c.Cookie, *c, conns[i])
-		})
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("duplicate connection in collection: cookie: %d, c1: %+v, c2: %+v", c.Cookie, *c, conns[i])
+		}
 
 		if ns.mergeConnectionStats(c, &conns[i]) {
 			// cookie collision

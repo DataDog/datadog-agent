@@ -8,11 +8,11 @@
 package tracer
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -207,9 +207,9 @@ func (pc *processCache) add(p *process) {
 	pc.Lock()
 	defer pc.Unlock()
 
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("adding process %+v to process cache", p)
-	})
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("adding process %+v to process cache", p)
+	}
 
 	evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
 	pl, _ := pc.cacheByPid[p.Pid]
