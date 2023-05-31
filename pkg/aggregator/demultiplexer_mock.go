@@ -175,7 +175,7 @@ func InitTestAgentDemultiplexerWithFlushInterval(log log.Component, flushInterva
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	return InitTestAgentDemultiplexerWithOpts(log, forwarder.NewOptions(config.Datadog, nil), opts)
+	return InitTestAgentDemultiplexerWithOpts(log, forwarder.NewOptions(config.Datadog, log, nil), opts)
 }
 
 // InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.

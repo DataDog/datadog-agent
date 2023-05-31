@@ -30,5 +30,5 @@ func NewForwarder(config config.Component, log log.Component, params Params) Com
 }
 
 func newMockForwarder(config config.Component, log log.Component) Component {
-	return NewDefaultForwarder(config, log, NewOptions(config, nil))
+	return NewDefaultForwarder(config, log, NewOptions(config, log, nil))
 }

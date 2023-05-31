@@ -23,10 +23,10 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	log := fxutil.Test[log.Component](b, log.MockModule)
+	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	log := fxutil.Test[log.Component](b, log.MockModule)
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarderOpts)
 	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, options, "hostname")
 	defer demux.Stop(true)

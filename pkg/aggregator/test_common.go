@@ -20,5 +20,5 @@ func (s *senders) PeekSender(cid check.ID) (Sender, error) {
 }
 
 func NewForwarderTest(log log.Component) defaultforwarder.Forwarder {
-	return defaultforwarder.NewDefaultForwarder(config.Datadog, log, defaultforwarder.NewOptions(config.Datadog, nil))
+	return defaultforwarder.NewDefaultForwarder(config.Datadog, log, defaultforwarder.NewOptions(config.Datadog, log, nil))
 }

@@ -26,7 +26,7 @@ func NewMockSender(id check.ID) *MockSender {
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	log := log.NewTemporaryLoggerWithoutInit()
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, nil))
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
 	aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
 
 	SetSender(mockSender, id)

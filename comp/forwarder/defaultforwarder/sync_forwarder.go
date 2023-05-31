@@ -32,7 +32,7 @@ func NewSyncForwarder(config config.Component, log log.Component, domainResolver
 	return &SyncForwarder{
 		config:           config,
 		log:              log,
-		defaultForwarder: NewDefaultForwarder(config, log, NewOptionsWithResolvers(config, domainResolvers)),
+		defaultForwarder: NewDefaultForwarder(config, log, NewOptionsWithResolvers(config, log, domainResolvers)),
 		client: &http.Client{
 			Timeout:   timeout,
 			Transport: utilhttp.CreateHTTPTransport(),

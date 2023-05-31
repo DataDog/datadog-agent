@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -121,28 +120,28 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
-func NewOptions(config config.Component, keysPerDomain map[string][]string) *Options {
+func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]string) *Options {
 	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 	vectorMetricsURL, err := pkgconfig.GetObsPipelineURL(pkgconfig.Metrics)
 	if err != nil {
-		pkglog.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
+		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
 	if r, ok := resolvers[utils.GetInfraEndpoint(config)]; ok && vectorMetricsURL != "" {
-		pkglog.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
+		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
 		resolvers[utils.GetInfraEndpoint(config)] = resolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
 			r.GetAPIKeys(),
 			vectorMetricsURL,
 		)
 	}
-	return NewOptionsWithResolvers(config, resolvers)
+	return NewOptionsWithResolvers(config, log, resolvers)
 }
 
 // NewOptionsWithResolvers creates new Options with default values
-func NewOptionsWithResolvers(config config.Component, domainResolvers map[string]resolver.DomainResolver) *Options {
+func NewOptionsWithResolvers(config config.Component, log log.Component, domainResolvers map[string]resolver.DomainResolver) *Options {
 	validationInterval := config.GetInt("forwarder_apikey_validation_interval")
 	if validationInterval <= 0 {
-		pkglog.Warnf(
+		log.Warnf(
 			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
 			validationInterval,
 			pkgconfig.DefaultAPIKeyValidationInterval,
@@ -169,11 +168,11 @@ func NewOptionsWithResolvers(config config.Component, domainResolvers map[string
 
 	if config.IsSet(forwarderRetryQueueMaxSizeKey) {
 		if config.IsSet(forwarderRetryQueuePayloadsMaxSizeKey) {
-			pkglog.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
+			log.Warnf("'%v' is set, but as this setting is deprecated, '%v' is used instead.", forwarderRetryQueueMaxSizeKey, forwarderRetryQueuePayloadsMaxSizeKey)
 		} else {
 			forwarderRetryQueueMaxSize := config.GetInt(forwarderRetryQueueMaxSizeKey)
 			option.setRetryQueuePayloadsTotalMaxSizeFromQueueMax(forwarderRetryQueueMaxSize)
-			pkglog.Warnf("'%v = %v' is used, but this setting is deprecated. '%v = %v' (%v * 2MB) is used instead as the maximum payload size is 2MB.",
+			log.Warnf("'%v = %v' is used, but this setting is deprecated. '%v = %v' (%v * 2MB) is used instead as the maximum payload size is 2MB.",
 				forwarderRetryQueueMaxSizeKey,
 				forwarderRetryQueueMaxSize,
 				forwarderRetryQueuePayloadsMaxSizeKey,
