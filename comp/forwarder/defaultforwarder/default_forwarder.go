@@ -296,6 +296,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			f.domainResolvers[domain] = resolver
 			fwd := newDomainForwarder(
 				config,
+				log,
 				domain,
 				transactionContainer,
 				options.NumberOfWorkers,
