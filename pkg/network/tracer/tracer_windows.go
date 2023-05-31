@@ -183,7 +183,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
 
-	ips := make(map[util.Address]struct{}, len(delta.Conns))
+	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	for _, conn := range delta.Conns {
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
