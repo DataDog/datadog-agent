@@ -133,11 +133,11 @@ class TestE2EKubernetes(unittest.TestCase):
                 self.fail("check ruleset_loaded timeouted")
             self.app.check_for_ignored_policies(self, attributes)
         
-        with Step(msg="check self_tests",emoji=":test_tube:"):
+        with Step(msg="check self_tests", emoji=":test_tube:"):
             rule_id = "self_test"
             event = self.app.wait_app_log(f"rule_id:{rule_id}")
             attributes = event["data"][0]["attributes"]["attributes"]
-            self.assertEqual(rule_id, attributes["agent"]["rule_id"],"unable to find rule_id tag attribute")
+            self.assertEqual(rule_id, attributes["agent"]["rule_id"], "unable to find rule_id tag attribute")
             self.assertTrue("failed_tests" not in attributes, "self_tests have failed")
 
         with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
