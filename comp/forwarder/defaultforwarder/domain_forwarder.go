@@ -64,7 +64,7 @@ func newDomainForwarder(
 		retryQueue:                retryQueue,
 		connectionResetInterval:   connectionResetInterval,
 		internalState:             Stopped,
-		blockedList:               newBlockedEndpoints(config),
+		blockedList:               newBlockedEndpoints(config, log),
 		transactionPrioritySorter: transactionPrioritySorter,
 		pointCountTelemetry:       pointCountTelemetry,
 	}
