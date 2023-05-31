@@ -84,9 +84,9 @@ type Store interface {
 	// with kind KindContainerImageMetadata and the given ID.
 	GetImage(id string) (*ContainerImageMetadata, error)
 
-	// GetProcess returns metadata about a container.  It fetches the entity
+	// GetProcess returns metadata about a process.  It fetches the entity
 	// with kind KindProcess and the given ID.
-	GetProcess(pid string) (*Process, error)
+	GetProcess(pid int32) (*Process, error)
 
 	// ListProcesses returns metadata about all known processes, equivalent
 	// to all entities with kind KindProcess.
@@ -526,7 +526,7 @@ var _ Entity = &Container{}
 type ContainerFilterFunc func(container *Container) bool
 
 // ProcessFilterFunc is a function used to filter processes.
-type ProcessFilterFunc func(container *Process) bool
+type ProcessFilterFunc func(process *Process) bool
 
 // GetRunningContainers is a function that evaluates to true for running containers.
 var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }

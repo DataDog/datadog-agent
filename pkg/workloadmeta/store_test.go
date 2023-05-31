@@ -683,6 +683,94 @@ func TestListContainersWithFilter(t *testing.T) {
 	assert.DeepEqual(t, []*Container{runningContainer}, runningContainers)
 }
 
+func TestListProcesses(t *testing.T) {
+	process := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "123",
+		},
+	}
+
+	tests := []struct {
+		name              string
+		preEvents         []CollectorEvent
+		expectedProcesses []*Process
+	}{
+		{
+			name: "some processes stored",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: process,
+				},
+			},
+			expectedProcesses: []*Process{process},
+		},
+		{
+			name:              "no processes stored",
+			preEvents:         nil,
+			expectedProcesses: []*Process{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			testStore.handleEvents(test.preEvents)
+
+			processes := testStore.ListProcesses()
+
+			assert.DeepEqual(t, test.expectedProcesses, processes)
+		})
+	}
+}
+
+func TestListProcessesWithFilter(t *testing.T) {
+	java := "java"
+	golang := "golang"
+	javaProcess := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "123",
+		},
+		Language: &java,
+	}
+
+	goProcess := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "2",
+		},
+		Language: &golang,
+	}
+
+	testStore := newTestStore()
+
+	testStore.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: javaProcess,
+		},
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: goProcess,
+		},
+	})
+
+	retrievedProcesses := testStore.ListProcessesWithFilter(func(p *Process) bool {
+		if *p.Language == "java" {
+			return true
+		} else {
+			return false
+		}
+	})
+
+	assert.DeepEqual(t, []*Process{javaProcess}, retrievedProcesses)
+}
+
 func TestListImages(t *testing.T) {
 	image := &ContainerImageMetadata{
 		EntityID: EntityID{

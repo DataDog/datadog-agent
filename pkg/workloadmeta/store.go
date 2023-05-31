@@ -276,7 +276,9 @@ func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 }
 
 // GetProcess implements Store#GetProcess.
-func (s *store) GetProcess(id string) (*Process, error) {
+func (s *store) GetProcess(pid int32) (*Process, error) {
+	id := string(pid)
+
 	entity, err := s.getEntityByKind(KindProcess, id)
 	if err != nil {
 		return nil, err
@@ -287,7 +289,15 @@ func (s *store) GetProcess(id string) (*Process, error) {
 
 // ListProcesses implements Store#ListProcesses.
 func (s *store) ListProcesses() []*Process {
-	return s.ListProcessesWithFilter(nil)
+	entities := s.listEntitiesByKind(KindProcess)
+
+	// Not very efficient
+	processes := make([]*Process, 0, len(entities))
+	for i := range entities {
+		processes = append(processes, entities[i].(*Process))
+	}
+
+	return processes
 }
 
 // ListProcessesWithFilter implements Store#ListProcessesWithFilter
@@ -296,8 +306,8 @@ func (s *store) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
 
 	// Not very efficient
 	processes := make([]*Process, 0, len(entities))
-	for _, entity := range entities {
-		process := entity.(*Process)
+	for i := range entities {
+		process := entities[i].(*Process)
 
 		if filter == nil || filter(process) {
 			processes = append(processes, process)

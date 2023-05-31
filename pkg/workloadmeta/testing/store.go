@@ -65,8 +65,9 @@ func (s *Store) ListContainersWithFilter(filter workloadmeta.ContainerFilterFunc
 }
 
 // GetProcess implements Store#GetProcess.
-func (s *Store) GetProcess(pid string) (*workloadmeta.Process, error) {
-	entity, err := s.getEntityByKind(workloadmeta.KindProcess, pid)
+func (s *Store) GetProcess(pid int32) (*workloadmeta.Process, error) {
+	id := string(pid)
+	entity, err := s.getEntityByKind(workloadmeta.KindProcess, id)
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +81,8 @@ func (s *Store) ListProcesses() []*workloadmeta.Process {
 
 	// Not very efficient
 	processes := make([]*workloadmeta.Process, 0, len(entities))
-	for _, entity := range entities {
-		processes = append(processes, entity.(*workloadmeta.Process))
+	for i := range entities {
+		processes = append(processes, entities[i].(*workloadmeta.Process))
 	}
 
 	return processes
