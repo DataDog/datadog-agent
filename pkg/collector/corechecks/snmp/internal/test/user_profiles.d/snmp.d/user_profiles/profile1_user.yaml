@@ -10,5 +10,5 @@ sysobjectid: 1.3.6.1.4.1.3375.2.1.3.4.*
 
 metrics:
   - symbol:
-      OID: 1.3.6.1.4.1.3375.2.1.1.2.1.44.0
-      name: sysStatMemoryTotal
+      OID: 1.2.3
+      name: profile1_user.metric
