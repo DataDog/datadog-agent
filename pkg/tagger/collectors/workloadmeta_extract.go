@@ -138,7 +138,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			case workloadmeta.KindContainerImageMetadata:
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
 			case workloadmeta.KindProcess:
-				tagInfos = append(tagInfos, c.handleProcess(ev)...)
+				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
