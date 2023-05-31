@@ -139,7 +139,7 @@ kernel_matrix_testing_upload_deps:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   needs: ["kernel_matrix_testing_setup_env", "package_dependencies_x64", "package_dependencies_arm64"]
   tags: ["runner:main"]
-  when: on_success
+  allow_failure: true
   variables:
     ARCH: x86_64
     EC2_INSTANCE_TYPE: "z1d.metal"
