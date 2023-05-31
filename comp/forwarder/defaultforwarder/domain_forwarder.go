@@ -207,7 +207,7 @@ func (f *domainForwarder) Start() error {
 	f.init()
 
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry)
+		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
