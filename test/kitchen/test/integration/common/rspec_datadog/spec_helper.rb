@@ -12,7 +12,7 @@ require 'fileutils'
 # logged.
 RSpec.configure do |c|
   c.add_formatter "documentation"
-  FileUtils.mkdir_p '/tmp'
+  FileUtils.mkdir_p '/tmp/kitchen'
   c.add_formatter("RspecJunitFormatter", "/tmp/kitchen/rspec.xml")
 end
 
