@@ -105,7 +105,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		evt.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
-		if err != nil && len(resolvedPath) != 0 {
+		if err == nil && len(resolvedPath) != 0 {
 			evt.Open.File.SetPathnameStr(resolvedPath)
 		} else {
 			evt.Open.File.SetPathnameStr(f)
