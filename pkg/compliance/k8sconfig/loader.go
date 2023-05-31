@@ -86,17 +86,29 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	for _, proc := range loadProcesses(ctx) {
 		switch proc.name {
 		case "etcd":
-			node.Components.Etcd = l.newK8sEtcdConfig(proc.flags)
+			if c := l.newK8sEtcdConfig(proc.flags); c != nil {
+				node.Components.Etcd = append(node.Components.Etcd, c)
+			}
 		case "kube-apiserver", "apiserver":
-			node.Components.KubeApiserver = l.newK8sKubeApiserverConfig(proc.flags)
+			if c := l.newK8sKubeApiserverConfig(proc.flags); c != nil {
+				node.Components.KubeApiserver = append(node.Components.KubeApiserver, c)
+			}
 		case "kube-controller-manager", "kube-controller", "controller-manager":
-			node.Components.KubeControllerManager = l.newK8sKubeControllerManagerConfig(proc.flags)
+			if c := l.newK8sKubeControllerManagerConfig(proc.flags); c != nil {
+				node.Components.KubeControllerManager = append(node.Components.KubeControllerManager, c)
+			}
 		case "kube-scheduler":
-			node.Components.KubeScheduler = l.newK8sKubeSchedulerConfig(proc.flags)
+			if c := l.newK8sKubeSchedulerConfig(proc.flags); c != nil {
+				node.Components.KubeScheduler = append(node.Components.KubeScheduler, c)
+			}
 		case "kubelet":
-			node.Components.Kubelet = l.newK8sKubeletConfig(proc.flags)
+			if c := l.newK8sKubeletConfig(proc.flags); c != nil {
+				node.Components.Kubelet = append(node.Components.Kubelet, c)
+			}
 		case "kube-proxy":
-			node.Components.KubeProxy = l.newK8sKubeProxyConfig(proc.flags)
+			if c := l.newK8sKubeProxyConfig(proc.flags); c != nil {
+				node.Components.KubeProxy = append(node.Components.KubeProxy, c)
+			}
 		}
 	}
 

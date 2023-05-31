@@ -16,12 +16,12 @@ type K8sNodeConfig struct {
 	KubeletService     *K8sConfigFileMeta   `json:"kubeletService,omitempty"`
 	AdminKubeconfig    *K8sKubeconfigMeta   `json:"adminKubeconfig,omitempty"`
 	Components         struct {
-		Etcd                  *K8sEtcdConfig                  `json:"etcd,omitempty"`
-		KubeApiserver         *K8sKubeApiserverConfig         `json:"kubeApiserver,omitempty"`
-		KubeControllerManager *K8sKubeControllerManagerConfig `json:"kubeControllerManager,omitempty"`
-		Kubelet               *K8sKubeletConfig               `json:"kubelet,omitempty"`
-		KubeProxy             *K8sKubeProxyConfig             `json:"kubeProxy,omitempty"`
-		KubeScheduler         *K8sKubeSchedulerConfig         `json:"kubeScheduler,omitempty"`
+		Etcd                  []*K8sEtcdConfig                  `json:"etcd,omitempty"`
+		KubeApiserver         []*K8sKubeApiserverConfig         `json:"kubeApiserver,omitempty"`
+		KubeControllerManager []*K8sKubeControllerManagerConfig `json:"kubeControllerManager,omitempty"`
+		Kubelet               []*K8sKubeletConfig               `json:"kubelet,omitempty"`
+		KubeProxy             []*K8sKubeProxyConfig             `json:"kubeProxy,omitempty"`
+		KubeScheduler         []*K8sKubeSchedulerConfig         `json:"kubeScheduler,omitempty"`
 	} `json:"components"`
 	Manifests struct {
 		Etcd                 *K8sConfigFileMeta `json:"etcd,omitempty"`
