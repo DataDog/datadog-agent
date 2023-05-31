@@ -56,8 +56,8 @@ func newFlare(deps dependencies) (Component, rcclient.ListenerProvider, error) {
 	return f, rcListener, nil
 }
 
-func (f *flare) onAgentTaskEvent(task state.AgentTaskConfig) (bool, error) {
-	if task.Config.TaskType != "flare" {
+func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task state.AgentTaskConfig) (bool, error) {
+	if taskType != rcclient.TaskFlare {
 		return false, nil
 	}
 	caseID, found := task.Config.TaskArgs["case_id"]

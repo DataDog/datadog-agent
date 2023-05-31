@@ -9,38 +9,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// Component is the component type.
-type Component interface {
-	// Start the remote config client to listen to AGENT_TASK configurations
-	Listen() error
-}
+// TaskType contains the type of the remote config task to execute
+type TaskType string
 
-// RCListener is the FX-compatible listener, so RC can push updates through it
-type RCListener func(task state.AgentTaskConfig) (bool, error)
+const (
+	// TaskFlare is the task sent to request a flare from the agent
+	TaskFlare TaskType = "flare"
+)
+
+// RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
+type RCAgentTaskListener func(taskType TaskType, task state.AgentTaskConfig) (bool, error)
 
 type rcClient struct {
 	client        *remote.Client
 	taskProcessed map[string]bool
 
-	listeners []RCListener
+	listeners []RCAgentTaskListener
 }
 
 type dependencies struct {
 	fx.In
 
-	Listeners []RCListener `group:"rCListener"` // <-- Fill automatically by Fx
+	Listeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newRemoteConfig),
-)
-
-func newRemoteConfig(deps dependencies) (Component, error) {
+func newRemoteConfigClient(deps dependencies) (Component, error) {
 	rc := rcClient{
 		listeners: deps.Listeners,
 		client:    nil,
@@ -86,7 +82,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskCon
 			var processed bool
 			// Call all the listeners component
 			for _, l := range rc.listeners {
-				oneProcessed, oneErr := l(c)
+				oneProcessed, oneErr := l(TaskType(c.Config.TaskType), c)
 				// Check if the task was processed at least once
 				processed = oneProcessed || processed
 				if oneErr != nil {
@@ -117,5 +113,5 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskCon
 type ListenerProvider struct {
 	fx.Out
 
-	Listener RCListener `group:"rCListener"`
+	Listener RCAgentTaskListener `group:"rCAgentTaskListener"`
 }
