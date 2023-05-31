@@ -51,6 +51,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -251,6 +252,7 @@ type testOpts struct {
 	disableRuntimeSecurity              bool
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
+	tagsResolver                        tags.Resolver
 }
 
 func (s *stringSlice) String() string {
@@ -922,8 +924,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			StatsdClient:          statsdClient,
 			DontDiscardRuntime:    true,
 			PathResolutionEnabled: true,
-			TagsResolver:          NewFakeResolver(),
 		},
+	}
+	if opts.tagsResolver != nil {
+		emopts.ProbeOpts.TagsResolver = opts.tagsResolver
+	} else {
+		emopts.ProbeOpts.TagsResolver = NewFakeResolver()
 	}
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
 	if err != nil {
