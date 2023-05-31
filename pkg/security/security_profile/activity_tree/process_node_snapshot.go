@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,6 +22,7 @@ import (
 	legacyprocess "github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -84,6 +86,9 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 
 	seclog.Infof("AD: snapshotting %d files", len(files))
 	seclog.Infof("AD: files: %v", files)
+
+	sort.Strings(files)
+	files = slices.Compact(files)
 
 	// insert files
 	var fileinfo os.FileInfo
