@@ -219,5 +219,5 @@ kernel_matrix_testing_run_tests:
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-junit-$MICRO_VM_NAME.tar.gz
   parallel:
     matrix:
-      - TAG: ["4.18", "5.4", "5.15"]
+      - TAG: ["bionic", "focal", "jammy"]
         ARCH: ["x86_64", "arm64"]
