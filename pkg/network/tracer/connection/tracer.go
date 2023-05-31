@@ -75,7 +75,6 @@ type Tracer interface {
 
 const (
 	defaultClosedChannelSize = 500
-	ProbeUID                 = "net"
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 

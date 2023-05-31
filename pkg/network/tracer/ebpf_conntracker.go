@@ -298,7 +298,7 @@ func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTup
 	return dst
 }
 
-func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
+func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple, start time.Time) {
 	if err := e.ctMap.Delete(unsafe.Pointer(key)); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
 			log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
@@ -306,6 +306,8 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 		}
 		log.Warnf("unable to delete conntrack entry from eBPF map: %s", err)
 	}
+	conntrackerTelemetry.unregistersTotal.Inc()
+	conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
 }
 
 func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
@@ -316,13 +318,11 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	toConntrackTupleFromStats(key, &stats)
 
 	dst := e.get(key)
-	e.delete(key)
+	e.delete(key, start)
 	if dst != nil {
-		e.delete(dst)
+		e.delete(dst, start)
 		tuplePool.Put(dst)
 	}
-	conntrackerTelemetry.unregistersTotal.Inc()
-	conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
 }
 
 // Refreshes conntracker telemetry on a loop
