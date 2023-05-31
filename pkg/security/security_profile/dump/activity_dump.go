@@ -557,9 +557,7 @@ func (ad *ActivityDump) Snapshot() error {
 	ad.Lock()
 	defer ad.Unlock()
 
-	if err := ad.ActivityTree.Snapshot(ad.adm.newEvent); err != nil {
-		return fmt.Errorf("couldn't snapshot [%s]: %v", ad.getSelectorStr(), err)
-	}
+	ad.ActivityTree.Snapshot(ad.adm.newEvent)
 
 	// try to resolve the tags now
 	_ = ad.resolveTags()
