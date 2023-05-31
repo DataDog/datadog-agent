@@ -240,6 +240,7 @@ def getAllStackVolumesFn(conn, stack):
 
     return getAllStackVolumes
 
+
 def delete_volumes(conn, stack):
     volumes = get_resources_in_stack(stack, getAllStackVolumesFn(conn, stack))
     print(f"[*] {len(volumes)} storage volumes running in stack {stack}")
@@ -247,7 +248,7 @@ def delete_volumes(conn, stack):
     for volume in volumes:
         name = volume.name()
         volume.delete()
-#        volume.undefine()
+        #        volume.undefine()
         print(f"[+] Storage volume {name} deleted")
 
 
@@ -285,6 +286,53 @@ def destroy_stack_pulumi(ctx, stack):
     print(' '.join(destroy_cmd))
 
 
+def is_ec2_ip_entry(entry):
+    return entry.startswith("arm64-instance-ip") or entry.startswith("x86_64-instance-ip")
+
+
+def ec2_instance_ids(ctx, ip_list):
+    ip_addresses = ','.join(ip_list)
+    list_instances_cmd = "aws-vault exec sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={private_ips}\" \"Name=tag:Team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text".format(
+        private_ips=ip_addresses
+    )
+
+    res = ctx.run(list_instances_cmd, warn=True)
+    if not res.ok:
+        print("[-] Failed to get instance ids. Instances not destroyed. Used console to delete ec2 instances")
+        return
+
+    return res.stdout.splitlines()
+
+
+@task
+def destroy_ec2_instance(ctx, stack):
+    stack_output = os.path.join(KMT_STACKS_DIR, stack, "stack.output")
+    with open(stack_output, 'r') as f:
+        output = f.read().split('\n')
+
+    ips = list()
+    for o in output:
+        if not is_ec2_ip_entry(o):
+            continue
+
+        ips.append(o.split(' ')[1])
+
+    instance_ids = ec2_instance_ids(ctx, ips)
+    if len(instance_ids) == 0:
+        return
+
+    ids = ' '.join(instance_ids)
+    res = ctx.run(
+        f"aws-vault exec sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
+    )
+    if not res.ok:
+        print(f"[-] Failed to terminate instances {ids}. Use console to terminate instances")
+    else:
+        print(f"[+] Instances {ids} terminated.")
+
+    return
+
+
 def destroy_stack_force(ctx, stack):
     conn = libvirt.open("qemu:///system")
     delete_domains(conn, stack)
@@ -293,19 +341,22 @@ def destroy_stack_force(ctx, stack):
     delete_networks(conn, stack)
     conn.close()
 
+
 @task
-def destroy_stack(ctx, stack=None, branch=False, force=False):
+def destroy_stack(ctx, stack=None, branch=False, use_pulumi=False):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     print(f"[*] Destroying stack {stack}")
-    if force:
-        destroy_stack_force(ctx, stack)
-        ctx.run(f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions/scenarios/aws/microVMs -s {stack}")
-    else:
+    if use_pulumi:
         destroy_stack_pulumi(ctx, stack)
+    else:
+        destroy_stack_force(ctx, stack)
 
+    ctx.run(
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions/scenarios/aws/microVMs -s {stack}"
+    )
     ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
 
 
@@ -661,22 +712,22 @@ def download_kernel_packages(ctx, revert=False):
     sudo = "sudo" if not is_root() else ""
     # download kernel packages
     res = ctx.run(
-       f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {KMT_PACKAGES_DIR}/{kernel_packages_tar}",
-       warn=True,
+        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {KMT_PACKAGES_DIR}/{kernel_packages_tar}",
+        warn=True,
     )
     if not res.ok:
-       if revert:
-           revert_kernel_packages(ctx)
-       raise Exit("Failed to download kernel pacakges")
+        if revert:
+            revert_kernel_packages(ctx)
+        raise Exit("Failed to download kernel pacakges")
 
     res = ctx.run(
-       f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {KMT_PACKAGES_DIR}/{kernel_packages_sum}",
-       warn=True,
+        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {KMT_PACKAGES_DIR}/{kernel_packages_sum}",
+        warn=True,
     )
     if not res.ok:
-       if revert:
-           revert_kernel_packages(ctx)
-       raise Exit("Failed to download kernel pacakges checksum")
+        if revert:
+            revert_kernel_packages(ctx)
+        raise Exit("Failed to download kernel pacakges checksum")
 
     # extract pacakges
     res = ctx.run(f"cd {KMT_PACKAGES_DIR} && tar xvf {kernel_packages_tar} | xargs -i tar xzf {{}}")
@@ -756,20 +807,20 @@ def download_rootfs(ctx, revert=False):
 
     # download rootfs
     res = ctx.run(
-       f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O {KMT_ROOTFS_DIR}/{rootfs}.sum"
+        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O {KMT_ROOTFS_DIR}/{rootfs}.sum"
     )
     if not res.ok:
-       if revert:
-           revert_rootfs(ctx)
-       raise Exit("Failed to download rootfs check sum file")
+        if revert:
+            revert_rootfs(ctx)
+        raise Exit("Failed to download rootfs check sum file")
 
     res = ctx.run(
-       f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.tar.gz -O {KMT_ROOTFS_DIR}/{rootfs}.tar.gz"
+        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.tar.gz -O {KMT_ROOTFS_DIR}/{rootfs}.tar.gz"
     )
     if not res.ok:
-       if revert:
-           revert_rootfs(ctx)
-       raise Exit("Failed to download rootfs")
+        if revert:
+            revert_rootfs(ctx)
+        raise Exit("Failed to download rootfs")
 
     # extract rootfs
     res = ctx.run(f"cd {KMT_ROOTFS_DIR} && tar xzvf {rootfs}.tar.gz")
@@ -857,7 +908,7 @@ def find_ssh_key(ssh_key):
 
 @task
 def launch_stack(
-    ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0584a00dd384af6ab", arm_ami="ami-0a5c054df5931fbfc"
+    ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0584a00dd384af6ab", arm_ami="ami-0b7cd13521845570c"
 ):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
