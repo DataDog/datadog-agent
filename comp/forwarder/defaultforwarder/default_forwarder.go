@@ -224,6 +224,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		domainResolvers:  map[string]resolver.DomainResolver{},
 		internalState:    atomic.NewUint32(Stopped),
 		healthChecker: &forwarderHealth{
+			log:                   log,
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
