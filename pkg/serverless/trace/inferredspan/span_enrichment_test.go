@@ -24,6 +24,7 @@ const (
 
 // TestGetServiceMapping checks if the function correctly parses the input string into a map.
 func TestCreateServiceMapping(t *testing.T) {
+	// Case 1: Normal case
 	testString := "test1:val1,test2:val2"
 	expectedOutput := map[string]string{
 		"test1": "val1",
@@ -32,6 +33,42 @@ func TestCreateServiceMapping(t *testing.T) {
 
 	result := CreateServiceMapping(testString)
 	assert.True(t, reflect.DeepEqual(result, expectedOutput), "NewServiceMapping failed, expected %v, got %v", expectedOutput, result)
+
+	// Case 2: Test incorrect format.
+	testString = "test1-val1,test2=val2"
+	expectedOutput = map[string]string{}
+	result = CreateServiceMapping(testString)
+	assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with incorrect format, expected %v, got %v", expectedOutput, result)
+
+	// Case 3: Test same key-value pairs.
+	testString = "api1:api1,api2:api2"
+	expectedOutput = map[string]string{}
+	result = CreateServiceMapping(testString)
+	assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with same key-value pairs, expected %v, got %v", expectedOutput, result)
+
+	// Case 4: Test empty keys.
+	testString = ":api1,api2:service2"
+	expectedOutput = map[string]string{
+		"api2": "service2",
+	}
+	result = CreateServiceMapping(testString)
+	assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with empty keys, expected %v, got %v", expectedOutput, result)
+
+	// Case 5: Test empty values.
+	testString = "api1:,api2:service2"
+	expectedOutput = map[string]string{
+		"api2": "service2",
+	}
+	result = CreateServiceMapping(testString)
+	assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with empty values, expected %v, got %v", expectedOutput, result)
+
+	// Case 6: Test more than one colon in the entry.
+	testString = "api1:val1:val2,api2:service2"
+	expectedOutput = map[string]string{
+		"api2": "service2",
+	}
+	result = CreateServiceMapping(testString)
+	assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with more than one colon, expected %v, got %v", expectedOutput, result)
 }
 
 // TestDetermineServiceName checks if the function correctly selects a service name from the map.

@@ -27,7 +27,9 @@ func CreateServiceMapping(val string) map[string]string {
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			newServiceMapping[key] = value
+			if key != "" && value != "" && key != value {
+				newServiceMapping[key] = value
+			}
 		}
 	}
 	return newServiceMapping
