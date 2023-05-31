@@ -627,7 +627,7 @@ func (f *DefaultForwarder) SubmitConnectionChecks(payload transaction.BytesPaylo
 
 // SubmitOrchestratorChecks sends orchestrator checks
 func (f *DefaultForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
-	bumpOrchestratorPayload(payloadType)
+	bumpOrchestratorPayload(f.log, payloadType)
 
 	endpoint := endpoints.OrchestratorEndpoint
 	if f.config.IsSet("orchestrator_explorer.use_legacy_endpoint") {
