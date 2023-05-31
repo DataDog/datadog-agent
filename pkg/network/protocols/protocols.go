@@ -38,11 +38,15 @@ type EbpfProgram interface {
 
 	// PreStop is called before the provided eBPF manager is stopped.  Cleanup
 	// steps, such as stopping events consumers, should be performed here.
-	PreStop(*manager.Manager) error
+	// Note that since this method is a cleanup method, it *should not* fail and
+	// tries to cleanup resources as best as it can.
+	PreStop(*manager.Manager)
 
 	// PostStop is called after the provided eBPF manager is stopped. Final
 	// cleanup steps should be performed here.
-	PostStop(*manager.Manager) error
+	// Note that since this method is a cleanup method, it *should not* fail and
+	// tries to cleanup resources as best as it can.
+	PostStop(*manager.Manager)
 
 	// DumpMaps dumps the content of the map represented by mapName &
 	// currentMap, if it used by the eBPF program, to output.

@@ -70,12 +70,10 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	telemetry := NewTelemetry()
-	statkeeper := NewHTTPStatkeeper(cfg, telemetry)
 
 	return &httpProtocol{
-		cfg:        cfg,
-		telemetry:  telemetry,
-		statkeeper: statkeeper,
+		cfg:       cfg,
+		telemetry: telemetry,
 	}, nil
 }
 
@@ -105,6 +103,7 @@ func (p *httpProtocol) PreStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
+	p.statkeeper = NewHTTPStatkeeper(p.cfg, p.telemetry)
 	p.eventsConsumer.Start()
 
 	return
@@ -117,17 +116,20 @@ func (p *httpProtocol) PostStart(mgr *manager.Manager) error {
 	return nil
 }
 
-func (p *httpProtocol) PreStop(mgr *manager.Manager) error {
+func (p *httpProtocol) PreStop(mgr *manager.Manager) {
+	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
-	p.eventsConsumer.Stop()
-	p.statkeeper.Close()
 
-	return nil
+	if p.eventsConsumer != nil {
+		p.eventsConsumer.Stop()
+	}
+
+	if p.statkeeper != nil {
+		p.statkeeper.Close()
+	}
 }
 
-func (p *httpProtocol) PostStop(mgr *manager.Manager) error {
-	return nil
-}
+func (p *httpProtocol) PostStop(mgr *manager.Manager) {}
 
 func (p *httpProtocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
 	switch mapName {

@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -41,6 +43,17 @@ const (
 var (
 	emptyBody = []byte(nil)
 )
+
+func TestMonitorProtocolFail(t *testing.T) {
+	patchProtocolMock(t, newProtocolMock)
+
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	skipIfNotSupported(t, err)
+	require.NoError(t, err)
+	t.Cleanup(monitor.Stop)
+}
 
 func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
 	monitor := newHTTPMonitor(t)
@@ -601,5 +614,28 @@ func skipIfNotSupported(t *testing.T, err error) {
 	notSupported := new(errNotSupported)
 	if errors.As(err, &notSupported) {
 		t.Skipf("skipping test because this kernel is not supported: %s", notSupported)
+	}
+}
+
+// Helper type to mock Protocol in tests
+type protocolMock struct{}
+
+func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Options)             {}
+func (p *protocolMock) PreStart(mgr *manager.Manager) (err error)                              { return fmt.Errorf("mock fail") }
+func (p *protocolMock) PostStart(mgr *manager.Manager) error                                   { return nil }
+func (p *protocolMock) PreStop(mgr *manager.Manager)                                           {}
+func (p *protocolMock) PostStop(mgr *manager.Manager)                                          {}
+func (p *protocolMock) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {}
+func (p *protocolMock) GetStats() *protocols.ProtocolStats                                     { return nil }
+
+func newProtocolMock(c *config.Config) (protocols.Protocol, error) {
+	return &protocolMock{}, nil
+}
+
+// patchProtocolMock updates the map of of known protocols to replace the mock
+// factory in place of the HTTP protocol factory
+func patchProtocolMock(t *testing.T, mockFactory func(*config.Config) (protocols.Protocol, error)) {
+	knownProtocols[protocols.HTTP] = protocols.ProtocolSpec{
+		Factory: mockFactory,
 	}
 }

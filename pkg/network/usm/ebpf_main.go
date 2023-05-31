@@ -55,7 +55,7 @@ type ebpfProgram struct {
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
-	protocols         []protocols.Protocol
+	protocols         map[protocols.ProtocolType]protocols.Protocol
 	excludedFunctions []string
 }
 
