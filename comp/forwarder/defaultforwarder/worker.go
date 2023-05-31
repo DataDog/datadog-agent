@@ -158,7 +158,7 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = httptrace.WithClientTrace(ctx, transaction.Trace)
+	ctx = httptrace.WithClientTrace(ctx, transaction.GetClientTrace(w.log))
 	done := make(chan interface{})
 	go func() {
 		w.process(ctx, t)
@@ -192,7 +192,7 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	if w.blockedList.isBlock(target) {
 		requeue()
 		w.log.Errorf("Too many errors for endpoint '%s': retrying later", target)
-	} else if err := t.Process(ctx, w.config, w.Client); err != nil {
+	} else if err := t.Process(ctx, w.config, w.log, w.Client); err != nil {
 		w.blockedList.close(target)
 		requeue()
 		w.log.Errorf("Error while processing transaction: %v", err)

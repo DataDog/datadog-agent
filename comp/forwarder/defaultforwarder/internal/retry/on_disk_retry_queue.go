@@ -73,7 +73,7 @@ func (s *onDiskRetryQueue) Store(transactions []transaction.Transaction) error {
 	_, _ = s.serializer.GetBytesAndReset()
 
 	for _, t := range transactions {
-		if err := t.SerializeTo(s.serializer); err != nil {
+		if err := t.SerializeTo(s.log, s.serializer); err != nil {
 			return err
 		}
 	}
