@@ -431,6 +431,26 @@ func Test_loadDefaultProfiles(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
 }
 
+func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
+	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
+	config.Datadog.Set("confd_path", defaultTestConfdPath)
+	defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
+	assert.Nil(t, err)
+
+	//fmt.Printf("%+v", defaultProfilesDef)
+
+	assert.Len(t, defaultProfilesDef, 2)
+
+	//globalProfileConfigMap = nil
+	//
+	//defaultProfiles, err := loadDefaultProfiles()
+	//assert.Nil(t, err)
+	//defaultProfiles2, err := loadDefaultProfiles()
+	//assert.Nil(t, err)
+	//
+	//assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
+}
+
 func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
 	invalidPath, _ := filepath.Abs(filepath.Join(".", "tmp", "invalidPath"))
 	config.Datadog.Set("confd_path", invalidPath)

@@ -1,0 +1,14 @@
+# Profile for F5 BIG-IP devices
+#
+extends:
+  - _base.yaml
+
+device:
+  vendor: "f5"
+
+sysobjectid: 1.3.6.1.4.1.3375.2.1.3.4.*
+
+metrics:
+  - symbol:
+      OID: 1.3.6.1.4.1.3375.2.1.1.2.1.44.0
+      name: sysStatMemoryTotal
