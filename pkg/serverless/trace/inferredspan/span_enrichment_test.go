@@ -71,18 +71,18 @@ func TestCreateServiceMapping(t *testing.T) {
 	assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with more than one colon, expected %v, got %v", expectedOutput, result)
 
 	// Case 7: Test an empty string.
-    testString = ""
-    expectedOutput = map[string]string{}
-    result = CreateServiceMapping(testString)
-    assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with an empty string, expected %v, got %v", expectedOutput, result)
+	testString = ""
+	expectedOutput = map[string]string{}
+	result = CreateServiceMapping(testString)
+	assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with an empty string, expected %v, got %v", expectedOutput, result)
 
-    // Case 8: Test string with leading and trailing commas.
-    testString = ",api1:service1,"
-    expectedOutput = map[string]string{
-        "api1": "service1",
-    }
-    result = CreateServiceMapping(testString)
-    assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with leading and trailing commas, expected %v, got %v", expectedOutput, result)
+	// Case 8: Test string with leading and trailing commas.
+	testString = ",api1:service1,"
+	expectedOutput = map[string]string{
+		"api1": "service1",
+	}
+	result = CreateServiceMapping(testString)
+	assert.True(t, reflect.DeepEqual(result, expectedOutput), "CreateServiceMapping failed with leading and trailing commas, expected %v, got %v", expectedOutput, result)
 }
 
 // TestDetermineServiceName checks if the function correctly selects a service name from the map.
