@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -20,6 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
+
+const datadogProfileFolder = "profiles"
+const userProfileFolder = "user_profiles"
 
 type profileDefinitionMap map[string]profileDefinition
 
@@ -77,7 +81,27 @@ func loadDefaultProfiles() (profileDefinitionMap, error) {
 }
 
 func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
-	profilesRoot := getProfileConfdRoot()
+	// TODO:
+	//  - loop `profiles`
+	//  - loop `user_profiles` that takes precedence
+	profiles, err := getProfilesDefinitionFiles(datadogProfileFolder)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: TEST ME
+	userProfiles, err := getProfilesDefinitionFiles(userProfileFolder)
+	if err != nil {
+		log.Warnf("failed to read user_profiles: %s", err)
+	} else {
+		for profileName, profileDef := range userProfiles {
+			profiles[profileName] = profileDef
+		}
+	}
+	return profiles, nil
+}
+
+func getProfilesDefinitionFiles(profilesFolder string) (profileConfigMap, error) {
+	profilesRoot := getProfileConfdRoot(profilesFolder)
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
@@ -111,7 +135,7 @@ func loadProfiles(pConfig profileConfigMap) (profileDefinitionMap, error) {
 				continue
 			}
 
-			err = recursivelyExpandBaseProfiles(profileDefinition, profileDefinition.Extends, []string{})
+			err = recursivelyExpandBaseProfiles(profile.DefinitionFile, profileDefinition, profileDefinition.Extends, []string{})
 			if err != nil {
 				log.Warnf("failed to expand profile `%s`: %s", name, err)
 				continue
@@ -150,16 +174,27 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 	if filepath.IsAbs(definitionFile) {
 		return definitionFile
 	}
-	return filepath.Join(getProfileConfdRoot(), definitionFile)
+	// TODO: TEST ME
+	userProfile := filepath.Join(getProfileConfdRoot(userProfileFolder), definitionFile)
+	if filesystem.FileExists(userProfile) {
+		return userProfile
+	}
+	return filepath.Join(getProfileConfdRoot(datadogProfileFolder), definitionFile)
 }
 
-func getProfileConfdRoot() string {
+func getProfileConfdRoot(profileFolderName string) string {
 	confdPath := config.Datadog.GetString("confd_path")
-	return filepath.Join(confdPath, "snmp.d", "profiles")
+	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []string, extendsHistory []string) error {
+func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinition, extends []string, extendsHistory []string) error {
+	parentBasePath := filepath.Base(parentPath)
 	for _, basePath := range extends {
+		// TODO: When replacing OOTB profile or base profile, user can import the existing OOTB profile with the same name.
+		// TODO: TEST ME
+		if basePath == parentBasePath {
+			basePath = filepath.Join(getProfileConfdRoot(datadogProfileFolder), basePath)
+		}
 		for _, extend := range extendsHistory {
 			if extend == basePath {
 				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", basePath, extendsHistory)
@@ -173,7 +208,7 @@ func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []stri
 		mergeProfileDefinition(definition, baseDefinition)
 
 		newExtendsHistory := append(common.CopyStrings(extendsHistory), basePath)
-		err = recursivelyExpandBaseProfiles(definition, baseDefinition.Extends, newExtendsHistory)
+		err = recursivelyExpandBaseProfiles(basePath, definition, baseDefinition.Extends, newExtendsHistory)
 		if err != nil {
 			return err
 		}
