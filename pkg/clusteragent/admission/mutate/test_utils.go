@@ -8,6 +8,7 @@
 package mutate
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -114,15 +115,15 @@ func fakePodWithParent(ns string, as, ls map[string]string, es []corev1.EnvVar, 
 				Namespace: ns,
 			},
 		}
-		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("Deployment")))
-	} else if parentKind == "replicaset" {
+		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("ReplicaSet")))
+	} else if parentKind == "persistentvolume" {
 		rs := &appsv1.ReplicaSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      parentName,
 				Namespace: ns,
 			},
 		}
-		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(rs, appsv1.SchemeGroupVersion.WithKind("ReplicaSet")))
+		pod.ObjectMeta.OwnerReferences = append(pod.ObjectMeta.OwnerReferences, *metav1.NewControllerRef(rs, appsv1.SchemeGroupVersion.WithKind("PersistentVolume")))
 	}
 
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
@@ -158,4 +159,9 @@ func fakePod(name string) *corev1.Pod {
 func withContainer(pod *corev1.Pod, nameSuffix string) *corev1.Pod {
 	pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{Name: pod.Name + nameSuffix})
 	return pod
+}
+
+func resetMockConfig(c *config.MockConfig) {
+	c.Set("admission_controller.mutate_unlabelled", false)
+	c.Set("admission_controller.auto_instrumentation.apm_enabled", false)
 }

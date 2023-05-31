@@ -104,7 +104,7 @@ func getDeploymentReference(pod *corev1.Pod) *v1.OwnerReference {
 	ownerReferences := pod.ObjectMeta.OwnerReferences
 
 	for _, ownerRef := range ownerReferences {
-		if ownerRef.Kind == "Deployment" {
+		if ownerRef.Kind == "ReplicaSet" {
 			return &ownerRef
 		}
 	}
@@ -116,7 +116,7 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 		return errors.New("cannot inject lib into nil pod")
 	}
 
-	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_enabled") {
 		// Note that shouldMutatePod() is not used here since it checks the mutate_unlabelled
 		// setting which we want to ignore with this setting.
 		if deployment := getDeploymentReference(pod); deployment == nil {
@@ -159,7 +159,7 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 }
 
 func isNsTargeted(ns string) bool {
-	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_enabled") {
 		return true
 	}
 	if len(targetNamespaces) == 0 {
@@ -367,7 +367,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 	injectLibVolume(pod)
 
 	// Try to inject any configuration defaults that have not already been injected as env vars.
-	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_instrumentation_enabled") {
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.apm_enabled") {
 		if deployment := getDeploymentReference(pod); deployment != nil {
 			libConfig := basicConfig()
 			libConfig.ServiceName = pointer.Ptr(deployment.Name)

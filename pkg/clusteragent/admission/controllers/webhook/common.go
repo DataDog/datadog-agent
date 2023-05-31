@@ -16,26 +16,14 @@ import (
 
 // buildLabelSelectors returns the mutating webhooks object selector based on the configuration
 func buildLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
-	var labelSelector metav1.LabelSelector
-
-	if config.Datadog.GetBool("admission_controller.mutate_unlabelled") {
-		// Accept all, ignore pods if they're explicitly filtered-out
-		labelSelector = metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{
-				{
-					Key:      common.EnabledLabelKey,
-					Operator: metav1.LabelSelectorOpNotIn,
-					Values:   []string{"false"},
-				},
+	labelSelector := metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key:      common.EnabledLabelKey,
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"false"},
 			},
-		}
-	} else {
-		// Ignore all, accept pods if they're explicitly allowed
-		labelSelector = metav1.LabelSelector{
-			MatchLabels: map[string]string{
-				common.EnabledLabelKey: "true",
-			},
-		}
+		},
 	}
 
 	if config.Datadog.GetBool("admission_controller.add_aks_selectors") {

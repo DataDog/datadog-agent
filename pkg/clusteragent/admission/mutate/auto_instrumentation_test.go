@@ -1137,7 +1137,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 			}...),
 			wantErr:     false,
-			setupConfig: func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
+			setupConfig: func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_enabled", true) },
 		},
 		{
 			name: "APM OOTB: disable with label",
@@ -1148,7 +1148,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}, []corev1.EnvVar{}, "deployment", "test-deployment"),
 			expectedEnvs: []corev1.EnvVar{},
 			wantErr:      false,
-			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
+			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_enabled", true) },
 		},
 		{
 			name: "APM OOTB: default service name is k8s deployment",
@@ -1158,29 +1158,30 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				Value: "test-deployment",
 			}),
 			wantErr:     false,
-			setupConfig: func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
+			setupConfig: func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_enabled", true) },
 		},
 		{
 			name:         "APM OOTB: default service name (disabled)",
 			pod:          fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "deployment", "test-deployment"),
 			expectedEnvs: []corev1.EnvVar{},
 			wantErr:      false,
-			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", false) },
+			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_enabled", false) },
 		},
 		{
 			name: "APM OOTB: non-deployment should not be instrumented",
 			pod: fakePodWithParent("ns", map[string]string{}, map[string]string{
 				"admission.datadoghq.com/enabled": "false",
-			}, []corev1.EnvVar{}, "replicaset", "test-replicaset"),
+			}, []corev1.EnvVar{}, "persistentvolume", "test-volume"),
 			expectedEnvs: []corev1.EnvVar{},
 			wantErr:      false,
-			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_instrumentation_enabled", true) },
+			setupConfig:  func() { mockConfig.Set("admission_controller.auto_instrumentation.apm_enabled", true) },
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setupConfig != nil {
 				tt.setupConfig()
+				defer resetMockConfig(mockConfig) // Reset to default
 			}
 			err := injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
 			require.False(t, (err != nil) != tt.wantErr)

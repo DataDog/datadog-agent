@@ -2643,14 +2643,6 @@ api_key:
   #
   # mutate_unlabelled: false
 
-  ## @param apm_instrumentation_enabled - boolean - optional - default: false
-  ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APM_INSTRUMENTATION_ENABLED - boolean - optional - default: false
-  ## Enable injecting APM libraries into all Kubernetes deployments (beta).
-  ## Note: this setting will ignore the value of the mutate_unlabelled setting. Pods in deployments will be mutated
-  ## unless explicitly opted out with the label admission.datadoghq.com/enabled="false".
-  #
-  # apm_instrumentation_enabled: false
-
   ## @param port - integer - optional - default: 8000
   ## @env DD_ADMISSION_CONTROLLER_PORT - integer - optional - default: 8000
   ## The admission controller server port.
@@ -2796,6 +2788,13 @@ api_key:
   ## Library injection parameters.
   #
   # auto_instrumentation:
+    ## @param apm_instrumentation_enabled - boolean - optional - default: false
+    ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APM_ENABLED - boolean - optional - default: false
+    ## Enable injecting APM libraries into all Kubernetes deployments (beta).
+    ## Note: this setting will ignore the value of the mutate_unlabelled setting. Pods in deployments will be mutated
+    ## unless explicitly opted out with the label admission.datadoghq.com/enabled="false".
+    #
+    # apm_enabled: false
 
     ## @param init_resources - custom object - optional
     ## CPU and Memory resources of the init containers.
