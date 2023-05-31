@@ -29,7 +29,9 @@ type sysMetricsDefinition struct {
 }
 
 var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
+	"Average Active Sessions":                       {DDmetric: "active_sessions"},
 	"Average Synchronous Single-Block Read Latency": {DDmetric: "avg_synchronous_single_block_read_latency", DBM: true},
+	"Background CPU Usage Per Sec":                  {DDmetric: "background_cpu_usage", DBM: true},
 	"Buffer Cache Hit Ratio":                        {DDmetric: "buffer_cachehit_ratio"},
 	"Cursor Cache Hit Ratio":                        {DDmetric: "cursor_cachehit_ratio"},
 	"Library Cache Hit Ratio":                       {DDmetric: "library_cachehit_ratio"},
@@ -41,7 +43,6 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Global Cache Blocks Corrupted":                 {DDmetric: "cache_blocks_corrupt"},
 	"Global Cache Blocks Lost":                      {DDmetric: "cache_blocks_lost"},
 	"Logons Per Sec":                                {DDmetric: "logons"},
-	"Average Active Sessions":                       {DDmetric: "active_sessions"},
 	"Long Table Scans Per Sec":                      {DDmetric: "long_table_scans"},
 	"SQL Service Response Time":                     {DDmetric: "service_response_time"},
 	"User Rollbacks Per Sec":                        {DDmetric: "user_rollbacks"},
