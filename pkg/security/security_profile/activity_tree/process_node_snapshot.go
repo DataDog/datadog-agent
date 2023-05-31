@@ -29,12 +29,10 @@ import (
 )
 
 // snapshot uses procfs to retrieve information about the current process
-func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStats, newEvent func() *model.Event) error {
+func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStats, newEvent func() *model.Event) {
 	// call snapshot for all the children of the current node
 	for _, child := range pn.Children {
-		if err := child.snapshot(owner, stats, newEvent); err != nil {
-			return err
-		}
+		child.snapshot(owner, stats, newEvent)
 		// iterate slowly
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -43,30 +41,26 @@ func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStat
 	p, err := process.NewProcess(int32(pn.Process.Pid))
 	if err != nil {
 		// the process doesn't exist anymore, ignore
-		return nil
+		return
 	}
 
 	// snapshot files
 	if owner.IsEventTypeValid(model.FileOpenEventType) {
-		if err = pn.snapshotFiles(p, stats, newEvent); err != nil {
-			return err
-		}
+		pn.snapshotFiles(p, stats, newEvent)
 	}
 
 	// snapshot sockets
 	if owner.IsEventTypeValid(model.BindEventType) {
-		if err = pn.snapshotBoundSockets(p, stats, newEvent); err != nil {
-			return err
-		}
+		pn.snapshotBoundSockets(p, stats, newEvent)
 	}
-	return nil
+	return
 }
 
-func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) error {
+func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
 	if err != nil {
-		return err
+		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
 	}
 
 	var files []string
@@ -77,7 +71,11 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	// list the mmaped files of the process
 	memoryMaps, err := p.MemoryMaps(false)
 	if err != nil {
-		return err
+		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
+	}
+
+	if len(files) == 0 {
+		return
 	}
 
 	for _, mm := range *memoryMaps {
@@ -125,14 +123,15 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 
 		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
 	}
-	return nil
+	return
 }
 
-func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) error {
+func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) {
 	// list all the file descriptors opened by the process
 	FDs, err := p.OpenFiles()
 	if err != nil {
-		return err
+		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
+		return
 	}
 
 	// sockets have the following pattern "socket:[inode]"
@@ -141,7 +140,8 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 		if strings.HasPrefix(fd.Path, "socket:[") {
 			sock, err := strconv.Atoi(strings.TrimPrefix(fd.Path[:len(fd.Path)-1], "socket:["))
 			if err != nil {
-				return err
+				seclog.Warnf("error while parsing socket inode (pid: %v): %s", p.Pid, err)
+				continue
 			}
 			if sock < 0 {
 				continue
@@ -150,13 +150,13 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 		}
 	}
 	if len(sockets) <= 0 {
-		return nil
+		return
 	}
 
 	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
 	proc, _ := procfs.NewFS(filepath.Join(util.HostProc(fmt.Sprintf("%d", p.Pid))))
 	if err != nil {
-		return err
+		seclog.Warnf("error while opening procfs (pid: %v): %s", p.Pid, err)
 	}
 	// looking for AF_INET sockets
 	TCP, err := proc.NetTCP()
@@ -205,7 +205,7 @@ func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityT
 		}
 		// not necessary found here, can be also another kind of socket (AF_UNIX, AF_NETLINK, etc)
 	}
-	return nil
+	return
 }
 
 func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port uint16, stats *ActivityTreeStats, newEvent func() *model.Event) {
