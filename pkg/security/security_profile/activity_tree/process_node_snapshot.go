@@ -133,9 +133,15 @@ func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, er
 
 	files := make([]string, 0, len(*stats))
 	for _, mm := range *stats {
-		if mm.Path != processEventPath {
-			files = append(files, mm.Path)
+		if len(mm.Path) == 0 {
+			continue
 		}
+
+		if mm.Path != processEventPath {
+			continue
+		}
+
+		files = append(files, mm.Path)
 	}
 	return files, nil
 }
