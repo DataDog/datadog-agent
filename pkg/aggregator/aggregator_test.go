@@ -50,8 +50,9 @@ func initF() {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	forwarder := defaultforwarder.NewDefaultForwarder(pkgconfig.Datadog, defaultforwarder.NewOptions(pkgconfig.Datadog, nil))
-	demux := InitAndStartAgentDemultiplexer(log.NewTemporaryLoggerWithoutInit(), forwarder, opts, defaultHostname)
+	log := log.NewTemporaryLoggerWithoutInit()
+	forwarder := defaultforwarder.NewDefaultForwarder(pkgconfig.Datadog, log, defaultforwarder.NewOptions(pkgconfig.Datadog, nil))
+	demux := InitAndStartAgentDemultiplexer(log, forwarder, opts, defaultHostname)
 
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
 	recurrentSeries = metrics.Series{}

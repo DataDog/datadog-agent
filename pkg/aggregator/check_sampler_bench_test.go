@@ -26,8 +26,8 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, forwarderOpts)
 	log := fxutil.Test[log.Component](b, log.MockModule)
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarderOpts)
 	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, options, "hostname")
 	defer demux.Stop(true)
 
