@@ -86,13 +86,17 @@ func (rcp *remoteConfigProvider) process(update map[string]state.APMTracingConfi
 		}
 		if ch, found := rcp.subscribers[req.K8sTarget.Kind]; found {
 			valid++
+			env := ""
+			if req.LibConfig.Env != nil {
+				env = *req.LibConfig.Env
+			}
 			rcp.telemetryCollector.SendEvent(&telemetry.ApmRemoteConfigEvent{
 				RequestType: "apm-remote-config-event",
 				ApiVersion:  "v2",
 				Payload: telemetry.ApmRemoteConfigEventPayload{
 					EventName: "agent.k8s.patch",
 					Tags: telemetry.ApmRemoteConfigEventTags{
-						Env:                 *req.LibConfig.Env,
+						Env:                 env,
 						RcId:                req.ID,
 						RcClientId:          rcp.client.ID,
 						RcRevision:          req.SchemaVersion,

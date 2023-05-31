@@ -83,14 +83,14 @@ func NewNoopCollector() TelemetryCollector {
 func (collector *telemetryCollector) SendEvent(event *ApmRemoteConfigEvent) {
 	body, err := json.Marshal(event)
 	if err != nil {
-		log.Error("Error while trying to marshal a remote config event to JSON: %v", err)
+		log.Errorf("Error while trying to marshal a remote config event to JSON: %v", err)
 		return
 	}
 	bodyLen := strconv.Itoa(len(body))
 
 	req, err := http.NewRequest("POST", collector.host+"/api/v2/apmtelemetry", bytes.NewReader(body))
 	if err != nil {
-		log.Error("Error while trying to create a web request for a remote config event: %v", err)
+		log.Errorf("Error while trying to create a web request for a remote config event: %v", err)
 		return
 	}
 	if !config.Datadog.IsSet("api_key") {
@@ -103,7 +103,7 @@ func (collector *telemetryCollector) SendEvent(event *ApmRemoteConfigEvent) {
 
 	resp, err := collector.client.Do(req)
 	if err != nil {
-		log.Error("Failed to transmit remote config event to Datadog: %v", err)
+		log.Errorf("Failed to transmit remote config event to Datadog: %v", err)
 		return
 	}
 	// Unconditionally read the body and ignore any errors
