@@ -85,11 +85,11 @@ distributions = {
 distribution_version_mapping = {"jammy": "ubuntu", "focal": "ubuntu", "bionic": "ubuntu"}
 distro_arch_mapping = {"x86_64": "amd64", "arm64": "arm64"}
 images_path = {
-    "bionic": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-amd64.qcow2",
-    "focal": "file:///home/kernel-version-testing/rootfs/focal-server-cloudimg-amd64.qcow2",
-    "jammy": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-amd64.qcow2",
-    "bullseye": "file:///home/kernel-version-testing/rootfs/bullseye.qcow2.arm64-DEV",
-    "buster": "file:///home/kernel-version-testing/rootfs/buster.qcow2.amd64-DEV",
+    "bionic": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-{arch}.qcow2",
+    "focal": "file:///home/kernel-version-testing/rootfs/focal-server-cloudimg-{arch}.qcow2",
+    "jammy": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-{arch}.qcow2",
+    "bullseye": "file:///home/kernel-version-testing/rootfs/bullseye.qcow2.{arch}-DEV",
+    "buster": "file:///home/kernel-version-testing/rootfs/buster.qcow2.{arch}-DEV",
 }
 
 priv_key = """-----BEGIN OPENSSH PRIVATE KEY-----
@@ -164,7 +164,7 @@ def check_and_get_stack(stack, branch):
         raise Exit("Cannot specify stack when branch parameter is set")
 
     if branch:
-        return get_active_branch_name()
+        return f"{get_active_branch_name()}-ddvm"
 
     return f"{stack}-ddvm"
 
@@ -395,7 +395,7 @@ def get_distro_image_config(version, arch):
     return {
         "dir": f"{distributions[version]}-server-cloudimg-{distro_arch_mapping[arch]}.qcow2",
         "tag": version,
-        "image_source": images_path[version],
+        "image_source": images_path[version].format(arch=distro_arch_mapping[arch]),
     }
 
 
@@ -439,12 +439,12 @@ def build_new_vmset(set_id, kernels):
         if version == "lte_414":
             vmset["image"] = {
                 "image_path": f"buster.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_uri": images_path["buster"],
+                "image_uri": images_path["buster"].format(arch=distro_arch_mapping[arch]),
             }
         else:
             vmset["image"] = {
                 "image_path": f"bullseye.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_uri": images_path["bullseye"],
+                "image_uri": images_path["bullseye"].format(arch=distro_arch_mapping[arch]),
             }
     elif recipe == "distro":
         vmset = {"name": vmset_name_from_id(set_id), "recipe": f"distro-{arch}", "arch": arch, "kernels": kernels}
