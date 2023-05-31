@@ -38,7 +38,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 	config.Load()
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
+	metricAgent.Start(10*time.Second, 15*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 	assert.NotNil(t, metricAgent.Demux)
 	assert.True(t, metricAgent.IsReady())
 }
@@ -58,7 +58,7 @@ func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string,
 func TestStartInvalidConfig(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
+	metricAgent.Start(1*time.Second, 15*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
 	assert.False(t, metricAgent.IsReady())
 }
 
@@ -71,7 +71,7 @@ func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogst
 func TestStartInvalidDogStatsD(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
+	metricAgent.Start(1*time.Second, 15*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.False(t, metricAgent.IsReady())
 }
 
@@ -84,7 +84,7 @@ func TestStartWithProxy(t *testing.T) {
 
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
+	metricAgent.Start(10*time.Second, 15*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 
 	expected := []string{
 		invocationsMetric,
@@ -98,7 +98,7 @@ func TestStartWithProxy(t *testing.T) {
 func TestRaceFlushVersusAddSample(t *testing.T) {
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
+	metricAgent.Start(10*time.Second, 15*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
 
 	assert.NotNil(t, metricAgent.Demux)
 
@@ -190,7 +190,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
+	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, time.Second*15)
 
 	s := dogstatsdServer.NewServerlessServer()
 	err = s.Start(demux)

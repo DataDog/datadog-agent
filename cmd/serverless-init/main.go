@@ -65,7 +65,6 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 
 	setupOtlpAgent(metricAgent)
 
-	go flushMetricsAgent(metricAgent)
 	return cloudService, logConfig, traceAgent, metricAgent
 }
 
@@ -83,7 +82,7 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	// we don't want to add the container_id tag to metrics for cardinality reasons
 	tags = tag.WithoutContainerID(tags)
 	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tags)
-	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	metricAgent.Start(5*time.Second, 3*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	metricAgent.SetExtraTags(tagArray)
 	return metricAgent
 }
@@ -95,12 +94,6 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	}
 	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
 	otlpAgent.Start()
-}
-
-func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
-	for range time.Tick(3 * time.Second) {
-		metricAgent.Flush()
-	}
 }
 
 func setupProxy() {

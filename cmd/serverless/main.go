@@ -215,7 +215,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	initDurationChan := make(chan float64)
 	coldStartSpanId := random.Random.Uint64()
 	metricAgent := &metrics.ServerlessMetricAgent{}
-	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	metricAgent.Start(daemon.FlushTimeout, daemon.FlushInterval, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), initDurationChan)
 
