@@ -11,15 +11,19 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	mainEndpointPrefix = "https://instrumentation-telemetry-intake."
-	mainEndpointUrlKey = "apm_config.telemetry.dd_url"
+	mainEndpointPrefix      = "https://instrumentation-telemetry-intake."
+	mainEndpointUrlKey      = "apm_config.telemetry.dd_url"
+	httpClientResetInterval = 5 * time.Minute
+	httpClientTimeout       = 10 * time.Second
 )
 
 // ApmRemoteConfigEvent is used to report remote config updates to the Datadog backend
@@ -62,15 +66,25 @@ type TelemetryCollector interface {
 }
 
 type telemetryCollector struct {
-	client    *http.Client
+	client    *httputils.ResetClient
 	host      string
 	userAgent string
+}
+
+func httpClientFactory(timeout time.Duration) func() *http.Client {
+	return func() *http.Client {
+		return &http.Client{
+			Timeout: timeout,
+			// reusing core agent HTTP transport to benefit from proxy settings.
+			Transport: httputils.CreateHTTPTransport(),
+		}
+	}
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
 func NewCollector() TelemetryCollector {
 	return &telemetryCollector{
-		client:    http.DefaultClient,
+		client:    httputils.NewResetClient(httpClientResetInterval, httpClientFactory(httpClientTimeout)),
 		host:      utils.GetMainEndpoint(config.Datadog, mainEndpointPrefix, mainEndpointUrlKey),
 		userAgent: "Datadog Cluster Agent",
 	}
