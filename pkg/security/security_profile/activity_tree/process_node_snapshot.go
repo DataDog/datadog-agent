@@ -13,7 +13,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -87,7 +86,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	seclog.Infof("AD: snapshotting %d files", len(files))
 	seclog.Infof("AD: files: %v", files)
 
-	sort.Strings(files)
+	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
 	files = slices.Compact(files)
 
 	// insert files
