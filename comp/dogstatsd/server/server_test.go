@@ -171,7 +171,7 @@ func TestUDPReceive(t *testing.T) {
 	opts.UseNoopEventPlatformForwarder = true
 	opts.EnableNoAggregationPipeline = true
 
-	demux := aggregator.InitTestAgentDemultiplexerWithOpts(deps.Log, defaultforwarder.NewOptions(config.Datadog, nil), opts)
+	demux := aggregator.InitTestAgentDemultiplexerWithOpts(deps.Log, defaultforwarder.NewOptions(deps.Config, deps.Log, nil), opts)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -458,7 +458,7 @@ func TestUDPForward(t *testing.T) {
 
 	defer pc.Close()
 
-	demux := mockDemultiplexer(deps.Log)
+	demux := mockDemultiplexer(deps.Config, deps.Log)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -712,7 +712,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	samples := []metrics.MetricSample{}
 
-	demux := mockDemultiplexer(deps.Log)
+	demux := mockDemultiplexer(deps.Config, deps.Log)
 	defer demux.Stop(false)
 	requireStart(t, s, demux)
 
@@ -827,7 +827,7 @@ dogstatsd_mapper_profiles:
 
 			cw.Set("dogstatsd_port", port)
 
-			demux := mockDemultiplexer(deps.Log)
+			demux := mockDemultiplexer(deps.Config, deps.Log)
 			defer demux.Stop(false)
 			requireStart(t, s, demux)
 
@@ -864,7 +864,7 @@ func TestNewServerExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
-	demux := mockDemultiplexer(deps.Log)
+	demux := mockDemultiplexer(deps.Config, deps.Log)
 	requireStart(t, s, demux)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 	s.Stop()
@@ -874,7 +874,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg["tags"] = "hello:world"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
-	demux = mockDemultiplexer(deps.Log)
+	demux = mockDemultiplexer(deps.Config, deps.Log)
 	requireStart(t, s, demux)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 	s.Stop()
@@ -884,7 +884,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg["dogstatsd_tags"] = "hello:world extra:tags"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
-	demux = mockDemultiplexer(deps.Log)
+	demux = mockDemultiplexer(deps.Config, deps.Log)
 	requireStart(t, s, demux)
 	require.Len(s.extraTags, 2, "two tags should have been read")
 	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
@@ -903,7 +903,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		s := deps.Server.(*server)
 		assert := assert.New(t)
 
-		demux := mockDemultiplexer(deps.Log)
+		demux := mockDemultiplexer(deps.Config, deps.Log)
 		defer demux.Stop(false)
 		requireStart(t, s, demux)
 
@@ -983,7 +983,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	deps := fulfillDeps(t)
 	s := deps.Server.(*server)
 	assert := assert.New(t)
-	requireStart(t, s, mockDemultiplexer(deps.Log))
+	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
 
 	parser := newParser(deps.Config, newFloat64ListPool())
@@ -1025,7 +1025,7 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	s := deps.Server.(*server)
 	assert := assert.New(t)
 
-	requireStart(t, s, mockDemultiplexer(deps.Log))
+	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
 
 	parser := newParser(deps.Config, newFloat64ListPool())
