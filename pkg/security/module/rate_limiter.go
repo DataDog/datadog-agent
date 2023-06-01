@@ -226,8 +226,9 @@ func (rl *RateLimiter) GetStats() map[string][]LimiterStat {
 // for the set of rules
 func (rl *RateLimiter) SendStats() error {
 	for ruleID, stats := range rl.GetStats() {
-		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
+		ruleIDTag := fmt.Sprintf("rule_id:%s", ruleID)
 		for _, stat := range stats {
+			tags := []string{ruleIDTag}
 			if len(stat.tags) > 0 {
 				tags = append(tags, stat.tags...)
 			}

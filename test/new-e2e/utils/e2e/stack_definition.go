@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/vm"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 	ec2vm "github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2VM"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -23,6 +24,7 @@ func NewStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error), co
 	return &StackDefinition[Env]{envFactory: envFactory, configMap: configMap}
 }
 
+// EnvFactoryStackDef creates a custom stack definition
 func EnvFactoryStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) *StackDefinition[Env] {
 	return NewStackDef(envFactory, runner.ConfigMap{})
 }
@@ -31,6 +33,10 @@ type VMEnv struct {
 	VM *client.VM
 }
 
+// EC2VMStackDef creates a stack definition containing a virtual machine.
+// See [ec2vm.Params] for available options.
+//
+// [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#Params
 func EC2VMStackDef(options ...func(*ec2vm.Params) error) *StackDefinition[VMEnv] {
 	noop := func(vm.VM) (VMEnv, error) { return VMEnv{}, nil }
 	return CustomEC2VMStackDef(noop, options...)
@@ -53,12 +59,21 @@ func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...func(*ec2
 }
 
 type AgentEnv struct {
-	VM    *client.VM
-	Agent *client.Agent
+	VM         *client.VM
+	Agent      *client.Agent
+	Fakeintake *client.Fakeintake
 }
 
 type Ec2VMOption = func(*ec2vm.Params) error
 
+// AgentStackDef creates a stack definition containing a virtual machine and an Agent.
+//
+// See [ec2vm.Params] for available options for vmParams.
+//
+// See [agent.Params] for available options for agentParams.
+//
+// [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#Params
+// [agent.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Params
 func AgentStackDef(vmParams []Ec2VMOption, agentParams ...func(*agent.Params) error) *StackDefinition[AgentEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*AgentEnv, error) {
@@ -67,13 +82,20 @@ func AgentStackDef(vmParams []Ec2VMOption, agentParams ...func(*agent.Params) er
 				return nil, err
 			}
 
+			fakeintakeExporter, err := ecs.NewEcsFakeintake(vm.Infra)
+			if err != nil {
+				return nil, err
+			}
+
+			agentParams = append(agentParams, agent.WithFakeintake(fakeintakeExporter))
 			installer, err := agent.NewInstaller(vm, agentParams...)
 			if err != nil {
 				return nil, err
 			}
 			return &AgentEnv{
-				VM:    client.NewVM(vm),
-				Agent: client.NewAgent(installer),
+				VM:         client.NewVM(vm),
+				Agent:      client.NewAgent(installer),
+				Fakeintake: client.NewFakeintake(fakeintakeExporter),
 			}, nil
 		},
 	)
