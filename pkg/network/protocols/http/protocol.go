@@ -35,7 +35,9 @@ type httpProtocol struct {
 }
 
 const (
-	httpInFlightMap = "http_in_flight"
+	httpInFlightMap    = "http_in_flight"
+	httpFilterTailCall = "socket__http_filter"
+	httpEventStream    = "http"
 )
 
 var HttpSpec protocols.ProtocolSpec = protocols.ProtocolSpec{
@@ -48,7 +50,7 @@ var HttpSpec protocols.ProtocolSpec = protocols.ProtocolSpec{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "socket__http_filter",
+				EBPFFuncName: httpFilterTailCall,
 			},
 		},
 	},
@@ -66,7 +68,6 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 
 	if kversion < MinimumKernelVersion {
 		return nil, fmt.Errorf("http feature not available on pre %s kernels", MinimumKernelVersion.String())
-
 	}
 
 	telemetry := NewTelemetry()
@@ -90,7 +91,7 @@ func (p *httpProtocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Opti
 	}
 
 	// Configure event stream
-	events.Configure("http", mgr, opts)
+	events.Configure(httpEventStream, mgr, opts)
 }
 
 func (p *httpProtocol) PreStart(mgr *manager.Manager) (err error) {
@@ -132,8 +133,7 @@ func (p *httpProtocol) PreStop(mgr *manager.Manager) {
 func (p *httpProtocol) PostStop(mgr *manager.Manager) {}
 
 func (p *httpProtocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
-	switch mapName {
-	case httpInFlightMap: // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
+	if mapName == httpInFlightMap { // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key netebpf.ConnTuple
@@ -141,7 +141,6 @@ func (p *httpProtocol) DumpMaps(output *strings.Builder, mapName string, current
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
-
 	}
 }
 
