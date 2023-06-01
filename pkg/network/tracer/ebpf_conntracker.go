@@ -333,18 +333,22 @@ func (e *ebpfConntracker) refreshTelemetry() {
 	for {
 		select {
 		case <-ticker.C:
-			telemetry := &netebpf.ConntrackTelemetry{}
-			if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+			ebpfTelemetry := &netebpf.ConntrackTelemetry{}
+			if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(ebpfTelemetry)); err != nil {
 				log.Tracef("error retrieving the telemetry struct: %s", err)
 			} else {
-				delta := telemetry.Registers - conntrackerTelemetry.lastRegisters
-				conntrackerTelemetry.lastRegisters = telemetry.Registers
+				delta := ebpfTelemetry.Registers - conntrackerTelemetry.lastRegisters
+				conntrackerTelemetry.lastRegisters = ebpfTelemetry.Registers
 				conntrackerTelemetry.registersTotal.Add(float64(delta))
 			}
 		case <-e.stop:
 			return
 		}
 	}
+}
+
+func (e *ebpfConntracker) GetTelemetryMap() *ebpf.Map {
+	return e.telemetryMap
 }
 
 func (e *ebpfConntracker) Close() {
