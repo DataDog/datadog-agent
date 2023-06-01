@@ -10,14 +10,14 @@ replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 
 require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.46.0-rc.2
-	github.com/DataDog/test-infra-definitions v0.0.0-20230531143255-09432ebe9ba7
+	github.com/DataDog/test-infra-definitions v0.0.0-20230601171344-48abbe4853b5
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/pulumi/pulumi-command/sdk v0.7.2
-	github.com/pulumi/pulumi/sdk/v3 v3.68.0
+	github.com/pulumi/pulumi/sdk/v3 v3.69.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.8.3
 	golang.org/x/crypto v0.9.0
@@ -56,7 +56,6 @@ require (
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.4.1 // indirect
 	github.com/go-git/go-git/v5 v5.7.0 // indirect
-	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/glog v1.1.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -64,7 +63,7 @@ require (
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/hcl/v2 v2.16.2 // indirect
+	github.com/hashicorp/hcl/v2 v2.17.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
@@ -104,12 +103,13 @@ require (
 	github.com/zclconf/go-cty v1.13.2 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/term v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
-	golang.org/x/tools v0.9.1 // indirect
+	golang.org/x/tools v0.9.2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/grpc v1.55.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
