@@ -49,7 +49,7 @@ var (
 	}
 )
 
-var errNoProtocols = fmt.Errorf("no protocols monitoring could be initialised")
+var errNoProtocols = errors.New("no protocols monitoring could be initialised")
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
