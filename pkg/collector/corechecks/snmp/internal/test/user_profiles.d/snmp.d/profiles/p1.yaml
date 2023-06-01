@@ -4,7 +4,7 @@ extends:
   - _base.yaml
 
 device:
-  vendor: "f5"
+  vendor: "p2_datadog"
 
 sysobjectid: 1.2.3.*
 

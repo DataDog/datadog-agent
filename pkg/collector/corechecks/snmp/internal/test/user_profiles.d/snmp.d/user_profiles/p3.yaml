@@ -4,11 +4,11 @@ extends:
   - _base.yaml
 
 device:
-  vendor: "f5"
+  vendor: "p3_user"
 
 sysobjectid: 1.3.6.1.4.1.3375.2.1.3.4.*
 
 metrics:
   - symbol:
       OID: 1.2.3
-      name: p3user.metric
+      name: p3_metric

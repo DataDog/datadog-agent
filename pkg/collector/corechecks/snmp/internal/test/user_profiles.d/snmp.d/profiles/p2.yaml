@@ -4,11 +4,11 @@ extends:
   - _base.yaml
 
 device:
-  vendor: "f5"
+  vendor: "p2_datadog"
 
 sysobjectid: 1.2.3.*
 
 metrics:
   - symbol:
       OID: 1.2.3.5
-      name: profile2_metric
+      name: p2_metric
