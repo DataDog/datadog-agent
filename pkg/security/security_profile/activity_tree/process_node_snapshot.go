@@ -137,7 +137,7 @@ func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, er
 		return nil, err
 	}
 
-	files := make([]string, 0, len(*stats))
+	files := make([]string, 0, MAX_MMAPED_FILES)
 	for _, mm := range *stats {
 		if len(files) >= MAX_MMAPED_FILES {
 			break
