@@ -10,8 +10,9 @@ package ebpf
 import (
 	"sync"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
+
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // PerfHandler wraps an eBPF perf buffer
@@ -20,7 +21,7 @@ type PerfHandler struct {
 	LostChannel  chan uint64
 	RecordGetter func() *perf.Record
 	once         sync.Once
-	closed       bool
+	closed       chan struct{}
 }
 
 // DataEvent is a single event read from a perf buffer
@@ -50,31 +51,33 @@ func NewPerfHandler(dataChannelSize int) *PerfHandler {
 		RecordGetter: func() *perf.Record {
 			return recordPool.Get().(*perf.Record)
 		},
+		closed: make(chan struct{}),
 	}
 }
 
 // LostHandler is the callback intended to be used when configuring PerfMapOptions
 func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
-	if c.closed {
+	select {
+	case <-c.closed:
 		return
+	case c.LostChannel <- lostCount:
+	default:
 	}
-	c.LostChannel <- lostCount
 }
 
 // RecordHandler is the callback intended to be used when configuring PerfMapOptions
 func (c *PerfHandler) RecordHandler(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
-	if c.closed {
+	select {
+	case <-c.closed:
 		return
+	case c.DataChannel <- &DataEvent{CPU: record.CPU, Data: record.RawSample, r: record}:
+	default:
 	}
-
-	c.DataChannel <- &DataEvent{CPU: record.CPU, Data: record.RawSample, r: record}
 }
 
 // Stop stops the perf handler and closes both channels
 func (c *PerfHandler) Stop() {
 	c.once.Do(func() {
-		c.closed = true
-		close(c.DataChannel)
-		close(c.LostChannel)
+		close(c.closed)
 	})
 }

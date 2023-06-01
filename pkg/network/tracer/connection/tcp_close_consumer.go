@@ -17,7 +17,6 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const closeConsumerModuleName = "network_tracer__ebpf"
@@ -37,16 +36,17 @@ type tcpCloseConsumer struct {
 	requests     chan chan struct{}
 	buffer       *network.ConnectionBuffer
 	once         sync.Once
+	closed       chan struct{}
 }
 
-func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) (*tcpCloseConsumer, error) {
-	c := &tcpCloseConsumer{
+func newTCPCloseConsumer(perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) (*tcpCloseConsumer, error) {
+	return &tcpCloseConsumer{
 		perfHandler:  perfHandler,
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
 		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
-	}
-	return c, nil
+		closed:       make(chan struct{}),
+	}, nil
 }
 
 func (c *tcpCloseConsumer) FlushPending() {
@@ -55,8 +55,13 @@ func (c *tcpCloseConsumer) FlushPending() {
 	}
 
 	wait := make(chan struct{})
-	c.requests <- wait
-	<-wait
+	select {
+	case <-c.closed:
+		return
+	case c.requests <- wait:
+		<-wait
+	default:
+	}
 }
 
 func (c *tcpCloseConsumer) Stop() {
@@ -65,7 +70,7 @@ func (c *tcpCloseConsumer) Stop() {
 	}
 	c.perfHandler.Stop()
 	c.once.Do(func() {
-		close(c.requests)
+		close(c.closed)
 	})
 }
 
@@ -86,9 +91,12 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 		closedCount uint64
 		lostCount   uint64
 	)
+
 	go func() {
 		for {
 			select {
+			case <-c.closed:
+				return
 			case batchData, ok := <-c.perfHandler.DataChannel:
 				if !ok {
 					return
@@ -117,11 +125,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				}
 				closerConsumerTelemetry.perfLost.Add(float64(lc * netebpf.BatchSize))
 				lostCount += lc * netebpf.BatchSize
-			case request, ok := <-c.requests:
-				if !ok {
-					return
-				}
-
+			case request := <-c.requests:
 				oneTimeBuffer := network.NewConnectionBuffer(32, 32)
 				c.batchManager.GetPendingConns(oneTimeBuffer)
 				callback(oneTimeBuffer.Connections())
