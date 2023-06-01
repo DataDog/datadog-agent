@@ -23,6 +23,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+func getMetricFromProfile(p profileDefinition, metricName string) *MetricsConfig {
+	for _, m := range p.Metrics {
+		if m.Symbol.Name == metricName {
+			return &m
+		}
+	}
+	return nil
+}
+
 func fixtureProfileDefinitionMap() profileDefinitionMap {
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
@@ -428,24 +437,25 @@ func Test_loadDefaultProfiles(t *testing.T) {
 func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
-	defaultProfilesDef, err := getDefaultProfilesDefinitionFiles()
-	assert.Nil(t, err)
 
 	defaultProfiles, err := loadDefaultProfiles()
 	assert.Nil(t, err)
-	//fmt.Printf("%+v", defaultProfilesDef)
 
-	assert.Len(t, defaultProfilesDef, 3)
+	assert.Len(t, defaultProfiles, 3)
 	assert.NotNil(t, defaultProfiles)
 
-	//globalProfileConfigMap = nil
-	//
-	//defaultProfiles, err := loadDefaultProfiles()
-	//assert.Nil(t, err)
-	//defaultProfiles2, err := loadDefaultProfiles()
-	//assert.Nil(t, err)
-	//
-	//assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
+	p1 := defaultProfiles["p1"] // user p1 overrides datadog p1
+	p2 := defaultProfiles["p2"] // datadog p2
+	p3 := defaultProfiles["p3"] // user p3
+
+	assert.Equal(t, "p1_user", p1.Device.Vendor) // overrides datadog p1 profile
+	assert.NotNil(t, getMetricFromProfile(p1, "p1_metric_override"))
+
+	assert.Equal(t, "p2_datadog", p2.Device.Vendor)
+	assert.NotNil(t, getMetricFromProfile(p2, "p2_metric"))
+
+	assert.Equal(t, "p3_user", p3.Device.Vendor)
+	assert.NotNil(t, getMetricFromProfile(p3, "p3_metric"))
 }
 
 func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
