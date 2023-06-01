@@ -56,7 +56,7 @@ var errNoProtocols = errors.New("no protocols monitoring could be initialised")
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	protocols map[protocols.ProtocolType]protocols.Protocol
+	enabledProtocols map[protocols.ProtocolType]protocols.Protocol
 
 	http2Consumer   *events.Consumer
 	ebpfProgram     *ebpfProgram
@@ -107,7 +107,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	if err != nil {
 		return nil, err
 	}
-	mgr.protocols = enabledProtocols
+	mgr.enabledProtocols = enabledProtocols
 	mgr.disabledProtocols = disabledProtocols
 
 	if len(enabledProtocols) == 0 {
@@ -150,14 +150,14 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	state = Running
 
 	usmMonitor := &Monitor{
-		protocols:       enabledProtocols,
-		ebpfProgram:     mgr,
-		http2Telemetry:  http2Telemetry,
-		closeFilterFn:   closeFilterFn,
-		processMonitor:  processMonitor,
-		http2Enabled:    c.EnableHTTP2Monitoring,
-		http2Statkeeper: http2Statkeeper,
-		httpTLSEnabled:  c.EnableHTTPSMonitoring,
+		enabledProtocols: enabledProtocols,
+		ebpfProgram:      mgr,
+		http2Telemetry:   http2Telemetry,
+		closeFilterFn:    closeFilterFn,
+		processMonitor:   processMonitor,
+		http2Enabled:     c.EnableHTTP2Monitoring,
+		http2Statkeeper:  http2Statkeeper,
+		httpTLSEnabled:   c.EnableHTTPSMonitoring,
 	}
 
 	if c.EnableKafkaMonitoring {
@@ -197,7 +197,7 @@ func (m *Monitor) Start() error {
 			}
 
 			// Cleanup every remaining protocols
-			for _, protocol := range m.protocols {
+			for _, protocol := range m.enabledProtocols {
 				protocol.PreStop(m.ebpfProgram.Manager.Manager)
 				protocol.PostStop(m.ebpfProgram.Manager.Manager)
 			}
@@ -209,10 +209,10 @@ func (m *Monitor) Start() error {
 		}
 	}()
 
-	for protocolType, protocol := range m.protocols {
+	for protocolType, protocol := range m.enabledProtocols {
 		startErr := protocol.PreStart(m.ebpfProgram.Manager.Manager)
 		if startErr != nil {
-			delete(m.protocols, protocolType)
+			delete(m.enabledProtocols, protocolType)
 			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocolType, startErr)
 			continue
 		}
@@ -258,13 +258,13 @@ func (m *Monitor) Start() error {
 		return err
 	}
 
-	for protocolType, protocol := range m.protocols {
+	for protocolType, protocol := range m.enabledProtocols {
 		startErr := protocol.PostStart(m.ebpfProgram.Manager.Manager)
 		if startErr != nil {
 			// Cleanup the protocol
 			enabledCount--
 			protocol.PreStop(m.ebpfProgram.Manager.Manager)
-			delete(m.protocols, protocolType)
+			delete(m.enabledProtocols, protocolType)
 
 			// Log and reset the error value
 			log.Errorf("could not complete post-start phase of %s monitoring: %s", protocolType, startErr)
@@ -315,7 +315,7 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 
 	ret := make(map[protocols.ProtocolType]interface{})
 
-	for _, protocol := range m.protocols {
+	for _, protocol := range m.enabledProtocols {
 		ps := protocol.GetStats()
 		ret[ps.Type] = ps.Stats
 	}
@@ -356,7 +356,7 @@ func (m *Monitor) Stop() {
 
 	m.processMonitor.Stop()
 
-	for _, protocol := range m.protocols {
+	for _, protocol := range m.enabledProtocols {
 		protocol.PreStop(m.ebpfProgram.Manager.Manager)
 	}
 
@@ -373,7 +373,7 @@ func (m *Monitor) Stop() {
 	}
 	m.closeFilterFn()
 
-	for _, protocol := range m.protocols {
+	for _, protocol := range m.enabledProtocols {
 		protocol.PostStop(m.ebpfProgram.Manager.Manager)
 	}
 }

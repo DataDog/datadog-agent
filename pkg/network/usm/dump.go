@@ -67,7 +67,7 @@ func (e *ebpfProgram) dumpMapsHandler(manager *manager.Manager, mapName string, 
 			output.WriteString(spew.Sdump(key, value))
 		}
 	default: // Go through enabled protocols in case one of them now how to handle the current map
-		for _, p := range e.protocols {
+		for _, p := range e.enabledProtocols {
 			p.DumpMaps(&output, mapName, currentMap)
 		}
 	}

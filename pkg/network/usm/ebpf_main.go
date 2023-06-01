@@ -55,7 +55,7 @@ type ebpfProgram struct {
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
-	protocols         map[protocols.ProtocolType]protocols.Protocol
+	enabledProtocols  map[protocols.ProtocolType]protocols.Protocol
 	disabledProtocols []*protocols.ProtocolSpec
 }
 
@@ -365,7 +365,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		s.ConfigureOptions(&options)
 	}
 
-	for _, p := range e.protocols {
+	for _, p := range e.enabledProtocols {
 		p.ConfigureOptions(e.Manager.Manager, &options)
 	}
 
