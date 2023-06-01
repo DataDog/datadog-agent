@@ -122,6 +122,16 @@ Package runner implements a component to run data collection checks in the Proce
 Package submitter implements a component to submit collected data in the Process Agent to
 supported Datadog intakes.
 
+## [comp/remote-config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/remote-config) (Component Bundle)
+
+*Datadog Team*: remote-config
+
+
+
+### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/remote-config/rcclient)
+
+
+
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray) (Component Bundle)
 
 *Datadog Team*: windows-agent
