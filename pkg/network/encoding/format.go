@@ -11,7 +11,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/twmb/murmur3"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -89,9 +88,7 @@ func FormatConnection(
 	c.HttpAggregations = httpStats
 
 	httpStats2, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
-	if httpStats2 != nil {
-		c.Http2Aggregations, _ = proto.Marshal(httpStats2)
-	}
+	c.Http2Aggregations = httpStats2
 
 	c.DataStreamsAggregations = kafkaEncoder.GetKafkaAggregations(conn)
 
