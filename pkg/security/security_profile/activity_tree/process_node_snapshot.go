@@ -131,6 +131,8 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	return nil
 }
 
+const MAX_MMAPED_FILES = 128
+
 func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {
 	fakeprocess := legacyprocess.Process{Pid: pid}
 	stats, err := fakeprocess.MemoryMaps(false)
@@ -140,6 +142,10 @@ func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, er
 
 	files := make([]string, 0, len(*stats))
 	for _, mm := range *stats {
+		if len(files) >= MAX_MMAPED_FILES {
+			break
+		}
+
 		if len(mm.Path) == 0 {
 			continue
 		}
