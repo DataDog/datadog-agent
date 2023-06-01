@@ -155,6 +155,7 @@ func (p *httpProtocol) setupMapCleaner(mgr *manager.Manager) {
 	httpMap, _, err := mgr.GetMap(httpInFlightMap)
 	if err != nil {
 		log.Errorf("error getting http_in_flight map: %s", err)
+		return
 	}
 	mapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(EbpfHttpTx))
 	if err != nil {
