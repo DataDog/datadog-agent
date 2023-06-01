@@ -1,4 +1,4 @@
 
 enhancements:
   - |
-    Use ``leases.coordination/v1`` for cluster-agent leader election when they are available.
+    Use ``leases.coordination/v1`` for Cluster Agent leader election when leases are available.
