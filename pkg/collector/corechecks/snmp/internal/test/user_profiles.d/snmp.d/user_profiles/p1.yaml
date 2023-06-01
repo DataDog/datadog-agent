@@ -4,11 +4,11 @@ extends:
   - _base.yaml
 
 device:
-  vendor: "f5"
+  vendor: "user-f5"
 
-sysobjectid: 1.2.3.*
+sysobjectid: 1.3.6.1.4.1.3375.2.1.3.4.*
 
 metrics:
   - symbol:
       OID: 1.2.3.5
-      name: profile1_metric
+      name: p1_metric.user_profile_override
