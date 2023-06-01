@@ -506,7 +506,7 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 // It returns:
 // - a slice containing instances of the Protocol interface for each enabled protocol support
 // - a slice containing pointers to the protocol specs of disabled protocols.
-// - an error value, which is non-nil if an error occured while initialising a protocol
+// - an error value, which is non-nil if an error occurred while initialising a protocol
 func initProtocols(c *config.Config, mgr *ebpfProgram) (map[protocols.ProtocolType]protocols.Protocol, []*protocols.ProtocolSpec, error) {
 	enabledProtocols := make(map[protocols.ProtocolType]protocols.Protocol)
 	disabledProtocols := make([]*protocols.ProtocolSpec, 0)
