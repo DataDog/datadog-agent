@@ -110,22 +110,30 @@ func (cr *contextResolver) length() int {
 	return len(cr.contextsByKey)
 }
 
-func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
-	for _, expiredContextKey := range expiredContextKeys {
-		context := cr.contextsByKey[expiredContextKey]
-		delete(cr.contextsByKey, expiredContextKey)
+func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
+	context := cr.contextsByKey[expiredContextKey]
+	delete(cr.contextsByKey, expiredContextKey)
 
-		if context != nil {
-			cr.countsByMtype[context.mtype]--
-			cr.contextsLimiter.Remove(context.taggerTags.Tags())
-			context.release()
-		}
+	if context != nil {
+		cr.countsByMtype[context.mtype]--
+		cr.contextsLimiter.Remove(context.taggerTags.Tags())
+		context.release()
 	}
 }
 
 func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
 		c.release()
+	}
+}
+
+func (cr *contextResolver) removeOverLimit(keep func(ckey.ContextKey) bool) {
+	cr.contextsLimiter.ExpireEntries()
+
+	for key, cx := range cr.contextsByKey {
+		if cr.contextsLimiter.IsOverLimit(cx.taggerTags.Tags()) && (keep == nil || !keep(key)) {
+			cr.remove(key)
+		}
 	}
 }
 
@@ -212,24 +220,15 @@ func (cr *timestampContextResolver) get(key ckey.ContextKey) (*Context, bool) {
 // expireContexts cleans up the contexts that haven't been tracked since the given timestamp
 // and returns the associated contextKeys.
 // keep can be used to retain contexts longer than their natural expiration time based on some condition.
-func (cr *timestampContextResolver) expireContexts(expireTimestamp float64, keep func(ckey.ContextKey) bool) []ckey.ContextKey {
-	var expiredContextKeys []ckey.ContextKey
-
-	// Find expired context keys
+func (cr *timestampContextResolver) expireContexts(expireTimestamp float64, keep func(ckey.ContextKey) bool) {
 	for contextKey, lastSeen := range cr.lastSeenByKey {
 		if lastSeen < expireTimestamp && (keep == nil || !keep(contextKey)) {
-			expiredContextKeys = append(expiredContextKeys, contextKey)
+			delete(cr.lastSeenByKey, contextKey)
+			cr.resolver.remove(contextKey)
 		}
 	}
 
-	cr.resolver.removeKeys(expiredContextKeys)
-
-	// Delete expired context keys
-	for _, expiredContextKey := range expiredContextKeys {
-		delete(cr.lastSeenByKey, expiredContextKey)
-	}
-
-	return expiredContextKeys
+	cr.resolver.removeOverLimit(keep)
 }
 
 func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {
@@ -277,9 +276,9 @@ func (cr *countBasedContextResolver) expireContexts() []ckey.ContextKey {
 		if index <= cr.expireCount-cr.expireCountInterval {
 			keys = append(keys, key)
 			delete(cr.expireCountByKey, key)
+			cr.resolver.remove(key)
 		}
 	}
-	cr.resolver.removeKeys(keys)
 	cr.expireCount++
 	return keys
 }

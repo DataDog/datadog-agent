@@ -257,6 +257,19 @@ func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.Ac
 	return m.activityDumpManager.ListActivityDumps(params)
 }
 
+// ErrSecurityProfileManagerDisabled is returned when the security profile manager is disabled
+var ErrSecurityProfileManagerDisabled = errors.New("SecurityProfileManager is disabled")
+
+// ListSecurityProfiles returns the list of security profiles
+func (m *Monitor) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+	if !m.probe.IsSecurityProfileEnabled() {
+		return &api.SecurityProfileListMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+	return m.securityProfileManager.ListSecurityProfiles(params)
+}
+
 // StopActivityDump stops an active activity dump
 func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	if !m.probe.IsActivityDumpEnabled() {
@@ -279,4 +292,14 @@ func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 
 func (m *Monitor) GetActivityDumpTracedEventTypes() []model.EventType {
 	return m.probe.Config.RuntimeSecurity.ActivityDumpTracedEventTypes
+}
+
+// SaveSecurityProfile saves the requested security profile to disk
+func (m *Monitor) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+	if !m.probe.IsSecurityProfileEnabled() {
+		return &api.SecurityProfileSaveMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+	return m.securityProfileManager.SaveSecurityProfile(params)
 }

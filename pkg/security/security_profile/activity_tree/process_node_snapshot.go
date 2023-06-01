@@ -18,8 +18,10 @@ import (
 	"syscall"
 	"time"
 
+	legacyprocess "github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -75,16 +77,14 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	}
 
 	// list the mmaped files of the process
-	memoryMaps, err := p.MemoryMaps(false)
+	mmapedFiles, err := snapshotMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
 	if err != nil {
 		return err
 	}
+	files = append(files, mmapedFiles...)
 
-	for _, mm := range *memoryMaps {
-		if mm.Path != pn.Process.FileEvent.PathnameStr {
-			files = append(files, mm.Path)
-		}
-	}
+	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
+	files = slices.Compact(files)
 
 	// insert files
 	var fileinfo os.FileInfo
@@ -109,12 +109,12 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		evt.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
-		if err != nil {
-			evt.Open.File.PathnameStr = resolvedPath
+		if err == nil && len(resolvedPath) != 0 {
+			evt.Open.File.SetPathnameStr(resolvedPath)
 		} else {
-			evt.Open.File.PathnameStr = f
+			evt.Open.File.SetPathnameStr(f)
 		}
-		evt.Open.File.BasenameStr = path.Base(evt.Open.File.PathnameStr)
+		evt.Open.File.SetBasenameStr(path.Base(evt.Open.File.PathnameStr))
 		evt.Open.File.FileFields.Mode = uint16(stat.Mode)
 		evt.Open.File.FileFields.Inode = stat.Ino
 		evt.Open.File.FileFields.UID = stat.Uid
@@ -126,6 +126,34 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
 	}
 	return nil
+}
+
+const MAX_MMAPED_FILES = 128
+
+func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {
+	fakeprocess := legacyprocess.Process{Pid: pid}
+	stats, err := fakeprocess.MemoryMaps(false)
+	if err != nil || stats == nil {
+		return nil, err
+	}
+
+	files := make([]string, 0, MAX_MMAPED_FILES)
+	for _, mm := range *stats {
+		if len(files) >= MAX_MMAPED_FILES {
+			break
+		}
+
+		if len(mm.Path) == 0 {
+			continue
+		}
+
+		if mm.Path != processEventPath {
+			continue
+		}
+
+		files = append(files, mm.Path)
+	}
+	return files, nil
 }
 
 func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) error {

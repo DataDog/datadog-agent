@@ -86,6 +86,7 @@ message ClientTracer {
   string language = 2;
   string tracer_version = 3;
   string service = 4;
+  repeated string extra_services = 8;
   string env = 5;
   string app_version = 6;
   repeated string tags = 7;

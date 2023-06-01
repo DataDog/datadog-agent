@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -84,6 +85,7 @@ type ActivityTree struct {
 
 	treeType          string
 	differentiateArgs bool
+	DNSMatchMaxDepth  int
 
 	validator ActivityTreeOwner
 
@@ -131,8 +133,8 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		at.Stats.ProcessNodes += 1
 		pnodes = append(pnodes, node.Children...)
 
-		at.Stats.dnsNodes += int64(len(node.DNSNames))
-		at.Stats.socketNodes += int64(len(node.Sockets))
+		at.Stats.DNSNodes += int64(len(node.DNSNames))
+		at.Stats.SocketNodes += int64(len(node.Sockets))
 
 		for _, f := range node.Files {
 			fnodes = append(fnodes, f)
@@ -145,7 +147,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		node := fnodes[0]
 
 		if node.File != nil {
-			at.Stats.fileNodes += 1
+			at.Stats.FileNodes += 1
 		}
 
 		for _, f := range node.Children {
@@ -272,7 +274,7 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 	case model.FileOpenEventType:
 		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun), nil
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun), nil
+		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
 	case model.BindEventType:
 		return node.InsertBindEvent(event, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
@@ -280,6 +282,28 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 	}
 
 	return false, nil
+}
+
+func isContainerRuntimePrefix(basename string) bool {
+	return strings.HasPrefix(basename, "runc") || strings.HasPrefix(basename, "containerd-shim")
+}
+
+// isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
+func isValidRootNode(entry *model.ProcessContext) bool {
+	// an ancestor is required
+	ancestor := entry.GetNextAncestorBinary()
+	if ancestor == nil {
+		return false
+	}
+
+	if entry.FileEvent.IsFileless() {
+		// a fileless node is a valid root node only if not having runc as parent
+		// ex: runc -> exec(fileless) -> init.sh; exec(fileless) is not a valid root node
+		return !isContainerRuntimePrefix(ancestor.FileEvent.BasenameStr)
+	}
+
+	// container runtime prefixes are not valid root nodes
+	return !isContainerRuntimePrefix(entry.FileEvent.BasenameStr)
 }
 
 // CreateProcessNode finds or a create a new process activity node in the activity dump if the entry
@@ -332,8 +356,8 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 			}
 		}
 
-		// ignore non overlay fs node
-		if !entry.FileEvent.IsOverlayFS() {
+		// we're about to add a root process node, make sure this root node passes the root node sanitizer
+		if !isValidRootNode(&entry.ProcessContext) {
 			return nil, false, nil
 		}
 
@@ -375,10 +399,10 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 	return node, true, nil
 }
 
-func (at *ActivityTree) FindMatchingRootNodes(basename string) []*ProcessNode {
+func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	var res []*ProcessNode
 	for _, node := range at.ProcessNodes {
-		if node.Process.FileEvent.BasenameStr == basename {
+		if node.Process.Argv0 == arg0 {
 			res = append(res, node)
 		}
 	}
