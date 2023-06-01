@@ -45,7 +45,7 @@ var (
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
-	patchProtocolMock(t, newProtocolMock)
+	patchProtocolMock(t, protocols.HTTP)
 
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
@@ -53,6 +53,9 @@ func TestMonitorProtocolFail(t *testing.T) {
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(monitor.Stop)
+
+	err = monitor.Start()
+	require.ErrorIs(t, err, errNoProtocols)
 }
 
 func TestHTTPMonitorCaptureRequestMultipleTimes(t *testing.T) {
@@ -617,25 +620,41 @@ func skipIfNotSupported(t *testing.T, err error) {
 	}
 }
 
-// Helper type to mock Protocol in tests
-type protocolMock struct{}
+// Helper type to wrap & mock Protocols in tests. We keep an instance of the
+// inner protocol to be able to call ConfigureOptions.
+type protocolMock struct {
+	inner protocols.Protocol
+}
 
-func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Options)             {}
-func (p *protocolMock) PreStart(mgr *manager.Manager) (err error)                              { return fmt.Errorf("mock fail") }
+func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Options) {
+	p.inner.ConfigureOptions(m, opts)
+}
+
+func (p *protocolMock) PreStart(mgr *manager.Manager) (err error)                              { return fmt.Errorf("mock") }
 func (p *protocolMock) PostStart(mgr *manager.Manager) error                                   { return nil }
 func (p *protocolMock) PreStop(mgr *manager.Manager)                                           {}
 func (p *protocolMock) PostStop(mgr *manager.Manager)                                          {}
 func (p *protocolMock) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {}
 func (p *protocolMock) GetStats() *protocols.ProtocolStats                                     { return nil }
 
-func newProtocolMock(c *config.Config) (protocols.Protocol, error) {
-	return &protocolMock{}, nil
-}
-
 // patchProtocolMock updates the map of of known protocols to replace the mock
 // factory in place of the HTTP protocol factory
-func patchProtocolMock(t *testing.T, mockFactory func(*config.Config) (protocols.Protocol, error)) {
-	knownProtocols[protocols.HTTP] = protocols.ProtocolSpec{
-		Factory: mockFactory,
+func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType) {
+	t.Helper()
+
+	p, present := knownProtocols[protocolType]
+	require.True(t, present, "trying to patch non-existing protocol")
+
+	innerFactory := p.Factory
+
+	p.Factory = func(c *config.Config) (protocols.Protocol, error) {
+		inner, err := innerFactory(c)
+		require.NoError(t, err, "could not init inner protocol")
+
+		return &protocolMock{
+			inner,
+		}, nil
 	}
+
+	knownProtocols[protocols.HTTP] = p
 }

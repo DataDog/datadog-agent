@@ -56,7 +56,7 @@ type ebpfProgram struct {
 	connectionProtocolMap *ebpf.Map
 
 	protocols         map[protocols.ProtocolType]protocols.Protocol
-	excludedFunctions []string
+	disabledProtocols []*protocols.ProtocolSpec
 }
 
 type probeResolver interface {
@@ -370,7 +370,22 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	// Add excluded functions from disabled protocols
-	options.ExcludedFunctions = append(options.ExcludedFunctions, e.excludedFunctions...)
+	for _, p := range e.disabledProtocols {
+		for _, m := range p.Maps {
+			// Unused maps still needs to have a non-zero size
+			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(1),
+				EditorFlag: manager.EditMaxEntries,
+			}
+
+			log.Errorf("disabled map: %#v", options.MapSpecEditors[m.Name])
+		}
+
+		for _, tc := range p.TailCalls {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
+		}
+	}
 
 	// Configure event streams
 	if e.cfg.EnableHTTP2Monitoring {

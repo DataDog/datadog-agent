@@ -103,12 +103,12 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
 
-	enabledProtocols, excludedFunctions, err := initProtocols(c, mgr)
+	enabledProtocols, disabledProtocols, err := initProtocols(c, mgr)
 	if err != nil {
 		return nil, err
 	}
 	mgr.protocols = enabledProtocols
-	mgr.excludedFunctions = excludedFunctions
+	mgr.disabledProtocols = disabledProtocols
 
 	if len(enabledProtocols) == 0 {
 		state = Disabled
@@ -506,11 +506,11 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 //
 // It returns:
 // - a slice containing instances of the Protocol interface for each enabled protocol support
-// - a slice containing the functions to add to the list of excluded functions
+// - a slice containing pointers to the protocol specs of disabled protocols.
 // - an error value, which is non-nil if an error occured while initialising a protocol
-func initProtocols(c *config.Config, mgr *ebpfProgram) (map[protocols.ProtocolType]protocols.Protocol, []string, error) {
+func initProtocols(c *config.Config, mgr *ebpfProgram) (map[protocols.ProtocolType]protocols.Protocol, []*protocols.ProtocolSpec, error) {
 	enabledProtocols := make(map[protocols.ProtocolType]protocols.Protocol)
-	excludedFunctions := make([]string, 0)
+	disabledProtocols := make([]*protocols.ProtocolSpec, 0)
 
 	for proto, spec := range knownProtocols {
 		protocol, err := spec.Factory(c)
@@ -527,11 +527,9 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) (map[protocols.ProtocolTy
 
 			log.Infof("%v monitoring enabled", proto.String())
 		} else {
-			for _, tc := range spec.TailCalls {
-				excludedFunctions = append(excludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
-			}
+			disabledProtocols = append(disabledProtocols, &spec)
 		}
 	}
 
-	return enabledProtocols, excludedFunctions, nil
+	return enabledProtocols, disabledProtocols, nil
 }
