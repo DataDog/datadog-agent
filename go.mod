@@ -436,7 +436,7 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/mkrautz/goar v0.0.0-20150919110319-282caa8bd9da // indirect
-	github.com/moby/buildkit v0.11.4 // indirect
+	github.com/moby/buildkit v0.11.0 // indirect
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/sys/signal v0.7.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -576,13 +576,13 @@ require (
 )
 
 require (
-	github.com/cloudflare/circl v1.3.3 // indirect
+	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/google/s2a-go v0.1.2 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/zerolog v1.29.0 // indirect
-	github.com/sigstore/rekor v1.1.1 // indirect
+	github.com/sigstore/rekor v1.0.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
@@ -596,7 +596,7 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
-replace github.com/golang/glog v1.0.0 => github.com/DataDog/glog v1.0.1-0.20211019114809-ec0f43a655b9
+replace github.com/golang/glog v1.0.0 => github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c
 
@@ -631,3 +631,12 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.23.15
 	sigs.k8s.io/custom-metrics-apiserver => sigs.k8s.io/custom-metrics-apiserver v1.23.0
 )
+
+// Fixes CVE-2023-1732, imported by nikos
+replace github.com/cloudflare/circl v1.1.0 => github.com/cloudflare/circl v1.3.3
+
+// Fixes CVE-2023-30551, imported by trivy
+replace github.com/sigstore/rekor v1.0.1 => github.com/sigstore/rekor v1.1.1
+
+// Fixes CVE-2023-26054, imported by trivy
+replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.11.4

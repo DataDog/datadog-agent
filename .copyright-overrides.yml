@@ -130,7 +130,7 @@ github.com/google/go-containerregistry:
  - "Copyright 2019 Google LLC All Rights Reserved."
  - "Copyright 2020 Google LLC All Rights Reserved."
  - "Copyright 2021 Google LLC All Rights Reserved."
- - "Copyright 2022 Google LLC All Rights Reserved."
+ - "Copyright 2020 Google LLC All Rights Reserved."
 github.com/google/licenseclassifier/v2:
  - "Copyright 2017 Google LLC All Rights Reserved."
  - "Copyright 2020 Google LLC All Rights Reserved."
@@ -191,3 +191,25 @@ github.com/google/flatbuffers: Copyright (c) 2014 Google
 #  * https://github.com/godror/knownpb/blob/main/internal/writer.go 
 github.com/godror/knownpb/internal: Copyright 2014, 2021 Tamás Gulácsi
 github.com/godror/knownpb/timestamppb: Copyright 2019, 2021 Tamás Gulácsi
+
+
+// Copyright information not found
+github.com/google/s2a-go: Copyright (c) 2020 Google
+github.com/google/s2a-go/fallback: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/authinfo: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/handshaker: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/handshaker/service: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/common_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/s2a_context_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/s2a_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/v2/common_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/v2/s2a_context_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/v2/s2a_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/record: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/record/internal/aeadcrypter: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/record/internal/halfconn: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/tokenmanager: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2/certverifier: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2/remotesigner: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2/tlsconfigstore: Copyright (c) 2020 Google
