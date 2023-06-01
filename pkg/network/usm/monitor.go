@@ -210,10 +210,10 @@ func (m *Monitor) Start() error {
 	}()
 
 	for protocolType, protocol := range m.protocols {
-		err = protocol.PreStart(m.ebpfProgram.Manager.Manager)
-		if err != nil {
+		startErr := protocol.PreStart(m.ebpfProgram.Manager.Manager)
+		if startErr != nil {
 			delete(m.protocols, protocolType)
-			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocolType, err)
+			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocolType, startErr)
 			continue
 		}
 
@@ -259,16 +259,15 @@ func (m *Monitor) Start() error {
 	}
 
 	for protocolType, protocol := range m.protocols {
-		err = protocol.PostStart(m.ebpfProgram.Manager.Manager)
-		if err != nil {
+		startErr := protocol.PostStart(m.ebpfProgram.Manager.Manager)
+		if startErr != nil {
 			// Cleanup the protocol
 			enabledCount--
 			protocol.PreStop(m.ebpfProgram.Manager.Manager)
 			delete(m.protocols, protocolType)
 
 			// Log and reset the error value
-			log.Errorf("could not complete post-start phase of %s monitoring: %s", protocolType, err)
-			err = nil
+			log.Errorf("could not complete post-start phase of %s monitoring: %s", protocolType, startErr)
 		}
 	}
 
