@@ -379,7 +379,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 				EditorFlag: manager.EditMaxEntries,
 			}
 
-			log.Errorf("disabled map: %#v", options.MapSpecEditors[m.Name])
+			log.Errorf("disabled map: %v", m.Name)
 		}
 
 		for _, tc := range p.TailCalls {
