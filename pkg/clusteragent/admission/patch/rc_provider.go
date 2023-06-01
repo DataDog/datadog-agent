@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -90,6 +91,11 @@ func (rcp *remoteConfigProvider) process(update map[string]state.APMTracingConfi
 			if req.LibConfig.Env != nil {
 				env = *req.LibConfig.Env
 			}
+			clusterId, clusterError := clustername.GetClusterID()
+			if clusterError != nil {
+				log.Errorf("Failed to get the cluster ID: %v", clusterError)
+				clusterId = ""
+			}
 			rcp.telemetryCollector.SendEvent(&telemetry.ApmRemoteConfigEvent{
 				RequestType: "apm-remote-config-event",
 				ApiVersion:  "v2",
@@ -99,9 +105,9 @@ func (rcp *remoteConfigProvider) process(update map[string]state.APMTracingConfi
 						Env:                 env,
 						RcId:                req.ID,
 						RcClientId:          rcp.client.ID,
-						RcRevision:          req.SchemaVersion,
-						RcVersion:           req.Revision,
-						KubernetesClusterId: "",
+						RcRevision:          req.Revision,
+						RcVersion:           config.Metadata.Version,
+						KubernetesClusterId: clusterId,
 						KubernetesCluster:   req.K8sTarget.Cluster,
 						KubernetesNamespace: req.K8sTarget.Namespace,
 						KubernetesKind:      string(req.K8sTarget.Kind),

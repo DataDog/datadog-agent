@@ -8,12 +8,13 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
 	"net/http"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -40,8 +41,8 @@ type ApmRemoteConfigEventTags struct {
 	Env                 string `json:"env"`
 	RcId                string `json:"rc_id"`
 	RcClientId          string `json:"rc_client_id"`
-	RcRevision          string `json:"rc_revision"`
-	RcVersion           int64  `json:"rc_version"`
+	RcRevision          int64  `json:"rc_revision"`
+	RcVersion           uint64 `json:"rc_version"`
 	KubernetesClusterId string `json:"k8s_cluster_id"`
 	KubernetesCluster   string `json:"k8s_cluster"`
 	KubernetesNamespace string `json:"k8s_namespace"`
