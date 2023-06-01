@@ -8,4 +8,6 @@
 ---
 features:
   - |
-    Add flare support through Remote Configuration
+    Add flare support through Remote Configuration.
+    Only works for agents that already have Remote Configuration enabled.
+    No UI support yet.

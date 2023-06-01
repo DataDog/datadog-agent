@@ -5,6 +5,8 @@ import (
 	"go.uber.org/fx"
 )
 
+// team: remote-config
+
 // Component is the component type.
 type Component interface {
 	// TODO: (components) Start the remote config client to listen to AGENT_TASK configurations
