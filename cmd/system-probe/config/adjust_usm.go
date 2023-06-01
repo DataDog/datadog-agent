@@ -39,7 +39,7 @@ func adjustUSM(cfg config.Config) {
 		cfg.Set(smNS("process_service_inference", "enabled"), false)
 	}
 
-	validateInt(cfg, netNS("http_notification_threshold"), cfg.GetInt(spNS("max_tracked_connections"))/2, func(v int) error {
+	validateInt(cfg, netNS("http_notification_threshold"), cfg.GetInt(netNS("max_tracked_http_connections"))/2, func(v int) error {
 		limit := cfg.GetInt(netNS("max_tracked_http_connections"))
 		if v >= limit {
 			return fmt.Errorf("notification threshold %d set higher than tracked connections %d", v, limit)
