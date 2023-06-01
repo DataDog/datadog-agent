@@ -730,8 +730,9 @@ func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
 		tags.AddHigh(tagParts[0], tagParts[1])
 	}
 }
-func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*TagInfo {
 
+//lint:ignore U1000 Ignore unused function until the collector is implemented
+func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*TagInfo {
 	process := ev.Entity.(*workloadmeta.Process)
 	tags := utils.NewTagList()
 	if process.Language != nil {
