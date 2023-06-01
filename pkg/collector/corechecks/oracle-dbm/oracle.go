@@ -26,6 +26,7 @@ import (
 
 var MAX_OPEN_CONNECTIONS = 10
 var DEFAULT_SQL_TRACED_RUNS = 10
+
 var DB_TIMEOUT = "20000"
 
 // The structure is filled by activity sampling and serves as a filter for query metrics

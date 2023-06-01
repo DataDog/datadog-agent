@@ -8,7 +8,6 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
-	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
@@ -18,7 +17,7 @@ const SYSMETRICS_QUERY = `SELECT
 	metric_name,
 	value, 
 	metric_unit, 
-	(end_time - begin_time)*24*3600 interval_length,
+	--(end_time - begin_time)*24*3600 interval_length,
 	name pdb_name 
   FROM %s s, v$containers c 
   WHERE s.con_id = c.con_id(+)`
@@ -28,17 +27,17 @@ const (
 )
 
 type SysmetricsRowDB struct {
-	MetricName     string         `db:"METRIC_NAME"`
-	Value          float64        `db:"VALUE"`
-	MetricUnit     string         `db:"METRIC_UNIT"`
-	IntervalLength float64        `db:"INTERVAL_LENGTH"`
-	PdbName        sql.NullString `db:"PDB_NAME"`
+	MetricName string  `db:"METRIC_NAME"`
+	Value      float64 `db:"VALUE"`
+	MetricUnit string  `db:"METRIC_UNIT"`
+	//	IntervalLength float64        `db:"INTERVAL_LENGTH"`
+	PdbName sql.NullString `db:"PDB_NAME"`
 }
 
 type sysMetricsDefinition struct {
-	DDmetric    string
-	DBM         bool
-	PostProcess int
+	DDmetric string
+	DBM      bool
+	//PostProcess int
 }
 
 var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
@@ -46,10 +45,13 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Average Synchronous Single-Block Read Latency": {DDmetric: "avg_synchronous_single_block_read_latency", DBM: true},
 	"Background CPU Usage Per Sec":                  {DDmetric: "active_background_on_cpu", DBM: true},
 	"Background Time Per Sec":                       {DDmetric: "active_background", DBM: true},
-	"Branch Node Splits Per Sec":                    {DDmetric: "branch_node_splits", DBM: true, PostProcess: Count},
+	"Branch Node Splits Per Sec":                    {DDmetric: "branch_node_splits", DBM: true},
 	"Buffer Cache Hit Ratio":                        {DDmetric: "buffer_cachehit_ratio"},
+	"Consistent Read Gets Per Sec":                  {DDmetric: "consistent_read_gets", DBM: true},
 	"CPU Usage Per Sec":                             {DDmetric: "active_sessions_on_cpu", DBM: true},
+	"Current OS Load":                               {DDmetric: "os_load", DBM: true},
 	"Cursor Cache Hit Ratio":                        {DDmetric: "cursor_cachehit_ratio"},
+	"DB Block Changes Per Sec":                      {DDmetric: "db_block_changes", DBM: true},
 	"Library Cache Hit Ratio":                       {DDmetric: "library_cachehit_ratio"},
 	"Shared Pool Free %":                            {DDmetric: "shared_pool_free"},
 	"Physical Reads Per Sec":                        {DDmetric: "physical_reads"},
@@ -78,9 +80,11 @@ func (c *Check) sendMetric(s aggregator.Sender, r SysmetricsRowDB, seen map[stri
 		if r.MetricUnit == "CentiSeconds Per Second" {
 			value = value / 100
 		}
-		if SYSMETRICS_COLS[r.MetricName].PostProcess == Count {
-			value = math.Round(value * r.IntervalLength)
-		}
+		/*
+			if SYSMETRICS_COLS[r.MetricName].PostProcess == Count {
+				value = math.Round(value * r.IntervalLength)
+			}
+		*/
 		if !SYSMETRICS_COLS[r.MetricName].DBM || SYSMETRICS_COLS[r.MetricName].DBM && c.dbmEnabled {
 			s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, "", appendPDBTag(c.tags, r.PdbName))
 			seen[r.MetricName] = true
