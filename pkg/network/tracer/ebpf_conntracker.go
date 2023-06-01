@@ -305,6 +305,8 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 			return
 		}
 		log.Warnf("unable to delete conntrack entry from eBPF map: %s", err)
+	} else {
+		conntrackerTelemetry.unregistersTotal.Inc()
 	}
 }
 
@@ -321,7 +323,6 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 		e.delete(dst)
 		tuplePool.Put(dst)
 	}
-	conntrackerTelemetry.unregistersTotal.Inc()
 	conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
 }
 
