@@ -647,6 +647,12 @@ func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType) {
 
 	innerFactory := p.Factory
 
+	// Restore the old protocol factory at end of test
+	t.Cleanup(func() {
+		p.Factory = innerFactory
+		knownProtocols[protocolType] = p
+	})
+
 	p.Factory = func(c *config.Config) (protocols.Protocol, error) {
 		inner, err := innerFactory(c)
 		require.NoError(t, err, "could not init inner protocol")
@@ -656,5 +662,5 @@ func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType) {
 		}, nil
 	}
 
-	knownProtocols[protocols.HTTP] = p
+	knownProtocols[protocolType] = p
 }
