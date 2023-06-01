@@ -215,6 +215,9 @@ type Config struct {
 	// EnableMonotonicCount (Windows only) determines if we will calculate send/recv bytes of connections with headers and retransmits
 	EnableMonotonicCount bool
 
+	// TODO
+	EnableExpvarCollection bool
+
 	// EnableGatewayLookup enables looking up gateway information for connection destinations
 	EnableGatewayLookup bool
 
@@ -317,6 +320,8 @@ func New() *Config {
 		ConntrackInitTimeout:            cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
 		EnableEbpfConntracker:           true,
 		AllowNetlinkConntrackerFallback: cfg.GetBool(join(netNS, "allow_netlink_conntracker_fallback")),
+
+		EnableExpvarCollection: cfg.GetBool(join(netNS, "enable_expvar_collection")),
 
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
