@@ -32,6 +32,7 @@ const (
 	objectETag       = "object_etag"
 	operationName    = "operation_name"
 	partitionKey     = "partition_key"
+	peerService      = "peer.service"
 	queueName        = "queuename"
 	receiptHandle    = "receipt_handle"
 	requestID        = "request_id"
