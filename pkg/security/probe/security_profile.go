@@ -42,12 +42,16 @@ func NewSecurityProfileManagers(probe *Probe) (*SecurityProfileManagers, error) 
 		managers.activityDumpManager = activityDumpManager
 	}
 
-	if probe.Config.RuntimeSecurity.SecurityProfileEnabled {
+	if probe.IsSecurityProfileEnabled() {
 		securityProfileManager, err := profile.NewSecurityProfileManager(probe.Config, probe.StatsdClient, probe.resolvers.CGroupResolver, probe.resolvers.TimeResolver, probe.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}
 		managers.securityProfileManager = securityProfileManager
+	}
+
+	if probe.IsActivityDumpEnabled() && probe.IsSecurityProfileEnabled() {
+		managers.activityDumpManager.SetSilentWorkloadsFetcher(managers.securityProfileManager.FetchSilentWorkloads)
 	}
 
 	return &managers, nil

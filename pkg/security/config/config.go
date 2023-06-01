@@ -113,6 +113,10 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpMaxDumpCountPerWorkload int
 	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:threat_score)
 	ActivityDumpTagRulesEnabled bool
+	// ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
+	ActivityDumpSilentWorkloadsDelay time.Duration
+	// ActivityDumpSilentWorkloadsTicker configures ticker that will check if a workload is silent and should be traced
+	ActivityDumpSilentWorkloadsTicker time.Duration
 
 	// # Dynamic configuration fields:
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
@@ -230,6 +234,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpSyscallMonitorPeriod:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.syscall_monitor.period"),
 		ActivityDumpMaxDumpCountPerWorkload:   coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
 		ActivityDumpTagRulesEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
+		ActivityDumpSilentWorkloadsDelay:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
+		ActivityDumpSilentWorkloadsTicker:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_size")

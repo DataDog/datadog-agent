@@ -833,3 +833,21 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 		File: f.Name(),
 	}, nil
 }
+
+// FetchSilentWorkloads returns the list of workloads for which we haven't received any profile
+func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry {
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	out := make(map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry)
+
+	for selector, profile := range m.profiles {
+		profile.Lock()
+		if profile.loadedInKernel == false {
+			out[selector] = profile.Instances
+		}
+		profile.Unlock()
+	}
+
+	return out
+}
