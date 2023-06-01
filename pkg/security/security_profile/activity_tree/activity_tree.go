@@ -306,7 +306,7 @@ func isValidRootNode(entry *model.ProcessContext) bool {
 	return !isContainerRuntimePrefix(entry.FileEvent.BasenameStr)
 }
 
-// GetNextAncestorBinary returns the first ancestor with a different binary, or a different argv0 in the case of busybox
+// GetNextAncestorBinaryOrArgv0 returns the first ancestor with a different binary, or a different argv0 in the case of busybox processes
 func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCacheEntry {
 	if entry == nil {
 		return nil
