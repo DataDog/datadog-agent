@@ -83,9 +83,6 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 	}
 	files = append(files, mmapedFiles...)
 
-	seclog.Infof("AD: snapshotting %d files", len(files))
-	seclog.Infof("AD: files: %v", files)
-
 	// often the mmaped files are already nearly sorted, so we take the quick win and de-duplicate without sorting
 	files = slices.Compact(files)
 
