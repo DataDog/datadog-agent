@@ -291,7 +291,7 @@ func isContainerRuntimePrefix(basename string) bool {
 // isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
 func isValidRootNode(entry *model.ProcessContext) bool {
 	// an ancestor is required
-	ancestor := entry.GetNextAncestorBinary()
+	ancestor := GetNextAncestorBinaryOrArgv0(entry)
 	if ancestor == nil {
 		return false
 	}
@@ -304,6 +304,39 @@ func isValidRootNode(entry *model.ProcessContext) bool {
 
 	// container runtime prefixes are not valid root nodes
 	return !isContainerRuntimePrefix(entry.FileEvent.BasenameStr)
+}
+
+// GetNextAncestorBinary returns the first ancestor with a different binary, or a different argv0 in the case of busybox
+func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCacheEntry {
+	if entry == nil {
+		return nil
+	}
+	current := entry
+	ancestor := entry.Ancestor
+	for ancestor != nil {
+		if ancestor.FileEvent.Inode == 0 {
+			return nil
+		}
+		if current.FileEvent.Inode != ancestor.FileEvent.Inode {
+			return ancestor
+		}
+		if process.IsBusybox(current.FileEvent.PathnameStr) && process.IsBusybox(ancestor.FileEvent.PathnameStr) {
+			currentArgv0, _ := process.GetProcessArgv0(&current.Process)
+			if len(currentArgv0) == 0 {
+				return nil
+			}
+			ancestorArgv0, _ := process.GetProcessArgv0(&ancestor.Process)
+			if len(ancestorArgv0) == 0 {
+				return nil
+			}
+			if currentArgv0 != ancestorArgv0 {
+				return ancestor
+			}
+		}
+		current = &ancestor.ProcessContext
+		ancestor = ancestor.Ancestor
+	}
+	return nil
 }
 
 // CreateProcessNode finds or a create a new process activity node in the activity dump if the entry
@@ -331,7 +364,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
-	parentNode, newProcessNode, err := at.CreateProcessNode(entry.GetNextAncestorBinary(), Snapshot, dryRun)
+	parentNode, newProcessNode, err := at.CreateProcessNode(GetNextAncestorBinaryOrArgv0(&entry.ProcessContext), Snapshot, dryRun)
 	if err != nil || (newProcessNode && dryRun) {
 		// Explanation of (newProcessNode && dryRun): when dryRun is on, we can return as soon as we
 		// see something new in the tree. Although `newProcessNode` and `err` seem to be tied (i.e. newProcessNode is
