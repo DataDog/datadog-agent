@@ -17,7 +17,7 @@ import (
 func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
 	return payload.FlowPayload{
 		// TODO: Implement Tos
-		FlushTimestamp: flushTime.UnixMilli(),
+		FlushTimestamp: flushTime.Add(-10 * time.Minute).UnixMilli(),
 		FlowType:       string(aggFlow.FlowType),
 		SamplingRate:   aggFlow.SamplingRate,
 		Direction:      enrichment.RemapDirection(aggFlow.Direction),
