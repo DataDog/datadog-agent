@@ -60,9 +60,10 @@ func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.Pe
 	select {
 	case <-c.closed:
 		return
-	case c.LostChannel <- lostCount:
 	default:
 	}
+
+	c.LostChannel <- lostCount
 }
 
 // RecordHandler is the callback intended to be used when configuring PerfMapOptions
@@ -70,9 +71,10 @@ func (c *PerfHandler) RecordHandler(record *perf.Record, perfMap *manager.PerfMa
 	select {
 	case <-c.closed:
 		return
-	case c.DataChannel <- &DataEvent{CPU: record.CPU, Data: record.RawSample, r: record}:
 	default:
 	}
+
+	c.DataChannel <- &DataEvent{CPU: record.CPU, Data: record.RawSample, r: record}
 }
 
 // Stop stops the perf handler and closes both channels

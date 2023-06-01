@@ -54,10 +54,14 @@ func (c *tcpCloseConsumer) FlushPending() {
 		return
 	}
 
-	wait := make(chan struct{})
 	select {
 	case <-c.closed:
 		return
+	default:
+	}
+
+	wait := make(chan struct{})
+	select {
 	case c.requests <- wait:
 		<-wait
 	default:
