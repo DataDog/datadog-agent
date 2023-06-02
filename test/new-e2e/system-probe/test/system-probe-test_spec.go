@@ -6,17 +6,22 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/fatih/color"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -119,36 +124,66 @@ func mergeEnv(env ...map[string]interface{}) []string {
 	return mergedEnv
 }
 
-func concatenateJsons(indir, outdir string) error {
+type testEvent struct {
+	Time    time.Time // encodes as an RFC3339-format string
+	Action  string
+	Package string
+	Test    string
+	Elapsed float64 // seconds
+	Output  string
+}
+
+// concatenateJsons combines all the test json output files into a single file.
+// It also returns a formatted string containing all the failed tests.
+func concatenateJsons(indir, outdir string) (string, error) {
 	testJsonFile := filepath.Join(outdir, "out.json")
 	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
 	if err != nil {
-		return fmt.Errorf("json glob: %s", err)
+		return "", fmt.Errorf("json glob: %s", err)
 	}
 
 	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		return fmt.Errorf("open %s: %s", testJsonFile, err)
+		return "", fmt.Errorf("open %s: %s", testJsonFile, err)
 	}
 	defer f.Close()
 
+	var failedTests strings.Builder
 	for _, jsonFile := range matches {
 		jf, err := os.Open(jsonFile)
 		if err != nil {
-			return fmt.Errorf("open %s: %s", jsonFile, err)
+			return "", fmt.Errorf("open %s: %s", jsonFile, err)
 		}
-		_, err = io.Copy(f, jf)
+
+		var buf bytes.Buffer
+		w := io.MultiWriter(f, &buf)
+		_, err = io.Copy(w, jf)
 		_ = jf.Close()
 		if err != nil {
-			return fmt.Errorf("%s copy: %s", jsonFile, err)
+			return "", fmt.Errorf("%s copy: %s", jsonFile, err)
+		}
+
+		scanner := bufio.NewScanner(&buf)
+		for scanner.Scan() {
+			var ev testEvent
+			data := scanner.Bytes()
+			if err := json.Unmarshal(data, &ev); err != nil {
+				return "", fmt.Errorf("json unmarshal `%s`: %s", string(data), err)
+			}
+			if ev.Action == "fail" {
+				failedTests.WriteString(fmt.Sprintf("FAIL: %s %s\n", ev.Package, ev.Test))
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return "", fmt.Errorf("json line scan: %s", err)
 		}
 	}
 
-	return nil
+	return failedTests.String(), nil
 }
 
 func testPass() error {
-	var testError error
+	var runErrors []string
 
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
 		return true
@@ -183,15 +218,21 @@ func testPass() error {
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			testError = fmt.Errorf("cmd run %s: %s", file, err)
+			runErrors = append(runErrors, fmt.Errorf("cmd run %s: %s", file, err).Error())
 		}
 	}
 
-	if err := concatenateJsons(jsonPath, jsonOutPath); err != nil {
+	failedTests, err := concatenateJsons(jsonPath, jsonOutPath)
+	if err != nil {
 		return fmt.Errorf("concat json: %s", err)
 	}
-
-	return testError
+	if len(failedTests) > 0 {
+		return fmt.Errorf(failedTests)
+	}
+	if len(runErrors) > 0 {
+		return fmt.Errorf("test binaries had non-zero exit code, but there was no failed tests:\n%s", strings.Join(runErrors, "\n"))
+	}
+	return nil
 }
 
 func fixAssetPermissions() error {
@@ -213,7 +254,12 @@ func fixAssetPermissions() error {
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		if os.Getenv("GITLAB_CI") == "true" {
+			fmt.Fprintf(os.Stderr, "%s\n", color.RedString(err.Error()))
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(1)
 	}
 }
 
