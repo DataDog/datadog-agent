@@ -231,7 +231,9 @@ func testPass() error {
 		return fmt.Errorf("concat json: %s", err)
 	}
 	if len(failedTests) > 0 {
-		return fmt.Errorf(failedTests)
+		fmt.Fprintf(os.Stderr, "%s\n", color.RedString(failedTests))
+		// do not return an error here, because we need the rest of the CI script to continue regardless of test failure
+		return nil
 	}
 	if len(runErrors) > 0 {
 		return fmt.Errorf("test binaries had non-zero exit code, but there was no failed tests:\n%s", strings.Join(runErrors, "\n"))
