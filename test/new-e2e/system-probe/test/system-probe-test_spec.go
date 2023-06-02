@@ -254,11 +254,7 @@ func fixAssetPermissions() error {
 
 func main() {
 	if err := run(); err != nil {
-		if os.Getenv("GITLAB_CI") == "true" {
-			fmt.Fprintf(os.Stderr, "%s\n", color.RedString(err.Error()))
-		} else {
-			fmt.Fprintln(os.Stderr, err)
-		}
+		fmt.Fprintf(os.Stderr, "%s\n", color.RedString(err.Error()))
 		os.Exit(1)
 	}
 }
