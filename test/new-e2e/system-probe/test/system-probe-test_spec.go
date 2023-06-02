@@ -174,7 +174,7 @@ func concatenateJsons(indir, outdir string) (string, error) {
 			if err := json.Unmarshal(data, &ev); err != nil {
 				return "", fmt.Errorf("json unmarshal `%s`: %s", string(data), err)
 			}
-			if ev.Action == "fail" {
+			if ev.Action == "fail" && ev.Test != "" {
 				failedTests.WriteString(fmt.Sprintf("FAIL: %s %s\n", ev.Package, ev.Test))
 			}
 		}
