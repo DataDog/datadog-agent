@@ -36,8 +36,8 @@ type RCPolicyProvider struct {
 
 	client               *remote.Client
 	onNewPoliciesReadyCb func()
-	lastDefaults         map[string]state.ConfigCWSDD
-	lastCustoms          map[string]state.ConfigCWSCustom
+	lastDefaults         map[string]state.RawConfig
+	lastCustoms          map[string]state.RawConfig
 	debouncer            *debouncer.Debouncer
 }
 
@@ -64,13 +64,13 @@ func (r *RCPolicyProvider) Start() {
 
 	r.debouncer.Start()
 
-	r.client.RegisterCWSDDUpdate(r.rcDefaultsUpdateCallback)
-	r.client.RegisterCWSCustomUpdate(r.rcCustomsUpdateCallback)
+	r.client.Subscribe(state.ProductCWSDD, r.rcDefaultsUpdateCallback)
+	r.client.Subscribe(state.ProductCWSCustom, r.rcCustomsUpdateCallback)
 
 	r.client.Start()
 }
 
-func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.ConfigCWSDD) {
+func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig) {
 	r.Lock()
 	r.lastDefaults = configs
 	r.Unlock()
@@ -80,7 +80,7 @@ func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.Con
 	r.debouncer.Call()
 }
 
-func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.ConfigCWSCustom) {
+func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawConfig) {
 	r.Lock()
 	r.lastCustoms = configs
 	r.Unlock()
