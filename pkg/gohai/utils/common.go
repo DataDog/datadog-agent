@@ -19,7 +19,7 @@ var ErrCannotRender = errors.New("field inner type cannot be rendered")
 var ErrNoValueMethod = errors.New("field doesn't have the expected Value method")
 var ErrNoJSONTag = errors.New("field doesn't have a json tag")
 
-// reflectValueToString converts the given value to a string, and return a boolean indicating
+// reflectValueToString converts the given value to a string, and returns a boolean indicating
 // whether it succeeded
 //
 // Supported types are int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, string
@@ -72,11 +72,11 @@ func reflectValueToString(value reflect.Value) (string, bool) {
 	return rendered, true
 }
 
-// fieldIsValue returns whether the field has a Value function with the correct arguments and return types.
+// getValueMethod returns whether the field has a Value function with the correct arguments and return types.
 //
 // Since we don't know the specific T, we can't cast to an interface, and reflect doesn't have any way to check
 // a generic type as long as https://github.com/golang/go/issues/54393 is not implemented.
-func fieldIsValue(fieldTy reflect.StructField) (reflect.Method, bool) {
+func getValueMethod(fieldTy reflect.StructField) (reflect.Method, bool) {
 	// check that a pointer to the field type has a Value method
 	// (Value is a method on *Value[T])
 	valueMethod, ok := reflect.PtrTo(fieldTy.Type).MethodByName("Value")
@@ -94,7 +94,7 @@ func fieldIsValue(fieldTy reflect.StructField) (reflect.Method, bool) {
 	return valueMethod, true
 }
 
-// AsJSON takes an Info struct and returns a marshal-able object representing the fields of the struct,
+// AsJSON takes a structure and returns a marshal-able object representing the fields of the struct,
 // the lists of errors for fields for which the collection failed, and an error if it failed.
 //
 // If useDefault is true, fields which failed to be collected will be included in the marshal-able object
@@ -135,7 +135,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []string, error) {
 		}
 
 		// check that the field has the expected Value method
-		valueMethod, ok := fieldIsValue(fieldTy)
+		valueMethod, ok := getValueMethod(fieldTy)
 		if !ok {
 			return nil, nil, fmt.Errorf("%s: %w", fieldName, ErrNoValueMethod)
 		}
@@ -168,7 +168,7 @@ func AsJSON[T any](info *T, useDefault bool) (interface{}, []string, error) {
 			return nil, nil, fmt.Errorf("%s: %w", fieldName, ErrCannotRender)
 		}
 
-		// Get returns an empty string if the key does not exists so no need for particular error handling
+		// Get returns an empty string if the key does not exist so no need for particular error handling
 		unit := fieldTy.Tag.Get("unit")
 
 		values[jsonName] = fmt.Sprintf("%s%s", renderedValue, unit)
