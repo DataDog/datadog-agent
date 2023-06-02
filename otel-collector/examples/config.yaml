@@ -1,30 +1,35 @@
 receivers:
-  zipkin:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4137
   filelog:
     include_file_path: true
     poll_interval: 500ms
     include:
-      - /var/log/**/*example*/*.log
-
+      - /var/tmp/**/*.log
 
 exporters:
-  otlp:
-    endpoint: localhost:4317
   logging:
-
-extensions:
-  trace:
+  datadog:
     api:
       key: $DD_API_KEY
 
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+extensions:
+  trace:
+    host: 0.0.0.0
+    api:
+      key: $DD_API_KEY
 
 service:
   extensions: trace
   pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [datadog]
     logs:
       receivers: [filelog]
-      exporters: [otlp]
-
-    traces:
-      receivers: [zipkin]
-      exporters: [otlp]
+      exporters: [loki]

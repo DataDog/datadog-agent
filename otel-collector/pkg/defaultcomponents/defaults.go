@@ -9,6 +9,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/logzioexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/lokiexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/signalfxexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/awsproxy"
@@ -121,6 +122,7 @@ func Components() (otelcol.Factories, error) {
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
 		awsxrayexporter.NewFactory(),
+		lokiexporter.NewFactory(),
 	}
 	exporters, err := exporter.MakeFactoryMap(exporterList...)
 

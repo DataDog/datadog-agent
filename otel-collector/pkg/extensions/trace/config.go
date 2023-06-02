@@ -21,8 +21,9 @@ import (
 
 // Config defines configuration for trace-agent
 type Config struct {
-	agentConf *config.AgentConfig
-	API       APIConfig `mapstructure:"api"`
+	agentConf    *config.AgentConfig
+	API          APIConfig `mapstructure:"api"`
+	ReceiverHost string    `mapstructure:"host"`
 }
 
 // APIConfig defines the API configuration options
@@ -51,6 +52,7 @@ func (c *Config) Unmarshal(configMap *confmap.Conf) error {
 	}
 
 	c.agentConf.Endpoints[0].APIKey = c.API.Key
+	c.agentConf.ReceiverHost = c.ReceiverHost
 
 	return nil
 }
