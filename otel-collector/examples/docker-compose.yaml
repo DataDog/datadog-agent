@@ -1,0 +1,86 @@
+version: "3.9"
+
+networks:
+  default:
+    name: dd-distro
+    driver: bridge
+
+services:
+  flask-app:
+    depends_on:
+      - otelcol
+    build:
+      context: ../..
+      dockerfile: ./otel-collector/examples/Dockerfile.app
+    environment:
+      - DD_SERVICE=flask-app
+      - DD_TRACE_AGENT_URL=http://otelcol:8126
+      - DD_RUNTIME_METRICS_ENABLED=true
+      - DD_PROFILING_ENABLED=true
+      - DD_AGENT_HOST=otelcol
+      - DD_ENV=docker
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otelcol:4317/
+      - SERVER_PORT=9090
+    ports:
+      - "9090:9090"
+    volumes:
+      - shared-data:/var/tmp
+  # DD
+  otelcol:
+    build:
+      context: ../..
+      dockerfile: ./otel-collector/examples/Dockerfile.collector
+    deploy:
+      resources:
+        limits:
+          memory: 125M
+    pid: host
+    restart: unless-stopped
+    command: ["--config=/etc/otel-config.yaml"]
+    container_name: otelcol
+    volumes:
+      - ./config.yaml:/etc/otel-config.yaml
+      - shared-data:/var/tmp
+    ports:
+      - 4317:4137 # OTLP over gRPC receiver
+      - 4318:4318 # OTLP over HTTP receiver
+      - 8126:8126
+    environment:
+      - DD_API_KEY
+
+  loki:
+    image: grafana/loki:2.8.2
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+
+  grafana:
+    environment:
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    entrypoint:
+      - sh
+      - -euc
+      - |
+        mkdir -p /etc/grafana/provisioning/datasources
+        cat <<EOF > /etc/grafana/provisioning/datasources/ds.yaml
+        apiVersion: 1
+        datasources:
+        - name: Loki
+          type: loki
+          access: proxy
+          orgId: 1
+          url: http://loki:3100
+          basicAuth: false
+          isDefault: true
+          version: 1
+          editable: false
+        EOF
+        /run.sh
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+
+volumes:
+  shared-data:

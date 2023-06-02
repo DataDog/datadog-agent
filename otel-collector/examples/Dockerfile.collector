@@ -1,0 +1,11 @@
+FROM golang:1.20.4-bullseye
+
+ADD . /src/
+WORKDIR /src/otel-collector
+RUN go build -o collector ./cmd/collector
+
+
+RUN mv /src/otel-collector/collector /otelcol-contrib
+ENTRYPOINT ["/otelcol-contrib"]
+EXPOSE 4317 4318 55680 55679
+

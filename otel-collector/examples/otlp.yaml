@@ -1,0 +1,32 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  logging:
+
+processors:
+  batch:
+    timeout: 10s
+  resourcedetection:
+    detectors: [system, env]
+
+extensions:
+  trace:
+    api:
+      key: $DD_API_KEY
+
+
+service:
+  extensions: trace
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, resourcedetection]
+      exporters: [logging]
+    metrics:
+      receivers: [otlp]
+      processors: [batch, resourcedetection]
+      exporters: [logging]
