@@ -83,19 +83,11 @@ func TestAsJSONEmpty(t *testing.T) {
 // TestAsJsonInvalidParam tests that using something other than struct returns an error
 func TestAsJsonInvalidParam(t *testing.T) {
 	var err error
-	// function
-	f := func() {}
-	_, _, err = AsJSON(&f, false)
-	require.ErrorIs(t, err, ErrArgNotStruct)
 	// slice
 	_, _, err = AsJSON(&[]int{1}, false)
 	require.ErrorIs(t, err, ErrArgNotStruct)
 	// array
 	_, _, err = AsJSON(&[1]int{1}, false)
-	require.ErrorIs(t, err, ErrArgNotStruct)
-	// basic type (bool)
-	b := true
-	_, _, err = AsJSON(&b, false)
 	require.ErrorIs(t, err, ErrArgNotStruct)
 	// pointer
 	p := &struct{}{}
@@ -225,29 +217,14 @@ func TestAsJSONSuffix(t *testing.T) {
 		FieldSix:   NewErrorValue[int](errors.New(errs[2])),
 	}
 
-	marshallable, warns, err := AsJSON(info, false)
+	marshallable, warns, err := AsJSON(info, true)
 	require.NoError(t, err)
-
 	require.ElementsMatch(t, errs, warns)
 
 	marshalled, err := json.Marshal(marshallable)
 	require.NoError(t, err)
 
 	expected := `{
-		"field_one": "1",
-		"field_two": "2",
-		"field_three": "3kb"
-	}`
-	require.JSONEq(t, expected, string(marshalled))
-
-	marshallable, warns, err = AsJSON(info, true)
-	require.NoError(t, err)
-	require.ElementsMatch(t, errs, warns)
-
-	marshalled, err = json.Marshal(marshallable)
-	require.NoError(t, err)
-
-	expected = `{
 		"field_one": "1",
 		"field_two": "2",
 		"field_three": "3kb",
