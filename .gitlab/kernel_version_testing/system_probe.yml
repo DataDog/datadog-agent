@@ -59,10 +59,9 @@ pull_test_dockers_arm64:
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
-    # add micro-vm-init.sh
     - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
-    # Compile system-probe-test_spec.go
-    - GOOS=linux GOARCH=$ARCH go build $CI_PROJECT_DIR/test/new-e2e/system-probe/test/system-probe-test_spec.go
+    - GOOS=linux GOARCH=$ARCH go build $CI_PROJECT_DIR/test/new-e2e/system-probe/test/test-runner
+    - GOOS=linux GOARCH=$ARCH go build $CI_PROJECT_DIR/test/new-e2e/system-probe/test/test-json-review
     - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
@@ -216,6 +215,7 @@ kernel_matrix_testing_run_tests:
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/testjson-${MICRO_VM_IP}.tar.gz /home/ubuntu/testjson-${MICRO_VM_IP}.tar.gz"
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-testjson-$MICRO_VM_NAME.tar.gz
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-junit-$MICRO_VM_NAME.tar.gz
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} '/test-json-review /testjson/out.json"
   parallel:
     matrix:
       - TAG: ["bionic", "focal", "jammy"]

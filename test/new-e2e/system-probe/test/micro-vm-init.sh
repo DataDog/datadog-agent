@@ -21,7 +21,7 @@ rm -f "/testjson-$IP.tar.gz"
 rm -f "/junit-$IP.tar.gz"
 
 CODE=0
-/system-probe-test_spec || CODE=$?
+/test-runner || CODE=$?
 
 tar czvf "/testjson-$IP.tar.gz" /testjson
 tar czvf "/junit-$IP.tar.gz" /junit
