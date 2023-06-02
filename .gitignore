@@ -208,3 +208,4 @@ test/fakeintake/build/*
 
 # Allow Regression Detector material to ignore excludes
 !test/regression/**
+!otel-collector/examples/Dockerfile.app
