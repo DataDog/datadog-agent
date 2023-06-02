@@ -213,8 +213,8 @@ kernel_matrix_testing_run_tests:
     - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH.$TAG | cut -d ' ' -f 1)
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GOVERSION}'"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{MICRO_VM_IP}:/junit-${MICRO_VM_IP}.tar.gz /home/ubuntu/junit-${MICRO_VM_IP}.tar.gz"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{MICRO_VM_IP}:/testjson-${MICRO_VM_IP}.tar.gz /home/ubuntu/testjson-${MICRO_VM_IP}.tar.gz"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/junit-${MICRO_VM_IP}.tar.gz /home/ubuntu/junit-${MICRO_VM_IP}.tar.gz"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/testjson-${MICRO_VM_IP}.tar.gz /home/ubuntu/testjson-${MICRO_VM_IP}.tar.gz"
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-testjson-$MICRO_VM_NAME.tar.gz
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-junit-$MICRO_VM_NAME.tar.gz
   parallel:
