@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package workloadmeta
 
 import (
@@ -6,14 +11,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-type WorkloadMetaExtractor struct {
-	enabled bool
-}
+// WorkloadMetaExtractor handles enriching processes with
+type WorkloadMetaExtractor struct{}
 
-func NewWorkloadMetaExtractor(ddconfig config.ConfigReader) *WorkloadMetaExtractor {
-	return &WorkloadMetaExtractor{
-		enabled: ddconfig.GetBool("process_config.language_detection.enabled"),
-	}
+// NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
+func NewWorkloadMetaExtractor() *WorkloadMetaExtractor {
+	return &WorkloadMetaExtractor{}
 }
 
 func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
@@ -32,4 +35,9 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 			proc.Language = lang
 		}
 	}
+}
+
+// Enabled returns wheither or not the extractor should be enabled
+func Enabled(ddconfig config.ConfigReader) bool {
+	return ddconfig.GetBool("process_config.language_detection.enabled")
 }
