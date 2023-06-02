@@ -112,11 +112,20 @@ remove_version_history()
 
 remove_sysprobe_files()
 {
-    for file in run/runtime-security-registry.json run/sysprobe.sock run/event-monitor.sock run/runtime-security.sock run/system-probe.pid  run/runtime-security/profiles run/runtime-security
+    # removing sbom files and dirs
+    for dir in $(find "$INSTALL_DIR/run" -name "sbom*" -type d); do
+        find "$dir" -delete || true
+    done
+
+    # removing security profiles
+    find "$INSTALL_DIR/run/runtime-security/profiles" -delete || true
+
+    # remove other runtime files
+    for file in run/runtime-security-registry.json run/sysprobe.sock run/event-monitor.sock run/runtime-security.sock run/system-probe.pid run/runtime-security
     do
         if [ -d "$INSTALL_DIR/$file" ]; then
             rmdir "$INSTALL_DIR/$file" 2>/dev/null || true
-        elif [ -f "$INSTALL_DIR/$file" ]; then
+        elif [ -e "$INSTALL_DIR/$file" ]; then
             rm "$INSTALL_DIR/$file" || true
         fi
     done
