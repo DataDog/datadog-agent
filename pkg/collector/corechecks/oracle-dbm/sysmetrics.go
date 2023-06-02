@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 const SYSMETRICS_QUERY = `SELECT 
@@ -86,10 +87,19 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Physical Reads Direct Per Sec":                 {DDmetric: "physical_reads_direct", DBM: true},
 	"Physical Reads Per Sec":                        {DDmetric: "physical_reads"},
 	"Physical Write Bytes Per Sec":                  {DDmetric: "physical_write_bytes", DBM: true},
+	"Physical Write IO Requests Per Sec":            {DDmetric: "physical_write_io_requests", DBM: true},
 
-	"Physical Write IO Requests Per Sec": {DDmetric: "physical_write_io_requests", DBM: true},
+	"Physical Write Total Bytes Per Sec":       {DDmetric: "physical_write_total_bytes", DBM: true},
+	"Physical Write Total IO Requests Per Sec": {DDmetric: "physical_write_total_io_requests", DBM: true},
+	"Physical Writes Direct Lobs Per Sec":      {DDmetric: "physical_writes_direct_lobs", DBM: true},
+	"Physical Writes Direct Per Sec":           {DDmetric: "physical_writes_direct", DBM: true},
+	"Physical Writes Per Sec":                  {DDmetric: "physical_writes"},
+	"Process Limit %":                          {DDmetric: "process_limit", DBM: true},
+	"Redo Allocation Hit Ratio":                {DDmetric: "redo_allocation_hit_ratio", DBM: true},
+	"Redo Generated Per Sec":                   {DDmetric: "redo_generated", DBM: true},
+	"Redo Writes Per Sec":                      {DDmetric: "redo_writes", DBM: true},
+	"Row Cache Hit Ratio":                      {DDmetric: "row_cache_hit_ratio", DBM: true},
 
-	"Physical Writes Per Sec":   {DDmetric: "physical_writes"},
 	"Shared Pool Free %":        {DDmetric: "shared_pool_free"},
 	"SQL Service Response Time": {DDmetric: "service_response_time"},
 	"User Rollbacks Per Sec":    {DDmetric: "user_rollbacks"},
@@ -113,6 +123,7 @@ func (c *Check) sendMetric(s aggregator.Sender, r SysmetricsRowDB, seen map[stri
 			}
 		*/
 		if !SYSMETRICS_COLS[r.MetricName].DBM || SYSMETRICS_COLS[r.MetricName].DBM && c.dbmEnabled {
+			log.Tracef("%s: %f", metric.DDmetric, value)
 			s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, "", appendPDBTag(c.tags, r.PdbName))
 			seen[r.MetricName] = true
 		}
@@ -120,7 +131,6 @@ func (c *Check) sendMetric(s aggregator.Sender, r SysmetricsRowDB, seen map[stri
 }
 
 func (c *Check) SysMetrics() error {
-
 	sender, err := c.GetSender()
 	if err != nil {
 		return fmt.Errorf("failed to initialize sender: %w", err)
@@ -131,6 +141,7 @@ func (c *Check) SysMetrics() error {
 	if err != nil {
 		return fmt.Errorf("failed to collect container sysmetrics: %w", err)
 	}
+	fmt.Printf("metric rows %+v", metricRows)
 	seenInContainerMetrics := make(map[string]bool)
 	for _, r := range metricRows {
 		c.sendMetric(sender, r, seenInContainerMetrics)

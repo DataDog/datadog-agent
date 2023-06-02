@@ -86,9 +86,10 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.SysMetrics.Enabled {
+		log.Trace("Entered sysmetrics")
 		err := c.SysMetrics()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to collecr sysmetrics %w", err)
 		}
 	}
 	if c.config.Tablespaces.Enabled {
