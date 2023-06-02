@@ -13,11 +13,12 @@ import (
 	"time"
 	"unsafe"
 
+	"go.uber.org/atomic"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -112,19 +113,13 @@ func (c *Consumer) Start() {
 		defer c.eventLoopWG.Done()
 		for {
 			select {
-			case dataEvent, ok := <-c.handler.DataChannel:
-				if !ok {
-					return
-				}
-
+			case <-c.handler.Closed():
+				return
+			case dataEvent := <-c.handler.DataChannel:
 				b := batchFromEventData(dataEvent.Data)
 				c.process(dataEvent.CPU, b, false)
 				dataEvent.Done()
-			case _, ok := <-c.handler.LostChannel:
-				if !ok {
-					return
-				}
-
+			case <-c.handler.LostChannel:
 				missedEvents := c.batchSize.Load()
 				c.missesCount.Add(missedEvents)
 			case done, ok := <-c.syncRequest:

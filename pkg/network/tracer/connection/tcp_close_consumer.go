@@ -101,11 +101,9 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 			select {
 			case <-c.closed:
 				return
-			case batchData, ok := <-c.perfHandler.DataChannel:
-				if !ok {
-					return
-				}
-
+			case <-c.perfHandler.Closed():
+				return
+			case batchData := <-c.perfHandler.DataChannel:
 				l := len(batchData.Data)
 				switch {
 				case l >= netebpf.SizeofBatch:
@@ -123,10 +121,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
 				batchData.Done()
-			case lc, ok := <-c.perfHandler.LostChannel:
-				if !ok {
-					return
-				}
+			case lc := <-c.perfHandler.LostChannel:
 				closerConsumerTelemetry.perfLost.Add(float64(lc * netebpf.BatchSize))
 				lostCount += lc * netebpf.BatchSize
 			case request := <-c.requests:

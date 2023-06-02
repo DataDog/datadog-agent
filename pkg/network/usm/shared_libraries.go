@@ -11,7 +11,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"go.uber.org/atomic"
 	"os"
 	"regexp"
 	"sync"
@@ -19,9 +18,12 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/gopsutil/process"
+	"go.uber.org/atomic"
+
 	"github.com/twmb/murmur3"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/gopsutil/process"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -258,11 +260,9 @@ func (w *soWatcher) Start() {
 				for deletedPid := range deletedPids {
 					w.registry.unregister(int(deletedPid))
 				}
-			case event, ok := <-w.loadEvents.DataChannel:
-				if !ok {
-					return
-				}
-
+			case <-w.loadEvents.Closed():
+				return
+			case event := <-w.loadEvents.DataChannel:
 				lib := toLibPath(event.Data)
 				if int(lib.Pid) == thisPID {
 					// don't scan ourself

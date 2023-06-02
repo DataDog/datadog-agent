@@ -83,3 +83,7 @@ func (c *PerfHandler) Stop() {
 		close(c.closed)
 	})
 }
+
+func (c *PerfHandler) Closed() <-chan struct{} {
+	return c.closed
+}
