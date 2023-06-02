@@ -24,6 +24,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func init() {
+	color.NoColor = false
+}
+
 const (
 	Testsuite   = "testsuite"
 	TestDirRoot = "/opt/system-probe-tests"
