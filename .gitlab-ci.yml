@@ -182,8 +182,8 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-050cc8b9a787a51ec"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0b6171dc179278811"
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-095b84c0ed1194f14"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0763e167a20ae71c8"
 
 #
 # Condition mixins for simplification of rules
