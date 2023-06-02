@@ -39,7 +39,6 @@ func (c *Check) SharedMemory() error {
 	}
 	for _, r := range rows {
 		tags := appendPDBTag(c.tags, r.PdbName)
-		//tags = append(tags, `memory:"`+r.Memory+`"`)
 		memoryTag := strings.ReplaceAll(r.Memory, " ", "_")
 		memoryTag = strings.ToLower(memoryTag)
 		memoryTag = strings.ReplaceAll(memoryTag, "_size", "")

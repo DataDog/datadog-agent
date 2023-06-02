@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add shared memory (a.k.a. system global area - SGA) for Oracle databases.
+    Add shared memory (a.k.a. system global area - SGA) metric for Oracle databases: `oracle.shared_memory.size`
