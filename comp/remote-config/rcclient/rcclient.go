@@ -6,6 +6,7 @@
 package rcclient
 
 import (
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -30,6 +31,7 @@ type RCAgentTaskListener func(taskType TaskType, task state.AgentTaskConfig) (bo
 
 type rcClient struct {
 	client        *remote.Client
+	m             *sync.Mutex
 	taskProcessed map[string]bool
 
 	listeners []RCAgentTaskListener
@@ -44,6 +46,7 @@ type dependencies struct {
 func newRemoteConfigClient(deps dependencies) (Component, error) {
 	rc := rcClient{
 		listeners: deps.Listeners,
+		m:         &sync.Mutex{},
 		client:    nil,
 	}
 
@@ -73,6 +76,8 @@ func (rc rcClient) Listen() error {
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
 func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskConfig) {
+	rc.m.Lock()
+	defer rc.m.Unlock()
 	for configPath, c := range updates {
 		// Check that the flare task wasn't already processed
 		if !rc.taskProcessed[c.Config.UUID] {
