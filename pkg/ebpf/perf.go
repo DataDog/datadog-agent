@@ -20,8 +20,12 @@ type PerfHandler struct {
 	DataChannel  chan *DataEvent
 	LostChannel  chan uint64
 	RecordGetter func() *perf.Record
-	once         sync.Once
-	closed       chan struct{}
+
+	once    sync.Once
+	data    chan *DataEvent
+	lost    chan uint64
+	closing chan struct{}
+	closed  chan struct{}
 }
 
 // DataEvent is a single event read from a perf buffer
@@ -45,36 +49,86 @@ var recordPool = sync.Pool{
 
 // NewPerfHandler creates a PerfHandler
 func NewPerfHandler(dataChannelSize int) *PerfHandler {
-	return &PerfHandler{
+	pf := &PerfHandler{
 		DataChannel: make(chan *DataEvent, dataChannelSize),
 		LostChannel: make(chan uint64, 10),
 		RecordGetter: func() *perf.Record {
 			return recordPool.Get().(*perf.Record)
 		},
+		data:   make(chan *DataEvent, 1),
+		lost:   make(chan uint64, 1),
 		closed: make(chan struct{}),
 	}
+
+	go func() {
+		defer func() {
+			close(pf.DataChannel)
+		}()
+
+		var d *DataEvent
+		for {
+			if d != nil {
+				select {
+				case <-pf.closed:
+					return
+				case pf.DataChannel <- d:
+				}
+
+				d = nil
+			}
+
+			select {
+			case <-pf.closed:
+				return
+			case d = <-pf.data:
+			}
+		}
+	}()
+
+	go func() {
+		defer func() {
+			close(pf.LostChannel)
+		}()
+
+		var l uint64
+		var gotLost bool
+		for {
+			if gotLost {
+				select {
+				case <-pf.closed:
+					return
+				case pf.LostChannel <- l:
+				}
+
+				gotLost = false
+			}
+
+			select {
+			case <-pf.closed:
+				return
+			case l = <-pf.lost:
+				gotLost = true
+			}
+		}
+	}()
+
+	return pf
 }
 
 // LostHandler is the callback intended to be used when configuring PerfMapOptions
 func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
 	select {
 	case <-c.closed:
-		return
-	default:
+	case c.lost <- lostCount:
 	}
-
-	c.LostChannel <- lostCount
 }
 
 // RecordHandler is the callback intended to be used when configuring PerfMapOptions
 func (c *PerfHandler) RecordHandler(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
 	select {
 	case <-c.closed:
-		return
-	default:
+	case c.data <- &DataEvent{CPU: record.CPU, Data: record.RawSample, r: record}:
 	}
-
-	c.DataChannel <- &DataEvent{CPU: record.CPU, Data: record.RawSample, r: record}
 }
 
 // Stop stops the perf handler and closes both channels
@@ -82,8 +136,4 @@ func (c *PerfHandler) Stop() {
 	c.once.Do(func() {
 		close(c.closed)
 	})
-}
-
-func (c *PerfHandler) Closed() <-chan struct{} {
-	return c.closed
 }

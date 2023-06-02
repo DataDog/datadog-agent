@@ -62,9 +62,9 @@ func (c *tcpCloseConsumer) FlushPending() {
 
 	wait := make(chan struct{})
 	select {
+	case <-c.closed:
 	case c.requests <- wait:
 		<-wait
-	default:
 	}
 }
 
@@ -101,9 +101,11 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 			select {
 			case <-c.closed:
 				return
-			case <-c.perfHandler.Closed():
-				return
-			case batchData := <-c.perfHandler.DataChannel:
+			case batchData, ok := <-c.perfHandler.DataChannel:
+				if !ok {
+					return
+				}
+
 				l := len(batchData.Data)
 				switch {
 				case l >= netebpf.SizeofBatch:
@@ -121,7 +123,10 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
 				batchData.Done()
-			case lc := <-c.perfHandler.LostChannel:
+			case lc, ok := <-c.perfHandler.LostChannel:
+				if !ok {
+					return
+				}
 				closerConsumerTelemetry.perfLost.Add(float64(lc * netebpf.BatchSize))
 				lostCount += lc * netebpf.BatchSize
 			case request := <-c.requests:

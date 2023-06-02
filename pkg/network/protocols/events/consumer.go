@@ -113,13 +113,19 @@ func (c *Consumer) Start() {
 		defer c.eventLoopWG.Done()
 		for {
 			select {
-			case <-c.handler.Closed():
-				return
-			case dataEvent := <-c.handler.DataChannel:
+			case dataEvent, ok := <-c.handler.DataChannel:
+				if !ok {
+					return
+				}
+
 				b := batchFromEventData(dataEvent.Data)
 				c.process(dataEvent.CPU, b, false)
 				dataEvent.Done()
-			case <-c.handler.LostChannel:
+			case _, ok := <-c.handler.LostChannel:
+				if !ok {
+					return
+				}
+
 				missedEvents := c.batchSize.Load()
 				c.missesCount.Add(missedEvents)
 			case done, ok := <-c.syncRequest:

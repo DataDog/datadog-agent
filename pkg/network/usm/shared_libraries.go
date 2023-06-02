@@ -260,9 +260,11 @@ func (w *soWatcher) Start() {
 				for deletedPid := range deletedPids {
 					w.registry.unregister(int(deletedPid))
 				}
-			case <-w.loadEvents.Closed():
-				return
-			case event := <-w.loadEvents.DataChannel:
+			case event, ok := <-w.loadEvents.DataChannel:
+				if !ok {
+					return
+				}
+
 				lib := toLibPath(event.Data)
 				if int(lib.Pid) == thisPID {
 					// don't scan ourself
