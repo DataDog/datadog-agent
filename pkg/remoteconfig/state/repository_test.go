@@ -47,8 +47,8 @@ func TestEmptyUpdate(t *testing.T) {
 	updatedProducts, err := r.Update(emptyUpdate)
 	assert.NotNil(t, err)
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
-	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
-	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "An empty update shouldn't add any CWSDD configs")
 
 	state, err := r.CurrentState()
 	assert.NoError(t, err)
@@ -64,8 +64,8 @@ func TestEmptyUpdate(t *testing.T) {
 	updatedProducts, err = r.Update(emptyUpdate)
 	assert.NotNil(t, err)
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
-	assert.Equal(t, 0, len(r.APMConfigs()), "An empty update shoudldn't add any APM configs")
-	assert.Equal(t, 0, len(r.CWSDDConfigs()), "An empty update shouldn't add any CWSDD configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "An empty update shouldn't add any CWSDD configs")
 
 	state, err = r.CurrentState()
 	assert.NoError(t, err)
@@ -97,10 +97,10 @@ func TestUpdateNewConfig(t *testing.T) {
 	assert.Equal(t, 1, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
 
-	storedFile, ok := r.CWSDDConfigs()[path]
+	storedFile, ok := r.GetConfigs(ProductCWSDD)[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 1, storedFile.Metadata.Version)
@@ -133,10 +133,10 @@ func TestUpdateNewConfig(t *testing.T) {
 	assert.Equal(t, 1, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
 
-	storedFile, ok = r.CWSDDConfigs()[path]
+	storedFile, ok = r.GetConfigs(ProductCWSDD)[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 1, storedFile.Metadata.Version)
@@ -198,8 +198,8 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 	updatedProducts, err := r.Update(removalUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts))
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 0, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)))
 
 	state, err := r.CurrentState()
 	assert.NoError(t, err)
@@ -214,8 +214,8 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 	updatedProducts, err = r.Update(removalUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts))
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 0, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)))
 
 	state, err = r.CurrentState()
 	assert.NoError(t, err)
@@ -260,10 +260,10 @@ func TestUpdateNewConfigThenModify(t *testing.T) {
 	assert.Equal(t, 1, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
 
-	storedFile, ok := r.CWSDDConfigs()[path]
+	storedFile, ok := r.GetConfigs(ProductCWSDD)[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 2, storedFile.Metadata.Version)
@@ -295,10 +295,10 @@ func TestUpdateNewConfigThenModify(t *testing.T) {
 	assert.Equal(t, 1, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
 
-	storedFile, ok = r.CWSDDConfigs()[path]
+	storedFile, ok = r.GetConfigs(ProductCWSDD)[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 2, storedFile.Metadata.Version)
@@ -468,10 +468,10 @@ func TestUpdateWithNewRoot(t *testing.T) {
 	assert.Equal(t, 1, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
 
-	storedFile, ok := r.CWSDDConfigs()[path]
+	storedFile, ok := r.GetConfigs(ProductCWSDD)[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 1, storedFile.Metadata.Version)
@@ -504,10 +504,10 @@ func TestUpdateWithNewRoot(t *testing.T) {
 	assert.Equal(t, 1, len(updatedProducts))
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
 
-	storedFile, ok = r.CWSDDConfigs()[path]
+	storedFile, ok = r.GetConfigs(ProductCWSDD)[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 1, storedFile.Metadata.Version)
@@ -551,8 +551,8 @@ func TestClientOnlyTakesActionOnFilesInClientConfig(t *testing.T) {
 	updatedProducts, err := r.Update(update)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts))
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 0, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)))
 
 	state, err := r.CurrentState()
 	assert.NoError(t, err)
@@ -567,8 +567,8 @@ func TestClientOnlyTakesActionOnFilesInClientConfig(t *testing.T) {
 	updatedProducts, err = r.Update(update)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts))
-	assert.Equal(t, 0, len(r.APMConfigs()))
-	assert.Equal(t, 0, len(r.CWSDDConfigs()))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)))
 
 	state, err = r.CurrentState()
 	assert.NoError(t, err)
@@ -602,10 +602,10 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 	assert.Contains(t, updatedProducts, ProductAPMSampling)
 
-	assert.Equal(t, 1, len(r.APMConfigs()))
-	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
 
-	storedFile, ok := r.CWSDDConfigs()[path]
+	storedFile, ok := r.GetConfigs(ProductCWSDD)[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 1, storedFile.Metadata.Version)
@@ -614,7 +614,7 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
 	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
 
-	storedFileAPM, ok := r.APMConfigs()[pathAPM]
+	storedFileAPM, ok := r.GetConfigs(ProductAPMSampling)[pathAPM]
 	assert.True(t, ok)
 	assert.Equal(t, fileAPM, storedFileAPM.Config)
 	assert.EqualValues(t, 3, storedFileAPM.Metadata.Version)
@@ -631,10 +631,10 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Contains(t, updatedProducts, ProductCWSDD)
 	assert.Contains(t, updatedProducts, ProductAPMSampling)
 
-	assert.Equal(t, 1, len(r.APMConfigs()))
-	assert.Equal(t, 1, len(r.CWSDDConfigs()))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
 
-	storedFile, ok = r.CWSDDConfigs()[path]
+	storedFile, ok = r.GetConfigs(ProductCWSDD)[path]
 	assert.True(t, ok)
 	assert.Equal(t, file, storedFile.Config)
 	assert.EqualValues(t, 1, storedFile.Metadata.Version)
@@ -643,7 +643,7 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Equal(t, ProductCWSDD, storedFile.Metadata.Product)
 	assert.EqualValues(t, len(data), storedFile.Metadata.RawLength)
 
-	storedFileAPM, ok = r.APMConfigs()[pathAPM]
+	storedFileAPM, ok = r.GetConfigs(ProductAPMSampling)[pathAPM]
 	assert.True(t, ok)
 	assert.Equal(t, fileAPM, storedFileAPM.Config)
 	assert.EqualValues(t, 3, storedFileAPM.Metadata.Version)
