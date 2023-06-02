@@ -21,11 +21,10 @@ type PerfHandler struct {
 	LostChannel  chan uint64
 	RecordGetter func() *perf.Record
 
-	once    sync.Once
-	data    chan *DataEvent
-	lost    chan uint64
-	closing chan struct{}
-	closed  chan struct{}
+	once   sync.Once
+	data   chan *DataEvent
+	lost   chan uint64
+	closed chan struct{}
 }
 
 // DataEvent is a single event read from a perf buffer
