@@ -264,6 +264,11 @@ func main() {
 }
 
 func run() error {
+	var uname unix.Utsname
+	if err := unix.Uname(&uname); err != nil {
+		return fmt.Errorf("error calling uname: %w", err)
+	}
+	fmt.Printf("running on: %s\n", unix.ByteSliceToString(uname.Release[:]))
 	if err := fixAssetPermissions(); err != nil {
 		return err
 	}
