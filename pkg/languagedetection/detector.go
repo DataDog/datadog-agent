@@ -7,9 +7,6 @@ package languagedetection
 
 import (
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 type languageFromCLI struct {
@@ -64,9 +61,16 @@ func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {
 	return languagemodels.Unknown
 }
 
+// Process is an internal representation of a process struct.
+// It is used to prevent dependency loops.
+type Process struct {
+	Cmdline []string
+	Pid     int32
+}
+
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
-func DetectLanguage(procs []*procutil.Process) []*languagemodels.Language {
-	langs := make([]*languagemodels.Language, len(procs))
+func DetectLanguage(procs []*Process) []*Language {
+	langs := make([]*Language, len(procs))
 	for i, proc := range procs {
 		languageName := languageNameFromCommandLine(proc.Cmdline)
 		langs[i] = &languagemodels.Language{Name: languageName}
