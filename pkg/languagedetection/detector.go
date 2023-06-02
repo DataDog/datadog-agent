@@ -7,8 +7,6 @@ package languagedetection
 
 import (
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 // LanguageName is a string enum that represents a detected language name.
@@ -79,8 +77,15 @@ func languageNameFromCommandLine(cmdline []string) LanguageName {
 	return Unknown
 }
 
+// Process is an internal representation of a process struct.
+// It is used to prevent dependency loops.
+type Process struct {
+	Cmdline []string
+	Pid     int32
+}
+
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
-func DetectLanguage(procs []*procutil.Process) []*Language {
+func DetectLanguage(procs []*Process) []*Language {
 	langs := make([]*Language, len(procs))
 	for i, proc := range procs {
 		languageName := languageNameFromCommandLine(proc.Cmdline)
