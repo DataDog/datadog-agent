@@ -12,12 +12,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func makeProcess(cmdline []string) *procutil.Process {
-	return &procutil.Process{
+func makeProcess(cmdline []string) *Process {
+	return &Process{
 		Pid:     rand.Int31(),
 		Cmdline: cmdline,
 	}
@@ -157,7 +155,7 @@ func BenchmarkDetectLanguage(b *testing.B) {
 		{"javap", "-c", "MyClass"},
 	}
 
-	var procs []*procutil.Process
+	var procs []*Process
 	for _, command := range commands {
 		procs = append(procs, makeProcess(command))
 	}
