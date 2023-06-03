@@ -36,7 +36,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.Object()),
+		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject()),
 	}
 	return result{
 		Check: types.ProvidesCheck{

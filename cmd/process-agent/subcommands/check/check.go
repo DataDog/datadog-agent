@@ -158,10 +158,10 @@ func runCheckCmd(deps dependencies) error {
 
 		names = append(names, ch.Name())
 
-		_, processModuleEnabled := deps.Syscfg.Object().EnabledModules[sysconfig.ProcessModule]
+		_, processModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
 		cfg := &checks.SysProbeConfig{
-			MaxConnsPerMessage:   deps.Syscfg.Object().MaxConnsPerMessage,
-			SystemProbeAddress:   deps.Syscfg.Object().SocketAddress,
+			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
+			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
 		}
 
