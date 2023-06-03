@@ -11,14 +11,16 @@ package controlsvc
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/windows/controlsvc"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStartServiceCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(func() *subcommands.GlobalParams {
+			return &subcommands.GlobalParams{}
+		}),
 		[]string{"start-service"},
 		controlsvc.StartService,
 		func() {})
@@ -26,15 +28,19 @@ func TestStartServiceCommand(t *testing.T) {
 
 func TestStopServiceCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"stopservice"},
+		Commands(func() *subcommands.GlobalParams {
+			return &subcommands.GlobalParams{}
+		}),
+		[]string{"stop-service"},
 		controlsvc.StopService,
 		func() {})
 }
 
 func TestRestartServiceCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(func() *subcommands.GlobalParams {
+			return &subcommands.GlobalParams{}
+		}),
 		[]string{"restart-service"},
 		controlsvc.RestartService,
 		func() {})
