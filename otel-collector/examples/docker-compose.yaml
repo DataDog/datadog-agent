@@ -19,7 +19,7 @@ services:
       - DD_PROFILING_ENABLED=true
       - DD_AGENT_HOST=otelcol
       - DD_ENV=docker
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otelcol:4317/
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otelcol:4317
       - SERVER_PORT=9090
     ports:
       - "9090:9090"
