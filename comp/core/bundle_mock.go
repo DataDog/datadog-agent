@@ -12,7 +12,6 @@
 // This bundle does not depend on any other bundles.
 
 //go:build test
-// +build test
 
 package core
 

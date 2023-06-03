@@ -163,7 +163,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 	var err error
 	var ctx context.Context
 	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
-	cfg := sysprobeconfig.Object()
+	cfg := sysprobeconfig.SysProbeObject()
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
 
