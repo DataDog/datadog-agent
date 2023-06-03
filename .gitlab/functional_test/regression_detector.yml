@@ -5,6 +5,8 @@ single-machine-performance-regression_detector:
   needs:
     - job: single_machine_performance-amd64-a7
       artifacts: false
+    - job: single_machine_performance-compute-baseline_sha
+      artifacts: true
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -46,6 +48,10 @@ single-machine-performance-regression_detector:
     # have been built previously in this pipeline run.
     - aws --profile ${AWS_NAMED_PROFILE} s3 cp --only-show-errors s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/latest_main_sha .latest_main_sha
     - BASELINE_SHA=$(cat .latest_main_sha)
+    # NOTE(geoffrey.oxberry@datadoghq.com): To use the merge-base baseline SHA, uncomment the line
+    # starting with `BASELINE_SHA=` below, and comment out the `BASELINE_SHA=` line above, along with
+    # the accompanying aws s3 cp command immediately above that line.
+    #- BASELINE_SHA=$(cat "${CI_COMMIT_SHA}-baseline_sha")
     - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
