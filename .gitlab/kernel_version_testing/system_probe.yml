@@ -60,8 +60,8 @@ pull_test_dockers_arm64:
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
     - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
-    - GOOS=linux GOARCH=$ARCH go build $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner
-    - GOOS=linux GOARCH=$ARCH go build $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review
+    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-runner $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/main.go
+    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-json-review $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review/main.go
     - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
