@@ -60,9 +60,9 @@ require (
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.3
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.3
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.4
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.4
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.4
 	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
@@ -517,7 +517,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.75.0 // indirect
 	go.opentelemetry.io/collector/featuregate v0.75.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.78.1 // indirect
+	go.opentelemetry.io/collector/semconv v0.78.2 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.40.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.40.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.15.0 // indirect
