@@ -17,6 +17,10 @@ import (
 	"github.com/fatih/color"
 )
 
+func init() {
+	color.NoColor = false
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		log.Fatal("json file path required")
