@@ -107,13 +107,13 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	if err != nil {
 		return nil, err
 	}
-	mgr.enabledProtocols = enabledProtocols
-	mgr.disabledProtocols = disabledProtocols
-
 	if len(enabledProtocols) == 0 {
 		state = Disabled
-		return nil, errNoProtocols
+		return nil, nil
 	}
+
+	mgr.enabledProtocols = enabledProtocols
+	mgr.disabledProtocols = disabledProtocols
 
 	if err := mgr.Init(); err != nil {
 		return nil, fmt.Errorf("error initializing ebpf program: %w", err)
@@ -249,6 +249,7 @@ func (m *Monitor) Start() error {
 
 	// No protocols could be enabled, abort.
 	if enabledCount == 0 {
+		log.Info("not enabling USM as no protocols monitoring were enabled.")
 		return errNoProtocols
 	}
 
