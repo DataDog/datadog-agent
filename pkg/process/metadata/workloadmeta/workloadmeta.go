@@ -34,7 +34,9 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 		lang := languages[i]
 		if proc, ok := procs[proc.Pid]; ok {
 			proc.Language = lang
-			log.Trace("detected language", lang.Name, "for pid", proc.Pid)
+			if lang.Name != languagedetection.Unknown {
+				log.Trace("detected language", lang.Name, "for pid", proc.Pid)
+			}
 		}
 	}
 }
