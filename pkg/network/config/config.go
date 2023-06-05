@@ -25,7 +25,6 @@ const (
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
-	defaultSSLAsyncHandshakeWindow = 500000 // 500 us
 )
 
 // Config stores all flags used by the network eBPF tracer
