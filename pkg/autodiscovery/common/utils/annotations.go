@@ -73,7 +73,7 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 		return []integration.Config{}, fmt.Errorf("in %s: %s", instancePath, err)
 	}
 
-	return BuildTemplates(key, checkNames, initConfigs), nil
+	return BuildTemplates(key, checkNames, initConfigs, instances), nil
 }
 
 // extractLogsTemplatesFromMap returns the logs configuration from a given map,
