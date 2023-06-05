@@ -73,7 +73,7 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 		return []integration.Config{}, fmt.Errorf("in %s: %s", instancePath, err)
 	}
 
-	return BuildTemplates(key, checkNames, initConfigs, instances), nil
+	return BuildTemplates(key, checkNames, initConfigs), nil
 }
 
 // extractLogsTemplatesFromMap returns the logs configuration from a given map,
@@ -160,7 +160,9 @@ func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][
 
 	// sanity checks
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
-		log.Error("Template entries don't all have the same length, not using them.")
+		log.Errorf("Template entries don't all have the same length. "+
+			"checkNames: %d, initConfigs: %d, instances: %d. Not using them.",
+			len(checkNames), len(initConfigs), len(instances))
 		return templates
 	}
 	for idx := range initConfigs {
