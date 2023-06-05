@@ -10,10 +10,11 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sys/windows/svc"
+
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
-
-	"golang.org/x/sys/windows/svc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type myservice struct {
@@ -49,8 +50,14 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 			}
 		}
 	}()
+
 	elog.Info(0x40000003, tracecfg.ServiceName)
-	runAgent(ctx, m.cliParams, m.config)
+	err := runAgent(ctx, m.cliParams, m.config)
+	if err != nil {
+		log.Errorf("Failed to run agent %v", err)
+		elog.Error(0xc000000B, err.Error())
+		errno = 1 // indicates non-successful return from handler.
+	}
 
 	changes <- svc.Status{State: svc.Stopped}
 	return
