@@ -21,7 +21,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 // telemetryTick is the frequency at which the cache usage metrics are collected.
@@ -238,7 +238,7 @@ func (c *TrivyCache) GetBlob(id string) (types.BlobInfo, error) {
 
 // PersistentCache is a cache that uses a persistent database for storage.
 type PersistentCache struct {
-	lruCache                     *simplelru.LRU
+	lruCache                     *simplelru.LRU[string, struct{}]
 	db                           PersistentDB
 	mutex                        sync.RWMutex
 	currentCachedObjectTotalSize int
@@ -259,8 +259,8 @@ func NewPersistentCache(
 		maximumCachedObjectSize:      maxCachedObjectSize,
 	}
 
-	lruCache, err := simplelru.NewLRU(maxCacheSize, func(key interface{}, _ interface{}) {
-		persistentCache.lastEvicted = key.(string)
+	lruCache, err := simplelru.NewLRU(maxCacheSize, func(key string, _ struct{}) {
+		persistentCache.lastEvicted = key
 	})
 	if err != nil {
 		return nil, err
@@ -311,7 +311,7 @@ func (c *PersistentCache) Keys() []string {
 	defer c.mutex.RUnlock()
 	keys := make([]string, c.lruCache.Len())
 	for i, key := range c.lruCache.Keys() {
-		keys[i] = key.(string)
+		keys[i] = key
 	}
 	return keys
 }
@@ -494,7 +494,7 @@ func (c *PersistentCache) removeOldestKeyFromMemory() (string, bool) {
 	if ok {
 		telemetry.SBOMCacheEntries.Dec()
 	}
-	return key.(string), ok
+	return key, ok
 }
 
 // GetCurrentCachedObjectTotalSize returns the current cached object total size.
