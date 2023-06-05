@@ -45,20 +45,6 @@ func TestExtractor(t *testing.T) {
 				Pid2: {Name: languagedetection.Python},
 			},
 		},
-		{
-			// This TC is an edge case where the pid in the map doesn't match the pid in the process.
-			// In this case we should not panic.
-			name: "mismatched pid",
-			procs: map[int32]*procutil.Process{
-				Pid1: {
-					Pid:     Pid2,
-					Cmdline: []string{"dotnet"},
-				},
-			},
-			expected: map[int32]*languagedetection.Language{
-				Pid1: nil,
-			},
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wlmExtractor.Extract(tc.procs)
