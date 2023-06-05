@@ -19,17 +19,11 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.10'
-          cache: 'pip'
-
-      - name: Setup Python3
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.8.10'
+          python-version: '3.8.14'
 
       - name: Install Python requirements
         run: |
-          pip3 install -r requirements.txt
+          pip install -r requirements.txt
 
       - name: Setup env variables
         run: |
