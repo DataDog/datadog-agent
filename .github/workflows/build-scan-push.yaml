@@ -56,6 +56,7 @@ jobs:
         run: |
           git clone https://github.com/DataDog/datadog-agent.git
           cd datadog-agent/Dockerfiles/agent/
+          ls
           git branch $AGENT_VERSION && git checkout $AGENT_VERSION
           curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_arm64.deb -o datadog-agent_$AGENT_VERSION-1_arm64.deb
           docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file ./Dockerfiles/agent --pull --tag $AGENT_IMAGE_NAME .
@@ -64,6 +65,7 @@ jobs:
         run: |
           git clone https://github.com/DataDog/datadog-agent.git
           cd datadog-agent/Dockerfiles/cluster-agent/
+          ls
           git branch $AGENT_VERSION && git checkout $AGENT_VERSION
           curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_arm64.deb -o datadog-agent_$AGENT_VERSION-1_arm64.deb
           docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file ./Dockerfiles/cluster-agent --pull --tag $CLUSTER_AGENT_IMAGE_NAME .
