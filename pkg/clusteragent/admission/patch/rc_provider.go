@@ -87,38 +87,46 @@ func (rcp *remoteConfigProvider) process(update map[string]state.APMTracingConfi
 		}
 		if ch, found := rcp.subscribers[req.K8sTarget.Kind]; found {
 			valid++
-			env := ""
-			if req.LibConfig.Env != nil {
-				env = *req.LibConfig.Env
-			}
-			clusterId, clusterError := clustername.GetClusterID()
-			if clusterError != nil {
-				log.Errorf("Failed to get the cluster ID: %v", clusterError)
-				clusterId = ""
-			}
-			rcp.telemetryCollector.SendEvent(&telemetry.ApmRemoteConfigEvent{
-				RequestType: "apm-remote-config-event",
-				ApiVersion:  "v2",
-				Payload: telemetry.ApmRemoteConfigEventPayload{
-					EventName: "agent.k8s.patch",
-					Tags: telemetry.ApmRemoteConfigEventTags{
-						Env:                 env,
-						RcId:                req.ID,
-						RcClientId:          rcp.client.ID,
-						RcRevision:          req.Revision,
-						RcVersion:           config.Metadata.Version,
-						KubernetesClusterId: clusterId,
-						KubernetesCluster:   req.K8sTarget.Cluster,
-						KubernetesNamespace: req.K8sTarget.Namespace,
-						KubernetesKind:      string(req.K8sTarget.Kind),
-						KubernetesName:      req.K8sTarget.Name,
-					},
-				},
-			})
+			// Log a telemetry event indicating a remote config patch to the Datadog backend
+			patchEvent := rcp.getRemoteConfigPatchEvent(config, req)
+			rcp.telemetryCollector.SendEvent(&patchEvent)
 			log.Debugf("Publishing patch request for target %s", req.K8sTarget)
 			ch <- req
 		}
 	}
 	metrics.RemoteConfigs.Set(valid)
 	metrics.InvalidRemoteConfigs.Set(invalid)
+}
+
+// getRemoteConfigPatchEvent fills out the fields of a telemetry event that can be sent
+// to the Datadog backend to indicate that a remote config has been successfully patched
+func (rcp *remoteConfigProvider) getRemoteConfigPatchEvent(config state.APMTracingConfig, req PatchRequest) telemetry.ApmRemoteConfigEvent {
+	env := ""
+	if req.LibConfig.Env != nil {
+		env = *req.LibConfig.Env
+	}
+	clusterId, clusterError := clustername.GetClusterID()
+	if clusterError != nil {
+		log.Errorf("Failed to get the cluster ID: %v", clusterError)
+		clusterId = ""
+	}
+	return telemetry.ApmRemoteConfigEvent{
+		RequestType: "apm-remote-config-event",
+		ApiVersion:  "v2",
+		Payload: telemetry.ApmRemoteConfigEventPayload{
+			EventName: "agent.k8s.patch",
+			Tags: telemetry.ApmRemoteConfigEventTags{
+				Env:                 env,
+				RcId:                req.ID,
+				RcClientId:          rcp.client.ID,
+				RcRevision:          req.Revision,
+				RcVersion:           config.Metadata.Version,
+				KubernetesClusterId: clusterId,
+				KubernetesCluster:   req.K8sTarget.Cluster,
+				KubernetesNamespace: req.K8sTarget.Namespace,
+				KubernetesKind:      string(req.K8sTarget.Kind),
+				KubernetesName:      req.K8sTarget.Name,
+			},
+		},
+	}
 }
