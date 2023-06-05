@@ -5,14 +5,8 @@ import java.io.IOException;
 
 public class Main {
 
-    public enum ClientType{
-        apache,
-        okhttp,
-        httpclient,
-        urlconnection,
-        unsupported,
-    }
-
+    //in milliseconds
+    private static final int DEFAULT_TIMEOUT = 1000;
 
     private static void printHelp(Options options){
         HelpFormatter formatter = new HelpFormatter();
@@ -20,40 +14,6 @@ public class Main {
                 "",
                 options,
                 "\nprovide the url WITHOUT the protocol scheme (always using https)");
-    }
-
-    private static ClientType validateClientType(String clientTypeArg) throws ParseException {
-        try {
-            return ClientType.valueOf(clientTypeArg.toLowerCase());
-        } catch (IllegalArgumentException e) {
-            return ClientType.unsupported;
-        }
-    }
-    private static void executeHandler(ClientType clientType, String url, int iterations) throws InterruptedException, IOException {
-        // Execute handler based on client type
-        System.out.println("URL: " + url);
-        System.out.println("Iterations: " + iterations);
-        switch (clientType) {
-            case apache:
-
-                System.out.println("Executing handler for Apache Http client:");
-                JavaClients.HTTPApacheClientExample(iterations,url);
-                break;
-            case okhttp:
-                System.out.println("Executing handler for OkHttp client:");
-                JavaClients.OkHttpClient(iterations,url);
-                break;
-            case httpclient:
-                System.out.println("Executing handler for HttpClient client:");
-                JavaClients.HTTPClientExample(iterations,url);
-                break;
-            case urlconnection:
-                System.out.println("Executing handler for URLConnection client:");
-                JavaClients.HttpsURLConnection(iterations,url);
-                break;
-            default:
-                System.out.println("Unsupported client");
-        }
     }
 
     public static void main(String[] args) throws Exception {
@@ -64,11 +24,21 @@ public class Main {
         Option iterationOption = Option.builder("i")
                 .longOpt("iterations")
                 .hasArg()
-                .desc("Number of iterations")
+                .desc("Number of iterations. The default is infinitely")
                 .required(false)
                 .build();
         iterationOption.setType(Number.class);
         options.addOption(iterationOption);
+
+        Option timeoutOption = Option.builder("t")
+                .longOpt("timeout")
+                .hasArg()
+                .desc("Timeout between each call in ms. Default is 1 second, use 0 to send the requests without a timeout")
+                .required(false)
+                .build();
+        timeoutOption.setType(Number.class);
+        options.addOption(timeoutOption);
+
         if (args.length == 0){
             printHelp(options);
             return;
@@ -82,15 +52,17 @@ public class Main {
             String clientTypeArg = cmd.getOptionValue("c");
             String url = cmd.getOptionValue("u");
             int iterationsValue = -1;
-            if (cmd.hasOption("iterations")) {
+            if (cmd.hasOption("i")) {
                 iterationsValue = ((Number)cmd.getParsedOptionValue("i")).intValue();
             }
 
-            // Validate and convert arguments
-            ClientType clientType = validateClientType(clientTypeArg);
+            int interval = DEFAULT_TIMEOUT;
+            if (cmd.hasOption("t")) {
+                interval = ((Number)cmd.getParsedOptionValue("t")).intValue();
+            }
 
             // Execute the appropriate handler based on client type
-            executeHandler(clientType, url, iterationsValue);
+            JavaClients.executeCallback(clientTypeArg, iterationsValue, interval, url);
         } catch (ParseException e) {
             System.err.println("Error parsing command-line arguments: " + e.getMessage());
             printHelp(options);
@@ -98,7 +70,5 @@ public class Main {
             System.err.println("Error parsing iterations argument: " + e.getMessage());
             printHelp(options);
         }
-
-
     }
 }
