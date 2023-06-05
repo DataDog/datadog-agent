@@ -36,8 +36,8 @@ jobs:
       - name: Build datadog cluster-agent Image
         run: docker build -t $CLUSTER_AGENT_IMAGE_NAME ../../Dockerfiles/agent
 
-      - name: Prisma Cloud image scan
-        id: scan
+      - name: Prisma Cloud image scan agent
+        id: scan-agent
         uses: PaloAltoNetworks/prisma-cloud-scan@v1
         with:
           pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
@@ -45,8 +45,8 @@ jobs:
           pcc_pass: ${{ secrets.PCC_PASS }}
           image_name: ${{ env.AGENT_IMAGE_NAME }}
 
-      - name: Prisma Cloud image scan
-        id: scan
+      - name: Prisma Cloud image scan cluster-agent
+        id: scan-cluster-agent
         uses: PaloAltoNetworks/prisma-cloud-scan@v1
         with:
           pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
