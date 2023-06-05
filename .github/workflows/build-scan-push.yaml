@@ -16,6 +16,12 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v2
 
+      - name: Install python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8.10'
+          cache: 'pip'
+
       - name: Setup Python3
         uses: actions/setup-python@v4
         with:
