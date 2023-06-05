@@ -112,7 +112,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 
 	if len(enabledProtocols) == 0 {
 		state = Disabled
-		return nil, nil
+		return nil, errNoProtocols
 	}
 
 	if err := mgr.Init(); err != nil {
