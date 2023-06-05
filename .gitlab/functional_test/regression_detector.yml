@@ -11,6 +11,7 @@ single-machine-performance-regression_detector:
     expire_in: 1 weeks
     paths:
       - submission_metadata
+      - ${CI_COMMIT_SHA}-baseline_sha
     when: always
   variables:
     SMP_VERSION: 0.7.3
@@ -32,10 +33,19 @@ single-machine-performance-regression_detector:
   # flagged.
   allow_failure: true
   script:
-    # Setup AWS credentials for single-machine-performance AWS account
+    # Compute merge base of current commit and `main`
     - git fetch origin
-    - echo -n $(git merge-base ${CI_COMMIT_SHA} origin/main) > "${CI_COMMIT_SHA}-baseline_sha"
+    - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/main)
+    - echo -n "${SMP_MERGE_BASE}" > "${CI_COMMIT_SHA}-baseline_sha"
     - echo "Merge base is $(cat ${CI_COMMIT_SHA}-baseline_sha)"
+    - |
+      if [[ "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}" != "main" ]]
+      then
+        echo "The regression detector does not pull requests to a base branch that is not `main`"
+        echo "(In GitLab terminology, 'base branch' is the 'target branch of a merge request.')"
+        exit 1
+      fi
+    # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
@@ -46,15 +56,18 @@ single-machine-performance-regression_detector:
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
     - chmod +x smp
-    # Submit job, using the SHA of the last successful main commit as baseline.
-    # This will have been built in a separate pipeline run. The comparison will
-    # have been built previously in this pipeline run.
-    - aws --profile ${AWS_NAMED_PROFILE} s3 cp --only-show-errors s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/latest_main_sha .latest_main_sha
-    - BASELINE_SHA=$(cat .latest_main_sha)
+    # # # Submit job, using the SHA of the last successful main commit as baseline.
+    # # # This will have been built in a separate pipeline run. The comparison will
+    # # # have been built previously in this pipeline run.
+    # - aws --profile ${AWS_NAMED_PROFILE} s3 cp --only-show-errors s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/latest_main_sha .latest_main_sha
+    # - BASELINE_SHA=$(cat .latest_main_sha)
+    # Copy the merge base SHA to SMP for debugging purposes later
+    - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/"
     # NOTE(geoffrey.oxberry@datadoghq.com): To use the merge-base baseline SHA, uncomment the line
     # starting with `BASELINE_SHA=` below, and comment out the `BASELINE_SHA=` line above, along with
     # the accompanying aws s3 cp command immediately above that line.
-    #- BASELINE_SHA=$(cat "${CI_COMMIT_SHA}-baseline_sha")
+    # - BASELINE_SHA=$(cat "${CI_COMMIT_SHA}-baseline_sha")
+    - BASELINE_SHA="${SMP_MERGE_BASE}"  # NOTE(geoffrey.oxberry@datadoghq.com): cat the echoed file once computing merge commit is separate job
     - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
