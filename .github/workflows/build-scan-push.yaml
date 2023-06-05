@@ -46,27 +46,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build DataDog agent
+      # - name: Build DataDog agent
+      #   run: |
+      #     invoke install-tools
+      #     invoke deps
+      #     invoke agent.build --build-exclude=systemd
+
+      - name: Build datadog agent 
         run: |
-          invoke install-tools
-          invoke deps
-          invoke agent.build --build-exclude=systemd
+          git clone https://github.com/DataDog/datadog-agent.git
+          cd datadog-agent/Dockerfiles/agent/
+          git branch $AGENT_VERSION && git checkout $AGENT_VERSION
+          curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_arm64.deb -o datadog-agent_$AGENT_VERSION-1_amd64.deb
+          docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file ./Dockerfiles/agent --pull --tag $AGENT_IMAGE_NAME .
 
-      # - name: Build datadog agent 
-      #   run: |
-      #     git clone https://github.com/DataDog/datadog-agent.git
-      #     cd datadog-agent/Dockerfiles/agent/
-      #     git branch $AGENT_VERSION && git checkout $AGENT_VERSION
-      #     curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_arm64.deb -o datadog-agent_$AGENT_VERSION-1_amd64.deb
-      #     docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file amd64/Dockerfile --pull --tag $AGENT_IMAGE_NAME .
-
-      # - name: Build datadog cluster agent
-      #   run: |
-      #     git clone https://github.com/DataDog/datadog-agent.git
-      #     cd datadog-agent/Dockerfiles/cluster-agent/
-      #     git branch $AGENT_VERSION && git checkout $AGENT_VERSION
-      #     curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_arm64.deb -o datadog-agent_$AGENT_VERSION-1_amd64.deb
-      #     docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file amd64/Dockerfile --pull --tag $CLUSTER_AGENT_IMAGE_NAME .
+      - name: Build datadog cluster agent
+        run: |
+          git clone https://github.com/DataDog/datadog-agent.git
+          cd datadog-agent/Dockerfiles/cluster-agent/
+          git branch $AGENT_VERSION && git checkout $AGENT_VERSION
+          curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_arm64.deb -o datadog-agent_$AGENT_VERSION-1_amd64.deb
+          docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file ./Dockerfiles/cluster-agent --pull --tag $CLUSTER_AGENT_IMAGE_NAME .
 
       # - name: Build datadog cluster-agent Image
       #   run: docker build -t $AGENT_IMAGE_NAME ./Dockerfiles/cluster-agent
