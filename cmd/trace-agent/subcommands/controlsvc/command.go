@@ -53,5 +53,17 @@ func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Comm
 		},
 	}
 
-	return []*cobra.Command{startCmd, stopCmd}
+	restartCmd := &cobra.Command{
+
+		Use:     "restart-service",
+		Aliases: []string{"restartservice"},
+		Short:   "restarts the agent within the service control manager",
+		Long:    ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliParams.GlobalParams = globalParamsGetter()
+			return fxutil.OneShot(controlsvc.RestartService)
+		},
+	}
+
+	return []*cobra.Command{startCmd, stopCmd, restartCmd}
 }

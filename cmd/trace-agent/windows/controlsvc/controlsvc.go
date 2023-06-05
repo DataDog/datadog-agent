@@ -54,6 +54,7 @@ func StopService() error {
 	return controlService(svc.Stop, svc.Stopped)
 }
 
+// TODO: this should be migrated to use winutil.controlsvc
 func controlService(c svc.Cmd, to svc.State) error {
 	m, err := mgr.Connect()
 	if err != nil {
