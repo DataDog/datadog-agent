@@ -44,7 +44,7 @@ func (s *vmFakeintakeSuite) TestAgent() {
 func (s *vmFakeintakeSuite) TestMetrics() {
 	t := s.T()
 	err := backoff.Retry(func() error {
-		metrics, err := s.Env().Fakeintake.Client.GetMetric("system.uptime")
+		metrics, err := s.Env().Fakeintake.Client.FilterMetrics("system.uptime")
 		if err != nil {
 			return err
 		}
