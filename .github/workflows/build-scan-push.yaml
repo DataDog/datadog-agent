@@ -50,23 +50,23 @@ jobs:
           username: ${{ secrets.HARBOR_REGISTRY_USERNAME }}
           password: ${{ secrets.HARBOR_REGISTRY_TOKEN }}
 
-      - name: Build DataDog agent
-        run: |
-          invoke install-tools
-          invoke deps
-          invoke agent.build --build-exclude=systemd
+      # - name: Build DataDog agent
+      #   run: |
+      #     invoke install-tools
+      #     invoke deps
+      #     invoke agent.build --build-exclude=systemd
           
       # - name: Build DataDog agent
       #   run: |
       #     invoke install-tools
       #     invoke deps
-      #     invoke ./tasks/agent.image_build --tag=$AGENT_IMAGE_NAME
+      #     invoke agent.image_build --tag=$AGENT_IMAGE_NAME
 
-      # - name: Build DataDog cluster-agent
-      #   run: |
-      #     invoke install-tools
-      #     invoke deps
-      #     invoke ./tasks/cluster_agent.image_build --tag=$CLUSTER_AGENT_IMAGE_NAME
+      - name: Build DataDog cluster-agent
+        run: |
+          invoke install-tools
+          invoke deps
+          invoke cluster_agent.image_build --tag=$CLUSTER_AGENT_IMAGE_NAME
 
       # - name: Build datadog cluster-agent Image
       #   run: docker build -t $AGENT_IMAGE_NAME ./Dockerfiles/cluster-agent
