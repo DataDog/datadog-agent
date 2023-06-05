@@ -51,25 +51,27 @@ jobs:
           username: ${{ secrets.HARBOR_REGISTRY_USERNAME }}
           password: ${{ secrets.HARBOR_REGISTRY_TOKEN }}
 
-      - name: Checkout datadog-agent base branch
+      - name: Build datadog agent 
         run: |
           git clone https://github.com/DataDog/datadog-agent.git
           cd datadog-agent/Dockerfiles/agent/
           git branch $AGENT_VERSION && git checkout $AGENT_VERSION
           curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_amd64.deb -o datadog-agent_$AGENT_VERSION-1_amd64.deb
+          docker build --file amd64/Dockerfile --pull --tag $AGENT_IMAGE_NAME .
 
-      - name: Build DataDog agent
-        run: docker build --file amd64/Dockerfile --pull --tag $AGENT_IMAGE_NAME
-
-      - name: Checkout datadog-agent base branch
+      - name: Build datadog cluster agent
         run: |
           git clone https://github.com/DataDog/datadog-agent.git
           cd datadog-agent/Dockerfiles/cluster-agent/
           git branch $AGENT_VERSION && git checkout $AGENT_VERSION
           curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_amd64.deb -o datadog-agent_$AGENT_VERSION-1_amd64.deb
+          docker build --file amd64/Dockerfile --pull --tag $CLUSTER_AGENT_IMAGE_NAME .
 
-      - name: Build DataDog cluster-agent
-        run: docker build --file amd64/Dockerfile --pull --tag $CLUSTER_AGENT_IMAGE_NAME
+      # - name: Build datadog cluster-agent Image
+      #   run: docker build -t $AGENT_IMAGE_NAME ./Dockerfiles/cluster-agent
+
+      # - name: Build datadog agent Image
+      #   run: docker build -t $CLUSTER_AGENT_IMAGE_NAME ./Dockerfiles/agent
 
       - name: Prisma Cloud image scan agent
         id: scan-agent
