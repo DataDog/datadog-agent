@@ -289,7 +289,7 @@ def system_tests(_):
 
 
 @task
-def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, signed_pull=True):
+def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, signed_pull=True, tag=None):
     """
     Build the docker image
     """
@@ -313,7 +313,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
     shutil.copy2(latest_file, build_context)
     # Pull base image with content trust enabled
     pull_base_images(ctx, dockerfile_path, signed_pull)
-    common_build_opts = f"-t {AGENT_TAG} -f {dockerfile_path}"
+    common_build_opts = f"-t {tag} -f {dockerfile_path}"
     if python_version not in BOTH_VERSIONS:
         common_build_opts = f"{common_build_opts} --build-arg PYTHON_VERSION={python_version}"
 

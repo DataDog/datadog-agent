@@ -119,7 +119,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 
 
 @task
-def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
+def image_build(ctx, arch=None, tag=None, push=False):
     """
     Build the docker image
     """
