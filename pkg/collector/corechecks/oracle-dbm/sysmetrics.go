@@ -48,7 +48,8 @@ func (c *Check) SysMetrics() error {
 	}
 
 	metricRows := []SysmetricsRowDB{}
-	err := c.db.Select(&metricRows, SYSMETRICS_QUERY)
+	//err := c.db.Select(&metricRows, SYSMETRICS_QUERY)
+	err := selectWrapper(c, &metricRows, SYSMETRICS_QUERY)
 
 	if err != nil {
 		return fmt.Errorf("failed to collect sysmetrics: %w", err)

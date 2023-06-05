@@ -313,3 +313,17 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 	}
 	return append(tags, "pdb:"+pdb.String)
 }
+
+func selectWrapper[T any](c *Check, s T, sql string) error {
+	err := c.db.Select(s, sql)
+	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
+		db, err := c.Connect()
+		if err != nil {
+			c.Teardown()
+			return err
+		}
+		c.db = db
+	}
+
+	return err
+}
