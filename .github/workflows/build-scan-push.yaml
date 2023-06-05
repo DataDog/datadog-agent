@@ -55,11 +55,10 @@ jobs:
       - name: Build datadog agent 
         run: |
           git clone https://github.com/DataDog/datadog-agent.git
-          cd datadog-agent/Dockerfiles/agent/
-          git branch $AGENT_VERSION && git checkout $AGENT_VERSION
-          curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_arm64.deb -o datadog-agent_$AGENT_VERSION-1_arm64.deb
+          cd datadog-agent
+          invoke install-tools
+          invoke agent.build --build-exclude=systemd
           ls
-          docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file Dockerfile --pull --tag $AGENT_IMAGE_NAME .
           
         # docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file ./Dockerfiles/agent --pull --tag $AGENT_IMAGE_NAME .
 
