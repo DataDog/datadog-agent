@@ -676,6 +676,7 @@ func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType) {
 
 	p.Factory = func(c *config.Config) (protocols.Protocol, error) {
 		inner, err := innerFactory(c)
+		skipIfNotSupported(t, err)
 		require.NoError(t, err, "could not init inner protocol")
 
 		return &protocolMock{
