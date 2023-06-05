@@ -45,6 +45,7 @@ var (
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
+	// Mock the HTTP protocol and inject an error in PreStart
 	patchProtocolMock(t, protocols.HTTP)
 
 	cfg := config.New()
