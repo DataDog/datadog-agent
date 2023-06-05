@@ -143,13 +143,16 @@ docker_build_agent7:
 #     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/"
 #     # NOTE(geoffrey.oxberry@datadoghq.com): For the purposes of standing up a
 #     # minimum viable product, assume a container has already been built for the
-#     # merge base. If not, we need to (sort of) extend
+#     # merge base -- this assumption is actually true if the target branch of the
+#     # pull request is `main`. If not, we need to (sort of) extend
 #     # .docker_build_on_job_definition, .docker_build_job_definition_amd64, and
 #     # docker_build_agent7. Using the `extends:` keyword won't actually work
 #     # because it'll reverse deep merge settings, so instead this hypothetical
 #     # build task could use `!reference` tags liberally, except for the `script`
 #     # keyword, which would be some suitably modified version of the contents of
-#     # `.docker_build_on_job_definition:script`.
+#     # `.docker_build_on_job_definition:script`. As far as I can tell, we only need
+#     # to build a container if the target branch is *not* `main`; it may make sense
+#     # to simply exclude that case.
 #     #
 #     # If we need to build that container, we probably also need to publish it,
 #     # which could be done by suitably modifying a *renamed copy* of
