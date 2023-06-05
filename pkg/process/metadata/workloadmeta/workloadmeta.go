@@ -22,9 +22,9 @@ func NewWorkloadMetaExtractor() *WorkloadMetaExtractor {
 
 func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	procsSlice := make([]*languagedetection.Process, 0, len(procs))
-	for _, proc := range procs {
+	for pid, proc := range procs {
 		procsSlice = append(procsSlice, &languagedetection.Process{
-			Pid:     proc.Pid,
+			Pid:     pid,
 			Cmdline: proc.Cmdline,
 		})
 	}
