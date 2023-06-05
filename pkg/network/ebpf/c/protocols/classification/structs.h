@@ -2,7 +2,8 @@
 #define __PROTOCOL_CLASSIFICATION_STRUCTS_H
 
 #include "ktypes.h"
-#include "tracer.h"
+
+#include "conn_tuple.h"
 
 typedef struct {
     __s32   message_length; // total message size, including this
@@ -16,5 +17,10 @@ typedef struct {
     conn_tuple_t tup;
     __s32 req_id;
 } mongo_key;
+
+typedef struct {
+    conn_tuple_t tup;
+    skb_info_t skb_info;
+} dispatcher_arguments_t;
 
 #endif

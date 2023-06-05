@@ -3,13 +3,16 @@
 
 #include "ktypes.h"
 
+#define bool _Bool
+#define true 1
+#define false 0
+
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "HTTP/2 Connection Preface" section
 #define HTTP2_MARKER_SIZE 24
 
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Format" section
 #define HTTP2_FRAME_HEADER_SIZE 9
 #define HTTP2_SETTINGS_SIZE 6
-#define HTTP2_MAX_FRAME_TYPE 9
 
 // All types of http2 frames exist in the protocol.
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Type Registry" section.

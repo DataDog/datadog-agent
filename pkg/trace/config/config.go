@@ -67,12 +67,6 @@ type OTLP struct {
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`
 
-	// UsePreviewHostnameLogic specifies wether to use the 'preview' OpenTelemetry attributes to hostname rules,
-	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature flag.
-	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
-	// one sent by Datadog cloud integrations.
-	UsePreviewHostnameLogic bool `mapstructure:"-"`
-
 	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
 	// and rare traces (outliers) if "RareSamplerEnabled" is true. Invalid values are equivalent to 100.
 	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
@@ -281,6 +275,18 @@ type DebuggerProxyConfig struct {
 	DDURL string
 	// APIKey ...
 	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
+	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
+}
+
+// SymDBProxyConfig ...
+type SymDBProxyConfig struct {
+	// DDURL ...
+	DDURL string
+	// APIKey ...
+	APIKey string `json:"-"` // Never marshal this field
+	// AdditionalEndpoints is a map of additional Datadog endpoints to API keys.
+	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 }
 
 // AgentConfig handles the interpretation of the configuration (with default
@@ -311,8 +317,10 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval   time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators []string
+	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators       []string      // DEPRECATED
+	PeerServiceAggregation bool          // enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -410,6 +418,9 @@ type AgentConfig struct {
 
 	// DebuggerProxy contains the settings for the Live Debugger proxy.
 	DebuggerProxy DebuggerProxyConfig
+
+	// SymDBProxy contains the settings for the Symbol Database proxy.
+	SymDBProxy SymDBProxyConfig
 
 	// Proxy specifies a function to return a proxy for a given Request.
 	// See (net/http.Transport).Proxy for more details.

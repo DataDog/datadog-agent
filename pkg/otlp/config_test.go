@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build otlp && test
-// +build otlp,test
 
 package otlp
 
@@ -117,6 +116,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 									"min_time": "10m",
 								},
 							},
+							"max_recv_msg_size_mib": 10,
 						},
 						"http": map[string]interface{}{
 							"endpoint": "localhost:1234",
@@ -297,6 +297,31 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "only gRPC, max receive message size 10",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":              "0.0.0.0:9999",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB": "10",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint":              "0.0.0.0:9999",
+							"max_recv_msg_size_mib": "10",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
 	}
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
@@ -336,8 +361,9 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 					"instrumentation_scope_metadata_as_tags":   true,
 					"tag_cardinality":                          "orchestrator",
 					"histograms": map[string]interface{}{
-						"mode":                   "counters",
-						"send_count_sum_metrics": true,
+						"mode":                     "counters",
+						"send_count_sum_metrics":   true,
+						"send_aggregation_metrics": true,
 					},
 				},
 				Debug: map[string]interface{}{

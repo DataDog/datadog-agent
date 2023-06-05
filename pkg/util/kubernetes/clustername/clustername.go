@@ -27,16 +27,14 @@ const (
 	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
 )
 
-var (
-	// validClusterName matches exactly the same naming rule as the one enforced by GKE:
-	// https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
-	// The cluster name can be up to 40 characters with the following restrictions:
-	// * Lowercase letters, numbers, dots and hyphens only.
-	// * Must start with a letter.
-	// * Must end with a number or a letter.
-	// * Must be a valid FQDN (without trailing period)
-	validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
-)
+// validClusterName matches exactly the same naming rule as the one enforced by GKE:
+// https://cloud.google.com/kubernetes-engine/docs/reference/rest/v1beta1/projects.locations.clusters#Cluster.FIELDS.name
+// The cluster name can be up to 40 characters with the following restrictions:
+// * Lowercase letters, numbers, dots and hyphens only.
+// * Must start with a letter.
+// * Must end with a number or a letter.
+// * Must be a valid FQDN (without trailing period)
+var validClusterName = regexp.MustCompile(`^([a-z]([a-z0-9\-]*[a-z0-9])?\.)*([a-z]([a-z0-9\-]*[a-z0-9])?)$`)
 
 type clusterNameData struct {
 	clusterName string
@@ -68,6 +66,10 @@ func init() {
 func getClusterName(ctx context.Context, data *clusterNameData, hostname string) string {
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
+
+	if !config.IsFeaturePresent(config.Kubernetes) {
+		return ""
+	}
 
 	if !data.initDone {
 		data.clusterName = config.Datadog.GetString("cluster_name")
@@ -108,24 +110,22 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			}
 		}
 
-		if config.IsFeaturePresent(config.Kubernetes) {
-			var clusterName string
-			nodeInfo, err := hostinfo.NewNodeInfo()
+		var clusterName string
+		nodeInfo, err := hostinfo.NewNodeInfo()
+		if err != nil {
+			log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+		} else {
+			clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx, data.clusterName)
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-			} else {
-				clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx, data.clusterName)
-				if err != nil {
-					log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-				}
 			}
-			if len(clusterName) > 0 {
-				if !IsRFC1123CompliantClusterName(clusterName) {
-					log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted, ", clusterName)
-				}
-				data.clusterName = MakeClusterNameRFC1123Compliant(clusterName)
-				log.Infof("Using cluster name %s from the node label", data.clusterName)
+		}
+		if len(clusterName) > 0 {
+			if !IsRFC1123CompliantClusterName(clusterName) {
+				log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted, ", clusterName)
 			}
+			data.clusterName = MakeClusterNameRFC1123Compliant(clusterName)
+			log.Infof("Using cluster name %s from the node label", data.clusterName)
 		}
 
 		if data.clusterName != "" {

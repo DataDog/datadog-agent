@@ -14,6 +14,7 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -154,11 +155,11 @@ const (
 	MonotonicPerfLost               ConnTelemetryType = "perf_lost"
 	MonotonicUDPSendsProcessed      ConnTelemetryType = "udp_sends_processed"
 	MonotonicUDPSendsMissed         ConnTelemetryType = "udp_sends_missed"
+	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
 	DNSStatsDropped                 ConnTelemetryType = "dns_stats_dropped"
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
 )
 
 //revive:enable
@@ -167,9 +168,9 @@ var (
 	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
 	// into the network connections payload
 	ConnTelemetryTypes = []ConnTelemetryType{
+		DNSStatsDropped,
 		ConnsBpfMapSize,
 		ConntrackSamplingPercent,
-		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
 	}
 
@@ -180,13 +181,13 @@ var (
 		MonotonicKprobesMissed,
 		MonotonicClosedConnDropped,
 		MonotonicConnDropped,
+		MonotonicConnsClosed,
 		MonotonicConntrackRegisters,
 		MonotonicDNSPacketsProcessed,
-		MonotonicConnsClosed,
+		MonotonicPerfLost,
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
-		MonotonicPerfLost,
 	}
 )
 
@@ -256,7 +257,7 @@ type ConnectionStats struct {
 
 	ContainerID *string
 
-	Protocol ProtocolType
+	ProtocolStack protocols.Stack
 }
 
 // Via has info about the routing decision for a flow
@@ -388,7 +389,8 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	}
 
 	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
-	str += fmt.Sprintf(", protocol: %v", c.Protocol)
+	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
+	str += fmt.Sprintf(", netns: %d", c.NetNS)
 
 	return str
 }
@@ -405,36 +407,6 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 		b.WriteString(dns.ToString(s))
 	}
 	return b.String()
-}
-
-// HTTPKeyTuplesFromConn build the key for the http map based on whether the local or remote side is http.
-func HTTPKeyTuplesFromConn(c ConnectionStats) [2]http.KeyTuple {
-	// Retrieve translated addresses
-	laddr, lport := GetNATLocalAddress(c)
-	raddr, rport := GetNATRemoteAddress(c)
-
-	// HTTP data is always indexed as (client, server), but we don't know which is the remote
-	// and which is the local address. To account for this, we'll construct 2 possible
-	// http keys and check for both of them in our http aggregations map.
-	return [2]http.KeyTuple{
-		http.NewKeyTuple(laddr, raddr, lport, rport),
-		http.NewKeyTuple(raddr, laddr, rport, lport),
-	}
-}
-
-// KafkaKeyTuplesFromConn build the key for the kafka map based on whether the local or remote side is kafka.
-func KafkaKeyTuplesFromConn(c ConnectionStats) [2]kafka.KeyTuple {
-	// Retrieve translated addresses
-	laddr, lport := GetNATLocalAddress(c)
-	raddr, rport := GetNATRemoteAddress(c)
-
-	// Kafka data is always indexed as (client, server), but we don't know which is the remote
-	// and which is the local address. To account for this, we'll construct 2 possible
-	// kafka keys and check for both of them in our kafka aggregations map.
-	return [2]kafka.KeyTuple{
-		kafka.NewKeyTuple(laddr, raddr, lport, rport),
-		kafka.NewKeyTuple(raddr, laddr, rport, lport),
-	}
 }
 
 func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {

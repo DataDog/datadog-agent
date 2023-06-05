@@ -12,10 +12,14 @@ import (
 	"go.uber.org/fx"
 )
 
+type testDeps struct {
+	fx.In
+	S string
+}
+
 func TestTest(t *testing.T) {
-	Test(t, fx.Options(
+	deps := Test[testDeps](t, fx.Options(
 		fx.Provide(func() string { return "a string!" }),
-	), func(s string) {
-		require.Equal(t, "a string!", s)
-	})
+	))
+	require.Equal(t, "a string!", deps.S)
 }

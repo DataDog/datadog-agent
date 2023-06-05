@@ -24,7 +24,7 @@ func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, so
 		return
 	}
 
-	logsScheduler = channel.NewScheduler(sourceName, source, logChannel, nil)
+	logsScheduler = channel.NewScheduler(sourceName, source, logChannel)
 	agent.AddScheduler(logsScheduler)
 }
 
@@ -36,4 +36,11 @@ func SetLogsTags(tags []string) {
 	if logsScheduler != nil {
 		logsScheduler.SetLogsTags(tags)
 	}
+}
+
+func GetLogsTags() []string {
+	if logsScheduler != nil {
+		return logsScheduler.GetLogsTags()
+	}
+	return nil
 }

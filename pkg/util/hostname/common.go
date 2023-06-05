@@ -129,11 +129,16 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 
 	prioritizeEC2Hostname := config.Datadog.GetBool("ec2_prioritize_instance_id_as_hostname")
 
+	log.Debugf("Detected a default EC2 hostname: %v", ec2.IsDefaultHostname(currentHostname))
+	log.Debugf("ec2_prioritize_instance_id_as_hostname is set to %v", prioritizeEC2Hostname)
+
 	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
 	// or ec2_prioritize_instance_id_as_hostname is set to true
 	if config.IsFeaturePresent(config.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
+		log.Debugf("Trying to fetch hostname from EC2 metadata")
 		return getValidEC2Hostname(ctx)
 	} else if ec2.IsWindowsDefaultHostname(currentHostname) {
+		log.Debugf("Default EC2 Windows hostname detected")
 		// Display a message when enabling `ec2_use_windows_prefix_detection` would make the hostname resolution change.
 
 		// As we are in the else clause `ec2.IsDefaultHostname(currentHostname)` is false. If

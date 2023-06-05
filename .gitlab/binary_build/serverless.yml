@@ -5,17 +5,7 @@
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv check-go-version
-    - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless -o $BINARY_NAME
-
-.check_size_common:
-  stage: binary_build
-  script:
-    - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags serverless -o $BINARY_NAME
-    - if [[ ! -f "$BINARY_NAME" ]]; then echo "Could not find $BINARY_NAME please investigate/reach the serverless slack channel" && exit 1; fi
-    - export CURRENT_SIZE_IN_BYTES=$(ls -l "$BINARY_NAME" | awk '{print $5}')
-    - echo "Current extension size $CURRENT_SIZE_IN_BYTES bytes"
-    - export DELTA=$(($CURRENT_SIZE_IN_BYTES-$BASELINE_SIZE_IN_BYTES))
-    - if [[ "$DELTA" -gt 0 ]]; then echo "Extension binary size is too big for $BINARY_NAME, please investigate/reach the serverless slack channel" && exit 1; else exit 0; fi
+    - cd cmd/serverless && go build -ldflags="-w -s" -a -v -tags "serverless otlp" -o $BINARY_NAME
 
 build_serverless-deb_x64:
   extends: .build_serverless_common
@@ -33,30 +23,6 @@ build_serverless-deb_arm64:
   extends: .build_serverless_common
   variables:
     BINARY_NAME: datadog-agent-arm64
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["go_deps"]
-
-check_serverless_size_x64:
-  extends: .check_size_common
-  allow_failure: true
-  tags: ["runner:main"]
-  variables:
-    BINARY_NAME: datadog-agent-x64
-    # this baseline is the current binary size + 3%
-    BASELINE_SIZE_IN_BYTES: 30562465
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:main"]
-  needs: ["go_deps"]
-
-
-check_serverless_size_arm64:
-  extends: .check_size_common
-  allow_failure: true
-  variables:
-    BINARY_NAME: datadog-agent-arm64
-    # this baseline is the current binary size + 3%
-    BASELINE_SIZE_IN_BYTES: 30562465
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_deps"]

@@ -120,6 +120,7 @@ func TestConnStatsByteKey(t *testing.T) {
 		assert.NotEqual(t, keyA, keyB)
 	}
 }
+
 func TestByteKeyNAT(t *testing.T) {
 	buf := make([]byte, ConnectionByteKeyMaxLen)
 	for _, test := range []struct {

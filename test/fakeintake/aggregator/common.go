@@ -7,25 +7,30 @@ package aggregator
 
 import (
 	"bytes"
+	"compress/gzip"
 	"compress/zlib"
-	"io/ioutil"
-)
+	"io"
+	"sort"
 
-type GetPayloadResponse struct {
-	Payloads [][]byte `json:"payloads"`
-}
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+)
 
 type PayloadItem interface {
 	name() string
-	tags() []string
+	GetTags() []string
 }
 
-type parseFunc[P PayloadItem] func(data []byte) (items []P, err error)
+type parseFunc[P PayloadItem] func(payload api.Payload) (items []P, err error)
 
 type Aggregator[P PayloadItem] struct {
 	payloadsByName map[string][]P
 	parse          parseFunc[P]
 }
+
+const (
+	encodingGzip    = "gzip"
+	encodingDeflate = "deflate"
+)
 
 func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	return Aggregator[P]{
@@ -34,12 +39,12 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 	}
 }
 
-func (agg *Aggregator[P]) UnmarshallPayloads(rawPayloads [][]byte) error {
+func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	// reset map
-	agg.payloadsByName = map[string][]P{}
+	agg.Reset()
 	// build map
-	for _, data := range rawPayloads {
-		payloads, err := agg.parse(data)
+	for _, p := range payloads {
+		payloads, err := agg.parse(p)
 		if err != nil {
 			return err
 		}
@@ -66,7 +71,7 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 	}
 
 	for _, payloadItem := range payloads {
-		if areTagsSubsetOfOtherTags(tags, payloadItem.tags()) {
+		if AreTagsSubsetOfOtherTags(tags, payloadItem.GetTags()) {
 			return true
 		}
 	}
@@ -74,7 +79,59 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 	return false
 }
 
-func areTagsSubsetOfOtherTags(tags, otherTags []string) bool {
+func (agg *Aggregator[P]) GetNames() []string {
+	names := []string{}
+	for name := range agg.payloadsByName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func enflate(payload []byte, encoding string) (enflated []byte, err error) {
+	rc, err := getReadCloserForEncoding(payload, encoding)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	enflated, err = io.ReadAll(rc)
+	if err != nil {
+		return nil, err
+	}
+	return enflated, nil
+}
+
+func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser, err error) {
+	switch encoding {
+	case encodingGzip:
+		rc, err = gzip.NewReader(bytes.NewReader(payload))
+	case encodingDeflate:
+		rc, err = zlib.NewReader(bytes.NewReader(payload))
+	default:
+		rc = io.NopCloser(bytes.NewReader(payload))
+	}
+	return rc, err
+}
+
+func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
+	return agg.payloadsByName[name]
+}
+
+func (agg *Aggregator[P]) Reset() {
+	agg.payloadsByName = map[string][]P{}
+}
+
+func FilterByTags[P PayloadItem](payloads []P, tags []string) []P {
+	ret := []P{}
+	for _, p := range payloads {
+		if AreTagsSubsetOfOtherTags(tags, p.GetTags()) {
+			ret = append(ret, p)
+		}
+	}
+	return ret
+}
+
+func AreTagsSubsetOfOtherTags(tags, otherTags []string) bool {
 	otherTagsSet := tagsToSet(otherTags)
 	for _, tag := range tags {
 		if _, found := otherTagsSet[tag]; !found {
@@ -90,16 +147,4 @@ func tagsToSet(tags []string) map[string]struct{} {
 		tagsSet[tag] = struct{}{}
 	}
 	return tagsSet
-}
-
-func enflate(payload []byte) (enflated []byte, err error) {
-	re, err := zlib.NewReader(bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	enflated, err = ioutil.ReadAll(re)
-	if err != nil {
-		return nil, err
-	}
-	return enflated, nil
 }

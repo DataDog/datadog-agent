@@ -35,15 +35,6 @@ func GetRegisteredFactoryKeys() []string {
 	return factoryKeys
 }
 
-// GetCheckFactory grabs factory for specific check
-func GetCheckFactory(name string) CheckFactory {
-	f, ok := catalog[name]
-	if !ok {
-		return nil
-	}
-	return f
-}
-
 // GoCheckLoader is a specific loader for checks living in this package
 type GoCheckLoader struct{}
 

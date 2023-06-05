@@ -1,10 +1,14 @@
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
+import os
 from collections import namedtuple
+from string import Template
 
 from invoke import task
 from invoke.exceptions import Exit
+
+from tasks.libs.copyright import COPYRIGHT_HEADER
 
 Component = namedtuple('Component', ['path', 'doc', 'team'])
 Bundle = namedtuple('Component', ['path', 'doc', 'team', 'components'])
@@ -188,3 +192,128 @@ def lint_components(ctx, fix=False):
         if fixable:
             print("Run `inv lint-components --fix` to fix errors")
         raise Exit(code=1)
+
+
+@task
+def new_bundle(_, bundle_path, overwrite=False, team="/* TODO: add team name */"):
+    """
+    Create a new bundle package with bundle.go and bundle_test.go files.
+
+    Notes:
+        - This task must be called from the datadog-agent repository root folder.
+        - 'bundle-path' is not modified by the task. You should explicitly set this to 'comp/...' if you want to create it in the right folder.
+        - You can use the --team flag to set the team name for the new bundle.
+
+    Examples:
+        inv components.new-bundle comp/foo/bar             # Create the 'bar' bundle in the 'comp/foo' folder
+        inv components.new-bundle comp/foo/bar --overwrite # Create the 'bar' bundle in the 'comp/foo' folder and overwrite 'comp/foo/bar/bundle{_test}.go' even if they already exist.
+        inv components.new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task.
+    """
+    template_var_mapping = {"BUNDLE_NAME": os.path.basename(bundle_path), "TEAM_NAME": team}
+    create_components_framework_files(bundle_path, ["bundle.go", "bundle_test.go"], template_var_mapping, overwrite)
+
+
+@task
+def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */"):
+    """
+    Create a new component package with the component.go file.
+
+    Notes:
+        - This task must be called from the datadog-agent repository root folder.
+        - 'comp-path' is not modified by the task. You should explicitly set this to 'comp/...' if you want to create it in the right folder.
+        - You can use the --team flag to set the team name for the new component/
+
+    Examples:
+        inv components.new-component comp/foo/bar             # Create the 'bar' component in the 'comp/foo' folder
+        inv components.new-component comp/foo/bar --overwrite # Create the 'bar' component in the 'comp/foo' folder and overwrite 'comp/foo/bar/component.go' even if it already exists
+        inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
+    """
+    template_var_mapping = {"COMPONENT_NAME": os.path.basename(comp_path), "TEAM_NAME": team}
+    create_components_framework_files(comp_path, ["component.go"], template_var_mapping, overwrite)
+
+
+def create_components_framework_files(comp_path, new_files, template_var_mapping, overwrite):
+    """
+    Create the folder and files common to all components and bundles.
+
+    First this function create the 'comp_path' folder. Then, for each file path in the 'new_files' list, it creates files
+    with a specific content. The content of each file is given by a predefined template located in the 'tasks/components_templates' folder.
+
+    These templates are Golang files with variables that can be substituted. These variables names and values are defined in the
+    'template_var_mapping' dictionary.
+
+    Lastly, 'overwrite' is a boolean which allows the tasks to erase files in 'new_files' if they already exists
+    """
+    # Only for logging purpose
+    comp_type = "component" if "COMPONENT_NAME" in template_var_mapping else "bundle"
+
+    if not comp_path.startswith("comp/") and not comp_path.startswith("./comp/"):
+        print(
+            f"Warn: Input path '{comp_path}' does not start with 'comp/'. Your {comp_type} might not be created in the right place."
+        )
+
+    component_name = os.path.basename(comp_path)
+    if os.path.isdir(comp_path) and not overwrite:
+        raise Exit(
+            f"Error: Cannot create {component_name} {comp_type}: '{comp_path}' package already exists. Use `--overwrite` if you want to overwrite files in this package.",
+            code=1,
+        )
+
+    # Create the root folder. We temporary set the umask to 0 to prevent 'os.makedirs' from giving wrong permissions to subfolders
+    try:
+        print(f"Creating {comp_path} folder")
+        # os.makedirs creates all parents directory with 0o777 permissions, 'mode' is only used for the leaf folder.
+        # We set the umask to create folder with 0o755 permissions instead of 0o777
+        original_umask = os.umask(0o022)
+        os.makedirs(comp_path, mode=0o755, exist_ok=True)
+    except Exception as err:
+        print(err)
+    finally:
+        os.umask(original_umask)
+
+    # Create the components framework common files from predefined templates
+    for filename in new_files:
+        write_template(f"{comp_path}/{filename}", template_var_mapping, overwrite)
+
+
+def write_template(new_file_path, var_mapping, overwrite=False):
+    """
+    Get the content of a templated file, substitute its variables and then writes the result into 'new_file_path' file.
+    """
+    # Get the content of the template and resolve it
+    template_path = get_template_path(new_file_path)
+    raw_template_value = read_file_content(template_path)
+
+    var_mapping["COPYRIGHT_HEADER"] = COPYRIGHT_HEADER
+    resolved_template = Template(raw_template_value).substitute(var_mapping)
+
+    # Fails if file exists and 'overwrite' is False
+    mode = "w" if overwrite else "x"
+    with open(new_file_path, mode) as file:
+        file.write(resolved_template)
+        print(f"Writing to {new_file_path}")
+
+
+def get_template_path(file_path):
+    """
+    Return a path to the template associated with 'file_path'.
+
+    Templates are static files containing variables whose value can be substituted at runtime.
+    These templates are used to generate Golang files that are always the same except for some parts such as package name.
+
+    These templates are located in the `tasks/components_templates` folder.
+
+    For instance, if called with `component.go`, the functions returns 'tasks/components_templates/component.go.tmpl'
+    """
+
+    template_folder_path = "tasks/components_templates/"
+    template_name = os.path.basename(file_path) + ".tmpl"
+    return os.path.join(template_folder_path, template_name)
+
+
+def read_file_content(template_path):
+    """
+    Read all lines in files and return them as a single string.
+    """
+    with open(template_path, "r") as file:
+        return file.read()

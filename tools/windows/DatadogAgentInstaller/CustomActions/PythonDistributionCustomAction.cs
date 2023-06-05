@@ -1,9 +1,9 @@
 using Microsoft.Deployment.WindowsInstaller;
 using System;
-using System.Diagnostics;
 using System.IO;
 using Datadog.CustomActions.Extensions;
 using System.Text;
+using Datadog.CustomActions.Interfaces;
 using ICSharpCode.SharpZipLib.Tar;
 
 namespace Datadog.CustomActions

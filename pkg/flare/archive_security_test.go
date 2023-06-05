@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package flare
 
@@ -15,9 +14,8 @@ import (
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
-	// Required for the expvar init hooks to be called
-	// TODO: (components) Remove this when dogstatsd/server.go is migrated to a component
-	_ "github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	// Required to initialize the "dogstatsd" expvar
+	_ "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {
@@ -52,8 +50,8 @@ func TestCreateSecurityAgentArchive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mock := flarehelpers.NewFlareBuilderMock(t)
-			createSecurityAgentArchive(mock.Fb, test.local, logFilePath, nil, nil)
+			mock := flarehelpers.NewFlareBuilderMock(t, test.local)
+			createSecurityAgentArchive(mock.Fb, logFilePath, nil, nil)
 
 			for _, f := range test.expectedFiles {
 				mock.AssertFileExists(f)

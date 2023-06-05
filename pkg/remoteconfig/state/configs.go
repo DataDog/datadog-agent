@@ -47,7 +47,6 @@ type RawConfig struct {
 // GetRawConfigs returns the current configs of a given product
 func (r *Repository) GetConfigs(product string) map[string]RawConfig {
 	typedConfigs := make(map[string]RawConfig)
-
 	configs := r.getConfigs(product)
 
 	for path, conf := range configs {

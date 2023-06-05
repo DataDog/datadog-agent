@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ec2
-// +build ec2
 
 package ec2
 
@@ -13,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -56,7 +56,7 @@ func fetchEc2Tags(ctx context.Context) ([]string, error) {
 }
 
 func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
-	keysStr, err := getMetadataItem(ctx, "/tags/instance")
+	keysStr, err := getMetadataItem(ctx, imdsTags, false)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 		// > keys can only use letters (a-z, A-Z), numbers (0-9), and the
 		// > following characters: -_+=,.@:. Instance tag keys can't use spaces,
 		// > /, or the reserved names ., .., or _index.
-		val, err := getMetadataItem(ctx, "/tags/instance/"+key)
+		val, err := getMetadataItem(ctx, imdsTags+"/"+key, false)
 		if err != nil {
 			return nil, err
 		}
@@ -127,6 +127,13 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCre
 	}
 
 	connection := ec2.New(awsSess)
+
+	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
+	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
+	// 3 retries). Since we call getTagsWithCreds twice in a row, it can be a 2 minutes latency.
+	ctx, cancel := context.WithTimeout(ctx, config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond)
+	defer cancel()
+
 	ec2Tags, err := connection.DescribeTagsWithContext(ctx,
 		&ec2.DescribeTagsInput{
 			Filters: []*ec2.Filter{{
@@ -187,12 +194,13 @@ func GetTags(ctx context.Context) ([]string, error) {
 type ec2Identity struct {
 	Region     string
 	InstanceID string
+	AccountID  string
 }
 
 func getInstanceIdentity(ctx context.Context) (*ec2Identity, error) {
 	instanceIdentity := &ec2Identity{}
 
-	res, err := doHTTPRequest(ctx, instanceIdentityURL)
+	res, err := doHTTPRequest(ctx, instanceIdentityURL, false)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API to get identity: %s", err)
 	}
@@ -219,7 +227,7 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 		return iamParams, err
 	}
 
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole)
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/"+iamRole, false)
 	if err != nil {
 		return iamParams, fmt.Errorf("unable to fetch EC2 API to get iam role: %s", err)
 	}
@@ -232,7 +240,7 @@ func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
 }
 
 func getIAMRole(ctx context.Context) (string, error) {
-	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/")
+	res, err := doHTTPRequest(ctx, metadataURL+"/iam/security-credentials/", false)
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %s", err)
 	}

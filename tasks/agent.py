@@ -11,13 +11,14 @@ import platform
 import re
 import shutil
 import sys
+import tempfile
 from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .docker import pull_base_images
+from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
 from .rtloader import clean as rtloader_clean
@@ -27,6 +28,7 @@ from .ssm import get_pfx_pass, get_signing_cert
 from .utils import (
     REPO_PATH,
     bin_name,
+    cache_version,
     generate_config,
     get_build_flags,
     get_version,
@@ -43,6 +45,8 @@ AGENT_TAG = "datadog/agent:master"
 AGENT_CORECHECKS = [
     "container",
     "containerd",
+    "container_image",
+    "container_lifecycle",
     "cpu",
     "cri",
     "snmp",
@@ -56,12 +60,15 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "oom_kill",
+    "oracle-dbm",
+    "sbom",
     "systemd",
     "tcp_queue_length",
     "uptime",
     "winkmem",
     "winproc",
     "jetson",
+    "openmetrics",
 ]
 
 IOT_AGENT_CORECHECKS = [
@@ -320,6 +327,79 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
 
 @task
+def hacky_dev_image_build(ctx, base_image=None, target_image="agent", push=False, signed_pull=False):
+    os.environ["DELVE"] = "1"
+    build(ctx)
+
+    if base_image is None:
+        import requests
+        import semver
+
+        # Try to guess what is the latest release of the agent
+        latest_release = semver.VersionInfo(0)
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list")
+        for tag in tags.json()['tags']:
+            if not semver.VersionInfo.isvalid(tag):
+                continue
+            ver = semver.VersionInfo.parse(tag)
+            if ver.prerelease or ver.build:
+                continue
+            if ver > latest_release:
+                latest_release = ver
+        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+
+    with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
+        dockerfile.write(
+            f'''FROM ubuntu:latest AS src
+
+COPY . /usr/src/datadog-agent
+
+RUN find /usr/src/datadog-agent -type f \\! -name \\*.go -print0 | xargs -0 rm
+RUN find /usr/src/datadog-agent -type d -empty -print0 | xargs -0 rmdir
+
+FROM ubuntu:latest AS bin
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y patchelf
+
+COPY bin/agent/agent /opt/datadog-agent/bin/agent/agent
+
+RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
+
+FROM golang:latest AS dlv
+
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+FROM {base_image}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y bash-completion less vim tshark && \
+    apt-get clean
+
+ENV DELVE_PAGER=less
+
+COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
+COPY --from=src /usr/src/datadog-agent {os.getcwd()}
+COPY --from=bin /opt/datadog-agent/bin/agent/agent /opt/datadog-agent/bin/agent/agent
+RUN agent completion bash > /usr/share/bash-completion/completions/agent
+
+ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
+'''
+        )
+        dockerfile.flush()
+
+        pull_env = {}
+        if signed_pull:
+            pull_env['DOCKER_CONTENT_TRUST'] = '1'
+        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+
+        if push:
+            ctx.run(f'docker push {target_image}')
+
+
+@task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     """
     Run integration tests for the Agent
@@ -362,7 +442,6 @@ def get_omnibus_env(
     python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
-    nikos_path=None,
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
@@ -409,8 +488,6 @@ def get_omnibus_env(
 
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    if nikos_path:
-        env['NIKOS_PATH'] = nikos_path
     env['AGENT_FLAVOR'] = flavor.name
 
     return env
@@ -484,7 +561,6 @@ def omnibus_build(
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    nikos_path=None,
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
@@ -518,7 +594,6 @@ def omnibus_build(
         python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        nikos_path=nikos_path,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,
@@ -716,7 +791,7 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7'):
+def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7', version_cached=False):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
@@ -725,7 +800,12 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
     git_sha_length: different versions of git have a different short sha length,
                     use this to explicitly set the version
                     (the windows builder and the default ubuntu version have such an incompatibility)
+    version_cached: save the version inside a "agent-version.cache" that will be reused
+                    by each next call of version.
     """
+    if version_cached:
+        cache_version(ctx, git_sha_length=git_sha_length)
+
     version = get_version(
         ctx,
         include_git=True,

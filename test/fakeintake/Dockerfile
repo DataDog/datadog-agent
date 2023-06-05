@@ -23,6 +23,6 @@ WORKDIR /
 
 COPY --from=build /build /fakeintake
 
-EXPOSE 8080
+EXPOSE 80
 
 ENTRYPOINT ["/fakeintake"]

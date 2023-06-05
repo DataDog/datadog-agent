@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -50,7 +49,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 
 	expectedTags := []string{"runtime:containerd"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 10)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 11)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "containerd.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "containerd.cpu.total", 100, "", expectedTags)
@@ -64,6 +63,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.kernel.usage", 40, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.current.limit", 42000, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.rss", 300, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "containerd.mem.working_set", 350, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.cache", 200, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.swap.usage", 0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "containerd.mem.current.failcnt", 10, "", expectedTags)

@@ -1,8 +1,8 @@
 using Datadog.CustomActions.Extensions;
 using Microsoft.Deployment.WindowsInstaller;
-using System.Collections.Generic;
 using System.IO;
 using System;
+using Datadog.CustomActions.Interfaces;
 
 namespace Datadog.CustomActions
 {
@@ -16,7 +16,7 @@ namespace Datadog.CustomActions
             {
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
-                Path.Combine(projectLocation, "install_info"),
+                Path.Combine(applicationDataLocation, "install_info"),
                 Path.Combine(applicationDataLocation, "auth_token")
             };
             foreach (var path in toDelete)

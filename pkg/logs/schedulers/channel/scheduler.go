@@ -27,9 +27,6 @@ type Scheduler struct {
 	// logsChan is the channel carrying messages to be sent to the pipeline
 	logsChan chan *config.ChannelMessage
 
-	// extraTags are the tags attached to each log message.
-	extraTags []string
-
 	// logSource is the source currently managed by the scheduler
 	logSource *sources.LogSource
 
@@ -40,12 +37,11 @@ type Scheduler struct {
 var _ schedulers.Scheduler = &Scheduler{}
 
 // NewScheduler creates a new Scheduler.
-func NewScheduler(sourceName, source string, logsChan chan *config.ChannelMessage, extraTags []string) *Scheduler {
+func NewScheduler(sourceName, source string, logsChan chan *config.ChannelMessage) *Scheduler {
 	return &Scheduler{
 		sourceName: sourceName,
 		source:     source,
 		logsChan:   logsChan,
-		extraTags:  extraTags,
 	}
 }
 
@@ -67,10 +63,9 @@ func (s *Scheduler) setSource() {
 	}
 
 	s.logSource = sources.NewLogSource(s.sourceName, &config.LogsConfig{
-		Type:        config.StringChannelType,
-		Source:      s.source,
-		ChannelTags: s.extraTags,
-		Channel:     s.logsChan,
+		Type:    config.StringChannelType,
+		Source:  s.source,
+		Channel: s.logsChan,
 	})
 	s.sourceMgr.AddSource(s.logSource)
 }
@@ -86,4 +81,13 @@ func (s *Scheduler) SetLogsTags(tags []string) {
 	s.logSource.Config.ChannelTagsMutex.Lock()
 	defer s.logSource.Config.ChannelTagsMutex.Unlock()
 	s.logSource.Config.ChannelTags = tags
+}
+
+// GetLogsTags returns a defensive copy of the used tags
+func (s *Scheduler) GetLogsTags() []string {
+	s.logSource.Config.ChannelTagsMutex.Lock()
+	defer s.logSource.Config.ChannelTagsMutex.Unlock()
+	defensiveCopy := make([]string, len(s.logSource.Config.ChannelTags))
+	copy(defensiveCopy, s.logSource.Config.ChannelTags)
+	return defensiveCopy
 }

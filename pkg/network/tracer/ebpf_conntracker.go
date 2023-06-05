@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -20,22 +19,27 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	libnetlink "github.com/mdlayher/netlink"
-	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
+
+var zero uint64
 
 var tuplePool = sync.Pool{
 	New: func() interface{} {
@@ -43,20 +47,24 @@ var tuplePool = sync.Pool{
 	},
 }
 
-type ebpfConntrackerStats struct {
-	gets                 *atomic.Int64
-	getTotalTime         *atomic.Int64
-	unregisters          *atomic.Int64
-	unregistersTotalTime *atomic.Int64
-}
+const ebpfConntrackerModuleName = "network_tracer__ebpf_conntracker"
 
-func newEbpfConntrackerStats() ebpfConntrackerStats {
-	return ebpfConntrackerStats{
-		gets:                 atomic.NewInt64(0),
-		getTotalTime:         atomic.NewInt64(0),
-		unregisters:          atomic.NewInt64(0),
-		unregistersTotalTime: atomic.NewInt64(0),
-	}
+var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
+
+var conntrackerTelemetry = struct {
+	getsDuration        telemetry.Histogram
+	unregistersDuration telemetry.Histogram
+	getsTotal           telemetry.Counter
+	unregistersTotal    telemetry.Counter
+	registersTotal      telemetry.Counter
+	lastRegisters       uint64
+}{
+	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
+	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
+	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
+	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
+	telemetry.NewCounter(ebpfConntrackerModuleName, "registers_total", []string{}, "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map"),
+	0,
 }
 
 type ebpfConntracker struct {
@@ -69,11 +77,18 @@ type ebpfConntracker struct {
 
 	stop chan struct{}
 
-	stats ebpfConntrackerStats
+	isPrebuilt bool
 }
 
+var ebpfConntrackerRCCreator func(cfg *config.Config) (runtime.CompiledOutput, error) = getRuntimeCompiledConntracker
+var ebpfConntrackerPrebuiltCreator func(*config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
+
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+	if !cfg.EnableEbpfConntracker {
+		return nil, fmt.Errorf("ebpf conntracker is disabled")
+	}
+
 	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
 	// eBPF conntrack require nf_conntrack symbols
 	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
@@ -81,10 +96,30 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		conn.Close()
 	}
 
-	buf, err := getRuntimeCompiledConntracker(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
+	var buf bytecode.AssetReader
+	if cfg.EnableRuntimeCompiler {
+		buf, err = ebpfConntrackerRCCreator(cfg)
+		if err != nil {
+			if !cfg.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("unable to compile ebpf conntracker: %w", err)
+			}
+
+			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %s", err)
+		}
 	}
+
+	var isPrebuilt bool
+	var constants []manager.ConstantEditor
+	if buf == nil {
+		buf, constants, err = ebpfConntrackerPrebuiltCreator(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
+		}
+
+		isPrebuilt = true
+	}
+
+	defer buf.Close()
 
 	var mapErr *ebpf.Map
 	var helperErr *ebpf.Map
@@ -93,7 +128,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		helperErr = bpfTelemetry.HelperErrMap
 	}
 
-	m, err := getManager(cfg, buf, cfg.ConntrackMaxStateSize, mapErr, helperErr)
+	m, err := getManager(cfg, buf, mapErr, helperErr, constants)
 	if err != nil {
 		return nil, err
 	}
@@ -131,8 +166,8 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		ctMap:        ctMap,
 		telemetryMap: telemetryMap,
 		rootNS:       rootNS,
-		stats:        newEbpfConntrackerStats(),
 		stop:         make(chan struct{}),
+		isPrebuilt:   isPrebuilt,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -145,6 +180,8 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		}
 		return nil, err
 	}
+	go e.refreshTelemetry()
+
 	log.Infof("initialized ebpf conntrack")
 	return e, nil
 }
@@ -225,7 +262,7 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 		// Perform another lookup, this time using the connection namespace
 		src.Netns = stats.NetNS
 		if log.ShouldLog(seelog.TraceLvl) {
-			log.Tracef("looking up in conntrack (tuple): %s", src)
+			log.Tracef("looking up in conntrack (tuple,netns): %s", src)
 		}
 		dst = e.get(src)
 	}
@@ -235,8 +272,8 @@ func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *
 	}
 	defer tuplePool.Put(dst)
 
-	e.stats.gets.Inc()
-	e.stats.getTotalTime.Add(time.Now().Sub(start).Nanoseconds())
+	conntrackerTelemetry.getsTotal.Inc()
+	conntrackerTelemetry.getsDuration.Observe(float64(time.Since(start).Nanoseconds()))
 	return &network.IPTranslation{
 		ReplSrcIP:   dst.SourceAddress(),
 		ReplDstIP:   dst.DestAddress(),
@@ -284,41 +321,30 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 		e.delete(dst)
 		tuplePool.Put(dst)
 	}
-	e.stats.unregisters.Inc()
-	e.stats.unregistersTotalTime.Add(time.Now().Sub(start).Nanoseconds())
+	conntrackerTelemetry.unregistersTotal.Inc()
+	conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
 }
 
-func (e *ebpfConntracker) GetStats() map[string]int64 {
-	m := map[string]int64{
-		"state_size": 0,
+// Refreshes conntracker telemetry on a loop
+// TODO: Replace with prometheus collector interface
+func (e *ebpfConntracker) refreshTelemetry() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			telemetry := &netebpf.ConntrackTelemetry{}
+			if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+				log.Tracef("error retrieving the telemetry struct: %s", err)
+			} else {
+				delta := telemetry.Registers - conntrackerTelemetry.lastRegisters
+				conntrackerTelemetry.lastRegisters = telemetry.Registers
+				conntrackerTelemetry.registersTotal.Add(float64(delta))
+			}
+		case <-e.stop:
+			return
+		}
 	}
-	telemetry := &netebpf.ConntrackTelemetry{}
-	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
-		log.Tracef("error retrieving the telemetry struct: %s", err)
-	} else {
-		m["registers_total"] = int64(telemetry.Registers)
-	}
-
-	gets := e.stats.gets.Load()
-	getTimeTotal := e.stats.getTotalTime.Load()
-	m["gets_total"] = gets
-	if gets > 0 {
-		m["nanoseconds_per_get"] = getTimeTotal / gets
-	}
-
-	unregisters := e.stats.unregisters.Load()
-	unregistersTimeTotal := e.stats.unregistersTotalTime.Load()
-	m["unregisters_total"] = unregisters
-	if unregisters > 0 {
-		m["nanoseconds_per_unregister"] = unregistersTimeTotal / unregisters
-	}
-
-	// Merge telemetry from the consumer
-	for k, v := range e.consumer.GetStats() {
-		m[k] = v
-	}
-
-	return m
 }
 
 func (e *ebpfConntracker) Close() {
@@ -326,6 +352,7 @@ func (e *ebpfConntracker) Close() {
 	if err != nil {
 		log.Warnf("error cleaning up ebpf conntrack: %s", err)
 	}
+	close(e.stop)
 }
 
 // DumpCachedTable dumps the cached conntrack NAT entries grouped by network namespace
@@ -378,7 +405,7 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 	return entries, nil
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map) (*manager.Manager, error) {
+func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map, constants []manager.ConstantEditor) (*manager.Manager, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
@@ -397,6 +424,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 					EBPFFuncName: probes.ConntrackFillInfo,
 					UID:          "conntracker",
 				},
+				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
 			},
 		},
 	}
@@ -407,15 +435,25 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 	}
 	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
 	mgr.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+		return nettelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
 	}
 
-	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(mgr)
+	telemetryMapKeys := nettelemetry.BuildTelemetryKeys(mgr)
 
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
+
+	pid, err := util.GetRootNSPID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get system-probe pid in root pid namespace")
+	}
+
+	constants = append(constants, manager.ConstantEditor{
+		Name:  "systemprobe_pid",
+		Value: uint64(pid),
+	})
 
 	opts := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
@@ -431,11 +469,15 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			probes.ConntrackMap: {Type: ebpf.Hash, MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries},
 		},
-		ConstantEditors:           telemetryMapKeys,
+		ConstantEditors:           append(telemetryMapKeys, constants...),
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
+		MapEditors:                make(map[string]*ebpf.Map),
 	}
-	if (mapErrTelemetryMap != nil) || (helperErrTelemetryMap != nil) {
-		opts.MapEditors = make(map[string]*ebpf.Map)
+
+	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
+		me := opts.MapSpecEditors[probes.ConntrackMap]
+		me.Type = ebpf.LRUHash
+		me.EditorFlag |= manager.EditType
 	}
 
 	if mapErrTelemetryMap != nil {
@@ -450,4 +492,26 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 		return nil, err
 	}
 	return mgr, nil
+}
+
+func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not read bpf module: %s", err)
+	}
+
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not load offset guessing module: %w", err)
+	}
+	defer offsetBuf.Close()
+
+	constants, err := offsetguess.RunOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
+		return offsetguess.NewConntrackOffsetGuesser(cfg)
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not guess offsets for ebpf conntracker: %w", err)
+	}
+
+	return buf, constants, nil
 }

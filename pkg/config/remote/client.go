@@ -59,7 +59,9 @@ type Client struct {
 	agentVersion string
 	products     []string
 
-	clusterName string
+	clusterName  string
+	clusterID    string
+	cwsWorkloads []string
 
 	pollInterval      time.Duration
 	lastUpdateError   error
@@ -162,12 +164,18 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	// If we're the cluster agent, we want to report our cluster name and cluster ID in order to allow products
 	// relying on remote config to identify this RC client to be able to write predicates for config routing
 	clusterName := ""
+	clusterID := ""
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		hname, err := hostname.Get(context.TODO())
 		if err != nil {
 			log.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
 		} else {
 			clusterName = clustername.GetClusterName(context.TODO(), hname)
+		}
+
+		clusterID, err = clustername.GetClusterID()
+		if err != nil {
+			log.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
 		}
 	}
 
@@ -181,6 +189,8 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		agentName:     agentName,
 		agentVersion:  agentVersion,
 		clusterName:   clusterName,
+		clusterID:     clusterID,
+		cwsWorkloads:  make([]string, 0),
 		products:      data.ProductListToString(products),
 		state:         repository,
 		pollInterval:  pollInterval,
@@ -218,6 +228,13 @@ func (c *Client) GetConfigs(product string) map[string]state.RawConfig {
 	c.m.Lock()
 	defer c.m.Unlock()
 	return c.state.GetConfigs(product)
+}
+
+// SetCWSWorkloads updates the list of workloads that needs cws profiles
+func (c *Client) SetCWSWorkloads(workloads []string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsWorkloads = workloads
 }
 
 func (c *Client) startFn() {
@@ -367,9 +384,11 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			IsAgent:  true,
 			IsTracer: false,
 			ClientAgent: &pbgo.ClientAgent{
-				Name:        c.agentName,
-				Version:     c.agentVersion,
-				ClusterName: c.clusterName,
+				Name:         c.agentName,
+				Version:      c.agentVersion,
+				ClusterName:  c.clusterName,
+				ClusterId:    c.clusterID,
+				CwsWorkloads: c.cwsWorkloads,
 			},
 		},
 		CachedTargetFiles: pbCachedFiles,

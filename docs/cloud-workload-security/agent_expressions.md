@@ -168,10 +168,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Definition |
 | -------- | ------------- |
-| [`async`](#async-doc) | True if the syscall was asynchronous |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
+| [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
+| [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
@@ -191,7 +192,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
-| [`process.ancestors.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -262,7 +262,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
-| [`process.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -327,7 +326,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
-| [`process.parent.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`process.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -523,7 +521,6 @@ A process was executed or forked
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
-| [`exec.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`exec.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -603,7 +600,6 @@ A process was terminated
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.id`](#common-process-container-id-doc) | Container ID |
-| [`exit.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`exit.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -717,6 +713,9 @@ A new kernel module was loaded
 
 | Property | Definition |
 | -------- | ------------- |
+| [`load_module.args`](#load_module-args-doc) | Parameters (as a string) of the new kernel module |
+| [`load_module.args_truncated`](#load_module-args_truncated-doc) | Indicates if the arguments were truncated or not |
+| [`load_module.argv`](#load_module-argv-doc) | Parameters (as an array) of the new kernel module |
 | [`load_module.file.change_time`](#common-filefields-change_time-doc) | Change time of the file |
 | [`load_module.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`load_module.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
@@ -868,7 +867,6 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
-| [`ptrace.tracee.ancestors.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -939,7 +937,6 @@ A ptrace command was executed
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
-| [`ptrace.tracee.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1004,7 +1001,6 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
-| [`ptrace.tracee.parent.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`ptrace.tracee.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1258,7 +1254,6 @@ A signal was sent
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
-| [`signal.target.ancestors.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1329,7 +1324,6 @@ A signal was sent
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
-| [`signal.target.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1394,7 +1388,6 @@ A signal was sent
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
-| [`signal.target.parent.cookie`](#common-process-cookie-doc) | Cookie of the process |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
 | [`signal.target.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
@@ -1709,15 +1702,6 @@ Definition: Container ID
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
-### `*.cookie` {#common-process-cookie-doc}
-Type: int
-
-Definition: Cookie of the process
-
-`*.cookie` has 11 possible prefixes:
-`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
-
-
 ### `*.created_at` {#common-process-created_at-doc}
 Type: int
 
@@ -1951,6 +1935,9 @@ Definition: Mode of the file
 `*.mode` has 38 possible prefixes:
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
+Constants: [Inode mode constants](#inode-mode-constants)
+
+
 
 ### `*.modification_time` {#common-filefields-modification_time-doc}
 Type: int
@@ -2088,7 +2075,7 @@ Definition: Rights of the file
 `*.rights` has 38 possible prefixes:
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2153,13 +2140,6 @@ Definition: User of the file's owner
 
 `*.user` has 38 possible prefixes:
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
-
-
-### `async` {#async-doc}
-Type: bool
-
-Definition: True if the syscall was asynchronous
-
 
 
 ### `bind.addr.family` {#bind-addr-family-doc}
@@ -2266,7 +2246,7 @@ Type: int
 Definition: New mode of the chmod-ed file
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2276,7 +2256,7 @@ Type: int
 Definition: New rights of the chmod-ed file
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2377,6 +2357,20 @@ Constants: [DNS qtypes](#dns-qtypes)
 
 
 
+### `event.async` {#event-async-doc}
+Type: bool
+
+Definition: True if the syscall was asynchronous
+
+
+
+### `event.timestamp` {#event-timestamp-doc}
+Type: int
+
+Definition: Timestamp of the event
+
+
+
 ### `exit.cause` {#exit-cause-doc}
 Type: int
 
@@ -2388,6 +2382,27 @@ Definition: Cause of the process termination (one of EXITED, SIGNALED, COREDUMPE
 Type: int
 
 Definition: Exit code of the process or number of the signal that caused the process to terminate
+
+
+
+### `load_module.args` {#load_module-args-doc}
+Type: string
+
+Definition: Parameters (as a string) of the new kernel module
+
+
+
+### `load_module.args_truncated` {#load_module-args_truncated-doc}
+Type: bool
+
+Definition: Indicates if the arguments were truncated or not
+
+
+
+### `load_module.argv` {#load_module-argv-doc}
+Type: string
+
+Definition: Parameters (as an array) of the new kernel module
 
 
 
@@ -2411,7 +2426,7 @@ Type: int
 Definition: Mode of the new directory
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2421,7 +2436,7 @@ Type: int
 Definition: Rights of the new directory
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2533,7 +2548,7 @@ Type: int
 Definition: Mode of the created file
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -3060,35 +3075,6 @@ BPF program types are the supported eBPF program types.
 | `BPF_PROG_TYPE_LSM` | all |
 | `BPF_PROG_TYPE_SK_LOOKUP` | all |
 
-### `Chmod mode constants` {#chmod-mode-constants}
-Chmod mode constants are the supported modes for the chmod syscall.
-
-| Name | Architectures |
-| ---- |---------------|
-| `S_IFBLK` | all |
-| `S_IFCHR` | all |
-| `S_IFDIR` | all |
-| `S_IFIFO` | all |
-| `S_IFLNK` | all |
-| `S_IFMT` | all |
-| `S_IFREG` | all |
-| `S_IFSOCK` | all |
-| `S_IRGRP` | all |
-| `S_IROTH` | all |
-| `S_IRUSR` | all |
-| `S_IRWXG` | all |
-| `S_IRWXO` | all |
-| `S_IRWXU` | all |
-| `S_ISGID` | all |
-| `S_ISUID` | all |
-| `S_ISVTX` | all |
-| `S_IWGRP` | all |
-| `S_IWOTH` | all |
-| `S_IWUSR` | all |
-| `S_IXGRP` | all |
-| `S_IXOTH` | all |
-| `S_IXUSR` | all |
-
 ### `DNS qclasses` {#dns-qclasses}
 DNS qclasses are the supported DNS query classes.
 
@@ -3330,6 +3316,56 @@ Error constants are the supported error constants.
 | `EXDEV` | all |
 | `EXFULL` | all |
 
+### `File mode constants` {#file-mode-constants}
+File mode constants are the supported file permissions as well as constants for the set-user-ID, set-group-ID, and sticky bits.
+
+| Name | Architectures |
+| ---- |---------------|
+| `S_ISUID` | all |
+| `S_ISGID` | all |
+| `S_ISVTX` | all |
+| `S_IRWXU` | all |
+| `S_IRUSR` | all |
+| `S_IWUSR` | all |
+| `S_IXUSR` | all |
+| `S_IRWXG` | all |
+| `S_IRGRP` | all |
+| `S_IWGRP` | all |
+| `S_IXGRP` | all |
+| `S_IRWXO` | all |
+| `S_IROTH` | all |
+| `S_IWOTH` | all |
+| `S_IXOTH` | all |
+
+### `Inode mode constants` {#inode-mode-constants}
+Inode mode constants are the supported file type constants as well as the file mode constants.
+
+| Name | Architectures |
+| ---- |---------------|
+| `S_IFMT` | all |
+| `S_IFSOCK` | all |
+| `S_IFLNK` | all |
+| `S_IFREG` | all |
+| `S_IFBLK` | all |
+| `S_IFDIR` | all |
+| `S_IFCHR` | all |
+| `S_IFIFO` | all |
+| `S_ISUID` | all |
+| `S_ISGID` | all |
+| `S_ISVTX` | all |
+| `S_IRWXU` | all |
+| `S_IRUSR` | all |
+| `S_IWUSR` | all |
+| `S_IXUSR` | all |
+| `S_IRWXG` | all |
+| `S_IRGRP` | all |
+| `S_IWGRP` | all |
+| `S_IXGRP` | all |
+| `S_IRWXO` | all |
+| `S_IROTH` | all |
+| `S_IWOTH` | all |
+| `S_IXOTH` | all |
+
 ### `Kernel Capability constants` {#kernel-capability-constants}
 Kernel Capability constants are the supported Linux Kernel Capability.
 
@@ -3349,7 +3385,6 @@ Kernel Capability constants are the supported Linux Kernel Capability.
 | `CAP_IPC_LOCK` | all |
 | `CAP_IPC_OWNER` | all |
 | `CAP_KILL` | all |
-| `CAP_LAST_CAP` | all |
 | `CAP_LEASE` | all |
 | `CAP_LINUX_IMMUTABLE` | all |
 | `CAP_MAC_ADMIN` | all |

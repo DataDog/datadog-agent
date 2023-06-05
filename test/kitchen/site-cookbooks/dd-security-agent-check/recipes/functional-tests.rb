@@ -58,11 +58,6 @@ cookbook_file "#{node['common']['work_dir']}/llc-bpf" do
   action :create
 end
 
-cookbook_file "#{node['common']['work_dir']}/nikos.tar.gz" do
-  source "nikos.tar.gz"
-  mode '755'
-end
-
 # Resources for getting test output into the Datadog CI product
 
 directory "/go/bin" do
@@ -108,11 +103,6 @@ directory "/tmp/pkgjson" do
 end
 
 # End resources for getting test output into the Datadog CI product
-
-execute "Extract nikos.tar.gz" do
-  command "mkdir -p /opt/datadog-agent/embedded/nikos/embedded/ && tar -xzvf #{node['common']['work_dir']}/nikos.tar.gz -C /opt/datadog-agent/embedded/nikos/embedded/"
-  action :run
-end
 
 # `/swapfile` doesn't work on Oracle Linux, so we use `/mnt/swapfile`
 swap_file '/mnt/swapfile' do
@@ -189,8 +179,6 @@ if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
     file "#{node['common']['work_dir']}/Dockerfile" do
       content <<-EOF
       FROM ghcr.io/paulcacheux/cws-centos7@sha256:4fc1aac178b5c1690ce71c37f22b8a23cedfb969c7056702c21be50e848e554f
-
-      ADD nikos.tar.gz /opt/datadog-agent/embedded/nikos/embedded/
 
       COPY clang-bpf /opt/datadog-agent/embedded/bin/
       COPY llc-bpf /opt/datadog-agent/embedded/bin/

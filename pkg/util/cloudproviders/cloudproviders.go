@@ -8,6 +8,7 @@ package cloudproviders
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -28,26 +29,41 @@ import (
 )
 
 type cloudProviderDetector struct {
-	name     string
-	callback func(context.Context) bool
+	name              string
+	callback          func(context.Context) bool
+	accountIdCallback func(context.Context) (string, error)
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
 func DetectCloudProvider(ctx context.Context) {
 	detectors := []cloudProviderDetector{
-		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn},
-		{name: gce.CloudProviderName, callback: gce.IsRunningOn},
-		{name: azure.CloudProviderName, callback: azure.IsRunningOn},
+		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
+		{name: gce.CloudProviderName, callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
+		{name: azure.CloudProviderName, callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
 		{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
 		{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
 		{name: oracle.CloudProviderName, callback: oracle.IsRunningOn},
 		{name: ibm.CloudProviderName, callback: ibm.IsRunningOn},
 	}
 
+	collectAccountID := config.Datadog.GetBool("inventories_collect_cloud_provider_account_id")
+
 	for _, cloudDetector := range detectors {
 		if cloudDetector.callback(ctx) {
 			inventories.SetAgentMetadata(inventories.HostCloudProvider, cloudDetector.name)
 			log.Infof("Cloud provider %s detected", cloudDetector.name)
+
+			// fetch the account ID for this cloud provider
+			if collectAccountID && cloudDetector.accountIdCallback != nil {
+				accountID, err := cloudDetector.accountIdCallback(ctx)
+				if err != nil {
+					log.Debugf("Could not detect cloud provider account ID: %v", err)
+				} else if accountID != "" {
+					log.Infof("Detecting `%s` from %s cloud provider: %+q", inventories.HostCloudProviderAccountID, cloudDetector.name, accountID)
+					inventories.SetHostMetadata(inventories.HostCloudProviderAccountID, accountID)
+				}
+			}
+
 			return
 		}
 	}
@@ -85,31 +101,45 @@ type cloudProviderAliasesDetector struct {
 	callback func(context.Context) ([]string, error)
 }
 
+var hostAliasesDetectors = []cloudProviderAliasesDetector{
+	{name: "config", callback: config.GetValidHostAliases},
+	{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
+	{name: ec2.CloudProviderName, callback: ec2.GetHostAliases},
+	{name: azure.CloudProviderName, callback: azure.GetHostAliases},
+	{name: gce.CloudProviderName, callback: gce.GetHostAliases},
+	{name: cloudfoundry.CloudProviderName, callback: cloudfoundry.GetHostAliases},
+	{name: "kubelet", callback: kubelet.GetHostAliases},
+	{name: tencent.CloudProviderName, callback: tencent.GetHostAliases},
+	{name: oracle.CloudProviderName, callback: oracle.GetHostAliases},
+	{name: ibm.CloudProviderName, callback: ibm.GetHostAliases},
+	{name: kubernetes.CloudProviderName, callback: kubernetes.GetHostAliases},
+}
+
 // GetHostAliases returns the hostname aliases from different provider
 func GetHostAliases(ctx context.Context) []string {
-	aliases := config.GetValidHostAliases()
+	aliases := []string{}
 
-	detectors := []cloudProviderAliasesDetector{
-		{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
-		{name: ec2.CloudProviderName, callback: ec2.GetHostAliases},
-		{name: azure.CloudProviderName, callback: azure.GetHostAliases},
-		{name: gce.CloudProviderName, callback: gce.GetHostAliases},
-		{name: cloudfoundry.CloudProviderName, callback: cloudfoundry.GetHostAliases},
-		{name: "kubelet", callback: kubelet.GetHostAliases},
-		{name: tencent.CloudProviderName, callback: tencent.GetHostAliases},
-		{name: oracle.CloudProviderName, callback: oracle.GetHostAliases},
-		{name: ibm.CloudProviderName, callback: ibm.GetHostAliases},
-		{name: kubernetes.CloudProviderName, callback: kubernetes.GetHostAliases},
-	}
+	// cloud providers endpoints can take a few seconds to answer. We're using a WaitGroup to call all of them
+	// concurrently since GetHostAliases is called during the agent startup and is blocking.
+	var wg sync.WaitGroup
+	m := sync.Mutex{}
 
-	for _, cloudAliasesDetector := range detectors {
-		cloudAliases, err := cloudAliasesDetector.callback(ctx)
-		if err != nil {
-			log.Debugf("no %s Host Alias: %s", cloudAliasesDetector.name, err)
-		} else if len(cloudAliases) > 0 {
-			aliases = append(aliases, cloudAliases...)
-		}
+	for _, cloudAliasesDetector := range hostAliasesDetectors {
+		wg.Add(1)
+		go func(cloudAliasesDetector cloudProviderAliasesDetector) {
+			defer wg.Done()
+
+			cloudAliases, err := cloudAliasesDetector.callback(ctx)
+			if err != nil {
+				log.Debugf("No %s Host Alias: %s", cloudAliasesDetector.name, err)
+			} else if len(cloudAliases) > 0 {
+				m.Lock()
+				aliases = append(aliases, cloudAliases...)
+				m.Unlock()
+			}
+		}(cloudAliasesDetector)
 	}
+	wg.Wait()
 
 	return util.SortUniqInPlace(aliases)
 }
@@ -117,9 +147,9 @@ func GetHostAliases(ctx context.Context) []string {
 // GetPublicIPv4 returns the public IPv4 from different providers
 func GetPublicIPv4(ctx context.Context) (string, error) {
 	publicIPProvider := map[string]func(context.Context) (string, error){
-		"EC2":   ec2.GetPublicIPv4,
-		"GCE":   gce.GetPublicIPv4,
-		"Azure": azure.GetPublicIPv4,
+		ec2.CloudProviderName:   ec2.GetPublicIPv4,
+		gce.CloudProviderName:   gce.GetPublicIPv4,
+		azure.CloudProviderName: azure.GetPublicIPv4,
 	}
 	for name, fetcher := range publicIPProvider {
 		publicIPv4, err := fetcher(ctx)

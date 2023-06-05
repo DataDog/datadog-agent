@@ -8,7 +8,7 @@ package metrics
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
 
 var (
@@ -76,6 +76,12 @@ var (
 	// MetricEventDiscarded is the number of event discarded
 	// Tags: discarder_type, event_type
 	MetricEventDiscarded = newRuntimeMetric(".discarders.event_discarded")
+	// MetricApproverAdded is the number of approvers added
+	// Tags: approver_type, event_type
+	MetricApproverAdded = newRuntimeMetric(".approvers.approver_added")
+	// MetricEventApproved is the number of events approved
+	// Tags: approver_type, event_type
+	MetricEventApproved = newRuntimeMetric(".approvers.event_approved")
 
 	// Perf buffer metrics
 
@@ -172,22 +178,26 @@ var (
 
 	// MetricActivityDumpEventProcessed is the name of the metric used to count the number of events processed while
 	// creating an activity dump.
-	// Tags: event_type
+	// Tags: event_type, tree_type
 	MetricActivityDumpEventProcessed = newRuntimeMetric(".activity_dump.event.processed")
 	// MetricActivityDumpEventAdded is the name of the metric used to count the number of events that were added to an
 	// activity dump.
-	// Tags: event_type
+	// Tags: event_type, tree_type
 	MetricActivityDumpEventAdded = newRuntimeMetric(".activity_dump.event.added")
+	// MetricActivityDumpEventDropped is the name of the metric used to count the number of events that were dropped from an
+	// activity dump.
+	// Tags: event_type, reason, tree_type
+	MetricActivityDumpEventDropped = newRuntimeMetric(".activity_dump.event.dropped")
 	// MetricActivityDumpSizeInBytes is the name of the metric used to report the size of the generated activity dumps in
 	// bytes
 	// Tags: format, storage_type, compression
 	MetricActivityDumpSizeInBytes = newRuntimeMetric(".activity_dump.size_in_bytes")
+	// MetricActivityDumpPersistedDumps is the name of the metric used to reported the number of dumps that were persisted
+	// Tags: format, storage_type, compression
+	MetricActivityDumpPersistedDumps = newRuntimeMetric(".activity_dump.persisted_dumps")
 	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
-	// MetricActivityDumpPathMergeCount is the name of the metric used to report the number of path merged
-	// Tags: -
-	MetricActivityDumpPathMergeCount = newRuntimeMetric(".activity_dump.path_merged")
 	// MetricActivityDumpLoadControllerTriggered is the name of the metric used to report that the ADM load controller reduced the config envelope
 	// Tags:reduction, event_type
 	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
@@ -198,18 +208,6 @@ var (
 	// be sent because they are too big
 	// Tags: format, compression
 	MetricActivityDumpEntityTooLarge = newAgentMetric(".activity_dump.entity_too_large")
-	// MetricActivityDumpBrokenLineageDrop is the name of the metric used to report the number of events dropped due to broken ancestors lineage
-	// Tags: -
-	MetricActivityDumpBrokenLineageDrop = newRuntimeMetric(".activity_dump.broken_lineage_drop")
-	// MetricActivityDumpEventTypeDrop is the name of the metric used to report the number of event dropped because their event types is not traced
-	// Tags: -
-	MetricActivityDumpEventTypeDrop = newRuntimeMetric(".activity_dump.event_type_drop")
-	// MetricActivityDumpValidRootNodeDrop is the name of the metric used to report the number of dropped root not valide node
-	// Tags: -
-	MetricActivityDumpValidRootNodeDrop = newRuntimeMetric(".activity_dump.valid_root_node_drop")
-	// MetricActivityDumpBindFamilyDrop is the name of the metric used to report the number of event dropped because the address family is not handled
-	// Tags: -
-	MetricActivityDumpBindFamilyDrop = newRuntimeMetric(".activity_dump.bind_family_drop")
 	// MetricActivityDumpEmptyDropped is the name of the metric used to report the number of activity dumps dropped because they were empty
 	// Tags: -
 	MetricActivityDumpEmptyDropped = newRuntimeMetric(".activity_dump.empty_dump_dropped")
@@ -240,6 +238,27 @@ var (
 	// MetricSBOMResolverSBOMCacheMiss is the name of the metric used to report the number of SBOMs that weren't in cache
 	// Tags: -
 	MetricSBOMResolverSBOMCacheMiss = newRuntimeMetric(".sbom_resolver.sbom_cache.miss")
+
+	// Security Profile metrics
+
+	// MetricSecurityProfileProfiles is the name of the metric used to report the count of Security Profiles per category
+	// Tags: in_kernel (true or false), anomaly_detection (true or false), auto_suppression (true or false), workload_hardening (true or false)
+	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
+	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
+	// Tags: -
+	MetricSecurityProfileCacheLen = newRuntimeMetric(".security_profile.cache.len")
+	// MetricSecurityProfileCacheHit is the name of the metric used to report the count of Security Profile cache hits
+	// Tags: -
+	MetricSecurityProfileCacheHit = newRuntimeMetric(".security_profile.cache.hit")
+	// MetricSecurityProfileCacheMiss is the name of the metric used to report the count of Security Profile cache misses
+	// Tags: -
+	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
+	// MetricSecurityProfileAnomalyDetectionSent
+	// Tags: event_type
+	MetricSecurityProfileAnomalyDetectionSent = newRuntimeMetric(".security_profile.anomaly_detection.sent")
+	// MetricSecurityProfileEventFiltering
+	// Tags: event_type, profile_state ('no_profile', 'unstable', 'unstable_event_type', 'stable', 'auto_learning', 'workload_warmup'), in_profile ('true', 'false' or none)
+	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
 
 	// Namespace resolver metrics
 
@@ -438,7 +457,7 @@ var (
 
 // SetTagsWithCardinality returns the array of tags and set the requested cardinality
 func SetTagsWithCardinality(cardinality string, tags ...string) []string {
-	return append(tags, fmt.Sprintf("%s:%s", dogstatsd.CardinalityTagPrefix, cardinality))
+	return append(tags, fmt.Sprintf("%s:%s", dogstatsdServer.CardinalityTagPrefix, cardinality))
 }
 
 var (

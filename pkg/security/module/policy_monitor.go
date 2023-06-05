@@ -13,10 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -99,7 +99,7 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 					tags := []string{
 						"rule_id:" + id,
 						fmt.Sprintf("status:%v", status),
-						dogstatsd.CardinalityTagPrefix + collectors.LowCardinalityString,
+						dogstatsdServer.CardinalityTagPrefix + collectors.LowCardinalityString,
 					}
 
 					if err := p.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {
@@ -128,24 +128,25 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func ReportRuleSetLoaded(sender EventSender, statsdClient statsd.ClientInterface, ruleSet *rules.RuleSet, err *multierror.Error) {
-	rule, event := NewRuleSetLoadedEvent(ruleSet, err)
+func ReportRuleSetLoaded(sender EventSender, statsdClient statsd.ClientInterface, ruleSets map[string]*rules.RuleSet, err *multierror.Error) {
+	rule, event := NewRuleSetLoadedEvent(ruleSets, err)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
 
-	sender.SendEvent(rule, event, func() []string { return nil }, "")
+	sender.SendEvent(rule, event, nil, "")
 }
 
 // RuleLoaded defines a loaded rule
 // easyjson:json
 type RuleState struct {
-	ID         string `json:"id"`
-	Version    string `json:"version,omitempty"`
-	Expression string `json:"expression"`
-	Status     string `json:"status"`
-	Message    string `json:"message,omitempty"`
+	ID         string            `json:"id"`
+	Version    string            `json:"version,omitempty"`
+	Expression string            `json:"expression"`
+	Status     string            `json:"status"`
+	Message    string            `json:"message,omitempty"`
+	Tags       map[string]string `json:"tags,omitempty"`
 }
 
 // PolicyState is used to report policy was loaded
@@ -160,8 +161,8 @@ type PolicyState struct {
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
-	Timestamp time.Time      `json:"date"`
-	Policies  []*PolicyState `json:"policies"`
+	events.CustomEventCommonFields
+	Policies []*PolicyState `json:"policies"`
 }
 
 func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
@@ -179,25 +180,28 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 		Expression: def.Expression,
 		Status:     status,
 		Message:    message,
+		Tags:       def.Tags,
 	}
 }
 
-// NewRuleSetLoadedEvent returns the rule and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rule, *events.CustomEvent) {
+// NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
+func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.Error) (*rules.Rule, *events.CustomEvent) {
 	mp := make(map[string]*PolicyState)
 
 	var policyState *PolicyState
 	var exists bool
 
-	for _, rule := range rs.GetRules() {
-		ruleDef := rule.Definition
-		policyName := ruleDef.Policy.Name
+	for _, rs := range ruleSets {
+		for _, rule := range rs.GetRules() {
+			ruleDef := rule.Definition
+			policyName := ruleDef.Policy.Name
 
-		if policyState, exists = mp[policyName]; !exists {
-			policyState = PolicyStateFromRuleDefinition(ruleDef)
-			mp[policyName] = policyState
+			if policyState, exists = mp[policyName]; !exists {
+				policyState = PolicyStateFromRuleDefinition(ruleDef)
+				mp[policyName] = policyState
+			}
+			policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
 		}
-		policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
 	}
 
 	// rules ignored due to errors
@@ -222,8 +226,11 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 		policies = append(policies, policy)
 	}
 
-	return events.NewCustomRule(events.RulesetLoadedRuleID), events.NewCustomEvent(model.CustomRulesetLoadedEventType, RulesetLoadedEvent{
-		Timestamp: time.Now(),
-		Policies:  policies,
-	})
+	evt := RulesetLoadedEvent{
+		Policies: policies,
+	}
+	evt.FillCustomEventCommonFields()
+
+	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
+		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
 }

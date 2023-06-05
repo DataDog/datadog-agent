@@ -58,7 +58,7 @@ deploy_deb_testing-a6_x64:
     !reference [.on_kitchen_tests_a6]
   extends:
     - .deploy_deb_testing-a6
-  needs: ["agent_deb-x64-a6", "agent_heroku_deb-x64-a6", "tests_deb-x64-py2", "tests_deb-x64-py3"]
+  needs: ["agent_deb-x64-a6", "agent_heroku_deb-x64-a6", "tests_deb-x64-py2", "lint_deb-x64", "tests_deb-x64-py3"]
   script:
     - *setup_apt_signing_key
     - set +x  # make sure we don't output the creds to the build log
@@ -100,7 +100,7 @@ deploy_deb_testing-a7_x64:
     !reference [.on_default_kitchen_tests_a7]
   extends:
     - .deploy_deb_testing-a7
-  needs: ["agent_deb-x64-a7", "agent_heroku_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64", "tests_deb-x64-py3"]
+  needs: ["agent_deb-x64-a7", "agent_heroku_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64", "lint_deb-x64", "tests_deb-x64-py3"]
   script:
     - *setup_apt_signing_key
     - set +x  # make sure we don't output the creds to the build log
@@ -117,7 +117,7 @@ deploy_deb_testing-a7_arm64:
     !reference [.on_all_kitchen_builds_a7]
   extends:
     - .deploy_deb_testing-a7
-  needs: ["agent_deb-arm64-a7", "tests_deb-arm64-py3"]
+  needs: ["agent_deb-arm64-a7", "lint_deb-arm64", "tests_deb-arm64-py3"]
   script:
     - *setup_apt_signing_key
     - set +x  # make sure we don't output the creds to the build log
@@ -141,7 +141,7 @@ deploy_rpm_testing-a6_x64:
     !reference [.on_kitchen_tests_a6]
   extends:
     - .deploy_rpm_testing-a6
-  needs: ["agent_rpm-x64-a6", "tests_rpm-x64-py2", "tests_rpm-x64-py3"]
+  needs: ["agent_rpm-x64-a6", "tests_rpm-x64-py2", "lint_rpm-x64", "tests_rpm-x64-py3"]
   script:
     - *setup_rpm_signing_key
     - set +x
@@ -152,7 +152,7 @@ deploy_rpm_testing-a6_arm64:
     !reference [.on_all_kitchen_builds_a6]
   extends:
     - .deploy_rpm_testing-a6
-  needs: ["agent_rpm-arm64-a6", "tests_rpm-arm64-py2", "tests_rpm-arm64-py3"]
+  needs: ["agent_rpm-arm64-a6", "tests_rpm-arm64-py2", "lint_rpm-arm64", "tests_rpm-arm64-py3"]
   script:
     - *setup_rpm_signing_key
     - set +x
@@ -172,7 +172,7 @@ deploy_rpm_testing-a7_x64:
     !reference [.on_default_kitchen_tests_a7]
   extends:
     - .deploy_rpm_testing-a7
-  needs: ["agent_rpm-x64-a7", "iot_agent_rpm-x64", "dogstatsd_rpm-x64", "tests_rpm-x64-py3"]
+  needs: ["agent_rpm-x64-a7", "iot_agent_rpm-x64", "dogstatsd_rpm-x64", "lint_rpm-x64", "tests_rpm-x64-py3"]
   script:
     - *setup_rpm_signing_key
     - set +x
@@ -183,7 +183,7 @@ deploy_rpm_testing-a7_arm64:
     !reference [.on_all_kitchen_builds_a7]
   extends:
     - .deploy_rpm_testing-a7
-  needs: ["agent_rpm-arm64-a7", "tests_rpm-arm64-py3"]
+  needs: ["agent_rpm-arm64-a7", "lint_rpm-arm64", "tests_rpm-arm64-py3"]
   script:
     - *setup_rpm_signing_key
     - set +x
@@ -195,7 +195,7 @@ deploy_suse_rpm_testing-a6:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  needs: ["agent_suse-x64-a6", "tests_rpm-x64-py2", "tests_rpm-x64-py3"]
+  needs: ["agent_suse-x64-a6", "tests_rpm-x64-py2", "lint_rpm-x64", "tests_rpm-x64-py3"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
@@ -211,7 +211,7 @@ deploy_suse_rpm_testing-a7:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  needs: ["agent_suse-x64-a7", "iot_agent_suse-x64", "dogstatsd_suse-x64", "tests_rpm-x64-py3"]
+  needs: ["agent_suse-x64-a7", "iot_agent_suse-x64", "dogstatsd_suse-x64", "lint_rpm-x64", "tests_rpm-x64-py3"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -227,7 +227,7 @@ deploy_windows_testing-a6:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  needs: ["tests_windows-x64", "windows_msi_x64-a6"]
+  needs: ["lint_windows-x64", "tests_windows-x64", "windows_msi_x64-a6"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -240,7 +240,7 @@ deploy_windows_testing-a7:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  needs: ["tests_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
+  needs: ["lint_windows-x64", "tests_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:

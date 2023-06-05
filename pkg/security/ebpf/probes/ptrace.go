@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -20,5 +19,12 @@ func getPTraceProbes() []*manager.Probe {
 		},
 		SyscallFuncName: "ptrace",
 	}, EntryAndExit)...)
+	ptraceProbes = append(ptraceProbes, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/ptrace_check_attach",
+			EBPFFuncName: "kprobe_ptrace_check_attach",
+		},
+	})
 	return ptraceProbes
 }

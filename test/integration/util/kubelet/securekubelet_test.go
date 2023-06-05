@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubernetes
 
@@ -140,6 +139,8 @@ func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 }
 
 func TestSecureKubeletSuite(t *testing.T) {
+	config.SetFeatures(t, config.Kubernetes)
+
 	compose, certsConfig, err := initSecureKubelet()
 	defer os.Remove(certsConfig.CertFilePath)
 	defer os.Remove(certsConfig.KeyFilePath)

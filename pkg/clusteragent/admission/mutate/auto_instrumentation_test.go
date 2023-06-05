@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package mutate
 
@@ -12,9 +11,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic/fake"
 )
 
 func TestInjectAutoInstruConfig(t *testing.T) {
@@ -400,6 +401,78 @@ func TestExtractLibInfo(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:              "all",
+			pod:               fakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:latest",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:latest",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+		},
+		{
+			name: "java + all",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"admission.datadoghq.com/all-lib.version":  "latest",
+						"admission.datadoghq.com/java-lib.version": "v1",
+					},
+				},
+			},
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:v1",
+				},
+			},
+		},
+		{
+			name:              "all with unsupported version",
+			pod:               fakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "unsupported"),
+			containerRegistry: "registry",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:latest",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:latest",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -434,6 +507,22 @@ func TestInjectLibConfig(t *testing.T) {
 			},
 		},
 		{
+			name:    "inject all case",
+			pod:     fakePodWithAnnotation("admission.datadoghq.com/all-lib.config.v1", `{"version":1,"service_language":"all","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
+			lang:    "all",
+			wantErr: false,
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+			},
+		},
+		{
 			name:         "invalid json",
 			pod:          fakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", "invalid"),
 			lang:         java,
@@ -452,6 +541,464 @@ func TestInjectLibConfig(t *testing.T) {
 			envCount := 0
 			for _, expectEnv := range tt.expectedEnvs {
 				for _, contEnv := range container.Env {
+					if expectEnv.Name == contEnv.Name {
+						require.Equal(t, expectEnv.Value, contEnv.Value)
+						envCount++
+						break
+					}
+				}
+			}
+			require.Equal(t, len(tt.expectedEnvs), envCount)
+		})
+	}
+}
+
+func TestInjectLibInitContainer(t *testing.T) {
+	tests := []struct {
+		name    string
+		cpu     string
+		mem     string
+		pod     *corev1.Pod
+		image   string
+		lang    language
+		wantErr bool
+	}{
+		{
+			name:    "no resources",
+			pod:     fakePod("java-pod"),
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:    "with resources",
+			pod:     fakePod("java-pod"),
+			cpu:     "100m",
+			mem:     "500",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:    "cpu only",
+			pod:     fakePod("java-pod"),
+			cpu:     "200m",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:    "memory only",
+			pod:     fakePod("java-pod"),
+			mem:     "512Mi",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: false,
+		},
+		{
+			name:    "with invalid resources",
+			pod:     fakePod("java-pod"),
+			cpu:     "foo",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := config.Mock(t)
+			if tt.cpu != "" {
+				conf.Set("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
+			}
+			if tt.mem != "" {
+				conf.Set("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
+			}
+			err := injectLibInitContainer(tt.pod, tt.image, tt.lang)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			require.Len(t, tt.pod.Spec.InitContainers, 1)
+			if tt.cpu != "" {
+				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
+				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
+				require.Equal(t, tt.cpu, req.String())
+				require.Equal(t, tt.cpu, lim.String())
+			}
+			if tt.mem != "" {
+				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
+				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
+				require.Equal(t, tt.mem, req.String())
+				require.Equal(t, tt.mem, lim.String())
+			}
+		})
+	}
+}
+
+func TestInjectAll(t *testing.T) {
+	wantAll := []libInfo{
+		{lang: java, image: "gcr.io/datadoghq/dd-lib-java-init:latest"},
+		{lang: js, image: "gcr.io/datadoghq/dd-lib-js-init:latest"},
+		{lang: python, image: "gcr.io/datadoghq/dd-lib-python-init:latest"},
+		{lang: dotnet, image: "gcr.io/datadoghq/dd-lib-dotnet-init:latest"},
+		{lang: ruby, image: "gcr.io/datadoghq/dd-lib-ruby-init:latest"},
+	}
+	tests := []struct {
+		name             string
+		ns               string
+		targetNamespaces []string
+		want             []libInfo
+	}{
+		{
+			name:             "nominal",
+			ns:               "targeted",
+			targetNamespaces: []string{"targeted"},
+			want:             wantAll,
+		},
+		{
+			name:             "many",
+			ns:               "targeted",
+			targetNamespaces: []string{"targeted", "foo", "bar"},
+			want:             wantAll,
+		},
+		{
+			name:             "no match",
+			ns:               "not-targeted",
+			targetNamespaces: []string{"foo", "bar"},
+			want:             []libInfo{},
+		},
+		{
+			name:             "empty target",
+			ns:               "targeted",
+			targetNamespaces: []string{},
+			want:             []libInfo{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			targetNamespaces = tt.targetNamespaces
+			got := injectAll(tt.ns, "gcr.io/datadoghq")
+			require.EqualValues(t, tt.want, got)
+		})
+	}
+}
+
+func TestInjectAutoInstrumentation(t *testing.T) {
+	tests := []struct {
+		name         string
+		pod          *corev1.Pod
+		expectedEnvs []corev1.EnvVar
+		wantErr      bool
+	}{
+		{
+			name: "inject all",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/all-lib.version":   "latest",
+				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "RUBYOPT",
+					Value: " -r/datadog-lib/auto_inject",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar",
+				},
+				{
+					Name:  "DD_DOTNET_TRACER_HOME",
+					Value: "/datadog-lib",
+				},
+				{
+					Name:  "CORECLR_ENABLE_PROFILING",
+					Value: "1",
+				},
+				{
+					Name:  "CORECLR_PROFILER",
+					Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+				},
+				{
+					Name:  "CORECLR_PROFILER_PATH",
+					Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
+				},
+				{
+					Name:  "DD_TRACE_LOG_DIRECTORY",
+					Value: "/datadog-lib/logs",
+				},
+				{
+					Name:  "LD_PRELOAD",
+					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject java",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/java-lib.version":   "latest",
+				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject python",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/python-lib.version":   "latest",
+				"admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject node",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/js-lib.version":   "latest",
+				"admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject library and all",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/all-lib.version":   "latest",
+				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+				"admission.datadoghq.com/js-lib.version":    "v1.10",
+				"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.40",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject library and all no library version",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/all-lib.version":   "latest",
+				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+				"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "RUBYOPT",
+					Value: " -r/datadog-lib/auto_inject",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar",
+				},
+				{
+					Name:  "DD_DOTNET_TRACER_HOME",
+					Value: "/datadog-lib",
+				},
+				{
+					Name:  "CORECLR_ENABLE_PROFILING",
+					Value: "1",
+				},
+				{
+					Name:  "CORECLR_PROFILER",
+					Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+				},
+				{
+					Name:  "CORECLR_PROFILER_PATH",
+					Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
+				},
+				{
+					Name:  "DD_TRACE_LOG_DIRECTORY",
+					Value: "/datadog-lib/logs",
+				},
+				{
+					Name:  "LD_PRELOAD",
+					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.40",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "inject all error - bad json",
+			pod: fakePodWithAnnotations(map[string]string{
+				// TODO: we might not want to be injecting the libraries if the config is malformed
+				"admission.datadoghq.com/all-lib.version":   "latest",
+				"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "RUBYOPT",
+					Value: " -r/datadog-lib/auto_inject",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar",
+				},
+				{
+					Name:  "DD_DOTNET_TRACER_HOME",
+					Value: "/datadog-lib",
+				},
+				{
+					Name:  "CORECLR_ENABLE_PROFILING",
+					Value: "1",
+				},
+				{
+					Name:  "CORECLR_PROFILER",
+					Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+				},
+				{
+					Name:  "CORECLR_PROFILER_PATH",
+					Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
+				},
+				{
+					Name:  "DD_TRACE_LOG_DIRECTORY",
+					Value: "/datadog-lib/logs",
+				},
+				{
+					Name:  "LD_PRELOAD",
+					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "inject java bad json",
+			pod: fakePodWithAnnotations(map[string]string{
+				"admission.datadoghq.com/java-lib.version":   "latest",
+				"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
+			}),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar",
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
+			require.False(t, (err != nil) != tt.wantErr)
+
+			container := tt.pod.Spec.Containers[0]
+			for _, contEnv := range container.Env {
+				found := false
+				for _, expectEnv := range tt.expectedEnvs {
+					if expectEnv.Name == contEnv.Name {
+						found = true
+						break
+					}
+				}
+				if !found {
+					require.Failf(t, "Unexpected env var injected in container", contEnv.Name)
+				}
+			}
+			for _, expectEnv := range tt.expectedEnvs {
+				found := false
+				for _, contEnv := range container.Env {
+					if expectEnv.Name == contEnv.Name {
+						found = true
+						break
+					}
+				}
+				if !found {
+					require.Failf(t, "Unexpected env var injected in container", expectEnv.Name)
+				}
+			}
+
+			envCount := 0
+			for _, contEnv := range container.Env {
+				for _, expectEnv := range tt.expectedEnvs {
 					if expectEnv.Name == contEnv.Name {
 						require.Equal(t, expectEnv.Value, contEnv.Value)
 						envCount++

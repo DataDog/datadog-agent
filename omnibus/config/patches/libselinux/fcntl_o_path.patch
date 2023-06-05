@@ -1,0 +1,39 @@
+--- a/src/fsetfilecon.c
++++ b/src/fsetfilecon.c
+@@ -8,6 +8,10 @@
+ #include "selinux_internal.h"
+ #include "policy.h"
+ 
++#ifndef O_PATH
++# define O_PATH 010000000
++#endif
++
+ static int fsetxattr_wrapper(int fd, const char* name, const void* value, size_t size, int flags) {
+ 	char buf[40];
+ 	int rc, fd_flag, saved_errno = errno;
+--- a/src/fgetfilecon.c
++++ b/src/fgetfilecon.c
+@@ -7,6 +7,10 @@
+ #include <sys/xattr.h>
+ #include "selinux_internal.h"
+ #include "policy.h"
++ 
++#ifndef O_PATH
++# define O_PATH 010000000
++#endif
+ 
+ static ssize_t fgetxattr_wrapper(int fd, const char *name, void *value, size_t size) {
+ 	char buf[40];
+--- a/src/selinux_restorecon.c
++++ b/src/selinux_restorecon.c
+@@ -39,6 +39,10 @@
+ #include "label_file.h"
+ #include "sha1.h"
+ 
++#ifndef O_PATH
++# define O_PATH 010000000
++#endif
++
+ #define STAR_COUNT 1024
+ 
+ static struct selabel_handle *fc_sehandle = NULL;

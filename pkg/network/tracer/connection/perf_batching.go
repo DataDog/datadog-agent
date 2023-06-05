@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package connection
 
@@ -23,7 +22,7 @@ import (
 
 const defaultExpiredStateInterval = 60 * time.Second
 
-// perfBatchManager is reponsbile for two things:
+// perfBatchManager is responsible for two things:
 //
 // * Keeping track of the state of each batch object we read off the perf ring;
 // * Detecting idle batches (this might happen in hosts with a low connection churn);
@@ -170,12 +169,12 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 }
 
 func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
-	connCloseEventMap, _, err := mgr.GetMap(string(probes.ConnCloseEventMap))
+	connCloseEventMap, _, err := mgr.GetMap(probes.ConnCloseEventMap)
 	if err != nil {
 		return nil, err
 	}
 
-	connCloseMap, _, err := mgr.GetMap(string(probes.ConnCloseBatchMap))
+	connCloseMap, _, err := mgr.GetMap(probes.ConnCloseBatchMap)
 	if err != nil {
 		return nil, err
 	}

@@ -19,6 +19,7 @@ type EbpfKafkaTx struct {
 	Tup                 kafkaConnTuple
 	Request_api_key     uint16
 	Request_api_version uint16
-	Topic_name          [80]int8
-	Pad_cgo_0           [4]byte
+	Topic_name          [80]byte
+	Topic_name_size     uint16
+	Pad_cgo_0           [2]byte
 }

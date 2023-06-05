@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -105,7 +104,7 @@ func TestDentryResolutionERPC(t *testing.T) {
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_erpc_rule")
 
-		test.module.SendStats()
+		test.eventMonitor.SendStats()
 
 		key := metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
 		assert.NotEmpty(t, test.statsdClient.Get(key))
@@ -159,7 +158,7 @@ func TestDentryResolutionMap(t *testing.T) {
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_map_rule")
 
-		test.module.SendStats()
+		test.eventMonitor.SendStats()
 
 		key := metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
 		assert.NotEmpty(t, test.statsdClient.Get(key))
@@ -216,7 +215,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -285,7 +284,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -354,7 +353,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -423,7 +422,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}

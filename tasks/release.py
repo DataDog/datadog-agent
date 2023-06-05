@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 from collections import OrderedDict
 from datetime import date
 from time import sleep
@@ -16,12 +17,11 @@ from invoke.exceptions import Exit
 from .libs.common.color import color_message
 from .libs.common.github_api import GithubAPI, get_github_token
 from .libs.common.gitlab import Gitlab, get_gitlab_token
-from .libs.common.remote_api import APIError
 from .libs.common.user_interactions import yes_no_question
 from .libs.version import Version
 from .modules import DEFAULT_MODULES
 from .pipeline import run
-from .utils import DEFAULT_BRANCH, get_version, nightly_entry_for, release_entry_for
+from .utils import DEFAULT_BRANCH, check_clean_branch_state, get_version, nightly_entry_for, release_entry_for
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -349,12 +349,18 @@ def _stringify_config(config_dict):
     return {key: str(value) for key, value in config_dict.items()}
 
 
-def _query_github_api(auth_token, url):
+def _query_github_api(auth_token, url, retry_number=5, sleep_time=1):
     import requests
 
     # Basic auth doesn't seem to work with private repos, so we use token auth here
     headers = {"Authorization": f"token {auth_token}"}
-    response = requests.get(url, headers=headers)
+    for retry_count in range(retry_number):
+        response = requests.get(url, headers=headers)
+        if 500 <= response.status_code < 600:
+            # We wait progressively more at each retry in case of overloaded servers
+            time.sleep(sleep_time + sleep_time * retry_count)
+        else:
+            break
     return response
 
 
@@ -377,7 +383,13 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
 
 
 def _get_highest_repo_version(
-    auth, repo, version_prefix, version_re, allowed_major_versions=None, max_version: Version = None
+    auth,
+    repo,
+    version_prefix,
+    version_re,
+    allowed_major_versions=None,
+    max_version: Version = None,
+    request_retry_sleep_time=1,
 ):
     # If allowed_major_versions is not specified, search for all versions by using an empty
     # major version prefix.
@@ -389,7 +401,7 @@ def _get_highest_repo_version(
     for major_version in allowed_major_versions:
         url = f"https://api.github.com/repos/DataDog/{repo}/git/matching-refs/tags/{version_prefix}{major_version}"
 
-        tags = _query_github_api(auth, url).json()
+        tags = _query_github_api(auth, url, sleep_time=request_retry_sleep_time).json()
 
         for tag in tags:
             match = version_re.search(tag["ref"])
@@ -923,41 +935,6 @@ def check_base_branch(branch, release_version):
     return branch == DEFAULT_BRANCH or branch == release_version.branch()
 
 
-def check_uncommitted_changes(ctx):
-    """
-    Checks if there are uncommitted changes in the local git repository.
-    """
-    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
-
-    # Return True if at least one file has uncommitted changes.
-    return modified_files != "0"
-
-
-def check_local_branch(ctx, branch):
-    """
-    Checks if the given branch exists locally
-    """
-    matching_branch = ctx.run(f"git --no-pager branch --list {branch} | wc -l", hide=True).stdout.strip()
-
-    # Return True if a branch is returned by git branch --list
-    return matching_branch != "0"
-
-
-def check_upstream_branch(github, branch):
-    """
-    Checks if the given branch already exists in the upstream repository
-    """
-    try:
-        github_branch = github.get_branch(branch)
-    except APIError as e:
-        if e.status_code == 404:
-            return False
-        raise e
-
-    # Return True if the branch exists
-    return github_branch and github_branch.get('name', False)
-
-
 def parse_major_versions(major_versions):
     return sorted(int(x) for x in major_versions.split(","))
 
@@ -1079,41 +1056,15 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    if check_uncommitted_changes(ctx):
-        raise Exit(
-            color_message(
-                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
-                "red",
-            ),
-            code=1,
-        )
-
     # Check that the current and update branches are valid
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     update_branch = f"release/{new_highest_version}"
 
+    check_clean_branch_state(ctx, github, update_branch)
     if not check_base_branch(current_branch, new_highest_version):
         raise Exit(
             color_message(
                 f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
-                "red",
-            ),
-            code=1,
-        )
-
-    if check_local_branch(ctx, update_branch):
-        raise Exit(
-            color_message(
-                f"The branch {update_branch} already exists locally. Please remove it before trying again.",
-                "red",
-            ),
-            code=1,
-        )
-
-    if check_upstream_branch(github, update_branch):
-        raise Exit(
-            color_message(
-                f"The branch {update_branch} already exists upstream. Please remove it before trying again.",
                 "red",
             ),
             code=1,
@@ -1302,7 +1253,6 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
 def get_release_json_value(_, key):
-
     release_json = _load_release_json()
 
     path = key.split('::')
@@ -1391,14 +1341,8 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    if check_uncommitted_changes(ctx):
-        raise Exit(
-            color_message(
-                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
-                "red",
-            ),
-            code=1,
-        )
+    github = GithubAPI(repository=REPOSITORY_NAME, api_token=get_github_token())
+    check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(
         f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",

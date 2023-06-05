@@ -11,10 +11,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -57,8 +62,8 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			if tc.override {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
-
-			c, err := NewSubmitter(testHostName)
+			forwarders := newForwardersMock(t, mockConfig)
+			c, err := NewSubmitter(mockConfig, forwarders, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
 			assert.Equal(t, tc.expectedQueueSize, c.podResults.MaxSize())
@@ -105,8 +110,8 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 			if tc.override {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
-
-			c, err := NewSubmitter(testHostName)
+			forwarders := newForwardersMock(t, mockConfig)
+			c, err := NewSubmitter(mockConfig, forwarders, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
@@ -152,8 +157,8 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			if tc.override {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
-
-			s, err := NewSubmitter(testHostName)
+			forwarders := newForwardersMock(t, mockConfig)
+			s, err := NewSubmitter(mockConfig, forwarders, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
 			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
@@ -163,7 +168,8 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 }
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {
-	submitter, err := NewSubmitter(testHostName)
+	deps := newSubmitterDeps(t)
+	submitter, err := NewSubmitter(deps.Config, deps.Forwarders, testHostName)
 	assert.NoError(t, err)
 
 	now := time.Now()
@@ -281,7 +287,8 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 }
 
 func Test_getRequestID(t *testing.T) {
-	s, err := NewSubmitter(testHostName)
+	deps := newSubmitterDeps(t)
+	s, err := NewSubmitter(deps.Config, deps.Forwarders, testHostName)
 	assert.NoError(t, err)
 
 	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)
@@ -307,4 +314,23 @@ func Test_getRequestID(t *testing.T) {
 	s.requestIDCachedHash = nil
 	id5 := s.getRequestID(fixedDate1, 1)
 	assert.NotEqual(t, id1, id5)
+}
+
+type submitterDeps struct {
+	fx.In
+	Config     config.Component
+	Forwarders forwarders.Component
+}
+
+func newSubmitterDeps(t *testing.T) submitterDeps {
+	return fxutil.Test[submitterDeps](t, getForwardersMockModules(nil))
+}
+
+func newForwardersMock(t *testing.T, config ddconfig.Config) forwarders.Component {
+	overrides := config.AllSettings()
+	return fxutil.Test[forwarders.Component](t, getForwardersMockModules(overrides))
+}
+
+func getForwardersMockModules(configOverrides map[string]interface{}) fx.Option {
+	return fx.Options(config.MockModule, fx.Replace(config.MockParams{Overrides: configOverrides}), forwarders.MockModule, log.MockModule)
 }

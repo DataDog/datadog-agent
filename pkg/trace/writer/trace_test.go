@@ -411,6 +411,7 @@ func BenchmarkSpanProto(b *testing.B) {
 		},
 	}
 	for n := 0; n < b.N; n++ {
-		proto.Marshal(&s)
+		//proto.Marshal(&s)
+		s.MarshalVT()
 	}
 }

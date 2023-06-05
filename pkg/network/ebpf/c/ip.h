@@ -2,17 +2,27 @@
 #define __IP_H
 
 #include "ktypes.h"
-#include "bpf_tracing.h"
+#include "bpf_builtins.h"
 #include "bpf_core_read.h"
 #include "bpf_endian.h"
+#include "bpf_tracing.h"
+#include "compiler.h"
+
+#include "conn_tuple.h"
+
+#define TCPHDR_FIN 0x01
+#define TCPHDR_RST 0x04
+#define TCPHDR_ACK 0x10
 
 #ifdef COMPILE_CORE
+#define AF_INET 2 /* Internet IP Protocol */
+#define AF_INET6 10 /* IP version 6 */
+
 // from uapi/linux/if_ether.h
 #define ETH_HLEN 14 /* Total octets in header. */
 #define ETH_P_IP 0x0800 /* Internet Protocol packet */
 #define ETH_P_IPV6 0x86DD /* IPv6 over bluebook */
 #else
-#include "kconfig.h"
 #include <uapi/linux/if_ether.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
@@ -103,6 +113,17 @@ static __always_inline void read_ipv4_skb(struct __sk_buff *skb, __u64 off, __u6
     *addr = bpf_ntohll(*addr) >> 32;
 }
 
+// skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
+// some ancillary data such as the data offset (the byte offset pointing to
+// where the application payload begins) and the TCP flags if applicable.
+// This struct is populated by calling `read_conn_tuple_skb` from a program type
+// that manipulates a `__sk_buff` object.
+typedef struct {
+    __u32 data_off;
+    __u32 tcp_seq;
+    __u8 tcp_flags;
+} skb_info_t;
+
 // On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
@@ -189,11 +210,25 @@ __maybe_unused static __always_inline void flip_tuple(conn_tuple_t *t) {
 // On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline void print_ip(u64 ip_h, u64 ip_l, u16 port, u32 metadata) {
+// support for %pI4 and %pI6 added in https://github.com/torvalds/linux/commit/d9c9e4db186ab4d81f84e6f22b225d333b9424e3
+#if defined(COMPILE_RUNTIME) && defined(LINUX_VERSION_CODE) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 13, 0)
+    if (metadata & CONN_V6) {
+        struct in6_addr addr;
+        addr.in6_u.u6_addr32[0] = ip_h & 0xFFFFFFFF;
+        addr.in6_u.u6_addr32[1] = (ip_h >> 32) & 0xFFFFFFFF;
+        addr.in6_u.u6_addr32[2] = ip_l & 0xFFFFFFFF;
+        addr.in6_u.u6_addr32[3] = (ip_l >> 32) & 0xFFFFFFFF;
+        log_debug("v6 %pI6:%u\n", &addr, port);
+    } else {
+        log_debug("v4 %pI4:%u\n", &ip_l, port);
+    }
+#else
     if (metadata & CONN_V6) {
         log_debug("v6 %llx%llx:%u\n", bpf_ntohll(ip_h), bpf_ntohll(ip_l), port);
     } else {
         log_debug("v4 %x:%u\n", bpf_ntohl((u32)ip_l), port);
     }
+#endif
 }
 
 #endif

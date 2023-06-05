@@ -187,7 +187,8 @@ data:
             "wait4",
             "waitid",
             "waitpid",
-            "write"
+            "write",
+            "statx"
           ],
           "action": "SCMP_ACT_ALLOW",
           "args": null

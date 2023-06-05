@@ -4,17 +4,27 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package main
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"gotest.tools/assert"
+	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/spf13/cast"
+	"github.com/stretchr/testify/assert"
 )
 
+func setupTest() {
+	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	config.InitConfig(config.Datadog)
+}
+
 func TestProxyNotLoaded(t *testing.T) {
+	setupTest()
+
 	proxyHttp := "abc:1234"
 	proxyHttps := "abc:5678"
 	t.Setenv("DD_PROXY_HTTP", proxyHttp)
@@ -26,6 +36,8 @@ func TestProxyNotLoaded(t *testing.T) {
 }
 
 func TestProxyLoaded(t *testing.T) {
+	setupTest()
+
 	proxyHttp := "abc:1234"
 	proxyHttps := "abc:5678"
 	t.Setenv("DD_PROXY_HTTP", proxyHttp)
@@ -35,4 +47,23 @@ func TestProxyLoaded(t *testing.T) {
 	proxyHttpsConfig := config.Datadog.GetString("proxy.https")
 	assert.Equal(t, proxyHttp, proxyHttpConfig)
 	assert.Equal(t, proxyHttps, proxyHttpsConfig)
+}
+
+func TestTagsSetup(t *testing.T) {
+	setupTest()
+
+	ddTagsEnv := "key1:value1 key2:value2 key3:value3:4"
+	ddExtraTagsEnv := "key22:value22 key23:value23"
+	t.Setenv("DD_TAGS", ddTagsEnv)
+	t.Setenv("DD_EXTRA_TAGS", ddExtraTagsEnv)
+	ddTags := cast.ToStringSlice(ddTagsEnv)
+	ddExtraTags := cast.ToStringSlice(ddExtraTagsEnv)
+
+	allTags := append(ddTags, ddExtraTags...)
+
+	_, _, traceAgent, metricAgent := setup()
+	defer traceAgent.Stop()
+	defer metricAgent.Stop()
+	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
+	assert.Subset(t, logs.GetLogsTags(), allTags)
 }

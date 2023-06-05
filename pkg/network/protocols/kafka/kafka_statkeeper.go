@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package kafka
 
@@ -34,7 +33,7 @@ func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
 		RequestAPIKey:  tx.APIKey(),
 		RequestVersion: tx.APIVersion(),
 		TopicName:      tx.TopicName(),
-		KeyTuple:       tx.ConnTuple(),
+		ConnectionKey:  tx.ConnTuple(),
 	}
 	statKeeper.statsMutex.Lock()
 	defer statKeeper.statsMutex.Unlock()

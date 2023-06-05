@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package netlink
 
@@ -431,7 +430,6 @@ func newConntracker(maxSize int) *realConntracker {
 	rt := &realConntracker{
 		maxStateSize: maxSize,
 		cache:        newConntrackCache(maxSize, defaultOrphanTimeout),
-		stats:        newStats(),
 	}
 
 	return rt

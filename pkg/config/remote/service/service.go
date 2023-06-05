@@ -67,6 +67,9 @@ type Service struct {
 	// The number of errors we're currently tracking within the context of our backoff policy
 	backoffErrorCount int
 
+	// Handle to stop the services main goroutine
+	cancel context.CancelFunc
+
 	clock         clock.Clock
 	hostname      string
 	traceAgentEnv string
@@ -235,12 +238,13 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 // Start the remote configuration management service
 func (s *Service) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
+	s.cancel = cancel
 	go func() {
 		defer cancel()
 
 		err := s.refresh()
 		if err != nil {
-			log.Errorf("could not refresh remote-config: %v", err)
+			log.Errorf("Could not refresh Remote Config: %v", err)
 		}
 
 		for {
@@ -262,11 +266,19 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 
 			if err != nil {
-				log.Errorf("could not refresh remote-config: %v", err)
+				log.Errorf("Could not refresh Remote Config: %v", err)
 			}
 		}
 	}()
 	return nil
+}
+
+func (s *Service) Stop() error {
+	if s.cancel != nil {
+		s.cancel()
+	}
+
+	return s.db.Close()
 }
 
 func (s *Service) calculateRefreshInterval() time.Duration {
@@ -292,6 +304,7 @@ func (s *Service) refresh() error {
 	}
 	orgUUID, err := s.uptane.StoredOrgUUID()
 	if err != nil {
+		s.Unlock()
 		return err
 	}
 
@@ -321,7 +334,7 @@ func (s *Service) refresh() error {
 		if err == nil && ri > 0 && s.defaultRefreshInterval != ri {
 			s.defaultRefreshInterval = ri
 			s.cacheBypassClients.windowDuration = ri
-			log.Info("Overriding agent's base refresh interval to %v due to backend recommendation", ri)
+			log.Infof("Overriding agent's base refresh interval to %v due to backend recommendation", ri)
 		}
 	}
 

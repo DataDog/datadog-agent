@@ -14,7 +14,7 @@ import (
 
 type queue struct {
 	chunkSize int
-	data      []model.EventsPayload
+	data      []*model.EventsPayload
 	sync.RWMutex
 }
 
@@ -22,13 +22,13 @@ type queue struct {
 func newQueue(chunkSize int) *queue {
 	return &queue{
 		chunkSize: chunkSize,
-		data:      []model.EventsPayload{},
+		data:      []*model.EventsPayload{},
 	}
 }
 
 // flush returns and resets the queue content. Returns nil if the queue is empty.
 // flush is thread-safe.
-func (q *queue) flush() []model.EventsPayload {
+func (q *queue) flush() []*model.EventsPayload {
 	q.Lock()
 	defer q.Unlock()
 
@@ -39,7 +39,7 @@ func (q *queue) flush() []model.EventsPayload {
 	data := q.data
 
 	// Reset the data in the queue.
-	q.data = []model.EventsPayload{}
+	q.data = []*model.EventsPayload{}
 
 	return data
 }
@@ -98,9 +98,9 @@ func (q *queue) isEmpty() bool {
 
 // lastPayload returns the last payload entry in the queue.
 // lastPayload is not thread-safe, the caller must lock the queue.
-func (q *queue) lastPayload() (model.EventsPayload, error) {
+func (q *queue) lastPayload() (*model.EventsPayload, error) {
 	if q.isEmpty() {
-		return model.EventsPayload{}, errors.New("empty queue")
+		return nil, errors.New("empty queue")
 	}
 
 	return q.data[len(q.data)-1], nil

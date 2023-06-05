@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -13,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -31,7 +30,7 @@ func TestProcessArgsFlags(t *testing.T) {
 	}
 
 	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts(nil))
+		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
 		Exec: model.ExecEvent{
@@ -92,7 +91,7 @@ func TestProcessArgsOptions(t *testing.T) {
 	}
 
 	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts(nil))
+		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
 		Exec: model.ExecEvent{

@@ -15,11 +15,10 @@ import (
 )
 
 func TestMockLogging(t *testing.T) {
-	fxutil.Test(t, fx.Options(
+	log := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(Params{}),
 		config.MockModule,
 		MockModule,
-	), func(log Component) {
-		log.Debugf("hello, world. %s", "hi")
-	})
+	))
+	log.Debugf("hello, world. %s", "hi")
 }

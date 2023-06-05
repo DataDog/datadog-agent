@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package netns
 
@@ -19,14 +18,13 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/gopsutil/process"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
@@ -156,7 +154,12 @@ func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manag
 	if err != nil {
 		return
 	}
-	defer handle.Close()
+
+	defer func() {
+		if cerr := handle.Close(); cerr != nil {
+			seclog.Warnf("could not close file [%s]: %s", handle.Name(), cerr)
+		}
+	}()
 
 	for _, queuedDevice := range nn.networkDevicesQueue {
 		_ = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager)
@@ -293,7 +296,11 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 	if err != nil {
 		return 0
 	}
-	defer handle.Close()
+	defer func() {
+		if cerr := handle.Close(); cerr != nil {
+			seclog.Warnf("could not close file [%s]: %s", handle.Name(), cerr)
+		}
+	}()
 
 	ntl, err := nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 	if err != nil {
@@ -327,6 +334,7 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 			}
 		}
 	}
+
 	return attachedDeviceCountNoLazyDeletion
 }
 
@@ -342,12 +350,12 @@ func (nr *Resolver) IsLazyDeletionInterface(name string) bool {
 }
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the namespace cache.
-func (nr *Resolver) SyncCache(proc *process.Process) bool {
+func (nr *Resolver) SyncCache(pid uint32) bool {
 	if !nr.config.NetworkEnabled {
 		return false
 	}
 
-	nsPath := utils.NetNSPathFromPid(uint32(proc.Pid))
+	nsPath := utils.NetNSPathFromPid(pid)
 	nsID, err := nsPath.GetProcessNetworkNamespace()
 	if err != nil {
 		return false
@@ -432,12 +440,21 @@ func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	// if we can, make sure the manager has a valid netlink socket to this handle before removing everything
 	handle, err := netns.getNamespaceHandleDup()
 	if err == nil {
-		defer handle.Close()
+		defer func() {
+			if cerr := handle.Close(); cerr != nil {
+				seclog.Warnf("could not close file [%s]: %s", handle.Name(), cerr)
+			}
+		}()
 		_, _ = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 	}
 
 	// close network namespace handle to release the namespace
-	netns.close()
+	if netns.hasValidHandle() {
+		err = netns.close()
+		if err != nil {
+			seclog.Warnf("could not close file [%s]: %s", netns.handle.Name(), err)
+		}
+	}
 
 	// remove all references to this network namespace from the manager
 	_ = nr.manager.CleanupNetworkNamespace(netns.nsID)
@@ -626,6 +643,12 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 		return resp
 	}
 
+	if err = dumpFile.Close(); err != nil {
+		resp.Error = fmt.Sprintf("could not close file [%s]: %s", dumpFile.Name(), err)
+		seclog.Warnf(resp.Error)
+		return resp
+	}
+
 	// create graph file
 	graphFile, err := newTmpFile("network-namespace-graph-*.dot")
 	if err != nil {
@@ -639,6 +662,12 @@ func (nr *Resolver) DumpNetworkNamespaces(params *api.DumpNetworkNamespaceParams
 	// generate dot graph
 	if err = nr.generateGraph(dump, graphFile); err != nil {
 		resp.Error = fmt.Sprintf("couldn't generate dot graph: %v", err)
+		seclog.Warnf(resp.Error)
+		return resp
+	}
+
+	if err = graphFile.Close(); err != nil {
+		resp.Error = fmt.Sprintf("could not close file [%s]: %s", graphFile.Name(), err)
 		seclog.Warnf(resp.Error)
 		return resp
 	}

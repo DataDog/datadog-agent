@@ -5,7 +5,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.1.0
+install_script_version=1.2.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
@@ -13,6 +13,10 @@ log_dir=/opt/datadog-agent/logs
 run_dir=/opt/datadog-agent/run
 service_name="com.datadoghq.agent"
 systemwide_servicefile_name="/Library/LaunchDaemons/${service_name}.plist"
+
+if [ -n "$DD_REPO_URL" ]; then
+    dmg_base_url=$DD_REPO_URL
+fi
 
 upgrade=
 if [ -n "$DD_UPGRADE" ]; then
@@ -36,16 +40,23 @@ if [ -n "$DD_SITE" ]; then
     site=$DD_SITE
 fi
 
+agent_dist_channel=
+if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
+    agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
+fi
+
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
   #  - 20   = defaults to highest patch version x.20.2
   #  - 20.0 = sets explicit patch version x.20.0
   # Note: Specifying an invalid minor version will terminate the script.
-  agent_minor_version=$DD_AGENT_MINOR_VERSION
+  agent_minor_version=${DD_AGENT_MINOR_VERSION}
+  # Handle pre-release versions like "35.0~rc.5" -> "35.0" or "27.1~viper~conflict~fix" -> "27.1"   
+  clean_agent_minor_version=$(echo "${DD_AGENT_MINOR_VERSION}" | sed -E 's/-.*//g')
   # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
-  agent_minor_version_without_patch="${agent_minor_version%.*}"
-  if [ "$agent_minor_version" != "$agent_minor_version_without_patch" ]; then
-      agent_patch_version="${agent_minor_version#*.}"
+  agent_minor_version_without_patch="${clean_agent_minor_version%.*}"
+  if [ "$clean_agent_minor_version" != "$agent_minor_version_without_patch" ]; then
+      agent_patch_version="${clean_agent_minor_version#*.}"
   fi
 fi
 
@@ -119,7 +130,7 @@ if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] 
     echo -e "\033[31mDatadog Agent doesn't support macOS < 10.12.\033[0m\n"
     exit 1
 elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 12 ]; then
-    if [ -n "${agent_minor_version}" ]; then
+    if [ -n "${clean_agent_minor_version}" ]; then
         if [ "${agent_minor_version_without_patch}" -gt 34 ]; then
             echo -e "\033[31mmacOS 10.12 only supports Datadog Agent $agent_major_version up to $agent_major_version.34.\033[0m\n"
             exit 1;
@@ -130,7 +141,7 @@ elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 12 ];
         agent_patch_version=0
     fi
 elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 13 ]; then
-    if [ -n "${agent_minor_version}" ]; then
+    if [ -n "${clean_agent_minor_version}" ]; then
         if [ "${agent_minor_version_without_patch}" -gt 38 ]; then
             echo -e "\033[31mmacOS 10.13 only supports Datadog Agent $agent_major_version up to $agent_major_version.38.\033[0m\n"
             exit 1;
@@ -159,9 +170,19 @@ if [ -z "$dmg_version" ]; then
             agent_patch_version=0
         fi
     fi
-    dmg_version="${agent_major_version}.${agent_minor_version_without_patch}.${agent_patch_version}-1"
+    # Check if the version is a classic release version or a pre-release version
+    if [ "$agent_minor_version" = "$clean_agent_minor_version" ];then
+        dmg_version="${agent_major_version}.${agent_minor_version_without_patch}.${agent_patch_version}-1"
+    else
+        dmg_version="${agent_major_version}.${agent_minor_version}-1"
+    fi
 fi
-dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
+
+if [ -z "$agent_dist_channel" ]; then
+    dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
+else
+    dmg_url="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}.dmg"
+fi
 
 if [ "$upgrade" ]; then
     if [ ! -f $etc_dir/datadog.conf ]; then

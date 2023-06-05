@@ -1,5 +1,6 @@
 import errno
 import re
+import time
 
 from invoke.exceptions import Exit
 
@@ -20,9 +21,11 @@ class RemoteAPI(object):
 
     BASE_URL = ""
 
-    def __init__(self, api_name):
+    def __init__(self, api_name, sleep_time=1, retry_count=5):
         self.api_name = api_name
         self.authorization_error_message = "HTTP 401 Unauthorized"
+        self.requests_sleep_time = sleep_time
+        self.requests_500_retry_count = retry_count
 
     def request(
         self,
@@ -59,24 +62,35 @@ class RemoteAPI(object):
         try:
             # If json_input is true, we specifically want to send data using the json
             # parameter of requests.post / requests.put
-            if method == "PUT":
-                if json_input:
-                    r = requests.put(url, headers=headers, json=data, stream=stream_output)
+            for retry_count in range(self.requests_500_retry_count):
+                if method == "PUT":
+                    if json_input:
+                        r = requests.put(url, headers=headers, json=data, stream=stream_output)
+                    else:
+                        r = requests.put(url, headers=headers, data=data, stream=stream_output)
+                elif method == "DELETE":
+                    r = requests.delete(url, headers=headers, stream=stream_output)
+                elif data or method == "POST":
+                    if json_input:
+                        r = requests.post(url, headers=headers, json=data, stream=stream_output)
+                    else:
+                        r = requests.post(url, headers=headers, data=data, stream=stream_output)
                 else:
-                    r = requests.put(url, headers=headers, data=data, stream=stream_output)
-            elif method == "DELETE":
-                r = requests.delete(url, headers=headers, stream=stream_output)
-            elif data or method == "POST":
-                if json_input:
-                    r = requests.post(url, headers=headers, json=data, stream=stream_output)
+                    r = requests.get(url, headers=headers, stream=stream_output)
+                if r.status_code >= 400:
+                    if r.status_code == 401:
+                        print(self.authorization_error_message)
+                    elif 500 <= r.status_code < 600:
+                        sleep_time = self.requests_sleep_time + retry_count * self.requests_sleep_time
+                        if sleep_time > 0:
+                            print(
+                                f"Request failed with error {r.status_code}, retrying in {sleep_time} seconds (retry {retry_count}/{self.requests_500_retry_count}"
+                            )
+                        time.sleep(sleep_time)
+                        continue
+                    raise APIError(r, self.api_name)
                 else:
-                    r = requests.post(url, headers=headers, data=data, stream=stream_output)
-            else:
-                r = requests.get(url, headers=headers, stream=stream_output)
-            if r.status_code >= 400:
-                if r.status_code == 401:
-                    print(self.authorization_error_message)
-                raise APIError(r, self.api_name)
+                    break
         except requests.exceptions.Timeout:
             print(f"Connection to {self.api_name} ({url}) timed out.")
             raise Exit(code=1)

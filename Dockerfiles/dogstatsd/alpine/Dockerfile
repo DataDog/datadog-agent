@@ -4,6 +4,8 @@ ARG TARGETARCH
 LABEL baseimage.os "alpine"
 LABEL baseimage.name "alpine:3.17"
 LABEL maintainer "Datadog <package@datadoghq.com>"
+# Can be used by Dependabot
+LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 
 ENV DOCKER_DD_AGENT=true
 

@@ -19,8 +19,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return check.GlobalParams{
 			ConfFilePath:         globalParams.ConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
-			ConfigName:           "datadog",
-			LoggerName:           "CORE",
+			ConfigName:           command.ConfigName,
+			LoggerName:           command.LoggerName,
 		}
 	})
 

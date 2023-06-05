@@ -16,6 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
+const (
+	// internalResourceTagPrefix is the tag name used for propagating resources to be emitted on metrics.
+	// The format for the tag is dd.internal.resource:resource_type,resource_name. Resource names
+	// should comply with the Datadog tagging requirements documented at
+	// https://docs.datadoghq.com/getting_started/tagging/#define-tags.
+	// Note: resources are only supported on metrics api v2.
+	internalResourceTagPrefix    = "dd.internal.resource:"
+	internalResourceTagSeparator = ":"
+)
+
 // Point represents a metric value at a specific time
 type Point struct {
 	Ts    float64
@@ -27,6 +37,12 @@ type Point struct {
 // Note: it is not used with jsoniter, encodePoints takes over
 func (p *Point) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("[%v, %v]", int64(p.Ts), p.Value)), nil
+}
+
+// Resource holds a resource name and type
+type Resource struct {
+	Name string
+	Type string
 }
 
 // Serie holds a timeseries (w/ json serialization to DD API format)
@@ -42,6 +58,7 @@ type Serie struct {
 	ContextKey     ckey.ContextKey      `json:"-"`
 	NameSuffix     string               `json:"-"`
 	NoIndex        bool                 `json:"-"` // This is only used by api V2
+	Resources      []Resource           `json:"-"` // This is only used by api V2
 }
 
 // SeriesAPIV2Enum returns the enumeration value for MetricPayload.MetricType in
@@ -108,6 +125,45 @@ func (serie *Serie) PopulateDeviceField() {
 func (serie *Serie) hasDeviceTag() bool {
 	return serie.Tags.Find(func(tag string) bool {
 		return strings.HasPrefix(tag, "device:")
+	})
+}
+
+// PopulateResources removes any dd.internal.resource tags in the series tags and uses the values to
+// populate the Serie.Resources field. The format for the dd.internal.resource tag values is
+// <resource_type>:<resource_name>. Any dd.internal.resource tag not matching the expected format
+// will be dropped.
+func (serie *Serie) PopulateResources() {
+	if !serie.hasResourceTag() {
+		return
+	}
+	// make a copy of the tags array. Otherwise the underlying array won't have
+	// the resource tag for the Nth iteration (N>1), and the resources field will
+	// be lost
+	filteredTags := make([]string, 0, serie.Tags.Len())
+
+	serie.Tags.ForEach(func(tag string) {
+		if strings.HasPrefix(tag, internalResourceTagPrefix) {
+			tagVal := tag[len(internalResourceTagPrefix):]
+			commaIdx := strings.Index(tagVal, internalResourceTagSeparator)
+			if commaIdx > 0 && commaIdx < len(tagVal)-1 {
+				resource := Resource{
+					Type: tagVal[:commaIdx],
+					Name: tagVal[commaIdx+1:],
+				}
+				serie.Resources = append(serie.Resources, resource)
+			}
+		} else {
+			filteredTags = append(filteredTags, tag)
+		}
+	})
+
+	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
+}
+
+// hasResourceTag checks whether a series contains a resource tag
+func (serie *Serie) hasResourceTag() bool {
+	return serie.Tags.Find(func(tag string) bool {
+		return strings.HasPrefix(tag, internalResourceTagPrefix)
 	})
 }
 

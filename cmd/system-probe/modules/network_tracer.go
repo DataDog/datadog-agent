@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package modules
 
@@ -20,8 +19,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
@@ -32,6 +29,7 @@ import (
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,8 +47,8 @@ var NetworkTracer = module.Factory{
 		ncfg := networkconfig.New()
 
 		// Checking whether the current OS + kernel version is supported by the tracer
-		if supported, msg := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, msg)
+		if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
+			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
 		}
 
 		if ncfg.NPMEnabled {
@@ -306,18 +304,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 }
 
 func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {
-	statsdAddr := os.Getenv("STATSD_URL")
-	if statsdAddr == "" {
-		statsdAddr = fmt.Sprintf("%s:%d", cfg.StatsdHost, cfg.StatsdPort)
-	}
-
-	statsdClient, err := statsd.New(statsdAddr)
-	if err != nil {
-		log.Errorf("failed to start statsd reporter for network_tracer: %s", err)
-		return
-	}
-
-	telemetry.SetStatsdClient(statsdClient)
+	telemetry.SetStatsdClient(statsd.Client)
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
 		defer ticker.Stop()

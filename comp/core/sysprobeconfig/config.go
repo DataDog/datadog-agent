@@ -81,5 +81,10 @@ func newMock(deps dependencies, t testing.TB) Component {
 	// swap the existing config back at the end of the test.
 	t.Cleanup(func() { config.SystemProbe = old })
 
+	syscfg, err := setupConfig(deps)
+	if err != nil {
+		t.Fatalf("sysprobe config create: %s", err)
+	}
+	c.syscfg = syscfg
 	return c
 }

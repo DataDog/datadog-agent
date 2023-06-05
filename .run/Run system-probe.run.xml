@@ -15,7 +15,7 @@
       <env name="SCRIPT_TO_RUN" value=".run/run.sh" />
       <env name="BINARY_TO_RUN" value="./bin/system-probe/system-probe" />
       <env name="DLV_PORT_TO_BIND" value="2345" />
-      <env name="BINARY_ARGUMENTS" value="&quot;-c ./dev/dist/datadog.yaml&quot;" />
+      <env name="BINARY_ARGUMENTS" value="-c ./dev/dist/datadog.yaml" />
     </envs>
     <method v="2" />
   </configuration>

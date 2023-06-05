@@ -276,15 +276,20 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// start appsec
 	var (
-		appsecSubProcessor   *httpsec.InvocationSubProcessor
+		appsecSubProcessor   invocationlifecycle.InvocationSubProcessor
 		appsecProxyProcessor *httpsec.ProxyLifecycleProcessor
 	)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		appsecSubProcessor, appsecProxyProcessor, err = appsec.New()
+		subProcessor, proxySubProcessor, err := appsec.New()
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
+		}
+		if subProcessor != nil {
+			appsecSubProcessor = subProcessor
+		} else if proxySubProcessor != nil {
+			appsecProxyProcessor = proxySubProcessor
 		}
 	}()
 

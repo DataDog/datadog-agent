@@ -203,15 +203,3 @@ func (m *MockSerializer) SendOrchestratorMetadata(_ []serializer.ProcessMessageB
 func (m *MockSerializer) SendOrchestratorManifests(_ []serializer.ProcessMessageBody, _, _ string) error {
 	return nil
 }
-
-func (m *MockSerializer) SendContainerLifecycleEvent(_ []serializer.ContainerLifecycleMessage, _ string) error {
-	return nil
-}
-
-func (m *MockSerializer) SendContainerImage(_ []serializer.ContainerImageMessage, _ string) error {
-	return nil
-}
-
-func (m *MockSerializer) SendSBOM(_ []serializer.SBOMMessage, _ string) error {
-	return nil
-}

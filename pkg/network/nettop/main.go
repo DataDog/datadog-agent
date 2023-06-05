@@ -18,8 +18,8 @@ import (
 )
 
 func main() {
-	if supported, msg := tracer.IsTracerSupportedByOS(nil); !supported {
-		fmt.Fprintf(os.Stderr, "system-probe is not supported: %s\n", msg)
+	if supported, err := tracer.IsTracerSupportedByOS(nil); !supported {
+		fmt.Fprintf(os.Stderr, "system-probe is not supported: %s\n", err)
 		os.Exit(1)
 	}
 

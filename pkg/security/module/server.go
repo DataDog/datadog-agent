@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package module
 
@@ -23,22 +22,27 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/reporter"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type pendingMsg struct {
 	ruleID    string
 	data      []byte
-	tags      map[string]bool
+	tags      []string
 	service   string
 	extTagsCb func() []string
 	sendAfter time.Time
@@ -48,22 +52,22 @@ type pendingMsg struct {
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
 	api.UnimplementedSecurityModuleServer
-	msgs                 chan *api.SecurityEventMessage
-	processMsgs          chan *api.SecurityProcessEventMessage
-	activityDumps        chan *api.ActivityDumpStreamMessage
-	expiredEventsLock    sync.RWMutex
-	expiredEvents        map[rules.RuleID]*atomic.Int64
-	expiredProcessEvents *atomic.Int64
-	expiredDumpsLock     sync.RWMutex
-	expiredDumps         *atomic.Int64
-	rate                 *Limiter
-	statsdClient         statsd.ClientInterface
-	probe                *sprobe.Probe
-	queueLock            sync.Mutex
-	queue                []*pendingMsg
-	retention            time.Duration
-	cfg                  *config.Config
-	module               *Module
+	msgs              chan *api.SecurityEventMessage
+	directReporter    common.RawReporter
+	activityDumps     chan *api.ActivityDumpStreamMessage
+	expiredEventsLock sync.RWMutex
+	expiredEvents     map[rules.RuleID]*atomic.Int64
+	expiredDumps      *atomic.Int64
+	limiter           *StdLimiter
+	statsdClient      statsd.ClientInterface
+	probe             *sprobe.Probe
+	queueLock         sync.Mutex
+	queue             []*pendingMsg
+	retention         time.Duration
+	cfg               *config.RuntimeSecurityConfig
+	cwsConsumer       *CWSConsumer
+
+	stopper startstop.Stopper
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
@@ -110,39 +114,13 @@ func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityMod
 LOOP:
 	for {
 		// Check that the limit is not reached
-		if !a.rate.limiter.Allow() {
+		if !a.limiter.Allow(nil) {
 			return nil
 		}
 
 		// Read one message
 		select {
 		case msg := <-a.msgs:
-			if err := stream.Send(msg); err != nil {
-				return err
-			}
-			msgs--
-		case <-time.After(time.Second):
-			break LOOP
-		}
-
-		// Stop the loop when 10 messages were retrieved
-		if msgs <= 0 {
-			break
-		}
-	}
-
-	return nil
-}
-
-// GetProcessEvents sends process events through a gRPC stream
-func (a *APIServer) GetProcessEvents(params *api.GetProcessEventParams, stream api.SecurityModule_GetProcessEventsServer) error {
-	// Read 10 security events per call
-	msgs := 10
-LOOP:
-	for {
-		// Read on message
-		select {
-		case msg := <-a.processMsgs:
 			if err := stream.Send(msg); err != nil {
 				return err
 			}
@@ -243,6 +221,32 @@ func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.Transcod
 	return nil, fmt.Errorf("monitor not configured")
 }
 
+// ListSecurityProfiles returns the list of security profiles
+func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.ListSecurityProfiles(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
+// SaveSecurityProfile saves the requested security profile to disk
+func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.SaveSecurityProfile(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
 // GetStatus returns the status of the module
 func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) (*api.Status, error) {
 	status, err := a.probe.GetConstantFetcherStatus()
@@ -266,7 +270,7 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 				Values:   constants,
 			},
 		},
-		SelfTests: a.module.selfTester.GetStatus(),
+		SelfTests: a.cwsConsumer.selfTester.GetStatus(),
 	}
 
 	envErrors := a.probe.VerifyEnvironment()
@@ -330,16 +334,13 @@ func (a *APIServer) start(ctx context.Context) {
 		select {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg) {
-				for _, tag := range msg.extTagsCb() {
-					msg.tags[tag] = true
+				if msg.extTagsCb != nil {
+					msg.tags = append(msg.tags, msg.extTagsCb()...)
 				}
 
 				// recopy tags
-				var tags []string
 				hasService := len(msg.service) != 0
-				for tag := range msg.tags {
-					tags = append(tags, tag)
-
+				for _, tag := range msg.tags {
 					// look for the service tag if we don't have one yet
 					if !hasService {
 						if strings.HasPrefix(tag, "service:") {
@@ -353,32 +354,44 @@ func (a *APIServer) start(ctx context.Context) {
 					RuleID:  msg.ruleID,
 					Data:    msg.data,
 					Service: msg.service,
-					Tags:    tags,
+					Tags:    msg.tags,
 				}
 
-				select {
-				case a.msgs <- m:
-					break
-				default:
-					// The channel is full, consume the oldest event
-					oldestMsg := <-a.msgs
-					// Try to send the event again
-					select {
-					case a.msgs <- m:
-						break
-					default:
-						// Looks like the channel is full again, expire the current message too
-						a.expireEvent(m)
-						break
-					}
-					a.expireEvent(oldestMsg)
-					break
+				if a.directReporter != nil {
+					a.sendDirectly(m)
+				} else {
+					a.sendToSecurityAgent(m)
 				}
 			})
 		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
+	select {
+	case a.msgs <- m:
+		break
+	default:
+		// The channel is full, consume the oldest event
+		oldestMsg := <-a.msgs
+		// Try to send the event again
+		select {
+		case a.msgs <- m:
+			break
+		default:
+			// Looks like the channel is full again, expire the current message too
+			a.expireEvent(m)
+			break
+		}
+		a.expireEvent(oldestMsg)
+		break
+	}
+}
+
+func (a *APIServer) sendDirectly(m *api.SecurityEventMessage) {
+	a.directReporter.ReportRaw(m.Data, m.Service, m.Tags...)
 }
 
 // Start the api server, starts to consume the msg queue
@@ -392,7 +405,7 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 		return &api.SecurityConfigMessage{
 			FIMEnabled:          a.cfg.FIMEnabled,
 			RuntimeEnabled:      a.cfg.RuntimeEnabled,
-			ActivityDumpEnabled: a.cfg.ActivityDumpEnabled,
+			ActivityDumpEnabled: a.probe.IsActivityDumpEnabled(),
 		}, nil
 	}
 	return &api.SecurityConfigMessage{}, nil
@@ -400,18 +413,18 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 
 // RunSelfTest runs self test and then reload the current policies
 func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
-	if a.module == nil {
+	if a.cwsConsumer == nil {
 		return nil, errors.New("failed to found module in APIServer")
 	}
 
-	if a.module.selfTester == nil {
+	if a.cwsConsumer.selfTester == nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: "self-tests are disabled",
 		}, nil
 	}
 
-	if _, err := a.module.RunSelfTest(false); err != nil {
+	if _, err := a.cwsConsumer.RunSelfTest(false); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),
@@ -462,20 +475,14 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		ruleID:    rule.Definition.ID,
 		data:      data,
 		extTagsCb: extTagsCb,
-		tags:      make(map[string]bool),
 		service:   service,
 		sendAfter: time.Now().Add(a.retention),
 	}
 
-	msg.tags["rule_id:"+rule.Definition.ID] = true
-
-	for _, tag := range rule.Tags {
-		msg.tags[tag] = true
-	}
-
-	for _, tag := range event.GetTags() {
-		msg.tags[tag] = true
-	}
+	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
+	msg.tags = append(msg.tags, rule.Tags...)
+	msg.tags = append(msg.tags, event.GetTags()...)
+	msg.tags = append(msg.tags, common.QueryAccountIdTag())
 
 	a.enqueue(msg)
 }
@@ -511,11 +518,8 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 
 // expireDump updates the count of expired dumps
 func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
-	a.expiredDumpsLock.Lock()
-	defer a.expiredDumpsLock.Unlock()
-
 	// update metric
-	_ = a.expiredDumps.Inc()
+	a.expiredDumps.Inc()
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
 }
 
@@ -525,7 +529,7 @@ func (a *APIServer) GetStats() map[string]int64 {
 	a.expiredEventsLock.RLock()
 	defer a.expiredEventsLock.RUnlock()
 
-	stats := make(map[string]int64)
+	stats := make(map[string]int64, len(a.expiredEvents))
 	for ruleID, val := range a.expiredEvents {
 		stats[ruleID] = val.Swap(0)
 	}
@@ -542,18 +546,12 @@ func (a *APIServer) SendStats() error {
 			}
 		}
 	}
-
-	if count := a.expiredProcessEvents.Swap(0); count > 0 {
-		if err := a.statsdClient.Count(metrics.MetricProcessEventsServerExpired, count, []string{}, 1.0); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
 // ReloadPolicies reloads the policies
 func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
-	if err := a.module.ReloadPolicies(); err != nil {
+	if err := a.cwsConsumer.ReloadPolicies(); err != nil {
 		return nil, err
 	}
 	return &api.ReloadPoliciesResultMessage{}, nil
@@ -570,47 +568,56 @@ func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
 	}
 }
 
-// SendProcessEvent forwards collected process events to the processMsgs channel so they can be consumed next time GetProcessEvents
-// is called
-func (a *APIServer) SendProcessEvent(data []byte) {
-	m := &api.SecurityProcessEventMessage{
-		Data: data,
-	}
-
-	select {
-	case a.processMsgs <- m:
-		break
-	default:
-		// The channel is full, expire the oldest event
-		<-a.processMsgs
-		a.expiredProcessEvents.Inc()
-		// Try to send the event again
-		select {
-		case a.processMsgs <- m:
-			break
-		default:
-			// looks like the process msgs channel is full again, expire the current event
-			a.expiredProcessEvents.Inc()
-			break
-		}
-		break
-	}
+func (a *APIServer) Stop() {
+	a.stopper.Stop()
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
+	stopper := startstop.NewSerialStopper()
+	directReporter, err := newDirectReporter(stopper)
+	if err != nil {
+		log.Errorf("failed to setup direct reporter: %v", err)
+		directReporter = nil
+	}
+
 	es := &APIServer{
-		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
-		activityDumps:        make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
-		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
-		expiredProcessEvents: atomic.NewInt64(0),
-		expiredDumps:         atomic.NewInt64(0),
-		rate:                 NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
-		statsdClient:         client,
-		probe:                probe,
-		retention:            time.Duration(cfg.EventServerRetention) * time.Second,
-		cfg:                  cfg,
+		msgs:           make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		directReporter: directReporter,
+		activityDumps:  make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		expiredEvents:  make(map[rules.RuleID]*atomic.Int64),
+		expiredDumps:   atomic.NewInt64(0),
+		limiter:        NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
+		statsdClient:   client,
+		probe:          probe,
+		retention:      cfg.EventServerRetention,
+		cfg:            cfg,
+		stopper:        stopper,
 	}
 	return es
+}
+
+func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
+	directReportEnabled := pkgconfig.SystemProbe.GetBool("runtime_security_config.direct_send_from_system_probe")
+	if !directReportEnabled {
+		return nil, nil
+	}
+
+	runPath := pkgconfig.Datadog.GetString("runtime_security_config.run_path")
+
+	endpoints, destinationsCtx, err := common.NewLogContextRuntime()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
+	}
+
+	for _, status := range endpoints.GetStatus() {
+		log.Info(status)
+	}
+
+	reporter, err := reporter.NewCWSReporter(runPath, stopper, endpoints, destinationsCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
+	}
+
+	return reporter, nil
 }

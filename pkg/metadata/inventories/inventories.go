@@ -91,23 +91,28 @@ const (
 	AgentNetworksEnabled                AgentMetadataName = "feature_networks_enabled"
 	AgentNetworksHTTPEnabled            AgentMetadataName = "feature_networks_http_enabled"
 	AgentNetworksHTTPSEnabled           AgentMetadataName = "feature_networks_https_enabled"
+	AgentRemoteConfigEnabled            AgentMetadataName = "feature_remote_configuration_enabled"
 	AgentUSMKafkaEnabled                AgentMetadataName = "feature_usm_kafka_enabled"
 	AgentUSMJavaTLSEnabled              AgentMetadataName = "feature_usm_java_tls_enabled"
 	AgentUSMHTTP2Enabled                AgentMetadataName = "feature_usm_http2_enabled"
 	AgentUSMEnableHTTPStatsByStatusCode AgentMetadataName = "feature_enable_http_stats_by_status_code"
 	AgentUSMGoTLSEnabled                AgentMetadataName = "feature_usm_go_tls_enabled"
+	AgentDIEnabled                      AgentMetadataName = "feature_dynamic_instrumentation_enabled"
 	AgentLogsEnabled                    AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                    AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                     AgentMetadataName = "feature_apm_enabled"
+	AgentIMDSv2Enabled                  AgentMetadataName = "feature_imdsv2_enabled"
 
 	// Those are reserved fields for the agentMetadata payload.
 	agentProvidedConf AgentMetadataName = "provided_configuration"
 	agentFullConf     AgentMetadataName = "full_configuration"
 
 	// key for the host metadata cache. See host_metadata.go
-	HostOSVersion           AgentMetadataName = "os_version"
-	HostCloudProvider       AgentMetadataName = "cloud_provider"
-	HostCloudProviderSource AgentMetadataName = "cloud_provider_source"
+	HostOSVersion              AgentMetadataName = "os_version"
+	HostCloudProvider          AgentMetadataName = "cloud_provider"
+	HostCloudProviderSource    AgentMetadataName = "cloud_provider_source"
+	HostCloudProviderAccountID AgentMetadataName = "cloud_provider_account_id"
+	HostCloudProviderHostID    AgentMetadataName = "cloud_provider_host_id"
 )
 
 // Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed
@@ -126,6 +131,8 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 		return
 	}
 
+	log.Debugf("setting agent metadata '%s': '%s'", name, value)
+
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -142,6 +149,7 @@ func SetHostMetadata(name AgentMetadataName, value interface{}) {
 		return
 	}
 
+	log.Debugf("setting host metadata '%s': '%s'", name, value)
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
 
@@ -157,6 +165,8 @@ func SetCheckMetadata(checkID, key string, value interface{}) {
 	if checkID == "" || !config.Datadog.GetBool("inventories_enabled") {
 		return
 	}
+
+	log.Debugf("setting check metadata for check %s, '%s': '%s'", checkID, key, value)
 
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
@@ -416,16 +426,19 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
 	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
-	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("network_config.enable_http_monitoring"))
+	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
 	SetAgentMetadata(AgentUSMKafkaEnabled, config.Datadog.GetBool("data_streams_config.enabled"))
+	SetAgentMetadata(AgentRemoteConfigEnabled, config.Datadog.GetBool("remote_configuration.enabled"))
 	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
 	SetAgentMetadata(AgentUSMEnableHTTPStatsByStatusCode, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))
 	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_go_tls_support"))
+	SetAgentMetadata(AgentDIEnabled, config.SystemProbe.GetBool("dynamic_instrumentation.enabled"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
+	SetAgentMetadata(AgentIMDSv2Enabled, config.Datadog.GetBool("ec2_prefer_imdsv2"))
 	// NOTE: until otlp config stabilizes, we set AgentOTLPEnabled in cmd/agent/app/run.go
 	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
 	// case like that, we should move otlp.IsEnabled to pkg/config/otlp

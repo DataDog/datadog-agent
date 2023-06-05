@@ -10,8 +10,11 @@
 #include "protocols/classification/structs.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/classification-helpers.h"
+#include "protocols/http/usm-events.h"
 #include "protocols/http2/helpers.h"
+#include "protocols/http2/usm-events.h"
 #include "protocols/kafka/kafka-classification.h"
+#include "protocols/kafka/usm-events.h"
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
@@ -48,22 +51,15 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
         return;
     }
 
-    if (is_http(buf, size)) {
+    if (is_http_monitoring_enabled() && is_http(buf, size)) {
         *protocol = PROTOCOL_HTTP;
-    } else if (is_http2(buf, size)) {
+    } else if (is_http2_monitoring_enabled() && is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }
 
     log_debug("[protocol_dispatcher_classifier]: Classified protocol as %d %d; %s\n", *protocol, size, buf);
-}
-
-static __always_inline void update_dispatcher_connection_protocol(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {
-    bpf_map_update_with_telemetry(dispatcher_connection_protocol, skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
-    conn_tuple_t inverse_skb_conn_tup = *skb_tup;
-    flip_tuple(&inverse_skb_conn_tup);
-    bpf_map_update_with_telemetry(dispatcher_connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
@@ -87,33 +83,46 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
-    // TODO: Share with protocol classification
-    protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &skb_tup);
-    if (cur_fragment_protocol_ptr == NULL) {
+    protocol_stack_t *stack = get_protocol_stack(&skb_tup);
+    if (!stack) {
+        // should never happen, but it is required by the eBPF verifier
+        return;
+    }
+    // TODO: consider adding early return if `is_layer_known(stack, LAYER_ENCRYPTION)`
+
+    protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
+    if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
         log_debug("[protocol_dispatcher_entrypoint]: %p was not classified\n", skb);
         char request_fragment[CLASSIFICATION_MAX_BUFFER];
         bpf_memset(request_fragment, 0, sizeof(request_fragment));
-        read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+        read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
         const size_t payload_length = skb->len - skb_info.data_off;
         const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
         classify_protocol_for_dispatcher(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
-        if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
+        if (is_kafka_monitoring_enabled() && cur_fragment_protocol == PROTOCOL_UNKNOWN) {
             bpf_tail_call_compat(skb, &dispatcher_classification_progs, DISPATCHER_KAFKA_PROG);
         }
         log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d\n", skb, cur_fragment_protocol);
         // If there has been a change in the classification, save the new protocol.
         if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-            update_dispatcher_connection_protocol(&skb_tup, cur_fragment_protocol);
+            set_protocol(stack, cur_fragment_protocol);
         }
-    } else {
-        cur_fragment_protocol = *cur_fragment_protocol_ptr;
     }
 
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         // dispatch if possible
+        const u32 zero = 0;
+        dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+        if (args == NULL) {
+            log_debug("dispatcher failed to save arguments for tail call\n");
+            return;
+        }
+        bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
+        bpf_memcpy(&args->tup, &skb_tup, sizeof(conn_tuple_t));
+        bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
+
         log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
-        bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
+        bpf_tail_call_compat(skb, &protocols_progs, protocol_to_program(cur_fragment_protocol));
     }
 }
 
@@ -127,22 +136,44 @@ static __always_inline void dispatch_kafka(struct __sk_buff *skb) {
 
     char request_fragment[CLASSIFICATION_MAX_BUFFER];
     bpf_memset(request_fragment, 0, sizeof(request_fragment));
-    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+    read_into_buffer_for_classification((char *)request_fragment, skb, skb_info.data_off);
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
     if (is_kafka(skb, &skb_info, request_fragment, final_fragment_size)) {
         cur_fragment_protocol = PROTOCOL_KAFKA;
+        update_protocol_stack(&skb_tup, cur_fragment_protocol);
     }
-    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-        update_dispatcher_connection_protocol(&skb_tup, cur_fragment_protocol);
-    }
+
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         // dispatch if possible
+        const u32 zero = 0;
+        dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+        if (args == NULL) {
+            log_debug("dispatcher failed to save arguments for tail call\n");
+            return;
+        }
+        bpf_memset(args, 0, sizeof(dispatcher_arguments_t));
+        bpf_memcpy(&args->tup, &skb_tup, sizeof(conn_tuple_t));
+        bpf_memcpy(&args->skb_info, &skb_info, sizeof(skb_info_t));
+
+        // dispatch if possible
         log_debug("dispatching to protocol number: %d\n", cur_fragment_protocol);
-        bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
+        bpf_tail_call_compat(skb, &protocols_progs, protocol_to_program(cur_fragment_protocol));
     }
     return;
+}
+
+static __always_inline bool fetch_dispatching_arguments(conn_tuple_t *tup, skb_info_t *skb_info) {
+    const __u32 zero = 0;
+    dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return false;
+    }
+    bpf_memcpy(tup, &args->tup, sizeof(conn_tuple_t));
+    bpf_memcpy(skb_info, &args->skb_info, sizeof(skb_info_t));
+
+    return true;
 }
 
 #endif

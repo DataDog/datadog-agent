@@ -66,10 +66,10 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 	},
 	"flow_process_nf_count": {
-		name:           "processor.flows",
+		name:           "processor.processed",
 		allowedTagKeys: []string{"router", "version"},
 		keyRemapper: map[string]string{
-			"router": "device_ip",
+			"router": "exporter_ip",
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
@@ -80,7 +80,7 @@ var metricNameMapping = map[string]mappedMetric{
 			"type": remapFlowset,
 		},
 		keyRemapper: map[string]string{
-			"router": "device_ip",
+			"router": "exporter_ip",
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
@@ -89,7 +89,7 @@ var metricNameMapping = map[string]mappedMetric{
 		allowedTagKeys: []string{"local_port", "remote_ip", "type"},
 		keyRemapper: map[string]string{
 			"local_port": "listener_port",
-			"remote_ip":  "device_ip",
+			"remote_ip":  "exporter_ip",
 			"type":       "collector_type",
 		},
 		valueRemapper: map[string]remapperType{
@@ -101,7 +101,7 @@ var metricNameMapping = map[string]mappedMetric{
 		allowedTagKeys: []string{"local_port", "remote_ip", "type"},
 		keyRemapper: map[string]string{
 			"local_port": "listener_port",
-			"remote_ip":  "device_ip",
+			"remote_ip":  "exporter_ip",
 			"type":       "collector_type",
 		},
 		valueRemapper: map[string]remapperType{
@@ -109,10 +109,10 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 	},
 	"flow_process_sf_count": {
-		name:           "processor.flows",
+		name:           "processor.processed",
 		allowedTagKeys: []string{"router", "version"},
 		keyRemapper: map[string]string{
-			"router": "device_ip",
+			"router": "exporter_ip",
 		},
 		extraTags: []string{"flow_protocol:sflow"},
 	},
@@ -120,7 +120,7 @@ var metricNameMapping = map[string]mappedMetric{
 		name:           "processor.errors",
 		allowedTagKeys: []string{"router", "error"},
 		keyRemapper: map[string]string{
-			"router": "device_ip",
+			"router": "exporter_ip",
 		},
 		extraTags: []string{"flow_protocol:sflow"},
 	},

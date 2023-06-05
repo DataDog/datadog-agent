@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package runtime
 
@@ -16,14 +15,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
-	sysprobeconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/security/activitydump"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -34,7 +32,7 @@ type activityDumpCliParams struct {
 	containerID              string
 	comm                     string
 	file                     string
-	timeout                  int
+	timeout                  string
 	differentiateArgs        bool
 	localStorageDirectory    string
 	localStorageFormats      []string
@@ -152,11 +150,17 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
-	activityDumpGenerateDumpCmd.Flags().IntVar(
+	activityDumpGenerateDumpCmd.Flags().StringVar(
+		&cliParams.containerID,
+		flags.ContainerID,
+		"",
+		"a container identifier can be used to filter the activity dump from a specific container.",
+	)
+	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.timeout,
 		flags.Timeout,
-		60,
-		"timeout for the activity dump in minutes",
+		"1m",
+		"timeout for the activity dump",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&cliParams.differentiateArgs,
@@ -278,7 +282,8 @@ func generateActivityDump(log log.Component, config config.Component, activityDu
 
 	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
 		Comm:              activityDumpArgs.comm,
-		Timeout:           int32(activityDumpArgs.timeout),
+		ContainerID:       activityDumpArgs.containerID,
+		Timeout:           activityDumpArgs.timeout,
 		DifferentiateArgs: activityDumpArgs.differentiateArgs,
 		Storage:           storage,
 	})
@@ -320,7 +325,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 
 	} else {
 		// encoding request will be handled locally
-		ad := activitydump.NewEmptyActivityDump()
+		ad := dump.NewEmptyActivityDump()
 
 		// open and parse input file
 		if err := ad.Decode(activityDumpArgs.file); err != nil {
@@ -339,12 +344,12 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 			ad.AddStorageRequest(request)
 		}
 
-		cfg, err := secconfig.NewConfig(&sysprobeconfig.Config{})
+		cfg, err := secconfig.NewConfig()
 		if err != nil {
 			return fmt.Errorf("couldn't load configuration: %w", err)
 
 		}
-		storage, err := activitydump.NewActivityDumpStorageManager(cfg, nil, nil)
+		storage, err := dump.NewActivityDumpStorageManager(cfg, nil, nil)
 		if err != nil {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}

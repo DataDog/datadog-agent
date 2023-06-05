@@ -175,7 +175,7 @@ func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
 		}
 	}
 
-	// Filers out DNS spans
+	// Filters out DNS spans
 	if dnsAddress, ok := span.Meta[dnsAddressMetaKey]; ok {
 		if strings.HasPrefix(dnsAddress, dnsNonRoutableAddressURLPrefix) {
 			log.Debugf("Detected span with dns url %s, removing it", dnsAddress)
@@ -188,9 +188,10 @@ func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
 		}
 	}
 
+	// Filter out the serverless span from the tracer
 	if span != nil && span.Resource == invocationSpanResource {
 		log.Debugf("Detected invocation span from tracer, removing it")
-
+		return true
 	}
 	return false
 }

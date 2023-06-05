@@ -14,5 +14,6 @@ otlp_config:
     histograms:
       mode: counters
       send_count_sum_metrics: true
+      send_aggregation_metrics: true
   debug:
     loglevel: debug

@@ -72,6 +72,10 @@ type Store interface {
 	// for one containing the given container.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 
+	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
+	// the entity with kind KindKubernetesNode and the given ID.
+	GetKubernetesNode(id string) (*KubernetesNode, error)
+
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)
@@ -108,6 +112,7 @@ type Kind string
 const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
+	KindKubernetesNode         Kind = "kubernetes_node"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 )
@@ -277,9 +282,10 @@ type ContainerImage struct {
 	Tag       string
 }
 
-// NewContainerImage builds a ContainerImage from an image name
-func NewContainerImage(imageName string) (ContainerImage, error) {
+// NewContainerImage builds a ContainerImage from an image name and its id
+func NewContainerImage(imageID string, imageName string) (ContainerImage, error) {
 	image := ContainerImage{
+		ID:      imageID,
 		RawName: imageName,
 		Name:    imageName,
 	}
@@ -383,7 +389,7 @@ func (o OrchestratorContainer) String(_ bool) string {
 type Container struct {
 	EntityID
 	EntityMeta
-	// EnvVars are limited to variabels included in pkg/util/containers/env_vars_filter.go
+	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
 	EnvVars    map[string]string
 	Hostname   string
 	Image      ContainerImage
@@ -393,8 +399,10 @@ type Container struct {
 	Runtime    ContainerRuntime
 	State      ContainerState
 	// CollectorTags represent tags coming from the collector itself
-	// and that it would impossible to compute later on
-	CollectorTags []string
+	// and that it would be impossible to compute later on
+	CollectorTags   []string
+	Owner           *EntityID
+	SecurityContext *ContainerSecurityContext
 }
 
 // GetID implements Entity#GetID.
@@ -449,7 +457,59 @@ func (c Container) String(verbose bool) string {
 		}
 	}
 
+	if c.SecurityContext != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Security Context -----------")
+		if c.SecurityContext.Capabilities != nil {
+			_, _ = fmt.Fprintln(&sb, "----------- Capabilities -----------")
+			_, _ = fmt.Fprintln(&sb, "Add:", c.SecurityContext.Capabilities.Add)
+			_, _ = fmt.Fprintln(&sb, "Drop:", c.SecurityContext.Capabilities.Drop)
+		}
+
+		_, _ = fmt.Fprintln(&sb, "Privileged:", c.SecurityContext.Privileged)
+		if c.SecurityContext.SeccompProfile != nil {
+			_, _ = fmt.Fprintln(&sb, "----------- Seccomp Profile -----------")
+			_, _ = fmt.Fprintln(&sb, "Type:", c.SecurityContext.SeccompProfile.Type)
+			if c.SecurityContext.SeccompProfile.Type == SeccompProfileTypeLocalhost {
+				_, _ = fmt.Fprintln(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
+			}
+		}
+	}
+
 	return sb.String()
+}
+
+// PodSecurityContext is the Security Context of a Kubernete pod
+type PodSecurityContext struct {
+	RunAsUser  int32
+	RunAsGroup int32
+	FsGroup    int32
+}
+
+// ContainerSecurityContext is the Security Context of a Container
+type ContainerSecurityContext struct {
+	*Capabilities
+	Privileged     bool
+	SeccompProfile *SeccompProfile
+}
+
+type Capabilities struct {
+	Add  []string
+	Drop []string
+}
+
+// SeccompProfileType is the type of seccomp profile used
+type SeccompProfileType string
+
+const (
+	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
+	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
+	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
+)
+
+// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+type SeccompProfile struct {
+	Type             SeccompProfileType
+	LocalhostProfile string
 }
 
 var _ Entity = &Container{}
@@ -474,6 +534,8 @@ type KubernetesPod struct {
 	QOSClass                   string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
+	FinishedAt                 time.Time
+	SecurityContext            *PodSecurityContext
 }
 
 // GetID implements Entity#GetID.
@@ -531,6 +593,16 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
+		if !p.FinishedAt.IsZero() {
+			_, _ = fmt.Fprintln(&sb, "Finished At:", p.FinishedAt)
+		}
+	}
+
+	if p.SecurityContext != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Pod Security Context -----------")
+		_, _ = fmt.Fprintln(&sb, "RunAsUser:", p.SecurityContext.RunAsUser)
+		_, _ = fmt.Fprintln(&sb, "RunAsGroup:", p.SecurityContext.RunAsGroup)
+		_, _ = fmt.Fprintln(&sb, "FsGroup:", p.SecurityContext.FsGroup)
 	}
 
 	return sb.String()
@@ -556,6 +628,47 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 	return sb.String()
 }
+
+// KubernetesNode is an Entity representing a Kubernetes Node.
+type KubernetesNode struct {
+	EntityID
+	EntityMeta
+}
+
+// GetID implements Entity#GetID.
+func (n *KubernetesNode) GetID() EntityID {
+	return n.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (n *KubernetesNode) Merge(e Entity) error {
+	nn, ok := e.(*KubernetesNode)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
+	}
+
+	return merge(n, nn)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (n KubernetesNode) DeepCopy() Entity {
+	cn := deepcopy.Copy(n).(KubernetesNode)
+	return &cn
+}
+
+// String implements Entity#String
+func (n KubernetesNode) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
+
+	return sb.String()
+}
+
+var _ Entity = &KubernetesNode{}
 
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {

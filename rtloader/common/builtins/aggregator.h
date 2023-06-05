@@ -64,6 +64,7 @@
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 
+#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <rtloader_types.h>
 

@@ -18,6 +18,7 @@ build do
          "--without-keyutils", # this would require additional deps/system deps, disable it
          "--without-system-verto", # do not prefer libverto from the system, if installed
          "--without-libedit", # we don't want to link with libraries outside of the install dir
+         "--disable-static",
          "--prefix=#{install_dir}/embedded"].join(" ")
   env = {
     "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",

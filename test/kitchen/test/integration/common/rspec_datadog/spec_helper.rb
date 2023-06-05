@@ -177,11 +177,11 @@ def restart(flavor)
     # forces the trace agent (and other dependent services) to stop
     if is_service_running?(service)
       result = system "net stop /y #{service} 2>&1"
-      sleep 5
+      sleep 20
       wait_until_service_stopped(service)
     end
     result = system "net start #{service} 2>&1"
-    sleep 5
+    sleep 20
     wait_until_service_started(service)
   else
     if has_systemctl
@@ -257,7 +257,9 @@ end
 def windows_service_status(service)
   raise "windows_service_status is only for windows" unless os == :windows
   # Language-independent way of getting the service status
-  return (`powershell -command "try { (get-service "#{service}" -ErrorAction Stop).Status } catch { write-host "NOTINSTALLED" }"`).upcase.strip
+  res =  `powershell -command \"try { (get-service #{service} -ErrorAction Stop).Status } catch { write-host NOTINSTALLED }\"`
+  puts res
+  return (res).upcase.strip
 end
 
 def is_service_running?(service)
@@ -444,6 +446,10 @@ end
 
 shared_examples_for 'Agent uninstall' do
   it_behaves_like 'an Agent that is removed'
+end
+
+def is_ng_installer()
+  parse_dna().fetch('dd-agent-rspec').fetch('ng_installer')
 end
 
 shared_examples_for "an installed Agent" do
@@ -647,6 +653,8 @@ shared_examples_for 'an Agent that stops' do
 
   it 'is not running any agent processes' do
     expect(agent_processes_running?).to be_falsey
+    expect(security_agent_running?).to be_falsey
+    expect(system_probe_running?).to be_falsey
   end
 
   it 'starts after being stopped' do
@@ -804,8 +812,10 @@ shared_examples_for 'an Agent that is removed' do
   end
 
   it 'should not be running the agent after removal' do
-    sleep 5
+    sleep 15
     expect(agent_processes_running?).to be_falsey
+    expect(security_agent_running?).to be_falsey
+    expect(system_probe_running?).to be_falsey
   end
 
   if os == :windows

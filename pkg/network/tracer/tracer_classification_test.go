@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf || (windows && npm)
-// +build linux_bpf windows,npm
 
 package tracer
 
@@ -21,6 +20,7 @@ import (
 	"time"
 
 	redis2 "github.com/go-redis/redis/v9"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
@@ -29,7 +29,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
@@ -41,6 +41,8 @@ import (
 
 const (
 	defaultTimeout = 30 * time.Second
+	tlsNotExpected = false
+	tlsExpected    = true
 )
 
 // testContext shares the context of a given test.
@@ -75,9 +77,9 @@ type protocolClassificationAttributes struct {
 	teardown func(t *testing.T, ctx testContext)
 }
 
-func validateProtocolConnection(expectedProtocol network.ProtocolType) func(t *testing.T, ctx testContext, tr *Tracer) {
+func validateProtocolConnection(expectedProtocols protocols.ProtocolType, expectedTLS bool) func(t *testing.T, ctx testContext, tr *Tracer) {
 	return func(t *testing.T, ctx testContext, tr *Tracer) {
-		waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, expectedProtocol)
+		waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, expectedProtocols, expectedTLS)
 	}
 }
 
@@ -111,6 +113,7 @@ const (
 	redisPort    = "6379"
 	amqpPort     = "5672"
 	httpPort     = "8080"
+	httpsPort    = "8443"
 	tcpPort      = "9999"
 	http2Port    = "9090"
 	kafkaPort    = "9092"
@@ -129,10 +132,10 @@ const (
 	fetchMinVersion          = 0
 )
 
-func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	tests := []struct {
 		name     string
-		testFunc func(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string)
+		testFunc func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
 	}{
 		{
 			name:     "kafka",
@@ -173,12 +176,12 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.testFunc(t, cfg, clientHost, targetHost, serverHost)
+			tt.testFunc(t, tr, clientHost, targetHost, serverHost)
 		})
 	}
 }
 
-func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	const topicName = "franz-kafka"
 	testIndex := 0
 	// Kafka does not allow us to delete topic, but to mark them for deletion, so we have to generate a unique topic
@@ -209,14 +212,15 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 		defer client.Client.Close()
 		for k, value := range ctx.extras {
 			if strings.HasPrefix(k, "topic_name") {
-				require.NoError(t, client.DeleteTopic(value.(string)))
+				// We're in the teardown phase, and deleting the topic name is a best effort operation. Therefore, we can ignore any errors that may occur.
+				_ = client.DeleteTopic(value.(string))
 			}
 		}
 	}
 
 	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
 	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
-	require.True(t, kafka.RunServer(t, serverHost, kafkaPort))
+	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -236,7 +240,7 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, err)
 				ctx.extras["client"] = client
 			},
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown, tlsNotExpected),
 			teardown:   kafkaTeardown,
 		},
 		{
@@ -262,7 +266,7 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				client := ctx.extras["client"].(*kafka.Client)
 				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
 			},
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown, tlsNotExpected),
 			teardown:   kafkaTeardown,
 		},
 		{
@@ -292,7 +296,7 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 			},
-			validation: validateProtocolConnection(network.ProtocolKafka),
+			validation: validateProtocolConnection(protocols.Kafka, tlsNotExpected),
 			teardown:   kafkaTeardown,
 		},
 		{
@@ -325,7 +329,7 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
 			},
-			validation: validateProtocolConnection(network.ProtocolKafka),
+			validation: validateProtocolConnection(protocols.Kafka, tlsNotExpected),
 			teardown:   kafkaTeardown,
 		},
 	}
@@ -333,9 +337,9 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	// Adding produce tests in different versions
 	for i := int16(produceMinVersion); i <= produceMaxVersion; i++ {
 		version := kversion.V3_4_0()
-		expectedProtocol := network.ProtocolKafka
+		expectedProtocol := protocols.Kafka
 		if i < produceMinSupportedVersion || i > produceMaxSupportedVersion {
-			expectedProtocol = network.ProtocolUnknown
+			expectedProtocol = protocols.Unknown
 		}
 		version.SetMaxKeyVersion(produceAPIKey, i)
 		tests = append(tests, protocolClassificationAttributes{
@@ -365,15 +369,15 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 			},
-			validation: validateProtocolConnection(expectedProtocol),
+			validation: validateProtocolConnection(expectedProtocol, tlsNotExpected),
 			teardown:   kafkaTeardown,
 		})
 	}
 	// Adding fetch tests in different versions
 	for i := int16(fetchMinVersion); i < fetchMaxVersion; i++ {
-		expectedProtocol := network.ProtocolKafka
+		expectedProtocol := protocols.Kafka
 		if i < fetchMinSupportedVersion || i > fetchMaxSupportedVersion {
-			expectedProtocol = network.ProtocolUnknown
+			expectedProtocol = protocols.Unknown
 		}
 		version := kversion.V3_4_0()
 		version.SetMaxKeyVersion(fetchAPIKey, i)
@@ -409,19 +413,19 @@ func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.Len(t, records, 1)
 				require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
 			},
-			validation: validateProtocolConnection(expectedProtocol),
+			validation: validateProtocolConnection(expectedProtocol, tlsNotExpected),
 			teardown:   kafkaTeardown,
 		})
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -436,14 +440,15 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	}
 
 	mysqlTeardown := func(t *testing.T, ctx testContext) {
-		client := ctx.extras["conn"].(*mysql.Client)
-		defer client.DB.Close()
-		client.DropDB()
+		if client, ok := ctx.extras["conn"].(*mysql.Client); ok {
+			defer client.DB.Close()
+			client.DropDB()
+		}
 	}
 
 	serverAddress := net.JoinHostPort(serverHost, mysqlPort)
 	targetAddress := net.JoinHostPort(targetHost, mysqlPort)
-	require.True(t, mysql.RunServer(t, serverHost, mysqlPort))
+	require.NoError(t, mysql.RunServer(t, serverHost, mysqlPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -462,7 +467,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -485,7 +490,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.CreateDB())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -502,14 +507,14 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
-				require.NoError(t, c.CreateDB())
 				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.CreateTable())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -526,15 +531,15 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -560,7 +565,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.DeleteFromTable("Bratislava"))
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -577,10 +582,10 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
 				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
@@ -588,7 +593,7 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, err)
 				require.Equal(t, 432000, population)
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -605,16 +610,16 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
 				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.UpdateTable("Bratislava", "Bratislava2", 10))
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -631,15 +636,15 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.DropTable())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -656,15 +661,15 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.AlterTable())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -683,15 +688,15 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.InsertIntoTable(strings.Repeat("#", 16384), 10))
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -710,30 +715,30 @@ func testMySQLProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 					Dialer:        defaultDialer,
 				})
 				require.NoError(t, err)
+				ctx.extras["conn"] = c
 				require.NoError(t, c.CreateDB())
 				require.NoError(t, c.CreateTable())
 				name := strings.Repeat("#", 1024)
 				for i := int64(1); i <= 40; i++ {
 					require.NoError(t, c.InsertIntoTable(name+"i", 10))
 				}
-				ctx.extras["conn"] = c
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.SelectAllFromTable())
 			},
-			validation: validateProtocolConnection(network.ProtocolMySQL),
+			validation: validateProtocolConnection(protocols.MySQL, tlsNotExpected),
 			teardown:   mysqlTeardown,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -755,7 +760,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 	// Setting one instance of postgres server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
 	targetAddress := net.JoinHostPort(targetHost, postgresPort)
-	require.True(t, pgutils.RunServer(t, serverHost, postgresPort))
+	require.NoError(t, pgutils.RunServer(t, serverHost, postgresPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -772,7 +777,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 				require.NoError(t, err)
 				defer conn.Close()
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres, tlsNotExpected),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -790,7 +795,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres, tlsNotExpected),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -809,7 +814,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunDeleteQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres, tlsNotExpected),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -827,7 +832,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunSelectQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres, tlsNotExpected),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -846,7 +851,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunUpdateQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres, tlsNotExpected),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -865,7 +870,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunDropQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres, tlsNotExpected),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -883,7 +888,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunAlterQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres, tlsNotExpected),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -907,7 +912,7 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 				// This will fail but it should make a query and be classified
 				_, _ = db.NewInsert().Model(&pgutils.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(taskCtx)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres, tlsNotExpected),
 			teardown:   postgresTeardown,
 		},
 		{
@@ -930,18 +935,18 @@ func testPostgresProtocolClassification(t *testing.T, cfg *config.Config, client
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunSelectQuery(t, ctx.extras)
 			},
-			validation: validateProtocolConnection(network.ProtocolPostgres),
+			validation: validateProtocolConnection(protocols.Postgres, tlsNotExpected),
 			teardown:   postgresTeardown,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -964,7 +969,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	// Setting one instance of mongo server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, mongoPort)
 	targetAddress := net.JoinHostPort(targetHost, mongoPort)
-	require.True(t, protocolsmongo.RunServer(t, serverHost, mongoPort))
+	require.NoError(t, protocolsmongo.RunServer(t, serverHost, mongoPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -982,7 +987,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, err)
 				client.Stop()
 			},
-			validation: validateProtocolConnection(network.ProtocolMongo),
+			validation: validateProtocolConnection(protocols.Mongo, tlsNotExpected),
 		},
 		{
 			name: "classify by collection creation",
@@ -1007,7 +1012,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, db.CreateCollection(timedContext, "collection"))
 			},
-			validation: validateProtocolConnection(network.ProtocolMongo),
+			validation: validateProtocolConnection(protocols.Mongo, tlsNotExpected),
 			teardown:   mongoTeardown,
 		},
 		{
@@ -1039,7 +1044,7 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				_, err := collection.InsertOne(timedContext, input)
 				require.NoError(t, err)
 			},
-			validation: validateProtocolConnection(network.ProtocolMongo),
+			validation: validateProtocolConnection(protocols.Mongo, tlsNotExpected),
 			teardown:   mongoTeardown,
 		},
 		{
@@ -1081,18 +1086,18 @@ func testMongoProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				delete(output, "_id")
 				require.EqualValues(t, output, ctx.extras["input"])
 			},
-			validation: validateProtocolConnection(network.ProtocolMongo),
+			validation: validateProtocolConnection(protocols.Mongo, tlsNotExpected),
 			teardown:   mongoTeardown,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -1117,7 +1122,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 	// Setting one instance of redis server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, redisPort)
 	targetAddress := net.JoinHostPort(targetHost, redisPort)
-	require.True(t, redis.RunServer(t, serverHost, redisPort))
+	require.NoError(t, redis.RunServer(t, serverHost, redisPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -1142,7 +1147,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				client.Set(timedContext, "key", "value", time.Minute)
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis, tlsNotExpected),
 		},
 		{
 			name: "get",
@@ -1169,7 +1174,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.Equal(t, "value", val)
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis, tlsNotExpected),
 		},
 		{
 			name: "get unknown key",
@@ -1194,7 +1199,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.Error(t, res.Err())
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis, tlsNotExpected),
 		},
 		{
 			name: "err response",
@@ -1212,7 +1217,7 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				_, err = conn.Write([]byte("+dummy\r\n"))
 				require.NoError(t, err)
 			},
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis, tlsNotExpected),
 		},
 		{
 			name: "client id",
@@ -1237,17 +1242,17 @@ func testRedisProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				require.NoError(t, res.Err())
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(network.ProtocolRedis),
+			validation: validateProtocolConnection(protocols.Redis, tlsNotExpected),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -1271,7 +1276,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 	// Setting one instance of amqp server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, amqpPort)
 	targetAddress := net.JoinHostPort(targetHost, amqpPort)
-	require.True(t, amqp.RunServer(t, serverHost, amqpPort))
+	require.NoError(t, amqp.RunServer(t, serverHost, amqpPort))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -1291,7 +1296,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				ctx.extras["client"] = client
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(network.ProtocolAMQP),
+			validation: validateProtocolConnection(protocols.AMQP, tlsNotExpected),
 		},
 		{
 			name: "declare channel",
@@ -1314,7 +1319,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown, tlsNotExpected),
 		},
 		{
 			name: "publish",
@@ -1338,7 +1343,7 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				require.NoError(t, client.Publish("test", "my msg"))
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(network.ProtocolAMQP),
+			validation: validateProtocolConnection(protocols.AMQP, tlsNotExpected),
 		},
 		{
 			name: "consume",
@@ -1366,17 +1371,17 @@ func testAMQPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				require.Equal(t, []string{"my msg"}, res)
 			},
 			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(network.ProtocolAMQP),
+			validation: validateProtocolConnection(protocols.AMQP, tlsNotExpected),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testHTTPProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -1431,17 +1436,17 @@ func testHTTPProtocolClassification(t *testing.T, cfg *config.Config, clientHost
 				defer cancel()
 				_ = srv.Shutdown(timedContext)
 			},
-			validation: validateProtocolConnection(network.ProtocolHTTP),
+			validation: validateProtocolConnection(protocols.HTTP, tlsNotExpected),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP(clientHost),
@@ -1475,7 +1480,7 @@ func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, c.HandleUnary(timedContext, "test"))
 			},
-			validation: validateProtocolConnection(network.ProtocolHTTP2),
+			validation: validateProtocolConnection(protocols.HTTP2, tlsNotExpected),
 		},
 		{
 			name: "http2 traffic using gRPC - stream call",
@@ -1494,17 +1499,17 @@ func testHTTP2ProtocolClassification(t *testing.T, cfg *config.Config, clientHos
 				defer cancel()
 				require.NoError(t, c.HandleStream(timedContext, 5))
 			},
-			validation: validateProtocolConnection(network.ProtocolHTTP2),
+			validation: validateProtocolConnection(protocols.HTTP2, tlsNotExpected),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -1544,7 +1549,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clien
 				defer c.Close()
 			},
 			teardown:   teardown,
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown, tlsNotExpected),
 		},
 		{
 			name: "tcp client with sending random data",
@@ -1576,7 +1581,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clien
 				io.ReadAll(c)
 			},
 			teardown:   teardown,
-			validation: validateProtocolConnection(network.ProtocolUnknown),
+			validation: validateProtocolConnection(protocols.Unknown, tlsNotExpected),
 		},
 		{
 			// A case where we see multiple protocols on the same socket. In that case, we expect to classify the connection
@@ -1614,91 +1619,55 @@ func testEdgeCasesProtocolClassification(t *testing.T, cfg *config.Config, clien
 				io.ReadAll(c)
 			},
 			teardown:   teardown,
-			validation: validateProtocolConnection(network.ProtocolHTTP),
+			validation: validateProtocolConnection(protocols.HTTP, tlsNotExpected),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, cfg)
+			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
 
-func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, cfg *config.Config) {
-	if params.skipCallback != nil {
-		params.skipCallback(t, params.context)
-	}
-
-	if params.teardown != nil {
-		t.Cleanup(func() {
-			params.teardown(t, params.context)
-		})
-	}
-	if params.preTracerSetup != nil {
-		params.preTracerSetup(t, params.context)
-	}
-	tr := setupTracer(t, cfg)
-	params.postTracerSetup(t, params.context)
-	params.validation(t, params.context, tr)
-}
-
-func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
-	var incomingConns, outgoingConns []network.ConnectionStats
-
-	foundIncomingWithProtocol := false
-	foundOutgoingWithProtocol := false
-
-	for start := time.Now(); time.Since(start) < 5*time.Second; {
+func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol protocols.ProtocolType, expectedTLS bool) {
+	t.Logf("looking for target addr %s", targetAddr)
+	t.Logf("looking for server addr %s", serverAddr)
+	var outgoing, incoming *network.ConnectionStats
+	failed := !assert.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
-		newOutgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-			return cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
-		})
-		newIncomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-			return cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
-		})
-
-		outgoingConns = append(outgoingConns, newOutgoingConns...)
-		incomingConns = append(incomingConns, newIncomingConns...)
-
-		for _, conn := range newOutgoingConns {
-			t.Logf("Found outgoing connection %v", conn)
-			if conn.Protocol == expectedProtocol {
-				foundOutgoingWithProtocol = true
-				break
-			}
-		}
-		for _, conn := range newIncomingConns {
-			t.Logf("Found incoming connection %v", conn)
-			if conn.Protocol == expectedProtocol {
-				foundIncomingWithProtocol = true
-				break
+		if outgoing == nil {
+			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return cs.Direction == network.OUTGOING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
+			}) {
+				t.Logf("found potential outgoing connection %+v", c)
+				if c.ProtocolStack.Contains(expectedProtocol) && (c.ProtocolStack.Contains(protocols.TLS) == expectedTLS) {
+					t.Logf("found outgoing connection %+v", c)
+					outgoing = &c
+					break
+				}
 			}
 		}
 
-		if foundOutgoingWithProtocol && foundIncomingWithProtocol {
-			return
+		if incoming == nil {
+			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
+				return cs.Direction == network.INCOMING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+			}) {
+				t.Logf("found potential incoming connection %+v", c)
+				if c.ProtocolStack.Contains(expectedProtocol) && (c.ProtocolStack.Contains(protocols.TLS) == expectedTLS) {
+					t.Logf("found incoming connection %+v", c)
+					incoming = &c
+					break
+				}
+			}
 		}
 
-		time.Sleep(200 * time.Millisecond)
+		failed := incoming == nil || outgoing == nil
+		if failed {
+			t.Log(conns)
+		}
+		return !failed
+	}, 5*time.Second, 500*time.Millisecond, "could not find incoming or outgoing connections")
+	if failed {
+		t.Logf("incoming=%+v outgoing=%+v", incoming, outgoing)
 	}
-
-	// If we didn't find both -> fail
-	if foundOutgoingWithProtocol || foundIncomingWithProtocol {
-		// We have found at least one.
-		// Checking if the reason for not finding the other is flakiness of npm
-		if !foundIncomingWithProtocol && len(incomingConns) == 0 {
-			t.Log("npm didn't find the incoming connections, not failing the test")
-			return
-		}
-
-		if !foundOutgoingWithProtocol && len(outgoingConns) == 0 {
-			t.Log("npm didn't find the outgoing connections, not failing the test")
-			return
-		}
-
-	}
-
-	t.Errorf("couldn't find incoming and outgoing connections with protocol %d for "+
-		"server address %s and target address %s.\nIncoming: %v\nOutgoing: %v\nfound incoming with protocol: "+
-		"%v\nfound outgoing with protocol: %v", expectedProtocol, serverAddr, targetAddr, incomingConns, outgoingConns, foundIncomingWithProtocol, foundOutgoingWithProtocol)
 }

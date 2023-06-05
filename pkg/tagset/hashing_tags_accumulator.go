@@ -47,12 +47,6 @@ func (h *HashingTagsAccumulator) AppendHashed(src HashedTags) {
 	h.hash = append(h.hash, src.hash...)
 }
 
-// AppendHashingAccumulator appends tags and corresponding hashes to the accumulator
-func (h *HashingTagsAccumulator) AppendHashingAccumulator(src *HashingTagsAccumulator) {
-	h.data = append(h.data, src.data...)
-	h.hash = append(h.hash, src.hash...)
-}
-
 // SortUniq sorts and remove duplicate in place
 func (h *HashingTagsAccumulator) SortUniq() {
 	if h.Len() < 2 {
@@ -100,8 +94,10 @@ func (h *HashingTagsAccumulator) Truncate(len int) {
 
 // Less implements sort.Interface.Less
 func (h *HashingTagsAccumulator) Less(i, j int) bool {
-	// FIXME(vickenty): could sort using hashes, which is faster, but a lot of tests check for order.
-	return h.data[i] < h.data[j]
+	if h.hash[i] == h.hash[j] {
+		return h.data[i] < h.data[j]
+	}
+	return h.hash[i] < h.hash[j]
 }
 
 // Swap implements sort.Interface.Swap
@@ -125,4 +121,40 @@ func (h *HashingTagsAccumulator) Hash() uint64 {
 		hash ^= h
 	}
 	return hash
+}
+
+// removeSorted removes tags contained in l from r. Both accumulators must be SortUniq first.
+//
+// h is not sorted after this function. Does not modify o.
+func (h *HashingTagsAccumulator) removeSorted(o *HashingTagsAccumulator) {
+	// A sentinel string and NOT matching hash (an impossible combination outside this function)
+	const holeData = ""
+	const holeHash = 42
+
+	hlen, olen := len(h.data), len(o.data)
+
+	for i, j := 0, 0; i < hlen && j < olen; {
+		switch {
+		case h.hash[i] == o.hash[j] && h.data[i] == o.data[j]:
+			h.data[i] = holeData
+			h.hash[i] = holeHash
+			i++
+		case h.hash[i] < o.hash[j]:
+			i++
+		case h.hash[i] > o.hash[j]:
+			j++
+		}
+	}
+
+	for i := 0; i < hlen; {
+		if h.hash[i] == holeHash && h.data[i] == holeData {
+			hlen--
+			h.data[i] = h.data[hlen]
+			h.hash[i] = h.hash[hlen]
+		} else {
+			i++
+		}
+	}
+
+	h.Truncate(hlen)
 }

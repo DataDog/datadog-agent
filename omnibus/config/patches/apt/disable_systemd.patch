@@ -1,0 +1,20 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3165e195c..7ba79c4f0 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -124,15 +124,6 @@ if (ZSTD_FOUND)
+ endif()
+ 
+ 
+-find_package(Udev)
+-if (UDEV_FOUND)
+-  set(HAVE_UDEV 1)
+-endif()
+-
+-find_package(Systemd)
+-if (SYSTEMD_FOUND)
+-  set(HAVE_SYSTEMD 1)
+-endif()
+ 
+ find_package(SECCOMP)
+ if (SECCOMP_FOUND)

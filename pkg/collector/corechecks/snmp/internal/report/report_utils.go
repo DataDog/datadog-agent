@@ -90,16 +90,10 @@ func getTagsFromMetricTagConfigList(mtcl checkconfig.MetricTagConfigList, fullIn
 				log.Debugf("error getting tags. index `%d` not found in indexes `%v`", metricTag.Index, indexes)
 				continue
 			}
-			var tagValue string
-			if len(metricTag.Mapping) > 0 {
-				mappedValue, ok := metricTag.Mapping[indexes[index]]
-				if !ok {
-					log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
-					continue
-				}
-				tagValue = mappedValue
-			} else {
-				tagValue = indexes[index]
+			tagValue, err := checkconfig.GetMappedValue(indexes[index], metricTag.Mapping)
+			if err != nil {
+				log.Debugf("error getting tags. mapping for `%s` does not exist. mapping=`%v`, indexes=`%v`", indexes[index], metricTag.Mapping, indexes)
+				continue
 			}
 			rowTags = append(rowTags, metricTag.Tag+":"+tagValue)
 		}
@@ -175,4 +169,31 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 		}
 	}
 	return snmpintegration.InterfaceConfig{}, fmt.Errorf("no matching interface found for index=%s, tags=%s", index, tags)
+}
+
+// getConstantMetricValues retrieve all metric tags indexes and set their value as 1
+func getConstantMetricValues(mtcl checkconfig.MetricTagConfigList, values *valuestore.ResultValueStore) map[string]valuestore.ResultValue {
+	constantValues := make(map[string]valuestore.ResultValue)
+	for _, metricTag := range mtcl {
+		if len(metricTag.IndexTransform) > 0 {
+			// If index transform is set, indexes are from another table, we don't want to collect them
+			continue
+		}
+		if metricTag.Column.OID != "" {
+			columnValues, err := getColumnValueFromSymbol(values, metricTag.Column)
+			if err != nil {
+				log.Debugf("error getting column value: %v", err)
+				continue
+			}
+			for index := range columnValues {
+				if _, ok := constantValues[index]; ok {
+					continue
+				}
+				constantValues[index] = valuestore.ResultValue{
+					Value: float64(1),
+				}
+			}
+		}
+	}
+	return constantValues
 }

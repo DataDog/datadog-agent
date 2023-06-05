@@ -967,6 +967,32 @@ func TestReset(t *testing.T) {
 	}
 }
 
+func TestNoDataRace(t *testing.T) {
+	// This test ensures that no race conditions are encountered when the "--race" flag is passed
+	// to the test process and an entity is accessed in a different thread than the one handling events
+	s := newTestStore()
+
+	container := &Container{
+		EntityID: EntityID{
+			Kind: KindContainer,
+			ID:   "123",
+		},
+	}
+
+	go func() {
+		_, _ = s.GetContainer("456")
+		return
+	}()
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: container,
+		},
+	})
+}
+
 func newTestStore() *store {
 	return &store{
 		store:   make(map[Kind]map[string]*cachedEntity),

@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package http
 
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 const defaultMinAge = 30 * time.Second
@@ -42,36 +42,48 @@ const defaultMinAge = 30 * time.Second
 // request segment at "t0" with response segment "t3". This is why we buffer data here for 30 seconds
 // and then sort all events by their timestamps before joining them.
 type incompleteBuffer struct {
-	data       map[KeyTuple]*txParts
-	maxEntries int
-	telemetry  *telemetry
-	minAgeNano int64
+	data         map[types.ConnectionKey]*txParts
+	totalEntries int
+	maxEntries   int
+	telemetry    *Telemetry
+	minAgeNano   int64
 }
 
 type txParts struct {
-	requests  []httpTX
-	responses []httpTX
+	requests  []HttpTX
+	responses []HttpTX
 }
 
 func newTXParts() *txParts {
 	return &txParts{
-		requests:  make([]httpTX, 0, 5),
-		responses: make([]httpTX, 0, 5),
+		requests:  make([]HttpTX, 0, 5),
+		responses: make([]HttpTX, 0, 5),
 	}
 }
 
-func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
+func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuffer {
+	// Only set aside a fraction of MaxHTTPBuffered for incomplete data
+	// as this should only be used rarely (as described in the example above).
+	// If our telemetry indicates that this buffer is filling up often, we need
+	// to better understand what is going on and reassess our approach
+	maxEntries := c.MaxHTTPStatsBuffered / 10
+
 	return &incompleteBuffer{
-		data:       make(map[KeyTuple]*txParts),
-		maxEntries: c.MaxHTTPStatsBuffered,
+		data:       make(map[types.ConnectionKey]*txParts),
+		maxEntries: maxEntries,
 		telemetry:  telemetry,
 		minAgeNano: defaultMinAge.Nanoseconds(),
 	}
 }
 
-func (b *incompleteBuffer) Add(tx httpTX) {
+func (b *incompleteBuffer) Add(tx HttpTX) {
+	if b.totalEntries >= b.maxEntries {
+		b.telemetry.dropped.Add(1)
+		return
+	}
+
 	connTuple := tx.ConnTuple()
-	key := KeyTuple{
+	key := types.ConnectionKey{
 		SrcIPHigh: connTuple.SrcIPHigh,
 		SrcIPLow:  connTuple.SrcIPLow,
 		SrcPort:   connTuple.SrcPort,
@@ -79,24 +91,21 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 
 	parts, ok := b.data[key]
 	if !ok {
-		if len(b.data) >= b.maxEntries {
-			b.telemetry.dropped.Add(1)
-			return
-		}
-
 		parts = newTXParts()
 		b.data[key] = parts
 	}
+	b.totalEntries++
+	b.telemetry.newIncomplete.Add(1)
 
 	// copy underlying httpTX value. this is now needed because these objects are
 	// now coming directly from pooled perf records
-	ebpfTX, ok := tx.(*ebpfHttpTx)
+	ebpfTX, ok := tx.(*EbpfHttpTx)
 	if !ok {
 		// should never happen
 		return
 	}
 
-	ebpfTxCopy := new(ebpfHttpTx)
+	ebpfTxCopy := new(EbpfHttpTx)
 	*ebpfTxCopy = *ebpfTX
 	tx = ebpfTxCopy
 
@@ -107,14 +116,16 @@ func (b *incompleteBuffer) Add(tx httpTX) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
+func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
 	var (
-		joined   []httpTX
+		joined   []HttpTX
 		previous = b.data
 		nowUnix  = now.UnixNano()
 	)
 
-	b.data = make(map[KeyTuple]*txParts)
+	b.telemetry.totalIncomplete.Add(int64(b.totalEntries))
+	b.data = make(map[types.ConnectionKey]*txParts)
+	b.totalEntries = 0
 	for key, parts := range previous {
 		// TODO: in this loop we're sorting all transactions at once, but we could also
 		// consider sorting data during insertion time (using a tree-like structure, for example)
@@ -147,21 +158,23 @@ func (b *incompleteBuffer) Flush(now time.Time) []httpTX {
 				parts := newTXParts()
 				parts.requests = append(parts.requests, keep...)
 				b.data[key] = parts
+				b.totalEntries += len(parts.requests)
 				break
 			}
 			i++
 		}
 	}
 
+	b.telemetry.joinedIncomplete.Add(int64(len(joined)))
 	return joined
 }
 
-func (b *incompleteBuffer) shouldKeep(tx httpTX, now int64) bool {
+func (b *incompleteBuffer) shouldKeep(tx HttpTX, now int64) bool {
 	then := int64(tx.RequestStarted())
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []httpTX
+type byRequestTime []HttpTX
 
 func (rt byRequestTime) Len() int      { return len(rt) }
 func (rt byRequestTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
@@ -169,7 +182,7 @@ func (rt byRequestTime) Less(i, j int) bool {
 	return rt[i].RequestStarted() < rt[j].RequestStarted()
 }
 
-type byResponseTime []httpTX
+type byResponseTime []HttpTX
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }

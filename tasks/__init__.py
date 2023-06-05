@@ -10,11 +10,14 @@ from . import (
     bench,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    components,
     customaction,
-    docker,
+    docker_tasks,
     dogstatsd,
+    epforwarder,
     github,
     msi,
+    new_e2e_tests,
     package,
     pipeline,
     process_agent,
@@ -38,6 +41,7 @@ from .go import (
     deps_vendored,
     generate_licenses,
     generate_protobuf,
+    go_fix,
     golangci_lint,
     lint_licenses,
     reset,
@@ -50,10 +54,12 @@ from .test import (
     install_shellcheck,
     install_tools,
     integration_tests,
+    invoke_unit_tests,
     junit_macos_repack,
     junit_upload,
     lint_copyrights,
     lint_filenames,
+    lint_go,
     lint_milestone,
     lint_python,
     lint_releasenote,
@@ -83,12 +89,14 @@ ns.add_task(lint_releasenote)
 ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
+ns.add_task(lint_go)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
+ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
 ns.add_task(check_go_version)
@@ -96,16 +104,19 @@ ns.add_task(generate_config)
 ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
+ns.add_task(go_fix)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
+ns.add_collection(components)
 ns.add_collection(customaction)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
-ns.add_collection(docker)
+ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
+ns.add_collection(epforwarder)
 ns.add_collection(msi)
 ns.add_collection(github)
 ns.add_collection(package)
@@ -119,6 +130,7 @@ ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(security_agent)
 ns.add_collection(vscode)
+ns.add_collection(new_e2e_tests)
 ns.configure(
     {
         'run': {

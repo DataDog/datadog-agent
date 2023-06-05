@@ -114,10 +114,10 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib"}
+SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "ec2"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference({"python", "trivy"})
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference({"python", "trivy", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman", "secrets"}
@@ -165,28 +165,29 @@ build_tags = {
         "process-agent": PROCESS_AGENT_TAGS,
         "security-agent": SECURITY_AGENT_TAGS,
         "system-probe": SYSTEM_PROBE_TAGS,
+        "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
         # Test setups
-        "test": AGENT_TEST_TAGS,
-        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS),
+        "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS),
+        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
         "process-agent": PROCESS_AGENT_HEROKU_TAGS,
         "trace-agent": TRACE_AGENT_HEROKU_TAGS,
-        "lint": AGENT_HEROKU_TAGS,
+        "lint": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS),
         "unit-tests": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS),
     },
     AgentFlavor.iot: {
         "agent": IOT_AGENT_TAGS,
-        "lint": IOT_AGENT_TAGS,
+        "lint": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS),
         "unit-tests": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS),
     },
     AgentFlavor.dogstatsd: {
         "dogstatsd": DOGSTATSD_TAGS,
         "system-tests": AGENT_TAGS,
-        "lint": DOGSTATSD_TAGS,
+        "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS),
     },
 }

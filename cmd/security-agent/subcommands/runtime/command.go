@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package runtime
 
@@ -28,24 +27,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
-	seccommon "github.com/DataDog/datadog-agent/pkg/security/common"
-	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/reporter"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -62,6 +54,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
 	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
 	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
+	runtimeCmd.AddCommand(securityProfileCommands(globalParams)...)
 	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
 	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
 	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
@@ -434,9 +427,8 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func checkPoliciesInner(dir string) error {
-	cfg := &secconfig.Config{
-		PoliciesDir:         dir,
+func checkPoliciesInner(policiesDir string) error {
+	cfg := &pconfig.Config{
 		EnableKernelFilters: true,
 		EnableApprovers:     true,
 		EnableDiscarders:    true,
@@ -449,8 +441,6 @@ func checkPoliciesInner(dir string) error {
 	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
 
 	ruleOpts.WithLogger(seclog.DefaultLogger)
-
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
@@ -466,14 +456,19 @@ func checkPoliciesInner(dir string) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
 	if err != nil {
 		return err
 	}
 
 	loader := rules.NewPolicyLoader(provider)
 
-	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
+	if err != nil {
+		return err
+	}
+	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -551,21 +546,13 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 }
 
 func evalRule(log log.Component, config config.Component, evalArgs *evalCliParams) error {
-	cfg := &secconfig.Config{
-		PoliciesDir:         evalArgs.dir,
-		EnableKernelFilters: true,
-		EnableApprovers:     true,
-		EnableDiscarders:    true,
-		PIDCacheSize:        1,
-	}
+	policiesDir := evalArgs.dir
 
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
 	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
 	ruleOpts.WithLogger(seclog.DefaultLogger)
-
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
@@ -583,14 +570,20 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
 	if err != nil {
 		return err
 	}
 
 	loader := rules.NewPolicyLoader(provider)
 
-	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
+	if err != nil {
+		return err
+	}
+
+	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -659,46 +652,6 @@ func reloadRuntimePolicies(log log.Component, config config.Component) error {
 	return nil
 }
 
-type reporter struct {
-	logSource *sources.LogSource
-	logChan   chan *message.Message
-}
-
-func (r *reporter) ReportRaw(content []byte, service string, tags ...string) {
-	origin := message.NewOrigin(r.logSource)
-	origin.SetTags(tags)
-	origin.SetService(service)
-	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
-	r.logChan <- msg
-}
-
-func newRuntimeReporter(log log.Component, config config.Component, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
-	health := health.RegisterLiveness("runtime-security")
-
-	// setup the auditor
-	auditor := auditor.New(config.GetString("runtime_security_config.run_path"), "runtime-security-registry.json", pkgconfig.DefaultAuditorTTL, health)
-	auditor.Start()
-	stopper.Add(auditor)
-
-	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(logsconfig.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
-	pipelineProvider.Start()
-	stopper.Add(pipelineProvider)
-
-	logSource := sources.NewLogSource(
-		sourceName,
-		&logsconfig.LogsConfig{
-			Type:   sourceType,
-			Source: sourceName,
-		},
-	)
-	logChan := pipelineProvider.NextPipelineChan()
-	return &reporter{
-		logSource: logSource,
-		logChan:   logChan,
-	}, nil
-}
-
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
@@ -716,13 +669,14 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(agent)
 
-	endpoints, ctx, err := command.NewLogContextRuntime(log)
+	endpoints, ctx, err := common.NewLogContextRuntime()
 	if err != nil {
 		_ = log.Error(err)
 	}
 	stopper.Add(ctx)
 
-	reporter, err := newRuntimeReporter(log, config, stopper, "runtime-security-agent", "runtime-security", endpoints, ctx)
+	runPath := config.GetString("runtime_security_config.run_path")
+	reporter, err := reporter.NewCWSReporter(runPath, stopper, endpoints, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -735,6 +689,8 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 }
 
 func downloadPolicy(log log.Component, config config.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
+	var outputFile *os.File
+
 	apiKey := config.GetString("api_key")
 	appKey := config.GetString("app_key")
 
@@ -760,6 +716,7 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 			return err
 		}
 		defer f.Close()
+		outputFile = f
 		outputWriter = f
 	}
 
@@ -801,6 +758,14 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	}
 
 	_, err = outputWriter.Write(resBytes)
+	if err != nil {
+		return err
+	}
+
+	if outputFile != nil {
+		return outputFile.Close()
+	}
+
 	return err
 }
 

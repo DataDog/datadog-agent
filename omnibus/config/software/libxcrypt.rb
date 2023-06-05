@@ -10,6 +10,8 @@ version "4.4.28" do
     source sha256: "9e936811f9fad11dbca33ca19bd97c55c52eb3ca15901f27ade046cc79e69e87"
 end
 
+ship_source_offer true
+
 source url: "https://github.com/besser82/libxcrypt/releases/download/v#{version}/libxcrypt-#{version}.tar.xz",
        extract: :seven_zip
 

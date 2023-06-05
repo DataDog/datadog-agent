@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package trace
 
@@ -172,4 +171,11 @@ func TestFilterSpanFromLambdaLibraryOrRuntimeLegitimateSpan(t *testing.T) {
 		},
 	}
 	assert.False(t, filterSpanFromLambdaLibraryOrRuntime(&legitimateSpan))
+}
+
+func TestFilterServerlessSpanFromTracer(t *testing.T) {
+	span := pb.Span{
+		Resource: invocationSpanResource,
+	}
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&span))
 }

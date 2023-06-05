@@ -52,8 +52,8 @@ func TestLegacyIntervalDefault(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_ = config.Mock(t)
-			assert.Equal(t, tc.expectedInterval, GetInterval(tc.checkName))
+			cfg := config.Mock(t)
+			assert.Equal(t, tc.expectedInterval, GetInterval(cfg, tc.checkName))
 		})
 	}
 }
@@ -94,10 +94,9 @@ func TestLegacyIntervalOverride(t *testing.T) {
 		// Note: non-default overridden handling of pod check interval is in pkg/orhestrator/config
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_ = config.Mock(t)
 			cfg := config.Mock(t)
 			cfg.Set(tc.setting, override)
-			assert.Equal(t, time.Duration(override)*time.Second, GetInterval(tc.checkName))
+			assert.Equal(t, time.Duration(override)*time.Second, GetInterval(cfg, tc.checkName))
 		})
 	}
 }
@@ -124,7 +123,7 @@ func TestProcessDiscoveryInterval(t *testing.T) {
 			cfg := config.Mock(t)
 			cfg.Set("process_config.process_discovery.interval", tc.interval)
 
-			assert.Equal(t, tc.expectedInterval, GetInterval(DiscoveryCheckName))
+			assert.Equal(t, tc.expectedInterval, GetInterval(cfg, DiscoveryCheckName))
 		})
 	}
 }
@@ -150,7 +149,7 @@ func TestProcessEventsInterval(t *testing.T) {
 			cfg := config.Mock(t)
 			cfg.Set("process_config.event_collection.interval", tc.interval)
 
-			assert.Equal(t, tc.expectedInterval, GetInterval(ProcessEventsCheckName))
+			assert.Equal(t, tc.expectedInterval, GetInterval(cfg, ProcessEventsCheckName))
 		})
 	}
 }

@@ -121,7 +121,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := ddconfig.MockSystemProbe(t)
 			mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
 			mockConfig.Set("service_monitoring_config.process_service_inference.use_windows_service_name", true)
 
@@ -131,7 +131,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			}
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 
-			se := NewServiceExtractor()
+			se := NewServiceExtractor(mockConfig)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
@@ -147,7 +147,7 @@ func TestExtractServiceMetadataDisabled(t *testing.T) {
 		Cmdline: []string{"/bin/bash"},
 	}
 	procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
-	se := NewServiceExtractor()
+	se := NewServiceExtractor(mockConfig)
 	se.Extract(procsByPid)
 	assert.Empty(t, se.GetServiceContext(proc.Pid))
 }

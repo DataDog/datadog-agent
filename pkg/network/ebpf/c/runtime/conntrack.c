@@ -11,11 +11,11 @@
 
 #include "defs.h"
 #include "conntrack.h"
-#include "conntrack-maps.h"
+#include "conntrack/maps.h"
 #include "netns.h"
 #include "ip.h"
 
-#ifdef FEATURE_IPV6_ENABLED
+#if defined(FEATURE_TCPV6_ENABLED) || defined(FEATURE_UDPV6_ENABLED)
 #include "ipv6.h"
 #endif
 
@@ -48,11 +48,8 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
 
 SEC("kprobe/ctnetlink_fill_info")
 int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
-
-    proc_t proc = {};
-    bpf_get_current_comm(&proc.comm, sizeof(proc.comm));
-
-    if (!proc_t_comm_prefix_equals("system-probe", 12, proc)) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
+    if (pid != systemprobe_pid()) {
         log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process\n");
         return 0;
     }

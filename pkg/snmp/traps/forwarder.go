@@ -62,5 +62,5 @@ func (tf *TrapForwarder) sendTrap(packet *SnmpPacket) {
 		return
 	}
 	log.Tracef("send trap payload: %s", string(data))
-	tf.sender.EventPlatformEvent(string(data), epforwarder.EventTypeSnmpTraps)
+	tf.sender.EventPlatformEvent(data, epforwarder.EventTypeSnmpTraps)
 }

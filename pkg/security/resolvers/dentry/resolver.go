@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package dentry
 
@@ -27,9 +26,9 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -76,23 +75,11 @@ type Resolver struct {
 // ErrEntryNotFound is thrown when a path key was not found in the cache
 var ErrEntryNotFound = errors.New("entry not found")
 
-// PathLeaf is the go representation of the eBPF path_leaf_t structure
-type PathLeaf struct {
-	Parent model.PathKey
-	Name   [model.MaxSegmentLength + 1]byte
-	Len    uint16
-}
-
 // PathEntry is the path structure saved in cache
 type PathEntry struct {
 	Parent     model.PathKey
 	Name       string
 	Generation uint64
-}
-
-// GetName returns the path value as a string
-func (pv *PathLeaf) GetName() string {
-	return model.NullTerminatedString(pv.Name[:])
 }
 
 // eRPCStats is used to collect kernel space metrics about the eRPC resolution
@@ -283,9 +270,9 @@ func (dr *Resolver) ResolveNameFromCache(mountID uint32, inode uint64) (string, 
 	return path.Name, nil
 }
 
-func (dr *Resolver) lookupInodeFromMap(mountID uint32, inode uint64, pathID uint32) (PathLeaf, error) {
+func (dr *Resolver) lookupInodeFromMap(mountID uint32, inode uint64, pathID uint32) (model.PathLeaf, error) {
 	key := model.PathKey{MountID: mountID, Inode: inode, PathID: pathID}
-	var pathLeaf PathLeaf
+	var pathLeaf model.PathLeaf
 	if err := dr.pathnames.Lookup(key, &pathLeaf); err != nil {
 		return pathLeaf, fmt.Errorf("unable to get filename for mountID `%d` and inode `%d`: %w", mountID, inode, err)
 	}
@@ -368,7 +355,7 @@ func (dr *Resolver) ResolveFromCache(mountID uint32, inode uint64) (string, erro
 		depth++
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if path.Name[0] != '\x00' && path.Name[0] != '/' {
+		if len(path.Name) != 0 && path.Name[0] != '\x00' && path.Name[0] != '/' {
 			filenameParts = append(filenameParts, path.Name)
 		}
 
@@ -415,7 +402,7 @@ func (dr *Resolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, 
 	var cacheEntry *PathEntry
 	var resolutionErr error
 	var name string
-	var path PathLeaf
+	var pathLeaf model.PathLeaf
 	key := model.PathKey{MountID: mountID, Inode: inode, PathID: pathID}
 
 	keyBuffer, err := key.MarshalBinary()
@@ -433,16 +420,16 @@ func (dr *Resolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
 		key.Write(keyBuffer)
-		if err := dr.pathnames.Lookup(keyBuffer, &path); err != nil {
+		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
 			filenameParts = nil
-			resolutionErr = errDentryPathKeyNotFound
+			resolutionErr = &ErrDentryPathKeyNotFound{PathKey: key}
 			break
 		}
 		depth++
 
 		cacheKey = model.PathKey{MountID: key.MountID, Inode: key.Inode}
 
-		if path.Name[0] == '\x00' {
+		if pathLeaf.Name[0] == '\x00' {
 			if depth >= model.MaxPathDepth {
 				resolutionErr = errTruncatedParents
 			} else {
@@ -452,27 +439,27 @@ func (dr *Resolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, 
 		}
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		if path.Name[0] == '/' {
+		if pathLeaf.Name[0] == '/' {
 			name = "/"
 		} else {
-			name = model.NullTerminatedString(path.Name[:])
+			name = model.NullTerminatedString(pathLeaf.Name[:])
 			filenameParts = append(filenameParts, name)
 		}
 
 		// do not cache fake path keys in the case of rename events
 		if !IsFakeInode(key.Inode) && cache {
-			cacheEntry = dr.getPathEntryFromPool(path.Parent, name)
+			cacheEntry = dr.getPathEntryFromPool(pathLeaf.Parent, name)
 
 			keys = append(keys, cacheKey)
 			entries = append(entries, cacheEntry)
 		}
 
-		if path.Parent.Inode == 0 {
+		if pathLeaf.Parent.Inode == 0 {
 			break
 		}
 
 		// Prepare next key
-		key = path.Parent
+		key = pathLeaf.Parent
 	}
 
 	filename := computeFilenameFromParts(filenameParts)
@@ -822,60 +809,6 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 func (dr *Resolver) Close() error {
 	return fmt.Errorf("couldn't cleanup eRPC memory segment: %w", unix.Munmap(dr.erpcSegment))
 }
-
-// ErrERPCRequestNotProcessed is used to notify that the eRPC request was not processed
-type ErrERPCRequestNotProcessed struct{}
-
-func (err ErrERPCRequestNotProcessed) Error() string {
-	return "erpc_not_processed"
-}
-
-var errERPCRequestNotProcessed ErrERPCRequestNotProcessed
-
-// ErrTruncatedParentsERPC is used to notify that some parents of the path are missing
-type ErrTruncatedParentsERPC struct{}
-
-func (err ErrTruncatedParentsERPC) Error() string {
-	return "truncated_parents_erpc"
-}
-
-var errTruncatedParentsERPC ErrTruncatedParentsERPC
-
-// ErrTruncatedParents is used to notify that some parents of the path are missing
-type ErrTruncatedParents struct{}
-
-func (err ErrTruncatedParents) Error() string {
-	return "truncated_parents"
-}
-
-var errTruncatedParents ErrTruncatedParents
-
-// ErrERPCResolution is used to notify that the eRPC resolution failed
-type ErrERPCResolution struct{}
-
-func (err ErrERPCResolution) Error() string {
-	return "erpc_resolution"
-}
-
-var errERPCResolution ErrERPCResolution
-
-// ErrKernelMapResolution is used to notify that the Kernel maps resolution failed
-type ErrKernelMapResolution struct{}
-
-func (err ErrKernelMapResolution) Error() string {
-	return "map_resolution"
-}
-
-var errKernelMapResolution ErrKernelMapResolution
-
-// ErrDentryPathKeyNotFound is used to notify that the request key is missing from the kernel maps
-type ErrDentryPathKeyNotFound struct{}
-
-func (err ErrDentryPathKeyNotFound) Error() string {
-	return "dentry_path_key_not_found"
-}
-
-var errDentryPathKeyNotFound ErrDentryPathKeyNotFound
 
 // NewResolver returns a new dentry resolver
 func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *erpc.ERPC) (*Resolver, error) {

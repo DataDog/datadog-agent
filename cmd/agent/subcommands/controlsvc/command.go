@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 // Package controlsvc implements 'agent start-service', 'agent stopservice',
 // and 'agent restart-service'.

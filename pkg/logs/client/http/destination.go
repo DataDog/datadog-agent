@@ -31,8 +31,9 @@ import (
 
 // ContentType options,
 const (
-	TextContentType = "text/plain"
-	JSONContentType = "application/json"
+	TextContentType     = "text/plain"
+	JSONContentType     = "application/json"
+	ProtobufContentType = "application/x-protobuf"
 )
 
 // HTTP errors.
@@ -229,8 +230,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		}
 
 		if d.shouldRetry {
-			d.updateRetryState(err, isRetrying)
-			if d.lastRetryError != nil {
+			if d.updateRetryState(err, isRetrying) {
 				continue
 			}
 		}
@@ -323,7 +323,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 }
 
-func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
+func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	d.retryLock.Lock()
 	defer d.retryLock.Unlock()
 
@@ -333,12 +333,16 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) {
 			isRetrying <- true
 		}
 		d.lastRetryError = err
+
+		return true
 	} else {
 		d.nbErrors = d.backoff.DecError(d.nbErrors)
 		if isRetrying != nil && d.lastRetryError != nil {
 			isRetrying <- false
 		}
 		d.lastRetryError = nil
+
+		return false
 	}
 }
 

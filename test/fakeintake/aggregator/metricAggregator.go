@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 type MetricSeries struct {
@@ -18,12 +19,12 @@ func (mp *MetricSeries) name() string {
 	return mp.Metric
 }
 
-func (mp *MetricSeries) tags() []string {
+func (mp *MetricSeries) GetTags() []string {
 	return mp.Tags
 }
 
-func parseMetricSeries(data []byte) (metrics []*MetricSeries, err error) {
-	enflated, err := enflate(data)
+func parseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error) {
+	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}

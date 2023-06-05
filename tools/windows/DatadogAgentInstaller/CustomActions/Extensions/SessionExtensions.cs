@@ -1,3 +1,5 @@
+using Datadog.CustomActions.Interfaces;
+
 namespace Datadog.CustomActions.Extensions
 {
     /// <summary>

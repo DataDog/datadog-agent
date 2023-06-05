@@ -108,11 +108,21 @@ func TestPercentCalculation(t *testing.T) {
 	// Zero deltaTime case
 	assert.True(t, floatEquals(calculatePct(100, 0, 8), 0.0))
 
+	// Negative CPU values should be sanitized to 0
+	assert.True(t, floatEquals(calculatePct(100, -200, 1), 0.0))
+	assert.True(t, floatEquals(calculatePct(-100, 200, 1), 0.0))
+
 	assert.True(t, floatEquals(calculatePct(0, 8.08, 8), 0.0))
 	if runtime.GOOS != "windows" {
+		// on *nix systems, CPU utilization is multiplied by number of cores to emulate top
 		assert.True(t, floatEquals(calculatePct(100, 200, 2), 100))
 		assert.True(t, floatEquals(calculatePct(0.04, 8.08, 8), 3.960396))
 		assert.True(t, floatEquals(calculatePct(1.09, 8.08, 8), 107.920792))
+	} else {
+		// on Windows, CPU utilization is not multiplied by number of cores
+		assert.True(t, floatEquals(calculatePct(100, 200, 2), 50))
+		assert.True(t, floatEquals(calculatePct(0.04, 8.08, 8), 0.4950495))
+		assert.True(t, floatEquals(calculatePct(1.09, 8.08, 8), 13.490099))
 	}
 }
 

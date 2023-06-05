@@ -24,9 +24,10 @@ const (
 
 	staticSource         = workloadmetaCollectorName + "-static"
 	podSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
+	nodeSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesNode)
 	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
-	containerImageSource = workloadmetaCollectorName + "+" + string(workloadmeta.KindContainerImageMetadata)
+	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
 )
 
 // CollectorPriorities holds collector priorities

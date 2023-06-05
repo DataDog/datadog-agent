@@ -1,6 +1,8 @@
 FROM ubuntu:22.04 AS baseimage
 LABEL baseimage.os "ubuntu jammy LTS"
 LABEL baseimage.name "ubuntu:22.04"
+# Can be used by Dependabot
+LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
 
 ARG CIBUILD
 # NOTE about APT mirrorlists:
@@ -50,7 +52,7 @@ RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && c
 COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
 # To calculate S6_SHA256SUM for a specific version, run:
 # curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-<arch>.tar.gz | sha256sum
-RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c -
+RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - && rm -f /output/s6.$TARGETARCH.sha256
 
 # Extract and cleanup:
 #   - unused systemd unit
@@ -136,8 +138,10 @@ RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
   && apt clean; fi
 
 # cleaning up
-RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
+# which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
+RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /

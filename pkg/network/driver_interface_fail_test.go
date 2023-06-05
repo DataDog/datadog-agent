@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package network
 
@@ -23,6 +22,8 @@ type TestDriverHandleFail struct {
 	lastBufferSize  int
 	lastError       error
 }
+
+func (tdh *TestDriverHandleFail) RefreshStats() {}
 
 func (tdh *TestDriverHandleFail) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
 	fmt.Printf("Got ReadFile call")
@@ -54,9 +55,6 @@ func (tdh *TestDriverHandleFail) CancelIoEx(ol *windows.Overlapped) error {
 	return nil
 }
 
-func (tdh *TestDriverHandleFail) GetStatsForHandle() (map[string]map[string]int64, error) {
-	return nil, nil
-}
 func (tdh *TestDriverHandleFail) Close() error {
 	return nil
 }

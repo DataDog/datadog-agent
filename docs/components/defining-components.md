@@ -77,6 +77,8 @@ If the list of return values grows unwieldy, `fx.Out` can be used to create an o
 
 The constructor may call methods on other components, as long as the called method's documentation indicates it is OK.
 
+You can use the invoke task `inv new-component comp/<bundleName>/<component>` to generate a pre-filled `component.go` file for the given component.
+
 ## Documentation
 
 The documentation (both package-level and method-level) should include everything a user of the component needs to know.
@@ -148,5 +150,6 @@ func (m *mock) AddedFoos() []Foo { ... }
 func newFoo(deps dependencies) Component {
     return &mock{ ... }
 }
+```
 
 Users of the mock module can cast the `Component` to a `Mock` to access the mock methods, as described in [Using Components](./using.md).

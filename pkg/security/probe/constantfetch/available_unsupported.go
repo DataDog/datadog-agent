@@ -4,15 +4,14 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build linux && !linux_bpf
-// +build linux,!linux_bpf
 
 package constantfetch
 
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 

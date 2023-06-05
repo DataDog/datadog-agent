@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package network
 
@@ -12,7 +11,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
-const tlsTagsMask = http.GnuTLS | http.OpenSSL | http.Go
+const (
+	ConnTagGnuTLS  = http.GnuTLS
+	ConnTagOpenSSL = http.OpenSSL
+	ConnTagGo      = http.Go
+	ConnTagJava    = http.Java
+	ConnTagTLS     = http.TLS
+)
 
 // GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
 func GetStaticTags(staticTags uint64) (tags []string) {
@@ -25,5 +30,5 @@ func GetStaticTags(staticTags uint64) (tags []string) {
 }
 
 func IsTLSTag(staticTags uint64) bool {
-	return staticTags&tlsTagsMask > 0
+	return staticTags&(ConnTagGnuTLS|ConnTagOpenSSL|ConnTagGo|ConnTagJava|ConnTagTLS) > 0
 }

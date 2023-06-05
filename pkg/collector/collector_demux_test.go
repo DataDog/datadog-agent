@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package collector
 
@@ -147,8 +146,8 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 		return sender == nil
 	}, time.Second, 10*time.Millisecond)
 
-	//create new sender and try registering sampler before flush
-	sender, err = aggregator.GetSender(ch.ID())
+	// create new sender and try registering sampler before flush
+	_, err = aggregator.GetSender(ch.ID())
 	assert.NoError(suite.T(), err)
 
 	// flush

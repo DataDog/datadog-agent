@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package admission
 
@@ -63,7 +62,7 @@ func StartControllers(ctx ControllerContext) error {
 		return err
 	}
 
-	v1Enabled, err := useAdmissionV1(ctx)
+	v1Enabled, err := UseAdmissionV1(ctx.DiscoveryClient)
 	if err != nil {
 		return err
 	}

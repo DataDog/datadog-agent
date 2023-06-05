@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -35,24 +34,23 @@ var (
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
-	// defaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
-	// Must be a power of 2 and a multiple of the page size
-	defaultEventsRingBufferSize uint32
 )
 
-func init() {
+// computeDefaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
+// Must be a power of 2 and a multiple of the page size
+func computeDefaultEventsRingBufferSize() uint32 {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		numCPU = 1
 	}
 
 	if numCPU <= 16 {
-		defaultEventsRingBufferSize = uint32(8 * 256 * os.Getpagesize())
+		return uint32(8 * 256 * os.Getpagesize())
 	} else if numCPU <= 64 {
-		defaultEventsRingBufferSize = uint32(16 * 256 * os.Getpagesize())
-	} else {
-		defaultEventsRingBufferSize = uint32(32 * 256 * os.Getpagesize())
+		return uint32(16 * 256 * os.Getpagesize())
 	}
+
+	return uint32(32 * 256 * os.Getpagesize())
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
@@ -117,7 +115,7 @@ func AllMaps() []*manager.Map {
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
 		{Name: "pid_discarders"},
-		{Name: "inode_discarder_revisions"},
+		{Name: "inode_disc_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table
 		{Name: "pathnames"},
@@ -146,8 +144,18 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 	return uint32(maxEntries)
 }
 
+// MapSpecEditorOpts defines some options of the map spec editor
+type MapSpecEditorOpts struct {
+	TracedCgroupSize        int
+	UseMmapableMaps         bool
+	UseRingBuffers          bool
+	RingBufferSize          uint32
+	PathResolutionEnabled   bool
+	SecurityProfileMaxCount int
+}
+
 // AllMapSpecEditors returns the list of map editors
-func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, useRingBuffers bool, ringBufferSize uint32) map[string]manager.MapSpecEditor {
+func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
@@ -157,10 +165,7 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"pathnames": {
-			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
-			EditorFlag: manager.EditMaxEntries,
-		},
+
 		"activity_dumps_config": {
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
@@ -173,29 +178,44 @@ func AllMapSpecEditors(numCPU int, tracedCgroupSize int, supportMmapableMaps, us
 			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"security_profiles": {
+			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"secprofs_syscalls": {
+			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 
-	if tracedCgroupSize > 0 {
-		editors["traced_cgroups"] = manager.MapSpecEditor{
-			MaxEntries: uint32(tracedCgroupSize),
+	if opts.PathResolutionEnabled {
+		editors["pathnames"] = manager.MapSpecEditor{
+			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 
-	if supportMmapableMaps {
+	if opts.TracedCgroupSize > 0 {
+		editors["traced_cgroups"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.TracedCgroupSize),
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.UseMmapableMaps {
 		editors["dr_erpc_buffer"] = manager.MapSpecEditor{
 			Flags:      unix.BPF_F_MMAPABLE,
 			EditorFlag: manager.EditFlags,
 		}
 	}
-	if useRingBuffers {
-		if ringBufferSize == 0 {
-			ringBufferSize = defaultEventsRingBufferSize
+	if opts.UseRingBuffers {
+		if opts.RingBufferSize == 0 {
+			opts.RingBufferSize = computeDefaultEventsRingBufferSize()
 		}
 		editors["events"] = manager.MapSpecEditor{
-			MaxEntries: ringBufferSize,
+			MaxEntries: opts.RingBufferSize,
 			Type:       ebpf.RingBuf,
-			EditorFlag: manager.EditType | manager.EditMaxEntries,
+			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
 		}
 	}
 	return editors

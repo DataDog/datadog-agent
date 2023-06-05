@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python && test
-// +build python,test
 
 package python
 
@@ -227,8 +226,9 @@ func testSubmitEventPlatformEvent(t *testing.T) {
 	SubmitEventPlatformEvent(
 		C.CString("testID"),
 		C.CString("raw-event"),
+		C.int(len("raw-event")),
 		C.CString("dbm-sample"),
 	)
 
-	sender.AssertEventPlatformEvent(t, "raw-event", "dbm-sample")
+	sender.AssertEventPlatformEvent(t, []byte("raw-event"), "dbm-sample")
 }

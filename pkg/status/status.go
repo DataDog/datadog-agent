@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -39,7 +40,7 @@ import (
 var timeFormat = "2006-01-02 15:04:05.999 MST"
 
 // GetStatus grabs the status from expvar and puts it into a map
-func GetStatus() (map[string]interface{}, error) {
+func GetStatus(verbose bool) (map[string]interface{}, error) {
 	stats, err := getCommonStatus()
 	if err != nil {
 		return nil, err
@@ -59,7 +60,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["JMXStatus"] = GetJMXStatus()
 	stats["JMXStartupError"] = GetJMXStartupError()
 
-	stats["logsStats"] = logs.GetStatus()
+	stats["logsStats"] = logs.GetStatus(verbose)
 
 	stats["otlp"] = GetOTLPStatus()
 
@@ -102,7 +103,7 @@ func GetStatus() (map[string]interface{}, error) {
 
 // GetAndFormatStatus gets and formats the status all in one go
 func GetAndFormatStatus() ([]byte, error) {
-	s, err := GetStatus()
+	s, err := GetStatus(true)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +123,7 @@ func GetAndFormatStatus() ([]byte, error) {
 
 // GetCheckStatusJSON gets the status of a single check as JSON
 func GetCheckStatusJSON(c check.Check, cs *check.Stats) ([]byte, error) {
-	s, err := GetStatus()
+	s, err := GetStatus(false)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +155,7 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 }
 
 // GetDCAStatus grabs the status from expvar and puts it into a map
-func GetDCAStatus() (map[string]interface{}, error) {
+func GetDCAStatus(verbose bool) (map[string]interface{}, error) {
 	stats, err := getCommonStatus()
 	if err != nil {
 		return nil, err
@@ -163,7 +164,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["config"] = getDCAPartialConfig()
 	stats["leaderelection"] = getLeaderElectionDetails()
 
-	stats["logsStats"] = logs.GetStatus()
+	stats["logsStats"] = logs.GetStatus(verbose)
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -210,7 +211,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 
 // GetAndFormatDCAStatus gets and formats the DCA status all in one go.
 func GetAndFormatDCAStatus() ([]byte, error) {
-	s, err := GetDCAStatus()
+	s, err := GetDCAStatus(true)
 	if err != nil {
 		log.Infof("Error while getting status %q", err)
 		return nil, err
@@ -230,7 +231,7 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 
 // GetAndFormatSecurityAgentStatus gets and formats the security agent status
 func GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus map[string]interface{}) ([]byte, error) {
-	s, err := GetStatus()
+	s, err := GetStatus(true)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +279,7 @@ func getPartialConfig() map[string]string {
 }
 
 func getEndpointsInfos() (map[string]interface{}, error) {
-	endpoints, err := config.GetMultipleEndpoints()
+	endpoints, err := utils.GetMultipleEndpoints(config.Datadog)
 	if err != nil {
 		return nil, err
 	}

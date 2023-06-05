@@ -32,17 +32,15 @@ type Sender interface {
 	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	Event(e metrics.Event)
-	EventPlatformEvent(rawEvent string, eventType string)
+	EventPlatformEvent(rawEvent []byte, eventType string)
 	GetSenderStats() check.SenderStats
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
+	SetNoIndex(noIndex bool)
 	FinalizeCheckServiceTag()
 	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
 	OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string)
-	ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage)
-	ContainerImage(msgs []serializer.ContainerImageMessage)
-	SBOM(msgs []serializer.SBOMMessage)
 }
 
 // RawSender interface to submit samples to aggregator directly
@@ -65,12 +63,10 @@ type checkSender struct {
 	eventOut                chan<- metrics.Event
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
-	contlcycleOut           chan<- senderContainerLifecycleEvent
-	contimageOut            chan<- senderContainerImage
-	sbomOut                 chan<- senderSBOM
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	service                 string
+	noIndex                 bool
 }
 
 // senderItem knows how the aggregator should handle it
@@ -99,7 +95,7 @@ func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
 
 type senderEventPlatformEvent struct {
 	id        check.ID
-	rawEvent  string
+	rawEvent  []byte
 	eventType string
 }
 
@@ -107,18 +103,6 @@ type senderOrchestratorMetadata struct {
 	msgs        []serializer.ProcessMessageBody
 	clusterID   string
 	payloadType int
-}
-
-type senderContainerLifecycleEvent struct {
-	msgs []serializer.ContainerLifecycleMessage
-}
-
-type senderContainerImage struct {
-	msgs []serializer.ContainerImageMessage
-}
-
-type senderSBOM struct {
-	msgs []serializer.SBOMMessage
 }
 
 type senderOrchestratorManifest struct {
@@ -141,9 +125,6 @@ func newCheckSender(
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata,
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
-	contlcycleOut chan<- senderContainerLifecycleEvent,
-	contimageOut chan<- senderContainerImage,
-	sbomOut chan<- senderSBOM,
 ) *checkSender {
 	return &checkSender{
 		id:                      id,
@@ -156,9 +137,6 @@ func newCheckSender(
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
-		contlcycleOut:           contlcycleOut,
-		contimageOut:            contimageOut,
-		sbomOut:                 sbomOut,
 	}
 }
 
@@ -224,6 +202,10 @@ func (s *checkSender) FinalizeCheckServiceTag() {
 	}
 }
 
+func (s *checkSender) SetNoIndex(noIndex bool) {
+	s.noIndex = noIndex
+}
+
 // Commit commits the metric samples & histogram buckets that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
@@ -272,7 +254,7 @@ func (s *checkSender) sendMetricSample(
 		SampleRate:      1,
 		Timestamp:       timeNowNano(),
 		FlushFirstValue: flushFirstValue,
-		NoIndex:         noIndex,
+		NoIndex:         s.noIndex || noIndex,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
@@ -422,7 +404,7 @@ func (s *checkSender) Event(e metrics.Event) {
 }
 
 // Event submits an event
-func (s *checkSender) EventPlatformEvent(rawEvent string, eventType string) {
+func (s *checkSender) EventPlatformEvent(rawEvent []byte, eventType string) {
 	s.eventPlatformOut <- senderEventPlatformEvent{
 		id:        s.id,
 		rawEvent:  rawEvent,
@@ -451,18 +433,6 @@ func (s *checkSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody,
 	s.orchestratorManifestOut <- om
 }
 
-func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
-	s.contlcycleOut <- senderContainerLifecycleEvent{msgs: msgs}
-}
-
-func (s *checkSender) ContainerImage(msgs []serializer.ContainerImageMessage) {
-	s.contimageOut <- senderContainerImage{msgs: msgs}
-}
-
-func (s *checkSender) SBOM(msgs []serializer.SBOMMessage) {
-	s.sbomOut <- senderSBOM{msgs: msgs}
-}
-
 func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
@@ -487,9 +457,6 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 		sp.agg.orchestratorMetadataIn,
 		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
-		sp.agg.contLcycleIn,
-		sp.agg.contImageIn,
-		sp.agg.sbomIn,
 	)
 	sp.senders[id] = sender
 	return sender, err

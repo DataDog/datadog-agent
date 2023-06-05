@@ -10,6 +10,10 @@ type Params struct {
 	// sysProbeConfFilePath is the path at which to look for configuration, usually
 	// given by the --sysprobecfgpath command-line flag.
 	sysProbeConfFilePath string
+
+	// configLoadSecrets determines whether secrets in the configuration file
+	// should be evaluated.
+	configLoadSecrets bool
 }
 
 // NewParams creates a new instance of Params
@@ -24,5 +28,11 @@ func NewParams(options ...func(*Params)) Params {
 func WithSysProbeConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
 		b.sysProbeConfFilePath = confFilePath
+	}
+}
+
+func WithConfigLoadSecrets(configLoadSecrets bool) func(*Params) {
+	return func(b *Params) {
+		b.configLoadSecrets = configLoadSecrets
 	}
 }

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package constantfetch
 
@@ -12,6 +11,7 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
@@ -72,10 +72,26 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getPIDNumbersOffset(f.kernelVersion)
 	case SizeOfUPID:
 		value = getSizeOfUpid(f.kernelVersion)
+	case OffsetNameTaskStructPID:
+		value = getTaskStructPIDOffset(f.kernelVersion)
+	case OffsetNameTaskStructPIDLink:
+		value = getTaskStructPIDLinkOffset(f.kernelVersion)
+	case OffsetNamePIDLinkStructPID:
+		value = getPIDLinkPIDOffset(f.kernelVersion)
 	case OffsetNameDentryStructDSB:
 		value = getDentrySuperBlockOffset(f.kernelVersion)
 	case OffsetNamePipeInodeInfoStructBufs:
 		value = getPipeInodeInfoBufsOffset(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructNrbufs:
+		value = getPipeInodeInfoStructNrbufs(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructCurbuf:
+		value = getPipeInodeInfoStructCurbuf(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructBuffers:
+		value = getPipeInodeInfoStructBuffers(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructHead:
+		value = getPipeInodeInfoStructHead(f.kernelVersion)
+	case OffsetNamePipeInodeInfoStructRingsize:
+		value = getPipeInodeInfoStructRingsize(f.kernelVersion)
 	case OffsetNameNetDeviceStructIfIndex:
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
 	case OffsetNameNetStructNS:
@@ -161,7 +177,11 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		sizeOf = 584
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
-		sizeOf = 584
+		if kv.Code.Patch() > 100 {
+			sizeOf = 592
+		} else {
+			sizeOf = 584
+		}
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
 		sizeOf = 616
 	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
@@ -226,8 +246,10 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		return 368
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_16, kernel.Kernel4_19):
 		return 376
-	case kv.IsUbuntuKernel():
+	case kv.IsUbuntuKernel() && kv.Code < kernel.Kernel5_19:
 		return 400 + getNoHzOffset()
+	case kv.IsUbuntuKernel() && kv.Code >= kernel.Kernel5_19:
+		return 408 + getNoHzOffset()
 	case kv.Code >= kernel.Kernel5_16:
 		return 416
 	}
@@ -275,8 +297,10 @@ func getBpfMapIDOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
 		return 52
-	case kv.Code >= kernel.Kernel5_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19):
 		return 60
+	case kv.Code >= kernel.Kernel5_19:
+		return 68
 	default:
 		return 48
 	}
@@ -315,8 +339,10 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 80
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_15, kernel.Kernel5_16):
 		nameOffset = 88
-	case kv.Code >= kernel.Kernel5_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19):
 		nameOffset = 96
+	case kv.Code >= kernel.Kernel5_19:
+		nameOffset = 104
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_15:
 		return ErrorSentinel
 	}
@@ -428,8 +454,10 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 504
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_13, kernel.Kernel5_16):
 		nameOffset = 528
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_16:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_17):
 		nameOffset = 544
+	case kv.Code != 0 && kv.Code >= kernel.Kernel5_17:
+		nameOffset = 528
 	}
 
 	return nameOffset
@@ -540,6 +568,70 @@ func getPipeInodeInfoBufsOffset(kv *kernel.Version) uint64 {
 	return offset
 }
 
+func getPipeInodeInfoStructNrbufs(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 56
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 104
+		case kv.Code < kernel.Kernel4_10:
+			offset = 64
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructCurbuf(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 60
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 108
+		case kv.Code < kernel.Kernel4_10:
+			offset = 68
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructBuffers(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 64
+		switch {
+		case kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-"):
+			offset = 112
+		case kv.Code < kernel.Kernel4_10:
+			offset = 72
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructHead(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if !kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 80
+		if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+			offset = 168
+		}
+	}
+	return offset
+}
+
+func getPipeInodeInfoStructRingsize(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if !kv.HaveLegacyPipeInodeInfoStruct() {
+		offset = 92
+		if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+			offset = 180
+		}
+	}
+	return offset
+}
+
 func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	offset := uint64(260)
 
@@ -553,12 +645,14 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 	case kv.IsSuse15Kernel():
 		offset = 256
 
-	case kv.Code >= kernel.Kernel4_14 && kv.Code < kernel.Kernel5_8:
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel5_8):
 		offset = 264
-	case kv.Code >= kernel.Kernel5_8 && kv.Code < kernel.Kernel5_12:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_8, kernel.Kernel5_12):
 		offset = 256
-	case kv.Code >= kernel.Kernel5_12:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_12, kernel.Kernel5_17):
 		offset = 208
+	case kv.Code >= kernel.Kernel5_17:
+		offset = 216
 	}
 
 	return offset
@@ -629,16 +723,16 @@ func getSocketSockOffset(kv *kernel.Version) uint64 {
 }
 
 func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
-	offset := uint64(144)
-
 	switch {
 	case kv.IsCOSKernel():
-		offset = 168
+		return 168
 	case kv.IsRH7Kernel():
-		offset = 240
+		return 240
+	case kv.Code >= kernel.Kernel5_19:
+		return 136
+	default:
+		return 144
 	}
-
-	return offset
 }
 
 func getSockCommonSKCFamilyOffset(kv *kernel.Version) uint64 {
@@ -658,8 +752,10 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		offset = 32
-	case kv.Code >= kernel.Kernel5_1:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_1, kernel.Kernel5_18):
 		offset = 40
+	case kv.Code >= kernel.Kernel5_18:
+		offset = 48
 	}
 
 	return offset
@@ -718,9 +814,11 @@ func getBinPrmFileFieldOffset(kv *kernel.Version) uint64 {
 func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		return 96
+		return 80
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		return 96
+	case kv.Code >= kernel.Kernel5_16:
+		return 88
 	default:
 		return 80
 	}
@@ -786,5 +884,23 @@ func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
 		offset = 324
 	}
 
+	return offset
+}
+
+func getTaskStructPIDOffset(kv *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getTaskStructPIDLinkOffset(kv *kernel.Version) uint64 {
+	// do not use fallback for offsets inside task_struct
+	return ErrorSentinel
+}
+
+func getPIDLinkPIDOffset(kv *kernel.Version) uint64 {
+	offset := ErrorSentinel
+	if kv.HavePIDLinkStruct() {
+		offset = uint64(16)
+	}
 	return offset
 }

@@ -34,13 +34,13 @@ type HostInfo struct {
 }
 
 // CollectHostInfo collects host information
-func CollectHostInfo() (*HostInfo, error) {
+func CollectHostInfo(config config.ConfigReader) (*HostInfo, error) {
 	sysInfo, err := CollectSystemInfo()
 	if err != nil {
 		return nil, err
 	}
 
-	hostName, err := resolveHostName()
+	hostName, err := resolveHostName(config)
 	if err != nil {
 		return nil, err
 	}
@@ -52,16 +52,16 @@ func CollectHostInfo() (*HostInfo, error) {
 	}, nil
 }
 
-func resolveHostName() (string, error) {
+func resolveHostName(config config.ConfigReader) (string, error) {
 	var hostName string
-	if config.Datadog.IsSet("hostname") {
-		hostName = config.Datadog.GetString("hostname")
+	if config.IsSet("hostname") {
+		hostName = config.GetString("hostname")
 	}
 
 	if err := validate.ValidHostname(hostName); err != nil {
 		// lookup hostname if there is no config override or if the override is invalid
-		agentBin := config.Datadog.GetString("process_config.dd_agent_bin")
-		connectionTimeout := config.Datadog.GetDuration("process_config.grpc_connection_timeout_secs") * time.Second
+		agentBin := config.GetString("process_config.dd_agent_bin")
+		connectionTimeout := config.GetDuration("process_config.grpc_connection_timeout_secs") * time.Second
 		var err error
 		hostName, err = getHostname(context.Background(), agentBin, connectionTimeout)
 		if err != nil {

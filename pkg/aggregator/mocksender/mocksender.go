@@ -10,8 +10,10 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // NewMockSender initiates the aggregator and returns a
@@ -19,10 +21,11 @@ import (
 func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	aggregator.InitAndStartAgentDemultiplexer(opts, "")
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, forwarder.NewOptions(config.Datadog, nil))
+	aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, "")
 
 	SetSender(mockSender, id)
 
@@ -65,7 +68,9 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("string"),                     // message
 	).Return()
 	m.On("Event", mock.AnythingOfType("metrics.Event")).Return()
-	m.On("EventPlatformEvent", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return()
+	// The second argument should have been `mock.AnythingOfType("[]byte")` instead of `mock.AnythingOfType("[]uint8")`
+	// See https://github.com/stretchr/testify/issues/387
+	m.On("EventPlatformEvent", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("string")).Return()
 	m.On("HistogramBucket",
 		mock.AnythingOfType("string"),   // metric name
 		mock.AnythingOfType("int64"),    // value
@@ -81,6 +86,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()
 	m.On("FinalizeCheckServiceTag").Return()
+	m.On("SetNoIndex").Return()
 	m.On("Commit").Return()
 }
 

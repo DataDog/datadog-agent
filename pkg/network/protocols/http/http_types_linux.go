@@ -14,17 +14,17 @@ type httpConnTuple = struct {
 	Pid      uint32
 	Metadata uint32
 }
-type sslSock struct {
+type SslSock struct {
 	Tup       httpConnTuple
 	Fd        uint32
 	Pad_cgo_0 [4]byte
 }
-type sslReadArgs struct {
+type SslReadArgs struct {
 	Ctx *byte
 	Buf *byte
 }
 
-type ebpfHttpTx struct {
+type EbpfHttpTx struct {
 	Tup                  httpConnTuple
 	Request_started      uint64
 	Request_method       uint8
@@ -35,33 +35,11 @@ type ebpfHttpTx struct {
 	Tags                 uint64
 }
 
-type libPath struct {
+type LibPath struct {
 	Pid uint32
 	Len uint32
 	Buf [120]byte
 }
-
-type ProtocolType uint8
-
-const (
-	ProtocolUnknown  ProtocolType = 0x1
-	ProtocolHTTP     ProtocolType = 0x2
-	ProtocolHTTP2    ProtocolType = 0x3
-	ProtocolKafka    ProtocolType = 0x5
-	ProtocolTLS      ProtocolType = 0x4
-	ProtocolMONGO    ProtocolType = 0x6
-	ProtocolPostgres ProtocolType = 0x7
-	ProtocolAMQP     ProtocolType = 0x8
-	ProtocolRedis    ProtocolType = 0x9
-	ProtocolMySQL    ProtocolType = 0xa
-	ProtocolMax      ProtocolType = 0xb
-)
-
-type DispatcherProgramType uint32
-
-const (
-	DispatcherKafkaProg DispatcherProgramType = 0x0
-)
 
 const (
 	HTTPBufferSize = 0xa0
@@ -76,6 +54,7 @@ const (
 	OpenSSL ConnTag = 0x2
 	Go      ConnTag = 0x4
 	Java    ConnTag = 0x8
+	TLS     ConnTag = 0x10
 )
 
 var (
@@ -84,5 +63,6 @@ var (
 		OpenSSL: "tls.library:openssl",
 		Go:      "tls.library:go",
 		Java:    "tls.library:java",
+		TLS:     "tls.connection:encrypted",
 	}
 )

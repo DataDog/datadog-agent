@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -201,7 +200,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 		// Resolve container image, if possible
 		resolvedImageName, err := du.ResolveImageName(context.TODO(), rawContainer.ImageID)
 		if err != nil {
-			log.Tracef("Unable to resolve ImageID '%s' to an image name, will use: %s", rawContainer.ImageID, rawContainer.Image)
+			log.Debugf("Unable to resolve ImageID %q to an image name, will use %q: %s", rawContainer.ImageID, rawContainer.Image, err)
 			resolvedImageName = rawContainer.Image
 		}
 
@@ -211,7 +210,15 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 		if len(rawContainer.Names) > 0 {
 			containerName = rawContainer.Names[0]
 		}
-		isContainerExcluded := d.containerFilter.IsExcluded(containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
+		var annotations map[string]string
+		store := workloadmeta.GetGlobalStore()
+		if store != nil {
+			if pod, err := store.GetKubernetesPodForContainer(rawContainer.ID); err == nil {
+				annotations = pod.Annotations
+			}
+		}
+
+		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
 		taggerEntityID := containers.BuildTaggerEntityName(rawContainer.ID)
 

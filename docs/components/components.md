@@ -52,7 +52,7 @@ There are utility functions available in `pkg/util/fxutil` to eliminate some com
 Let's consider sets and subsets of components.
 Each of the following sets is a subset of the previous set:
 
-1. All implemented components (everything in [`COMPONENTS.md`](../COMPONENTS.md))
+1. All implemented components (everything in [`COMPONENTS.md`](../../comp/README.md))
 1. All components in a binary (everything directly or indirectly referenced by a binary's `main()`) -- the _build-time dependencies_
 1. All components available in an app (everything provided by a bundle in the app's `fx.New` call)
 1. All components instantiated in an app (all explicitly required components and their transitive dependencies) -- the _runtime dependencies_

@@ -131,6 +131,11 @@ func (params *Params) LogToFile(logFile string) {
 	params.logFileFn = func(configGetter) string { return logFile }
 }
 
+// LogToConsole modifies the parameters to toggle logging to console
+func (params *Params) LogToConsole(logToConsole bool) {
+	params.logToConsoleFn = func(configGetter) bool { return logToConsole }
+}
+
 // LoggerName is the name that appears in the logfile
 func (params Params) LoggerName() string {
 	return params.loggerName

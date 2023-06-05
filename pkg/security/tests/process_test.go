@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -611,6 +610,8 @@ func TestProcessContext(t *testing.T) {
 			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_args_envs")
+
 			execEnvp, err := event.GetFieldValue("exec.envp")
 			if err != nil {
 				t.Errorf("not able to get exec.envp")
@@ -687,6 +688,7 @@ func TestProcessContext(t *testing.T) {
 			return nil
 
 		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_tty")
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			if name, _ := event.GetFieldValue("process.tty_name"); !strings.HasPrefix(name.(string), "pts") {
@@ -804,7 +806,7 @@ func TestProcessContext(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_rule_inode", rule.ID, "wrong rule triggered")
 
-			service := event.GetProcessServiceTag()
+			service := event.GetProcessService()
 			assert.Equal(t, service, "myservice")
 		})
 	})
@@ -1035,7 +1037,7 @@ func TestProcessPIDVariable(t *testing.T) {
 	}
 }
 
-func TestProcessMutableVariable(t *testing.T) {
+func TestProcessScopedVariable(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_mutable_vars",
 		Expression: `open.file.path == "{{.Root}}/test-open"`,
@@ -1142,6 +1144,53 @@ func TestProcessMutableVariable(t *testing.T) {
 		t.Error(err)
 	}
 	defer os.Remove(filename3)
+}
+
+func TestTimestampVariable(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_set_timestamp_var",
+		Expression: `open.file.path == "{{.Root}}/test-open"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "timestamp1",
+				Field: "event.timestamp",
+				Scope: "process",
+			},
+		}},
+	}, {
+		ID:         "test_rule_test_timestamp_var",
+		Expression: `open.file.path == "{{.Root}}/test-open-2" && ${process.timestamp1} > 0s && ${process.timestamp1} < 3s`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var filename1, filename2 string
+
+	test.WaitSignal(t, func() error {
+		filename1, _, err = test.Create("test-open")
+		return err
+	}, func(event *model.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_set_timestamp_var", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename1)
+
+	test.WaitSignal(t, func() error {
+		filename2, _, err = test.Create("test-open-2")
+		return err
+	}, func(event *model.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_test_timestamp_var", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename2)
 }
 
 func TestProcessExec(t *testing.T) {
@@ -1793,7 +1842,7 @@ func TestProcessBusybox(t *testing.T) {
 	})
 }
 
-func TestProcessIdentifyInterpreter(t *testing.T) {
+func TestProcessInterpreter(t *testing.T) {
 	python, whichPythonErr := whichNonFatal("python")
 	if whichPythonErr != nil {
 		python = which(t, "python3")
@@ -2049,7 +2098,7 @@ func TestProcessResolution(t *testing.T) {
 			t.Errorf("not able to resolve the entry")
 		}
 
-		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid)
+		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid, inode)
 		if mapsEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}

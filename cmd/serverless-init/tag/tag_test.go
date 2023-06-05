@@ -6,6 +6,8 @@
 package tag
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"sort"
 	"testing"
 
@@ -83,4 +85,18 @@ func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 	assert.Contains(t, tags[0], "datadog_init_version")
 	assert.Equal(t, "location:mysuperlocation", tags[1])
 	assert.Equal(t, "othermetadata:mysuperothermetadatavalue", tags[2])
+}
+
+func TestDdTags(t *testing.T) {
+	t.Setenv("DD_TAGS", "originalKey:shouldNotOverride key2:value2 key3:value3")
+	t.Setenv("DD_EXTRA_TAGS", "key5:value5 key6:value6")
+	overwritingTags := map[string]string{
+		"originalKey": "overWrittenValue",
+	}
+	mergedTags := tags.MergeWithOverwrite(tags.ArrayToMap(config.GetGlobalConfiguredTags(false)), overwritingTags)
+	assert.Equal(t, "overWrittenValue", mergedTags["originalKey"])
+	assert.Equal(t, "value2", mergedTags["key2"])
+	assert.Equal(t, "value3", mergedTags["key3"])
+	assert.Equal(t, "value5", mergedTags["key5"])
+	assert.Equal(t, "value6", mergedTags["key6"])
 }

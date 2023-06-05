@@ -45,6 +45,12 @@ const (
 	Input             = "input"
 	Remote            = "remote"
 
+	// Security Profile Subcommand
+	SecurityProfileInput = "input"
+	IncludeCache         = "include-cache"
+	ImageName            = "name"
+	ImageTag             = "tag"
+
 	// Compliance Subcommand
 	SourceType   = "source-type"
 	SourceName   = "source-name"
@@ -58,7 +64,5 @@ const (
 	Verbose           = "verbose"
 	Report            = "report"
 	OverrideRegoInput = "override-rego-input"
-	DumpRegoInput     = "dump-rego-input"
 	DumpReports       = "dump-reports" // TODO: Unify with OutputPath
-	SkipRegoEval      = "skip-rego-eval"
 )

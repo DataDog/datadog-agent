@@ -4,17 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package grpc
 
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 )
 
 const (
@@ -29,6 +31,10 @@ const (
 )
 
 func TestGRPCScenarios(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", testGRPCScenarios)
+}
+
+func testGRPCScenarios(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
@@ -576,7 +582,7 @@ func TestGRPCScenarios(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		for _, val := range []bool{false} {
+		for _, val := range []bool{false, true} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", val)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
 				// we are currently not supporting some edge cases:
@@ -585,7 +591,7 @@ func TestGRPCScenarios(t *testing.T) {
 					t.Skip("Skipping test due to known issue")
 				}
 
-				monitor, err := http.NewMonitor(cfg, nil, nil, nil)
+				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
 				defer monitor.Stop()

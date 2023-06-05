@@ -121,7 +121,7 @@ func OverrideTime(t time.Time) StatusOption {
 	}
 }
 
-func getCoreStatus() (s CoreStatus) {
+func getCoreStatus(coreConfig ddconfig.ConfigReader) (s CoreStatus) {
 	hostnameData, err := hostname.GetWithProvider(context.Background())
 	var metadata *host.Payload
 	if err != nil {
@@ -136,7 +136,7 @@ func getCoreStatus() (s CoreStatus) {
 		GoVersion:    runtime.Version(),
 		Arch:         runtime.GOARCH,
 		Config: ConfigStatus{
-			LogLevel: ddconfig.Datadog.GetString("log_level"),
+			LogLevel: coreConfig.GetString("log_level"),
 		},
 		Metadata: *metadata,
 	}
@@ -154,8 +154,8 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(expVarURL string) (*Status, error) {
-	coreStatus := getCoreStatus()
+func GetStatus(coreConfig ddconfig.ConfigReader, expVarURL string) (*Status, error) {
+	coreStatus := getCoreStatus(coreConfig)
 	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {
 		return nil, err

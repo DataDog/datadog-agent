@@ -19,8 +19,7 @@ func TestStaticTags(t *testing.T) {
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
 	defer mockConfig.Set("kubernetes_kubelet_nodename", "")
 
-	config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
-	defer config.SetDetectedFeatures(nil)
+	config.SetFeatures(t, config.EKSFargate)
 
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.Set("tags", []string{"some:tag", "another:tag", "nocolon"})
@@ -62,8 +61,7 @@ func TestStaticTagsSlice(t *testing.T) {
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
 	defer mockConfig.Set("kubernetes_kubelet_nodename", "")
 
-	config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
-	defer config.SetDetectedFeatures(nil)
+	config.SetFeatures(t, config.EKSFargate)
 
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.Set("tags", []string{"some:tag", "another:tag", "nocolon"})

@@ -133,6 +133,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleContainer(ev)...)
 			case workloadmeta.KindKubernetesPod:
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
+			case workloadmeta.KindKubernetesNode:
+				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
@@ -318,8 +320,23 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
 	}
 
-	for _, svc := range pod.KubeServices {
-		tags.AddLow("kube_service", svc)
+	kubeServiceDisabled := false
+	for _, disabledTag := range config.Datadog.GetStringSlice("kubernetes_ad_tags_disabled") {
+		if disabledTag == "kube_service" {
+			kubeServiceDisabled = true
+			break
+		}
+	}
+	for _, disabledTag := range strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ",") {
+		if disabledTag == "kube_service" {
+			kubeServiceDisabled = true
+			break
+		}
+	}
+	if !kubeServiceDisabled {
+		for _, svc := range pod.KubeServices {
+			tags.AddLow("kube_service", svc)
+		}
 	}
 
 	c.extractTagsFromJSONInMap(podTagsAnnotation, pod.Annotations, tags)
@@ -372,6 +389,28 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		}
 
 		tagInfos = append(tagInfos, cTagInfo)
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*TagInfo {
+	node := ev.Entity.(*workloadmeta.KubernetesNode)
+
+	tags := utils.NewTagList()
+
+	// Add tags for node here
+
+	low, orch, high, standard := tags.Compute()
+	tagInfos := []*TagInfo{
+		{
+			Source:               nodeSource,
+			Entity:               buildTaggerEntityID(node.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
 	}
 
 	return tagInfos
@@ -654,6 +693,8 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return containers.BuildTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesPod:
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
+	case workloadmeta.KindKubernetesNode:
+		return kubelet.NodeUIDToTaggerEntityName(entityID.ID)
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:

@@ -600,7 +600,7 @@ metric_tags:
 			},
 		},
 		{
-			name: "mapping does not exist",
+			name: "index mapping does not exist",
 			// language=yaml
 			rawMetricConfig: []byte(`
 table:
@@ -663,6 +663,106 @@ metric_tags:
 			expectedLogs: []logCount{
 				{"[DEBUG] getTagsFromMetricTagConfigList: error getting tags. index `100` not found in indexes `[1]`", 1},
 			},
+		},
+		{
+			name: "tag value mapping",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.10
+    name: ifInOctets
+metric_tags:
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+      1: other
+      2: regular1822
+      3: hdh1822
+      4: ddn-x25
+      29: ultra
+`),
+			fullIndex: "1",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1.3": {
+						"1": valuestore.ResultValue{
+							Value: float64(2),
+						},
+					},
+				},
+			},
+			expectedTags: []string{"if_type:regular1822"},
+		},
+		{
+			name: "tag value mapping does not exist",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.10
+    name: ifInOctets
+metric_tags:
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+      1: other
+      2: regular1822
+      3: hdh1822
+      4: ddn-x25
+      29: ultra
+`),
+			fullIndex: "1",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1.3": {
+						"1": valuestore.ResultValue{
+							Value: float64(5),
+						},
+					},
+				},
+			},
+			expectedTags: []string(nil),
+			expectedLogs: []logCount{
+				{"[DEBUG] GetTags: error getting tags. mapping for `5` does not exist.", 1},
+			},
+		},
+		{
+			name: "empty tag value mapping",
+			// language=yaml
+			rawMetricConfig: []byte(`
+table:
+  OID: 1.3.6.1.2.1.2.2
+  name: ifTable
+symbols:
+  - OID: 1.3.6.1.2.1.2.2.1.10
+    name: ifInOctets
+metric_tags:
+  - tag: if_type
+    column:
+      OID: 1.3.6.1.2.1.2.2.1.3
+      name: ifType
+    mapping:
+`),
+			fullIndex: "1",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1.3": {
+						"1": valuestore.ResultValue{
+							Value: float64(7),
+						},
+					},
+				},
+			},
+			expectedTags: []string{"if_type:7"},
 		},
 	}
 	for _, tt := range tests {
@@ -800,6 +900,209 @@ func Test_getInterfaceConfig(t *testing.T) {
 				assert.EqualError(t, err, tt.expectedError)
 			}
 			assert.Equal(t, tt.expectedInterfaceConfig, config)
+		})
+	}
+}
+
+func Test_getContantMetricValues(t *testing.T) {
+	type logCount struct {
+		log   string
+		count int
+	}
+	tests := []struct {
+		name           string
+		metricTags     checkconfig.MetricTagConfigList
+		values         *valuestore.ResultValueStore
+		expectedValues map[string]valuestore.ResultValue
+		expectedLogs   []logCount
+	}{
+		{
+			name: "One metric tag",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_tag",
+			}},
+			values: &valuestore.ResultValueStore{ColumnValues: map[string]map[string]valuestore.ResultValue{
+				"1.2.3": {
+					"1": {
+						Value: float64(10),
+					},
+					"2": {
+						Value: float64(5),
+					},
+				},
+			}},
+			expectedValues: map[string]valuestore.ResultValue{
+				"1": {
+					Value: float64(1),
+				},
+				"2": {
+					Value: float64(1),
+				},
+			},
+		},
+		{
+			name: "Two metric tags",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_first_tag",
+			},
+				{
+					Column: checkconfig.SymbolConfig{
+						OID:  "1.2.4",
+						Name: "value",
+					},
+					Tag: "my_second_tag",
+				}},
+			values: &valuestore.ResultValueStore{ColumnValues: map[string]map[string]valuestore.ResultValue{
+				"1.2.3": {
+					"1": {
+						Value: float64(10),
+					},
+				},
+				"1.2.4": {
+					"2": {
+						Value: float64(5),
+					},
+				},
+			}},
+			expectedValues: map[string]valuestore.ResultValue{
+				"1": {
+					Value: float64(1),
+				},
+				"2": {
+					Value: float64(1),
+				},
+			},
+		},
+		{
+			name: "Two metric tags with index overlap",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_first_tag",
+			},
+				{
+					Column: checkconfig.SymbolConfig{
+						OID:  "1.2.4",
+						Name: "value",
+					},
+					Tag: "my_second_tag",
+				}},
+			values: &valuestore.ResultValueStore{ColumnValues: map[string]map[string]valuestore.ResultValue{
+				"1.2.3": {
+					"1": {
+						Value: float64(10),
+					},
+					"2": {
+						Value: float64(5),
+					},
+				},
+				"1.2.4": {
+					"1": {
+						Value: float64(10),
+					},
+					"2": {
+						Value: float64(5),
+					},
+				},
+			}},
+			expectedValues: map[string]valuestore.ResultValue{
+				"1": {
+					Value: float64(1),
+				},
+				"2": {
+					Value: float64(1),
+				},
+			},
+		},
+		{
+			name: "Should ignore metric tags with index transform",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_first_tag",
+			},
+				{
+					Column: checkconfig.SymbolConfig{
+						OID:  "1.2.4",
+						Name: "value",
+					},
+					IndexTransform: []checkconfig.MetricIndexTransform{
+						{Start: 0,
+							End: 1,
+						}},
+					Tag: "my_second_tag",
+				}},
+			values: &valuestore.ResultValueStore{ColumnValues: map[string]map[string]valuestore.ResultValue{
+				"1.2.3": {
+					"1": {
+						Value: float64(10),
+					},
+				},
+				"1.2.4": {
+					"2": {
+						Value: float64(5),
+					},
+				},
+			}},
+			expectedValues: map[string]valuestore.ResultValue{
+				"1": {
+					Value: float64(1),
+				},
+			},
+		},
+		{
+			name: "Value not found",
+			metricTags: checkconfig.MetricTagConfigList{{
+				Column: checkconfig.SymbolConfig{
+					OID:  "1.2.3",
+					Name: "value",
+				},
+				Tag: "my_tag",
+			}},
+			values:         &valuestore.ResultValueStore{},
+			expectedValues: map[string]valuestore.ResultValue{},
+			expectedLogs: []logCount{
+				{"error getting column value", 1},
+			},
+		},
+		{
+			name:           "No metric tags",
+			metricTags:     checkconfig.MetricTagConfigList{},
+			values:         &valuestore.ResultValueStore{},
+			expectedValues: map[string]valuestore.ResultValue{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "debug")
+
+			values := getConstantMetricValues(tt.metricTags, tt.values)
+
+			assert.Equal(t, tt.expectedValues, values)
+
+			w.Flush()
+			logs := b.String()
+
+			for _, aLogCount := range tt.expectedLogs {
+				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
+			}
 		})
 	}
 }

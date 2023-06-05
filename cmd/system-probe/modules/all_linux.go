@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package modules
 
@@ -19,8 +18,9 @@ var All = []module.Factory{
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,
-	SecurityRuntime,
+	EventMonitor,
 	Process,
+	DynamicInstrumentation,
 }
 
 func inactivityEventLog(duration time.Duration) {

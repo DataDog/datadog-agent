@@ -22,14 +22,26 @@ namespace WixSetup.Datadog
             Version = new Version(7, 99, 0, 1);
             if (PackageVersion != null)
             {
-                var versionRegex = new Regex(@"(?<major>\d+)[.](?<minor>\d+)[.](?<build>\d+)");
+                var versionRegex = new Regex(@"(?<major>\d+)[.](?<minor>\d+)[.](?<build>\d+)([-~]rc.(?<rc>\d+))?");
                 var versionMatch = versionRegex.Match(PackageVersion);
-                Version = new Version(
-                    major: versionMatch.Groups["major"].Value.ToInt(),
-                    minor: versionMatch.Groups["minor"].Value.ToInt(),
-                    build: versionMatch.Groups["build"].Value.ToInt(),
-                    revision: 1
-                );
+                if (versionMatch.Groups["rc"].Success)
+                {
+                    Version = new Version(
+                        major: versionMatch.Groups["major"].Value.ToInt(),
+                        minor: versionMatch.Groups["minor"].Value.ToInt(),
+                        build: versionMatch.Groups["build"].Value.ToInt(),
+                        revision: versionMatch.Groups["rc"].Value.ToInt()
+                    );
+                }
+                else
+                {
+                    Version = new Version(
+                        major: versionMatch.Groups["major"].Value.ToInt(),
+                        minor: versionMatch.Groups["minor"].Value.ToInt(),
+                        build: versionMatch.Groups["build"].Value.ToInt(),
+                        revision: 1
+                    );
+                }
             }
             else
             {

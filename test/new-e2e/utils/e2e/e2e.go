@@ -3,191 +3,454 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package e2e provides tools to manage environments and run E2E tests.
-// See [Suite] for an example of the usage.
+// Package e2e provides the API to manage environments and organize E2E tests.
+//
+// Here is a small example of E2E tests.
+// E2E tests use [testify Suite] and it is strongly recommended to read the documentation of
+// [testify Suite] if you are not familiar with it.
+//
+//	import (
+//		"testing"
+//
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//	)
+//
+//	type vmSuite struct {
+//		e2e.Suite[e2e.VMEnv]
+//	}
+//
+//	func TestVMSuite(t *testing.T) {
+//		e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
+//	}
+//
+//	func (v *vmSuite) TestBasicVM() {
+//		v.Env().VM.Execute("ls")
+//	}
+//
+// To write an E2E test:
+//
+// 1. Define your own [suite] type with the embedded [e2e.Suite] struct.
+//
+//	type vmSuite struct {
+//		e2e.Suite[e2e.VMEnv]
+//	}
+//
+// [e2e.VMEnv] defines the components available in your stack. See "Using existing stack definition" section for more information.
+//
+// 2. Write a regular Go test function that runs the test suite using [e2e.Run].
+//
+//	func TestVMSuite(t *testing.T) {
+//		e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
+//	}
+//
+// The first argument of [e2e.Run] is an instance of type [*testing.T].
+//
+// The second argument is a pointer to an empty instance of the previous defined structure (&vmSuite{} in our example)
+//
+// The third parameter defines the environment. See "Using existing stack definition" section for more information about a environment definition.
+//
+// 3. Write a test function
+//
+//	func (v *vmSuite) TestBasicVM() {
+//		v.Env().VM.Execute("ls")
+//	}
+//
+// [e2e.Suite.Env] gives access to the components in your environment.
+//
+// Depending on your stack definition, [e2e.Suite.Env] can provide the following objects:
+//   - [client.VM]: A virtual machine where you can execute commands.
+//   - [client.Agent]: A struct that provides methods to run datadog agent commands.
+//   - [client.Fakeintake]: A struct that provides methods to run queries to a fake instance of Datadog intake.
+//
+// # Using an existing stack definition
+//
+// The stack definition defines the components available in your environment.
+//
+//	type vmSuite struct {
+//		e2e.Suite[e2e.VMEnv]
+//	}
+//
+//	func TestVMSuite(t *testing.T) {
+//		e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
+//	}
+//
+// In this example, the components available are defined by the struct [e2e.VMEnv] which contains a virtual machine.
+// The generic type of [e2e.Suite] must match the type of the stack definition.
+// In our example, [e2e.EC2VMStackDef] returns an instance of [*e2e.StackDefinition][[e2e.VMEnv]].
+//
+// The following default stack definitions are provided:
+//   - [e2e.EC2VMStackDef] creates an environment with a virtual machine. See [e2e.EC2VMStackDef] for more information about the supported options.
+//   - [e2e.AgentStackDef] creates an environment with an Agent installed on a virtual machine. See [e2e.AgentStackDef] for more information about the supported options.
+//
+// # Defining your stack definition
+//
+// In some special cases, you have to define a custom environment.
+// Here is an example of an environment with Docker installed on a virtual machine.
+//
+//	type dockerSuite struct {
+//		e2e.Suite[e2e.VMEnv]
+//	}
+//
+//	func TestDockerSuite(t *testing.T) {
+//		e2e.Run(t, &dockerSuite{}, e2e.EnvFactoryStackDef(dockerEnvFactory))
+//	}
+//
+//	func dockerEnvFactory(ctx *pulumi.Context) (*e2e.VMEnv, error) {
+//		vm, err := ec2vm.NewUnixEc2VM(ctx)
+//		if err != nil {
+//			return nil, err
+//		}
+//
+//		_, err = docker.NewAgentDockerInstaller(vm.UnixVM, docker.WithAgent(docker.WithAgentImageTag("7.42.0")))
+//
+//		if err != nil {
+//			return nil, err
+//		}
+//
+//		return &e2e.VMEnv{
+//			VM: client.NewVM(vm),
+//		}, nil
+//	}
+//
+//	func (docker *dockerSuite) TestDocker() {
+//		docker.Env().VM.Execute("docker container ls")
+//	}
+//
+// [e2e.EnvFactoryStackDef] is used to define a custom environment.
+// Here is a non exhaustive list of components that can be used to create a custom environment:
+//   - [EC2 VM]: Provide methods to create a virtual machine on EC2.
+//   - [Agent]: Provide methods to install the Agent on a virtual machine
+//   - [File Manager]: Provide methods to manipulate files and folders
+//
+// # Organizing your tests
+//
+// The execution order for tests in [testify Suite] is IMPLEMENTATION SPECIFIC
+// UNLIKE REGULAR GO TESTS.
+//
+// # Having a single environment
+//
+// In the simple case, there is a single environment and each test checks one specific thing.
+//
+//	type singleEnvSuite struct {
+//		e2e.Suite[e2e.AgentEnv]
+//	}
+//
+//	func TestSingleEnvSuite(t *testing.T) {
+//		e2e.Run(t, &singleEnvSuite{}, e2e.AgentStackDef(nil))
+//	}
+//
+//	func (suite *singleEnvSuite) Test1() {
+//		// Check feature 1
+//	}
+//
+//	func (suite *singleEnvSuite) Test2() {
+//		// Check feature 2
+//	}
+//
+//	func (suite *singleEnvSuite) Test3() {
+//		// Check feature 3
+//	}
+//
+// # Having different environments
+//
+// In this scenario, the environment is different for each test (or for most of them).
+// [e2e.Suite.UpdateEnv] is used to update the environment.
+// Keep in mind that using [e2e.Suite.UpdateEnv] to update virtual machine settings can destroy
+// the current virtual machine and create a new one when updating the operating system for example.
+//
+// Note: Calling twice [e2e.Suite.UpdateEnv] with the same argument does nothing.
+//
+//	type multipleEnvSuite struct {
+//		e2e.Suite[e2e.AgentEnv]
+//	}
+//
+//	func TestMultipleEnvSuite(t *testing.T) {
+//		e2e.Run(t, &multipleEnvSuite{}, e2e.AgentStackDef(nil))
+//	}
+//
+//	func (suite *multipleEnvSuite) TestLogDebug() {
+//		suite.UpdateEnv(e2e.AgentStackDef(nil, agent.WithAgentConfig("log_level: debug")))
+//		config := suite.Env().Agent.Config()
+//		require.Contains(suite.T(), config, "log_level: debug")
+//	}
+//
+//	func (suite *multipleEnvSuite) TestLogInfo() {
+//		suite.UpdateEnv(e2e.AgentStackDef(nil, agent.WithAgentConfig("log_level: info")))
+//		config := suite.Env().Agent.Config()
+//		require.Contains(suite.T(), config, "log_level: info")
+//	}
+//
+// # Having few environments
+//
+// You may sometime have few environments but several tests for each on them.
+// You can still use [e2e.Suite.UpdateEnv] as explained in the previous section but using
+// [Subtests] is an alternative solution.
+//
+//	type subTestSuite struct {
+//		e2e.Suite[e2e.AgentEnv]
+//	}
+//
+//	func TestSubTestSuite(t *testing.T) {
+//		e2e.Run(t, &subTestSuite{}, e2e.AgentStackDef(nil))
+//	}
+//
+//	func (suite *subTestSuite) TestLogDebug() {
+//		suite.UpdateEnv(e2e.AgentStackDef(nil, agent.WithAgentConfig("log_level: debug")))
+//		suite.T().Run("MySubTest1", func(t *testing.T) {
+//			// Sub test 1
+//		})
+//		suite.T().Run("MySubTest2", func(t *testing.T) {
+//			// Sub test 2
+//		})
+//	}
+//
+//	func (suite *subTestSuite) TestLogInfo() {
+//		suite.UpdateEnv(e2e.AgentStackDef(nil, agent.WithAgentConfig("log_level: info")))
+//		suite.T().Run("MySubTest1", func(t *testing.T) {
+//			// Sub test 1
+//		})
+//		suite.T().Run("MySubTest2", func(t *testing.T) {
+//			// Sub test 2
+//		})
+//	}
+//
+// [Subtests]: https://go.dev/blog/subtests
+// [suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
+// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
+// [File Manager]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/command#FileManager
+// [EC2 VM]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM
+// [Agent]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 package e2e
 
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
+	"reflect"
 	"strings"
+	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/utils/credentials"
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
-	"github.com/DataDog/test-infra-definitions/aws"
-	"github.com/DataDog/test-infra-definitions/common/config"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
+const (
+	deleteTimeout = 30 * time.Minute
+)
+
 // Suite manages the environment creation and runs E2E tests.
-// It is implemented as a [testify Suite].
-// Example of usage:
-//
-//	  type MyEnv struct {
-//		   VM *client.VM
-//	  }
-//	  type vmSuite struct {
-//		   *Suite[MyEnv]
-//	  }
-//
-//	  func TestE2ESuite(t *testing.T) {
-//		   suite.Run(t, &vmSuite{Suite: NewSuite("my-test", &StackDefinition[MyEnv]{
-//		     EnvCloudName: "aws/sandbox",
-//			 EnvFactory: func(ctx *pulumi.Context) (*MyEnv, error) {
-//				vm, err := ec2vm.NewUnixLikeEc2VM(ctx, ec2vm.WithOS(os.AmazonLinuxOS, commonos.AMD64Arch))
-//				if err != nil {
-//					return nil, err
-//				}
-//				return &MyEnv{
-//					VM: client.NewVM(vm),
-//				}, nil
-//			  },
-//		   })})
-//	  }
-//
-// Suite leverages pulumi features to compute the differences between the previous
-// environment and the new one to make environment updates faster.
-//
-// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 type Suite[Env any] struct {
-	shortStackName string
-	fullStackName  string // From StackManager.Stack. Use shortStackName and the username
-	stackDef       *StackDefinition[Env]
-	destroyEnv     bool
+	suite.Suite
+
+	stackName       string
+	defaultStackDef *StackDefinition[Env]
+	currentStackDef *StackDefinition[Env]
+	firstFailTest   string
 
 	// These fields are initialized in SetupSuite
-	suite.Suite
-	Env              *Env
-	auth             client.Authentification
-	defaultConfigMap auto.ConfigMap
+	env *Env
+
+	isUpdateEnvCalledInThisTest bool
+
+	// Setting devMode allows to skip deletion regardless of test results
+	// Unavailable in CI.
+	devMode bool
+
+	skipDeleteOnFailure bool
 }
 
-type StackDefinition[Env any] struct {
-	EnvCloudName string // Must be "aws/sandbox" for now.
-	EnvFactory   func(ctx *pulumi.Context) (*Env, error)
-	ConfigMap    auto.ConfigMap
+type suiteConstraint[Env any] interface {
+	suite.TestingSuite
+	initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env]))
 }
 
-// NewSuite creates a new Suite.
-// stackName is the name of the stack and should be unique across suites.
-// stackDef is the stack definition.
-// options are optional parameters for example [e2e.KeepEnv].
-func NewSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
-	testSuite := Suite[Env]{
-		shortStackName:   stackName,
-		stackDef:         stackDef,
-		destroyEnv:       true,
-		defaultConfigMap: make(auto.ConfigMap),
-	}
+// Run runs the tests defined in e2eSuite
+//
+// t is an instance of type [*testing.T].
+//
+// e2eSuite is a pointer to a structure with a [e2e.Suite] embbeded struct.
+//
+// stackDef defines the stack definition.
+//
+// options is an optional list of options like [DevMode], [SkipDeleteOnFailure] or [WithStackName].
+//
+//	type vmSuite struct {
+//		e2e.Suite[e2e.VMEnv]
+//	}
+//	// ...
+//	e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
+	suiteType := reflect.TypeOf(e2eSuite).Elem()
+	name := suiteType.Name()
+	pkgPaths := suiteType.PkgPath()
+	pkgs := strings.Split(pkgPaths, "/")
 
+	// Use the hash of PkgPath in order to have a uniq stack name
+	hash := utils.StrHash(pkgs...)
+
+	// Example: "e2e-e2eSuite-cbb731954db42b"
+	defaultStackName := fmt.Sprintf("%v-%v-%v", pkgs[len(pkgs)-1], name, hash)
+
+	e2eSuite.initSuite(defaultStackName, stackDef, options...)
+	suite.Run(t, e2eSuite)
+}
+
+func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
+	suite.stackName = stackName
+	suite.defaultStackDef = stackDef
 	for _, o := range options {
-		o(&testSuite)
+		o(suite)
 	}
-
-	return &testSuite
 }
 
-// KeepEnv prevents Suite from destroying the environment at the end of the test suite.
-// When using this option, you have to manually destroy the environment.
-func KeepEnv[Env any]() func(*Suite[Env]) {
-	return func(p *Suite[Env]) { p.destroyEnv = false }
+// WithStackName overrides the default stack name.
+// This function is useful only when using [Run].
+func WithStackName[Env any](stackName string) func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.stackName = stackName
+	}
+}
+
+// DevMode enables dev mode.
+// Dev mode doesn't destroy the environment when the test finished which can
+// be useful when writing a new E2E test.
+func DevMode[Env any]() func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.devMode = true
+	}
+}
+
+// SkipDeleteOnFailure doesn't destroy the environment when a test fail.
+func SkipDeleteOnFailure[Env any]() func(*Suite[Env]) {
+	return func(suite *Suite[Env]) {
+		suite.skipDeleteOnFailure = true
+	}
+}
+
+// Env returns the current environment.
+// In order to improve the efficiency, this function behaves as follow:
+//   - It creates the default environment if no environment exists.
+//   - It restores the default environment if [e2e.Suite.UpdateEnv] was not already called during this test.
+//     This avoid having to restore the default environment for each test even if [suite.UpdateEnv] immedialy
+//     overrides the environment.
+func (suite *Suite[Env]) Env() *Env {
+	if suite.env == nil || !suite.isUpdateEnvCalledInThisTest {
+		suite.UpdateEnv(suite.defaultStackDef)
+	}
+	return suite.env
+}
+
+// BeforeTest is executed right before the test starts and receives the suite and test names as input.
+// This function is called by [testify Suite].
+//
+// If you override BeforeTest in your custom test suite type, the function must call [e2e.Suite.BeforeTest].
+//
+// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
+func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
+	suite.isUpdateEnvCalledInThisTest = false
+}
+
+// AfterTest is executed right after the test finishes and receives the suite and test names as input.
+// This function is called by [testify Suite].
+//
+// If you override AfterTest in your custom test suite type, the function must call [e2e.Suite.AfterTest].
+//
+// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
+func (suite *Suite[Env]) AfterTest(suiteName, testName string) {
+	if suite.T().Failed() && suite.firstFailTest == "" {
+		// As far as I know, there is no way to prevent other tests from being
+		// run when a test fail. Even calling panic doesn't work.
+		// Instead, this code stores the name of the first fail test and prevents
+		// the environment to be updated.
+		// Note: using os.Exit(1) prevents other tests from being run but at the
+		// price of having no test output at all.
+		suite.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
+	}
 }
 
 // SetupSuite method will run before the tests in the suite are run.
 // This function is called by [testify Suite].
-// Note: Having initialization code in this function allows `NewSuite` to not
-// return an error in order to write a single line for
-// `suite.Run(t, &vmSuite{Suite: e2e.NewSuite(...)})`
+//
+// If you override SetupSuite in your custom test suite type, the function must call [e2e.Suite.SetupSuite].
+//
+// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite[Env]) SetupSuite() {
-	require := require.New(suite.T())
+	skipDelete, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
+	if skipDelete {
+		suite.skipDeleteOnFailure = true
+	}
 
+	suite.Require().NotEmptyf(suite.stackName, "The stack name is empty. You must define it with WithName")
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
-	require.NoError(err)
-
-	credentialsManager := credentials.NewManager()
-	apiKey, err := credentialsManager.GetCredential(credentials.AWSSSMStore, "agent.ci.dev.apikey")
-	require.NoError(err)
-
-	sshKey, err := credentialsManager.GetCredential(credentials.AWSSSMStore, "agent.ci.awssandbox.ssh")
-	require.NoError(err)
-
-	suite.auth.SSHKey = sshKey
-	suite.add(config.DDAgentConfigNamespace, config.DDAgentAPIKeyParamName, apiKey)
-	suite.add(config.DDInfraConfigNamespace, aws.DDInfraDefaultKeyPairParamName, "agent-ci-sandbox")
-	suite.add(config.DDInfraConfigNamespace, aws.DDInfraDefaultInstanceTypeParamName, "t3.large")
-	suite.add(config.DDInfraConfigNamespace, aws.DDInfraDefaultARMInstanceTypeParamName, "m6g.medium")
-	env, stack, upResult, err := createEnv(suite, suite.stackDef)
-	require.NoError(err)
-	suite.fullStackName = stack.Name()
-	suite.Env = env
-	err = client.CallStackInitializers(&suite.auth, env, upResult)
-	require.NoError(err)
+	suite.Require().NoError(err)
 }
 
-func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, *auto.Stack, auto.UpResult, error) {
-	var env *Env
-	ctx := context.Background()
-	configMap := auto.ConfigMap{}
-	for key, value := range suite.defaultConfigMap {
-		configMap[key] = value
-	}
-
-	// Override the values of the config map with the values from the StackDefinition.
-	for key, value := range stackDef.ConfigMap {
-		configMap[key] = value
-	}
-	stack, stackOutput, err := infra.GetStackManager().GetStack(
-		ctx,
-		suite.stackDef.EnvCloudName,
-		suite.shortStackName,
-		configMap,
-		func(ctx *pulumi.Context) error {
-			var err error
-			env, err = stackDef.EnvFactory(ctx)
-			return err
-		}, false)
-
-	return env, stack, stackOutput, err
-}
-
-func (c *Suite[Env]) add(namespace string, key string, value string) {
-	c.defaultConfigMap[namespace+":"+key] = auto.ConfigValue{Value: value}
-}
-
-// TearDownSuite method is run after all the tests in the suite have been run.
+// TearDownTestSuite run after all the tests in the suite have been run.
 // This function is called by [testify Suite].
+//
+// If you override TearDownSuite in your custom test suite type, the function must call [e2e.Suite.TearDownSuite].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite[Env]) TearDownSuite() {
-	var err error
-
-	if suite.fullStackName == "" {
-		// There was an error when creating the stack so nothing to destroy
+	if runner.GetProfile().AllowDevMode() && suite.devMode {
 		return
 	}
 
-	if suite.destroyEnv {
-		ctx := context.Background()
-		err = infra.GetStackManager().DeleteStack(ctx, suite.stackDef.EnvCloudName, suite.shortStackName)
+	if suite.firstFailTest != "" && suite.skipDeleteOnFailure {
+		suite.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
+			"The environment of %v was kept.", suite.firstFailTest, suite.firstFailTest, suite.firstFailTest))
+		return
 	}
 
-	if !suite.destroyEnv || err != nil {
-		stars := strings.Repeat("*", 50)
-		thisFolder := "A_FOLDER_CONTAINING_PULUMI.YAML"
-		if _, thisFile, _, ok := runtime.Caller(0); ok {
-			thisFolder = filepath.Dir(thisFile)
+	// TODO: Implement retry on delete
+	ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
+	defer cancel()
+	err := infra.GetStackManager().DeleteStack(ctx, suite.stackName)
+	if err != nil {
+		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.stackName, err)
+		suite.T().Fail()
+	}
+}
+
+func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
+	var env *Env
+	ctx := context.Background()
+
+	_, stackOutput, err := infra.GetStackManager().GetStack(
+		ctx,
+		suite.stackName,
+		stackDef.configMap,
+		func(ctx *pulumi.Context) error {
+			var err error
+			env, err = stackDef.envFactory(ctx)
+			return err
+		}, false)
+
+	return env, stackOutput, err
+}
+
+// UpdateEnv updates the environment.
+// This affects only the test that calls this function.
+// Test functions that don't call UpdateEnv have the environment defined by [e2e.Run].
+func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
+	if stackDef != suite.currentStackDef {
+		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.skipDeleteOnFailure {
+			// In case of failure, do not override the environment
+			suite.T().SkipNow()
 		}
-
-		command := fmt.Sprintf("pulumi destroy -C %v --remove  -s %v", thisFolder, suite.fullStackName)
-		fmt.Fprintf(os.Stderr, "\n%v\nYour environment was not destroyed.\nTo destroy it, run `%v`.\n%v", stars, command, stars)
+		env, upResult, err := createEnv(suite, stackDef)
+		suite.Require().NoError(err)
+		err = client.CallStackInitializers(suite.T(), env, upResult)
+		suite.Require().NoError(err)
+		suite.env = env
+		suite.currentStackDef = stackDef
 	}
-	require.NoError(suite.T(), err)
+	suite.isUpdateEnvCalledInThisTest = true
 }

@@ -33,6 +33,7 @@ func (series Series) MarshalJSON() ([]byte, error) {
 	type SeriesAlias Series
 	for _, serie := range series {
 		serie.PopulateDeviceField()
+		serie.PopulateResources()
 	}
 
 	data := map[string][]*metrics.Serie{

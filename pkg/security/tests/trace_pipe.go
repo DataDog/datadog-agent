@@ -13,21 +13,18 @@
 // limitations under the License.
 
 //go:build linux
-// +build linux
 
 package tests
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
-	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 // TracePipe to read from /sys/kernel/[debug/]tracing/trace_pipe
@@ -58,11 +55,7 @@ type TraceEvent struct {
 
 // NewTracePipe instantiates a new trace pipe
 func NewTracePipe() (*TracePipe, error) {
-	traceFSPath := utilkernel.GetTraceFSMountPath()
-	if traceFSPath == "" {
-		return nil, errors.New("tracefs is not available")
-	}
-	f, err := os.Open(filepath.Join(traceFSPath, "trace_pipe"))
+	f, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}

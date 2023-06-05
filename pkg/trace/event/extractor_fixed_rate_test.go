@@ -15,7 +15,11 @@ import (
 )
 
 func createTestSpans(serviceName string, operationName string) []*pb.Span {
-	spans := make([]*pb.Span, 1000)
+	return createNTestSpans(1000, serviceName, operationName)
+}
+
+func createNTestSpans(n int, serviceName string, operationName string) []*pb.Span {
+	spans := make([]*pb.Span, n)
 	for i := range spans {
 		spans[i] = &pb.Span{TraceID: rand.Uint64(), Service: serviceName, Name: operationName}
 	}

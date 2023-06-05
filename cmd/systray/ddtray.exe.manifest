@@ -9,8 +9,16 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges>
+        <!-- Even though ddtray.exe requires admin privileges to function, requestedExecutionLevel must be asInvoker.
+             If set to highestAvailable or requireAdministrator, the CreateProcess call will fail with "The requested operation requires elevation"
+             for users that are a member of the Administrator group but are not currently elevated. highestAvailable does NOT allow members of the
+             Administrator group to run the application non-elevated, and CreateProcess will return an error instead of triggering a UAC prompt.
+             This causes the "run ddtray" checkbox at the end of the installer to fail to launch ddtray.
+             The ddtray entrypoint has logic to attempt to relaunch itself elevated by using ShellExecute in order to support non-admin, non-elevated admins, and
+             elevated admins running the application.
+        -->
         <requestedExecutionLevel
-          level="requireAdministrator"
+          level="asInvoker"
           uiAccess="false"/>
         </requestedPrivileges>
        </security>

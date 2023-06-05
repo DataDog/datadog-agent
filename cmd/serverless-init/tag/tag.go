@@ -6,7 +6,6 @@
 package tag
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -62,9 +61,16 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string) map[string]string {
 // GetBaseTagsArrayWithMetadataTags see GetBaseTagsMapWithMetadata (as array)
 func GetBaseTagsArrayWithMetadataTags(metadata map[string]string) []string {
 	tagsMap := GetBaseTagsMapWithMetadata(metadata)
-	tagsArray := make([]string, 0, len(tagsMap))
-	for key, value := range tagsMap {
-		tagsArray = append(tagsArray, fmt.Sprintf("%s:%s", key, value))
+	return tags.MapToArray(tagsMap)
+}
+
+// WithoutContainerID creates a new tag map without the `container_id` tag
+func WithoutContainerID(tags map[string]string) map[string]string {
+	newTags := make(map[string]string, len(tags))
+	for k, v := range tags {
+		if k != "container_id" {
+			newTags[k] = v
+		}
 	}
-	return tagsArray
+	return newTags
 }
