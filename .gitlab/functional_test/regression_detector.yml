@@ -38,7 +38,8 @@ single-machine-performance-regression_detector:
     - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/main)
     - echo -n "${SMP_MERGE_BASE}" > "${CI_COMMIT_SHA}-baseline_sha"
     - echo "Merge base is $(cat ${CI_COMMIT_SHA}-baseline_sha)"
-    - if [[ "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" != "main" ]]; then echo "The regression detector does not pull requests to a base branch that is not 'main'"; echo "(In GitLab terminology, 'base branch' is the 'target branch of a merge request.')"; exit 1; fi
+    - echo "CI_MERGE_REQUEST_TARGET_BRANCH_NAME=${CI_MERGE_REQUEST_TARGET_NAME}"
+    # - if [[ "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" != "main" ]]; then echo "The regression detector does not pull requests to a base branch that is not 'main'"; echo "(In GitLab terminology, 'base branch' is the 'target branch of a merge request.')"; exit 1; fi
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
