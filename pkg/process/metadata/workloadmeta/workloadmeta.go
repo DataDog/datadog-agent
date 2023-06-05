@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WorkloadMetaExtractor handles enriching processes with
@@ -33,6 +34,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 		lang := languages[i]
 		if proc, ok := procs[proc.Pid]; ok {
 			proc.Language = lang
+			log.Trace("detected language", lang.Name, "for pid", proc.Pid)
 		}
 	}
 }
