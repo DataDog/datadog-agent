@@ -105,7 +105,7 @@ type PlatformProbe struct {
 	approvers                      map[eval.EventType]kfilters.ActiveApprovers
 
 	// Events section
-	anomalyDetectionSent map[model.EventType]*atomic.Uint64
+	generatedAnomalyDetection map[model.EventType]*atomic.Uint64
 
 	// Approvers / discarders section
 	notifyDiscarderPushedCallbacksLock sync.Mutex
@@ -335,7 +335,7 @@ func (p *Probe) sendAnomalyDetection(event *model.Event) {
 		events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc),
 		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 	)
-	p.anomalyDetectionSent[event.GetEventType()].Inc()
+	p.generatedAnomalyDetection[event.GetEventType()].Inc()
 }
 
 func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
@@ -433,11 +433,11 @@ func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) 
 func (p *Probe) SendStats() error {
 	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
 
-	for evtType, count := range p.anomalyDetectionSent {
+	for evtType, count := range p.generatedAnomalyDetection {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
 		if value := count.Swap(0); value > 0 {
-			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionSent, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionSent metric: %w", err)
+			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionGenerated, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionGenerated metric: %w", err)
 			}
 		}
 	}
@@ -1428,19 +1428,19 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		PlatformProbe: PlatformProbe{
-			approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
-			managerOptions:       ebpf.NewDefaultOptions(),
-			Erpc:                 nerpc,
-			erpcRequest:          &erpc.ERPCRequest{},
-			isRuntimeDiscarded:   !opts.DontDiscardRuntime,
-			anomalyDetectionSent: make(map[model.EventType]*atomic.Uint64),
+			approvers:                 make(map[eval.EventType]kfilters.ActiveApprovers),
+			managerOptions:            ebpf.NewDefaultOptions(),
+			Erpc:                      nerpc,
+			erpcRequest:               &erpc.ERPCRequest{},
+			isRuntimeDiscarded:        !opts.DontDiscardRuntime,
+			generatedAnomalyDetection: make(map[model.EventType]*atomic.Uint64),
 		},
 	}
 
 	p.event = NewEvent(p.fieldHandlers)
 
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		p.anomalyDetectionSent[i] = atomic.NewUint64(0)
+		p.generatedAnomalyDetection[i] = atomic.NewUint64(0)
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
