@@ -31,10 +31,10 @@ jobs:
           password: ${{ secrets.HARBOR_REGISTRY_TOKEN }}
 
       - name: Build datadog agent Image
-        run: docker build -t $AGENT_IMAGE_NAME ../../Dockerfiles/cluster-agent
+        run: docker build -t $AGENT_IMAGE_NAME ./Dockerfiles/cluster-agent
 
       - name: Build datadog cluster-agent Image
-        run: docker build -t $CLUSTER_AGENT_IMAGE_NAME ../../Dockerfiles/agent
+        run: docker build -t $CLUSTER_AGENT_IMAGE_NAME ./Dockerfiles/agent
 
       - name: Prisma Cloud image scan agent
         id: scan-agent
