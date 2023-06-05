@@ -12,13 +12,16 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
@@ -74,6 +77,9 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 // reset empties all internal fields so that this profile can be used again in the future
 func (p *SecurityProfile) reset() {
 	p.loadedInKernel = false
+	p.loadedNano = 0
+	p.profileCookie = 0
+	p.lastAnomalyNano = make(map[model.EventType]uint64)
 	p.Instances = nil
 }
 
@@ -154,4 +160,53 @@ func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
 	profile.Lock()
 	defer profile.Unlock()
 	return profile.ActivityTree.SendStats(client)
+}
+
+// ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
+func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Resolver, minimumStablePeriod time.Duration) *api.SecurityProfileMessage {
+	msg := &api.SecurityProfileMessage{
+		LoadedInKernel:          p.loadedInKernel,
+		LoadedInKernelTimestamp: timeResolver.ResolveMonotonicTimestamp(p.loadedNano).String(),
+		Selector: &api.WorkloadSelectorMessage{
+			Name: p.selector.Image,
+			Tag:  p.selector.Tag,
+		},
+		ProfileCookie: p.profileCookie,
+		Status:        p.Status.String(),
+		Version:       p.Version,
+		Metadata: &api.MetadataMessage{
+			Name: p.Metadata.Name,
+		},
+		Tags: p.Tags,
+	}
+	if p.ActivityTree != nil {
+		msg.Stats = &api.ActivityTreeStatsMessage{
+			ProcessNodesCount: p.ActivityTree.Stats.ProcessNodes,
+			FileNodesCount:    p.ActivityTree.Stats.FileNodes,
+			DNSNodesCount:     p.ActivityTree.Stats.DNSNodes,
+			SocketNodesCount:  p.ActivityTree.Stats.SocketNodes,
+			ApproximateSize:   p.ActivityTree.Stats.ApproximateSize(),
+		}
+	}
+
+	for _, evt := range p.anomalyDetectionEvents {
+		msg.AnomalyDetectionEvents = append(msg.AnomalyDetectionEvents, evt.String())
+	}
+
+	for evt, ts := range p.lastAnomalyNano {
+		lastAnomaly := timeResolver.ResolveMonotonicTimestamp(ts)
+		msg.LastAnomalies = append(msg.LastAnomalies, &api.LastAnomalyTimestampMessage{
+			EventType:         evt.String(),
+			Timestamp:         lastAnomaly.String(),
+			IsStableEventType: time.Now().Sub(lastAnomaly) >= minimumStablePeriod,
+		})
+	}
+
+	for _, inst := range p.Instances {
+		msg.Instances = append(msg.Instances, &api.InstanceMessage{
+			ContainerID: inst.ID,
+			Tags:        inst.Tags,
+		})
+	}
+	return msg
 }

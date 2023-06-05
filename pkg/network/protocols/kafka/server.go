@@ -22,5 +22,5 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*started \\(kafka.server.KafkaServer\\).*"), 2*time.Minute)
+	return protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*started \\(kafka.server.KafkaServer\\).*"), 3*time.Minute)
 }

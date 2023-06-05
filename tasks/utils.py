@@ -12,6 +12,9 @@ from subprocess import check_output
 from invoke import task
 from invoke.exceptions import Exit
 
+from .libs.common.color import color_message
+from .libs.common.remote_api import APIError
+
 # constants
 ORG_PATH = "github.com/DataDog"
 DEFAULT_BRANCH = "main"
@@ -479,3 +482,70 @@ def nightly_entry_for(agent_major_version):
 
 def release_entry_for(agent_major_version):
     return f"release-a{agent_major_version}"
+
+
+def check_clean_branch_state(ctx, github, branch):
+    """
+    Check we are in a clean situation to create a new branch:
+    No uncommitted change, and branch doesn't exist locally or upstream
+    """
+    if check_uncommitted_changes(ctx):
+        raise Exit(
+            color_message(
+                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+    if check_local_branch(ctx, branch):
+        raise Exit(
+            color_message(
+                f"The branch {branch} already exists locally. Please remove it before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+
+    if check_upstream_branch(github, branch):
+        raise Exit(
+            color_message(
+                f"The branch {branch} already exists upstream. Please remove it before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+
+
+def check_uncommitted_changes(ctx):
+    """
+    Checks if there are uncommitted changes in the local git repository.
+    """
+    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
+
+    # Return True if at least one file has uncommitted changes.
+    return modified_files != "0"
+
+
+def check_local_branch(ctx, branch):
+    """
+    Checks if the given branch exists locally
+    """
+    matching_branch = ctx.run(f"git --no-pager branch --list {branch} | wc -l", hide=True).stdout.strip()
+
+    # Return True if a branch is returned by git branch --list
+    return matching_branch != "0"
+
+
+def check_upstream_branch(github, branch):
+    """
+    Checks if the given branch already exists in the upstream repository
+    """
+    try:
+        github_branch = github.get_branch(branch)
+    except APIError as e:
+        if e.status_code == 404:
+            return False
+        raise e
+
+    # Return True if the branch exists
+    return github_branch and github_branch.get('name', False)

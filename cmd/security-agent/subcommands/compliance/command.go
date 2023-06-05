@@ -6,7 +6,6 @@
 package compliance
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -102,11 +101,6 @@ func eventRun(log log.Component, config config.Component, eventArgs *cliParams) 
 		eventData[kv[0]] = kv[1]
 	}
 	eventArgs.event.Data = eventData
-
-	buf, err := json.Marshal(eventData)
-	if err != nil {
-		return err
-	}
-	reporter.ReportRaw(buf, "")
+	reporter.ReportEvent(eventData)
 	return nil
 }

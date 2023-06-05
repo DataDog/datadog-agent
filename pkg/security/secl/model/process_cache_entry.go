@@ -39,28 +39,6 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	parent.Retain()
 }
 
-// GetNextAncestorBinary returns the first ancestor with a different binary
-func (pc *ProcessContext) GetNextAncestorBinary() *ProcessCacheEntry {
-	current := pc
-	ancestor := pc.Ancestor
-	for ancestor != nil {
-		if ancestor.FileEvent.Inode == 0 {
-			return nil
-		}
-		if current.FileEvent.Inode != ancestor.FileEvent.Inode {
-			return ancestor
-		}
-		current = &ancestor.ProcessContext
-		ancestor = ancestor.Ancestor
-	}
-	return nil
-}
-
-// GetNextAncestorBinary returns the first ancestor with a different binary
-func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
-	return pc.ProcessContext.GetNextAncestorBinary()
-}
-
 // HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
 func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
 	for pc != nil {

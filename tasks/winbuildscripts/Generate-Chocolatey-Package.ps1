@@ -61,8 +61,18 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/
 
 Write-Host "Generating Chocolatey $installMethod package version $agentVersion in $outputDirectory"
 
-if ([System.Net.WebRequest]::Create($url).GetResponse().StatusCode -ne 200) {
-    Write-Error "Package $($url) doesn't exists, cannot continue publishing process."
+$statusCode = -1
+try {
+    $statusCode = (iwr $url).StatusCode
+}
+catch [System.Net.WebException] {
+    if ($_.Exception.Status -eq "ProtocolError") {
+        $statusCode = [int]$_.Exception.Response.StatusCode
+    }
+}
+
+if ($statusCode -ne 200) {
+    Write-Warning "Package $($url) doesn't exists yet, make sure it exists before publishing the Chocolatey package !"
 }
 
 if (!(Test-Path $outputDirectory)) {

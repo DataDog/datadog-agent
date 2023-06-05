@@ -231,7 +231,7 @@ func (mr *Resolver) ResolveFilesystem(mountID, pid uint32, containerID string) (
 }
 
 // Insert a new mount point in the cache
-func (mr *Resolver) Insert(e model.Mount, pid uint32) error {
+func (mr *Resolver) Insert(e model.Mount) error {
 	if e.MountID == 0 {
 		return ErrMountUndefined
 	}
@@ -477,6 +477,10 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
+		return nil, &ErrMountNotFound{MountID: mountID}
+	}
+
+	if !mr.fallbackLimiter.IsAllowed(mountID) {
 		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 

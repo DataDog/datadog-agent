@@ -48,3 +48,53 @@ func TestLimiter(t *testing.T) {
 	l.Remove([]string{"pod:foo"})
 	a.Nil(l.usage["pod:foo"])
 }
+
+func TestGlobal(t *testing.T) {
+	l := NewGlobal(2, 1, "pod", []string{})
+	a := assert.New(t)
+
+	a.True(l.Track([]string{"pod:foo"}))
+	a.True(l.Track([]string{"pod:foo"}))
+	a.False(l.Track([]string{"pod:foo"}))
+	a.False(l.Track([]string{"pod:bar"})) // would exceed global limit
+
+	l.Remove([]string{"pod:foo"})
+
+	a.False(l.Track([]string{"pod:foo"})) // would exceed per-origin limit
+
+	a.True(l.Track([]string{"pod:bar"}))
+	a.False(l.Track([]string{"pod:bar"})) // would exceed per-origin limit
+
+	l.Remove([]string{"pod:bar"}) // removes origin entry, limit is 2 again
+	a.True(l.Track([]string{"pod:foo"}))
+
+	// check for division by zero
+	l.Remove([]string{"pod:foo"})
+	l.Remove([]string{"pod:foo"})
+	a.Equal(0, len(l.usage))
+}
+
+func TestExpire(t *testing.T) {
+	l := NewGlobal(2, 1, "pod", []string{})
+	a := assert.New(t)
+
+	foo := []string{"pod:foo"}
+	bar := []string{"pod:bar"}
+
+	a.True(l.Track(foo))
+	a.True(l.Track(foo))
+	a.False(l.Track(bar)) // rejected, but allocates limit to bar
+
+	l.ExpireEntries()
+
+	l.Remove(foo)
+	// maxAge 1 means limit remains reserved for 1 tick after initial sample
+	a.False(l.Track(foo))
+	a.Len(l.usage, 2)
+
+	l.ExpireEntries()
+
+	a.Len(l.usage, 1)
+	l.Remove([]string{"pod:foo"})
+	a.True(l.Track([]string{"pod:foo"}))
+}

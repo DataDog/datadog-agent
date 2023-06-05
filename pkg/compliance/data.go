@@ -72,6 +72,15 @@ type CheckEvent struct {
 	errReason error `json:"-"`
 }
 
+type ResourceLog struct {
+	AgentVersion string      `json:"agent_version,omitempty"`
+	ExpireAt     time.Time   `json:"expire_at,omitempty"`
+	ResourceType string      `json:"resource_type,omitempty"`
+	ResourceID   string      `json:"resource_id,omitempty"`
+	ResourceData interface{} `json:"resource_data,omitempty"`
+	Tags         []string    `json:"tags"`
+}
+
 func (e *CheckEvent) String() string {
 	s := fmt.Sprintf("%s:%s result=%s", e.FrameworkID, e.RuleID, e.Result)
 	if e.ResourceID != "" {
@@ -149,6 +158,17 @@ func NewCheckSkipped(
 		Evaluator:    evaluator,
 		Result:       CheckSkipped,
 		Data:         map[string]interface{}{"error": skipReason.Error()},
+	}
+}
+
+func NewResourceLog(resourceID, resourceType string, resource interface{}) *ResourceLog {
+	expireAt := time.Now().Add(1 * time.Hour).UTC().Truncate(1 * time.Second)
+	return &ResourceLog{
+		AgentVersion: version.AgentVersion,
+		ExpireAt:     expireAt,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		ResourceData: resource,
 	}
 }
 

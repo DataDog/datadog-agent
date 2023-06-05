@@ -184,7 +184,7 @@ type networkState struct {
 
 	// Network state configuration
 	clientExpiry   time.Duration
-	maxClosedConns int
+	maxClosedConns uint32
 	maxClientStats int
 	maxDNSStats    int
 	maxHTTPStats   int
@@ -194,7 +194,7 @@ type networkState struct {
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int) State {
+func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int) State {
 	return &networkState{
 		clients:        map[string]*client{},
 		clientExpiry:   clientExpiry,
@@ -442,7 +442,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 				continue
 			}
 
-			if len(client.closedConnections) >= ns.maxClosedConns {
+			if uint32(len(client.closedConnections)) >= ns.maxClosedConns {
 				stateTelemetry.closedConnDropped.Inc()
 				continue
 			}

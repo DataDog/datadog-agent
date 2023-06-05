@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -59,7 +60,15 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
 
-	setupSBOMConfig(cfg, "sbom-sysprobe")
+	// SBOM configuration
+	cfg.BindEnvAndSetDefault("sbom.host.enabled", false)
+	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
+	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
+	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
+	cfg.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
+	cfg.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
+	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -110,8 +119,13 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
 
+	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
+	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.pressure_levels"), map[string]string{})
+	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.thresholds"), map[string]string{})
+
 	// ebpf general settings
-	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false, "DD_SYSTEM_PROBE_CONFIG_BPF_DEBUG", "BPF_DEBUG")
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_dir"), defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "java_dir"), defaultSystemProbeJavaDir, "DD_SYSTEM_PROBE_JAVA_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "excluded_linux_versions"), []string{})
@@ -139,6 +153,12 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_tcp"), false, "DD_DISABLE_TCP_TRACING")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_udp"), false, "DD_DISABLE_UDP_TRACING")
 	cfg.BindEnvAndSetDefault(join(spNS, "disable_ipv6"), false, "DD_DISABLE_IPV6_TRACING")
+
+	cfg.SetDefault(join(netNS, "collect_tcp_v4"), true)
+	cfg.SetDefault(join(netNS, "collect_tcp_v6"), true)
+	cfg.SetDefault(join(netNS, "collect_udp_v4"), true)
+	cfg.SetDefault(join(netNS, "collect_udp_v6"), true)
+
 	cfg.BindEnvAndSetDefault(join(spNS, "offset_guess_threshold"), int64(defaultOffsetThreshold))
 
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
@@ -285,6 +305,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", "30s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", "60s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.load_controller_period", "60s")
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.min_timeout", "10m")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
@@ -312,6 +333,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.remote_configuration.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dns_match_max_depth", 0)
 
 	// CWS - Anomaly detection
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.event_types", []string{"exec", "dns"})
