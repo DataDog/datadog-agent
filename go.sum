@@ -161,13 +161,13 @@ github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c h1:w4mZkX45/iUye
 github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
 github.com/DataDog/nikos v1.12.0 h1:B9seaiowtbMyH2MX3f3/EcEk1sznSFXaPBwTcBLdogU=
 github.com/DataDog/nikos v1.12.0/go.mod h1:vboQtY04KmE+Ua8m7gVheZJcnStQY+fIiSPY/6jJVrY=
-github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.2.3 h1:IznT4hQ24X3gOir+AVotp8h/ogYoXAmvU5jggBqOO8o=
+github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.3.0 h1:4x1lf6HLZdSAhCdOfD7E1178E5ZSw3YbvUhrYNNCCt4=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.3 h1:QM2aly2st5pdRuDhc8w026YXNIm9IjjyaXhJ4BTdTZQ=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.3/go.mod h1:q5aHWhZtr114VrPgmlJL+JnemK7O66YxDCRy9zAHAxU=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.3 h1:Ruz1pG5VktrppFfqUcXP2Oi0ET3z5P1KdGWCt5o1m38=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.3/go.mod h1:wqX2en+xnhopVIPNwxhlU/y/eV/5eNcLQsztsfoe2tg=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.3 h1:qE9/iNHkwuIcSpsecG0L+rXX/dxULKWGZrSH4UHO0fA=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.3/go.mod h1:sE+tvtb7R7a9QJiLkct3WKQWKpTznLtbDRcXlnb5SNs=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.3.0 h1:TYJanFBdTOTHScwDk+LBCxUU8CfqTaVhyHC0BSpmoYY=
+github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.3.0/go.mod h1:d1F26FBaHVrDyGxBulO8ixVYbFjtLgvgcadbXwFOpJY=
 github.com/DataDog/sketches-go v1.4.2 h1:gppNudE9d19cQ98RYABOetxIhpTCl4m7CnbRZjvVA/o=
 github.com/DataDog/sketches-go v1.4.2/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
 github.com/DataDog/trivy v0.0.0-20230526171704-5aaa4575395e h1:sw8zPMtAx20gY2wSdANQ/Z64B1hOMrku+zoPFGcumLk=
