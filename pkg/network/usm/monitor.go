@@ -198,8 +198,7 @@ func (m *Monitor) Start() error {
 
 			// Cleanup every remaining protocols
 			for _, protocol := range m.enabledProtocols {
-				protocol.PreStop(m.ebpfProgram.Manager.Manager)
-				protocol.PostStop(m.ebpfProgram.Manager.Manager)
+				protocol.Stop(m.ebpfProgram.Manager.Manager)
 			}
 
 			if err != nil {
@@ -263,7 +262,7 @@ func (m *Monitor) Start() error {
 		if startErr != nil {
 			// Cleanup the protocol
 			enabledCount--
-			protocol.PreStop(m.ebpfProgram.Manager.Manager)
+			protocol.Stop(m.ebpfProgram.Manager.Manager)
 			delete(m.enabledProtocols, protocolType)
 
 			// Log and reset the error value
@@ -357,7 +356,7 @@ func (m *Monitor) Stop() {
 	m.processMonitor.Stop()
 
 	for _, protocol := range m.enabledProtocols {
-		protocol.PreStop(m.ebpfProgram.Manager.Manager)
+		protocol.Stop(m.ebpfProgram.Manager.Manager)
 	}
 
 	m.ebpfProgram.Close()
@@ -372,10 +371,6 @@ func (m *Monitor) Stop() {
 		m.http2Statkeeper.Close()
 	}
 	m.closeFilterFn()
-
-	for _, protocol := range m.enabledProtocols {
-		protocol.PostStop(m.ebpfProgram.Manager.Manager)
-	}
 }
 
 func (m *Monitor) processHTTP2(data []byte) {

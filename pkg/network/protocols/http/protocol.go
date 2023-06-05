@@ -117,7 +117,7 @@ func (p *httpProtocol) PostStart(mgr *manager.Manager) error {
 	return nil
 }
 
-func (p *httpProtocol) PreStop(mgr *manager.Manager) {
+func (p *httpProtocol) Stop(mgr *manager.Manager) {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
@@ -129,8 +129,6 @@ func (p *httpProtocol) PreStop(mgr *manager.Manager) {
 		p.statkeeper.Close()
 	}
 }
-
-func (p *httpProtocol) PostStop(mgr *manager.Manager) {}
 
 func (p *httpProtocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
 	if mapName == httpInFlightMap { // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX

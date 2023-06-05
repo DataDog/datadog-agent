@@ -632,8 +632,7 @@ func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Option
 
 func (p *protocolMock) PreStart(mgr *manager.Manager) (err error)                              { return fmt.Errorf("mock") }
 func (p *protocolMock) PostStart(mgr *manager.Manager) error                                   { return nil }
-func (p *protocolMock) PreStop(mgr *manager.Manager)                                           {}
-func (p *protocolMock) PostStop(mgr *manager.Manager)                                          {}
+func (p *protocolMock) Stop(mgr *manager.Manager)                                              {}
 func (p *protocolMock) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {}
 func (p *protocolMock) GetStats() *protocols.ProtocolStats                                     { return nil }
 
