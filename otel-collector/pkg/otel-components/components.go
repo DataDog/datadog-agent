@@ -1,7 +1,7 @@
-package defaultcomponents
+package otelcomponents
 
 import (
-	"github.com/DataDog/datadog-agent/otel-collector/pkg/extensions/trace"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awsemfexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awsxrayexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
@@ -35,6 +35,14 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/statsdreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -48,12 +56,16 @@ import (
 	"go.opentelemetry.io/collector/processor/memorylimiterprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	"go.uber.org/multierr"
 )
 
-func Components() (otelcol.Factories, error) {
-	var errs error
+type (
+	ExtensionMap map[component.Type]extension.Factory
+	ReceiverMap  map[component.Type]receiver.Factory
+	ProcessorMap map[component.Type]processor.Factory
+	ExporterMap  map[component.Type]exporter.Factory
+)
 
+func GetExtensionMap(factories []extension.Factory) (ExtensionMap, error) {
 	extensionsList := []extension.Factory{
 		awsproxy.NewFactory(),
 		ecsobserver.NewFactory(),
@@ -62,14 +74,12 @@ func Components() (otelcol.Factories, error) {
 		sigv4authextension.NewFactory(),
 		zpagesextension.NewFactory(),
 		ballastextension.NewFactory(),
-		trace.NewFactory(),
 	}
-	extensions, err := extension.MakeFactoryMap(extensionsList...)
+	extensionsList = append(extensionsList, factories...)
+	return extension.MakeFactoryMap(extensionsList...)
+}
 
-	if err != nil {
-		errs = multierr.Append(errs, err)
-	}
-
+func GetReceivers() (ReceiverMap, error) {
 	receiverList := []receiver.Factory{
 		awsecscontainermetricsreceiver.NewFactory(),
 		awscontainerinsightreceiver.NewFactory(),
@@ -82,12 +92,10 @@ func Components() (otelcol.Factories, error) {
 		filelogreceiver.NewFactory(),
 	}
 
-	receivers, err := receiver.MakeFactoryMap(receiverList...)
+	return receiver.MakeFactoryMap(receiverList...)
+}
 
-	if err != nil {
-		errs = multierr.Append(errs, err)
-	}
-
+func GetProcessors() (ProcessorMap, error) {
 	processorList := []processor.Factory{
 		attributesprocessor.NewFactory(),
 		resourceprocessor.NewFactory(),
@@ -102,12 +110,10 @@ func Components() (otelcol.Factories, error) {
 		batchprocessor.NewFactory(),
 		memorylimiterprocessor.NewFactory(),
 	}
-	processors, err := processor.MakeFactoryMap(processorList...)
+	return processor.MakeFactoryMap(processorList...)
+}
 
-	if err != nil {
-		errs = multierr.Append(errs, err)
-	}
-
+func GetExporters() (ExporterMap, error) {
 	// enable the selected exporters
 	exporterList := []exporter.Factory{
 		awsemfexporter.NewFactory(),
@@ -124,18 +130,51 @@ func Components() (otelcol.Factories, error) {
 		awsxrayexporter.NewFactory(),
 		lokiexporter.NewFactory(),
 	}
-	exporters, err := exporter.MakeFactoryMap(exporterList...)
+	return exporter.MakeFactoryMap(exporterList...)
+}
 
-	if err != nil {
-		errs = multierr.Append(errs, err)
-	}
-
-	factories := otelcol.Factories{
+func NewFactory(extensions ExtensionMap, receivers ReceiverMap, processors ProcessorMap, exporters ExporterMap) otelcol.Factories {
+	return otelcol.Factories{
 		Extensions: extensions,
 		Receivers:  receivers,
 		Processors: processors,
 		Exporters:  exporters,
 	}
+}
 
-	return factories, errs
+func ConfigProvider(loc []string) (otelcol.ConfigProvider, error) {
+	providers := []confmap.Provider{
+		fileprovider.New(),
+		envprovider.New(),
+		yamlprovider.New(),
+		httpprovider.New(),
+		httpsprovider.New(),
+	}
+
+	mapProviders := make(map[string]confmap.Provider, len(providers))
+	for _, provider := range providers {
+		mapProviders[provider.Scheme()] = provider
+	}
+
+	// create Config Provider Settings
+	settings := otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs:       loc,
+			Providers:  mapProviders,
+			Converters: []confmap.Converter{expandconverter.New()},
+		},
+	}
+	return otelcol.NewConfigProvider(settings)
+}
+
+func NewCollector(buildInfo component.BuildInfo, factories otelcol.Factories, provider otelcol.ConfigProvider) (*otelcol.Collector, error) {
+	return otelcol.NewCollector(otelcol.CollectorSettings{
+		BuildInfo:      buildInfo,
+		Factories:      factories,
+		ConfigProvider: provider,
+	})
+}
+
+func LogComponent() log.Component {
+	params := log.LogForOneShot("", "", true)
 }
