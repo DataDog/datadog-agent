@@ -28,17 +28,15 @@ const (
 )
 
 type SysmetricsRowDB struct {
-	MetricName string  `db:"METRIC_NAME"`
-	Value      float64 `db:"VALUE"`
-	MetricUnit string  `db:"METRIC_UNIT"`
-	//	IntervalLength float64        `db:"INTERVAL_LENGTH"`
-	PdbName sql.NullString `db:"PDB_NAME"`
+	MetricName string         `db:"METRIC_NAME"`
+	Value      float64        `db:"VALUE"`
+	MetricUnit string         `db:"METRIC_UNIT"`
+	PdbName    sql.NullString `db:"PDB_NAME"`
 }
 
 type sysMetricsDefinition struct {
 	DDmetric string
 	DBM      bool
-	//PostProcess int
 }
 
 var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
@@ -88,27 +86,28 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Physical Reads Per Sec":                        {DDmetric: "physical_reads"},
 	"Physical Write Bytes Per Sec":                  {DDmetric: "physical_write_bytes", DBM: true},
 	"Physical Write IO Requests Per Sec":            {DDmetric: "physical_write_io_requests", DBM: true},
+	"Physical Write Total Bytes Per Sec":            {DDmetric: "physical_write_total_bytes", DBM: true},
+	"Physical Write Total IO Requests Per Sec":      {DDmetric: "physical_write_total_io_requests", DBM: true},
+	"Physical Writes Direct Lobs Per Sec":           {DDmetric: "physical_writes_direct_lobs", DBM: true},
+	"Physical Writes Direct Per Sec":                {DDmetric: "physical_writes_direct", DBM: true},
+	"Physical Writes Per Sec":                       {DDmetric: "physical_writes"},
+	"Process Limit %":                               {DDmetric: "process_limit", DBM: true},
+	"Redo Allocation Hit Ratio":                     {DDmetric: "redo_allocation_hit_ratio", DBM: true},
+	"Redo Generated Per Sec":                        {DDmetric: "redo_generated", DBM: true},
+	"Redo Writes Per Sec":                           {DDmetric: "redo_writes", DBM: true},
+	"Row Cache Hit Ratio":                           {DDmetric: "row_cache_hit_ratio", DBM: true},
+	"Rows Per Sort":                                 {DDmetric: "rows_per_sort"},
+	"SQL Service Response Time":                     {DDmetric: "service_response_time"},
+	"Session Count":                                 {DDmetric: "session_count"},
+	"Session Limit %":                               {DDmetric: "session_limit_usage"},
+	"Shared Pool Free %":                            {DDmetric: "shared_pool_free"},
+	"Soft Parse Ratio":                              {DDmetric: "soft_parse_ratio", DBM: true},
+	"Temp Space Used":                               {DDmetric: "temp_space_used"},
+	"Total Parse Count Per Sec":                     {DDmetric: "total_parse_count", DBM: true},
+	"Total Sorts Per User Call":                     {DDmetric: "sorts_per_user_call"},
 
-	"Physical Write Total Bytes Per Sec":       {DDmetric: "physical_write_total_bytes", DBM: true},
-	"Physical Write Total IO Requests Per Sec": {DDmetric: "physical_write_total_io_requests", DBM: true},
-	"Physical Writes Direct Lobs Per Sec":      {DDmetric: "physical_writes_direct_lobs", DBM: true},
-	"Physical Writes Direct Per Sec":           {DDmetric: "physical_writes_direct", DBM: true},
-	"Physical Writes Per Sec":                  {DDmetric: "physical_writes"},
-	"Process Limit %":                          {DDmetric: "process_limit", DBM: true},
-	"Redo Allocation Hit Ratio":                {DDmetric: "redo_allocation_hit_ratio", DBM: true},
-	"Redo Generated Per Sec":                   {DDmetric: "redo_generated", DBM: true},
-	"Redo Writes Per Sec":                      {DDmetric: "redo_writes", DBM: true},
-	"Row Cache Hit Ratio":                      {DDmetric: "row_cache_hit_ratio", DBM: true},
-
-	"Shared Pool Free %":        {DDmetric: "shared_pool_free"},
-	"SQL Service Response Time": {DDmetric: "service_response_time"},
-	"User Rollbacks Per Sec":    {DDmetric: "user_rollbacks"},
-	"Total Sorts Per User Call": {DDmetric: "sorts_per_user_call"},
-	"Rows Per Sort":             {DDmetric: "rows_per_sort"},
-
-	"Session Limit %": {DDmetric: "session_limit_usage"},
-	"Session Count":   {DDmetric: "session_count"},
-	"Temp Space Used": {DDmetric: "temp_space_used"},
+	"User Commits Per Sec":   {DDmetric: "user_commits", DBM: true},
+	"User Rollbacks Per Sec": {DDmetric: "user_rollbacks"},
 }
 
 func (c *Check) sendMetric(s aggregator.Sender, r SysmetricsRowDB, seen map[string]bool) {
@@ -117,11 +116,6 @@ func (c *Check) sendMetric(s aggregator.Sender, r SysmetricsRowDB, seen map[stri
 		if r.MetricUnit == "CentiSeconds Per Second" {
 			value = value / 100
 		}
-		/*
-			if SYSMETRICS_COLS[r.MetricName].PostProcess == Count {
-				value = math.Round(value * r.IntervalLength)
-			}
-		*/
 		if !SYSMETRICS_COLS[r.MetricName].DBM || SYSMETRICS_COLS[r.MetricName].DBM && c.dbmEnabled {
 			log.Tracef("%s: %f", metric.DDmetric, value)
 			s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, metric.DDmetric), value, "", appendPDBTag(c.tags, r.PdbName))
@@ -141,7 +135,6 @@ func (c *Check) SysMetrics() error {
 	if err != nil {
 		return fmt.Errorf("failed to collect container sysmetrics: %w", err)
 	}
-	fmt.Printf("metric rows %+v", metricRows)
 	seenInContainerMetrics := make(map[string]bool)
 	for _, r := range metricRows {
 		c.sendMetric(sender, r, seenInContainerMetrics)
