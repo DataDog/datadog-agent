@@ -5,8 +5,8 @@ single-machine-performance-regression_detector:
   needs:
     - job: single_machine_performance-amd64-a7
       artifacts: false
-    - job: single_machine_performance-compute-baseline_sha
-      artifacts: true
+    # - job: single_machine_performance-compute-baseline_sha
+    #   artifacts: true
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -33,6 +33,9 @@ single-machine-performance-regression_detector:
   allow_failure: true
   script:
     # Setup AWS credentials for single-machine-performance AWS account
+    - git fetch origin
+    - echo -n $(git merge-base ${CI_COMMIT_SHA} origin/main) > "${CI_COMMIT_SHA}-baseline_sha"
+    - echo "Merge base is $(cat ${CI_COMMIT_SHA}-baseline_sha)"
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
