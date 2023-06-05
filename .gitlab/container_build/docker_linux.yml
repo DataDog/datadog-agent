@@ -126,7 +126,7 @@ single_machine_performance-compute-baseline_sha:
     - !reference [.on_a7]
     # NOTE(geoffrey.oxberry@datadoghq.com): Assume for now it's sensible to compare main against itself.
     # - !reference [.if_not_main_branch]    # Use this line if comparing main against itself makes sense.
-  image: !reference [.docker_build_job_definition_amd64, image]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES # !reference [.docker_build_job_definition_amd64, image]
   artifacts:
     expire_in: 1 week
     paths:
