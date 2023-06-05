@@ -105,9 +105,8 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Temp Space Used":                               {DDmetric: "temp_space_used"},
 	"Total Parse Count Per Sec":                     {DDmetric: "total_parse_count", DBM: true},
 	"Total Sorts Per User Call":                     {DDmetric: "sorts_per_user_call"},
-
-	"User Commits Per Sec":   {DDmetric: "user_commits", DBM: true},
-	"User Rollbacks Per Sec": {DDmetric: "user_rollbacks"},
+	"User Commits Per Sec":                          {DDmetric: "user_commits", DBM: true},
+	"User Rollbacks Per Sec":                        {DDmetric: "user_rollbacks"},
 }
 
 func (c *Check) sendMetric(s aggregator.Sender, r SysmetricsRowDB, seen map[string]bool) {
