@@ -54,13 +54,13 @@ jobs:
         run: |
           invoke install-tools
           invoke deps
-          invoke agent.image_build --tag=$AGENT_IMAGE_NAME
+          invoke ./tasks/agent.image_build --tag=$AGENT_IMAGE_NAME
 
       - name: Build DataDog cluster-agent
         run: |
           invoke install-tools
           invoke deps
-          invoke cluster_agent.image_build --tag=$CLUSTER_AGENT_IMAGE_NAME
+          invoke ./tasks/cluster_agent.image_build --tag=$CLUSTER_AGENT_IMAGE_NAME
 
       # - name: Build datadog cluster-agent Image
       #   run: docker build -t $AGENT_IMAGE_NAME ./Dockerfiles/cluster-agent
