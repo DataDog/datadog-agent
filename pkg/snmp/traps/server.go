@@ -53,7 +53,7 @@ func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
 	if err != nil {
 		return err
 	}
-	formatter, err := NewJSONFormatter(oidResolver, config.Namespace)
+	formatter, err := NewJSONFormatter(oidResolver, config.Namespace, sender)
 	if err != nil {
 		return err
 	}
@@ -81,12 +81,12 @@ func IsRunning() bool {
 func NewTrapServer(config Config, formatter Formatter, aggregator aggregator.Sender) (*TrapServer, error) {
 	packets := make(PacketsChannel, packetsChanSize)
 
-	listener, err := startSNMPTrapListener(config, packets)
+	listener, err := startSNMPTrapListener(config, aggregator, packets)
 	if err != nil {
 		return nil, err
 	}
 
-	trapForwarder, err := startSNMPTrapForwarder(formatter, aggregator, packets)
+	trapForwarder, err := startSNMPTrapForwarder(formatter, config, aggregator, packets)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start trapForwarder: %w. Will not listen for SNMP traps", err)
 	}
@@ -99,16 +99,16 @@ func NewTrapServer(config Config, formatter Formatter, aggregator aggregator.Sen
 	return server, nil
 }
 
-func startSNMPTrapForwarder(formatter Formatter, aggregator aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
-	trapForwarder, err := NewTrapForwarder(formatter, aggregator, packets)
+func startSNMPTrapForwarder(formatter Formatter, config Config, aggregator aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
+	trapForwarder, err := NewTrapForwarder(formatter, config, aggregator, packets)
 	if err != nil {
 		return nil, err
 	}
 	trapForwarder.Start()
 	return trapForwarder, nil
 }
-func startSNMPTrapListener(c Config, packets PacketsChannel) (*TrapListener, error) {
-	trapListener, err := NewTrapListener(c, packets)
+func startSNMPTrapListener(c Config, aggregator aggregator.Sender, packets PacketsChannel) (*TrapListener, error) {
+	trapListener, err := NewTrapListener(c, aggregator, packets)
 	if err != nil {
 		return nil, err
 	}

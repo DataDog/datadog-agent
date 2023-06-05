@@ -16,6 +16,7 @@ import (
 // to the minimum. The forwarder process payloads received by the listener via the trapsIn channel, formats them and finally
 // give them to the epforwarder for sending it to Datadog.
 type TrapForwarder struct {
+	config    Config
 	trapsIn   PacketsChannel
 	formatter Formatter
 	sender    aggregator.Sender
@@ -23,8 +24,9 @@ type TrapForwarder struct {
 }
 
 // NewTrapForwarder creates a simple TrapForwarder instance
-func NewTrapForwarder(formatter Formatter, sender aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
+func NewTrapForwarder(formatter Formatter, config Config, sender aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
 	return &TrapForwarder{
+		config:    config,
 		trapsIn:   packets,
 		formatter: formatter,
 		sender:    sender,
@@ -62,5 +64,6 @@ func (tf *TrapForwarder) sendTrap(packet *SnmpPacket) {
 		return
 	}
 	log.Tracef("send trap payload: %s", string(data))
+	tf.sender.Count("datadog.snmp_traps.forwarded", 1, "", []string{"snmp_device:" + packet.Addr.IP.String(), "namespace:" + tf.config.Namespace})
 	tf.sender.EventPlatformEvent(data, epforwarder.EventTypeSnmpTraps)
 }
