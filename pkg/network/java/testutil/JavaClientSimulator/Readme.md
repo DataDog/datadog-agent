@@ -14,10 +14,12 @@ you can control
 ## Standalone:
 
 Build: `mvn clean package`
+
 Run:  `java -jar ./target/JavaClientSimulator-1.0.jar client=<client> url=<url>`
 
 ## Docker
 
 Build: `docker build -t java-http-client .`
+
 Run: `docker run -e JAVA_TEST_CLIENT=<client> -e JAVA_TARGET_URL=<url> java-http-client`
 

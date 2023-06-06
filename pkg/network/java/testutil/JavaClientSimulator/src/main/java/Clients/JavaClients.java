@@ -4,166 +4,120 @@ import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
-import org.apache.commons.cli.ParseException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.io.Closeable;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
 
-public class JavaClients {
+public class JavaClients implements Closeable {
 
-    public enum ClientType{
-        apache,
-        okhttp,
-        httpclient,
-        urlconnection,
-        unsupported,
-    }
-
-    private static ClientType getClientType(String clientTypeArg) throws ParseException {
-        try {
-            return ClientType.valueOf(clientTypeArg.toLowerCase());
-        } catch (IllegalArgumentException e) {
-            return ClientType.unsupported;
+    // Create a custom TrustManager that accepts all certificates
+    private static final TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s)  {
+            // No implementation needed
         }
-    }
 
-    public static void executeCallback(String clientTypeArg, int iterations, long sleepInterval, String url) throws InterruptedException, ParseException {
-
-        ClientType clientType = getClientType(clientTypeArg);
-
-        System.out.println("URL: " + url);
-        System.out.println("Iterations: " + iterations);
-        System.out.println("Interval: " + sleepInterval);
-
-        Runnable callback = null;
-
-        // Execute handler based on client type
-        switch (clientType) {
-            case apache:
-                System.out.println("Executing handler for Apache Http client:");
-                callback = () -> {
-                    try {
-                        JavaClients.HTTPApacheClientExample(url);
-                    } catch (IOException e) {
-
-                    }
-                };
-                executeCallbackLogic(iterations, sleepInterval, url, callback);
-                break;
-            case okhttp:
-                System.out.println("Executing handler for OkHttp client:");
-                callback = () -> {
-                    try {
-                        JavaClients.OkHttpClient(url);
-                    } catch (IOException e) {
-
-                    }
-                };
-                executeCallbackLogic(iterations, sleepInterval, url, callback);
-                break;
-            case httpclient:
-                System.out.println("Executing handler for HttpClient client:");
-                callback = () -> {
-                    try {
-                        JavaClients.HTTPClient(url);
-                    } catch (IOException e) {
-
-                    }
-                };
-                executeCallbackLogic(iterations, sleepInterval, url, callback);
-                break;
-            case urlconnection:
-                System.out.println("Executing handler for URLConnection client:");
-                callback = () -> {
-                    try {
-                        JavaClients.HttpsURLConnection(url);
-                    } catch (IOException e) {
-
-                    }
-                };
-                executeCallbackLogic(iterations, sleepInterval, url, callback);
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported callback type: " + clientType);
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s)  {
+            // No implementation needed
         }
-    }
 
-    private static void executeCallbackLogic(int iterations, long sleepInterval, String url, Runnable callback) throws InterruptedException {
-        if (iterations == -1) {
-            // Infinite loop
-            while (true) {
-                callback.run();
-                if (sleepInterval != 0)
-                {
-                    Thread.sleep(sleepInterval);
-                }
-            }
-        } else {
-            // Fixed number of iterations
-            for (int i = 0; i < iterations; i++) {
-                callback.run();
-                if (sleepInterval != 0)
-                {
-                    Thread.sleep(sleepInterval);
-                }
-            }
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return null;
         }
+    }};
+
+    private static final String URL_SCHEME = "https://";
+
+    private CloseableHttpClient apacheClient;
+    private OkHttpClient okHttpClient;
+    private HttpClient httpClient;
+
+    public void init() throws NoSuchAlgorithmException, KeyManagementException, KeyStoreException {
+        // Create a custom SSLContext to trust all certificates
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+
+        //configure HttpsURLConnection to trust all certificates and ignore host validation
+        //URLConnection client will be recreated for each request
+        HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.getSocketFactory());
+        HttpsURLConnection.setDefaultHostnameVerifier(NoopHostnameVerifier.INSTANCE);
+
+        //create apache client once and configure it to trust all certificates and ignore host validation
+        apacheClient = HttpClients.custom()
+                .setSSLContext(sslContext)
+                .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+                .build();
+
+        //create http client once and configure it to trust all certificates and ignore host validation
+        httpClient = HttpClient.newBuilder().sslContext(sslContext).build();
+
+        //create okhttp client once and configure it to trust all certificates and ignore host validation
+        okHttpClient = new OkHttpClient.Builder()
+                .hostnameVerifier(NoopHostnameVerifier.INSTANCE)
+                .sslSocketFactory(sslContext.getSocketFactory(),(X509TrustManager) trustAllCerts[0])
+                .build();
     }
 
-    private static String URL_SCHEME = "https://";
-    private static void HttpsURLConnection(String url) throws IOException {
+    public void HttpsURLConnection(String url) throws IOException {
         HttpsURLConnection urlConnection =(HttpsURLConnection) new URL(URL_SCHEME+url).openConnection();
         int res = urlConnection.getResponseCode();
         System.out.println("Response: " + res);
     }
 
-    private static void OkHttpClient(String url) throws IOException {
+    public void OkHttpClient(String url) throws IOException {
         Request request = new Request.Builder()
                 .url(URL_SCHEME+url)
                 .build();
-        OkHttpClient client = new OkHttpClient();
-        Call call = client.newCall(request);
+        Call call = okHttpClient.newCall(request);
         Response response = call.execute();
         System.out.println("Response: " + response);
     }
 
-    private static void HTTPApacheClientExample(String url) throws IOException {
-        CloseableHttpClient httpClient = HttpClients.createDefault();
+    public void HttpApacheClient(String url) throws IOException {
         try {
             HttpGet request = new HttpGet("https://"+url);
-            CloseableHttpResponse response = httpClient.execute(request);
+            CloseableHttpResponse response = apacheClient.execute(request);
             System.out.println("Response: " + response);
         } catch (IOException e) {
             e.printStackTrace();
         }
-        finally {
-            httpClient.close();
-        }
     }
 
-    private static void HTTPClient(String url) throws IOException {
+    public void HTTPClient(String url) throws IOException {
         try {
-            HttpClient httpClient = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(URL_SCHEME+url))
                     .version(HttpClient.Version.HTTP_1_1)
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             System.out.println("Response " + response.toString());
-        } catch (IOException  e) {
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        apacheClient.close();
     }
 }

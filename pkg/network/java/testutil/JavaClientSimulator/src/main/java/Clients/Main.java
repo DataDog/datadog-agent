@@ -1,8 +1,6 @@
 package Clients;
 import org.apache.commons.cli.*;
 
-import java.io.IOException;
-
 public class Main {
 
     //in milliseconds
@@ -62,7 +60,7 @@ public class Main {
             }
 
             // Execute the appropriate handler based on client type
-            JavaClients.executeCallback(clientTypeArg, iterationsValue, interval, url);
+            ClientManager.executeCallback(clientTypeArg, iterationsValue, interval, url);
         } catch (ParseException e) {
             System.err.println("Error parsing command-line arguments: " + e.getMessage());
             printHelp(options);
