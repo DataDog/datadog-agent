@@ -556,6 +556,15 @@ namespace Datadog.CustomActions
         {
             try
             {
+                try
+                {
+                    _nativeMethods.EnablePrivilege("SeRestorePrivilege");
+                }
+                catch (Exception e)
+                {
+                    _session.Log(
+                        $"Failed to enable SeRestorePrivilege. Some file permissions may not be able to be set/rolled back: {e}");
+                }
                 // set base permissions on APPLICATIONDATADIRECTORY, restrict access to admins only.
                 // This clears the ACL, any custom permissions added by customers will be removed.
                 // Any non-inherited ACE added to children of APPLICATIONDATADIRECTORY will be persisted.
@@ -810,6 +819,16 @@ namespace Datadog.CustomActions
         {
             try
             {
+                try
+                {
+                    _nativeMethods.EnablePrivilege("SeRestorePrivilege");
+                }
+                catch (Exception e)
+                {
+                    _session.Log(
+                        $"Failed to enable SeRestorePrivilege. Some file permissions may not be able to be set/rolled back: {e}");
+                }
+
                 rollbackDataStore = new RollbackDataStore(_session, "ConfigureUser", _fileSystemServices);
                 rollbackDataStore.Load();
                 rollbackDataStore.Restore();
