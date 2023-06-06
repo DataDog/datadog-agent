@@ -23,6 +23,9 @@ import (
 	libnetlink "github.com/mdlayher/netlink"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -36,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 var zero uint64
@@ -351,6 +353,7 @@ func (e *ebpfConntracker) refreshTelemetry() {
 }
 
 func (e *ebpfConntracker) Close() {
+	ebpfcheck.RemoveNameMappings(e.m)
 	err := e.m.Stop(manager.CleanAll)
 	if err != nil {
 		log.Warnf("error cleaning up ebpf conntrack: %s", err)
@@ -494,6 +497,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 	if err != nil {
 		return nil, err
 	}
+	ebpfcheck.AddNameMappings(mgr)
 	return mgr, nil
 }
 

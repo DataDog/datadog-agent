@@ -20,6 +20,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -127,6 +128,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 	} else if !ok {
 		return nil, fmt.Errorf("failed to get map '%s'", oomMapName)
 	}
+	ebpfcheck.AddNameMappings(m)
 
 	return &OOMKillProbe{
 		m:      m,
@@ -135,6 +137,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 }
 
 func (k *OOMKillProbe) Close() {
+	ebpfcheck.RemoveNameMappings(k.m)
 	if err := k.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping OOM Kill: %s", err)
 	}

@@ -24,6 +24,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -186,6 +187,7 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		}
 		tracerType = TracerType(kprobeTracerType)
 	}
+	ebpfcheck.AddNameMappings(m)
 
 	batchMgr, err := newConnBatchManager(m)
 	if err != nil {
@@ -283,6 +285,7 @@ func (t *tracer) FlushPending() {
 func (t *tracer) Stop() {
 	t.stopOnce.Do(func() {
 		close(t.exitTelemetry)
+		ebpfcheck.RemoveNameMappings(t.m)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		if t.closeTracer != nil {

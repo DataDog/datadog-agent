@@ -15,10 +15,9 @@ import (
 )
 
 var hostinfo *host.InfoStat
-var kv kernel.Version
+var kv = kernel.MustHostVersion()
 
 func init() {
-	kv, _ = kernel.HostVersion()
 	hostinfo, _ = host.Info()
 }
 
