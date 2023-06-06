@@ -26,6 +26,7 @@ jobs:
 
       - name: Install Python requirements
         run: |
+          apt update && apt install sudo
           pip install -r requirements.txt
 
       - name: Setup env variables
