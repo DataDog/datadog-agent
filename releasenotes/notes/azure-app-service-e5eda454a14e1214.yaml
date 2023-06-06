@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Added a new Cloud Service implementation for web apps running in Azure App Service containers.
