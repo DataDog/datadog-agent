@@ -289,6 +289,7 @@ build do
       "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
     end
 
+    p "~~~Specific dependencies files~~~"
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
@@ -296,7 +297,12 @@ build do
     # First we install the dependencies that need specific flags
     specific_build_env.each do |lib, env|
       command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
+      p "#{lib}"
+      command "cat #{requirements_custom[lib]["compiled_req_file_path"]}"
     end
+
+    p "~~~General dependencies files~~~"
+    command "cat #{compiled_req_file_path}"
     # Then we install the rest (already installed libraries will be ignored) with the main flags
     command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => build_env
 
