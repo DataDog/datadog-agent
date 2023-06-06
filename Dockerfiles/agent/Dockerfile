@@ -88,7 +88,6 @@ RUN set -x; find / -maxdepth 1 -type f -name "datadog-agent*_$TARGETARCH.deb" ! 
             opt/datadog-agent/embedded/include/python2* \
             opt/datadog-agent/embedded/lib/*python2* || true ;\
     fi \
- && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && mkdir conf.d checks.d
 
