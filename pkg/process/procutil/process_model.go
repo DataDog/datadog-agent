@@ -8,8 +8,6 @@ package procutil
 import (
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/DataDog/gopsutil/process"
-
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 // Process holds all relevant metadata and metrics for a process
@@ -25,8 +23,7 @@ type Process struct {
 	Uids     []int32
 	Gids     []int32
 
-	Stats    *Stats
-	Language *languagemodels.Language
+	Stats *Stats
 }
 
 // DeepCopy creates a deep copy of Process
