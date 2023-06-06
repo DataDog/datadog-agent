@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProcessEntity is a placeholder workloadmeta.ProcessEntity.
@@ -35,6 +36,7 @@ type WorkloadMetaExtractor struct {
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
 func NewWorkloadMetaExtractor() *WorkloadMetaExtractor {
+	log.Debug("Instantiated the WorkloadMetaExtractor")
 	return &WorkloadMetaExtractor{
 		cache:        make(map[string]*ProcessEntity),
 		grpcListener: newGrpcListener(),
