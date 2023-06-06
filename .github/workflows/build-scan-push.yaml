@@ -13,9 +13,6 @@ env:
 jobs:
   build-and-scan:
     runs-on: ubuntu-latest
-    strategy:
-      run: 
-        sudo: true
     steps:
       - name: Check out the repository
         uses: actions/checkout@v2
