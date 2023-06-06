@@ -132,7 +132,9 @@ func (f JSONFormatter) formatV1Trap(packet *SnmpPacket) map[string]interface{} {
 	data["specificTrap"] = specificTrap
 	parsedVariables, enrichedValues := f.parseVariables(trapOID, content.Variables)
 	enrichmentFailed := len(content.Variables) - len(enrichedValues)
-	f.aggregator.Count("datadog.snmp_traps.vars_not_enriched", float64(enrichmentFailed), "", tags)
+	if enrichmentFailed > 0 {
+		f.aggregator.Count("datadog.snmp_traps.vars_not_enriched", float64(enrichmentFailed), "", tags)
+	}
 	data["variables"] = parsedVariables
 	for key, value := range enrichedValues {
 		data[key] = value
@@ -150,7 +152,7 @@ func (f JSONFormatter) formatTrap(packet *SnmpPacket) (map[string]interface{}, e
 
 	variables := packet.Content.Variables
 	if len(variables) < 2 {
-		f.aggregator.Count("datadog.snmp_traps.incorrect_format", 1, "", append(tags, "error:missing_variables"))
+		f.aggregator.Count("datadog.snmp_traps.incorrect_format", 1, "", append(tags, "error:invalid_variables"))
 		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(variables))
 	}
 
@@ -158,14 +160,14 @@ func (f JSONFormatter) formatTrap(packet *SnmpPacket) (map[string]interface{}, e
 
 	uptime, err := parseSysUpTime(variables[0])
 	if err != nil {
-		f.aggregator.Count("datadog.snmp_traps.incorrect_format", 1, "", append(tags, "error:missing_sys_uptime"))
+		f.aggregator.Count("datadog.snmp_traps.incorrect_format", 1, "", append(tags, "error:invalid_sys_uptime"))
 		return nil, err
 	}
 	data["uptime"] = uptime
 
 	trapOID, err := parseSnmpTrapOID(variables[1])
 	if err != nil {
-		f.aggregator.Count("datadog.snmp_traps.incorrect_format", 1, "", append(tags, "error:missing_trap_oid"))
+		f.aggregator.Count("datadog.snmp_traps.incorrect_format", 1, "", append(tags, "error:invalid_trap_oid"))
 		return nil, err
 	}
 	data["snmpTrapOID"] = trapOID
@@ -181,7 +183,9 @@ func (f JSONFormatter) formatTrap(packet *SnmpPacket) (map[string]interface{}, e
 
 	parsedVariables, enrichedValues := f.parseVariables(trapOID, variables[2:])
 	enrichmentFailed := len(variables) - 2 - len(enrichedValues) // Subtract 2 for sysUpTime and trapOID
-	f.aggregator.Count("datadog.snmp_traps.vars_not_enriched", float64(enrichmentFailed), "", tags)
+	if enrichmentFailed > 0 {
+		f.aggregator.Count("datadog.snmp_traps.vars_not_enriched", float64(enrichmentFailed), "", tags)
+	}
 	data["variables"] = parsedVariables
 	for key, value := range enrichedValues {
 		data[key] = value
