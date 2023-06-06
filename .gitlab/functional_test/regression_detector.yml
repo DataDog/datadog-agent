@@ -5,13 +5,13 @@ single-machine-performance-regression_detector:
   needs:
     - job: single_machine_performance-amd64-a7
       artifacts: false
-    # - job: single_machine_performance-compute-baseline_sha
-    #   artifacts: true
   artifacts:
     expire_in: 1 weeks
     paths:
-      - submission_metadata
-      - ${CI_COMMIT_SHA}-baseline_sha
+      - submission_metadata              # for provenance, debugging
+      - ${CI_COMMIT_SHA}-baseline_sha    # for provenance, debugging
+      - outputs/report.md                # for debugging, also on S3
+      - outputs/report.html              # for debugging, also on S3
     when: always
   variables:
     SMP_VERSION: 0.7.3
@@ -25,7 +25,7 @@ single-machine-performance-regression_detector:
   # 'comparison'. We are guaranteed by the structure of the pipeline that
   # 'comparison' exists, not so much with 'baseline' as it has to come from main
   # merge pipeline run. This is solved in datadog-agent by updating a file in S3
-  # with the SHA of the latest passing build from main. It's solved in Vector by
+  # with the SHA of the merge base from main. It's solved in Vector by
   # building Vector twice for each Regression Detector run.
   #
   # We allow failure for now. _Unfortunately_ this also means that if the
@@ -33,13 +33,15 @@ single-machine-performance-regression_detector:
   # flagged.
   allow_failure: true
   script:
+    # Ensure output files exist for artifact downloads step
+    - mkdir outputs              # Also needed for smp job sync step
+    - touch outputs/report.md    # Will be emitted by smp job sync
+    - touch outputs/report.html  # Will be emitted by smp job sync
     # Compute merge base of current commit and `main`
     - git fetch origin
     - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/main)
     - echo -n "${SMP_MERGE_BASE}" > "${CI_COMMIT_SHA}-baseline_sha"
     - echo "Merge base is $(cat ${CI_COMMIT_SHA}-baseline_sha)"
-    - echo "CI_MERGE_REQUEST_TARGET_BRANCH_NAME=${CI_MERGE_REQUEST_TARGET_NAME}"
-    # - if [[ "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" != "main" ]]; then echo "The regression detector does not pull requests to a base branch that is not 'main'"; echo "(In GitLab terminology, 'base branch' is the 'target branch of a merge request.')"; exit 1; fi
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
@@ -84,7 +86,6 @@ single-machine-performance-regression_detector:
             --wait-delay-seconds 60
             --submission-metadata submission_metadata
     # Now that the job is completed pull the analysis report, output it to stdout.
-    - mkdir outputs
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile ${AWS_NAMED_PROFILE}
             job sync
             --submission-metadata submission_metadata
