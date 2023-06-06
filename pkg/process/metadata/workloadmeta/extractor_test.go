@@ -69,7 +69,7 @@ func TestExtractor(t *testing.T) {
 	mockGrpcListener.AssertExpectations(t)
 	writeEvents.Unset()
 
-	// Assert that old events are evicted from the cache
+        // Assert that old events are evicted from the cache
 	_ = mockGrpcListener.On("writeEvents", []*ProcessEntity{
 		{
 			pid:      Pid1,
