@@ -10,7 +10,6 @@ package trivy
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
