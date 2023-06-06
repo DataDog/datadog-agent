@@ -168,11 +168,11 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
   && adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 \
   && ls \
-  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
-  && chmod 755 /probe.sh /initlog.sh \
-  && chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
-  && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
+  && sudo chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
+  && sudo chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
+  && sudo chmod 755 /probe.sh /initlog.sh \
+  && sudo chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
+  && sudo chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
 
 # Update links to python binaries
 RUN if [ -n "$PYTHON_VERSION" ]; then \
