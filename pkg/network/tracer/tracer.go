@@ -57,15 +57,17 @@ const tracerModuleName = "network_tracer"
 // If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 // to determine whether a connection is truly closed or not
 var tracerTelemetry = struct {
-	skippedConns     telemetry.Counter
-	expiredTCPConns  telemetry.Counter
-	closedConns      *nettelemetry.StatCounterWrapper
-	connStatsMapSize telemetry.Gauge
+	skippedConns         telemetry.Counter
+	expiredTCPConns      telemetry.Counter
+	closedConns          *nettelemetry.StatCounterWrapper
+	connStatsMapSize     telemetry.Gauge
+	payloadSizePerClient telemetry.Gauge
 }{
 	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{}, "Counter measuring skipped TCP connections"),
 	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
 	nettelemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{}, "Counter measuring closed TCP connections"),
 	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
+	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id"}, "Gauge measuring the number of connections in the system-probe payload"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -381,6 +383,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
 	t.activeBuffer.Reset()
 
+	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
+
 	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
 		ips = append(ips, conn.Source, conn.Dest)
@@ -421,8 +425,8 @@ func (t *Tracer) removeClient(clientID string) {
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {
 	kprobeStats := ddebpf.GetProbeTotals()
 	tm := map[network.ConnTelemetryType]int64{
-		network.MonotonicKprobesTriggered: kprobeStats.Hits,
-		network.MonotonicKprobesMissed:    kprobeStats.Misses,
+		network.MonotonicKprobesTriggered: int64(kprobeStats.Hits),
+		network.MonotonicKprobesMissed:    int64(kprobeStats.Misses),
 		network.ConnsBpfMapSize:           int64(mapSize),
 		network.MonotonicConnsClosed:      tracerTelemetry.closedConns.Load(),
 	}

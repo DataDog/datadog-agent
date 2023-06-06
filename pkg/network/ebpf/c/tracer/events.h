@@ -10,7 +10,6 @@
 #include "tracer/stats.h"
 #include "tracer/telemetry.h"
 #include "cookie.h"
-#include "protocols/classification/tracer-maps.h"
 #include "ip.h"
 #include "port_range.h"
 
@@ -35,7 +34,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
+static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
@@ -103,12 +102,16 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
     }
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
-    // This could result in a missed tcp_close event, so we track it using our telemetry map.
+    // We send the connection outside of a batch anyway. This is likely not as
+    // frequent of a case to cause performance issues and avoid cases where
+    // we drop whole connections, which impacts things USM connection matching.
+    bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
+
     if (is_tcp) {
-        increment_telemetry_count(missed_tcp_close);
+        increment_telemetry_count(unbatched_tcp_close);
     }
     if (is_udp) {
-        increment_telemetry_count(missed_udp_close);
+        increment_telemetry_count(unbatched_udp_close);
     }
 }
 

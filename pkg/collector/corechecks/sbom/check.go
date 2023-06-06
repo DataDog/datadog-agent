@@ -8,6 +8,7 @@
 package sbom
 
 import (
+	"errors"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -112,6 +114,10 @@ func CheckFactory() check.Check {
 
 // Configure parses the check configuration and initializes the sbom check
 func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	if !ddConfig.Datadog.GetBool("sbom.enabled") {
+		return errors.New("collection of SBOM is disabled")
+	}
+
 	if err := c.CommonConfigure(integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
@@ -125,7 +131,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 		return err
 	}
 
-	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second, c.instance.HostSBOM)
+	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second, ddConfig.Datadog.GetBool("sbom.host.enabled"))
 	if err != nil {
 		return err
 	}

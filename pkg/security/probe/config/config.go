@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -136,6 +137,10 @@ type Config struct {
 
 // NewConfig returns a new Config object
 func NewConfig() (*Config, error) {
+	if !sysconfig.IsAdjusted(coreconfig.SystemProbe) {
+		sysconfig.Adjust(coreconfig.SystemProbe)
+	}
+
 	setEnv()
 
 	c := &Config{

@@ -69,7 +69,7 @@ func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) {
 type ResolverOptions struct {
 	Hostname     string
 	HostRoot     string
-	StatsdClient statsd.ClientInterface
+	StatsdClient *statsd.Client
 
 	DockerProvider
 	KubernetesProvider
@@ -221,7 +221,9 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		}
 
 		resolvingContext.InputSpecs[tagName] = spec
-		resolvingContext.KubernetesCluster = kubernetesCluster
+		if kubernetesCluster != "" {
+			resolvingContext.KubernetesCluster = kubernetesCluster
+		}
 
 		if r, ok := result.([]interface{}); ok && reflect.ValueOf(r).IsNil() {
 			result = nil
@@ -337,7 +339,7 @@ func (r *defaultResolver) resolveFile(ctx context.Context, spec InputSpecFile) (
 	} else if strings.Contains(path, "*") {
 		result, err = r.resolveFileGlob(ctx, path, spec.Parser)
 	} else {
-		result, err = r.resolveFilePath(ctx, "", path, spec.Parser)
+		result, err = r.resolveFilePath(ctx, path, spec.Parser)
 	}
 	if errors.Is(err, os.ErrPermission) ||
 		errors.Is(err, os.ErrNotExist) ||
@@ -347,7 +349,7 @@ func (r *defaultResolver) resolveFile(ctx context.Context, spec InputSpecFile) (
 	return
 }
 
-func (r *defaultResolver) resolveFilePath(ctx context.Context, glob, path, parser string) (interface{}, error) {
+func (r *defaultResolver) resolveFilePath(ctx context.Context, path, parser string) (interface{}, error) {
 	path = r.pathNormalizeToHostRoot(path)
 	file, err := r.getFileMeta(path)
 	if err != nil {
@@ -377,7 +379,7 @@ func (r *defaultResolver) resolveFilePath(ctx context.Context, glob, path, parse
 	}
 	return map[string]interface{}{
 		"path":        r.pathRelativeToHostRoot(path),
-		"glob":        glob,
+		"glob":        "",
 		"permissions": file.perms,
 		"user":        file.user,
 		"group":       file.group,
@@ -399,20 +401,20 @@ func (r *defaultResolver) resolveFileFromProcessFlag(ctx context.Context, name, 
 		}
 	}
 	if proc == nil {
-		return nil, fmt.Errorf("could not find process %q for file content", name)
+		return nil, nil
 	}
 
 	cmdLine, err := proc.CmdlineSlice()
 	if err != nil {
-		return nil, fmt.Errorf("could not get cmdline value for process %q: %w", name, err)
+		return nil, nil
 	}
 
 	flags := parseCmdlineFlags(cmdLine)
 	path, ok := flags[flag]
 	if !ok {
-		return nil, fmt.Errorf("process %q has no flag %q", name, flag)
+		return nil, nil
 	}
-	return r.resolveFilePath(ctx, "", path, parser)
+	return r.resolveFilePath(ctx, path, parser)
 }
 
 func (r *defaultResolver) resolveFileGlob(ctx context.Context, glob, parser string) (interface{}, error) {
@@ -420,9 +422,12 @@ func (r *defaultResolver) resolveFileGlob(ctx context.Context, glob, parser stri
 	var resolved []interface{}
 	for _, path := range paths {
 		path = r.pathRelativeToHostRoot(path)
-		file, err := r.resolveFilePath(ctx, glob, path, parser)
+		file, err := r.resolveFilePath(ctx, path, parser)
 		if err != nil {
 			continue
+		}
+		if f, ok := file.(map[string]interface{}); ok {
+			f["glob"] = glob
 		}
 		resolved = append(resolved, file)
 	}

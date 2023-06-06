@@ -29,7 +29,7 @@
     - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2008r2,win2012,win2012r2"
+    KITCHEN_OSVERS: "win2012,win2012r2"
   before_script:  # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - cd $DD_AGENT_TESTING_DIR

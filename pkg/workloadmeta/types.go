@@ -72,6 +72,10 @@ type Store interface {
 	// for one containing the given container.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 
+	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
+	// the entity with kind KindKubernetesNode and the given ID.
+	GetKubernetesNode(id string) (*KubernetesNode, error)
+
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)
@@ -108,6 +112,7 @@ type Kind string
 const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
+	KindKubernetesNode         Kind = "kubernetes_node"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 )
@@ -623,6 +628,47 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 	return sb.String()
 }
+
+// KubernetesNode is an Entity representing a Kubernetes Node.
+type KubernetesNode struct {
+	EntityID
+	EntityMeta
+}
+
+// GetID implements Entity#GetID.
+func (n *KubernetesNode) GetID() EntityID {
+	return n.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (n *KubernetesNode) Merge(e Entity) error {
+	nn, ok := e.(*KubernetesNode)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
+	}
+
+	return merge(n, nn)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (n KubernetesNode) DeepCopy() Entity {
+	cn := deepcopy.Copy(n).(KubernetesNode)
+	return &cn
+}
+
+// String implements Entity#String
+func (n KubernetesNode) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
+
+	return sb.String()
+}
+
+var _ Entity = &KubernetesNode{}
 
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {

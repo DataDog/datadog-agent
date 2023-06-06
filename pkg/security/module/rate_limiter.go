@@ -169,7 +169,7 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 	for id, limiter := range defaultPerRuleLimiters {
 		limiters[id] = limiter
 	}
-	limiters[events.AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(rate.Every(time.Duration(rl.config.AnomalyDetectionRateLimiter)*time.Second), 1)
+	limiters[events.AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiter), 1)
 }
 
 // Apply a set of rules
@@ -226,8 +226,9 @@ func (rl *RateLimiter) GetStats() map[string][]LimiterStat {
 // for the set of rules
 func (rl *RateLimiter) SendStats() error {
 	for ruleID, stats := range rl.GetStats() {
-		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
+		ruleIDTag := fmt.Sprintf("rule_id:%s", ruleID)
 		for _, stat := range stats {
+			tags := []string{ruleIDTag}
 			if len(stat.tags) > 0 {
 				tags = append(tags, stat.tags...)
 			}

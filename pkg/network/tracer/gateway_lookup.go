@@ -9,6 +9,7 @@ package tracer
 
 import (
 	"context"
+	"math"
 	"net"
 	"time"
 
@@ -25,7 +26,7 @@ import (
 )
 
 const (
-	maxRouteCacheSize       = int(^uint(0) >> 1) // max int
+	maxRouteCacheSize       = uint32(math.MaxUint32)
 	maxSubnetCacheSize      = 1024
 	gatewayLookupModuleName = "network_tracer__gateway_lookup"
 )
@@ -92,14 +93,14 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 	}
 
 	routeCacheSize := maxRouteCacheSize
-	if config.MaxTrackedConnections <= uint(maxRouteCacheSize) {
-		routeCacheSize = int(config.MaxTrackedConnections)
+	if config.MaxTrackedConnections <= maxRouteCacheSize {
+		routeCacheSize = config.MaxTrackedConnections
 	} else {
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, config.MaxTrackedConnections)
 	}
 
 	gl.subnetCache, _ = simplelru.NewLRU(maxSubnetCacheSize, nil)
-	gl.routeCache = network.NewRouteCache(routeCacheSize, router)
+	gl.routeCache = network.NewRouteCache(int(routeCacheSize), router)
 	return gl
 }
 
