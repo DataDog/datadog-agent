@@ -16,8 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const service := os.Getenv(tags.serviceEnvVar)
-
 // EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a REST event.
@@ -39,7 +37,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 		endpoint:      eventPayload.Path,
 		httpURL:       httpurl,
 		operationName: "aws.apigateway.rest",
-		peerService:   service,
 		requestID:     requestContext.RequestID,
 		resourceNames: resource,
 		stage:         requestContext.Stage,
@@ -73,7 +70,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 		httpSourceIP:  http.SourceIP,
 		httpUserAgent: http.UserAgent,
 		operationName: "aws.httpapi",
-		peerService:   service,
 		requestID:     requestContext.RequestID,
 		resourceNames: resource,
 	}
@@ -105,7 +101,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 		httpURL:          httpurl,
 		messageDirection: requestContext.MessageDirection,
 		operationName:    "aws.apigateway.websocket",
-		peerService:      service,
 		requestID:        requestContext.RequestID,
 		resourceNames:    routeKey,
 		stage:            requestContext.Stage,
@@ -132,7 +127,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName: "aws.sns",
-		peerService:   service,
 		resourceNames: topicNameValue,
 		topicName:     topicNameValue,
 		topicARN:      snsMessage.TopicArn,
@@ -160,7 +154,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload eve
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName: "aws.s3",
-		peerService:   service,
 		resourceNames: eventRecord.S3.Bucket.Name,
 		eventName:     eventRecord.EventName,
 		bucketName:    eventRecord.S3.Bucket.Name,
@@ -188,7 +181,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName:  "aws.sqs",
-		peerService:    service,
 		resourceNames:  parsedQueueName,
 		queueName:      parsedQueueName,
 		eventSourceArn: eventRecord.EventSourceARN,
@@ -209,7 +201,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPa
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName: "aws.eventbridge",
-		peerService:   service,
 		resourceNames: eventPayload.Source,
 		detailType:    eventPayload.DetailType,
 	}
@@ -232,7 +223,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayloa
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName:  "aws.kinesis",
-		peerService:    service,
 		resourceNames:  parsedStreamName,
 		streamName:     parsedStreamName,
 		shardID:        parsedShardID,
@@ -260,7 +250,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithDynamoDBEvent(eventPaylo
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName:  "aws.dynamodb",
-		peerService:    service,
 		resourceNames:  parsedTableName,
 		tableName:      parsedTableName,
 		eventSourceArn: eventRecord.EventSourceArn,

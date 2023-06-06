@@ -24,7 +24,6 @@ const (
 func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
-
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
 
