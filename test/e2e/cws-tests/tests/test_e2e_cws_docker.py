@@ -131,7 +131,10 @@ class TestE2EDocker(unittest.TestCase):
             event = self.app.wait_app_log(f"rule_id:{rule_id}")
             attributes = event["data"][0]["attributes"]["attributes"]
             self.assertEqual(rule_id, attributes["agent"]["rule_id"], "unable to find rule_id tag attribute")
-            self.assertTrue("failed_tests" not in attributes, f"failed tests: {attributes['failed_tests']}" if "failed_tests" in attributes else "success")
+            self.assertTrue(
+                "failed_tests" not in attributes,
+                f"failed tests: {attributes['failed_tests']}" if "failed_tests" in attributes else "success",
+            )
 
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
             time.sleep(3 * 60)
