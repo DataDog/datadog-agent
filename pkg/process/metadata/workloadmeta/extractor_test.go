@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -45,12 +45,12 @@ func TestExtractor(t *testing.T) {
 		{
 			pid:      proc1.Pid,
 			cmdline:  proc1.Cmdline,
-			language: &languagedetection.Language{Name: languagedetection.Java},
+			language: &languagemodels.Language{Name: languagemodels.Java},
 		},
 		{
 			pid:      proc2.Pid,
 			cmdline:  proc2.Cmdline,
-			language: &languagedetection.Language{Name: languagedetection.Python},
+			language: &languagemodels.Language{Name: languagemodels.Python},
 		},
 	})
 	extractor.Extract(map[int32]*procutil.Process{
@@ -74,13 +74,13 @@ func TestExtractor(t *testing.T) {
 		{
 			pid:      Pid1,
 			cmdline:  proc1.Cmdline,
-			language: &languagedetection.Language{Name: languagedetection.Java},
+			language: &languagemodels.Language{Name: languagemodels.Java},
 		},
 	}, []*ProcessEntity{
 		{
 			pid:      Pid3,
 			cmdline:  proc3.Cmdline,
-			language: &languagedetection.Language{Name: languagedetection.Unknown},
+			language: &languagemodels.Language{Name: languagemodels.Unknown},
 		},
 	})
 	extractor.Extract(map[int32]*procutil.Process{
