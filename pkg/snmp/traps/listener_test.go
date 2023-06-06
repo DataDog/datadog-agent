@@ -155,7 +155,7 @@ func TestListenerTrapsReceivedTelemetry(t *testing.T) {
 	sendTestV1GenericTrap(t, config, "public")
 	packet := receivePacket(t, trapListener) // Wait for packet
 	require.NotNil(t, packet)
-	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{"snmp_device:127.0.0.1", "namespace:totoro"})
+	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{"snmp_device:127.0.0.1", "namespace:totoro", "snmp_version:1"})
 }
 
 func TestListenerUnknownCommunityStringTelemetry(t *testing.T) {
@@ -172,8 +172,8 @@ func TestListenerUnknownCommunityStringTelemetry(t *testing.T) {
 
 	sendTestV1GenericTrap(t, config, "notpublic") // Send trap with invalid community string
 	time.Sleep(3 * time.Second)
-	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{"snmp_device:127.0.0.1", "namespace:totoro"})
-	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.unknown_community_string", 1, "", []string{"snmp_device:127.0.0.1", "namespace:totoro"})
+	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{"snmp_device:127.0.0.1", "namespace:totoro", "snmp_version:1"})
+	mockSender.AssertMetric(t, "Count", "datadog.snmp_traps.unknown_community_string", 1, "", []string{"snmp_device:127.0.0.1", "namespace:totoro", "snmp_version:1"})
 }
 
 // receivePacket waits for a received trap packet and returns it.

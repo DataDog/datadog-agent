@@ -108,5 +108,5 @@ func TestForwarderTelemetry(t *testing.T) {
 	require.True(t, ok)
 	forwarder.trapsIn <- makeSnmpPacket(NetSNMPExampleHeartbeatNotification)
 	forwarder.Stop()
-	sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{"snmp_device:1.1.1.1", "namespace:default"})
+	sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{"snmp_device:1.1.1.1", "namespace:default", "snmp_version:2"})
 }

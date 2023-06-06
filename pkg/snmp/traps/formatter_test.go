@@ -1294,7 +1294,7 @@ func TestFormatterTelemetry(t *testing.T) {
 				"snmp_version:2",
 				"device_namespace:totoro",
 				"snmp_device:127.0.0.1",
-				"error:missing_variables",
+				"error:invalid_variables",
 			},
 		},
 		{
@@ -1308,7 +1308,7 @@ func TestFormatterTelemetry(t *testing.T) {
 				"snmp_version:2",
 				"device_namespace:totoro",
 				"snmp_device:127.0.0.1",
-				"error:missing_sys_uptime",
+				"error:invalid_sys_uptime",
 			},
 		},
 		{
@@ -1322,7 +1322,7 @@ func TestFormatterTelemetry(t *testing.T) {
 				"snmp_version:2",
 				"device_namespace:totoro",
 				"snmp_device:127.0.0.1",
-				"error:missing_trap_oid",
+				"error:invalid_trap_oid",
 			},
 		},
 		{
