@@ -5,9 +5,11 @@ using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
 using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
+using Newtonsoft.Json;
 using System.Windows.Forms;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
@@ -23,6 +25,9 @@ namespace Datadog.CustomActions
         private readonly IRegistryServices _registryServices;
         private readonly IFileSystemServices _fileSystemServices;
         private readonly IServiceController _serviceController;
+
+        // Created as needed on a per-customaction basis
+        private RollbackDataStore rollbackDataStore;
 
         public UserCustomActions(
             ISession session,
@@ -549,148 +554,169 @@ namespace Datadog.CustomActions
 
         private void ConfigureFilePermissions(SecurityIdentifier ddagentusersid)
         {
-            // set base permissions on APPLICATIONDATADIRECTORY, restrict access to admins only.
-            // This clears the ACL, any custom permissions added by customers will be removed.
-            // Any non-inherited ACE added to children of APPLICATIONDATADIRECTORY will be persisted.
+            try
             {
-                FileSystemSecurity fileSystemSecurity = new DirectorySecurity();
-                // disable inheritance, discard inherited rules
-                fileSystemSecurity.SetAccessRuleProtection(true, false);
-                // Administrators FullControl
-                fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-                // SYSTEM FullControl
-                fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-                _fileSystemServices.SetAccessControl(_session.Property("APPLICATIONDATADIRECTORY"), fileSystemSecurity);
-            }
-
-            // Ensure that inheritance is enabled on all files/folders in the config directory
-            foreach (var filePath in Directory.EnumerateFileSystemEntries(_session.Property("APPLICATIONDATADIRECTORY"),
-                         "*.*", SearchOption.AllDirectories))
-            {
-                FileSystemSecurity fileSystemSecurity =
-                    _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-
-                if (!fileSystemSecurity.AreAccessRulesProtected)
+                // set base permissions on APPLICATIONDATADIRECTORY, restrict access to admins only.
+                // This clears the ACL, any custom permissions added by customers will be removed.
+                // Any non-inherited ACE added to children of APPLICATIONDATADIRECTORY will be persisted.
                 {
-                    // inheritance is already enabled
-                    continue;
+                    FileSystemSecurity fileSystemSecurity = new DirectorySecurity();
+                    // disable inheritance, discard inherited rules
+                    fileSystemSecurity.SetAccessRuleProtection(true, false);
+                    // Administrators FullControl
+                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                        new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                        FileSystemRights.FullControl,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow));
+                    // SYSTEM FullControl
+                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                        new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                        FileSystemRights.FullControl,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow));
+                    rollbackDataStore.Add(
+                        new FilePermissionRollbackInfo(_session.Property("APPLICATIONDATADIRECTORY"),
+                            _fileSystemServices));
+                    _fileSystemServices.SetAccessControl(_session.Property("APPLICATIONDATADIRECTORY"),
+                        fileSystemSecurity);
                 }
 
-                // enable inheritance
-                fileSystemSecurity.SetAccessRuleProtection(false, true);
-                // Remove explicit access rules added by the pre-7.47 installer that will now have inherited analogues
-                foreach (var sid in new SecurityIdentifier[]
-                         {
-                             new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                             new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                             ddagentusersid,
-                         })
+                // Ensure that inheritance is enabled on all files/folders in the config directory
+                foreach (var filePath in Directory.EnumerateFileSystemEntries(
+                             _session.Property("APPLICATIONDATADIRECTORY"),
+                             "*.*", SearchOption.AllDirectories))
                 {
-                    if (fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
-                            sid,
-                            FileSystemRights.FullControl,
+                    FileSystemSecurity fileSystemSecurity =
+                        _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+
+                    if (!fileSystemSecurity.AreAccessRulesProtected)
+                    {
+                        // inheritance is already enabled
+                        continue;
+                    }
+
+                    // enable inheritance
+                    fileSystemSecurity.SetAccessRuleProtection(false, true);
+                    // Remove explicit access rules added by the pre-7.47 installer that will now have inherited analogues
+                    foreach (var sid in new SecurityIdentifier[]
+                             {
+                                 new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                                 new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                                 ddagentusersid,
+                             })
+                    {
+                        if (sid == null)
+                        {
+                            continue;
+                        }
+
+                        if (fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                                sid,
+                                FileSystemRights.FullControl,
+                                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                                PropagationFlags.None,
+                                AccessControlType.Allow)))
+                        {
+                            _session.Log($"{filePath} removing explicit access rule for {sid}");
+                        }
+                    }
+
+                    // Use AccessRuleFactory instead of a FileSystemAccessRule constructor because they all
+                    // automatically add FileSystemRights.Synchronize which was not included by the pre-7.47 installer.
+                    if (fileSystemSecurity.RemoveAccessRule((FileSystemAccessRule)fileSystemSecurity.AccessRuleFactory(
+                            new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+                            (int)FileSystemRights.ChangePermissions,
+                            false,
                             InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                             PropagationFlags.None,
                             AccessControlType.Allow)))
                     {
-                        _session.Log($"{filePath} removing explicit access rule for {sid}");
-                    }
-                }
-
-                // Use AccessRuleFactory instead of a FileSystemAccessRule constructor because they all
-                // automatically add FileSystemRights.Synchronize which was not included by the pre-7.47 installer.
-                if (fileSystemSecurity.RemoveAccessRule((FileSystemAccessRule)fileSystemSecurity.AccessRuleFactory(
-                        new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
-                        (int)FileSystemRights.ChangePermissions,
-                        false,
-                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                        PropagationFlags.None,
-                        AccessControlType.Allow)))
-                {
-                    _session.Log($"{filePath} removing explicit access rule for Users");
-                }
-
-                _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
-                _session.Log($"{filePath} successfully enabled inheritance");
-            }
-
-            // add ddagentuser FullControl to select places
-            foreach (var filePath in pathsWithAgentAccess())
-            {
-                if (!_fileSystemServices.Exists(filePath))
-                {
-                    if (filePath.Contains("embedded3"))
-                    {
-                        throw new InvalidOperationException($"The file {filePath} doesn't exist, but it should");
+                        _session.Log($"{filePath} removing explicit access rule for Users");
                     }
 
-                    _session.Log($"{filePath} does not exists, skipping changing ACLs.");
-                    continue;
-                }
-
-                FileSystemSecurity fileSystemSecurity;
-                try
-                {
-                    fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-                }
-                catch (Exception e)
-                {
-                    _session.Log($"Failed to get ACLs on {filePath}: {e}");
-                    throw;
-                }
-
-                _session.Log(
-                    $"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-
-                if (_fileSystemServices.IsDirectory(filePath))
-                {
-                    // ddagentuser FullControl, enable child inheritance of this ACE
-                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                        ddagentusersid,
-                        FileSystemRights.FullControl,
-                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                        PropagationFlags.None,
-                        AccessControlType.Allow));
-                }
-                else if (_fileSystemServices.IsFile(filePath))
-                {
-                    // ddagentuser FullControl
-                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                        ddagentusersid,
-                        FileSystemRights.FullControl,
-                        AccessControlType.Allow));
-                }
-
-                try
-                {
+                    rollbackDataStore.Add(new FilePermissionRollbackInfo(filePath, _fileSystemServices));
                     _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
-                }
-                catch (Exception e)
-                {
-                    _session.Log($"Failed to set ACLs on {filePath}: {e}");
-                    throw;
+                    _session.Log($"{filePath} successfully enabled inheritance");
                 }
 
-                try
+                // add ddagentuser FullControl to select places
+                foreach (var filePath in pathsWithAgentAccess())
                 {
-                    fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+                    if (!_fileSystemServices.Exists(filePath))
+                    {
+                        if (filePath.Contains("embedded3"))
+                        {
+                            throw new InvalidOperationException($"The file {filePath} doesn't exist, but it should");
+                        }
+
+                        _session.Log($"{filePath} does not exists, skipping changing ACLs.");
+                        continue;
+                    }
+
+                    FileSystemSecurity fileSystemSecurity;
+                    try
+                    {
+                        fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+                    }
+                    catch (Exception e)
+                    {
+                        _session.Log($"Failed to get ACLs on {filePath}: {e}");
+                        throw;
+                    }
+
                     _session.Log(
-                        $"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                        $"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+
+                    if (_fileSystemServices.IsDirectory(filePath))
+                    {
+                        // ddagentuser FullControl, enable child inheritance of this ACE
+                        fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                            ddagentusersid,
+                            FileSystemRights.FullControl,
+                            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                            PropagationFlags.None,
+                            AccessControlType.Allow));
+                    }
+                    else if (_fileSystemServices.IsFile(filePath))
+                    {
+                        // ddagentuser FullControl
+                        fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                            ddagentusersid,
+                            FileSystemRights.FullControl,
+                            AccessControlType.Allow));
+                    }
+
+
+                    try
+                    {
+                        rollbackDataStore.Add(new FilePermissionRollbackInfo(filePath, _fileSystemServices));
+                        _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
+                    }
+                    catch (Exception e)
+                    {
+                        _session.Log($"Failed to set ACLs on {filePath}: {e}");
+                        throw;
+                    }
+
+                    try
+                    {
+                        fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+                        _session.Log(
+                            $"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                    }
+                    catch (Exception e)
+                    {
+                        _session.Log($"Failed to get ACLs on {filePath}: {e}");
+                    }
                 }
-                catch (Exception e)
-                {
-                    _session.Log($"Failed to get ACLs on {filePath}: {e}");
-                }
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Error configuring file permissions: {e}");
+                throw;
             }
         }
 
@@ -698,6 +724,8 @@ namespace Datadog.CustomActions
         {
             try
             {
+                rollbackDataStore = new RollbackDataStore(_session, "ConfigureUser", _fileSystemServices);
+
                 if (AddUser() != ActionResult.Success)
                 {
                     return ActionResult.Failure;
@@ -766,12 +794,39 @@ namespace Datadog.CustomActions
                 _session.Log($"Failed to configure user: {e}");
                 return ActionResult.Failure;
             }
+            finally
+            {
+                rollbackDataStore.Store();
+            }
         }
 
         [CustomAction]
         public static ActionResult ConfigureUser(Session session)
         {
             return new UserCustomActions(new SessionWrapper(session)).ConfigureUser();
+        }
+
+        public ActionResult ConfigureUserRollback()
+        {
+            try
+            {
+                rollbackDataStore = new RollbackDataStore(_session, "ConfigureUser", _fileSystemServices);
+                rollbackDataStore.Load();
+                rollbackDataStore.Restore();
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to rollback user configuration: {e}");
+                return ActionResult.Failure;
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureUserRollback(Session session)
+        {
+            return new UserCustomActions(new SessionWrapper(session)).ConfigureUserRollback();
         }
 
         private List<string> pathsWithAgentAccess()
@@ -847,7 +902,6 @@ namespace Datadog.CustomActions
                 _session.Log($"Removing file access for ${ddAgentUserName} ({securityIdentifier})");
                 foreach (var filePath in pathsWithAgentAccess())
                 {
-                    FileSystemSecurity fileSystemSecurity;
                     try
                     {
                         if (_fileSystemServices.Exists(filePath))

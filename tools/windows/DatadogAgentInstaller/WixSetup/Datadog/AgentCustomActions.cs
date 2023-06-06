@@ -38,6 +38,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction ConfigureUser { get; }
 
+        public ManagedAction ConfigureUserRollback { get; }
+
         public ManagedAction UninstallUser { get; }
 
         public ManagedAction OpenMsiLog { get; }
@@ -273,6 +275,19 @@ namespace WixSetup.Datadog
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
                                "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD]")
                 .HideTarget(true);
+
+            ConfigureUserRollback = new CustomAction<UserCustomActions>(
+                    new Id(nameof(ConfigureUserRollback)),
+                    UserCustomActions.ConfigureUserRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(ConfigureUser.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+                {
+                    Execute = Execute.rollback,
+                    Impersonate = false,
+                };
 
             UninstallUser = new CustomAction<UserCustomActions>(
                     new Id(nameof(UninstallUser)),

@@ -83,6 +83,7 @@
     <Compile Include="Native\ServiceController.cs" />
     <Compile Include="Native\ServiceControllerExtensions.cs" />
     <Compile Include="Native\WindowsService.cs" />
+    <Compile Include="RollbackDataStore.cs" />
     <Compile Include="ServiceCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
@@ -101,6 +102,9 @@
   <ItemGroup>
     <PackageReference Include="LZMA-SDK">
       <Version>22.1.1</Version>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json">
+      <Version>13.0.3</Version>
     </PackageReference>
     <PackageReference Include="SharpZipLib" GeneratePathProperty="true">
       <Version>1.3.3</Version>

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Security.AccessControl;
 
 namespace Datadog.CustomActions.Interfaces
