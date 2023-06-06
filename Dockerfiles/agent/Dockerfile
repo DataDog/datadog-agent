@@ -158,7 +158,7 @@ COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.
 # - The debian image is now built with merged-usr explicitly disabled,
 #   see https://github.com/debuerreotype/debuerreotype/pull/50
 # - Ubuntu 20.10 uses the symlink /bin -> /usr/bin
-RUN sudo tar xzf s6.tgz -C / --exclude="./bin" \
+RUN tar xzf s6.tgz -C / --exclude="./bin" \
   && tar xzf s6.tgz -C /usr ./bin \
   && rm s6.tgz \
   # Prepare for running without root
