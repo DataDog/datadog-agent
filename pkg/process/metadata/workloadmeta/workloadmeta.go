@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -19,7 +20,7 @@ import (
 type ProcessEntity struct {
 	pid      int32
 	cmdline  []string
-	language *languagedetection.Language
+	language *languagemodels.Language
 }
 
 // WorkloadMetaExtractor handles enriching processes with
@@ -40,7 +41,7 @@ func NewWorkloadMetaExtractor() *WorkloadMetaExtractor {
 
 // Extract detects the process language, creates a process entity, and sends that entity to WorkloadMeta
 func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
-	procsToDetect := make([]*languagedetection.Process, 0, len(procs))
+	procsToDetect := make([]*procutil.Process, 0, len(procs))
 	newCache := make(map[string]*ProcessEntity, len(procs))
 	for pid, proc := range procs {
 		hash := hashProcess(pid, proc.Stats.CreateTime)
@@ -49,10 +50,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 			continue
 		}
 
-		procsToDetect = append(procsToDetect, &languagedetection.Process{
-			Pid:     pid,
-			Cmdline: proc.Cmdline,
-		})
+		procsToDetect = append(procsToDetect, proc)
 	}
 
 	newProcs := make([]*ProcessEntity, 0, len(procsToDetect))
