@@ -54,7 +54,7 @@ jobs:
           curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-agent_$AGENT_VERSION-1_amd64.deb -o datadog-agent_$AGENT_VERSION-1_amd64.deb
           dpkg -x datadog-agent_$AGENT_VERSION-1_amd64.deb ./
           ls
-          chmod 644 /opt
+          sudo chmod 644 /opt
           docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_amd64.deb --build-arg TARGETARCH=amd64 --build-arg PYTHON_VERSION=3 --pull --tag $AGENT_IMAGE_NAME .
           
         # docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file ./Dockerfiles/agent --pull --tag $AGENT_IMAGE_NAME .
