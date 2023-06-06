@@ -221,7 +221,9 @@ func (r *defaultResolver) ResolveInputs(ctx_ context.Context, rule *Rule) (Resol
 		}
 
 		resolvingContext.InputSpecs[tagName] = spec
-		resolvingContext.KubernetesCluster = kubernetesCluster
+		if kubernetesCluster != "" {
+			resolvingContext.KubernetesCluster = kubernetesCluster
+		}
 
 		if r, ok := result.([]interface{}); ok && reflect.ValueOf(r).IsNil() {
 			result = nil

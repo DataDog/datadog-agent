@@ -45,7 +45,7 @@ func TestSecurityProfile(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -183,7 +183,7 @@ func TestSecurityProfile(t *testing.T) {
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
 			func(sp *profile.SecurityProfile) bool {
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
-					if node.Node.Process.FileEvent.BasenameStr == "busybox" {
+					if node.Node.Process.Argv0 == "nslookup" {
 						return true
 					}
 					return false
@@ -227,7 +227,7 @@ func TestAnomalyDetection(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -409,7 +409,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -418,7 +418,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		securityProfileDir:                  outputDir,
 		securityProfileWatchDir:             true,
 		anomalyDetectionMinimumStablePeriod: 0,
-		anomalyDetectionWarmupPeriod:        17,
+		anomalyDetectionWarmupPeriod:        17 * time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -511,12 +511,12 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	outputDir := t.TempDir()
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
-	reinsertPeriod := 10
+
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       testActivityDumpCgroupDumpTimeout,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -524,7 +524,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		enableSecurityProfile:               true,
 		securityProfileDir:                  outputDir,
 		securityProfileWatchDir:             true,
-		anomalyDetectionMinimumStablePeriod: reinsertPeriod,
+		anomalyDetectionMinimumStablePeriod: 10 * time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -695,7 +695,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	outputDir := t.TempDir()
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
-	reinsertPeriod := 10
+	reinsertPeriod := 10 * time.Second
 	rulesDef := []*rules.RuleDefinition{
 		{
 			ID:         "test_autosuppression_exec",
@@ -710,7 +710,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
-		activityDumpCgroupDumpTimeout:       10,
+		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
 		activityDumpLocalStorageFormats:     expectedFormats,
@@ -763,7 +763,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			return err
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_autosuppression_dns")
-			assert.Equal(t, "busybox", event.ProcessContext.FileEvent.BasenameStr, "wrong exec file")
+			assert.Equal(t, "nslookup", event.ProcessContext.Argv0, "wrong exec file")
 		})
 	})
 

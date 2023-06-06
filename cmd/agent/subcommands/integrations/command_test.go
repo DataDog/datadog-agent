@@ -30,6 +30,17 @@ func TestInstallCommand(t *testing.T) {
 		})
 }
 
+func TestInstallSkipVerificationCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"integration", "install", "foo==1.0", "--unsafe-disable-verification"},
+		install,
+		func(cliParams *cliParams, coreParams core.BundleParams) {
+			require.Equal(t, []string{"foo==1.0"}, cliParams.args)
+			require.Equal(t, true, cliParams.unsafeDisableVerification)
+		})
+}
+
 func TestRemoveCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),

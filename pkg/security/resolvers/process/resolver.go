@@ -578,7 +578,7 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *model
 	}
 
 	// fallback to the kernel maps directly, the perf event may be delayed / may have been lost
-	if entry := p.resolveFromKernelMaps(pid, tid); entry != nil {
+	if entry := p.resolveFromKernelMaps(pid, tid, inode); entry != nil {
 		p.hitsStats[metrics.KernelMapsTag].Inc()
 		return entry
 	}
@@ -632,15 +632,15 @@ func (p *Resolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDC
 	return fileEvent.PathnameStr, nil
 }
 
-func isBusybox(pathname string) bool {
+func IsBusybox(pathname string) bool {
 	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
 }
 
 // SetProcessSymlink resolves process file symlink path
 func (p *Resolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 	// TODO: busybox workaround only for now
-	if isBusybox(entry.FileEvent.PathnameStr) {
-		arg0, _ := p.GetProcessArgv0(&entry.Process)
+	if IsBusybox(entry.FileEvent.PathnameStr) {
+		arg0, _ := GetProcessArgv0(&entry.Process)
 		base := path.Base(arg0)
 
 		entry.SymlinkPathnameStr[0] = "/bin/" + base
@@ -725,13 +725,13 @@ func (p *Resolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, c
 }
 
 // ResolveFromKernelMaps resolves the entry from the kernel maps
-func (p *Resolver) ResolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *Resolver) ResolveFromKernelMaps(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
-	return p.resolveFromKernelMaps(pid, tid)
+	return p.resolveFromKernelMaps(pid, tid, inode)
 }
 
-func (p *Resolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEntry {
+func (p *Resolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
 	model.ByteOrder.PutUint32(pidb, pid)
 
@@ -746,7 +746,7 @@ func (p *Resolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEnt
 		return nil
 	}
 
-	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid})
+	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid, ExecInode: inode})
 
 	var ctrCtx model.ContainerContext
 	read, err := ctrCtx.UnmarshalBinary(procCache)
@@ -755,6 +755,11 @@ func (p *Resolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessCacheEnt
 	}
 
 	if _, err := entry.UnmarshalProcEntryBinary(procCache[read:]); err != nil {
+		return nil
+	}
+
+	// check that the cache entry correspond to the event
+	if entry.FileEvent.Inode != entry.ExecInode {
 		return nil
 	}
 
@@ -883,8 +888,8 @@ func GetProcessArgv(pr *model.Process) ([]string, bool) {
 	return pr.Argv, pr.ArgsTruncated
 }
 
-// GetProcessArgv0 returns the first arg of the event
-func (p *Resolver) GetProcessArgv0(pr *model.Process) (string, bool) {
+// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
+func GetProcessArgv0(pr *model.Process) (string, bool) {
 	if pr.ArgsEntry == nil {
 		return pr.Argv0, pr.ArgsTruncated
 	}

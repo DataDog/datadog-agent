@@ -221,6 +221,32 @@ func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.Transcod
 	return nil, fmt.Errorf("monitor not configured")
 }
 
+// ListSecurityProfiles returns the list of security profiles
+func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.ListSecurityProfiles(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
+// SaveSecurityProfile saves the requested security profile to disk
+func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+	if monitor := a.probe.GetMonitor(); monitor != nil {
+		msg, err := monitor.SaveSecurityProfile(params)
+		if err != nil {
+			seclog.Errorf(err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
+}
+
 // GetStatus returns the status of the module
 func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) (*api.Status, error) {
 	status, err := a.probe.GetConstantFetcherStatus()
@@ -456,6 +482,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
 	msg.tags = append(msg.tags, rule.Tags...)
 	msg.tags = append(msg.tags, event.GetTags()...)
+	msg.tags = append(msg.tags, common.QueryAccountIdTag())
 
 	a.enqueue(msg)
 }

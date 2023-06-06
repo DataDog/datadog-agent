@@ -325,7 +325,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
 			// Webhook and secret controllers are started successfully
-			// Setup the the k8s admission webhook server
+			// Setup the k8s admission webhook server
 			server := admissioncmd.NewServer()
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
 			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)

@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudfoundry-community/go-cfclient"
+	"github.com/cloudfoundry-community/go-cfclient/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -463,7 +463,7 @@ func (ccc *CCCache) listApplications(wg *sync.WaitGroup, appsMap *map[string]*cf
 				sidecars, err := ccc.ccAPIClient.ListSidecarsByApp(query, app.GUID)
 				if err != nil {
 					log.Errorf("Failed listing sidecars from cloud controller: %v", err)
-					return
+					continue
 				}
 				// skip apps without sidecars
 				if len(sidecars) == 0 {

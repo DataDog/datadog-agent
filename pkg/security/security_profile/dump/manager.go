@@ -415,7 +415,8 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.Comm = params.GetComm()
 		ad.Metadata.ContainerID = params.GetContainerID()
-		ad.SetTimeout(time.Duration(params.Timeout) * time.Minute)
+		dumpDuration, _ := time.ParseDuration(params.Timeout)
+		ad.SetTimeout(dumpDuration)
 
 		if params.GetDifferentiateArgs() {
 			ad.Metadata.DifferentiateArgs = true
@@ -548,10 +549,10 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 
 		// compute the list of ancestors, we need to start inserting them from the root
 		ancestors := []*model.ProcessCacheEntry{entry}
-		parent := entry.GetNextAncestorBinary()
+		parent := activity_tree.GetNextAncestorBinaryOrArgv0(&entry.ProcessContext)
 		for parent != nil {
 			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
-			parent = parent.GetNextAncestorBinary()
+			parent = activity_tree.GetNextAncestorBinaryOrArgv0(&parent.ProcessContext)
 		}
 
 		for _, parent = range ancestors {
