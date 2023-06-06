@@ -86,7 +86,7 @@ func getOldProcs(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntity 
 	return oldProcs
 }
 
-// Enabled returns wheither or not the extractor should be enabled
+// Enabled returns whether or not the extractor should be enabled
 func Enabled(ddconfig config.ConfigReader) bool {
 	return ddconfig.GetBool("process_config.language_detection.enabled")
 }
