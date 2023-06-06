@@ -167,6 +167,7 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
   # as some docker versions re-create /run from zero at container start
   && adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 \
+  && ls \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
   && chmod 755 /probe.sh /initlog.sh \
