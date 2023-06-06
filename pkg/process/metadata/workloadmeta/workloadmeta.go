@@ -19,12 +19,14 @@ import (
 // It does not contain all the fields that the final entity will contain.
 type ProcessEntity struct {
 	pid      int32
-	cmdline  []string
 	language *languagemodels.Language
 }
 
-// WorkloadMetaExtractor handles enriching processes with
+// WorkloadMetaExtractor handles enriching processes with languages as well as sending enriched processes to the core agent
+// via grpc stream.
 type WorkloadMetaExtractor struct {
+	// Cache is a map from process hash to the workloadmeta entity
+	// The cache key takes the form of `pid:<pid>|createTime:<createTime>`. See hashProcess
 	cache      map[string]*ProcessEntity
 	cacheMutex sync.RWMutex
 
@@ -41,7 +43,7 @@ func NewWorkloadMetaExtractor() *WorkloadMetaExtractor {
 
 // Extract detects the process language, creates a process entity, and sends that entity to WorkloadMeta
 func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
-	procsToDetect := make([]*procutil.Process, 0, len(procs))
+	newProcs := make([]*procutil.Process, 0, len(procs))
 	newCache := make(map[string]*ProcessEntity, len(procs))
 	for pid, proc := range procs {
 		hash := hashProcess(pid, proc.Stats.CreateTime)
@@ -50,25 +52,24 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 			continue
 		}
 
-		procsToDetect = append(procsToDetect, proc)
+		newProcs = append(newProcs, proc)
 	}
 
-	newProcs := make([]*ProcessEntity, 0, len(procsToDetect))
-	languages := languagedetection.DetectLanguage(procsToDetect)
+	newEntities := make([]*ProcessEntity, 0, len(newProcs))
+	languages := languagedetection.DetectLanguage(newProcs)
 	for i, lang := range languages {
-		pid := procsToDetect[i].Pid
-		proc := procs[procsToDetect[i].Pid]
+		pid := newProcs[i].Pid
+		proc := procs[newProcs[i].Pid]
 		entity := &ProcessEntity{
 			pid:      pid,
-			cmdline:  proc.Cmdline,
 			language: lang,
 		}
-		newProcs = append(newProcs, entity)
+		newEntities = append(newEntities, entity)
 		newCache[hashProcess(pid, proc.Stats.CreateTime)] = entity
 	}
 
 	oldProcs := getOldProcs(w.cache, newCache)
-	w.grpcListener.writeEvents(oldProcs, newProcs)
+	w.grpcListener.writeEvents(oldProcs, newEntities)
 
 	w.cacheMutex.Lock()
 	w.cache = newCache

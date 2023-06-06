@@ -44,12 +44,10 @@ func TestExtractor(t *testing.T) {
 	writeEvents := mockGrpcListener.On("writeEvents", []*ProcessEntity{}, []*ProcessEntity{
 		{
 			pid:      proc1.Pid,
-			cmdline:  proc1.Cmdline,
 			language: &languagemodels.Language{Name: languagemodels.Java},
 		},
 		{
 			pid:      proc2.Pid,
-			cmdline:  proc2.Cmdline,
 			language: &languagemodels.Language{Name: languagemodels.Python},
 		},
 	})
@@ -69,17 +67,15 @@ func TestExtractor(t *testing.T) {
 	mockGrpcListener.AssertExpectations(t)
 	writeEvents.Unset()
 
-        // Assert that old events are evicted from the cache
+	// Assert that old events are evicted from the cache
 	_ = mockGrpcListener.On("writeEvents", []*ProcessEntity{
 		{
 			pid:      Pid1,
-			cmdline:  proc1.Cmdline,
 			language: &languagemodels.Language{Name: languagemodels.Java},
 		},
 	}, []*ProcessEntity{
 		{
 			pid:      Pid3,
-			cmdline:  proc3.Cmdline,
 			language: &languagemodels.Language{Name: languagemodels.Unknown},
 		},
 	})
