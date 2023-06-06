@@ -53,7 +53,7 @@ jobs:
           dpkg -x datadog-agent_$AGENT_VERSION-1_amd64.deb ./
           ls
           sudo chmod 644 /opt
-          sudo chmod 644 /var/log/datadog
+          sudo chmod 644 /var
           docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_amd64.deb --build-arg TARGETARCH=amd64 --build-arg PYTHON_VERSION=3 --pull --tag $AGENT_IMAGE_NAME .
           
         # docker build --build-arg DD_AGENT_ARTIFACT=./datadog-agent_$AGENT_VERSION-1_arm64.deb --file ./Dockerfiles/agent --pull --tag $AGENT_IMAGE_NAME .
