@@ -7,8 +7,9 @@ package workloadmeta
 
 import (
 	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -17,46 +18,85 @@ import (
 const (
 	Pid1 = 1000
 	Pid2 = 1001
+	Pid3 = 1002
 )
 
+func testProc(pid int32, cmdline []string) *procutil.Process {
+	return &procutil.Process{
+		Pid:     pid,
+		Cmdline: cmdline,
+		Stats:   &procutil.Stats{CreateTime: time.Now().Unix()},
+	}
+}
+
 func TestExtractor(t *testing.T) {
-	wlmExtractor := NewWorkloadMetaExtractor()
+	extractor := NewWorkloadMetaExtractor()
+	mockGrpcListener := new(mockGrpcListener)
+	extractor.grpcListener = mockGrpcListener
 
-	type testCase struct {
-		name     string
-		procs    map[int32]*procutil.Process
-		expected map[int32]*languagedetection.Language
-	}
-	for _, tc := range []testCase{
+	var (
+		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
+		proc2 = testProc(Pid2, []string{"python", "myprogram.py"})
+		proc3 = testProc(Pid3, []string{"corrina", "--at-her-best"})
+	)
+
+	// Assert that we write all procs on first run
+	writeEvents := mockGrpcListener.On("writeEvents", []*ProcessEntity{}, []*ProcessEntity{
 		{
-			name: "java & python",
-			procs: map[int32]*procutil.Process{
-				Pid1: {
-					Pid:     Pid1,
-					Cmdline: []string{"java", "TestClass"},
-				},
-				Pid2: {
-					Pid:     Pid2,
-					Cmdline: []string{"python", "main.py"},
-				},
-			},
-			expected: map[int32]*languagedetection.Language{
-				Pid1: {Name: languagedetection.Java},
-				Pid2: {Name: languagedetection.Python},
-			},
+			pid:      proc1.Pid,
+			cmdline:  proc1.Cmdline,
+			language: &languagedetection.Language{Name: languagedetection.Java},
 		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			wlmExtractor.Extract(tc.procs)
-			for pid, lang := range tc.expected {
-				proc := tc.procs[pid]
-				if lang == nil {
-					assert.Nil(t, proc.Language)
-					continue
-				}
+		{
+			pid:      proc2.Pid,
+			cmdline:  proc2.Cmdline,
+			language: &languagedetection.Language{Name: languagedetection.Python},
+		},
+	})
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1,
+		Pid2: proc2,
+	})
+	mockGrpcListener.AssertExpectations(t)
+	writeEvents.Unset()
 
-				assert.Equal(t, lang.Name, proc.Language.Name)
-			}
-		})
-	}
+	// Assert that we write no duplicates
+	writeEvents = mockGrpcListener.On("writeEvents", []*ProcessEntity{}, []*ProcessEntity{})
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1,
+		Pid2: proc2,
+	})
+	mockGrpcListener.AssertExpectations(t)
+	writeEvents.Unset()
+
+	// Assert that old events are evicted from the cache
+	writeEvents = mockGrpcListener.On("writeEvents", []*ProcessEntity{
+		{
+			pid:      Pid1,
+			cmdline:  proc1.Cmdline,
+			language: &languagedetection.Language{Name: languagedetection.Java},
+		},
+	}, []*ProcessEntity{
+		{
+			pid:      Pid3,
+			cmdline:  proc3.Cmdline,
+			language: &languagedetection.Language{Name: languagedetection.Unknown},
+		},
+	})
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid2: proc2,
+		Pid3: proc3,
+	})
+	mockGrpcListener.AssertExpectations(t)
+
+}
+
+var _ mockableGrpcListener = (*mockGrpcListener)(nil)
+
+type mockGrpcListener struct {
+	mock.Mock
+}
+
+func (m *mockGrpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
+	m.Called(procsToDelete, procsToAdd)
 }
