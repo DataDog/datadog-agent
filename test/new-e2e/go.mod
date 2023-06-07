@@ -8,8 +8,6 @@ go 1.18
 
 replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 
-replace github.com/DataDog/test-infra-definitions => ../../../test-infra-definitions
-
 require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.46.0-rc.2
 	github.com/DataDog/test-infra-definitions v0.0.0-20230607221957-7c67a543238b

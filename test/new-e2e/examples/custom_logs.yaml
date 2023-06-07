@@ -1,0 +1,5 @@
+logs:
+  - type: file
+    path: "${LOG_FILE_PATH}"
+    service: "custom_logs"
+    source: "e2etest"
