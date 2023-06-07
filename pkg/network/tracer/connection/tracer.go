@@ -408,9 +408,10 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 
 	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
 	t.removeTuple.Pid = 0
-	// We can ignore the error for this map since it will not always contain the entry
-	_ = t.tcpStats.Delete(unsafe.Pointer(t.removeTuple))
-
+	if conn.Type == network.TCP {
+		// We can ignore the error for this map since it will not always contain the entry
+		_ = t.tcpStats.Delete(unsafe.Pointer(t.removeTuple))
+	}
 	return nil
 }
 
