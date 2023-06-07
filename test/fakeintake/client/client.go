@@ -141,6 +141,16 @@ func (c *Client) getMetric(name string) ([]*aggregator.MetricSeries, error) {
 // A MatchOpt to filter fakeintake payloads
 type MatchOpt[P aggregator.PayloadItem] func(payload P) (bool, error)
 
+// GetMetricNames fetches fakeintake on `/api/v2/series` endpoint and returns
+// all received metric names
+func (c *Client) GetMetricNames() ([]string, error) {
+	err := c.getMetrics()
+	if err != nil {
+		return []string{}, nil
+	}
+	return c.metricAggregator.GetNames(), nil
+}
+
 // FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
 // metrics matching `name` and any [MatchOpt](#MatchOpt) options
 func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.MetricSeries]) ([]*aggregator.MetricSeries, error) {
@@ -225,6 +235,16 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 	return c.logAggregator.GetPayloadsByName(service), nil
 }
 
+// GetLogNames fetches fakeintake on `/api/v2/logs` endpoint and returns
+// all received log service names
+func (c *Client) GetLogServiceNames() ([]string, error) {
+	err := c.getLogs()
+	if err != nil {
+		return []string{}, nil
+	}
+	return c.logAggregator.GetNames(), nil
+}
+
 // FilterLogs fetches fakeintake on `/api/v2/logs` endpoint, unpackage payloads and returns
 // logs matching `service` and any [MatchOpt](#MatchOpt) options
 func (c *Client) FilterLogs(service string, options ...MatchOpt[*aggregator.Log]) ([]*aggregator.Log, error) {
@@ -277,6 +297,16 @@ func WithMessageMatching(pattern string) MatchOpt[*aggregator.Log] {
 		// TODO return similarity score in error
 		return false, nil
 	}
+}
+
+// GetCheckRunNames fetches fakeintake on `/api/v1/check_run` endpoint and returns
+// all received check run names
+func (c *Client) GetCheckRunNames() ([]string, error) {
+	err := c.getCheckRuns()
+	if err != nil {
+		return []string{}, nil
+	}
+	return c.checkRunAggregator.GetNames(), nil
 }
 
 // FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
