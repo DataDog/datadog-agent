@@ -5,8 +5,9 @@ package datadog.process;
 option go_package = "pkg/proto/pbgo"; // golang
 
 message WorkloadMetaProcessEvents {
-  repeated ProcessEventSet setEvents = 1;
-  repeated ProcessEventUnset unsetEvents = 2;
+  int32 eventID = 1;
+  repeated ProcessEventSet setEvents = 2;
+  repeated ProcessEventUnset unsetEvents = 3;
 }
 
 message ProcessEventSet {
