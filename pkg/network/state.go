@@ -633,6 +633,14 @@ func (ns *networkState) getClient(clientID string) *client {
 	return c
 }
 
+func isEmptyConnection(c *ConnectionStats) bool {
+	return c.Last.RecvBytes == 0 &&
+		c.Last.SentBytes == 0 &&
+		c.Last.RecvPackets == 0 &&
+		c.Last.SentPackets == 0 &&
+		c.Last.Retransmits == 0
+}
+
 // mergeConnections return the connections and takes care of updating their last stat counters
 func (ns *networkState) mergeConnections(id string, active map[StatCookie]*ConnectionStats, buffer *clientBuffer) {
 	now := time.Now()
@@ -665,7 +673,7 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 
 		ns.updateConnWithStats(client, cookie, closedConn)
 
-		if closedConn.Last.IsZero() {
+		if isEmptyConnection(closedConn) {
 			continue
 		}
 
@@ -682,7 +690,7 @@ func (ns *networkState) mergeConnections(id string, active map[StatCookie]*Conne
 		ns.createStatsForCookie(client, cookie)
 		ns.updateConnWithStats(client, cookie, c)
 
-		if c.Last.IsZero() {
+		if isEmptyConnection(c) {
 			continue
 		}
 
