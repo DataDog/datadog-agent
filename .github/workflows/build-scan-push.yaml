@@ -55,9 +55,8 @@ jobs:
 
       - name: Build datadog cluster agent
         run: |
-          ls
-          cd Dockerfiles/cluster-agent/
-          docker build --build-arg TARGETARCH=amd64 --pull --tag $CLUSTER_AGENT_IMAGE_NAME .
+          docker pull gcr.io/datadoghq/cluster-agent:$AGENT_VERSION
+          docker tag gcr.io/datadoghq/cluster-agent:$AGENT_VERSION $CLUSTER_AGENT_IMAGE_NAME
           
 
       - name: Prisma Cloud image scan agent
@@ -83,12 +82,12 @@ jobs:
 
       - name: Push agent to ghcr.io
         run: |
-          docker tag $IMAGE_NAME ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}
+          docker tag $AGENT_IMAGE_NAME  ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}
           docker push ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}
 
       - name: Push cluster-agent to ghcr.io
         run: |
-          docker tag $IMAGE_NAME ${{ env.REGISTRY }}/${{ env.CLUSTER_AGENT_IMAGE_NAME }}
+          docker tag gcr.io/datadoghq/cluster-agent:$AGENT_VERSION ${{ env.REGISTRY }}/${{ env.CLUSTER_AGENT_IMAGE_NAME }}
           docker push ${{ env.REGISTRY }}/${{ env.CLUSTER_AGENT_IMAGE_NAME }}
 
       - name: Sign agent image with a key
