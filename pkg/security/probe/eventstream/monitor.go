@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package probe
+package eventstream
 
 import (
 	"fmt"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -24,24 +25,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PerfMapStats contains the collected metrics for one event and one cpu in a perf buffer statistics map
-type PerfMapStats struct {
+// EventStreamMapStats contains the collected metrics for one event and one cpu in a perf buffer statistics map
+type EventStreamMapStats struct {
 	Bytes *atomic.Uint64
 	Count *atomic.Uint64
 	Lost  *atomic.Uint64
 }
 
-// NewPerfMapStats returns a new PerfMapStats correctly initialized
-func NewPerfMapStats() PerfMapStats {
-	return PerfMapStats{
+// NewEventStreamMapStats returns a new EventStreamMapStats correctly initialized
+func NewEventStreamMapStats() EventStreamMapStats {
+	return EventStreamMapStats{
 		Bytes: atomic.NewUint64(0),
 		Count: atomic.NewUint64(0),
 		Lost:  atomic.NewUint64(0),
 	}
 }
 
-// UnmarshalBinary parses a map entry and populates the current PerfMapStats instance
-func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
+// UnmarshalBinary parses a map entry and populates the current EventStreamMapStats instance
+func (s *EventStreamMapStats) UnmarshalBinary(data []byte) error {
 	if len(data) < 24 {
 		return model.ErrNotEnoughData
 	}
@@ -54,7 +55,7 @@ func (s *PerfMapStats) UnmarshalBinary(data []byte) error {
 // PerfBufferMonitor holds statistics about the number of lost and received events
 type PerfBufferMonitor struct {
 	// probe is a pointer to the Probe
-	probe        *Probe
+	probe        *probe.Probe
 	config       *config.Config
 	statsdClient statsd.ClientInterface
 	eRPC         *erpc.ERPC
@@ -71,9 +72,9 @@ type PerfBufferMonitor struct {
 	ringBufferMapNameToStatsMapsName map[string]string
 
 	// stats holds the collected user space metrics
-	stats map[string][][model.MaxKernelEventType]PerfMapStats
+	stats map[string][][model.MaxKernelEventType]EventStreamMapStats
 	// kernelStats holds the aggregated kernel space metrics
-	kernelStats map[string][][model.MaxKernelEventType]PerfMapStats
+	kernelStats map[string][][model.MaxKernelEventType]EventStreamMapStats
 	// readLostEvents is the count of lost events, collected by reading the perf buffer.  Note that the
 	// slices of Uint64 are properly aligned for atomic access, and are not moved after creation (they
 	// are indexed by cpuid)
@@ -110,8 +111,8 @@ func NewPerfBufferMonitor(p *Probe, onEventLost func(perfMapName string, perEven
 		perfBufferMapNameToStatsMapsName: probes.GetPerfBufferStatisticsMaps(),
 		ringBufferMapNameToStatsMapsName: probes.GetRingBufferStatisticsMaps(),
 
-		stats:             make(map[string][][model.MaxKernelEventType]PerfMapStats),
-		kernelStats:       make(map[string][][model.MaxKernelEventType]PerfMapStats),
+		stats:             make(map[string][][model.MaxKernelEventType]EventStreamMapStats),
+		kernelStats:       make(map[string][][model.MaxKernelEventType]EventStreamMapStats),
 		readLostEvents:    make(map[string][]*atomic.Uint64),
 		sortingErrorStats: make(map[string][model.MaxKernelEventType]*atomic.Int64),
 
@@ -167,13 +168,13 @@ func NewPerfBufferMonitor(p *Probe, onEventLost func(perfMapName string, perEven
 
 	// Prepare user space counters
 	for mapName := range maps {
-		var stats, kernelStats [][model.MaxKernelEventType]PerfMapStats
+		var stats, kernelStats [][model.MaxKernelEventType]EventStreamMapStats
 		var usrLostEvents []*atomic.Uint64
 		var sortingErrorStats [model.MaxKernelEventType]*atomic.Int64
 
 		for i := 0; i < pbm.numCPU; i++ {
-			stats = append(stats, initPerfMapStatsArray())
-			kernelStats = append(kernelStats, initPerfMapStatsArray())
+			stats = append(stats, initEventStreamMapStatsArray())
+			kernelStats = append(kernelStats, initEventStreamMapStatsArray())
 			usrLostEvents = append(usrLostEvents, atomic.NewUint64(0))
 		}
 
@@ -190,10 +191,10 @@ func NewPerfBufferMonitor(p *Probe, onEventLost func(perfMapName string, perEven
 	return &pbm, nil
 }
 
-func initPerfMapStatsArray() [model.MaxKernelEventType]PerfMapStats {
-	var arr [model.MaxKernelEventType]PerfMapStats
+func initEventStreamMapStatsArray() [model.MaxKernelEventType]EventStreamMapStats {
+	var arr [model.MaxKernelEventType]EventStreamMapStats
 	for i := 0; i < len(arr); i++ {
-		arr[i] = NewPerfMapStats()
+		arr[i] = NewEventStreamMapStats()
 	}
 	return arr
 }
@@ -313,8 +314,8 @@ func (pbm *PerfBufferMonitor) swapKernelLostCount(eventType model.EventType, per
 }
 
 // GetEventStats returns the number of received events of the specified type (only used in tests)
-func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap string, cpu int) (PerfMapStats, PerfMapStats) {
-	stats, kernelStats := NewPerfMapStats(), NewPerfMapStats()
+func (pbm *PerfBufferMonitor) GetEventStats(eventType model.EventType, perfMap string, cpu int) (EventStreamMapStats, EventStreamMapStats) {
+	stats, kernelStats := NewEventStreamMapStats(), NewEventStreamMapStats()
 	var maps []string
 
 	if eventType >= model.MaxKernelEventType {
@@ -478,9 +479,9 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 		tmpCount uint64
 	)
 
-	cpuStats := make([]PerfMapStats, pbm.numCPU)
+	cpuStats := make([]EventStreamMapStats, pbm.numCPU)
 	for i := 0; i < pbm.numCPU; i++ {
-		cpuStats[i] = NewPerfMapStats()
+		cpuStats[i] = NewEventStreamMapStats()
 	}
 
 	tags := []string{pbm.config.StatsTagsCardinality, "", ""}
@@ -566,7 +567,7 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 	return nil
 }
 
-func (pbm *PerfBufferMonitor) sendKernelStats(client statsd.ClientInterface, stats PerfMapStats, tags []string) error {
+func (pbm *PerfBufferMonitor) sendKernelStats(client statsd.ClientInterface, stats EventStreamMapStats, tags []string) error {
 	if stats.Count.Load() > 0 {
 		if err := client.Count(metrics.MetricPerfBufferEventsWrite, int64(stats.Count.Load()), tags, 1.0); err != nil {
 			return err
