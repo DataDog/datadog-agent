@@ -273,7 +273,8 @@ namespace WixSetup.Datadog
                                "DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
                                "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
-                               "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD]")
+                               "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD], " +
+                               "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]")
                 .HideTarget(true);
 
             ConfigureUserRollback = new CustomAction<UserCustomActions>(
