@@ -11,7 +11,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"go.uber.org/atomic"
 	"os"
 	"regexp"
 	"sync"
@@ -19,9 +18,12 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/gopsutil/process"
+	"go.uber.org/atomic"
+
 	"github.com/twmb/murmur3"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/gopsutil/process"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
