@@ -301,10 +301,9 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
-		EnableHTTPMonitoring:  cfg.GetBool(join(smNS, "enable_http_monitoring")),
-		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
-		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-
+		EnableHTTPMonitoring:    cfg.GetBool(join(smNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring:   cfg.GetBool(join(smNS, "enable_http2_monitoring")),
+		EnableHTTPSMonitoring:   cfg.GetBool(join(netNS, "enable_https_monitoring")),
 		SSLAsyncHandshakeWindow: cfg.GetDuration(join(smNS, "ssl_async_handshake_window")),
 		MaxHTTPStatsBuffered:    cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered:   cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),

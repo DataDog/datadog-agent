@@ -198,6 +198,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(smNS, "enable_http_monitoring"))
 
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
+	cfg.BindEnvAndSetDefault(join(smNS, "ssl_async_handshake_window"), 10*time.Millisecond)
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
 
@@ -214,7 +215,6 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 
-	cfg.BindEnvAndSetDefault(join(smNS, "ssl_async_handshake_window"), 10*time.Millisecond)
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
 	cfg.BindEnv(newHTTPRules)
