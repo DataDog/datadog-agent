@@ -72,8 +72,6 @@ func NewPerfHandler(dataChannelSize int) *PerfHandler {
 					return
 				case pf.DataChannel <- d:
 				}
-
-				d = nil
 			}
 
 			select {
@@ -90,23 +88,19 @@ func NewPerfHandler(dataChannelSize int) *PerfHandler {
 		}()
 
 		var l uint64
-		var gotLost bool
 		for {
-			if gotLost {
+			if l > 0 {
 				select {
 				case <-pf.closed:
 					return
 				case pf.LostChannel <- l:
 				}
-
-				gotLost = false
 			}
 
 			select {
 			case <-pf.closed:
 				return
 			case l = <-pf.lost:
-				gotLost = true
 			}
 		}
 	}()
