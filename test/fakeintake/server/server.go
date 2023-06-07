@@ -4,14 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package server implements a dummy http Datadog intake, meant to be used with integration and e2e tests.
-// It runs an catch-all http server that stores submitted payloads into a dictionary of [api.Payload], indexed by the route
+// It runs an catch-all http server that stores submitted payloads into a dictionary of [api.Payloads], indexed by the route
 // It implements 3 testing endpoints:
 //   - /fakeintake/payloads/<payload_route> returns any received payloads on the specified route as [api.Payload]s
 //   - /fakeintake/health returns current fakeintake server health
 //   - /fakeintake/routestats returns stats for collected payloads, by route
 //   - /fakeintake/flushPayloads returns all stored payloads and clear them up
 //
-// [api.Payload]: https://pkg.go.dev/github.com/DataDog/datadog-agent@main/test/fakeintake/api#Payload
+// [api.Payloads]: https://pkg.go.dev/github.com/DataDog/datadog-agent@main/test/fakeintake/api#Payload
 package server
 
 import (
