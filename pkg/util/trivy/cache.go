@@ -211,9 +211,10 @@ func (c *TrivyCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
 	return trivyCachePut(c, blobID, blobInfo)
 }
 
-// Implements cache.Cache#DeleteBlobs
+// Implements cache.Cache#DeleteBlobs does nothing because the cache cleaning logic is
+// managed by CacheCleaner
 func (c *TrivyCache) DeleteBlobs(blobIDs []string) error {
-	return c.Cache.Remove(blobIDs)
+	return nil
 }
 
 // Implements cache.Cache#Clear
