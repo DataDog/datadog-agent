@@ -57,8 +57,6 @@ jobs:
         run: |
           ls
           cd Dockerfiles/cluster-agent/
-          curl https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/datadog-cluster-agent_$AGENT_VERSION-1_amd64.deb -o datadog-cluster-agent_$AGENT_VERSION-1_amd64.deb
-          dpkg -x datadog-cluster-agent_$AGENT_VERSION-1_amd64.deb ./
           docker build --build-arg TARGETARCH=amd64 --pull --tag $CLUSTER_AGENT_IMAGE_NAME .
           
 
