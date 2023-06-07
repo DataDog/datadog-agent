@@ -98,6 +98,7 @@ type ProcessCallback func(pid int)
 //	                                         then the Exit callback will evaluate the same metadata on Exit.
 //	                                         We need to save the metadata here as /proc/pid doesn't exist anymore.
 func GetProcessMonitor() *ProcessMonitor {
+	processMonitor.refcount.Inc()
 	return processMonitor
 }
 
@@ -222,7 +223,6 @@ func (pm *ProcessMonitor) mainEventLoop() {
 //  2. Run the main event loop in a goroutine.
 //  4. Scans already running processes and call the Exec callbacks on them.
 func (pm *ProcessMonitor) Initialize() error {
-	processMonitor.refcount.Inc()
 	var initErr error
 	pm.initOnce.Do(
 		func() {
@@ -298,7 +298,10 @@ func (pm *ProcessMonitor) Stop() {
 	}
 
 	// We can get here only once, if the refcount is zero.
-	close(pm.done)
+	if pm.done != nil {
+		close(pm.done)
+		pm.done = nil
+	}
 	pm.processMonitorWG.Wait()
 	// that's being done for testing purposes.
 	// As tests are running altogether, initOne and processMonitor are being created only once per compilation unit

@@ -257,11 +257,6 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 
-	if err = p.procMonitor.monitor.Initialize(); err != nil {
-		log.Errorf("failed to initialize process monitor error: %s", err)
-		return
-	}
-
 	p.wg.Add(1)
 	go func() {
 		processSync := time.NewTicker(scanTerminatedProcessesInterval)
