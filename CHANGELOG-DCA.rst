@@ -2,6 +2,39 @@
 Release Notes
 =============
 
+.. _Release Notes_7.45.0:
+
+7.45.0 / 6.45.0
+======
+
+.. _Release Notes_7.45.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add "active" tag on the telemetry datadog.cluster_agent.external_metrics.datadog_metrics tag.
+  The label active is true if DatadogMetrics CR is used, false otherwise.
+
+- Library injection via Admission Controller: Allow configuring the CPU and Memory requests/limits for library init containers.
+
+- Validate the orchestration config provided by the user.
+
+
+.. _Release Notes_7.45.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the admission controller in socket mode for pods with init containers.
+
+- Fix resource requirements detection for containers without any request and
+  limit set.
+
+- The KSM core check now correctly handles labels and annotations with
+  uppercase letters defined in the "labels_as_tags" and "annotations_as_tags"
+  config attributes.
+
+
 .. _Release Notes_7.44.0:
 
 7.44.0 / 6.44.0
