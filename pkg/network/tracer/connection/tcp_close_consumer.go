@@ -40,7 +40,7 @@ type tcpCloseConsumer struct {
 	ch           *cookieHasher
 }
 
-func newTCPCloseConsumer(perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) (*tcpCloseConsumer, error) {
+func newTCPCloseConsumer(perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) *tcpCloseConsumer {
 	return &tcpCloseConsumer{
 		perfHandler:  perfHandler,
 		batchManager: batchManager,
