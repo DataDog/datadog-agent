@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Add a workaround for erroneous database connection loss handling in go-ora
+    Add a workaround for erroneous database connection loss handling in go-ora.
