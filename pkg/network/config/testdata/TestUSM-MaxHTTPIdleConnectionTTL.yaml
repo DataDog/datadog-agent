@@ -1,2 +1,0 @@
-service_monitoring_config:
-  http_idle_connection_ttl_in_s: 1025
