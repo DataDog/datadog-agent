@@ -7,7 +7,6 @@ package rules
 
 import (
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
