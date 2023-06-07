@@ -156,15 +156,14 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     if (args == NULL) {
         return;
     }
-    if (args->timestamp == 0) { // ignore SSL_connect without call to SSL_do_handshake
-        return;
-    }
-    u64 timestamp = args->timestamp;
     void *ssl_ctx = args->ctx;
+    u64 timestamp = args->timestamp;
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
-
-    if ((bpf_ktime_get_ns() - timestamp) > ssl_async_handshake_window()) { /* 10 ms by default, things can be slow if the userspace is scheduled to another core ; max measured delay is 3.4ms on 2 vCPUs VM */
-        return;
+    // if timestamp == 0, SSL_do_handshake was synchronous, likely called from SSL_connect
+    if (timestamp > 0) {
+        if ((bpf_ktime_get_ns() - timestamp) > ssl_async_handshake_window()) { /* 10 ms by default, things can be slow if the userspace is scheduled to another core ; max measured delay is 3.4ms on 2 vCPUs VM */
+            return;
+        }
     }
 
     ssl_sock_t ssl_sock = {};
