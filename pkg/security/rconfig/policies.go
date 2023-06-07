@@ -15,9 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-	"github.com/skydive-project/go-debouncer"
-
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -29,9 +26,7 @@ import (
 const (
 	securityAgentRCPollInterval = time.Second * 1
 	debounceDelay               = 5 * time.Second
-	maxPolicySize          = 1 * 1024 * 1024 // Mb
-	errBigPolicy           = "the policy is too big and has been rejected, expected no more than %d bytes"
-
+	maxPolicySize               = 1 * 1024 * 1024 // Mb
 )
 
 // RCPolicyProvider defines a remote config policy provider
