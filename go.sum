@@ -162,8 +162,8 @@ github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c/go.mod h1:twkDnb
 github.com/DataDog/nikos v1.12.0 h1:B9seaiowtbMyH2MX3f3/EcEk1sznSFXaPBwTcBLdogU=
 github.com/DataDog/nikos v1.12.0/go.mod h1:vboQtY04KmE+Ua8m7gVheZJcnStQY+fIiSPY/6jJVrY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.2.3 h1:IznT4hQ24X3gOir+AVotp8h/ogYoXAmvU5jggBqOO8o=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.3 h1:QM2aly2st5pdRuDhc8w026YXNIm9IjjyaXhJ4BTdTZQ=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.3/go.mod h1:q5aHWhZtr114VrPgmlJL+JnemK7O66YxDCRy9zAHAxU=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.3.0 h1:P3+qEU8Bs3hbKFKhTKBf5OabRQR9RxLl426WR44/ZLY=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.3.0/go.mod h1:ucRvNvmSkJ0QVB6mRwDNvm6TrClnqP2xGE8fqJCA2UA=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.3 h1:Ruz1pG5VktrppFfqUcXP2Oi0ET3z5P1KdGWCt5o1m38=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.3/go.mod h1:wqX2en+xnhopVIPNwxhlU/y/eV/5eNcLQsztsfoe2tg=
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.3 h1:qE9/iNHkwuIcSpsecG0L+rXX/dxULKWGZrSH4UHO0fA=
@@ -1987,8 +1987,8 @@ go.opentelemetry.io/collector/receiver v0.75.0 h1:ZgoShBSTprt7vExTLtXTmEH05qIHU3
 go.opentelemetry.io/collector/receiver v0.75.0/go.mod h1:MADsPYeztg9cGUZIjmv5ayzntt69blxfmmZHlgdM1Aw=
 go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0 h1:VXOt3k/zB/R2SxFNJQTDWm/KifCMW60m8Q3O5E2TV2c=
 go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0/go.mod h1:DjuZIm8UHX5i3YEQFPi0XWbdNOSwFO9Xnm+WaB5wXzc=
-go.opentelemetry.io/collector/semconv v0.78.1 h1:YlhokDVTP+gw6yKA0Jc2FcfddhD+a6E5Ixmby5xBWs0=
-go.opentelemetry.io/collector/semconv v0.78.1/go.mod h1:lazBA42nqZPNPWDMiqWfr5eIVeNgRmoLDbQmjXKcm70=
+go.opentelemetry.io/collector/semconv v0.78.2 h1:o1tymN831Lqc+7sPxq2FW/2E8fehqLDKMyEELtiYquU=
+go.opentelemetry.io/collector/semconv v0.78.2/go.mod h1:lazBA42nqZPNPWDMiqWfr5eIVeNgRmoLDbQmjXKcm70=
 go.opentelemetry.io/contrib v0.20.0 h1:ubFQUn0VCZ0gPwIoJfBJVpeBlyRMxu8Mm/huKWYd9p0=
 go.opentelemetry.io/contrib v0.20.0/go.mod h1:G/EtFaa6qaN7+LxqfIAT3GiZa7Wv5DTBUzl5H4LY0Kc=
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0/go.mod h1:oVGt1LRbBOBq1A5BQLlUg9UaU/54aiHw8cgjV3aWZ/E=
