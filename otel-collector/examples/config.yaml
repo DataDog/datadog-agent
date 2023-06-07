@@ -12,6 +12,7 @@ receivers:
 exporters:
   logging:
   datadog:
+    hostname: my-host
     api:
       key: $DD_API_KEY
 

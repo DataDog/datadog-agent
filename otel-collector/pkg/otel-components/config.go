@@ -1,7 +1,9 @@
 package otelcomponents
 
 import (
+	"fmt"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -9,60 +11,85 @@ import (
 )
 
 type OtelConfig[cfg any] struct {
-	config   cfg
-	fieldMap map[string]any
-	ty       reflect.Type
-	v        reflect.Value
+	config cfg
+	tagMap map[string]any
+	ty     reflect.Type
+	v      reflect.Value
 }
 
-var _ config.Component = NewOtelConfig[string]("")
-
-func NewOtelConfig[cfg any](conf cfg) *OtelConfig[cfg] {
+func NewOtelConfig[cfg any](conf cfg) config.Component {
 	ty := reflect.TypeOf(conf)
 	v := reflect.ValueOf(conf)
-	fieldMap := make(map[string]any)
+	tagMap := make(map[string]any)
 
 	for i := 0; i < ty.NumField(); i++ {
 		field := ty.Field(i)
 		val := v.Field(i)
-		fieldMap[field.Name] = val
+		tag := field.Tag.Get("mapstructure")
+		tagMap[tag] = val
 	}
 
 	c := &OtelConfig[cfg]{
-		config:   conf,
-		fieldMap: fieldMap,
-		ty:       ty,
-		v:        v,
+		config: conf,
+		tagMap: tagMap,
+		ty:     ty,
+		v:      v,
 	}
 	return c
 }
 
 func (c *OtelConfig[cfg]) Get(key string) interface{} {
-	panic("not implemented") // TODO: Implement
+	if v, ok := c.tagMap[key]; ok {
+		return v
+	}
+	return nil
 }
 
 func (c *OtelConfig[cfg]) GetString(key string) string {
-	panic("not implemented") // TODO: Implement
+	if v, ok := c.tagMap[key]; ok {
+		return fmt.Sprintf("%v", v)
+	}
+	return ""
 }
 
 func (c *OtelConfig[cfg]) GetBool(key string) bool {
-	panic("not implemented") // TODO: Implement
+	b, err := strconv.ParseBool(c.GetString(key))
+	if err != nil {
+		return false
+	}
+	return b
 }
 
 func (c *OtelConfig[cfg]) GetInt(key string) int {
-	panic("not implemented") // TODO: Implement
+	b, err := strconv.ParseInt(c.GetString(key), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return int(b)
 }
 
 func (c *OtelConfig[cfg]) GetInt32(key string) int32 {
-	panic("not implemented") // TODO: Implement
+	b, err := strconv.ParseInt(c.GetString(key), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return int32(b)
 }
 
 func (c *OtelConfig[cfg]) GetInt64(key string) int64 {
-	panic("not implemented") // TODO: Implement
+	b, err := strconv.ParseInt(c.GetString(key), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return b
 }
 
 func (c *OtelConfig[cfg]) GetFloat64(key string) float64 {
-	panic("not implemented") // TODO: Implement
+	b, err := strconv.ParseFloat(c.GetString(key), 64)
+	if err != nil {
+		return 0
+	}
+	return b
 }
 
 func (c *OtelConfig[cfg]) GetTime(key string) time.Time {

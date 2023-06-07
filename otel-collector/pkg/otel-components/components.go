@@ -1,7 +1,6 @@
 package otelcomponents
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awsemfexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awsxrayexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
@@ -56,6 +55,7 @@ import (
 	"go.opentelemetry.io/collector/processor/memorylimiterprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.uber.org/zap"
 )
 
 type (
@@ -167,14 +167,11 @@ func ConfigProvider(loc []string) (otelcol.ConfigProvider, error) {
 	return otelcol.NewConfigProvider(settings)
 }
 
-func NewCollector(buildInfo component.BuildInfo, factories otelcol.Factories, provider otelcol.ConfigProvider) (*otelcol.Collector, error) {
+func NewCollector(buildInfo component.BuildInfo, factories otelcol.Factories, provider otelcol.ConfigProvider, options []zap.Option) (*otelcol.Collector, error) {
 	return otelcol.NewCollector(otelcol.CollectorSettings{
 		BuildInfo:      buildInfo,
 		Factories:      factories,
 		ConfigProvider: provider,
+		LoggingOptions: options,
 	})
-}
-
-func LogComponent() log.Component {
-	params := log.LogForOneShot("", "", true)
 }

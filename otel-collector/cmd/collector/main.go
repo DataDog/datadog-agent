@@ -9,15 +9,20 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/otel-collector/pkg/extensions/trace"
 	otelcomponents "github.com/DataDog/datadog-agent/otel-collector/pkg/otel-components"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func main() {
@@ -117,10 +122,21 @@ func newCommand(buildInfo component.BuildInfo, flagSet *flag.FlagSet) *cobra.Com
 			if err != nil {
 				return err
 			}
-
+			options := []zap.Option{
+				zap.WrapCore(func(zapcore.Core) zapcore.Core {
+					return zapAgent.NewZapCore()
+				}),
+			}
+			conf := otelcomponents.NewOtelConfig[trace.APIConfig](trace.APIConfig{})
 			return fxutil.OneShot(start,
 				fx.Supply(fx.Annotate(provider, fx.As(new(otelcol.ConfigProvider)))),
 				fx.Supply(buildInfo),
+				fx.Supply(logComponent.LogForOneShot("", "debug", false)),
+				fx.Supply(fx.Annotate(conf, fx.As(new(config.Component)))),
+				logComponent.Module,
+				fx.Provide(func() []zap.Option {
+					return options
+				}),
 				fx.Provide(AsExtension(trace.NewFactory)),
 				fx.Provide(fx.Annotate(otelcomponents.GetExtensionMap, fx.ParamTags(`group:"extension"`))),
 				fx.Provide(otelcomponents.GetProcessors),

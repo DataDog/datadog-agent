@@ -3,6 +3,7 @@ package trace
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -15,7 +16,8 @@ import (
 const typeStr = "trace"
 
 // NewFactory creates a factory
-func NewFactory() extension.Factory {
+func NewFactory(logger log.Component) extension.Factory {
+	tracelog.SetLogger(logger)
 	return extension.NewFactory(
 		typeStr,
 		createDefaultConfig,
@@ -34,7 +36,6 @@ func createExtension(
 	params extension.CreateSettings,
 	cfg component.Config,
 ) (extension.Extension, error) {
-	tracelog.SetLogger(&zaplogger{logger: params.Logger})
 	cg := cfg.(*Config)
 	return newTraceAgent(ctx, cg)
 }
