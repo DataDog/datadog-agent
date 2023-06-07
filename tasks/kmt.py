@@ -490,12 +490,12 @@ def build_new_vmset(set_id, kernels):
         if version == "lte_414":
             vmset["image"] = {
                 "image_path": f"buster.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_uri": images_path["buster"].format(arch=distro_arch_mapping[arch]),
+                "image_uri": images_path["buster"].format(arch=distro_arch_mapping[platform_arch]),
             }
         else:
             vmset["image"] = {
                 "image_path": f"bullseye.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_uri": images_path["bullseye"].format(arch=distro_arch_mapping[arch]),
+                "image_uri": images_path["bullseye"].format(arch=distro_arch_mapping[platform_arch]),
             }
     elif recipe == "distro":
         vmset = {"name": vmset_name_from_id(set_id), "recipe": f"distro-{arch}", "arch": arch, "kernels": kernels}
