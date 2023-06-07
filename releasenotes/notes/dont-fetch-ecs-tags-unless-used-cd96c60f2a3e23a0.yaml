@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Avoids fetching tags for ECS tasks when they're not consumed.
+    Avoids fetching tags for ECS tasks when they're not consumed. (RE-TEST)
