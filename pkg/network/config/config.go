@@ -256,9 +256,7 @@ func join(pieces ...string) string {
 // New creates a config for the network tracer
 func New() *Config {
 	cfg := ddconfig.SystemProbe
-	if !sysconfig.IsAdjusted(cfg) {
-		sysconfig.Adjust(cfg)
-	}
+	sysconfig.Adjust(cfg)
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),
