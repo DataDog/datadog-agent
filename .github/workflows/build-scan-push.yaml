@@ -6,6 +6,7 @@ on:
       - main
 
 env:
+  REGISTRY: ghcr.io
   CLUSTER_AGENT_IMAGE_NAME: "${{ github.repository }}/cluster-agent:${{ github.sha }}-GOV"
   AGENT_IMAGE_NAME: "${{ github.repository }}/agent:${{ github.sha }}-GOV"
   AGENT_VERSION: 7.44.1
@@ -87,7 +88,7 @@ jobs:
 
       - name: Push cluster-agent to ghcr.io
         run: |
-          docker tag gcr.io/datadoghq/cluster-agent:$AGENT_VERSION ${{ env.REGISTRY }}/${{ env.CLUSTER_AGENT_IMAGE_NAME }}
+          docker tag $CLUSTER_AGENT_IMAGE_NAME  ${{ env.REGISTRY }}/${{ env.CLUSTER_AGENT_IMAGE_NAME }}
           docker push ${{ env.REGISTRY }}/${{ env.CLUSTER_AGENT_IMAGE_NAME }}
 
       - name: Sign agent image with a key
