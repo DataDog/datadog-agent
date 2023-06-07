@@ -187,10 +187,7 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		return nil, fmt.Errorf("could not create connection batch maanager: %w", err)
 	}
 
-	closeConsumer, err := newTCPCloseConsumer(perfHandlerTCP, batchMgr)
-	if err != nil {
-		return nil, fmt.Errorf("could not create TCPCloseConsumer: %w", err)
-	}
+	closeConsumer := newTCPCloseConsumer(perfHandlerTCP, batchMgr)
 
 	tr := &tracer{
 		m:              m,

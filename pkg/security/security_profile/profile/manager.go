@@ -588,7 +588,7 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 
 	// remove kernel space filters
 	if err := m.securityProfileSyscallsMap.Delete(profile.profileCookie); err != nil {
-		seclog.Errorf("coudln't remove syscalls filter: %v", err)
+		seclog.Errorf("couldn't remove syscalls filter: %v", err)
 	}
 
 	// TODO: delete all kernel space programs
