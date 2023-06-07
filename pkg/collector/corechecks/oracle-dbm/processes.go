@@ -37,7 +37,6 @@ type ProcessesRowDB struct {
 
 func (c *Check) ProcessMemory() error {
 	rows := []ProcessesRowDB{}
-	//err := c.db.Select(&rows, PGA_QUERY)
 	err := selectWrapper(c, &rows, PGA_QUERY)
 	if err != nil {
 		return fmt.Errorf("failed to collect processes info: %w", err)

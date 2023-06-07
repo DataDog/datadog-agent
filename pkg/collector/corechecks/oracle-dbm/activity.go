@@ -334,7 +334,6 @@ func (c *Check) SampleSession() error {
 		activityQuery = ACTIVITY_QUERY
 	}
 
-	//err := c.db.Select(&sessionSamples, activityQuery)
 	err := selectWrapper(c, &sessionSamples, activityQuery)
 
 	if err != nil {
