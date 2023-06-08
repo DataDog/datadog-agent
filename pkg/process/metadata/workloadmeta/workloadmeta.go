@@ -6,7 +6,7 @@
 package workloadmeta
 
 import (
-	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,8 +23,9 @@ type ProcessEntity struct {
 	language *languagemodels.Language
 }
 
-// WorkloadMetaExtractor handles enriching processes with languages as well as sending enriched processes to the core agent
-// via grpc stream.
+// WorkloadMetaExtractor does these two things:
+//   - Detecting the language of new processes and sending them to WorkloadMeta
+//   - Detecting the processes that terminate and sending their PID to WorkloadMeta
 type WorkloadMetaExtractor struct {
 	// Cache is a map from process hash to the workloadmeta entity
 	// The cache key takes the form of `pid:<pid>|createTime:<createTime>`. See hashProcess
@@ -39,7 +40,7 @@ func NewWorkloadMetaExtractor() *WorkloadMetaExtractor {
 	log.Debug("Instantiated the WorkloadMetaExtractor")
 	return &WorkloadMetaExtractor{
 		cache:        make(map[string]*ProcessEntity),
-		grpcListener: newGrpcListener(),
+		grpcListener: &noopGRPCListener{},
 	}
 }
 
@@ -61,7 +62,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	languages := languagedetection.DetectLanguage(newProcs)
 	for i, lang := range languages {
 		pid := newProcs[i].Pid
-		proc := procs[newProcs[i].Pid]
+		proc := procs[pid]
 		entity := &ProcessEntity{
 			pid:      pid,
 			language: lang,
@@ -70,15 +71,15 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 		newCache[hashProcess(pid, proc.Stats.CreateTime)] = entity
 	}
 
-	oldProcs := getOldProcs(w.cache, newCache)
-	w.grpcListener.writeEvents(oldProcs, newEntities)
+	deadProcs := getDifference(w.cache, newCache)
+	w.grpcListener.writeEvents(deadProcs, newEntities)
 
 	w.cacheMutex.Lock()
 	w.cache = newCache
 	w.cacheMutex.Unlock()
 }
 
-func getOldProcs(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntity {
+func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntity {
 	oldProcs := make([]*ProcessEntity, 0, len(oldCache))
 	for key, entity := range oldCache {
 		if _, ok := newCache[key]; ok {
@@ -95,5 +96,5 @@ func Enabled(ddconfig config.ConfigReader) bool {
 }
 
 func hashProcess(pid int32, createTime int64) string {
-	return fmt.Sprintf("pid:%v|createTime:%v", pid, createTime)
+	return "pid:" + strconv.Itoa(int(pid)) + "|createTime:" + strconv.Itoa(int(createTime))
 }

@@ -9,18 +9,8 @@ type mockableGrpcListener interface {
 	writeEvents(procsToDelete, procsToAdd []*ProcessEntity)
 }
 
-var _ mockableGrpcListener = (*grpcListener)(nil)
+var _ mockableGrpcListener = (*noopGRPCListener)(nil)
 
-type grpcListener struct {
-	evts chan *ProcessEntity
-}
+type noopGRPCListener struct{}
 
-func newGrpcListener() *grpcListener {
-	return &grpcListener{
-		evts: make(chan *ProcessEntity, 0),
-	}
-}
-
-func (l *grpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
-	// TODO
-}
+func (l *noopGRPCListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {}
