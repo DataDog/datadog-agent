@@ -1,7 +1,7 @@
 name "python3"
 
 if ohai["platform"] != "windows"
-  default_version "3.9.16"
+  default_version "3.9.17"
 
   dependency "libxcrypt"
   dependency "libffi"
@@ -15,7 +15,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "1ad539e9dbd2b42df714b69726e0693bc6b9d2d2c8e91c2e43204026605140c5"
+         :sha256 => "8ead58f669f7e19d777c3556b62fae29a81d7f06a7122ff9bc57f7dd82d7e014"
 
   relative_path "Python-#{version}"
 
@@ -68,7 +68,7 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "3.9.16-b7f54e0"
+  default_version "3.9.17-18093c4"
   dependency "vc_redist_14"
 
   if windows_arch_i386?
@@ -80,7 +80,7 @@ else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
-           :sha256 => "DFF249E438372194588594DEC8053B19B7A472A8C880D36FFAA1E0CC5E914BAA".downcase
+           :sha256 => "DF4C583CF359C48AB31E83DD6E89FA08692190D91EBCEBC55BB5EDC97E04F4AA".downcase
 
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
