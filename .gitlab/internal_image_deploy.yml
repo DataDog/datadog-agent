@@ -32,7 +32,7 @@ docker_trigger_internal:
 docker_trigger_internal_sandbox:
   stage: internal_image_deploy
   rules:
-    !reference [.on_deploy_a7_manual]
+    !reference [.on_deploy_a7_internal_manual]
   needs:
     - job: docker_build_agent7_jmx
       artifacts: false

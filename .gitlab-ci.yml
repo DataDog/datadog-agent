@@ -488,6 +488,15 @@ workflow:
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
+# rule to trigger job for internal image deployment manually
+.on_deploy_a7_internal_manual:
+  - <<: *if_not_version_7
+    when: never
+  - when: manual
+    allow_failure: true
+    variables:
+      RELEASE_PROD: "false"
+
 # Same as on_deploy_a7_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
 .on_deploy_a7_manual_final:
