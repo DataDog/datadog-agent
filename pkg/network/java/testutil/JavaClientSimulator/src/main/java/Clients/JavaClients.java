@@ -13,6 +13,7 @@ import org.apache.http.impl.client.HttpClients;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import java.io.Closeable;
 import java.io.IOException;
@@ -24,27 +25,31 @@ import java.net.http.HttpResponse;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
 public class JavaClients implements Closeable {
 
     // Create a custom TrustManager that accepts all certificates
-    private static final TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
+    // Create a TrustManager that accepts all certificates
+    static X509TrustManager trustManager = new X509TrustManager() {
         @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s)  {
-            // No implementation needed
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+            // No validation needed, accepting all client certificates
         }
 
         @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s)  {
-            // No implementation needed
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+            // No validation needed, accepting all server certificates
         }
 
         @Override
         public X509Certificate[] getAcceptedIssuers() {
-            return null;
+            // Return an empty array to accept all issuers
+            return new X509Certificate[0];
         }
-    }};
+    };
+    private static final TrustManager[] trustAllCerts = new TrustManager[]{trustManager};
 
     private static final String URL_SCHEME = "https://";
 
@@ -119,5 +124,7 @@ public class JavaClients implements Closeable {
     @Override
     public void close() throws IOException {
         apacheClient.close();
+        okHttpClient.dispatcher().executorService().shutdown();
+        okHttpClient.connectionPool().evictAll();
     }
 }

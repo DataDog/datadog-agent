@@ -15,8 +15,6 @@ public class ClientManager {
         unsupported,
     }
 
-
-
     private static ClientType getClientType(String clientTypeArg)  {
         try {
             return ClientType.valueOf(clientTypeArg.toLowerCase());
@@ -31,6 +29,7 @@ public class ClientManager {
         JavaClients clients = new JavaClients();
         clients.init();
 
+        System.out.println("Executing handler for " + clientType);
         System.out.println("URL: " + url);
         System.out.println("Iterations: " + iterations);
         System.out.println("Interval: " + sleepInterval);
@@ -40,7 +39,7 @@ public class ClientManager {
         // Execute handler based on client type
         switch (clientType) {
             case apache:
-                System.out.println("Executing handler for Apache Http client:");
+
                 callback = () -> {
                     try {
                         clients.HttpApacheClient(url);
@@ -50,7 +49,6 @@ public class ClientManager {
                 };
                 break;
             case okhttp:
-                System.out.println("Executing handler for OkHttp client:");
                 callback = () -> {
                     try {
                         clients.OkHttpClient(url);
@@ -60,7 +58,6 @@ public class ClientManager {
                 };
                 break;
             case httpclient:
-                System.out.println("Executing handler for HttpClient client:");
                 callback = () -> {
                     try {
                         clients.HTTPClient(url);
@@ -70,7 +67,6 @@ public class ClientManager {
                 };
                 break;
             case urlconnection:
-                System.out.println("Executing handler for URLConnection client:");
                 callback = () -> {
                     try {
                         clients.HttpsURLConnection(url);
@@ -91,7 +87,7 @@ public class ClientManager {
             // Infinite loop
             while (true) {
                 callback.run();
-                if (sleepInterval != 0)
+                if (sleepInterval > 0)
                 {
                     Thread.sleep(sleepInterval);
                 }
@@ -100,7 +96,7 @@ public class ClientManager {
             // Fixed number of iterations
             for (int i = 0; i < iterations; i++) {
                 callback.run();
-                if (sleepInterval != 0)
+                if (sleepInterval > 0)
                 {
                     Thread.sleep(sleepInterval);
                 }
