@@ -27,7 +27,6 @@ type Formatter interface {
 // JSONFormatter is a Formatter implementation that transforms Traps into JSON
 type JSONFormatter struct {
 	oidResolver OIDResolver
-	namespace   string
 	aggregator  aggregator.Sender
 }
 
@@ -40,14 +39,18 @@ type trapVariable struct {
 const (
 	sysUpTimeInstanceOID = "1.3.6.1.2.1.1.3.0"
 	snmpTrapOID          = "1.3.6.1.6.3.1.1.4.1.0"
+
+	telemetryTrapsNotEnriched = "datadog.snmp_traps.traps_not_enriched"
+	telemetryVarsNotEnriched  = "datadog.snmp_traps.vars_not_enriched"
+	telemetryIncorrectFormat  = "datadog.snmp_traps.incorrect_format"
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver OIDResolver, namespace string, aggregator aggregator.Sender) (JSONFormatter, error) {
+func NewJSONFormatter(oidResolver OIDResolver, aggregator aggregator.Sender) (JSONFormatter, error) {
 	if oidResolver == nil {
 		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
 	}
-	return JSONFormatter{oidResolver, namespace, aggregator}, nil
+	return JSONFormatter{oidResolver, aggregator}, nil
 }
 
 // FormatPacket converts a raw SNMP trap packet to a FormattedSnmpPacket containing the JSON data and the tags to attach
@@ -86,24 +89,15 @@ func (f JSONFormatter) FormatPacket(packet *SnmpPacket) ([]byte, error) {
 		}
 	}
 	formattedTrap["ddsource"] = ddsource
-	formattedTrap["ddtags"] = strings.Join(f.getTags(packet), ",")
+	formattedTrap["ddtags"] = strings.Join(packet.getTags(), ",")
 	formattedTrap["timestamp"] = packet.Timestamp
 	payload["trap"] = formattedTrap
 	return json.Marshal(payload)
 }
 
-// GetTags returns a list of tags associated to an SNMP trap packet.
-func (f JSONFormatter) getTags(packet *SnmpPacket) []string {
-	return []string{
-		"snmp_version:" + formatVersion(packet.Content),
-		"device_namespace:" + f.namespace,
-		"snmp_device:" + packet.Addr.IP.String(),
-	}
-}
-
 func (f JSONFormatter) formatV1Trap(packet *SnmpPacket) map[string]interface{} {
 	content := packet.Content
-	tags := f.getTags(packet)
+	tags := packet.getTags()
 
 	data := make(map[string]interface{})
 	data["uptime"] = uint32(content.Timestamp)
@@ -121,7 +115,7 @@ func (f JSONFormatter) formatV1Trap(packet *SnmpPacket) map[string]interface{} {
 	data["snmpTrapOID"] = trapOID
 	trapMetadata, err := f.oidResolver.GetTrapMetadata(trapOID)
 	if err != nil {
-		f.aggregator.Count("datadog.snmp_traps.traps_not_enriched", 1, "", tags)
+		f.aggregator.Count(telemetryTrapsNotEnriched, 1, "", tags)
 		log.Debugf("unable to resolve OID: %s", err)
 	} else {
 		data["snmpTrapName"] = trapMetadata.Name
@@ -133,7 +127,7 @@ func (f JSONFormatter) formatV1Trap(packet *SnmpPacket) map[string]interface{} {
 	parsedVariables, enrichedValues := f.parseVariables(trapOID, content.Variables)
 	enrichmentFailed := len(content.Variables) - len(enrichedValues)
 	if enrichmentFailed > 0 {
-		f.aggregator.Count("datadog.snmp_traps.vars_not_enriched", float64(enrichmentFailed), "", tags)
+		f.aggregator.Count(telemetryVarsNotEnriched, float64(enrichmentFailed), "", tags)
 	}
 	data["variables"] = parsedVariables
 	for key, value := range enrichedValues {
@@ -148,11 +142,11 @@ func (f JSONFormatter) formatTrap(packet *SnmpPacket) (map[string]interface{}, e
 		{sysUpTime.0, snmpTrapOID.0, additionalDataVariables...}
 		See: https://tools.ietf.org/html/rfc3416#section-4.2.6
 	*/
-	tags := f.getTags(packet)
+	tags := packet.getTags()
 
 	variables := packet.Content.Variables
 	if len(variables) < 2 {
-		f.aggregator.Count("datadog.snmp_traps.incorrect_format", 1, "", append(tags, "error:invalid_variables"))
+		f.aggregator.Count(telemetryIncorrectFormat, 1, "", append(tags, "error:invalid_variables"))
 		return nil, fmt.Errorf("expected at least 2 variables, got %d", len(variables))
 	}
 
@@ -160,21 +154,21 @@ func (f JSONFormatter) formatTrap(packet *SnmpPacket) (map[string]interface{}, e
 
 	uptime, err := parseSysUpTime(variables[0])
 	if err != nil {
-		f.aggregator.Count("datadog.snmp_traps.incorrect_format", 1, "", append(tags, "error:invalid_sys_uptime"))
+		f.aggregator.Count(telemetryIncorrectFormat, 1, "", append(tags, "error:invalid_sys_uptime"))
 		return nil, err
 	}
 	data["uptime"] = uptime
 
 	trapOID, err := parseSnmpTrapOID(variables[1])
 	if err != nil {
-		f.aggregator.Count("datadog.snmp_traps.incorrect_format", 1, "", append(tags, "error:invalid_trap_oid"))
+		f.aggregator.Count(telemetryIncorrectFormat, 1, "", append(tags, "error:invalid_trap_oid"))
 		return nil, err
 	}
 	data["snmpTrapOID"] = trapOID
 
 	trapMetadata, err := f.oidResolver.GetTrapMetadata(trapOID)
 	if err != nil {
-		f.aggregator.Count("datadog.snmp_traps.traps_not_enriched", 1, "", tags)
+		f.aggregator.Count(telemetryTrapsNotEnriched, 1, "", tags)
 		log.Debugf("unable to resolve OID: %s", err)
 	} else {
 		data["snmpTrapName"] = trapMetadata.Name
@@ -184,7 +178,7 @@ func (f JSONFormatter) formatTrap(packet *SnmpPacket) (map[string]interface{}, e
 	parsedVariables, enrichedValues := f.parseVariables(trapOID, variables[2:])
 	enrichmentFailed := len(variables) - 2 - len(enrichedValues) // Subtract 2 for sysUpTime and trapOID
 	if enrichmentFailed > 0 {
-		f.aggregator.Count("datadog.snmp_traps.vars_not_enriched", float64(enrichmentFailed), "", tags)
+		f.aggregator.Count(telemetryVarsNotEnriched, float64(enrichmentFailed), "", tags)
 	}
 	data["variables"] = parsedVariables
 	for key, value := range enrichedValues {

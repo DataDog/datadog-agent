@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"math/rand"
 	"net"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -229,8 +228,9 @@ func createTestV1GenericPacket() *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: LinkDownv1GenericTrap}
 	examplePacket.Variables = examplePacket.SnmpTrap.Variables
 	return &SnmpPacket{
-		Content: examplePacket,
-		Addr:    &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
+		Content:   examplePacket,
+		Addr:      &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
+		Namespace: "the_baron",
 	}
 }
 
@@ -238,8 +238,9 @@ func createTestV1SpecificPacket() *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: AlarmActiveStatev1SpecificTrap}
 	examplePacket.Variables = examplePacket.SnmpTrap.Variables
 	return &SnmpPacket{
-		Content: examplePacket,
-		Addr:    &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
+		Content:   examplePacket,
+		Addr:      &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
+		Namespace: "catbus",
 	}
 }
 
@@ -247,8 +248,9 @@ func createTestV1Packet(trap gosnmp.SnmpTrap) *SnmpPacket {
 	examplePacket := &gosnmp.SnmpPacket{Version: gosnmp.Version1, SnmpTrap: trap}
 	examplePacket.Variables = examplePacket.SnmpTrap.Variables
 	return &SnmpPacket{
-		Content: examplePacket,
-		Addr:    &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
+		Content:   examplePacket,
+		Addr:      &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
+		Namespace: "jiji",
 	}
 }
 
@@ -259,8 +261,9 @@ func createTestPacket(trap gosnmp.SnmpTrap) *SnmpPacket {
 		Variables: trap.Variables,
 	}
 	return &SnmpPacket{
-		Content: examplePacket,
-		Addr:    &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
+		Content:   examplePacket,
+		Addr:      &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 13156},
+		Namespace: "totoro",
 	}
 }
 
@@ -268,7 +271,7 @@ func TestFormatPacketV1Generic(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, "totoro", mockSender)
+	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender)
 	packet := createTestV1GenericPacket()
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -278,7 +281,7 @@ func TestFormatPacketV1Generic(t *testing.T) {
 	trapContent := data["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp_version:1,device_namespace:totoro,snmp_device:127.0.0.1", trapContent["ddtags"])
+	assert.Equal(t, "snmp_version:1,device_namespace:the_baron,snmp_device:127.0.0.1", trapContent["ddtags"])
 
 	assert.Equal(t, "1.3.6.1.6.3.1.1.5.3", trapContent["snmpTrapOID"])
 	assert.NotNil(t, trapContent["uptime"])
@@ -315,7 +318,7 @@ func TestFormatPacketV1Specific(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, "totoro", mockSender)
+	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender)
 	packet := createTestV1SpecificPacket()
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -325,7 +328,7 @@ func TestFormatPacketV1Specific(t *testing.T) {
 	trapContent := data["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp_version:1,device_namespace:totoro,snmp_device:127.0.0.1", trapContent["ddtags"])
+	assert.Equal(t, "snmp_version:1,device_namespace:catbus,snmp_device:127.0.0.1", trapContent["ddtags"])
 
 	assert.Equal(t, "1.3.6.1.2.1.118.0.2", trapContent["snmpTrapOID"])
 	assert.NotNil(t, trapContent["uptime"])
@@ -358,7 +361,7 @@ func TestFormatPacketToJSON(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, "totoro", mockSender)
+	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender)
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
@@ -394,7 +397,7 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, "totoro", mockSender)
+	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, mockSender)
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
@@ -422,48 +425,15 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestGetTags(t *testing.T) {
-	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
-	mockSender.SetupAcceptAll()
-
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, "totoro", mockSender)
-	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
-	assert.Equal(t, defaultFormatter.getTags(packet), []string{
-		"snmp_version:2",
-		"device_namespace:totoro",
-		"snmp_device:127.0.0.1",
-	})
-}
-
-func TestGetTagsForUnsupportedVersionShouldStillSucceed(t *testing.T) {
-	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
-	mockSender.SetupAcceptAll()
-
-	defaultFormatter, _ := NewJSONFormatter(NoOpOIDResolver{}, "totoro", mockSender)
-	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
-	packet.Content.Version = 12
-	assert.Equal(t, defaultFormatter.getTags(packet), []string{
-		"snmp_version:unknown",
-		"device_namespace:totoro",
-		"snmp_device:127.0.0.1",
-	})
-}
-
 func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	var formatter, err = NewJSONFormatter(NoOpOIDResolver{}, "mononoke", mockSender)
+	var formatter, err = NewJSONFormatter(NoOpOIDResolver{}, mockSender)
 	require.NoError(t, err)
 	packet := createTestPacket(NetSNMPExampleHeartbeatNotification)
 	_, err = formatter.FormatPacket(packet)
 	require.NoError(t, err)
-	tags := formatter.getTags(packet)
-	assert.Equal(t, tags, []string{
-		"snmp_version:2",
-		"device_namespace:mononoke",
-		"snmp_device:127.0.0.1",
-	})
 }
 
 func TestFormatterWithResolverAndTrapV2(t *testing.T) {
@@ -471,15 +441,12 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		description     string
 		trap            gosnmp.SnmpTrap
 		resolver        *MockedResolver
-		namespace       string
 		expectedContent map[string]interface{}
-		expectedTags    []string
 	}{
 		{
 			description: "test no enum variable resolution with netSnmpExampleHeartbeatNotification",
 			trap:        NetSNMPExampleHeartbeatNotification,
 			resolver:    resolverWithData,
-			namespace:   "totoro",
 			expectedContent: map[string]interface{}{
 				"ddsource":                    "snmp-traps",
 				"ddtags":                      "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
@@ -502,20 +469,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: []string{
-				"snmp_version:2",
-				"device_namespace:totoro",
-				"snmp_device:127.0.0.1",
-			},
 		},
 		{
 			description: "test enum variable resolution with linkDown",
 			trap:        LinkUpExampleV2Trap,
 			resolver:    resolverWithData,
-			namespace:   "mononoke",
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
-				"ddtags":        "snmp_version:2,device_namespace:mononoke,snmp_device:127.0.0.1",
+				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
 				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
@@ -542,20 +503,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: []string{
-				"snmp_version:2",
-				"device_namespace:mononoke",
-				"snmp_device:127.0.0.1",
-			},
 		},
 		{
 			description: "test enum variable resolution with bad variable",
 			trap:        BadValueExampleV2Trap,
 			resolver:    resolverWithData,
-			namespace:   "sosuke",
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
-				"ddtags":        "snmp_version:2,device_namespace:sosuke,snmp_device:127.0.0.1",
+				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
 				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
@@ -582,20 +537,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: []string{
-				"snmp_version:2",
-				"device_namespace:sosuke",
-				"snmp_device:127.0.0.1",
-			},
 		},
 		{
 			description: "test enum variable resolution when mapping absent",
 			trap:        NoEnumMappingExampleV2Trap,
 			resolver:    resolverWithData,
-			namespace:   "nausicaa",
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
-				"ddtags":        "snmp_version:2,device_namespace:nausicaa,snmp_device:127.0.0.1",
+				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
 				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
@@ -622,20 +571,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: []string{
-				"snmp_version:2",
-				"device_namespace:nausicaa",
-				"snmp_device:127.0.0.1",
-			},
 		},
 		{
 			description: "test enum variable resolution with BITS enum",
 			trap:        BitsValueExampleV2Trap,
 			resolver:    resolverWithData,
-			namespace:   "mononoke",
 			expectedContent: map[string]interface{}{
 				"ddsource":                      "snmp-traps",
-				"ddtags":                        "snmp_version:2,device_namespace:mononoke,snmp_device:127.0.0.1",
+				"ddtags":                        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
 				"timestamp":                     0.,
 				"snmpTrapName":                  "linkUp",
 				"snmpTrapMIB":                   "IF-MIB",
@@ -668,20 +611,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: []string{
-				"snmp_version:2",
-				"device_namespace:mononoke",
-				"snmp_device:127.0.0.1",
-			},
 		},
 		{
 			description: "test enum variable resolution with BITS enum and some missing bits definitions",
 			trap:        BitsMissingValueExampleV2Trap,
 			resolver:    resolverWithData,
-			namespace:   "mononoke",
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
-				"ddtags":        "snmp_version:2,device_namespace:mononoke,snmp_device:127.0.0.1",
+				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
 				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
@@ -725,20 +662,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: []string{
-				"snmp_version:2",
-				"device_namespace:mononoke",
-				"snmp_device:127.0.0.1",
-			},
 		},
 		{
 			description: "test BITS variable resolution with bad variable",
 			trap:        BadBitsValueExampleV2Trap,
 			resolver:    resolverWithData,
-			namespace:   "sosuke",
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
-				"ddtags":        "snmp_version:2,device_namespace:sosuke,snmp_device:127.0.0.1",
+				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
 				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
@@ -759,20 +690,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: []string{
-				"snmp_version:2",
-				"device_namespace:sosuke",
-				"snmp_device:127.0.0.1",
-			},
 		},
 		{
 			description: "values returned unenriched when var definition contains both enum and bits",
 			trap:        InvalidTrapDefinitionExampleV2Trap,
 			resolver:    resolverWithData,
-			namespace:   "mononoke",
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
-				"ddtags":        "snmp_version:2,device_namespace:mononoke,snmp_device:127.0.0.1",
+				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
 				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
@@ -804,20 +729,14 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: []string{
-				"snmp_version:2",
-				"device_namespace:mononoke",
-				"snmp_device:127.0.0.1",
-			},
 		},
 		{
 			description: "test enum variable resolution with zeroed out BITS",
 			trap:        BitsZeroedOutValueExampleV2Trap,
 			resolver:    resolverWithData,
-			namespace:   "mononoke",
 			expectedContent: map[string]interface{}{
 				"ddsource":      "snmp-traps",
-				"ddtags":        "snmp_version:2,device_namespace:mononoke,snmp_device:127.0.0.1",
+				"ddtags":        "snmp_version:2,device_namespace:totoro,snmp_device:127.0.0.1",
 				"timestamp":     0.,
 				"snmpTrapName":  "linkUp",
 				"snmpTrapMIB":   "IF-MIB",
@@ -850,11 +769,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 					},
 				},
 			},
-			expectedTags: []string{
-				"snmp_version:2",
-				"device_namespace:mononoke",
-				"snmp_device:127.0.0.1",
-			},
 		},
 	}
 
@@ -863,7 +777,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			formatter, err := NewJSONFormatter(d.resolver, d.namespace, mockSender)
+			formatter, err := NewJSONFormatter(d.resolver, mockSender)
 			require.NoError(t, err)
 			packet := createTestPacket(d.trap)
 			data, err := formatter.FormatPacket(packet)
@@ -875,14 +789,6 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 			// map comparisons shouldn't be reliant on ordering with this lib
 			// however variables are a slice, they must be sorted
 			if diff := cmp.Diff(trapContent, d.expectedContent); diff != "" {
-				t.Error(diff)
-			}
-
-			// sort strings lexographically as comparison is order sensitive
-			tags := formatter.getTags(packet)
-			sort.Strings(tags)
-			sort.Strings(d.expectedTags)
-			if diff := cmp.Diff(tags, d.expectedTags); diff != "" {
 				t.Error(diff)
 			}
 		})
@@ -906,7 +812,7 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
-	formatter, err := NewJSONFormatter(resolverWithData, "porco_rosso", mockSender)
+	formatter, err := NewJSONFormatter(resolverWithData, mockSender)
 	require.NoError(t, err)
 	packet := createTestV1GenericPacket()
 	data, err := formatter.FormatPacket(packet)
@@ -917,7 +823,7 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	trapContent := content["trap"].(map[string]interface{})
 
 	assert.Equal(t, "snmp-traps", trapContent["ddsource"])
-	assert.Equal(t, "snmp_version:1,device_namespace:porco_rosso,snmp_device:127.0.0.1", trapContent["ddtags"])
+	assert.Equal(t, "snmp_version:1,device_namespace:the_baron,snmp_device:127.0.0.1", trapContent["ddtags"])
 
 	assert.EqualValues(t, "ifDown", trapContent["snmpTrapName"])
 	assert.EqualValues(t, "IF-MIB", trapContent["snmpTrapMIB"])
@@ -925,13 +831,6 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 	assert.EqualValues(t, "up", trapContent["ifAdminStatus"])
 	assert.EqualValues(t, "down", trapContent["ifOperStatus"])
 	assert.EqualValues(t, myFakeVarTypeExpected, trapContent["myFakeVarType"])
-
-	tags := formatter.getTags(packet)
-	assert.Equal(t, tags, []string{
-		"snmp_version:1",
-		"device_namespace:porco_rosso",
-		"snmp_device:127.0.0.1",
-	})
 }
 
 func TestIsBitEnabled(t *testing.T) {
@@ -1252,7 +1151,6 @@ func TestFormatterTelemetry(t *testing.T) {
 		description    string
 		packet         *SnmpPacket
 		resolver       *MockedResolver
-		namespace      string
 		expectedMetric string
 		expectedValue  float64
 		expectedTags   []string
@@ -1261,12 +1159,11 @@ func TestFormatterTelemetry(t *testing.T) {
 			description:    "Fail to enrich V1 trap",
 			packet:         createTestV1Packet(Unknownv1Trap),
 			resolver:       resolverWithData,
-			namespace:      "totoro",
 			expectedMetric: "datadog.snmp_traps.traps_not_enriched",
 			expectedValue:  1,
 			expectedTags: []string{
 				"snmp_version:1",
-				"device_namespace:totoro",
+				"device_namespace:jiji",
 				"snmp_device:127.0.0.1",
 			},
 		},
@@ -1274,12 +1171,11 @@ func TestFormatterTelemetry(t *testing.T) {
 			description:    "Fail to enrich V1 trap variables",
 			packet:         createTestV1Packet(Unknownv1Trap),
 			resolver:       resolverWithData,
-			namespace:      "totoro",
 			expectedMetric: "datadog.snmp_traps.vars_not_enriched",
 			expectedValue:  3,
 			expectedTags: []string{
 				"snmp_version:1",
-				"device_namespace:totoro",
+				"device_namespace:jiji",
 				"snmp_device:127.0.0.1",
 			},
 		},
@@ -1287,7 +1183,6 @@ func TestFormatterTelemetry(t *testing.T) {
 			description:    "Not enough variables",
 			packet:         createTestPacket(NotEnoughVarsExampleV2Trap),
 			resolver:       resolverWithData,
-			namespace:      "totoro",
 			expectedMetric: "datadog.snmp_traps.incorrect_format",
 			expectedValue:  1,
 			expectedTags: []string{
@@ -1301,7 +1196,6 @@ func TestFormatterTelemetry(t *testing.T) {
 			description:    "Missing SysUpTime",
 			packet:         createTestPacket(MissingSysUpTimeInstanceExampleV2Trap),
 			resolver:       resolverWithData,
-			namespace:      "totoro",
 			expectedMetric: "datadog.snmp_traps.incorrect_format",
 			expectedValue:  1,
 			expectedTags: []string{
@@ -1315,7 +1209,6 @@ func TestFormatterTelemetry(t *testing.T) {
 			description:    "Missing Trap OID",
 			packet:         createTestPacket(MissingTrapOIDExampleV2Trap),
 			resolver:       resolverWithData,
-			namespace:      "totoro",
 			expectedMetric: "datadog.snmp_traps.incorrect_format",
 			expectedValue:  1,
 			expectedTags: []string{
@@ -1329,7 +1222,6 @@ func TestFormatterTelemetry(t *testing.T) {
 			description:    "Fail to enrich V2 trap",
 			packet:         createTestPacket(UnknownExampleV2Trap),
 			resolver:       resolverWithData,
-			namespace:      "totoro",
 			expectedMetric: "datadog.snmp_traps.traps_not_enriched",
 			expectedValue:  1,
 			expectedTags: []string{
@@ -1342,7 +1234,6 @@ func TestFormatterTelemetry(t *testing.T) {
 			description:    "Fail to enrich V2 trap variables",
 			packet:         createTestPacket(UnknownExampleV2Trap),
 			resolver:       resolverWithData,
-			namespace:      "totoro",
 			expectedMetric: "datadog.snmp_traps.vars_not_enriched",
 			expectedValue:  2,
 			expectedTags: []string{
@@ -1358,7 +1249,7 @@ func TestFormatterTelemetry(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
-			formatter, err := NewJSONFormatter(d.resolver, d.namespace, mockSender)
+			formatter, err := NewJSONFormatter(d.resolver, mockSender)
 			require.NoError(t, err)
 			_, _ = formatter.FormatPacket(d.packet)
 

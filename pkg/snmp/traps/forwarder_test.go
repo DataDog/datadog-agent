@@ -48,7 +48,7 @@ func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "default"}
 	Configure(t, config)
 
-	forwarder, err = NewTrapForwarder(&DummyFormatter{}, config, mockSender, packetsIn)
+	forwarder, err = NewTrapForwarder(&DummyFormatter{}, mockSender, packetsIn)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func makeSnmpPacket(trap gosnmp.SnmpTrap) *SnmpPacket {
 		Variables: trap.Variables,
 		SnmpTrap:  trap,
 	}
-	return &SnmpPacket{gosnmpPacket, simpleUDPAddr, time.Now().UnixMilli()}
+	return &SnmpPacket{gosnmpPacket, simpleUDPAddr, "totoro", time.Now().UnixMilli()}
 }
 
 func TestV1GenericTrapAreForwarder(t *testing.T) {
@@ -108,5 +108,5 @@ func TestForwarderTelemetry(t *testing.T) {
 	require.True(t, ok)
 	forwarder.trapsIn <- makeSnmpPacket(NetSNMPExampleHeartbeatNotification)
 	forwarder.Stop()
-	sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{"snmp_device:1.1.1.1", "namespace:default", "snmp_version:2"})
+	sender.AssertMetric(t, "Count", "datadog.snmp_traps.forwarded", 1, "", []string{"snmp_device:1.1.1.1", "device_namespace:totoro", "snmp_version:2"})
 }

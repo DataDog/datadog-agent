@@ -80,7 +80,9 @@ func (t *TrapListener) Stop() {
 }
 
 func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
-	tags := []string{"snmp_device:" + u.IP.String(), "namespace:" + t.config.Namespace, "snmp_version:" + formatVersion(p)}
+	packet := &SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace}
+	tags := packet.getTags()
+
 	t.aggregator.Count("datadog.snmp_traps.received", 1, "", tags)
 
 	if err := validatePacket(p, t.config); err != nil {
@@ -91,5 +93,5 @@ func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	}
 	log.Debugf("Packet received from %s on listener %s", u.String(), t.config.Addr())
 	trapsPackets.Add(1)
-	t.packets <- &SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli()}
+	t.packets <- packet
 }

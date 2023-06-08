@@ -7,24 +7,11 @@ package traps
 
 import (
 	"fmt"
-	"net"
 	"time"
-
-	"github.com/gosnmp/gosnmp"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// SnmpPacket is the type of packets yielded by server listeners.
-type SnmpPacket struct {
-	Content   *gosnmp.SnmpPacket
-	Addr      *net.UDPAddr
-	Timestamp int64
-}
-
-// PacketsChannel is the type of channels of trap packets.
-type PacketsChannel = chan *SnmpPacket
 
 // TrapServer manages an SNMP trap listener.
 type TrapServer struct {
@@ -53,7 +40,7 @@ func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
 	if err != nil {
 		return err
 	}
-	formatter, err := NewJSONFormatter(oidResolver, config.Namespace, sender)
+	formatter, err := NewJSONFormatter(oidResolver, sender)
 	if err != nil {
 		return err
 	}
@@ -86,7 +73,7 @@ func NewTrapServer(config Config, formatter Formatter, aggregator aggregator.Sen
 		return nil, err
 	}
 
-	trapForwarder, err := startSNMPTrapForwarder(formatter, config, aggregator, packets)
+	trapForwarder, err := startSNMPTrapForwarder(formatter, aggregator, packets)
 	if err != nil {
 		return nil, fmt.Errorf("unable to start trapForwarder: %w. Will not listen for SNMP traps", err)
 	}
@@ -99,8 +86,8 @@ func NewTrapServer(config Config, formatter Formatter, aggregator aggregator.Sen
 	return server, nil
 }
 
-func startSNMPTrapForwarder(formatter Formatter, config Config, aggregator aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
-	trapForwarder, err := NewTrapForwarder(formatter, config, aggregator, packets)
+func startSNMPTrapForwarder(formatter Formatter, aggregator aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
+	trapForwarder, err := NewTrapForwarder(formatter, aggregator, packets)
 	if err != nil {
 		return nil, err
 	}
