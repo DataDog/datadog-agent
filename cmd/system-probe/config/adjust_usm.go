@@ -18,6 +18,9 @@ const (
 
 func adjustUSM(cfg config.Config) {
 	deprecateBool(cfg, netNS("enable_http_monitoring"), smNS("enable_http_monitoring"))
+	deprecateGeneric(cfg, netNS("http_replace_rules"), smNS("http_replace_rules"))
+	deprecateInt64(cfg, netNS("max_tracked_http_connections"), smNS("max_tracked_http_connections"))
+	deprecateInt(cfg, netNS("max_http_stats_buffered"), smNS("max_http_stats_buffered"))
 
 	if cfg.GetBool(dsmNS("enabled")) {
 		// DSM infers USM
@@ -39,7 +42,7 @@ func adjustUSM(cfg config.Config) {
 		cfg.Set(smNS("process_service_inference", "enabled"), false)
 	}
 
-	validateInt(cfg, netNS("http_notification_threshold"), cfg.GetInt(spNS("max_tracked_connections"))/2, func(v int) error {
+	validateInt(cfg, netNS("http_notification_threshold"), cfg.GetInt(netNS("max_tracked_http_connections"))/2, func(v int) error {
 		limit := cfg.GetInt(netNS("max_tracked_http_connections"))
 		if v >= limit {
 			return fmt.Errorf("notification threshold %d set higher than tracked connections %d", v, limit)

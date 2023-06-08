@@ -2,6 +2,234 @@
 Release Notes
 =============
 
+.. _Release Notes_7.45.0:
+
+7.45.0 / 6.45.0
+======
+
+.. _Release Notes_7.45.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-06-05
+
+- Please refer to the `7.45.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7450>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.45.0_New Features:
+
+New Features
+------------
+
+- Add Topology data collection with CDP.
+
+- APM: Addition of configuration to add ``peer.service`` to trace stats exported by the Agent.
+
+- APM: Addition of configuration to compute trace stats on spans based on their ``span.kind`` value.
+
+- APM: Added a new endpoint in the trace-agent API `/symdb/v1/input` that acts as a reverse proxy forwarding requests to Datadog. The feature using this is currently in development.
+
+- Add support for confluent-kafka.
+
+- Add support for XCCDF benchmarks in CSPM.
+  A new configuration option, 'compliance_config.xccdf.enabled',
+  disabled by default, has been added for enabling XCCDF benchmarks.
+
+- Add arguments to module load events
+
+- Oracle DBM monitoring with activity sampling. The collected samples form the foundation for database load profiling. With Datadog GUI, samples can be aggregated and filtered to identify bottlenecks.
+
+- Add reporting of `container.{cpu|memory|io}.partial_stall` metrics based on PSI Some values when host is running with cgroupv2 enabled (Linux only).
+  This metric provides the wall time (in nanoseconds) during which at least one task in the container has been stalled on the given resource.
+
+- Adding a new option `secret_backend_remove_trailing_line_break` to remove trailing line breaks from secrets returned
+  by `secret_backend_command`. This makes it easier to use secret management tools that automatically add a line break when
+  exporting secrets through files.
+
+
+.. _Release Notes_7.45.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Cluster Agent: User config, cluster Agent deployment and node Agent daemonset manifests are now added to the flare archive, when the Cluster Agent is deployed with Helm (version 3.23.0+).
+
+- Datadog Agent running as a systemd service can optionally read
+  environment variables from a text file `/etc/datadog-agent/environment`
+  containing newline-separated variable assignments.
+  See https://www.freedesktop.org/software/systemd/man/systemd.exec.html#Environment
+
+- Add ability to filter kubernetes containers based on autodiscovery annotation. Containers in a pod
+  can now be omitted by setting `ad.datadoghq.com/<container_name>.exclude` as an annotation on the
+  pod. Logs can now be ommitted by setting `ad.datadoghq.com/<container_name>.logs_exclude` as an
+  annotation on the pod.
+
+- Added support for custom resource definitions metrics: `crd.count` and `crd.condition`.
+
+- * Remove BadgerDB cache for Trivy.
+  * Add new custom LRU cache for Trivy backed by BoltDB and parametrized by:
+  * Periodically delete unused entries from the custom cache.
+  * Add telemetry metrics to monitor the cache:
+    - ``sbom.cached_keys``: Number of cache keys stored in memory
+    - ``sbom.cache_disk_size``: Total size, in bytes, of the database as reported by BoltDB.
+    - ``sbom.cached_objects_size``: Total size, in bytes, of cached SBOM objects on disk. Limited by sbom.custom_cache_max_disk_size.
+    - ``sbom.cache_hits_total``: Total number of cache hits.
+    - ``sbom.cache_misses_total``: Total number of cache misses.
+    - ``sbom.cache_evicts_total``: Total number of cache evicts.
+
+- Added `DD_ENV` to the SBOMPayload in the SBOM check.
+
+- Added `kubernetes_state.hpa.status_target_metric` and `kubernetes_state.deployment.replicas_ready` metrics part of the `kubernetes_state_core` check.
+
+- Add support for emitting resources on metrics from tags in the
+  format dd.internal.resource:type,name.
+
+- APM: Dynamic instrumentation logs and snapshots can now be shipped to multiple Datadog logs intakes.
+
+- Adds support for OpenTelemetry span links to the Trace Agent OTLP endpoint when converting OTLP spans (span links are added as metadata to the converted span).
+
+- Agents are now built with Go ``1.19.9``.
+
+- Make Podman DB path configurable for rootless environment.
+  Now we can set ``$HOME/.local/share/containers/storage/libpod/bolt_state.db``.
+
+- Add ownership information for containers to the container-lifecycle check.
+
+- Add Pod exit timestamp to container-lifecycle check.
+
+- The Agent now uses the `ec2_metadata_timeout` value when fetching EC2 instance tags with AWS SDK. The Agent fetches
+  instance tags when `collect_ec2_tags` is set to `true`.
+
+- Upgraded JMXFetch to ``0.47.8`` which has improvements aimed
+  to help large metric collections drop fewer payloads.
+
+- Kubernetes State Metrics Core: Adds collection of Kubernetes APIServices metrics
+
+- Add support for URLs with the `http|https` scheme in the `dd_url` or `logs_dd_url` parameters
+  when configuring endpoints.
+  Also automatically detects SSL needs, based on the scheme when it is present.
+
+- [pkg/netflow] Add NetFlow Exporter to NDM Metadata.
+
+- SUSE RPMs are now built with RPM 4.14.3 and have SHA256 digest headers.
+
+- ``observability_pipelines_worker`` can now be used in place of the ``vector`` 
+  config options. 
+
+- Add an option and an annotation to skip ``kube_service`` tags on Kubernetes pods.
+  
+  When the selector of a service matches a pod and that pod is ready, its metrics are decorated with a ``kube_service`` tag.
+  
+  When the readiness of a pod flips, so does the ``kube_service`` tag. This could create visual artifacts (spikes when the tag flips) on dashboards where the queries are missing ``.fill(null)``.
+  
+  If many services target a pod, the total number of tags attached to its metrics might exceed a limit that causes the whole metric to be discarded.
+  
+  In order to mitigate these two issues, it’s now possible to set the ``kubernetes_ad_tags_disabled`` parameter to ``kube_config`` to globally remove the ``kube_service`` tags on all pods::
+    kubernetes_ad_tags_disabled
+      - kube_service
+  
+  It’s also possible to add a ``tags.datadoghq.com/disable: kube_service`` annotation on only the pods for which we want to remove the ``kube_service`` tag.
+  
+  Note that ``kube_service`` is the only tag that can be removed via this parameter and this annotation.
+
+- Support OTel semconv 1.17.0 in OTLP ingest endpoint.
+
+- When ``otlp_config.metrics.histograms.send_aggregation_metrics`` is set to ``true``, 
+  the OTLP ingest pipeline will now send min and max metrics for delta OTLP Histograms 
+  and OTLP Exponential Histograms when available, in addition to count and sum metrics.
+  
+  The deprecated option ``otlp_config.metrics.histograms.send_count_sum_metrics`` now
+  also sends min and max metrics when available.
+
+- OTLP: Use minimum and maximum values from cumulative OTLP Histograms. Values are used only when we can assume they are from the last time window or otherwise to clamp estimates.
+
+- The OTLP ingest endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.75.0.
+
+- Secrets with `ENC[]` notation are now supported for proxy setting from environment variables. For more information
+  you can refer to our [Secrets Management](https://docs.datadoghq.com/agent/guide/secrets-management/)
+  and [Agent Proxy Configuration](https://docs.datadoghq.com/agent/proxy/) documentations.
+
+- [corechecks/snmp] Adds ability to send constant metrics in SNMP profiles.
+
+- [corechecks/snmp] Adds ability to map metric tag value to string in SNMP profiles.
+
+- [corechecks/snmp] Add support to format bytes into ip_address
+
+
+.. _Release Notes_7.45.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- APM OTLP: Field UsePreviewHostnameLogic is deprecated, and usage of this field has been removed. This is done in preparation to graduate the exporter.datadog.hostname.preview feature gate to stable.
+
+- The Windows Installer NPM feature option, used in ``ADDLOCAL=NPM`` and ``REMOVE=NPM``, no
+  longer controls the install state of NPM components. The NPM components are now always
+  installed, but will only run when enabled in the agent configuration. The Windows Installer
+  NPM feature option still exists for backwards compatability purposes, but has no effect.
+
+- Deprecate ``otlp_config.metrics.histograms.send_count_sum_metrics`` in favor of ``otlp_config.metrics.histograms.send_aggregation_metrics``.
+
+- Removed the `--info` flag in the Process Agent, which has been replaced by the `status` command since 7.35.
+
+
+.. _Release Notes_7.45.0_Security Notes:
+
+Security Notes
+--------------
+
+- Handle the return value of Close() for writable files in ``pkg/forwarder``
+
+- Fixes cwe 703. Handle the return value of Close() for writable files and forces writes to disks
+  in `system-probe`
+
+
+.. _Release Notes_7.45.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Setting apm_config.receiver_port: 0 now allows enabling UNIX Socket or Windows Pipes listeners.
+
+- APM: OTLP: Ensure that container tags are set globally on the payload so that they can be picked up as primary tags in the app.
+
+- APM: Fixes a bug with how stats are calculated when using single span sampling
+  along with other sampling configurations.
+
+- APM: Fixed the issue where not all trace stats are flushed on trace-agent shutdown.
+
+- Fix an issue on the pod collection where the cluster name would not
+  be consistently RFC1123 compliant.
+
+- Make the agent able to detect it is running on ECS EC2, even with a host install, i.e. when the agent isn’t deployed as an ECS task.
+
+- Fix missing case-sensitive version of the ``device`` tag on the ``system.disk`` group of metrics.
+
+- The help output of the Agent command now correctly displays the executable name on Windows.
+
+- Fix resource requirements detection for containers without any request and
+  limit set.
+
+- The KSM core check now correctly handles labels and annotations with
+  uppercase letters defined in the "labels_as_tags" and "annotations_as_tags"
+  config attributes.
+
+- Fixes issue where trace data drops in OTLP ingest by adding batch processor for traces, and increases the grpc message limit
+
+- [pkg/netflow] Rename payload ``device.ip`` to ``exporter.ip``
+
+- Fixes an issue in the process agent where in rare scenarios, negative CPU usage percentages would be reported for processes.
+
+- When a pod was annotated with ``prometheus.io/scrape: true``, the Agent used to schedule one ``openmetrics`` check per container in the pod unless a ``datadog.prometheusScrape.additionalConfigs[].autodiscovery.kubernetes_container_names`` list was defined, which restricted the potential container targets.
+  The Agent is now able to leverage the ``prometheus.io/port`` annotation to schedule an ``openmetrics`` check only on the container of the pod that declares that port in its spec.
+
+- Fixing an issue with Prometheus scrape feature when `service_endpoints` option is used where endpoint updates were missed by the Agent, causing checks to not be scheduled on endpoints created after Agent start.
+
+- On Windows, when using USM, fixes tracking of connections made via
+  localhost.
+
+
 .. _Release Notes_7.44.1:
 
 7.44.1 / 6.44.1
