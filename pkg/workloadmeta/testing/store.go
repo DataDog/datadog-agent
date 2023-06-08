@@ -79,7 +79,6 @@ func (s *Store) GetProcess(pid int32) (*workloadmeta.Process, error) {
 func (s *Store) ListProcesses() []*workloadmeta.Process {
 	entities := s.listEntitiesByKind(workloadmeta.KindProcess)
 
-	// Not very efficient
 	processes := make([]*workloadmeta.Process, 0, len(entities))
 	for i := range entities {
 		processes = append(processes, entities[i].(*workloadmeta.Process))
@@ -92,7 +91,6 @@ func (s *Store) ListProcesses() []*workloadmeta.Process {
 func (s *Store) ListProcessesWithFilter(filter workloadmeta.ProcessFilterFunc) []*workloadmeta.Process {
 	var res []*workloadmeta.Process
 
-	// Not very efficient
 	for _, process := range s.ListProcesses() {
 		if filter(process) {
 			res = append(res, process)

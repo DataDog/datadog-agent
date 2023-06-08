@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -277,7 +278,7 @@ func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 
 // GetProcess implements Store#GetProcess.
 func (s *store) GetProcess(pid int32) (*Process, error) {
-	id := string(pid)
+	id := strconv.Itoa(int(pid))
 
 	entity, err := s.getEntityByKind(KindProcess, id)
 	if err != nil {
@@ -291,7 +292,6 @@ func (s *store) GetProcess(pid int32) (*Process, error) {
 func (s *store) ListProcesses() []*Process {
 	entities := s.listEntitiesByKind(KindProcess)
 
-	// Not very efficient
 	processes := make([]*Process, 0, len(entities))
 	for i := range entities {
 		processes = append(processes, entities[i].(*Process))
@@ -304,7 +304,6 @@ func (s *store) ListProcesses() []*Process {
 func (s *store) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
 	entities := s.listEntitiesByKind(KindProcess)
 
-	// Not very efficient
 	processes := make([]*Process, 0, len(entities))
 	for i := range entities {
 		process := entities[i].(*Process)

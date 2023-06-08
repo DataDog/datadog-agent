@@ -599,6 +599,47 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+func TestGetProcess(t *testing.T) {
+	s := newTestStore()
+
+	process := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "123",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: process,
+		},
+	})
+
+	gotProcess, err := s.GetProcess(123)
+	if err != nil {
+		t.Errorf("expected to find process %q, not found", process.ID)
+	}
+
+	if !reflect.DeepEqual(process, gotProcess) {
+		t.Errorf("expected process %q to match the one in the store", process.ID)
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeUnset,
+			Source: fooSource,
+			Entity: process,
+		},
+	})
+
+	_, err = s.GetProcess(123)
+	if err == nil || !errors.IsNotFound(err) {
+		t.Errorf("expected process %q to be absent. found or had errors. err: %q", process.ID, err)
+	}
+}
+
 func TestListContainers(t *testing.T) {
 	container := &Container{
 		EntityID: EntityID{
