@@ -787,6 +787,10 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 }
 
 func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry) *usm.Monitor {
+	if !c.ServiceMonitoringEnabled {
+		return nil
+	}
+
 	// Shared with the USM program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)

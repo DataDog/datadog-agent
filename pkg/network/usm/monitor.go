@@ -109,7 +109,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	}
 	if len(enabledProtocols) == 0 {
 		state = Disabled
-		log.Info("not enabling USM as no protocols monitoring were enabled.")
+		log.Warn("not enabling USM as no protocols monitoring were enabled.")
 		return nil, nil
 	}
 
