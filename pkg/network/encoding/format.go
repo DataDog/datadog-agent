@@ -16,7 +16,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -124,17 +123,18 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 
 // FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
-	if tel == nil {
-		return nil
-	}
-
 	// Fetch USM payload telemetry
-	ret := telemetry.ReportPayloadTelemetry("")
+	ret := GetUSMPayloadTelemetry()
 
 	// Merge it with NPM telemetry
 	for k, v := range tel {
 		ret[string(k)] = v
 	}
+
+	if len(ret) == 0 {
+		return nil
+	}
+
 	return ret
 }
 
