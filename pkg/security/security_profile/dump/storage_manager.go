@@ -59,6 +59,28 @@ func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
 	return manager, nil
 }
 
+// NewSecurityAgentCommandStorageManager returns a new instance of ActivityDumpStorageManager
+func NewSecurityAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpStorageManager, error) {
+	manager := &ActivityDumpStorageManager{
+		storages: make(map[config.StorageType]ActivityDumpStorage),
+	}
+
+	storage, err := NewActivityDumpLocalStorage(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
+	}
+	manager.storages[storage.GetStorageType()] = storage
+
+	// create remote storage
+	remote, err := NewActivityDumpRemoteStorage()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate remote storage: %w", err)
+	}
+	manager.storages[remote.GetStorageType()] = remote
+
+	return manager, nil
+}
+
 // NewActivityDumpStorageManager returns a new instance of ActivityDumpStorageManager
 func NewActivityDumpStorageManager(cfg *config.Config, statsdClient statsd.ClientInterface, handler ActivityDumpHandler) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{

@@ -443,15 +443,12 @@ func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 }
 
 // Snapshot uses procfs to snapshot the nodes of the tree
-func (at *ActivityTree) Snapshot(newEvent func() *model.Event) error {
+func (at *ActivityTree) Snapshot(newEvent func() *model.Event) {
 	for _, pn := range at.ProcessNodes {
-		if err := pn.snapshot(at.validator, at.Stats, newEvent); err != nil {
-			return err
-		}
+		pn.snapshot(at.validator, at.Stats, newEvent)
 		// iterate slowly
 		time.Sleep(50 * time.Millisecond)
 	}
-	return nil
 }
 
 // SendStats sends the tree statistics

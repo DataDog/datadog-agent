@@ -444,21 +444,7 @@ func TestHTTPReplaceRules(t *testing.T) {
 		},
 	}
 
-	t.Run("via YAML", func(t *testing.T) {
-		newConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-HTTPReplaceRules.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
-		require.Len(t, cfg.HTTPReplaceRules, 3)
-		for i, r := range expected {
-			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
-		}
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
+	envContent := `
         [
           {
             "pattern": "/users/(.*)",
@@ -472,9 +458,11 @@ func TestHTTPReplaceRules(t *testing.T) {
             "pattern": "payment_id"
           }
         ]
-        `)
+        `
 
-		_, err := sysconfig.New("")
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRulesDeprecated.yaml")
 		require.NoError(t, err)
 		cfg := New()
 
@@ -482,6 +470,167 @@ func TestHTTPReplaceRules(t *testing.T) {
 		for i, r := range expected {
 			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
 		}
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRules.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", envContent)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_REPLACE_RULES", envContent)
+		// Setting a different value for the old value, as we should override.
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES", `
+        [
+          {
+            "pattern": "payment_id"
+          }
+        ]
+        `)
+
+		cfg := New()
+
+		require.Len(t, cfg.HTTPReplaceRules, 3)
+		for i, r := range expected {
+			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
+		}
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		cfg := New()
+
+		assert.Empty(t, cfg.HTTPReplaceRules)
+	})
+}
+
+func TestMaxTrackedHTTPConnections(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnectionsDeprecated.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnections.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		newConfig(t)
+		// Setting a different value
+		t.Setenv("DD_NETWORK_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1026")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_TRACKED_HTTP_CONNECTIONS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1024))
 	})
 }
 
@@ -558,20 +707,75 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 }
 
 func TestMaxHTTPStatsBuffered(t *testing.T) {
-	t.Run("value set through env var", func(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
 		newConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "50000")
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBufferedDeprecated.yaml")
+		require.NoError(t, err)
 		cfg := New()
-		assert.Equal(t, 50000, cfg.MaxHTTPStatsBuffered)
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
 	})
 
-	t.Run("value set through yaml", func(t *testing.T) {
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		newConfig(t)
-		cfg := configurationFromYAML(t, `
-network_config:
-  max_http_stats_buffered: 30000
-`)
-		assert.Equal(t, 30000, cfg.MaxHTTPStatsBuffered)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "513")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig(t)
+		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBuffered.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "513")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		newConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED", "514")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP_STATS_BUFFERED", "513")
+
+		cfg := New()
+
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		newConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.MaxHTTPStatsBuffered, 100000)
 	})
 }
 

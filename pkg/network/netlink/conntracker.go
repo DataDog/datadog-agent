@@ -11,13 +11,15 @@ import (
 	"container/list"
 	"context"
 	"fmt"
-	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 	"net"
 	"net/netip"
 	"sync"
 	"time"
+
+	"github.com/cihub/seelog"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -295,7 +297,7 @@ func (ctr *realConntracker) compact() {
 }
 
 type conntrackCache struct {
-	cache         *simplelru.LRU
+	cache         *simplelru.LRU[connKey, *translationEntry]
 	orphans       *list.List
 	orphanTimeout time.Duration
 }
@@ -306,8 +308,7 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 		orphanTimeout: orphanTimeout,
 	}
 
-	c.cache, _ = simplelru.NewLRU(maxSize, func(key, value interface{}) {
-		t := value.(*translationEntry)
+	c.cache, _ = simplelru.NewLRU(maxSize, func(_ connKey, t *translationEntry) {
 		if t.orphan != nil {
 			c.orphans.Remove(t.orphan)
 		}
@@ -317,12 +318,11 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 }
 
 func (cc *conntrackCache) Get(k connKey) (*translationEntry, bool) {
-	v, ok := cc.cache.Get(k)
+	t, ok := cc.cache.Get(k)
 	if !ok {
 		return nil, false
 	}
 
-	t := v.(*translationEntry)
 	if t.orphan != nil {
 		cc.orphans.Remove(t.orphan)
 		t.orphan = nil
@@ -347,11 +347,10 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 			return
 		}
 
-		if v, ok := cc.cache.Peek(key); ok {
+		if t, ok := cc.cache.Peek(key); ok {
 			// value is going to get replaced
 			// by the call to Add below, make
 			// sure orphan is removed
-			t := v.(*translationEntry)
 			if t.orphan != nil {
 				cc.orphans.Remove(t.orphan)
 			}
@@ -372,7 +371,9 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 		}
 	}
 
-	log.Tracef("%s", c)
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("%s", c)
+	}
 
 	registerTuple(&c.Origin, &c.Reply)
 	registerTuple(&c.Reply, &c.Origin)
@@ -392,7 +393,9 @@ func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
 
 		cc.cache.Remove(o.key)
 		removed++
-		log.Tracef("removed orphan %+v", o.key)
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("removed orphan %+v", o.key)
+		}
 	}
 
 	return removed

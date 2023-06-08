@@ -557,9 +557,7 @@ func (ad *ActivityDump) Snapshot() error {
 	ad.Lock()
 	defer ad.Unlock()
 
-	if err := ad.ActivityTree.Snapshot(ad.adm.newEvent); err != nil {
-		return fmt.Errorf("couldn't snapshot [%s]: %v", ad.getSelectorStr(), err)
-	}
+	ad.ActivityTree.Snapshot(ad.adm.newEvent)
 
 	// try to resolve the tags now
 	_ = ad.resolveTags()
@@ -599,7 +597,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		}
 	}
 
-	return &api.ActivityDumpMessage{
+	msg := &api.ActivityDumpMessage{
 		Host:    ad.Host,
 		Source:  ad.Source,
 		Service: ad.Service,
@@ -622,6 +620,16 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		},
 		DNSNames: ad.DNSNames.Keys(),
 	}
+	if ad.ActivityTree != nil {
+		msg.Stats = &api.ActivityTreeStatsMessage{
+			ProcessNodesCount: ad.ActivityTree.Stats.ProcessNodes,
+			FileNodesCount:    ad.ActivityTree.Stats.FileNodes,
+			DNSNodesCount:     ad.ActivityTree.Stats.DNSNodes,
+			SocketNodesCount:  ad.ActivityTree.Stats.SocketNodes,
+			ApproximateSize:   ad.ActivityTree.Stats.ApproximateSize(),
+		}
+	}
+	return msg
 }
 
 // ToTranscodingRequestMessage returns a pointer to a TranscodingRequestMessage
@@ -770,6 +778,8 @@ func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format config.Storage
 		return ad.DecodeProtobuf(reader)
 	case config.Profile:
 		return ad.DecodeProfileProtobuf(reader)
+	case config.Json:
+		return ad.DecodeJSON(reader)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
 	}
@@ -811,6 +821,29 @@ func (ad *ActivityDump) DecodeProfileProtobuf(reader io.Reader) error {
 	}
 
 	securityProfileProtoToActivityDump(ad, inter)
+
+	return nil
+}
+
+func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
+	ad.Lock()
+	defer ad.Unlock()
+
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("couldn't open security profile file: %w", err)
+	}
+
+	opts := protojson.UnmarshalOptions{
+		AllowPartial:   true,
+		DiscardUnknown: true,
+	}
+	inter := &adproto.SecDump{}
+	if err = opts.Unmarshal(raw, inter); err != nil {
+		return fmt.Errorf("couldn't decode json file: %w", err)
+	}
+
+	protoToActivityDump(ad, inter)
 
 	return nil
 }

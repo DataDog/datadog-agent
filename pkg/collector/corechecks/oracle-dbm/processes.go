@@ -51,10 +51,10 @@ func (c *Check) ProcessMemory() error {
 		if r.Program.Valid {
 			tags = append(tags, "program:"+r.Program.String)
 		}
-		sender.Gauge(fmt.Sprintf("%s.process.pga_used_mem", common.IntegrationName), r.PGAUsedMem, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.process.pga_alloc_mem", common.IntegrationName), r.PGAAllocMem, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.process.pga_freeable_mem", common.IntegrationName), r.PGAFreeableMem, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.process.pga_max_mem", common.IntegrationName), r.PGAMaxMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_used_memory", common.IntegrationName), r.PGAUsedMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_allocated_memory", common.IntegrationName), r.PGAAllocMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_freeable_memory", common.IntegrationName), r.PGAFreeableMem, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.process.pga_max_memory", common.IntegrationName), r.PGAMaxMem, "", tags)
 	}
 	sender.Commit()
 	return nil
