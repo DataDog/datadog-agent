@@ -21,8 +21,8 @@
 
 .kitchen_scenario_amazonlinux_a6_x64:
   variables:
-    KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
-    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
+    KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     DEFAULT_KITCHEN_OSVERS: "amazonlinux2-5-10"
   extends:
     - .kitchen_agent_a6
@@ -32,8 +32,8 @@
 
 .kitchen_scenario_amazonlinux_a7_x64:
   variables:
-    KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
-    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
+    KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     DEFAULT_KITCHEN_OSVERS: "amazonlinux2-5-10"
   extends:
     - .kitchen_agent_a7
@@ -43,8 +43,8 @@
 
 .kitchen_scenario_amazonlinux_a6_arm64:
   variables:
-    KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
-    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
+    KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     DEFAULT_KITCHEN_OSVERS: "amazonlinux2-5-10"
   extends:
     - .kitchen_agent_a6
@@ -54,8 +54,8 @@
 
 .kitchen_scenario_amazonlinux_a7_arm64:
   variables:
-    KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
-    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15"
+    KITCHEN_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    KITCHEN_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     DEFAULT_KITCHEN_OSVERS: "amazonlinux2-5-10"
   extends:
     - .kitchen_agent_a7
