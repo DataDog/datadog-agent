@@ -208,7 +208,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_stats_by_status_code"), false)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
-	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
+	// Default value (100000) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 
@@ -228,11 +229,14 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.SetEnvKeyTransformer(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
 	cfg.SetEnvKeyTransformer(newHTTPRules, httpRulesTransformer(newHTTPRules))
 
-	cfg.BindEnvAndSetDefault(join(netNS, "max_tracked_http_connections"), 1024)
+	// Default value (1024) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(netNS, "max_tracked_http_connections"))
 	cfg.BindEnv(join(smNS, "max_tracked_http_connections"))
-	cfg.BindEnvAndSetDefault(join(netNS, "http_notification_threshold"), 512)
+	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(netNS, "http_notification_threshold"))
 	cfg.BindEnv(join(smNS, "http_notification_threshold"))
-	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 160)
+	// Default value (160) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
 
 	// list of DNS query types to be recorded
@@ -256,10 +260,12 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "use_windows_service_name"), true, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
 
-	cfg.BindEnvAndSetDefault(join(spNS, "http_map_cleaner_interval_in_s"), 300)
+	// Default value (300) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s"))
 	cfg.BindEnv(join(smNS, "http_map_cleaner_interval_in_s"))
 
-	cfg.BindEnvAndSetDefault(join(spNS, "http_idle_connection_ttl_in_s"), 30)
+	// Default value (30) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s"))
 	cfg.BindEnv(join(smNS, "http_idle_connection_ttl_in_s"))
 
 	// data streams
