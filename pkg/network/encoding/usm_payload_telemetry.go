@@ -12,9 +12,9 @@ import (
 
 // GetUSMPayloadTelemetry returns a map with all metrics that are meant to be sent as payload telemetry.
 //
-// In order to emit a new payload metric, make sure to use the option `telemetry.OptTelemetry`.
+// In order to emit a new payload metric, make sure to use the option `telemetry.OptPayloadTelemetry`.
 // Example:
-// myMetric := telemetry.NewMetric("metric_name", telemetry.OptTelemetry)
+// myMetric := telemetry.NewMetric("metric_name", telemetry.OptPayloadTelemetry)
 //
 // Finally, make sure to add an entry to pkg/network/event_common.go for the sake of documentation.
 func GetUSMPayloadTelemetry() map[string]int64 {
