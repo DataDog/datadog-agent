@@ -699,6 +699,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 		// have we reached the unstable time limit ?
 		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+			profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
 			m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
 			return UnstableEventType
 		}
