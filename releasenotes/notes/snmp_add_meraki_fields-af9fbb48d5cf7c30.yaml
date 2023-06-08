@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [pkg/networkdevice] Add meraki fields to NDM Metadata payload.
+    [pkg/networkdevice] Add Meraki fields to NDM Metadata payload.
