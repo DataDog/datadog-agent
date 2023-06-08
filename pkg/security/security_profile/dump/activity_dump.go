@@ -597,7 +597,7 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		}
 	}
 
-	return &api.ActivityDumpMessage{
+	msg := &api.ActivityDumpMessage{
 		Host:    ad.Host,
 		Source:  ad.Source,
 		Service: ad.Service,
@@ -620,6 +620,16 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		},
 		DNSNames: ad.DNSNames.Keys(),
 	}
+	if ad.ActivityTree != nil {
+		msg.Stats = &api.ActivityTreeStatsMessage{
+			ProcessNodesCount: ad.ActivityTree.Stats.ProcessNodes,
+			FileNodesCount:    ad.ActivityTree.Stats.FileNodes,
+			DNSNodesCount:     ad.ActivityTree.Stats.DNSNodes,
+			SocketNodesCount:  ad.ActivityTree.Stats.SocketNodes,
+			ApproximateSize:   ad.ActivityTree.Stats.ApproximateSize(),
+		}
+	}
+	return msg
 }
 
 // ToTranscodingRequestMessage returns a pointer to a TranscodingRequestMessage
