@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -56,6 +57,16 @@ func TestExtractor(t *testing.T) {
 		Pid2: proc2,
 	})
 	mockGrpcListener.AssertExpectations(t)
+	assert.Equal(t, map[string]*ProcessEntity{
+		hashProcess(Pid1, proc1.Stats.CreateTime): {
+			pid:      proc1.Pid,
+			language: &languagemodels.Language{Name: languagemodels.Java},
+		},
+		hashProcess(Pid2, proc2.Stats.CreateTime): {
+			pid:      proc2.Pid,
+			language: &languagemodels.Language{Name: languagemodels.Python},
+		},
+	}, extractor.cache)
 	writeEvents.Unset()
 
 	// Assert that we write no duplicates
@@ -65,6 +76,16 @@ func TestExtractor(t *testing.T) {
 		Pid2: proc2,
 	})
 	mockGrpcListener.AssertExpectations(t)
+	assert.Equal(t, map[string]*ProcessEntity{
+		hashProcess(Pid1, proc1.Stats.CreateTime): {
+			pid:      proc1.Pid,
+			language: &languagemodels.Language{Name: languagemodels.Java},
+		},
+		hashProcess(Pid2, proc2.Stats.CreateTime): {
+			pid:      proc2.Pid,
+			language: &languagemodels.Language{Name: languagemodels.Python},
+		},
+	}, extractor.cache)
 	writeEvents.Unset()
 
 	// Assert that old events are evicted from the cache
@@ -83,6 +104,16 @@ func TestExtractor(t *testing.T) {
 		Pid2: proc2,
 		Pid3: proc3,
 	})
+	assert.Equal(t, map[string]*ProcessEntity{
+		hashProcess(Pid2, proc2.Stats.CreateTime): {
+			pid:      proc2.Pid,
+			language: &languagemodels.Language{Name: languagemodels.Python},
+		},
+		hashProcess(Pid3, proc3.Stats.CreateTime): {
+			pid:      proc3.Pid,
+			language: &languagemodels.Language{Name: languagemodels.Unknown},
+		},
+	}, extractor.cache)
 	mockGrpcListener.AssertExpectations(t)
 }
 

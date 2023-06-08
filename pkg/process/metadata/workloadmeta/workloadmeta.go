@@ -6,7 +6,7 @@
 package workloadmeta
 
 import (
-	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -114,5 +114,6 @@ func Enabled(ddconfig config.ConfigReader) bool {
 }
 
 func hashProcess(pid int32, createTime int64) string {
-	return fmt.Sprintf("pid:%v|createTime:%v", pid, createTime)
+	return "pid:" + strconv.Itoa(int(pid)) + "|createTime:" + strconv.Itoa(int(createTime))
+	//return fmt.Sprintf("pid:%v|createTime:%v", pid, createTime)
 }
