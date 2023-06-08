@@ -20,6 +20,7 @@ import (
 	"time"
 	"unsafe"
 
+	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -847,7 +848,7 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                     `field:"-" json:"-"`
+	refCount  atomic.Uint64              `field:"-" json:"-"`
 	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
 	releaseCb func()                     `field:"-" json:"-"`
 }
@@ -876,13 +877,13 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
+	pc.refCount.Store(0)
 	pc.releaseCb = nil
 }
 
 // Retain increment ref counter
 func (pc *ProcessCacheEntry) Retain() {
-	pc.refCount++
+	pc.refCount.Inc()
 }
 
 // SetReleaseCallback set the callback called when the entry is released
@@ -898,8 +899,8 @@ func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
-	pc.refCount--
-	if pc.refCount > 0 {
+	pc.refCount.Dec()
+	if pc.refCount.Load() > 0 {
 		return
 	}
 
