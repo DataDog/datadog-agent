@@ -16,7 +16,6 @@ import (
 // to the minimum. The forwarder process payloads received by the listener via the trapsIn channel, formats them and finally
 // give them to the epforwarder for sending it to Datadog.
 type TrapForwarder struct {
-	config    Config
 	trapsIn   PacketsChannel
 	formatter Formatter
 	sender    aggregator.Sender
