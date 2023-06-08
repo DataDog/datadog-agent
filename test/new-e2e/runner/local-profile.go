@@ -88,7 +88,7 @@ func (p localProfile) NamePrefix() string {
 
 	username = strings.ToLower(username)
 	username = strings.ReplaceAll(username, " ", "-")
-
+	username = strings.ReplaceAll(username, "\\", "-")
 	return username
 }
 
