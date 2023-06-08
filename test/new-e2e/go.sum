@@ -1,9 +1,7 @@
 github.com/DataDog/agent-payload/v5 v5.0.73 h1:fnCnAR+nWY+q//fBZSab4cDFFng0scPEfmLdl9ngmQY=
 github.com/DataDog/agent-payload/v5 v5.0.73/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
-github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230522140836-d5fef93f2760 h1:q3WezOSutXHtRq7IX8ya5PlBZTUCvfbh54qjI9tEa5A=
-github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-20230522140836-d5fef93f2760/go.mod h1:Mse9axnNjouBfknyWFmWybezBvpjXaqA8oQZi8+f/SA=
-github.com/DataDog/test-infra-definitions v0.0.0-20230526143644-ed785d3a20d5 h1:bevg12AMVEL49W5+ZEJ6bw6PK4JWt+oEPfH3MPsOS8Q=
-github.com/DataDog/test-infra-definitions v0.0.0-20230526143644-ed785d3a20d5/go.mod h1:WmCQAFypCQB6zjmXl9CGW0qMa5s7krntwld/tt7rjcc=
+github.com/DataDog/test-infra-definitions v0.0.0-20230607143804-fef23444c9da h1:2HqYpVpJkn06vNpoTzhTD4DubyTaaj4QT2wquPXg4m0=
+github.com/DataDog/test-infra-definitions v0.0.0-20230607143804-fef23444c9da/go.mod h1:VlLmT/PmwpWNV6o0tKFzWuPtHuN9YBb73WjS5SjhFzY=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2 h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=
 github.com/Masterminds/semver v1.5.0 h1:H65muMkzWKEuNDnfl9d70GUjFniHKHRbFPGBuZ3QEww=
 github.com/Masterminds/semver v1.5.0/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
@@ -239,6 +237,8 @@ golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d/go.mod h1:IxCIyHEi3zRg3s0
 golang.org/x/crypto v0.7.0/go.mod h1:pYwdfH91IfpZVANVyUOhSIPZaFoJGxTFbZhFTx+dXZU=
 golang.org/x/crypto v0.9.0 h1:LF6fAI+IutBocDJ2OT0Q1g8plpYljMZ4+lty+dsqw3g=
 golang.org/x/crypto v0.9.0/go.mod h1:yrmDGqONDYtNj3tH8X9dzUun2m2lzPa9ngI6/RUPGR0=
+golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 h1:k/i9J1pBpvlfR+9QsetwPyERsqu1GIbi967PQMq3Ivc=
+golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1/go.mod h1:V1LtkGg67GoY2N1AnLN78QLrzxkLyJw7RJb1gzOOz9w=
 golang.org/x/lint v0.0.0-20200302205851-738671d3881b/go.mod h1:3xt1FjdF8hUf6vQPIChWIBhFzV8gjjsPE/fR3IyQdNY=
 golang.org/x/mod v0.1.1-0.20191105210325-c90efee705ee/go.mod h1:QqPTAvyqsEbceGzBzNggFXnrqF1CaUcvgkdR5Ot7KZg=
 golang.org/x/mod v0.2.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=

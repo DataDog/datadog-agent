@@ -529,6 +529,12 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin uint64
 func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, origin uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
+		// check exec bomb
+		if prev.Equals(entry) {
+			prev.ApplyExecTimeOf(entry)
+			return
+		}
+
 		prev.Exec(entry)
 	}
 
@@ -888,7 +894,7 @@ func GetProcessArgv(pr *model.Process) ([]string, bool) {
 	return pr.Argv, pr.ArgsTruncated
 }
 
-// GetProcessArgv0 returns the first arg of the event
+// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
 func GetProcessArgv0(pr *model.Process) (string, bool) {
 	if pr.ArgsEntry == nil {
 		return pr.Argv0, pr.ArgsTruncated
