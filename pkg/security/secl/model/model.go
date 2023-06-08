@@ -899,8 +899,7 @@ func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
-	pc.refCount.Dec()
-	if pc.refCount.Load() > 0 {
+	if pc.refCount.Dec() > 0 {
 		return
 	}
 
