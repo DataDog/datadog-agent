@@ -20,7 +20,8 @@ type Pod struct {
 
 // PodList contains fields for unmarshalling a PodList
 type PodList struct {
-	Items []*Pod `json:"items,omitempty"`
+	Items        []*Pod `json:"items,omitempty"`
+	ExpiredCount int
 }
 
 // PodMetadata contains fields for unmarshalling a pod's metadata
@@ -67,6 +68,12 @@ type ContainerSpec struct {
 	ReadinessProbe  *ContainerProbe               `json:"readinessProbe,omitempty"`
 	Env             []EnvVar                      `json:"env,omitempty"`
 	SecurityContext *ContainerSecurityContextSpec `json:"securityContext,omitempty"`
+	Resources       *ContainerResourcesSpec       `json:"resources,omitempty"`
+}
+
+type ContainerResourcesSpec struct {
+	Requests map[string]string `json:"requests,omitempty"`
+	Limits   map[string]string `json:"limits,omitempty"`
 }
 
 // ContainerPortSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
@@ -156,12 +163,14 @@ type Conditions struct {
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
 type ContainerStatus struct {
-	Name    string         `json:"name"`
-	Image   string         `json:"image"`
-	ImageID string         `json:"imageID"`
-	ID      string         `json:"containerID"`
-	Ready   bool           `json:"ready"`
-	State   ContainerState `json:"state"`
+	Name         string         `json:"name"`
+	Image        string         `json:"image"`
+	ImageID      string         `json:"imageID"`
+	ID           string         `json:"containerID"`
+	Ready        bool           `json:"ready"`
+	RestartCount int            `json:"restartCount"`
+	State        ContainerState `json:"state"`
+	LastState    ContainerState `json:"lastState"`
 }
 
 // IsPending returns if the container doesn't have an ID
@@ -198,4 +207,5 @@ type ContainerStateTerminated struct {
 	ExitCode   int32     `json:"exitCode"`
 	StartedAt  time.Time `json:"startedAt"`
 	FinishedAt time.Time `json:"finishedAt"`
+	Reason     string    `json:"reason"`
 }
