@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"math"
 	"sync"
@@ -56,14 +57,14 @@ var conntrackerTelemetry = struct {
 	unregistersDuration telemetry.Histogram
 	getsTotal           telemetry.Counter
 	unregistersTotal    telemetry.Counter
-	registersTotal      telemetry.Counter
+	registersTotal      *prometheus.Desc
 	lastRegisters       uint64
 }{
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
-	telemetry.NewCounter(ebpfConntrackerModuleName, "registers_total", []string{}, "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map"),
+	prometheus.NewDesc(ebpfConntrackerModuleName+"registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
 	0,
 }
 
@@ -180,8 +181,6 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelem
 		}
 		return nil, err
 	}
-	go e.refreshTelemetry()
-
 	log.Infof("initialized ebpf conntrack")
 	return e, nil
 }
@@ -325,28 +324,6 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
 }
 
-// Refreshes conntracker telemetry on a loop
-// TODO: Replace with prometheus collector interface
-func (e *ebpfConntracker) refreshTelemetry() {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			ebpfTelemetry := &netebpf.ConntrackTelemetry{}
-			if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(ebpfTelemetry)); err != nil {
-				log.Tracef("error retrieving the telemetry struct: %s", err)
-			} else {
-				delta := ebpfTelemetry.Registers - conntrackerTelemetry.lastRegisters
-				conntrackerTelemetry.lastRegisters = ebpfTelemetry.Registers
-				conntrackerTelemetry.registersTotal.Add(float64(delta))
-			}
-		case <-e.stop:
-			return
-		}
-	}
-}
-
 func (e *ebpfConntracker) GetTelemetryMap() *ebpf.Map {
 	return e.telemetryMap
 }
@@ -407,6 +384,23 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 		return nil, it.Err()
 	}
 	return entries, nil
+}
+
+// Describe returns all descriptions of the collector.
+func (e *ebpfConntracker) Describe(ch chan<- *prometheus.Desc) {
+	ch <- conntrackerTelemetry.registersTotal
+}
+
+// Collect returns the current state of all metrics of the collector.
+func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
+	ebpfTelemetry := &netebpf.ConntrackTelemetry{}
+	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(ebpfTelemetry)); err != nil {
+		log.Tracef("error retrieving the telemetry struct: %s", err)
+	} else {
+		delta := ebpfTelemetry.Registers - conntrackerTelemetry.lastRegisters
+		conntrackerTelemetry.lastRegisters = ebpfTelemetry.Registers
+		ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.registersTotal, prometheus.CounterValue, float64(delta))
+	}
 }
 
 func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map, constants []manager.ConstantEditor) (*manager.Manager, error) {

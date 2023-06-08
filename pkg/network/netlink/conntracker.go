@@ -11,13 +11,13 @@ import (
 	"container/list"
 	"context"
 	"fmt"
+	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
 	"net"
 	"net/netip"
 	"sync"
 	"time"
-
-	"github.com/hashicorp/golang-lru/simplelru"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -82,8 +82,8 @@ var conntrackerTelemetry = struct {
 	unregistersTotal    telemetry.Counter
 	evictsTotal         telemetry.Counter
 	registersDropped    telemetry.Counter
-	stateSize           telemetry.Gauge
-	orphanSize          telemetry.Gauge
+	stateSize           *prometheus.Desc
+	orphanSize          *prometheus.Desc
 }{
 	telemetry.NewHistogram(telemetryModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples in the map", defaultBuckets),
 	telemetry.NewHistogram(telemetryModuleName, "registers_duration_nanoseconds", []string{}, "Histogram measuring the time spent updating/creating connection tuples in the map", defaultBuckets),
@@ -93,8 +93,8 @@ var conntrackerTelemetry = struct {
 	telemetry.NewCounter(telemetryModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the map"),
 	telemetry.NewCounter(telemetryModuleName, "evicts_total", []string{}, "Counter measuring the number of evictions from the conntrack cache"),
 	telemetry.NewCounter(telemetryModuleName, "registers_dropped", []string{}, "Counter measuring the number of skipped registers due to a non-NAT connection"),
-	telemetry.NewGauge(telemetryModuleName, "state_size", []string{}, "Gauge measuring the current size of the conntrack cache"),
-	telemetry.NewGauge(telemetryModuleName, "orphan_size", []string{}, "Gauge measuring the number of orphaned items in the conntrack cache"),
+	prometheus.NewDesc(telemetryModuleName+"state_size", "Gauge measuring the current size of the conntrack cache", nil, nil),
+	prometheus.NewDesc(telemetryModuleName+"orphan_size", "Gauge measuring the number of orphaned items in the conntrack cache", nil, nil),
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
@@ -146,8 +146,6 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 		return nil, err
 	}
 
-	go ctr.refreshTelemetry()
-
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", cfg.ConntrackRateLimit)
 	return ctr, nil
 }
@@ -176,22 +174,16 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 	return t.IPTranslation
 }
 
-// Refreshes conntracker telemetry on a loop
-// TODO: Replace with prometheus collector interface
-func (ctr *realConntracker) refreshTelemetry() {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			ctr.RLock()
-			conntrackerTelemetry.stateSize.Set(float64(ctr.cache.cache.Len()))
-			conntrackerTelemetry.orphanSize.Set(float64(ctr.cache.orphans.Len()))
-			ctr.RUnlock()
-		case <-ctr.exit:
-			return
-		}
-	}
+// Describe returns all descriptions of the collector.
+func (ctr *realConntracker) Describe(ch chan<- *prometheus.Desc) {
+	ch <- conntrackerTelemetry.stateSize
+	ch <- conntrackerTelemetry.orphanSize
+}
+
+// Collect returns the current state of all metrics of the collector.
+func (ctr *realConntracker) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.stateSize, prometheus.CounterValue, float64(ctr.cache.cache.Len()))
+	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(ctr.cache.orphans.Len()))
 }
 
 func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {

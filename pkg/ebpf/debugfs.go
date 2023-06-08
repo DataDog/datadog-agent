@@ -10,15 +10,14 @@ package ebpf
 import (
 	"bufio"
 	"fmt"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
+	"github.com/prometheus/client_golang/prometheus"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,11 +27,11 @@ const kProbeTelemetryName = "ebpf__kprobes"
 var myPid int
 
 var debugfsStats = struct {
-	hits   telemetry.Gauge
-	misses telemetry.Gauge
+	hits   *prometheus.Desc
+	misses *prometheus.Desc
 }{
-	telemetry.NewGauge(kProbeTelemetryName, "hits", []string{"name"}, "Gauge tracking number of kprobe hits"),
-	telemetry.NewGauge(kProbeTelemetryName, "misses", []string{"name"}, "Gauge tracking number of kprobe misses"),
+	prometheus.NewDesc(kProbeTelemetryName+"hits", "Gauge tracking number of kprobe hits", nil, nil),
+	prometheus.NewDesc(kProbeTelemetryName+"misses", "Gauge tracking number of kprobe misses", nil, nil),
 }
 
 func init() {
@@ -64,7 +63,7 @@ func getProbeStats(pid int, profile string) map[string]uint64 {
 		pid = myPid
 	}
 
-	m, err := readKprobeProfile(profile)
+	m, err := ReadKprobeProfile(profile)
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
 		return map[string]uint64{}
@@ -87,8 +86,8 @@ func getProbeStats(pid int, profile string) map[string]uint64 {
 		event = strings.ToLower(event)
 		hitsKey := fmt.Sprintf("%s_hits", event)
 		missesKey := fmt.Sprintf("%s_misses", event)
-		debugfsStats.hits.Add(float64(st.Hits), event)
-		debugfsStats.misses.Add(float64(st.Misses), event)
+		//debugfsStats.hits.Add(float64(st.Hits), event)
+		//debugfsStats.misses.Add(float64(st.Misses), event)
 		res[hitsKey] = st.Hits
 		res[missesKey] = st.Misses
 	}
@@ -105,7 +104,7 @@ func GetProbeTotals() KprobeStats {
 		return stats
 	}
 
-	m, err := readKprobeProfile(filepath.Join(root, "kprobe_profile"))
+	m, err := ReadKprobeProfile(filepath.Join(root, "kprobe_profile"))
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
 		return stats
@@ -118,8 +117,8 @@ func GetProbeTotals() KprobeStats {
 	return stats
 }
 
-// readKprobeProfile reads a /sys/kernel/[debug/]tracing/kprobe_profile file and returns a map of probe -> stats
-func readKprobeProfile(path string) (map[string]KprobeStats, error) {
+// ReadKprobeProfile reads a /sys/kernel/[debug/]tracing/kprobe_profile file and returns a map of probe -> stats
+func ReadKprobeProfile(path string) (map[string]KprobeStats, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening kprobe profile file at: %s: %w", path, err)

@@ -11,11 +11,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
-	"time"
-
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
+	"sync"
+	"time"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -214,21 +213,6 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
 	}
-
-	// Refreshes tracer telemetry on a loop
-	// TODO: Replace with prometheus collector interface
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				ddebpf.GetProbeStats()
-			case <-tr.exitTelemetry:
-				return
-			}
-		}
-	}()
 
 	return tr, nil
 }

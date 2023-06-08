@@ -10,6 +10,8 @@ package connection
 import (
 	"errors"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/atomic"
 	"math"
 	"sync"
 	"time"
@@ -27,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -59,8 +60,6 @@ type Tracer interface {
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
-	// RefreshProbeTelemetry sets the prometheus objects to the current values of the underlying stats
-	RefreshProbeTelemetry()
 	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 	// An individual tracer implementation may choose which maps to expose via this function.
 	GetMap(string) *ebpf.Map
@@ -81,24 +80,39 @@ const (
 
 var ConnTracerTelemetry = struct {
 	connections       telemetry.Gauge
-	tcpFailedConnects *nettelemetry.StatCounterWrapper
-	TcpSentMiscounts  *nettelemetry.StatCounterWrapper
-	unbatchedTcpClose *nettelemetry.StatCounterWrapper
-	unbatchedUdpClose *nettelemetry.StatCounterWrapper
-	UdpSendsProcessed *nettelemetry.StatCounterWrapper
-	UdpSendsMissed    *nettelemetry.StatCounterWrapper
-	UdpDroppedConns   *nettelemetry.StatCounterWrapper
-	PidCollisions     *nettelemetry.StatCounterWrapper
+	tcpFailedConnects *prometheus.Desc
+	TcpSentMiscounts  *prometheus.Desc
+	unbatchedTcpClose *prometheus.Desc
+	unbatchedUdpClose *prometheus.Desc
+	UdpSendsProcessed *prometheus.Desc
+	UdpSendsMissed    *prometheus.Desc
+	UdpDroppedConns   *prometheus.Desc
+	PidCollisions     telemetry.Counter
+
+	lastTcpFailedConnects *atomic.Int64
+	lastTcpSentMiscounts  *atomic.Int64
+	lastUnbatchedTcpClose *atomic.Int64
+	lastUnbatchedUdpClose *atomic.Int64
+	lastUdpSendsProcessed *atomic.Int64
+	lastUdpSendsMissed    *atomic.Int64
+	lastUdpDroppedConns   *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_failed_connects", []string{}, "Counter measuring the number of failed TCP connections in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_sent_miscounts", []string{}, "Counter measuring the number of miscounted tcp sends in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "unbatched_tcp_close", []string{}, "Counter measuring the number of missed TCP close events in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "unbatched_udp_close", []string{}, "Counter measuring the number of missed UDP close events in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Counter measuring the number of processed UDP sends in EBPF"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Counter measuring failures to process UDP sends in EBPF"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_dropped_conns", []string{}, "Counter measuring the number of dropped UDP connections in the EBPF map"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
+	prometheus.NewDesc(connTracerModuleName+"tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"tcp_sent_miscounts", "Counter measuring the number of miscounted tcp sends in the EBPF map", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"unbatched_tcp_close", "Counter measuring the number of missed TCP close events in the EBPF map", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"unbatched_udp_close", "Counter measuring the number of missed UDP close events in the EBPF map", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
+	telemetry.NewCounter(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
 }
 
 type tracer struct {
@@ -219,8 +233,6 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		tr.Stop()
 		return nil, fmt.Errorf("error registering ebpf telemetry: %v", err)
 	}
-	go tr.RefreshProbeTelemetry()
-
 	return tr, nil
 }
 
@@ -427,34 +439,44 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	return telemetry
 }
 
-func (t *tracer) RefreshProbeTelemetry() {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			t.refreshProbeTelemetry()
-		case <-t.exitTelemetry:
-			return
-		}
-	}
+// Describe returns all descriptions of the collector.
+func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
+	ch <- ConnTracerTelemetry.UdpDroppedConns
 }
 
-// Refreshes connection tracer telemetry on a loop
-// TODO: Replace with prometheus collector interface
-func (t *tracer) refreshProbeTelemetry() {
+// Collect returns the current state of all metrics of the collector.
+func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 	ebpfTelemetry := t.getEBPFTelemetry()
 	if ebpfTelemetry == nil {
 		return
 	}
+	delta := int64(ebpfTelemetry.Tcp_failed_connect) - ConnTracerTelemetry.lastTcpFailedConnects.Load()
+	ConnTracerTelemetry.lastTcpFailedConnects.Store(int64(ebpfTelemetry.Tcp_failed_connect))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.tcpFailedConnects, prometheus.CounterValue, float64(delta))
 
-	ConnTracerTelemetry.tcpFailedConnects.Add(int64(ebpfTelemetry.Tcp_failed_connect) - ConnTracerTelemetry.tcpFailedConnects.Load())
-	ConnTracerTelemetry.TcpSentMiscounts.Add(int64(ebpfTelemetry.Tcp_sent_miscounts) - ConnTracerTelemetry.TcpSentMiscounts.Load())
-	ConnTracerTelemetry.unbatchedTcpClose.Add(int64(ebpfTelemetry.Unbatched_tcp_close) - ConnTracerTelemetry.unbatchedTcpClose.Load())
-	ConnTracerTelemetry.unbatchedUdpClose.Add(int64(ebpfTelemetry.Unbatched_udp_close) - ConnTracerTelemetry.unbatchedUdpClose.Load())
-	ConnTracerTelemetry.UdpSendsProcessed.Add(int64(ebpfTelemetry.Udp_sends_processed) - ConnTracerTelemetry.UdpSendsProcessed.Load())
-	ConnTracerTelemetry.UdpSendsMissed.Add(int64(ebpfTelemetry.Udp_sends_missed) - ConnTracerTelemetry.UdpSendsMissed.Load())
-	ConnTracerTelemetry.UdpDroppedConns.Add(int64(ebpfTelemetry.Udp_dropped_conns) - ConnTracerTelemetry.UdpDroppedConns.Load())
+	delta = int64(ebpfTelemetry.Tcp_sent_miscounts) - ConnTracerTelemetry.lastTcpSentMiscounts.Load()
+	ConnTracerTelemetry.lastTcpSentMiscounts.Store(int64(ebpfTelemetry.Tcp_sent_miscounts))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.TcpSentMiscounts, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Unbatched_tcp_close) - ConnTracerTelemetry.lastUnbatchedTcpClose.Load()
+	ConnTracerTelemetry.lastUnbatchedTcpClose.Store(int64(ebpfTelemetry.Unbatched_tcp_close))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.unbatchedTcpClose, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Unbatched_udp_close) - ConnTracerTelemetry.lastUnbatchedUdpClose.Load()
+	ConnTracerTelemetry.lastUnbatchedUdpClose.Store(int64(ebpfTelemetry.Unbatched_udp_close))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.unbatchedUdpClose, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Udp_sends_processed) - ConnTracerTelemetry.lastUdpSendsProcessed.Load()
+	ConnTracerTelemetry.lastUdpSendsProcessed.Store(int64(ebpfTelemetry.Udp_sends_processed))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.UdpSendsProcessed, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Udp_sends_missed) - ConnTracerTelemetry.lastUdpSendsMissed.Load()
+	ConnTracerTelemetry.lastUdpSendsMissed.Store(int64(ebpfTelemetry.Udp_sends_missed))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.UdpSendsMissed, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Udp_dropped_conns) - ConnTracerTelemetry.lastUdpDroppedConns.Load()
+	ConnTracerTelemetry.lastUdpDroppedConns.Store(int64(ebpfTelemetry.Udp_dropped_conns))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.UdpDroppedConns, prometheus.CounterValue, float64(delta))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
