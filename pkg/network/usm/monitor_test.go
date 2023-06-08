@@ -229,7 +229,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.ResetConfig(t)
+			config.ResetSystemProbeConfig(t)
 			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
 			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
 			monitor := newHTTPMonitor(t)
