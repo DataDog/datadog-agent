@@ -84,9 +84,7 @@ func key(pieces ...string) string {
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
 	cfg := aconfig.SystemProbe
-	if !sysconfig.IsAdjusted(cfg) {
-		sysconfig.Adjust(cfg)
-	}
+	sysconfig.Adjust(cfg)
 
 	return &Config{
 		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),

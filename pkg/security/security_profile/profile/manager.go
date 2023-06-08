@@ -588,7 +588,7 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 
 	// remove kernel space filters
 	if err := m.securityProfileSyscallsMap.Delete(profile.profileCookie); err != nil {
-		seclog.Errorf("coudln't remove syscalls filter: %v", err)
+		seclog.Errorf("couldn't remove syscalls filter: %v", err)
 	}
 
 	// TODO: delete all kernel space programs
@@ -692,6 +692,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 			profile.lastAnomalyNano[event.GetEventType()] = profile.loadedNano
 			lastAnomalyNano = profile.loadedNano
 		}
+
 		if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
 			return StableProfile
 		}
@@ -710,6 +711,9 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 	// check if the unstable size limit was reached
 	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
+		if newEntry, err := profile.ActivityTree.Contains(event, nodeType); err == nil && newEntry {
+			profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
+		}
 		m.incrementEventFilteringStat(event.GetEventType(), UnstableProfile, NA)
 		return UnstableProfile
 	}

@@ -44,15 +44,15 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.1
 	github.com/DataDog/agent-payload/v5 v5.0.85
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
-	github.com/DataDog/datadog-agent/pkg/gohai v0.46.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.46.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.46.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.46.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.46.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.46.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.46.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.46.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.46.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/gohai v0.46.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.46.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.46.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.46.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.46.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.46.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.46.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.46.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.46.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v1.0.3
 	github.com/DataDog/ebpf-manager v0.2.8-0.20230331131947-0cbd4db2728c
@@ -98,7 +98,7 @@ require (
 	github.com/cri-o/ocicni v0.4.0
 	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/davecgh/go-spew v1.1.1
-	github.com/docker/docker v23.0.6+incompatible
+	github.com/docker/docker v24.0.2+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit v0.4.0
@@ -118,7 +118,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.5.9
-	github.com/google/go-containerregistry v0.12.0
+	github.com/google/go-containerregistry v0.14.0
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20230228050547-1710fef4ab10
@@ -129,8 +129,8 @@ require (
 	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api v1.20.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/golang-lru v0.6.0
-	github.com/hashicorp/golang-lru/v2 v2.0.2
+	github.com/hashicorp/golang-lru v0.6.0 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.3
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/iceber/iouring-go v0.0.0-20220609112130-b1dc8dd9fbfd
 	github.com/imdario/mergo v0.3.15
@@ -151,7 +151,7 @@ require (
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v0.53.0
+	github.com/open-policy-agent/opa v0.53.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.78.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc2.0.20221005185240-3a7f492d3f1b
@@ -162,7 +162,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.15.1
 	github.com/prometheus/client_model v0.4.0
-	github.com/prometheus/procfs v0.10.0
+	github.com/prometheus/procfs v0.10.1
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.38.1
@@ -178,7 +178,7 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/streadway/amqp v1.0.0
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.8.4
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.1.8
 	github.com/twmb/murmur3 v1.1.6
@@ -218,7 +218,7 @@ require (
 	golang.org/x/sys v0.8.0
 	golang.org/x/text v0.9.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.9.1
+	golang.org/x/tools v0.9.3
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/grpc v1.55.0
@@ -325,7 +325,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/containerd/continuity v0.3.0 // indirect
 	github.com/containerd/fifo v1.0.0 // indirect
-	github.com/containerd/stargz-snapshotter/estargz v0.13.0 // indirect
+	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/containerd/ttrpc v1.1.1 // indirect
 	github.com/containernetworking/plugins v1.1.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
@@ -333,7 +333,7 @@ require (
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
-	github.com/docker/cli v23.0.0-rc.1+incompatible // indirect
+	github.com/docker/cli v23.0.1+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
@@ -357,9 +357,9 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/loads v0.21.2 // indirect
-	github.com/go-openapi/runtime v0.25.0 // indirect
-	github.com/go-openapi/spec v0.20.8 // indirect
-	github.com/go-openapi/strfmt v0.21.3 // indirect
+	github.com/go-openapi/runtime v0.26.0 // indirect
+	github.com/go-openapi/spec v0.20.9 // indirect
+	github.com/go-openapi/strfmt v0.21.7 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-openapi/validate v0.22.1 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
@@ -390,7 +390,7 @@ require (
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20221208003206-eaf69f594683
 	github.com/ianlancetaylor/demangle v0.0.0-20220517205856-0058ec4f073c // indirect
-	github.com/in-toto/in-toto-golang v0.7.1 // indirect
+	github.com/in-toto/in-toto-golang v0.8.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
@@ -537,7 +537,7 @@ require (
 	golang.org/x/term v0.8.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gonum.org/v1/gonum v0.13.0 // indirect
-	google.golang.org/api v0.120.0 // indirect
+	google.golang.org/api v0.119.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
@@ -565,7 +565,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.46.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.46.0-rc.2
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/godror/godror v0.37.0
@@ -707,7 +707,7 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
-replace github.com/golang/glog v1.0.0 => github.com/DataDog/glog v1.0.1-0.20211019114809-ec0f43a655b9
+replace github.com/golang/glog v1.1.0 => github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c
 
@@ -742,3 +742,12 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.23.15
 	sigs.k8s.io/custom-metrics-apiserver => sigs.k8s.io/custom-metrics-apiserver v1.23.0
 )
+
+// Fixes CVE-2023-1732, imported by nikos
+replace github.com/cloudflare/circl v1.1.0 => github.com/cloudflare/circl v1.3.3
+
+// Fixes CVE-2023-30551, imported by trivy
+replace github.com/sigstore/rekor v1.0.1 => github.com/sigstore/rekor v1.1.1
+
+// Fixes CVE-2023-26054, imported by trivy
+replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.11.4

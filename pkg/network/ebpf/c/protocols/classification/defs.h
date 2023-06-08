@@ -113,20 +113,4 @@ typedef enum {
     PROG_MAX,
 } protocol_prog_t;
 
-__maybe_unused static __always_inline protocol_prog_t protocol_to_program(protocol_t proto) {
-    switch(proto) {
-    case PROTOCOL_HTTP:
-        return PROG_HTTP;
-    case PROTOCOL_HTTP2:
-        return PROG_HTTP2;
-    case PROTOCOL_KAFKA:
-        return PROG_KAFKA;
-    default:
-        if (proto != PROTOCOL_UNKNOWN) {
-            log_debug("protocol doesn't have a matching program: %d\n", proto);
-        }
-        return PROG_UNKNOWN;
-    }
-}
-
 #endif

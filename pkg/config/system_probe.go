@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type transformerFunction func(string) interface{}
+
 const (
 	spNS                         = "system_probe_config"
 	netNS                        = "network_config"
@@ -118,6 +120,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.mutex_profile_fraction"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), false)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
@@ -208,17 +211,27 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
+	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
-	httpRules := join(netNS, "http_replace_rules")
-	cfg.BindEnv(httpRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
-	cfg.SetEnvKeyTransformer(httpRules, func(in string) interface{} {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			log.Warnf(`%q can not be parsed: %v`, httpRules, err)
+
+	oldHTTPRules := join(netNS, "http_replace_rules")
+	newHTTPRules := join(smNS, "http_replace_rules")
+	cfg.BindEnv(newHTTPRules)
+	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
+	httpRulesTransformer := func(key string) transformerFunction {
+		return func(in string) interface{} {
+			var out []map[string]string
+			if err := json.Unmarshal([]byte(in), &out); err != nil {
+				log.Warnf(`%q can not be parsed: %v`, key, err)
+			}
+			return out
 		}
-		return out
-	})
+	}
+	cfg.SetEnvKeyTransformer(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
+	cfg.SetEnvKeyTransformer(newHTTPRules, httpRulesTransformer(newHTTPRules))
+
 	cfg.BindEnvAndSetDefault(join(netNS, "max_tracked_http_connections"), 1024)
+	cfg.BindEnv(join(smNS, "max_tracked_http_connections"))
 	cfg.BindEnvAndSetDefault(join(netNS, "http_notification_threshold"), 512)
 	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 160)
 

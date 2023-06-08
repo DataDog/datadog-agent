@@ -48,5 +48,9 @@ func GetCloudServiceType() CloudService {
 		return &ContainerApp{}
 	}
 
+	if isAppService() {
+		return &AppService{}
+	}
+
 	return &LocalService{}
 }
