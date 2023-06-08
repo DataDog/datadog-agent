@@ -12,7 +12,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"io"
 	"math/rand"
 	"net"
@@ -29,6 +28,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
