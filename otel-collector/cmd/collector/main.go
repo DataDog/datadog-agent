@@ -122,11 +122,6 @@ func newCommand(buildInfo component.BuildInfo, flagSet *flag.FlagSet) *cobra.Com
 			if err != nil {
 				return err
 			}
-			options := []zap.Option{
-				zap.WrapCore(func(zapcore.Core) zapcore.Core {
-					return zapAgent.NewZapCore()
-				}),
-			}
 			conf := otelcomponents.NewOtelConfig[trace.APIConfig](trace.APIConfig{})
 			return fxutil.OneShot(start,
 				fx.Supply(fx.Annotate(provider, fx.As(new(otelcol.ConfigProvider)))),
@@ -135,7 +130,11 @@ func newCommand(buildInfo component.BuildInfo, flagSet *flag.FlagSet) *cobra.Com
 				fx.Supply(fx.Annotate(conf, fx.As(new(config.Component)))),
 				logComponent.Module,
 				fx.Provide(func() []zap.Option {
-					return options
+					return []zap.Option{
+						zap.WrapCore(func(zapcore.Core) zapcore.Core {
+							return zapAgent.NewZapCore()
+						}),
+					}
 				}),
 				fx.Provide(AsExtension(trace.NewFactory)),
 				fx.Provide(fx.Annotate(otelcomponents.GetExtensionMap, fx.ParamTags(`group:"extension"`))),
