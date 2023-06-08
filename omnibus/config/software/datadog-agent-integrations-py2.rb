@@ -201,21 +201,18 @@ build do
 
     # Creating a hash containing the requirements and requirements file path associated to every lib
     requirements_custom = Hash.new()
-    if windows?
-      win_specific_build_env.each do |lib, env|
-        requirements_custom[lib] = {
-          "req_lines" => Array.new,
-          "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
-          "compiled_req_file_path" => "#{windows_safe_path(install_dir)}\\agent_#{lib}_requirements-py2.txt"
-        }
-      end
-    else
-      nix_specific_build_env.each do |lib, env|
-        requirements_custom[lib] = {
-          "req_lines" => Array.new,
-          "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
-          "compiled_req_file_path" => "#{install_dir}/agent_#{lib}_requirements-py2.txt"
-        }
+
+    specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
+    build_env = windows? ? win_build_env : nix_build_env
+    cwd = windows? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
+
+    specific_build_env.each do |lib, env|
+      compiled_req_file_path = (windows? ? "#{windows_safe_path(install_dir)}\\" : "#{install_dir}/") + "agent_#{lib}_requirements-py2.txt"
+      requirements_custom[lib] = {
+        "req_lines" => Array.new,
+        "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
+        "compiled_req_file_path" => compiled_req_file_path
+      }
       end
     end
 
@@ -264,9 +261,6 @@ build do
 
     # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
     # there's no need to refer to `pip`, the interpreter will pick the right script.
-    build_env = windows? ? win_build_env : nix_build_env
-    specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
-    cwd = windows? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
 
     command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd
     command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
