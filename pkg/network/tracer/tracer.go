@@ -386,9 +386,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
 
-	ips := make([]util.Address, 0, len(delta.Conns)*2)
+	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	for _, conn := range delta.Conns {
-		ips = append(ips, conn.Source, conn.Dest)
+		ips[conn.Source] = struct{}{}
+		ips[conn.Dest] = struct{}{}
 	}
 	names := t.reverseDNS.Resolve(ips)
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
