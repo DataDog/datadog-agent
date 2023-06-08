@@ -268,17 +268,6 @@ build do
     specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
     cwd = windows? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
 
-    p "~~~build_env~~~"
-    build_env.each do |key, value|
-      puts "#{key}:#{value}"
-    end
-    p "~~~specific_build_env~~~"
-    specific_build_env.each do |key, value|
-      puts "#{key}:#{value}"
-    end
-    p "~~~cwd~~~"
-    puts cwd
-
     command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd
     command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
     command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_req_file_path} #{static_reqs_out_file} " \
@@ -289,7 +278,6 @@ build do
       "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
     end
 
-    p "~~~Specific dependencies files~~~"
     #
     # Install static-environment requirements that the Agent and all checks will use
     #
@@ -297,12 +285,8 @@ build do
     # First we install the dependencies that need specific flags
     specific_build_env.each do |lib, env|
       command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
-      p "#{lib}"
-      command "cat #{requirements_custom[lib]["compiled_req_file_path"]}"
     end
 
-    p "~~~General dependencies files~~~"
-    command "cat #{compiled_req_file_path}"
     # Then we install the rest (already installed libraries will be ignored) with the main flags
     command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => build_env
 
