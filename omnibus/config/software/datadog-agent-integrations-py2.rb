@@ -290,7 +290,6 @@ build do
     # Then we install the rest (already installed libraries will be ignored) with the main flags
     command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_req_file_path}", :env => build_env
 
-
     #
     # Install Core integrations
     #
