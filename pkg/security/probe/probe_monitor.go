@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -34,6 +33,7 @@ type Monitor struct {
 	runtimeMonitor         *RuntimeMonitor
 	discarderMonitor       *DiscarderMonitor
 	cgroupsMonitor         *CgroupsMonitor
+	approverMonitor        *ApproverMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -67,7 +67,7 @@ func (m *Monitor) Init() error {
 		}
 	}
 
-	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
+	if p.IsSecurityProfileEnabled() {
 		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver, p.resolvers.TimeResolver, p.Manager)
 		if err != nil {
 			return fmt.Errorf("couldn't create the security profile manager: %w", err)
@@ -81,6 +81,10 @@ func (m *Monitor) Init() error {
 	m.discarderMonitor, err = NewDiscarderMonitor(p.Manager, p.StatsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the discarder monitor: %w", err)
+	}
+	m.approverMonitor, err = NewApproverMonitor(p.Manager, p.StatsdClient)
+	if err != nil {
+		return fmt.Errorf("couldn't create the approver monitor: %w", err)
 	}
 
 	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
@@ -96,6 +100,11 @@ func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
 // GetActivityDumpManager returns the activity dump manager
 func (m *Monitor) GetActivityDumpManager() *dump.ActivityDumpManager {
 	return m.activityDumpManager
+}
+
+// GetSecurityProfileManager returns the activity dump manager
+func (m *Monitor) GetSecurityProfileManager() *profile.SecurityProfileManager {
+	return m.securityProfileManager
 }
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
@@ -180,6 +189,10 @@ func (m *Monitor) SendStats() error {
 		return fmt.Errorf("failed to send cgroups stats: %w", err)
 	}
 
+	if err := m.approverMonitor.SendStats(); err != nil {
+		return fmt.Errorf("failed to send evaluation set stats: %w", err)
+	}
+
 	return nil
 }
 
@@ -188,31 +201,36 @@ func (m *Monitor) ProcessEvent(event *model.Event) {
 	m.loadController.Count(event)
 
 	// handle event errors
-	if event.Error != nil {
-		var notCritical *path.ErrPathResolutionNotCritical
-		if errors.As(event.Error, &notCritical) {
-			return
-		}
-
-		var pathErr *path.ErrPathResolution
-		if errors.As(event.Error, &pathErr) {
-			m.probe.DispatchCustomEvent(
-				NewAbnormalEvent(events.AbnormalPathRuleID, event, m.probe, pathErr.Err),
-			)
-		}
-
-		var processErr *ErrProcessContext
-		if errors.As(event.Error, &processErr) {
-			m.probe.DispatchCustomEvent(
-				NewAbnormalEvent(events.ProcessContextErrorRuleID, event, m.probe, event.Error),
-			)
-		}
-
+	if event.Error == nil {
+		return
+	}
+	var notCritical *path.ErrPathResolutionNotCritical
+	if errors.As(event.Error, &notCritical) {
 		return
 	}
 
-	if m.activityDumpManager != nil {
-		m.activityDumpManager.ProcessEvent(event)
+	var pathErr *path.ErrPathResolution
+	if errors.As(event.Error, &pathErr) {
+		m.probe.DispatchCustomEvent(
+			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, m.probe, pathErr.Err),
+		)
+		return
+	}
+
+	var processContextErr *ErrNoProcessContext
+	if errors.As(event.Error, &processContextErr) {
+		m.probe.DispatchCustomEvent(
+			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, m.probe, event.Error),
+		)
+		return
+	}
+
+	var brokenLineageErr *ErrProcessBrokenLineage
+	if errors.As(event.Error, &brokenLineageErr) {
+		m.probe.DispatchCustomEvent(
+			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, m.probe, event.Error),
+		)
+		return
 	}
 }
 
@@ -239,6 +257,19 @@ func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.Ac
 	return m.activityDumpManager.ListActivityDumps(params)
 }
 
+// ErrSecurityProfileManagerDisabled is returned when the security profile manager is disabled
+var ErrSecurityProfileManagerDisabled = errors.New("SecurityProfileManager is disabled")
+
+// ListSecurityProfiles returns the list of security profiles
+func (m *Monitor) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+	if !m.probe.IsSecurityProfileEnabled() {
+		return &api.SecurityProfileListMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+	return m.securityProfileManager.ListSecurityProfiles(params)
+}
+
 // StopActivityDump stops an active activity dump
 func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	if !m.probe.IsActivityDumpEnabled() {
@@ -261,4 +292,14 @@ func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 
 func (m *Monitor) GetActivityDumpTracedEventTypes() []model.EventType {
 	return m.probe.Config.RuntimeSecurity.ActivityDumpTracedEventTypes
+}
+
+// SaveSecurityProfile saves the requested security profile to disk
+func (m *Monitor) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+	if !m.probe.IsSecurityProfileEnabled() {
+		return &api.SecurityProfileSaveMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+	return m.securityProfileManager.SaveSecurityProfile(params)
 }

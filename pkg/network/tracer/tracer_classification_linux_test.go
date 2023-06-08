@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -65,7 +64,9 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 	tr.removeClient(clientID)
 	initTracerState(t, tr)
 	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
-	params.postTracerSetup(t, params.context)
+	if params.postTracerSetup != nil {
+		params.postTracerSetup(t, params.context)
+	}
 	require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
 
 	params.validation(t, params.context, tr)

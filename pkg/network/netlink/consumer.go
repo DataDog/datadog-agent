@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package netlink
 
@@ -15,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/cihub/seelog"
 	"github.com/mdlayher/netlink"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netns"
@@ -205,7 +205,9 @@ func (c *Consumer) isPeerNS(conn *netlink.Conn, ns netns.NsHandle) bool {
 		return false
 	}
 
-	log.Tracef("netlink reply: %v", msgs)
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("netlink reply: %v", msgs)
+	}
 
 	if msgs[0].Header.Type == netlink.Error {
 		return false

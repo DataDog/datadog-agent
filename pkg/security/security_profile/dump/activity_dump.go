@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
@@ -35,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -62,25 +62,6 @@ const (
 	Running
 )
 
-// Metadata is used to provide context about the activity dump
-type Metadata struct {
-	AgentVersion      string `json:"agent_version"`
-	AgentCommit       string `json:"agent_commit"`
-	KernelVersion     string `json:"kernel_version"`
-	LinuxDistribution string `json:"linux_distribution"`
-	Arch              string `json:"arch"`
-
-	Name              string    `json:"name"`
-	ProtobufVersion   string    `json:"protobuf_version"`
-	DifferentiateArgs bool      `json:"differentiate_args"`
-	Comm              string    `json:"comm,omitempty"`
-	ContainerID       string    `json:"-"`
-	Start             time.Time `json:"start"`
-	End               time.Time `json:"end"`
-	Size              uint64    `json:"activity_dump_size,omitempty"`
-	Serialization     string    `json:"serialization,omitempty"`
-}
-
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
 // the `msg` annotation is used to generate the activity dump file while the encoding described by the `json` annotation
 // is used to generate the activity dump metadata sent to the event platform.
@@ -103,7 +84,7 @@ type ActivityDump struct {
 	StorageRequests map[config.StorageFormat][]config.StorageRequest `json:"-"`
 
 	// Dump metadata
-	Metadata
+	mtdt.Metadata
 
 	// Used to store the global list of DNS names contained in this dump
 	// this is a hack used to provide this global list to the backend in the JSON header
@@ -148,7 +129,7 @@ type WithDumpOption func(ad *ActivityDump)
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
 	ad := NewEmptyActivityDump()
 	now := time.Now()
-	ad.Metadata = Metadata{
+	ad.Metadata = mtdt.Metadata{
 		AgentVersion:      version.AgentVersion,
 		AgentCommit:       version.Commit,
 		KernelVersion:     adm.kernelVersion.Code.String(),
@@ -201,7 +182,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 	ad.Service = msg.GetService()
 	ad.Source = msg.GetSource()
 	ad.Tags = msg.GetTags()
-	ad.Metadata = Metadata{
+	ad.Metadata = mtdt.Metadata{
 		AgentVersion:      metadata.GetAgentVersion(),
 		AgentCommit:       metadata.GetAgentCommit(),
 		KernelVersion:     metadata.GetKernelVersion(),
@@ -576,9 +557,7 @@ func (ad *ActivityDump) Snapshot() error {
 	ad.Lock()
 	defer ad.Unlock()
 
-	if err := ad.ActivityTree.Snapshot(ad.adm.newEvent); err != nil {
-		return fmt.Errorf("couldn't snapshot [%s]: %v", ad.getSelectorStr(), err)
-	}
+	ad.ActivityTree.Snapshot(ad.adm.newEvent)
 
 	// try to resolve the tags now
 	_ = ad.resolveTags()
@@ -618,13 +597,13 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		}
 	}
 
-	return &api.ActivityDumpMessage{
+	msg := &api.ActivityDumpMessage{
 		Host:    ad.Host,
 		Source:  ad.Source,
 		Service: ad.Service,
 		Tags:    ad.Tags,
 		Storage: storage,
-		Metadata: &api.ActivityDumpMetadataMessage{
+		Metadata: &api.MetadataMessage{
 			AgentVersion:      ad.Metadata.AgentVersion,
 			AgentCommit:       ad.Metadata.AgentCommit,
 			KernelVersion:     ad.Metadata.KernelVersion,
@@ -641,6 +620,16 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 		},
 		DNSNames: ad.DNSNames.Keys(),
 	}
+	if ad.ActivityTree != nil {
+		msg.Stats = &api.ActivityTreeStatsMessage{
+			ProcessNodesCount: ad.ActivityTree.Stats.ProcessNodes,
+			FileNodesCount:    ad.ActivityTree.Stats.FileNodes,
+			DNSNodesCount:     ad.ActivityTree.Stats.DNSNodes,
+			SocketNodesCount:  ad.ActivityTree.Stats.SocketNodes,
+			ApproximateSize:   ad.ActivityTree.Stats.ApproximateSize(),
+		}
+	}
+	return msg
 }
 
 // ToTranscodingRequestMessage returns a pointer to a TranscodingRequestMessage
@@ -789,6 +778,8 @@ func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format config.Storage
 		return ad.DecodeProtobuf(reader)
 	case config.Profile:
 		return ad.DecodeProfileProtobuf(reader)
+	case config.Json:
+		return ad.DecodeJSON(reader)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
 	}
@@ -830,6 +821,29 @@ func (ad *ActivityDump) DecodeProfileProtobuf(reader io.Reader) error {
 	}
 
 	securityProfileProtoToActivityDump(ad, inter)
+
+	return nil
+}
+
+func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
+	ad.Lock()
+	defer ad.Unlock()
+
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("couldn't open security profile file: %w", err)
+	}
+
+	opts := protojson.UnmarshalOptions{
+		AllowPartial:   true,
+		DiscardUnknown: true,
+	}
+	inter := &adproto.SecDump{}
+	if err = opts.Unmarshal(raw, inter); err != nil {
+		return fmt.Errorf("couldn't decode json file: %w", err)
+	}
+
+	protoToActivityDump(ad, inter)
 
 	return nil
 }

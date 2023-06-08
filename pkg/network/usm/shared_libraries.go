@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
@@ -16,9 +15,13 @@ import (
 	"regexp"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/gopsutil/process"
+	"github.com/cihub/seelog"
 	"github.com/twmb/murmur3"
 	"golang.org/x/sys/unix"
 
@@ -29,13 +32,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
+	// and lowering it might cause constant cpu usage.
+	scanTerminatedProcessesInterval = 30 * time.Second
+)
+
 func toLibPath(data []byte) http.LibPath {
 	return *(*http.LibPath)(unsafe.Pointer(&data[0]))
 }
 
 func toBytes(l *http.LibPath) []byte {
 	return l.Buf[:l.Len]
-
 }
 
 // pathIdentifier is the unique key (system wide) of a file based on dev/inode
@@ -95,6 +103,8 @@ type soRule struct {
 
 // soWatcher provides a way to tie callback functions to the lifecycle of shared libraries
 type soWatcher struct {
+	wg             sync.WaitGroup
+	done           chan struct{}
 	procRoot       string
 	rules          []soRule
 	loadEvents     *ddebpf.PerfHandler
@@ -115,6 +125,8 @@ type soRegistry struct {
 
 func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 	return &soWatcher{
+		wg:             sync.WaitGroup{},
+		done:           make(chan struct{}),
 		procRoot:       util.GetProcRoot(),
 		rules:          rules,
 		loadEvents:     perfHandler,
@@ -128,16 +140,21 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 }
 
 type soRegistration struct {
-	uniqueProcessesCount int
+	uniqueProcessesCount atomic.Int32
 	unregisterCB         func(pathIdentifier) error
 }
 
 // unregister return true if there are no more reference to this registration
-func (r *soRegistration) unregister(pathID pathIdentifier) bool {
-	r.uniqueProcessesCount--
-	if r.uniqueProcessesCount > 0 {
+func (r *soRegistration) unregisterPath(pathID pathIdentifier) bool {
+	currentUniqueProcessesCount := r.uniqueProcessesCount.Dec()
+	if currentUniqueProcessesCount > 0 {
 		return false
 	}
+	if currentUniqueProcessesCount < 0 {
+		log.Errorf("unregistered %+v too much (current counter %v)", pathID, currentUniqueProcessesCount)
+		return true
+	}
+	// currentUniqueProcessesCount is 0, thus we should unregister.
 	if r.unregisterCB != nil {
 		if err := r.unregisterCB(pathID); err != nil {
 			// Even if we fail here, we have to return true, as best effort methodology.
@@ -149,10 +166,17 @@ func (r *soRegistration) unregister(pathID pathIdentifier) bool {
 }
 
 func newRegistration(unregister func(pathIdentifier) error) *soRegistration {
+	uniqueCounter := atomic.Int32{}
+	uniqueCounter.Store(int32(1))
 	return &soRegistration{
 		unregisterCB:         unregister,
-		uniqueProcessesCount: 1,
+		uniqueProcessesCount: uniqueCounter,
 	}
+}
+
+func (w *soWatcher) Stop() {
+	close(w.done)
+	w.wg.Wait()
 }
 
 // Start consuming shared-library events
@@ -176,7 +200,9 @@ func (w *soWatcher) Start() {
 		}
 		mmaps, err := proc.MemoryMaps(true)
 		if err != nil {
-			log.Tracef("process %d maps parsing failed %s", pid, err)
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("process %d maps parsing failed %s", pid, err)
+			}
 			return nil
 		}
 
@@ -193,28 +219,44 @@ func (w *soWatcher) Start() {
 		return nil
 	})
 
-	if err := w.processMonitor.Initialize(); err != nil {
-		log.Errorf("can't initialize process monitor %s", err)
-		return
-	}
-	cleanupExit, err := w.processMonitor.Subscribe(&monitor.ProcessCallback{
-		Event:    monitor.EXIT,
-		Metadata: monitor.ANY,
-		Callback: w.registry.unregister,
-	})
+	cleanupExit, err := w.processMonitor.SubscribeExit(w.registry.unregister)
 	if err != nil {
 		log.Errorf("can't subscribe to process monitor exit event %s", err)
 		return
 	}
 
+	w.wg.Add(1)
 	go func() {
-		defer cleanupExit()
-		defer w.processMonitor.Stop()
-		// cleanup all uprobes
-		defer w.registry.cleanup()
+		processSync := time.NewTicker(scanTerminatedProcessesInterval)
+
+		defer func() {
+			processSync.Stop()
+			// Removing the registration of our hook.
+			cleanupExit()
+			// Stopping the process monitor (if we're the last instance)
+			w.processMonitor.Stop()
+			// Cleaning up all active hooks.
+			w.registry.cleanup()
+			// marking we're finished.
+			w.wg.Done()
+		}()
 
 		for {
 			select {
+			case <-w.done:
+				return
+			case <-processSync.C:
+				processSet := make(map[int32]struct{})
+				w.registry.m.RLock()
+				for pid := range w.registry.byPID {
+					processSet[int32(pid)] = struct{}{}
+				}
+				w.registry.m.RUnlock()
+
+				deletedPids := monitor.FindDeletedProcesses(processSet)
+				for deletedPid := range deletedPids {
+					w.registry.unregister(int(deletedPid))
+				}
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
 					return
@@ -252,20 +294,19 @@ func (w *soWatcher) Start() {
 	}()
 }
 
-// cleanup removes all registrations
+// cleanup removes all registrations.
+// This function should be called in the termination, and after we're stopping all other goroutines.
 func (r *soRegistry) cleanup() {
-	r.m.Lock()
-	defer r.m.Unlock()
-
 	for pathID, reg := range r.byID {
-		reg.unregister(pathID)
+		reg.unregisterPath(pathID)
 	}
 }
 
 // unregister a pid if exists, unregisterCB will be called if his uniqueProcessesCount == 0
-func (r *soRegistry) unregister(pid uint32) {
+func (r *soRegistry) unregister(pid int) {
+	pidU32 := uint32(pid)
 	r.m.RLock()
-	_, found := r.byPID[pid]
+	_, found := r.byPID[pidU32]
 	r.m.RUnlock()
 	if !found {
 		return
@@ -273,7 +314,7 @@ func (r *soRegistry) unregister(pid uint32) {
 
 	r.m.Lock()
 	defer r.m.Unlock()
-	paths, found := r.byPID[pid]
+	paths, found := r.byPID[pidU32]
 	if !found {
 		return
 	}
@@ -282,12 +323,12 @@ func (r *soRegistry) unregister(pid uint32) {
 		if !found {
 			continue
 		}
-		if reg.unregister(pathID) {
+		if reg.unregisterPath(pathID) {
 			// we need to clean up our entries as there are no more processes using this ELF
 			delete(r.byID, pathID)
 		}
 	}
-	delete(r.byPID, pid)
+	delete(r.byPID, pidU32)
 }
 
 // register a ELF library root/libPath as be used by the pid
@@ -298,7 +339,9 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 	if err != nil {
 		// short living process can hit here
 		// as we receive the openat() syscall info after receiving the EXIT netlink process
-		log.Tracef("can't create path identifier %s", err)
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("can't create path identifier %s", err)
+		}
 		return
 	}
 
@@ -310,7 +353,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 
 	if reg, found := r.byID[pathID]; found {
 		if _, found := r.byPID[pid][pathID]; !found {
-			reg.uniqueProcessesCount++
+			reg.uniqueProcessesCount.Inc()
 			// Can happen if a new process opens the same so.
 			if len(r.byPID[pid]) == 0 {
 				r.byPID[pid] = pathIdentifierSet{}

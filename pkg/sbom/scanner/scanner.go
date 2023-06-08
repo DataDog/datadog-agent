@@ -79,7 +79,7 @@ func (s *Scanner) start(ctx context.Context) {
 		return
 	}
 	go func() {
-		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache_clean_interval"))
+		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache.clean_interval"))
 		defer cleanTicker.Stop()
 		s.running = true
 		defer func() { s.running = false }()
@@ -99,7 +99,6 @@ func (s *Scanner) start(ctx context.Context) {
 				if !ok {
 					return
 				}
-
 				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 
 				sendResult := func(scanResult sbom.ScanResult) {
@@ -125,23 +124,18 @@ func (s *Scanner) start(ctx context.Context) {
 
 				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
 				createdAt := time.Now()
-				report, err := collector.Scan(scanContext, request.ScanRequest, request.opts)
-				generationDuration := time.Since(createdAt)
-				cancel()
-				if err != nil {
+				scanResult := collector.Scan(scanContext, request.ScanRequest, request.opts)
+				if scanResult.Error != nil {
 					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
-					err = fmt.Errorf("an error occurred while generating SBOM for '%s': %w", request.ID(), err)
 				}
 
-				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds())
+				generationDuration := time.Since(createdAt)
+				scanResult.CreatedAt = createdAt
+				scanResult.Duration = generationDuration
 
-				sendResult(sbom.ScanResult{
-					Error:     err,
-					Report:    report,
-					CreatedAt: createdAt,
-					Duration:  generationDuration,
-				})
-
+				cancel()
+				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
+				sendResult(scanResult)
 				if request.opts.WaitAfter != 0 {
 					t := time.NewTimer(request.opts.WaitAfter)
 					select {
@@ -165,7 +159,7 @@ func (s *Scanner) Start(ctx context.Context) {
 // collectors.
 func NewScanner(cfg config.Config) *Scanner {
 	return &Scanner{
-		scanQueue: make(chan scanRequest, 500),
+		scanQueue: make(chan scanRequest, 2000),
 		disk:      filesystem.NewDisk(),
 	}
 }
@@ -174,7 +168,7 @@ func NewScanner(cfg config.Config) *Scanner {
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
 func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
-	if !cfg.GetBool("sbom.enabled") && !cfg.GetBool("container_image_collection.sbom.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
+	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
 

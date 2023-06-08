@@ -267,6 +267,13 @@ namespace Datadog.CustomActions
 
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {
+                    if (isDomainController)
+                    {
+                        // require user to provide a username on domain controllers so that the customer is explicit
+                        // about the username/password that will be created on their domain if it does not exist.
+                        errorDialogMessage = "A username was not provided. A username is a required when installing on Domain Controllers.";
+                        throw new InvalidOperationException(errorDialogMessage);
+                    }
                     // Creds are not in registry and user did not pass a value, use default account name
                     ddAgentUserName = $"{GetDefaultDomainPart()}\\ddagentuser";
                     _session.Log($"No creds provided, using default {ddAgentUserName}");
@@ -320,12 +327,6 @@ namespace Datadog.CustomActions
                     _session["DDAGENTUSER_SID"] = null;
                     _session.Log($"User {ddAgentUserName} doesn't exist.");
 
-                    if (isDomainController)
-                    {
-                        errorDialogMessage = "The account does not exist. The account must already exist when installing on Domain Controllers.";
-                        throw new InvalidOperationException(errorDialogMessage);
-                    }
-
                     ParseUserName(ddAgentUserName, out userName, out domain);
                 }
 
@@ -346,6 +347,7 @@ namespace Datadog.CustomActions
                 // We are trying to create a user in a domain on a non-domain controller.
                 // This must run *after* checking that the domain is not empty.
                 if (!userFound &&
+                    !isDomainController &&
                     domain != Environment.MachineName)
                 {
                     errorDialogMessage = "The account does not exist. Domain accounts must already exist when installing on Domain Clients.";
@@ -360,6 +362,15 @@ namespace Datadog.CustomActions
                 _session["DDAGENTUSER_PROCESSED_FQ_NAME"] = $"{domain}\\{userName}";
 
                 _session["DDAGENTUSER_RESET_PASSWORD"] = null;
+                if (!userFound &&
+                    isDomainController &&
+                    string.IsNullOrEmpty(ddAgentUserPassword))
+                {
+                    // require user to provide a password on domain controllers so that the customer is explicit
+                    // about the username/password that will be created on their domain if it does not exist.
+                    errorDialogMessage = "A password was not provided. A password is a required when installing on Domain Controllers.";
+                    throw new InvalidOperationException(errorDialogMessage);
+                }
                 if (!isServiceAccount &&
                     !isDomainAccount  &&
                     string.IsNullOrEmpty(ddAgentUserPassword))

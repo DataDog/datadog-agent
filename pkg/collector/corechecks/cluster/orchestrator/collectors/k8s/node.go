@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -62,9 +61,6 @@ func (c *NodeCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Nodes()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *NodeCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *NodeCollector) Metadata() *collectors.CollectorMetadata {

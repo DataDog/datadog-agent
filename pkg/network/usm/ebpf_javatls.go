@@ -4,11 +4,11 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"os"
@@ -20,6 +20,8 @@ import (
 
 	"github.com/cilium/ebpf"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/java"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -27,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -36,6 +37,8 @@ const (
 )
 
 var (
+	javaProcessName = []byte("java")
+
 	// path to our java USM agent TLS tracer
 	javaUSMAgentJarPath = ""
 
@@ -130,7 +133,7 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
-		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.ActivatedProbes = append(options.ActivatedProbes,
@@ -146,6 +149,30 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
 }
 
+// isJavaProcess checks if the given PID comm's name is java.
+// The method is much faster and efficient that using process.NewProcess(pid).Name().
+func isJavaProcess(pid int) bool {
+	filePath := filepath.Join(util.GetProcRoot(), strconv.Itoa(pid), "comm")
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		// Waiting a bit, as we might get the event of process creation before the directory was created.
+		for i := 0; i < 3; i++ {
+			time.Sleep(10 * time.Millisecond)
+			// reading again.
+			content, err = os.ReadFile(filePath)
+			if err == nil {
+				break
+			}
+		}
+	}
+
+	if err != nil {
+		// short living process can hit here, or slow start of another process.
+		return false
+	}
+	return bytes.Equal(bytes.TrimSpace(content), javaProcessName)
+}
+
 // isAttachmentAllowed will return true if the pid can be attached
 // The filter is based on the process command line matching javaAgentAllowRegex and javaAgentBlockRegex regex
 // javaAgentAllowRegex has a higher priority
@@ -154,7 +181,10 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 // /                 match  | not match
 // allowRegex only    true  | false
 // blockRegex only    false | true
-func isAttachmentAllowed(pid uint32) bool {
+func isAttachmentAllowed(pid int) bool {
+	if !isJavaProcess(pid) {
+		return false
+	}
 	allowIsSet := javaAgentAllowRegex != nil
 	blockIsSet := javaAgentBlockRegex != nil
 	// filter is disabled (default configuration)
@@ -187,7 +217,7 @@ func isAttachmentAllowed(pid uint32) bool {
 	return true
 }
 
-func newJavaProcess(pid uint32) {
+func newJavaProcess(pid int) {
 	if !isAttachmentAllowed(pid) {
 		log.Debugf("java pid %d attachment rejected", pid)
 		return
@@ -201,26 +231,36 @@ func newJavaProcess(pid uint32) {
 		allArgs = append(allArgs, "dd.trace.debug=true")
 	}
 	args := strings.Join(allArgs, ",")
-	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, args); err != nil {
+	if err := java.InjectAgent(pid, javaUSMAgentJarPath, args); err != nil {
 		log.Error(err)
 	}
 }
 
 func (p *JavaTLSProgram) Start() {
 	var err error
-	p.cleanupExec, err = p.processMonitor.Subscribe(&monitor.ProcessCallback{
-		Event:    monitor.EXEC,
-		Metadata: monitor.NAME,
-		Regex:    regexp.MustCompile("^java$"),
-		Callback: newJavaProcess,
-	})
+	defer func() {
+		if err == nil {
+			return
+		}
+		// In case of an error, we should cleanup the callbacks.
+		if p.cleanupExec != nil {
+			p.cleanupExec()
+		}
+	}()
+
+	p.cleanupExec, err = p.processMonitor.SubscribeExec(newJavaProcess)
 	if err != nil {
 		log.Errorf("process monitor Subscribe() error: %s", err)
+		return
 	}
 }
 
 func (p *JavaTLSProgram) Stop() {
 	if p.cleanupExec != nil {
 		p.cleanupExec()
+	}
+
+	if p.processMonitor != nil {
+		p.processMonitor.Stop()
 	}
 }

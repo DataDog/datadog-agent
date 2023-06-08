@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package kernel
 
@@ -48,6 +47,15 @@ func HostVersion() (Version, error) {
 		return 0, err
 	}
 	return Version(lvc), nil
+}
+
+// MustHostVersion returns the running kernel version of the host
+func MustHostVersion() Version {
+	lvc, err := features.LinuxVersionCode()
+	if err != nil {
+		panic(err)
+	}
+	return Version(lvc)
 }
 
 // ParseVersion parses a string in the format of x.x.x to a Version

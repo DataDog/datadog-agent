@@ -116,10 +116,15 @@
 /cmd/agent/subcommands/workloadlist     @DataDog/container-integrations
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
 /cmd/agent/windows                      @DataDog/windows-agent
-/cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
-/cmd/agent/dist/conf.d/oracle-dbm.d     @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
+/cmd/agent/dist/conf.d/container.d/     @DataDog/container-integrations
+/cmd/agent/dist/conf.d/containerd.d/    @DataDog/container-integrations
+/cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
+/cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
+/cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-platform
+/cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/conf.yaml.default @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
+/cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/*.manifest                   @DataDog/agent-platform
 /cmd/agent/*.mc                         @DataDog/agent-platform
 /cmd/agent/*.rc                         @DataDog/agent-platform
@@ -135,6 +140,9 @@
 /cmd/serverless/                        @DataDog/serverless
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/system-probe/                      @DataDog/ebpf-platform
+/cmd/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks
+/cmd/system-probe/config/adjust_usm.go  @DataDog/ebpf-platform @DataDog/universal-service-monitoring
+/cmd/system-probe/config/adjust_security.go  @DataDog/ebpf-platform @DataDog/agent-security
 /cmd/system-probe/modules/network_tracer*   @DataDog/Networks
 /cmd/system-probe/modules/oom_kill_probe*   @DataDog/container-integrations
 /cmd/system-probe/modules/process*      @DataDog/processes
@@ -199,6 +207,7 @@
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-metrics-logs @DataDog/agent-shared-components
+/pkg/gohai                              @DataDog/agent-shared-components
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metadata/                          @DataDog/agent-shared-components
 /pkg/metrics/                           @DataDog/agent-metrics-logs
@@ -261,6 +270,8 @@
 /pkg/epforwarder/                       @DataDog/agent-shared-components @DataDog/agent-metrics-logs
 /pkg/flare/                             @DataDog/agent-shared-components
 /pkg/otlp/                              @DataDog/opentelemetry
+/pkg/otlp/*_serverless*.go              @DataDog/serverless
+/pkg/otlp/*_not_serverless*.go          @DataDog/opentelemetry
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
 /pkg/proto/                             @DataDog/agent-shared-components
@@ -288,12 +299,14 @@
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/ebpf-platform
 /pkg/util/winutil/                      @DataDog/windows-agent
+/pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/util/netns*.go             @DataDog/Networks
 /pkg/process/checks/net*.go             @DataDog/Networks
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/process/monitor/                   @DataDog/universal-service-monitoring
 /pkg/process/net/                       @DataDog/processes @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
@@ -311,6 +324,7 @@
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
 /pkg/network/encoding/http*             @DataDog/universal-service-monitoring
 /pkg/network/encoding/*usm*             @DataDog/universal-service-monitoring
+/pkg/network/encoding/*_windows*.go     @DataDog/windows-kernel-integrations
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/java/                      @DataDog/universal-service-monitoring
@@ -331,7 +345,7 @@
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/runtime/tcp-queue-length.go  @DataDog/container-integrations
 /pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks @DataDog/universal-service-monitoring
-/pkg/compliance/                        @DataDog/agent-security
+/pkg/compliance/                        @DataDog/agent-cspm
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/netflow/                           @DataDog/network-device-monitoring

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ignore
-// +build ignore
 
 // This script is a dummy emulating the behavior of a secret command used in the Datadog Agent configuration
 // as the value of the environment variable "DD_SECRET_BACKEND_COMMAND" which mirrors the YAML config setting
@@ -17,6 +16,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 )

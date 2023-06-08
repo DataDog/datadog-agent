@@ -84,6 +84,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					commonpath.PyChecksPath,
 					commonpath.DefaultLogFile,
 					commonpath.DefaultJmxLogFile,
+					commonpath.DefaultDogstatsDLogFile,
 				)),
 				flare.Module,
 				core.Bundle,

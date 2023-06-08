@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
@@ -19,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -27,13 +27,21 @@ import (
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
+
+func launchProcessMonitor(t *testing.T) {
+	pm := monitor.GetProcessMonitor()
+	t.Cleanup(pm.Stop)
+	require.NoError(t, pm.Initialize())
+}
 
 func registerProcessTerminationUponCleanup(t *testing.T, cmd *exec.Cmd) {
 	t.Cleanup(func() {
@@ -44,7 +52,18 @@ func registerProcessTerminationUponCleanup(t *testing.T, cmd *exec.Cmd) {
 	})
 }
 
-func TestSharedLibraryDetection(t *testing.T) {
+type SharedLibrarySuite struct {
+	suite.Suite
+}
+
+func TestSharedLibrary(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(SharedLibrarySuite))
+	})
+}
+
+func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
+	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
@@ -68,6 +87,7 @@ func TestSharedLibraryDetection(t *testing.T) {
 		},
 	)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	// create files
 	clientBin := buildSOWatcherClientBin(t)
@@ -93,7 +113,8 @@ func TestSharedLibraryDetection(t *testing.T) {
 	}, time.Second*10, time.Second, "")
 }
 
-func TestSharedLibraryDetectionWithPIDAndRootNameSpace(t *testing.T) {
+func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace() {
+	t := s.T()
 	_, err := os.Stat("/usr/bin/busybox")
 	if err != nil {
 		t.Skip("skip for the moment as some distro are not friendly with busybox package")
@@ -132,6 +153,7 @@ func TestSharedLibraryDetectionWithPIDAndRootNameSpace(t *testing.T) {
 		},
 	)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	time.Sleep(10 * time.Millisecond)
 	// simulate a slow (1 second) : open, write, close of the file
@@ -152,7 +174,8 @@ func TestSharedLibraryDetectionWithPIDAndRootNameSpace(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestSameInodeRegression(t *testing.T) {
+func (s *SharedLibrarySuite) TestSameInodeRegression() {
+	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "a-foo.so")
@@ -176,6 +199,7 @@ func TestSameInodeRegression(t *testing.T) {
 		},
 	)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	clientBin := buildSOWatcherClientBin(t)
 	command1 := exec.Command(clientBin, fooPath1, fooPath2)
@@ -192,6 +216,7 @@ func TestSameInodeRegression(t *testing.T) {
 
 		return int64(1) == registers.Load()
 	}, time.Second*10, time.Second, "")
+
 	require.Len(t, watcher.registry.byID, 1)
 	require.NoError(t, command1.Process.Kill())
 
@@ -203,7 +228,8 @@ func TestSameInodeRegression(t *testing.T) {
 	}, time.Second*10, time.Second, "")
 }
 
-func TestSoWatcherLeaks(t *testing.T) {
+func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
+	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
@@ -225,6 +251,7 @@ func TestSoWatcherLeaks(t *testing.T) {
 		},
 	)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	// create files
 	clientBin := buildSOWatcherClientBin(t)
@@ -283,7 +310,8 @@ func TestSoWatcherLeaks(t *testing.T) {
 	checkWatcherStateIsClean(t, watcher)
 }
 
-func TestSoWatcherProcessAlreadyHoldingReferences(t *testing.T) {
+func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
+	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
@@ -316,6 +344,7 @@ func TestSoWatcherProcessAlreadyHoldingReferences(t *testing.T) {
 	registerProcessTerminationUponCleanup(t, command1)
 	time.Sleep(time.Second)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	require.Eventuallyf(t, func() bool {
 		// Checking both paths exist.
@@ -435,7 +464,7 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 
 	probe := "do_sys_open"
 	excludeSysOpen := "do_sys_openat2"
-	if sysOpenAt2Supported(c) {
+	if sysOpenAt2Supported() {
 		probe = "do_sys_openat2"
 		excludeSysOpen = "do_sys_open"
 	}

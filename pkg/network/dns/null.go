@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows || linux_bpf
-// +build windows linux_bpf
 
 package dns
 
@@ -19,7 +18,7 @@ func NewNullReverseDNS() ReverseDNS {
 
 type nullReverseDNS struct{}
 
-func (nullReverseDNS) Resolve(_ []util.Address) map[util.Address][]Hostname {
+func (nullReverseDNS) Resolve(_ map[util.Address]struct{}) map[util.Address][]Hostname {
 	return nil
 }
 

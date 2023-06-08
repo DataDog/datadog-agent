@@ -253,6 +253,7 @@ func getSharedFxOption() fx.Option {
 			path.PyChecksPath,
 			path.DefaultLogFile,
 			path.DefaultJmxLogFile,
+			path.DefaultDogstatsDLogFile,
 		)),
 		flare.Module,
 		core.Bundle,
@@ -336,9 +337,7 @@ func startAgent(
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
 	expvarPort := pkgconfig.Datadog.GetString("expvar_port")
-	if pkgconfig.Datadog.GetBool("telemetry.enabled") {
-		http.Handle("/telemetry", telemetryHandler)
-	}
+	http.Handle("/telemetry", telemetryHandler)
 	go func() {
 		common.ExpvarServer = &http.Server{
 			Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
@@ -434,6 +433,8 @@ func startAgent(
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
+	opts.UseDogstatsdContextLimiter = true
+	opts.DogstatsdMaxMetricsTags = pkgconfig.Datadog.GetInt("dogstatsd_max_metrics_tags")
 	demux = aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, hostnameDetected)
 
 	// Setup stats telemetry handler

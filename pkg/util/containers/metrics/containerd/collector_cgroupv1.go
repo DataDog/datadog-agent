@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd && linux
-// +build containerd,linux
 
 package containerd
 
@@ -66,6 +65,7 @@ func getMemoryStatsCgroupV1(memStat *v1.MemoryStat) *provider.ContainerMemStats 
 
 	if memStat.Usage != nil {
 		res.UsageTotal = pointer.Ptr(float64(memStat.Usage.Usage))
+		res.WorkingSet = pointer.Ptr(float64(memStat.Usage.Usage - memStat.InactiveFile))
 		res.Limit = pointer.Ptr(float64(memStat.Usage.Limit))
 	}
 
