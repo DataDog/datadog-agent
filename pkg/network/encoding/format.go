@@ -16,6 +16,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -127,7 +128,10 @@ func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[stri
 		return nil
 	}
 
-	ret := make(map[string]int64)
+	// Fetch USM payload telemetry
+	ret := telemetry.ReportPayloadTelemetry("")
+
+	// Merge it with NPM telemetry
 	for k, v := range tel {
 		ret[string(k)] = v
 	}
