@@ -116,6 +116,12 @@ func (c *Check) Run() error {
 				}
 			}
 		}
+		if c.config.SharedMemory.Enabled {
+			err := c.SharedMemory()
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
