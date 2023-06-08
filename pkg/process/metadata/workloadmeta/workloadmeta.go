@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -87,6 +88,24 @@ func getOldProcs(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntity 
 		oldProcs = append(oldProcs, entity)
 	}
 	return oldProcs
+}
+
+// getCacheState returns the entire state of the cache as a `pbgo.WorkloadMetaProcessEvents`
+func (w *WorkloadMetaExtractor) getCacheState() *pbgo.WorkloadMetaProcessEvents {
+	w.cacheMutex.RLock()
+	defer w.cacheMutex.RUnlock()
+
+	setEvents := make([]*pbgo.ProcessEventSet, 0, len(w.cache))
+	for _, proc := range w.cache {
+		setEvents = append(setEvents, &pbgo.ProcessEventSet{
+			Pid:      proc.pid,
+			Language: &pbgo.Language{Name: string(proc.language.Name)},
+		})
+	}
+
+	return &pbgo.WorkloadMetaProcessEvents{
+		SetEvents: setEvents,
+	}
 }
 
 // Enabled returns whether or not the extractor should be enabled
