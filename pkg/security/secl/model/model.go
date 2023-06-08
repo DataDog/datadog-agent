@@ -538,6 +538,18 @@ type Credentials struct {
 	CapPermitted uint64 `field:"cap_permitted"` // SECLDoc[cap_permitted] Definition:`Permitted capability set of the process` Constants:`Kernel Capability constants`
 }
 
+// Equals returns if both credentials are equal
+func (c *Credentials) Equals(o *Credentials) bool {
+	return (c.UID == o.UID &&
+		c.GID == o.GID &&
+		c.EUID == o.EUID &&
+		c.EGID == o.EGID &&
+		c.FSUID == o.FSUID &&
+		c.FSGID == o.FSGID &&
+		c.CapEffective == o.CapEffective &&
+		c.CapPermitted == o.CapPermitted)
+}
+
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (p *Process) GetPathResolutionError() string {
 	return p.FileEvent.GetPathResolutionError()
@@ -584,7 +596,7 @@ type Process struct {
 	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
-	Credentials ``
+	Credentials
 
 	ArgsID uint32 `field:"-" json:"-"`
 	EnvsID uint32 `field:"-" json:"-"`
@@ -651,6 +663,11 @@ type FileFields struct {
 	Flags int32  `field:"-" json:"-"`
 }
 
+// Equals compares two FileFields
+func (f *FileFields) Equals(o *FileFields) bool {
+	return f.Inode == o.Inode && f.MountID == o.MountID && f.MTime == o.MTime && f.UID == o.UID && f.GID == o.GID && f.Mode == o.Mode
+}
+
 // IsFileless return whether it is a file less access
 func (f *FileFields) IsFileless() bool {
 	// TODO(safchain) fix this heuristic by add a flag in the event intead of using mount ID 0
@@ -689,6 +706,11 @@ type FileEvent struct {
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
 	IsBasenameStrResolved bool `field:"-" json:"-"`
+}
+
+// Equals compare two FileEvent
+func (e *FileEvent) Equals(o *FileEvent) bool {
+	return e.FileFields.Equals(&o.FileFields)
 }
 
 // SetPathnameStr set and mark as resolved

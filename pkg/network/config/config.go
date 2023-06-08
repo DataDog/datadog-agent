@@ -256,9 +256,7 @@ func join(pieces ...string) string {
 // New creates a config for the network tracer
 func New() *Config {
 	cfg := ddconfig.SystemProbe
-	if !sysconfig.IsAdjusted(cfg) {
-		sysconfig.Adjust(cfg)
-	}
+	sysconfig.Adjust(cfg)
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),
@@ -301,10 +299,10 @@ func New() *Config {
 		EnableHTTPMonitoring:  cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		MaxHTTPStatsBuffered:  cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
-		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
+		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
 
@@ -342,7 +340,7 @@ func New() *Config {
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 	}
 
-	httpRRKey := join(netNS, "http_replace_rules")
+	httpRRKey := join(smNS, "http_replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {
 		log.Errorf("error parsing %q: %v", httpRRKey, err)

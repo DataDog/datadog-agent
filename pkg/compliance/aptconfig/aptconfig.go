@@ -42,14 +42,13 @@ func LoadConfiguration(ctx context.Context, hostroot string) (string, interface{
 	}()
 
 	aptConfDir := filepath.Join(hostroot, aptConfFragmentsDir)
-
 	aptConfFiles, _ := filepath.Glob(filepath.Join(aptConfDir, "*"))
 	sort.Strings(aptConfFiles)
-	aptConfFiles = append([]string{""}, aptConfFiles...)
+	aptConfFiles = append([]string{filepath.Join(hostroot, aptConfFile)}, aptConfFiles...)
 
 	aptConfs := make(map[string]interface{})
 	for _, path := range aptConfFiles {
-		data, err := readFileLimit(hostroot, path)
+		data, err := readFileLimit(path)
 		if err == nil {
 			conf := parseAPTConfiguration(data)
 			for k, v := range conf {
@@ -74,7 +73,7 @@ func LoadConfiguration(ctx context.Context, hostroot string) (string, interface{
 	sort.Strings(systemdConfFiles)
 
 	for _, path := range systemdConfFiles {
-		data, err := readFileLimit(hostroot, path)
+		data, err := readFileLimit(path)
 		if err == nil {
 			base := filepath.Base(path)
 			conf := parseSystemdConf(data)
@@ -222,15 +221,14 @@ func nextTokenAPT(str string) (string, token) {
 		t.kind = data
 		i = 1
 		for _, r := range str[1:] {
+			i++
 			if r == '"' {
-				if value, err := strconv.Unquote(str[:1+i]); err == nil {
+				if value, err := strconv.Unquote(str[:i]); err == nil {
 					ok = true
 					t.value = value
-					i++
 					break
 				}
 			}
-			i++
 		}
 		if !ok {
 			t.kind = parseError
@@ -262,9 +260,8 @@ func eatWhitespace(str string) string {
 	return str[i:]
 }
 
-func readFileLimit(hostroot, path string) (string, error) {
+func readFileLimit(path string) (string, error) {
 	const maxSize = 64 * 1024
-	path = filepath.Join(hostroot, path)
 	f, err := os.Open(path)
 	if err != nil {
 		return "", err
