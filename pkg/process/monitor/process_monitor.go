@@ -190,11 +190,17 @@ func (pm *ProcessMonitor) mainEventLoop() {
 			switch ev := event.Msg.(type) {
 			case *netlink.ExecProcEvent:
 				pm.execCount.Inc()
+				// handleProcessExec locks a mutex to access the exec callbacks array, if it is empty, then we're
+				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
+				// Checking an atomic boolean, is an atomic operation, hence much faster.
 				if pm.hasExecCallbacks.Load() {
 					pm.handleProcessExec(int(ev.ProcessPid))
 				}
 			case *netlink.ExitProcEvent:
 				pm.exitCount.Inc()
+				// handleProcessExit locks a mutex to access the exit callbacks array, if it is empty, then we're
+				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
+				// Checking an atomic boolean, is an atomic operation, hence much faster.
 				if pm.hasExitCallbacks.Load() {
 					pm.handleProcessExit(int(ev.ProcessPid))
 				}
