@@ -326,7 +326,7 @@ func containsProduct(products []string, product string) bool {
 	return false
 }
 
-// UpdateApplyStatus updates the config's metadata to reflect the
+// UpdateApplyStatus updates the config's metadata to reflect its applied status
 func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
 	c.state.UpdateApplyStatus(cfgPath, status)
 }

@@ -15,6 +15,8 @@ import (
 // Component is the component type.
 type Component interface {
 	// TODO: (components) Start the remote config client to listen to AGENT_TASK configurations
+	// Once the remote config client is refactored and can push updates directly to the listeners,
+	// we can remove this.
 	Listen() error
 }
 

@@ -80,7 +80,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task state.AgentTas
 	if err != nil {
 		return true, err
 	}
-	return true, nil
+	return true, err
 }
 
 // Send sends a flare archive to Datadog
