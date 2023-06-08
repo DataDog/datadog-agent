@@ -26,6 +26,7 @@ import (
 
 var MAX_OPEN_CONNECTIONS = 10
 var DEFAULT_SQL_TRACED_RUNS = 10
+
 var DB_TIMEOUT = "20000"
 
 // The structure is filled by activity sampling and serves as a filter for query metrics
@@ -85,9 +86,10 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.SysMetrics.Enabled {
+		log.Trace("Entered sysmetrics")
 		err := c.SysMetrics()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to collecr sysmetrics %w", err)
 		}
 	}
 	if c.config.Tablespaces.Enabled {
