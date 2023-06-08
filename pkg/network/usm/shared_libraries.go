@@ -20,10 +20,10 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/gopsutil/process"
+	"github.com/cihub/seelog"
 	"github.com/twmb/murmur3"
 	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/gopsutil/process"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -200,7 +200,9 @@ func (w *soWatcher) Start() {
 		}
 		mmaps, err := proc.MemoryMaps(true)
 		if err != nil {
-			log.Tracef("process %d maps parsing failed %s", pid, err)
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("process %d maps parsing failed %s", pid, err)
+			}
 			return nil
 		}
 
@@ -337,7 +339,9 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 	if err != nil {
 		// short living process can hit here
 		// as we receive the openat() syscall info after receiving the EXIT netlink process
-		log.Tracef("can't create path identifier %s", err)
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("can't create path identifier %s", err)
+		}
 		return
 	}
 

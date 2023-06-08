@@ -17,6 +17,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/twmb/murmur3"
 	"golang.org/x/sys/unix"
@@ -424,7 +425,9 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 		// This can happen if we haven't initialized the telemetry object yet
 		// so let's just use a trace log
-		log.Tracef("error retrieving the telemetry struct: %s", err)
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("error retrieving the telemetry struct: %s", err)
+		}
 		return nil
 	}
 	return telemetry

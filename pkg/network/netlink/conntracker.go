@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"golang.org/x/sys/unix"
 
@@ -377,7 +378,9 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 		}
 	}
 
-	log.Tracef("%s", c)
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("%s", c)
+	}
 
 	registerTuple(&c.Origin, &c.Reply)
 	registerTuple(&c.Reply, &c.Origin)
@@ -397,7 +400,9 @@ func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
 
 		cc.cache.Remove(o.key)
 		removed++
-		log.Tracef("removed orphan %+v", o.key)
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("removed orphan %+v", o.key)
+		}
 	}
 
 	return removed
