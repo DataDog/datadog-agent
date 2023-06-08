@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -125,4 +126,21 @@ type mockGrpcListener struct {
 
 func (m *mockGrpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
 	m.Called(procsToDelete, procsToAdd)
+}
+
+func BenchmarkHashProcess(b *testing.B) {
+	b.Run("itoa", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			hashProcess(0, 0)
+		}
+	})
+	b.Run("sprintf", func(b *testing.B) {
+		hashProcess := func(pid int32, createTime int64) string {
+			return fmt.Sprintf("pid:%v|createTime:%v", pid, createTime)
+		}
+
+		for i := 0; i < b.N; i++ {
+			hashProcess(0, 0)
+		}
+	})
 }
