@@ -8,6 +8,7 @@
 package activity_tree
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -164,7 +165,7 @@ func (at *ActivityTree) IsEmpty() bool {
 }
 
 // nolint: unused
-func (at *ActivityTree) debug(w io.Writer) {
+func (at *ActivityTree) Debug(w io.Writer) {
 	for _, root := range at.ProcessNodes {
 		root.debug(w, "")
 	}
@@ -249,7 +250,7 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 	}
 	if node == nil {
 		// a process node couldn't be found or created for this event, ignore it
-		return false, err
+		return false, errors.New("a process node couldn't be found or created for this event")
 	}
 
 	// resolve fields
