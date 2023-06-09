@@ -229,6 +229,7 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
         return 0;
     }
 
+// is_ssl_sock_exist_from_ssl_ctx check if a ssl socket is associated with the context
     if (!is_ssl_sock_exist_from_ssl_ctx(args->ctx, pid_tgid)) {
         goto cleanup;
     }
@@ -335,6 +336,7 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
         goto cleanup;
     }
 
+// is_ssl_sock_exist_from_ssl_ctx check if a ssl socket is associated with the context
     if (!is_ssl_sock_exist_from_ssl_ctx(args->ctx, pid_tgid)) {
         goto cleanup;
     }
@@ -502,6 +504,7 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
         return 0;
     }
 
+// is_ssl_sock_exist_from_ssl_ctx check if a ssl socket is associated with the context
     if (!is_ssl_sock_exist_from_ssl_ctx(args->ctx, pid_tgid)) {
         goto cleanup;
     }
