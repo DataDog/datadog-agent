@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Collect telemetry metrics for SNMP Traps.
+    [pkg/snmp/traps] Collect telemetry metrics for SNMP Traps.
