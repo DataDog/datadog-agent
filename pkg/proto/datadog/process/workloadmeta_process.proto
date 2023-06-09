@@ -4,7 +4,7 @@ package datadog.process;
 
 option go_package = "pkg/proto/pbgo"; // golang
 
-message WorkloadMetaProcessEvents {
+message ProcessStreamResponse {
   int32 eventID = 1;
   repeated ProcessEventSet setEvents = 2;
   repeated ProcessEventUnset unsetEvents = 3;
@@ -27,7 +27,7 @@ message Language {
 }
 
 service ProcessEntityStream {
-  rpc StreamEntities (ProcessStreamEntitiesReq) returns (stream WorkloadMetaProcessEvents);
+  rpc StreamEntities (ProcessStreamEntitiesRequest) returns (stream ProcessStreamResponse);
 }
 
-message ProcessStreamEntitiesReq {}
+message ProcessStreamEntitiesRequest {}
