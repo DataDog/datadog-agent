@@ -116,10 +116,15 @@
 /cmd/agent/subcommands/workloadlist     @DataDog/container-integrations
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
 /cmd/agent/windows                      @DataDog/windows-agent
-/cmd/agent/dist/conf.d/jetson.d         @DataDog/agent-platform
-/cmd/agent/dist/conf.d/oracle-dbm.d     @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
+/cmd/agent/dist/conf.d/container.d/     @DataDog/container-integrations
+/cmd/agent/dist/conf.d/containerd.d/    @DataDog/container-integrations
+/cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
+/cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
+/cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-platform
+/cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/conf.yaml.default @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
+/cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/*.manifest                   @DataDog/agent-platform
 /cmd/agent/*.mc                         @DataDog/agent-platform
 /cmd/agent/*.rc                         @DataDog/agent-platform
@@ -302,6 +307,7 @@
 /pkg/process/util/netns*.go             @DataDog/Networks
 /pkg/process/checks/net*.go             @DataDog/Networks
 /pkg/process/checks/pod*.go             @DataDog/container-app
+/pkg/process/monitor/                   @DataDog/universal-service-monitoring
 /pkg/process/net/                       @DataDog/processes @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone

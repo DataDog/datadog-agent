@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -122,6 +123,13 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			statsdClient = cl
 			defer cl.Flush()
 		}
+	}
+
+	if len(checkArgs.args) == 1 && checkArgs.args[0] == "k8sconfig" {
+		_, resourceData := k8sconfig.LoadConfiguration(context.Background(), os.Getenv("HOST_ROOT"))
+		b, _ := json.MarshalIndent(resourceData, "", "  ")
+		fmt.Println(string(b))
+		return nil
 	}
 
 	var resolver compliance.Resolver
@@ -239,11 +247,7 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 		return fmt.Errorf("reporter: could not create: %w", err)
 	}
 	for _, event := range events {
-		buf, err := json.Marshal(event)
-		if err != nil {
-			return fmt.Errorf("reporter: could not marshal event: %w", err)
-		}
-		reporter.ReportRaw(buf, "")
+		reporter.ReportEvent(event)
 	}
 	return nil
 }

@@ -442,6 +442,8 @@ func startAgent(
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
+	opts.UseDogstatsdContextLimiter = true
+	opts.DogstatsdMaxMetricsTags = pkgconfig.Datadog.GetInt("dogstatsd_max_metrics_tags")
 	demux = aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, hostnameDetected)
 
 	// Setup stats telemetry handler

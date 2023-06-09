@@ -10,6 +10,7 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"io"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -76,6 +77,15 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 	}
 
 	return false
+}
+
+func (agg *Aggregator[P]) GetNames() []string {
+	names := []string{}
+	for name := range agg.payloadsByName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func enflate(payload []byte, encoding string) (enflated []byte, err error) {

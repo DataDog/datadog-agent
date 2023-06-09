@@ -471,17 +471,19 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 	data = append(data, ruleEventJSON[1:]...)
 	seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", rule.ID, string(data))
 
+	eventTags := event.GetTags()
 	msg := &pendingMsg{
 		ruleID:    rule.Definition.ID,
 		data:      data,
 		extTagsCb: extTagsCb,
 		service:   service,
 		sendAfter: time.Now().Add(a.retention),
+		tags:      make([]string, 0, 1+len(rule.Tags)+len(eventTags)+1),
 	}
 
 	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
 	msg.tags = append(msg.tags, rule.Tags...)
-	msg.tags = append(msg.tags, event.GetTags()...)
+	msg.tags = append(msg.tags, eventTags...)
 	msg.tags = append(msg.tags, common.QueryAccountIdTag())
 
 	a.enqueue(msg)

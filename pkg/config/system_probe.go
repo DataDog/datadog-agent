@@ -9,12 +9,15 @@ import (
 	"encoding/json"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+type transformerFunction func(string) interface{}
 
 const (
 	spNS                         = "system_probe_config"
@@ -59,7 +62,15 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
 
-	setupSBOMConfig(cfg, "sbom-sysprobe")
+	// SBOM configuration
+	cfg.BindEnvAndSetDefault("sbom.host.enabled", false)
+	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
+	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
+	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
+	cfg.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
+	cfg.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
+	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -109,9 +120,15 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.mutex_profile_fraction"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), false)
+
+	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.enabled"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.hierarchy"), "v1")
+	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.pressure_levels"), map[string]string{})
+	cfg.BindEnvAndSetDefault(join(spNS, "memory_controller.thresholds"), map[string]string{})
 
 	// ebpf general settings
-	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false, "DD_SYSTEM_PROBE_CONFIG_BPF_DEBUG", "BPF_DEBUG")
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_dir"), defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "java_dir"), defaultSystemProbeJavaDir, "DD_SYSTEM_PROBE_JAVA_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "excluded_linux_versions"), []string{})
@@ -194,17 +211,27 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
+	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
-	httpRules := join(netNS, "http_replace_rules")
-	cfg.BindEnv(httpRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
-	cfg.SetEnvKeyTransformer(httpRules, func(in string) interface{} {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			log.Warnf(`%q can not be parsed: %v`, httpRules, err)
+
+	oldHTTPRules := join(netNS, "http_replace_rules")
+	newHTTPRules := join(smNS, "http_replace_rules")
+	cfg.BindEnv(newHTTPRules)
+	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
+	httpRulesTransformer := func(key string) transformerFunction {
+		return func(in string) interface{} {
+			var out []map[string]string
+			if err := json.Unmarshal([]byte(in), &out); err != nil {
+				log.Warnf(`%q can not be parsed: %v`, key, err)
+			}
+			return out
 		}
-		return out
-	})
+	}
+	cfg.SetEnvKeyTransformer(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
+	cfg.SetEnvKeyTransformer(newHTTPRules, httpRulesTransformer(newHTTPRules))
+
 	cfg.BindEnvAndSetDefault(join(netNS, "max_tracked_http_connections"), 1024)
+	cfg.BindEnv(join(smNS, "max_tracked_http_connections"))
 	cfg.BindEnvAndSetDefault(join(netNS, "http_notification_threshold"), 512)
 	cfg.BindEnvAndSetDefault(join(netNS, "http_max_request_fragment"), 160)
 
@@ -238,9 +265,6 @@ func InitSystemProbeConfig(cfg Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_kernel_filters"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "flush_discarder_window"), 3)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "pid_cache_size"), 10000)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "load_controller.events_count_threshold"), 20000)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "load_controller.discarder_timeout"), 60)
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "load_controller.control_period"), 2)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.tags_cardinality"), "high")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "custom_sensitive_words"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "erpc_dentry_resolution_enabled"), true)
@@ -319,6 +343,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.remote_configuration.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dns_match_max_depth", 0)
 
 	// CWS - Anomaly detection
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.event_types", []string{"exec", "dns"})

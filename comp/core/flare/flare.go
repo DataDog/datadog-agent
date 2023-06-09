@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 // ProfileData maps (pprof) profile names to the profile data.
@@ -56,7 +55,7 @@ func newFlare(deps dependencies) (Component, rcclient.ListenerProvider, error) {
 	return f, rcListener, nil
 }
 
-func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task state.AgentTaskConfig) (bool, error) {
+func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task rcclient.AgentTaskConfig) (bool, error) {
 	if taskType != rcclient.TaskFlare {
 		return false, nil
 	}

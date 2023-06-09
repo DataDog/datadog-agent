@@ -59,6 +59,28 @@ func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
 	return manager, nil
 }
 
+// NewSecurityAgentCommandStorageManager returns a new instance of ActivityDumpStorageManager
+func NewSecurityAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpStorageManager, error) {
+	manager := &ActivityDumpStorageManager{
+		storages: make(map[config.StorageType]ActivityDumpStorage),
+	}
+
+	storage, err := NewActivityDumpLocalStorage(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
+	}
+	manager.storages[storage.GetStorageType()] = storage
+
+	// create remote storage
+	remote, err := NewActivityDumpRemoteStorage()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate remote storage: %w", err)
+	}
+	manager.storages[remote.GetStorageType()] = remote
+
+	return manager, nil
+}
+
 // NewActivityDumpStorageManager returns a new instance of ActivityDumpStorageManager
 func NewActivityDumpStorageManager(cfg *config.Config, statsdClient statsd.ClientInterface, handler ActivityDumpHandler) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
@@ -122,8 +144,12 @@ func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageR
 		if manager.statsdClient != nil {
 			if size := len(raw.Bytes()); size > 0 {
 				tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
-				if err := manager.statsdClient.Gauge(metrics.MetricActivityDumpSizeInBytes, float64(size), tags, 1.0); err != nil {
+				if err := manager.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(size), tags, 1.0); err != nil {
 					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
+				}
+
+				if err := manager.statsdClient.Count(metrics.MetricActivityDumpPersistedDumps, 1, tags, 1.0); err != nil {
+					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpPersistedDumps, err)
 				}
 			}
 		}

@@ -18,7 +18,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -38,36 +37,52 @@ func init() {
 }
 
 func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) error {
-	if !config.Datadog.GetBool("cluster_agent.collect_kubernetes_tags") {
-		return errors.NewDisabled(componentName, "Cluster Agent tag collection is disabled, disabling kubeapiserver collector")
-	}
-
 	apiserverClient, err := apiserver.GetAPIClient()
 	if err != nil {
 		return err
 	}
 
 	client := apiserverClient.Cl
-	namespace := metav1.NamespaceAll
 
-	listerWatcher := &cache.ListWatch{
+	nodeListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return client.CoreV1().Pods(namespace).List(ctx, options)
+			return client.CoreV1().Nodes().List(ctx, options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return client.CoreV1().Pods(namespace).Watch(ctx, options)
+			return client.CoreV1().Nodes().Watch(ctx, options)
 		},
 	}
 
-	reflector := cache.NewNamedReflector(
+	nodeReflector := cache.NewNamedReflector(
 		componentName,
-		listerWatcher,
-		&corev1.Pod{},
-		newReflectorStore(wlmetaStore),
+		nodeListerWatcher,
+		&corev1.Node{},
+		newNodeReflectorStore(wlmetaStore),
 		noResync,
 	)
 
-	go reflector.Run(ctx.Done())
+	go nodeReflector.Run(ctx.Done())
+
+	if config.Datadog.GetBool("cluster_agent.collect_kubernetes_tags") {
+		podListerWatcher := &cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
+			},
+		}
+
+		podReflector := cache.NewNamedReflector(
+			componentName,
+			podListerWatcher,
+			&corev1.Pod{},
+			newPodReflectorStore(wlmetaStore),
+			noResync,
+		)
+
+		go podReflector.Run(ctx.Done())
+	}
 
 	return nil
 }

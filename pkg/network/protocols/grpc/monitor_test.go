@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,10 @@ const (
 )
 
 func TestGRPCScenarios(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", testGRPCScenarios)
+}
+
+func testGRPCScenarios(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true

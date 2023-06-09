@@ -27,7 +27,7 @@ const (
 )
 
 // RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
-type RCAgentTaskListener func(taskType TaskType, task state.AgentTaskConfig) (bool, error)
+type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, error)
 
 type rcClient struct {
 	client        *remote.Client
@@ -65,7 +65,7 @@ func (rc rcClient) Listen() error {
 	rc.client = c
 	rc.taskProcessed = map[string]bool{}
 
-	rc.client.RegisterAgentTaskUpdate(rc.agentTaskUpdateCallback)
+	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
 
 	rc.client.Start()
 
@@ -75,13 +75,22 @@ func (rc rcClient) Listen() error {
 // agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
-func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskConfig) {
+func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 	rc.m.Lock()
 	defer rc.m.Unlock()
 	for configPath, c := range updates {
+		task, err := parseConfigAgentTask(c.Config, c.Metadata)
+		if err != nil {
+			rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			continue
+		}
+
 		// Check that the flare task wasn't already processed
-		if !rc.taskProcessed[c.Config.UUID] {
-			rc.taskProcessed[c.Config.UUID] = true
+		if !rc.taskProcessed[task.Config.UUID] {
+			rc.taskProcessed[task.Config.UUID] = true
 
 			// Mark it as unack first
 			rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
@@ -92,7 +101,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.AgentTaskCon
 			var processed bool
 			// Call all the listeners component
 			for _, l := range rc.listeners {
-				oneProcessed, oneErr := l(TaskType(c.Config.TaskType), c)
+				oneProcessed, oneErr := l(TaskType(task.Config.TaskType), task)
 				// Check if the task was processed at least once
 				processed = oneProcessed || processed
 				if oneErr != nil {
