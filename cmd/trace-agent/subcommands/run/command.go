@@ -61,7 +61,6 @@ func RunTraceAgentFct(cliParams *RunParams, defaultConfPath string, fct interfac
 	}
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
-		fx.Supply(config.NewParams(config.WithTraceConfFilePath(cliParams.ConfPath))),
 		config.Module,
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
 		coreconfig.Module,

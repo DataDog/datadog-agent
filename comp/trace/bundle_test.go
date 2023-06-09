@@ -25,7 +25,6 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Invoke(func(coreconfig.Component) {}),
 		// supply the necessary parameters to populate the agent and trace
 		// configs in the agent.
-		fx.Supply(config.NewParams()),
 		fx.Supply(coreconfig.Params{}),
 		Bundle))
 }
@@ -44,7 +43,6 @@ func TestBundle(t *testing.T) {
 		fx.Invoke(func(coreconfig.Component) {}),
 		// supply the necessary parameters to populate the agent and trace
 		// configs in the agent.
-		fx.Supply(config.NewParams()),
 		fx.Supply(coreconfig.Params{}),
 		MockBundle,
 	))

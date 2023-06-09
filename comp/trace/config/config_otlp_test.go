@@ -26,7 +26,6 @@ func TestFullYamlConfigWithOTLP(t *testing.T) {
 			Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
 			SetupConfig: true,
 		}),
-		fx.Supply(Params{}),
 		MockModule,
 	))
 	cfg := config.Object()

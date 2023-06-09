@@ -34,10 +34,10 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 
 func RunTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) error {
 	return fxutil.OneShot(fct,
-		fx.Supply(config.NewParams(config.WithTraceConfFilePath(params.ConfPath))),
 		config.Module,
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(params.ConfPath)),
 		coreconfig.Module,
+		// TODO: (component)
 		// fx.Supply(log.LogForOneShot(params.LoggerName, "off", true)),
 		// log.Module,
 	)

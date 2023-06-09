@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -50,7 +51,7 @@ const (
 )
 
 func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, error) {
-	confFilePath := deps.Params.traceConfFilePath
+	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config)
 }
@@ -174,10 +175,12 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 			e.NoProxy = noProxy[e.Host]
 		}
 	}
+
 	if addr := core.GetString("proxy.https"); addr != "" {
 		url, err := url.Parse(addr)
 		if err == nil {
 			c.ProxyURL = url
+			c.Proxy = http.ProxyURL(c.ProxyURL)
 		} else {
 			log.Errorf("Failed to parse proxy URL from proxy.https configuration: %s", err)
 		}

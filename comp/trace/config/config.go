@@ -24,7 +24,6 @@ type dependencies struct {
 	fx.In
 
 	Config coreconfig.Component
-	Params Params
 }
 
 // cfg implements the Component.
