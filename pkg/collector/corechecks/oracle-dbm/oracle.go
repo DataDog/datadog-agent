@@ -277,10 +277,6 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.agentVersion = agentVersion.GetNumberAndPre()
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
-	//if c.checkInterval == 15 {
-	c.checkInterval = 10
-	c.config.InitConfig.MinCollectionInterval = 10
-	//}
 	c.tags = c.config.Tags
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
