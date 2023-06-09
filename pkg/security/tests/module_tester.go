@@ -93,8 +93,6 @@ event_monitoring_config:
   network:
     enabled: true
   flush_discarder_window: 0
-  load_controller:
-    events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
