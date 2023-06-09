@@ -42,7 +42,7 @@ const (
 func quircksWaitLib(hostlibPath string) bool {
 	// java netty when injecting libnetty_tcnative_linux_.*.so would copy the file (from his jar) to a workdir
 	// then inject it to the process via System.Loadlibrary()
-	// usually we got the event when the file is just created and contain 0 bytes
+	// usually we get the event when the file was just created and empty
 	return strings.Contains(hostlibPath, "libnetty_tcnative_linux_")
 }
 
