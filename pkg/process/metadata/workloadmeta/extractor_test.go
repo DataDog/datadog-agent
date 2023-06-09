@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -57,7 +58,6 @@ func TestExtractor(t *testing.T) {
 		Pid1: proc1,
 		Pid2: proc2,
 	})
-	mockGrpcListener.AssertExpectations(t)
 	assert.Equal(t, map[string]*ProcessEntity{
 		hashProcess(Pid1, proc1.Stats.CreateTime): {
 			pid:      proc1.Pid,
@@ -68,6 +68,7 @@ func TestExtractor(t *testing.T) {
 			language: &languagemodels.Language{Name: languagemodels.Python},
 		},
 	}, extractor.cache)
+	mockGrpcListener.AssertExpectations(t)
 	writeEvents.Unset()
 
 	// Assert that we write no duplicates
@@ -76,7 +77,6 @@ func TestExtractor(t *testing.T) {
 		Pid1: proc1,
 		Pid2: proc2,
 	})
-	mockGrpcListener.AssertExpectations(t)
 	assert.Equal(t, map[string]*ProcessEntity{
 		hashProcess(Pid1, proc1.Stats.CreateTime): {
 			pid:      proc1.Pid,
@@ -87,10 +87,11 @@ func TestExtractor(t *testing.T) {
 			language: &languagemodels.Language{Name: languagemodels.Python},
 		},
 	}, extractor.cache)
+	mockGrpcListener.AssertExpectations(t)
 	writeEvents.Unset()
 
 	// Assert that old events are evicted from the cache
-	_ = mockGrpcListener.On("writeEvents", []*ProcessEntity{
+	writeEvents = mockGrpcListener.On("writeEvents", []*ProcessEntity{
 		{
 			pid:      Pid1,
 			language: &languagemodels.Language{Name: languagemodels.Java},
@@ -116,6 +117,7 @@ func TestExtractor(t *testing.T) {
 		},
 	}, extractor.cache)
 	mockGrpcListener.AssertExpectations(t)
+	writeEvents.Unset()
 }
 
 var _ mockableGrpcListener = (*mockGrpcListener)(nil)
@@ -125,6 +127,14 @@ type mockGrpcListener struct {
 }
 
 func (m *mockGrpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
+	// Sometimes the arguments come out of order. This is okay. Sort them so we can assert on their values.
+	sort.SliceStable(procsToDelete, func(i, j int) bool {
+		return procsToDelete[i].pid < procsToDelete[j].pid
+	})
+	sort.SliceStable(procsToAdd, func(i, j int) bool {
+		return procsToAdd[i].pid < procsToAdd[j].pid
+	})
+
 	m.Called(procsToDelete, procsToAdd)
 }
 
