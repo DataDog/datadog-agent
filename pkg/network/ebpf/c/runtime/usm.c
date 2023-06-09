@@ -462,7 +462,11 @@ int uprobe__gnutls_record_send(struct pt_regs *ctx) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/gnutls_record_send: pid=%llu ctx=%llx\n", pid_tgid, args.ctx);
-    bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    // buffer could be NULL during non-blocking socket mode, asynchronous gnutls mode
+    // buffer pointer from the previous call should be used
+    if (args.buf != NULL) {
+        bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    }
     return 0;
 }
 
@@ -472,6 +476,11 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
     ssize_t write_len = (ssize_t)PT_REGS_RC(ctx);
     log_debug("uretprobe/gnutls_record_send: pid=%llu len=%d\n", pid_tgid, write_len);
     if (write_len <= 0) {
+        if (write_len == -28) { // GNUTLS_E_AGAIN
+            // don't cleanup if non-blocking socket mode enabled
+            // we need to use buffer from the previous call
+            return 0;
+        }
         goto cleanup;
     }
 
