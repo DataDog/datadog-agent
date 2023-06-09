@@ -43,6 +43,11 @@ func (a *AppService) GetPrefix() string {
 	return "azure.appservice"
 }
 
+// Init is empty for AppService
+func (a *AppService) Init() error {
+	return nil
+}
+
 func isAppService() bool {
 	_, exists := os.LookupEnv(RunZip)
 	return exists
