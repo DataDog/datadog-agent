@@ -130,7 +130,7 @@ func (c *Check) SysMetrics() error {
 	}
 
 	metricRows := []SysmetricsRowDB{}
-	err = c.db.Select(&metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$con_sysmetric"))
+	err = selectWrapper(c, &metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$con_sysmetric"))
 	if err != nil {
 		return fmt.Errorf("failed to collect container sysmetrics: %w", err)
 	}
@@ -140,7 +140,7 @@ func (c *Check) SysMetrics() error {
 	}
 
 	seenInGlobalMetrics := make(map[string]bool)
-	err = c.db.Select(&metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
+	err = selectWrapper(c, &metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
 	if err != nil {
 		return fmt.Errorf("failed to collect sysmetrics: %w", err)
 	}
