@@ -8,5 +8,5 @@
 ---
 upgrade:
   - |
-    Embedded Python 3 interpreter is upgraded to 3.9.16 in both Agent 6 and
+    Embedded Python 3 interpreter is upgraded to 3.9.17 in both Agent 6 and
     Agent 7. Embedded OpenSSL is upgraded to 3.0.9 in Agent 7.
