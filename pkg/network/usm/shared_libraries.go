@@ -27,6 +27,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -110,6 +111,9 @@ type soWatcher struct {
 	loadEvents     *ddebpf.PerfHandler
 	processMonitor *monitor.ProcessMonitor
 	registry       *soRegistry
+
+	libEvents *telemetry.Metric
+	libMatch  *telemetry.Metric
 }
 
 type pathIdentifierSet = map[pathIdentifier]struct{}
@@ -121,9 +125,23 @@ type soRegistry struct {
 
 	// if we can't register a uprobe we don't try more than once
 	blocklistByID pathIdentifierSet
+
+	libRegistered               *telemetry.Metric
+	libAlreadyRegistered        *telemetry.Metric
+	libBlocked                  *telemetry.Metric
+	libUnregistered             *telemetry.Metric
+	libUnregisterNoCB           *telemetry.Metric
+	libUnregisterErrors         *telemetry.Metric
+	libUnregisterPathIDNotFound *telemetry.Metric
 }
 
 func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
+	metricGroup := telemetry.NewMetricGroup(
+		"usm.shared_libraries",
+		telemetry.OptStatsd,
+		telemetry.OptExpvar,
+		telemetry.OptMonotonic,
+	)
 	return &soWatcher{
 		wg:             sync.WaitGroup{},
 		done:           make(chan struct{}),
@@ -135,7 +153,18 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 			byID:          make(map[pathIdentifier]*soRegistration),
 			byPID:         make(map[uint32]pathIdentifierSet),
 			blocklistByID: make(pathIdentifierSet),
+
+			libRegistered:               metricGroup.NewMetric("registered"),
+			libAlreadyRegistered:        metricGroup.NewMetric("already_registered"),
+			libBlocked:                  metricGroup.NewMetric("blocked"),
+			libUnregistered:             metricGroup.NewMetric("unregistered"),
+			libUnregisterNoCB:           metricGroup.NewMetric("unregister_no_callback"),
+			libUnregisterErrors:         metricGroup.NewMetric("unregister_errors"),
+			libUnregisterPathIDNotFound: metricGroup.NewMetric("unregister_pathid_not_found"),
 		},
+
+		libEvents: metricGroup.NewMetric("events"),
+		libMatch:  metricGroup.NewMetric("match"),
 	}
 }
 
@@ -145,13 +174,14 @@ type soRegistration struct {
 }
 
 // unregister return true if there are no more reference to this registration
-func (r *soRegistration) unregisterPath(pathID pathIdentifier) bool {
+func (r *soRegistration) unregisterPath(pathID pathIdentifier, soreg *soRegistry) bool {
 	currentUniqueProcessesCount := r.uniqueProcessesCount.Dec()
 	if currentUniqueProcessesCount > 0 {
 		return false
 	}
 	if currentUniqueProcessesCount < 0 {
 		log.Errorf("unregistered %+v too much (current counter %v)", pathID, currentUniqueProcessesCount)
+		soreg.libUnregisterErrors.Add(1)
 		return true
 	}
 	// currentUniqueProcessesCount is 0, thus we should unregister.
@@ -160,8 +190,12 @@ func (r *soRegistration) unregisterPath(pathID pathIdentifier) bool {
 			// Even if we fail here, we have to return true, as best effort methodology.
 			// We cannot handle the failure, and thus we should continue.
 			log.Warnf("error while unregistering %s : %s", pathID.String(), err)
+			soreg.libUnregisterErrors.Add(1)
 		}
+	} else {
+		soreg.libUnregisterNoCB.Add(1)
 	}
+	soreg.libUnregistered.Add(1)
 	return true
 }
 
@@ -269,6 +303,7 @@ func (w *soWatcher) Start() {
 					continue
 				}
 
+				w.libEvents.Add(1)
 				path := toBytes(&lib)
 				libPath := string(path)
 				procPid := fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
@@ -281,6 +316,7 @@ func (w *soWatcher) Start() {
 
 				for _, r := range w.rules {
 					if r.re.Match(path) {
+						w.libMatch.Add(1)
 						w.registry.register(root, libPath, lib.Pid, r)
 						break
 					}
@@ -298,7 +334,7 @@ func (w *soWatcher) Start() {
 // This function should be called in the termination, and after we're stopping all other goroutines.
 func (r *soRegistry) cleanup() {
 	for pathID, reg := range r.byID {
-		reg.unregisterPath(pathID)
+		reg.unregisterPath(pathID, r)
 	}
 }
 
@@ -321,9 +357,10 @@ func (r *soRegistry) unregister(pid int) {
 	for pathID := range paths {
 		reg, found := r.byID[pathID]
 		if !found {
+			r.libUnregisterPathIDNotFound.Add(1)
 			continue
 		}
-		if reg.unregisterPath(pathID) {
+		if reg.unregisterPath(pathID, r) {
 			// we need to clean up our entries as there are no more processes using this ELF
 			delete(r.byID, pathID)
 		}
@@ -348,6 +385,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 	r.m.Lock()
 	defer r.m.Unlock()
 	if _, found := r.blocklistByID[pathID]; found {
+		r.libBlocked.Add(1)
 		return
 	}
 
@@ -360,6 +398,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 			}
 			r.byPID[pid][pathID] = struct{}{}
 		}
+		r.libAlreadyRegistered.Add(1)
 		return
 	}
 
@@ -374,6 +413,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 		// save sentinel value, so we don't attempt to re-register shared
 		// libraries that are problematic for some reason
 		r.blocklistByID[pathID] = struct{}{}
+		r.libBlocked.Add(1)
 		return
 	}
 
@@ -384,4 +424,5 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 	}
 	r.byPID[pid][pathID] = struct{}{}
 	log.Debugf("registering library %s path %s by pid %d", pathID.String(), hostLibPath, pid)
+	r.libRegistered.Add(1)
 }
