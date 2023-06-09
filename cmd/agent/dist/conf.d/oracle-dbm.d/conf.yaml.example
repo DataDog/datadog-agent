@@ -2,9 +2,9 @@
 #
 init_config:
 
-  ## @param min_collection_interval - int - optional - default:10
+  ## @param min_collection_interval - int - optional - default:15
   ## Active session sampling interval in seconds
-  # min_collection_interval: <interval_in_seconds>
+  min_collection_interval: 10
 
 ## Every instance is scheduled independent of the others.
 #
