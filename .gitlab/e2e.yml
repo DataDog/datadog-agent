@@ -173,6 +173,13 @@ new-e2e-containers-main:
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 
+new-e2e-asc-dev:
+  extends: .new_e2e_template
+  rules: !reference [.on_dev_branch_manual]
+  variables:
+    TARGETS: ./shared-components
+    CONFIGPARAMS: ""
+
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
