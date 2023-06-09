@@ -99,7 +99,6 @@ type PlatformProbe struct {
 	// Approvers / discarders section
 	Erpc                           *erpc.ERPC
 	erpcRequest                    *erpc.ERPCRequest
-	pidDiscarders                  *pidDiscarders
 	inodeDiscarders                *inodeDiscarders
 	notifyDiscarderPushedCallbacks []NotifyDiscarderPushedCallback
 	approvers                      map[eval.EventType]kfilters.ActiveApprovers
@@ -252,7 +251,6 @@ func (p *Probe) Init() error {
 		return fmt.Errorf("failed to init manager: %w", err)
 	}
 
-	p.pidDiscarders = newPidDiscarders(p.Erpc)
 	p.inodeDiscarders = newInodeDiscarders(p.Erpc, p.resolvers.DentryResolver)
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
