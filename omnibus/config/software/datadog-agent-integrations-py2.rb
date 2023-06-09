@@ -15,7 +15,9 @@ dependency 'pip2'
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
   # to compile from source, it requires the `pg_config` executable present on the $PATH
-  dependency 'postgresql'
+  dependency 'postgresql' do
+    version '9.6.9'
+  end
   # same with libffi to build the cffi wheel
   dependency 'libffi'
   # same with libxml2 and libxslt to build the lxml wheel
