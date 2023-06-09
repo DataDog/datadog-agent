@@ -176,6 +176,7 @@ new-e2e-containers-main:
 new-e2e-asc-dev:
   extends: .new_e2e_template
   rules: !reference [.on_dev_branch_manual]
+  needs: []
   variables:
     TARGETS: ./shared-components
     CONFIGPARAMS: ""
