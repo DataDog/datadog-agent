@@ -329,21 +329,50 @@ func markADSubtree(n *activity_tree.ProcessNode, state activity_tree.NodeGenerat
 	}
 }
 
-func diffADSubtree(p1, p2 []*activity_tree.ProcessNode, states map[utils.GraphID]bool) (nodes []*activity_tree.ProcessNode) {
+func diffADDNSNodes(p1, p2 map[string]*activity_tree.DNSNode, states map[string]bool, processID utils.GraphID) (nodes map[string]*activity_tree.DNSNode) {
+	nodes = make(map[string]*activity_tree.DNSNode)
+
+	for domain, n := range p2 {
+		if p1[domain] != nil {
+			newNode := *n
+			nodes[domain] = &newNode
+			continue
+		}
+
+		states[processID.Derive(utils.NewNodeIDFromPtr(n)).String()] = true
+		nodes[domain] = n
+	}
+
+	for domain, n := range p1 {
+		if p2[domain] != nil {
+			continue
+		}
+
+		id := processID.Derive(utils.NewNodeIDFromPtr(n)).String()
+		states[id] = false
+		nodes[domain] = n
+	}
+
+	return nodes
+}
+
+func diffADSubtree(p1, p2 []*activity_tree.ProcessNode, states map[string]bool) (nodes []*activity_tree.ProcessNode) {
 NEXT:
 	for _, n := range p2 {
 		for _, n2 := range p1 {
 			if n.Matches(&n2.Process, false) {
-				newNode := n
-				n.Children = diffADSubtree(n.Children, n2.Children, states)
-				nodes = append(nodes, newNode)
+				newNode := *n
+				processID := utils.NewGraphID(utils.NewNodeIDFromPtr(&newNode))
+				newNode.Children = diffADSubtree(n.Children, n2.Children, states)
+				newNode.DNSNames = diffADDNSNodes(n.DNSNames, n2.DNSNames, states, processID)
+				nodes = append(nodes, &newNode)
 				continue NEXT
 			}
 		}
 
 		nodes = append(nodes, n)
 		markADSubtree(n, addedADNode)
-		states[utils.NewGraphID(utils.NewNodeIDFromPtr(n))] = true
+		states[utils.NewGraphID(utils.NewNodeIDFromPtr(n)).String()] = true
 	}
 
 NEXT2:
@@ -356,13 +385,13 @@ NEXT2:
 
 		nodes = append(nodes, n)
 		markADSubtree(n, removedADNode)
-		states[utils.NewGraphID(utils.NewNodeIDFromPtr(n))] = false
+		states[utils.NewGraphID(utils.NewNodeIDFromPtr(n)).String()] = false
 	}
 
 	return
 }
 
-func computeActivityDumpDiff(p1, p2 *dump.ActivityDump, states map[utils.GraphID]bool) *dump.ActivityDump {
+func computeActivityDumpDiff(p1, p2 *dump.ActivityDump, states map[string]bool) *dump.ActivityDump {
 	return &dump.ActivityDump{
 		Mutex: new(sync.Mutex),
 		ActivityTree: &activity_tree.ActivityTree{
@@ -382,7 +411,7 @@ func diffActivityDump(log log.Component, config config.Component, args *activity
 		return err
 	}
 
-	states := make(map[utils.GraphID]bool)
+	states := make(map[string]bool)
 	diff := computeActivityDumpDiff(ad, ad2, states)
 
 	switch args.format {
@@ -390,7 +419,7 @@ func diffActivityDump(log log.Component, config config.Component, args *activity
 		graph := diff.ToGraph()
 		for i := range graph.Nodes {
 			n := graph.Nodes[i]
-			if state, found := states[n.ID]; found {
+			if state, found := states[n.ID.String()]; found {
 				if state {
 					n.FillColor = "green"
 				} else {
