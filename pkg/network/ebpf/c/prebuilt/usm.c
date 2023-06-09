@@ -441,6 +441,20 @@ cleanup:
     return 0;
 }
 
+// size_t gnutls_record_discard_queued(gnutls_session_t session)
+SEC("uprobe/gnutls_record_discard_queued")
+int uprobe__gnutls_record_discard_queued(struct pt_regs *ctx) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ssl_write_args_t *args = bpf_map_lookup_elem(&ssl_write_args, &pid_tgid);
+    if (args == NULL) {
+        return 0;
+    }
+    if (args->ctx == (void *)PT_REGS_PARM1(ctx)) {
+        bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+    }
+    return 0;
+}
+
 // ssize_t gnutls_record_send (gnutls_session_t session, const void * data, size_t data_size)
 SEC("uprobe/gnutls_record_send")
 int uprobe__gnutls_record_send(struct pt_regs *ctx) {
