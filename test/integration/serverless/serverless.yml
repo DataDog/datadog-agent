@@ -404,7 +404,10 @@ functions:
 
   otlp-python:
     runtime: python3.8
-    handler: src/otlpPython.simple_test
+    # a bug in opentelemetry instrumentation makes it impossible to define a
+    # handler inside of a directory
+    # see https://github.com/open-telemetry/opentelemetry-lambda/issues/655
+    handler: otlpPython.simple_test
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
