@@ -97,9 +97,7 @@ remove_version_history()
 remove_sysprobe_files()
 {
     # removing sbom files and dirs
-    for dir in $(find "$INSTALL_DIR/run" -name "sbom*" -type d); do
-        find "$dir" -delete || true
-    done
+    find "$INSTALL_DIR/run" -name "sbom*" -type d -exec rm -r {} +
 
     # removing security profiles
     find "$INSTALL_DIR/run/runtime-security/profiles" -delete || true
