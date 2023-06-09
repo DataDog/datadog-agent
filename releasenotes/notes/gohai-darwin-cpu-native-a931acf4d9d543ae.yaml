@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Cpu metadata are now collected without executing the sysctl tool on Darwin.
+    Cpu metadata are now collected without running the sysctl binary on Darwin.
