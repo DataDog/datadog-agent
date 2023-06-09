@@ -92,7 +92,7 @@ func NewRepository(embeddedRoot []byte) (*Repository, error) {
 	}
 
 	configs := make(map[string]map[string]interface{})
-	for _, product := range allProducts {
+	for product := range validProducts {
 		configs[product] = make(map[string]interface{})
 	}
 
@@ -117,7 +117,7 @@ func NewRepository(embeddedRoot []byte) (*Repository, error) {
 // to not have to send the initial "embedded" root.
 func NewUnverifiedRepository() (*Repository, error) {
 	configs := make(map[string]map[string]interface{})
-	for _, product := range allProducts {
+	for product := range validProducts {
 		configs[product] = make(map[string]interface{})
 	}
 
@@ -356,8 +356,8 @@ type updateResult struct {
 func newUpdateResult() updateResult {
 	changed := make(map[string]map[string]interface{})
 
-	for _, p := range allProducts {
-		changed[p] = make(map[string]interface{})
+	for product := range validProducts {
+		changed[product] = make(map[string]interface{})
 	}
 
 	return updateResult{
