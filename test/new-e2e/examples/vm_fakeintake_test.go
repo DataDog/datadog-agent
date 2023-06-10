@@ -8,12 +8,19 @@ package examples
 import (
 	_ "embed"
 	"errors"
+	"fmt"
 	"time"
 
 	"testing"
 
+	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	ec2vm "github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2VM"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +51,7 @@ func (s *vmFakeintakeSuite) TestAgent() {
 func (s *vmFakeintakeSuite) TestMetrics() {
 	t := s.T()
 	err := backoff.Retry(func() error {
-		metrics, err := s.Env().Fakeintake.Client.GetMetric("system.uptime")
+		metrics, err := s.Env().Fakeintake.Client.FilterMetrics("system.uptime")
 		if err != nil {
 			return err
 		}
@@ -55,7 +62,7 @@ func (s *vmFakeintakeSuite) TestMetrics() {
 			return errors.New("")
 		}
 		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 20))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
 	require.NoError(t, err)
 }
 
@@ -70,6 +77,85 @@ func (s *vmFakeintakeSuite) TestCheckRuns() {
 			return errors.New("No check run yet")
 		}
 		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 20))
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+	require.NoError(t, err)
+}
+
+func LogsExampleStackDef(vmParams []e2e.Ec2VMOption, agentParams ...func(*agent.Params) error) *e2e.StackDefinition[e2e.AgentEnv] {
+	return e2e.EnvFactoryStackDef(
+		func(ctx *pulumi.Context) (*e2e.AgentEnv, error) {
+			vm, err := ec2vm.NewEc2VM(ctx, vmParams...)
+			if err != nil {
+				return nil, err
+			}
+
+			fakeintakeExporter, err := ecs.NewEcsFakeintake(vm.Infra)
+			if err != nil {
+				return nil, err
+			}
+
+			agentParams = append(agentParams, agent.WithFakeintake(fakeintakeExporter))
+			agentParams = append(agentParams, agent.WithIntegration("custom_logs.d", `logs:
+- type: file
+  path: "/tmp/test.log"
+  service: "custom_logs"
+  source: "custom"`))
+			agentParams = append(agentParams, agent.WithLogs())
+
+			installer, err := agent.NewInstaller(vm, agentParams...)
+			if err != nil {
+				return nil, err
+			}
+			return &e2e.AgentEnv{
+				VM:         client.NewVM(vm),
+				Agent:      client.NewAgent(installer),
+				Fakeintake: client.NewFakeintake(fakeintakeExporter),
+			}, nil
+		},
+	)
+}
+
+func (s *vmFakeintakeSuite) TestLogs() {
+	s.UpdateEnv(LogsExampleStackDef(nil))
+	t := s.T()
+	fakeintake := s.Env().Fakeintake
+	err := backoff.Retry(func() error {
+		logs, err := fakeintake.FilterLogs("custom_logs")
+		if err != nil {
+			return err
+		}
+		if len(logs) != 0 {
+			return errors.New("logs received while none expected")
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+	require.NoError(t, err)
+	_, err = s.Env().VM.ExecuteWithError("echo 'totoro' > /tmp/test.log")
+	require.NoError(t, err)
+	err = backoff.Retry(func() error {
+		names, err := fakeintake.GetLogServiceNames()
+		if err != nil {
+			return err
+		}
+		if len(names) == 0 {
+			return errors.New("no logs received")
+		}
+		logs, err := fakeintake.FilterLogs("custom_logs")
+		if err != nil {
+			return err
+		}
+		if len(logs) != 1 {
+			return errors.New("no logs received")
+		}
+		logs, err = fakeintake.FilterLogs("custom_logs", fi.WithMessageContaining("totoro"))
+		if err != nil {
+			return err
+		}
+		if len(logs) != 1 {
+			return fmt.Errorf("received %v logs with 'tororo', expecting 1", len(logs))
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+
 	require.NoError(t, err)
 }

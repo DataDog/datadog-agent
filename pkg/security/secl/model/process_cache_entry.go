@@ -67,6 +67,11 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 }
 
+// Replace previous entry values by the given one
+func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
+	pc.ExecTime = entry.ExecTime
+}
+
 // Exec replace a process
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetAncestor(pc)
@@ -103,9 +108,12 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.SetParentOfForkChild(pc)
 }
 
-// Equals returns whether process cache entries share the same values for comm and args/envs
+// Equals returns whether process cache entries share the same values for file and args/envs
 func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
-	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
+	return (pc.FileEvent.Equals(&entry.FileEvent) &&
+		pc.Credentials.Equals(&entry.Credentials) &&
+		pc.ArgsEntry.Equals(entry.ArgsEntry) &&
+		pc.EnvsEntry.Equals(entry.EnvsEntry))
 }
 
 // NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions

@@ -253,11 +253,6 @@ func (p *JavaTLSProgram) Start() {
 		log.Errorf("process monitor Subscribe() error: %s", err)
 		return
 	}
-
-	if err = p.processMonitor.Initialize(); err != nil {
-		log.Errorf("failed to initialize process monitor error: %s", err)
-		return
-	}
 }
 
 func (p *JavaTLSProgram) Stop() {

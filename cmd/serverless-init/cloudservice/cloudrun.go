@@ -54,6 +54,11 @@ func (c *CloudRun) GetPrefix() string {
 	return "gcp.run"
 }
 
+// Init is empty for CloudRun
+func (c *CloudRun) Init() error {
+	return nil
+}
+
 func isCloudRunService() bool {
 	_, exists := os.LookupEnv(serviceNameEnvVar)
 	return exists
