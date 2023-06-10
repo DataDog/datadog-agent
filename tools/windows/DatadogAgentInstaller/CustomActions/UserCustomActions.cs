@@ -29,6 +29,9 @@ namespace Datadog.CustomActions
         // Created as needed on a per-customaction basis
         private RollbackDataStore rollbackDataStore;
 
+        private SecurityIdentifier ddAgentUserSID;
+        private SecurityIdentifier previousDdAgentUserSID;
+
         public UserCustomActions(
             ISession session,
             INativeMethods nativeMethods,
@@ -499,28 +502,26 @@ namespace Datadog.CustomActions
         /// <summary>
         /// Add ddagentuser to groups
         /// </summary>
-        /// <param name="sid"></param>
-        private void ConfigureUserGroups(SecurityIdentifier sid)
+        private void ConfigureUserGroups()
         {
-            _nativeMethods.AddToGroup(sid, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
+            _nativeMethods.AddToGroup(ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
             // Builtin\Event Log Readers
-            _nativeMethods.AddToGroup(sid, new SecurityIdentifier("S-1-5-32-573"));
+            _nativeMethods.AddToGroup(ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
         }
 
         /// <summary>
         /// User Rights Assignment for ddagentuser
         /// https://learn.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/user-rights-assignment
         /// </summary>
-        /// <param name="sid"></param>
-        private void ConfigureUserAccountRights(SecurityIdentifier sid)
+        private void ConfigureUserAccountRights()
         {
-            _nativeMethods.AddPrivilege(sid, AccountRightsConstants.SeDenyInteractiveLogonRight);
-            _nativeMethods.AddPrivilege(sid, AccountRightsConstants.SeDenyNetworkLogonRight);
-            _nativeMethods.AddPrivilege(sid, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
-            _nativeMethods.AddPrivilege(sid, AccountRightsConstants.SeServiceLogonRight);
+            _nativeMethods.AddPrivilege(ddAgentUserSID, AccountRightsConstants.SeDenyInteractiveLogonRight);
+            _nativeMethods.AddPrivilege(ddAgentUserSID, AccountRightsConstants.SeDenyNetworkLogonRight);
+            _nativeMethods.AddPrivilege(ddAgentUserSID, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
+            _nativeMethods.AddPrivilege(ddAgentUserSID, AccountRightsConstants.SeServiceLogonRight);
         }
 
-        private void ConfigureRegistryPermissions(SecurityIdentifier sid)
+        private void ConfigureRegistryPermissions()
         {
             // Necessary to allow the ddagentuser to read the registry
             var key = _registryServices.CreateRegistryKey(Registries.LocalMachine,
@@ -540,7 +541,7 @@ namespace Datadog.CustomActions
                 // Give ddagentuser full access, important so it can read settings
                 // TODO: Switch to readonly
                 registrySecurity.AddAccessRule(new RegistryAccessRule(
-                    sid,
+                    ddAgentUserSID,
                     RegistryRights.FullControl,
                     AccessControlType.Allow));
                 registrySecurity.SetAccessRuleProtection(false, true);
@@ -552,7 +553,268 @@ namespace Datadog.CustomActions
             }
         }
 
-        private void ConfigureFilePermissions(SecurityIdentifier ddagentusersid)
+        /// <summary>
+        /// set base permissions on APPLICATIONDATADIRECTORY, restrict access to admins only.
+        /// This clears the ACL, any custom permissions added by customers will be removed.
+        /// Any non-inherited ACE added to children of APPLICATIONDATADIRECTORY will be persisted.
+        /// </summary>
+        private void SetBaseInheritablePermissions()
+        {
+            FileSystemSecurity fileSystemSecurity = new DirectorySecurity();
+            // disable inheritance, discard inherited rules
+            fileSystemSecurity.SetAccessRuleProtection(true, false);
+            // Administrators FullControl
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            // SYSTEM FullControl
+            fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            UpdateAndLogAccessControl(_session.Property("APPLICATIONDATADIRECTORY"), fileSystemSecurity);
+        }
+
+        private SecurityIdentifier GetPreviousAgentUser()
+        {
+            using var subkey =
+                _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+            var domain = subkey.GetValue("installedDomain")?.ToString();
+            var user = subkey.GetValue("installedUser")?.ToString();
+            if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
+            {
+                throw new Exception("Agent user information is not in registry");
+            }
+
+            var name = $"{domain}\\{user}";
+            _session.Log($"Found agent user information in registry {name}");
+            var userFound = _nativeMethods.LookupAccountName(name,
+                out _,
+                out _,
+                out var securityIdentifier,
+                out _);
+            if (!userFound || securityIdentifier == null)
+            {
+                throw new Exception($"Could not find account for user {name}.");
+            }
+
+            _session.Log($"Found previous agent user {name} ({securityIdentifier})");
+            return securityIdentifier;
+        }
+
+        /// <summary>
+        /// Recursively enables inheritance on files in APPLICATIONDATADIRECTORY
+        /// Removes any redundant explicit ACEs for the agent user
+        /// If changing the agent user, removes the previous agent user as owner of any files in APPLICATIONDATADIRECTORY
+        /// </summary>
+        private void EnablePermissionInheritance()
+        {
+            // Ensure that inheritance is enabled on all files/folders in the config directory.
+            // This is important so that @SetBaseInheritablePermissions are applied and the agent
+            // user has access where it needs it.
+            // If changing agent user, remove old user as owner/group from all files/folders
+            foreach (var filePath in Directory.EnumerateFileSystemEntries(
+                         _session.Property("APPLICATIONDATADIRECTORY"),
+                         "*.*", SearchOption.AllDirectories))
+            {
+                FileSystemSecurity fileSystemSecurity =
+                    _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+                bool changed = false;
+
+                // If changing agent user, remove old user as owner/group from all files/folders
+                if (previousDdAgentUserSID != null && previousDdAgentUserSID != ddAgentUserSID)
+                {
+                    changed |= RemoveOwnerGroup(filePath, fileSystemSecurity, previousDdAgentUserSID);
+                }
+
+                // Ensure that inheritance is enabled on all files/folders in the config directory
+                if (fileSystemSecurity.AreAccessRulesProtected)
+                {
+                    // enable inheritance
+                    fileSystemSecurity.SetAccessRuleProtection(false, true);
+                    changed = true;
+
+                    changed |= RemoveRedundantExplicitAccess(filePath, fileSystemSecurity);
+                }
+
+                if (changed)
+                {
+                    UpdateAndLogAccessControl(filePath, fileSystemSecurity);
+                }
+            }
+        }
+
+        private void UpdateAndLogAccessControl(string filePath, FileSystemSecurity fileSystemSecurity)
+        {
+            var oldfs =
+                _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+            _session.Log(
+                $"{filePath} current ACLs: {oldfs.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+
+            rollbackDataStore.Add(new FilePermissionRollbackInfo(filePath, _fileSystemServices));
+            _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
+
+            var newfs = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+            _session.Log(
+                $"{filePath} new ACLs: {newfs.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+        }
+
+        private bool RemoveOwnerGroup(string filePath, FileSystemSecurity fileSystemSecurity, SecurityIdentifier sid)
+        {
+            var changed = false;
+            var owner = (SecurityIdentifier)fileSystemSecurity.GetOwner(typeof(SecurityIdentifier));
+            if ((SecurityIdentifier)owner == sid)
+            {
+                _session.Log($"{filePath} setting owner to SYSTEM");
+                fileSystemSecurity.SetOwner(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
+                changed = true;
+            }
+
+            var group = fileSystemSecurity.GetGroup(typeof(SecurityIdentifier));
+            if ((SecurityIdentifier)group == sid)
+            {
+                _session.Log($"{filePath} setting group to SYSTEM");
+                fileSystemSecurity.SetGroup(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// Remove explicit access rules added by the pre-7.47 installer that now have inherited analogues
+        /// </summary>
+        private bool RemoveRedundantExplicitAccess(string filePath, FileSystemSecurity fileSystemSecurity)
+        {
+            var changed = false;
+            // Remove explicit access rules added by the pre-7.47 installer that will now have inherited analogues
+            foreach (var sid in new SecurityIdentifier[]
+                     {
+                         new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                         new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                         ddAgentUserSID,
+                         previousDdAgentUserSID
+                     })
+            {
+                if (sid == null)
+                {
+                    continue;
+                }
+
+                if (fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                        sid,
+                        FileSystemRights.FullControl,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow)))
+                {
+                    _session.Log($"{filePath} removing explicit access rule for {sid}");
+                    changed = true;
+                }
+            }
+
+            // Use AccessRuleFactory instead of a FileSystemAccessRule constructor because they all
+            // automatically add FileSystemRights.Synchronize which was not included by the pre-7.47 installer.
+            if (fileSystemSecurity.RemoveAccessRule(
+                    (FileSystemAccessRule)fileSystemSecurity.AccessRuleFactory(
+                        new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+                        (int)FileSystemRights.ChangePermissions,
+                        false,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow)))
+            {
+                _session.Log($"{filePath} removing explicit access rule for Users");
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        /// <summary>
+        /// Add explicit ACE for the agent user
+        /// Remove explicit ACE for old agent user if changing the agent user
+        /// </summary>
+        private void GrantAgentAccessPermissions()
+        {
+            // add ddagentuser FullControl to select places
+            foreach (var filePath in pathsWithAgentAccess())
+            {
+                if (!_fileSystemServices.Exists(filePath))
+                {
+                    if (filePath.Contains("embedded3"))
+                    {
+                        throw new InvalidOperationException($"The file {filePath} doesn't exist, but it should");
+                    }
+
+                    _session.Log($"{filePath} does not exists, skipping changing ACLs.");
+                    continue;
+                }
+
+                FileSystemSecurity fileSystemSecurity;
+                try
+                {
+                    fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to get ACLs on {filePath}: {e}");
+                    throw;
+                }
+
+                // if changing user during change/repair make sure to remove the rule for the old user
+                // if this is an upgrade assume the removing installer properly removes its permissions.
+                if (previousDdAgentUserSID != null && previousDdAgentUserSID != ddAgentUserSID &&
+                    string.IsNullOrEmpty(_session.Property("WIX_UPGRADE_DETECTED")))
+                {
+                    if (fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
+                            previousDdAgentUserSID,
+                            FileSystemRights.FullControl,
+                            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                            PropagationFlags.None,
+                            AccessControlType.Allow)))
+                    {
+                        _session.Log($"{filePath} removing explicit access rule for {previousDdAgentUserSID}");
+                    }
+                }
+
+                if (_fileSystemServices.IsDirectory(filePath))
+                {
+                    // ddagentuser FullControl, enable child inheritance of this ACE
+                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                        ddAgentUserSID,
+                        FileSystemRights.FullControl,
+                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                        PropagationFlags.None,
+                        AccessControlType.Allow));
+                }
+                else if (_fileSystemServices.IsFile(filePath))
+                {
+                    // ddagentuser FullControl
+                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
+                        ddAgentUserSID,
+                        FileSystemRights.FullControl,
+                        AccessControlType.Allow));
+                }
+
+                try
+                {
+                    UpdateAndLogAccessControl(filePath, fileSystemSecurity);
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to set ACLs on {filePath}: {e}");
+                    throw;
+                }
+            }
+        }
+
+        private void ConfigureFilePermissions()
         {
             try
             {
@@ -567,251 +829,11 @@ namespace Datadog.CustomActions
                         $"Failed to enable SeRestorePrivilege. Some file permissions may not be able to be set/rolled back: {e}");
                 }
 
-                // set base permissions on APPLICATIONDATADIRECTORY, restrict access to admins only.
-                // This clears the ACL, any custom permissions added by customers will be removed.
-                // Any non-inherited ACE added to children of APPLICATIONDATADIRECTORY will be persisted.
-                {
-                    FileSystemSecurity fileSystemSecurity = new DirectorySecurity();
-                    // disable inheritance, discard inherited rules
-                    fileSystemSecurity.SetAccessRuleProtection(true, false);
-                    // Administrators FullControl
-                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                        new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                        FileSystemRights.FullControl,
-                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                        PropagationFlags.None,
-                        AccessControlType.Allow));
-                    // SYSTEM FullControl
-                    fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                        new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                        FileSystemRights.FullControl,
-                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                        PropagationFlags.None,
-                        AccessControlType.Allow));
-                    rollbackDataStore.Add(
-                        new FilePermissionRollbackInfo(_session.Property("APPLICATIONDATADIRECTORY"),
-                            _fileSystemServices));
-                    _fileSystemServices.SetAccessControl(_session.Property("APPLICATIONDATADIRECTORY"),
-                        fileSystemSecurity);
-                }
+                SetBaseInheritablePermissions();
 
-                // lookup previous agent user SID so we can remove permissions for it
-                SecurityIdentifier previousAgentUserSid = null;
-                try
-                {
-                    using var subkey =
-                        _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
-                    var domain = subkey.GetValue("installedDomain")?.ToString();
-                    var user = subkey.GetValue("installedUser")?.ToString();
-                    if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
-                    {
-                        throw new Exception("Agent user information is not in registry");
-                    }
+                EnablePermissionInheritance();
 
-                    var name = $"{domain}\\{user}";
-                    _session.Log($"Found agent user information in registry {name}");
-                    var userFound = _nativeMethods.LookupAccountName(name,
-                        out _,
-                        out _,
-                        out var securityIdentifier,
-                        out _);
-                    if (!userFound)
-                    {
-                        throw new Exception($"Could not find account for user {name}.");
-                    }
-
-                    if (securityIdentifier != ddagentusersid)
-                    {
-                        // previous agent user is a different account than is being installed with now.
-                        // save the SID it can be removed from the appropriate ACLs.
-                        previousAgentUserSid = securityIdentifier;
-                        _session.Log($"Found previous agent user {name} ({securityIdentifier})");
-                    }
-                }
-                catch (Exception e)
-                {
-                    _session.Log($"Could not lookup SID for previous agent user: {e}");
-                }
-
-                // Ensure that inheritance is enabled on all files/folders in the config directory
-                // If changing agent user, remove old user as owner/group from all files/folders
-                foreach (var filePath in Directory.EnumerateFileSystemEntries(
-                             _session.Property("APPLICATIONDATADIRECTORY"),
-                             "*.*", SearchOption.AllDirectories))
-                {
-                    FileSystemSecurity fileSystemSecurity =
-                        _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-                    bool changed = false;
-
-                    // If changing agent user, remove old user as owner/group from all files/folders
-                    if (previousAgentUserSid != null && previousAgentUserSid != ddagentusersid)
-                    {
-                        var owner = (SecurityIdentifier)fileSystemSecurity.GetOwner(typeof(SecurityIdentifier));
-                        if ((SecurityIdentifier)owner == previousAgentUserSid)
-                        {
-                            _session.Log($"{filePath} setting owner to SYSTEM");
-                            fileSystemSecurity.SetOwner(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
-                            changed = true;
-                        }
-
-                        var group = fileSystemSecurity.GetGroup(typeof(SecurityIdentifier));
-                        if ((SecurityIdentifier)group == previousAgentUserSid)
-                        {
-                            _session.Log($"{filePath} setting group to SYSTEM");
-                            fileSystemSecurity.SetGroup(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
-                            changed = true;
-                        }
-                    }
-
-                    // Ensure that inheritance is enabled on all files/folders in the config directory
-                    if (fileSystemSecurity.AreAccessRulesProtected)
-                    {
-                        // enable inheritance
-                        fileSystemSecurity.SetAccessRuleProtection(false, true);
-                        changed = true;
-                        // Remove explicit access rules added by the pre-7.47 installer that will now have inherited analogues
-                        foreach (var sid in new SecurityIdentifier[]
-                                 {
-                                     new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                                     new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                                     ddagentusersid,
-                                     previousAgentUserSid
-                                 })
-                        {
-                            if (sid == null)
-                            {
-                                continue;
-                            }
-
-                            if (fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
-                                    sid,
-                                    FileSystemRights.FullControl,
-                                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                                    PropagationFlags.None,
-                                    AccessControlType.Allow)))
-                            {
-                                _session.Log($"{filePath} removing explicit access rule for {sid}");
-                            }
-
-                            changed = true;
-                        }
-
-                        // Use AccessRuleFactory instead of a FileSystemAccessRule constructor because they all
-                        // automatically add FileSystemRights.Synchronize which was not included by the pre-7.47 installer.
-                        if (fileSystemSecurity.RemoveAccessRule(
-                                (FileSystemAccessRule)fileSystemSecurity.AccessRuleFactory(
-                                    new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
-                                    (int)FileSystemRights.ChangePermissions,
-                                    false,
-                                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                                    PropagationFlags.None,
-                                    AccessControlType.Allow)))
-                        {
-                            _session.Log($"{filePath} removing explicit access rule for Users");
-                        }
-
-                        changed = true;
-                    }
-
-                    if (changed)
-                    {
-                        var oldfs =
-                            _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-                        _session.Log(
-                            $"{filePath} current ACLs: {oldfs.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-                        rollbackDataStore.Add(new FilePermissionRollbackInfo(filePath, _fileSystemServices));
-                        _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
-                        var newfs = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-                        _session.Log(
-                            $"{filePath} new ACLs: {newfs.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-                    }
-                }
-
-                // add ddagentuser FullControl to select places
-                foreach (var filePath in pathsWithAgentAccess())
-                {
-                    if (!_fileSystemServices.Exists(filePath))
-                    {
-                        if (filePath.Contains("embedded3"))
-                        {
-                            throw new InvalidOperationException($"The file {filePath} doesn't exist, but it should");
-                        }
-
-                        _session.Log($"{filePath} does not exists, skipping changing ACLs.");
-                        continue;
-                    }
-
-                    FileSystemSecurity fileSystemSecurity;
-                    try
-                    {
-                        fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-                    }
-                    catch (Exception e)
-                    {
-                        _session.Log($"Failed to get ACLs on {filePath}: {e}");
-                        throw;
-                    }
-
-                    _session.Log(
-                        $"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-
-                    // if changing user during change/repair make sure to remove the rule for the old user
-                    // if this is an upgrade assume the removing installer properly removes its permissions.
-                    if (previousAgentUserSid != null && previousAgentUserSid != ddagentusersid &&
-                        string.IsNullOrEmpty(_session.Property("WIX_UPGRADE_DETECTED")))
-                    {
-                        if (fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
-                                previousAgentUserSid,
-                                FileSystemRights.FullControl,
-                                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                                PropagationFlags.None,
-                                AccessControlType.Allow)))
-                        {
-                            _session.Log($"{filePath} removing explicit access rule for {previousAgentUserSid}");
-                        }
-                    }
-
-                    if (_fileSystemServices.IsDirectory(filePath))
-                    {
-                        // ddagentuser FullControl, enable child inheritance of this ACE
-                        fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                            ddagentusersid,
-                            FileSystemRights.FullControl,
-                            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                            PropagationFlags.None,
-                            AccessControlType.Allow));
-                    }
-                    else if (_fileSystemServices.IsFile(filePath))
-                    {
-                        // ddagentuser FullControl
-                        fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                            ddagentusersid,
-                            FileSystemRights.FullControl,
-                            AccessControlType.Allow));
-                    }
-
-                    try
-                    {
-                        rollbackDataStore.Add(new FilePermissionRollbackInfo(filePath, _fileSystemServices));
-                        _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
-                    }
-                    catch (Exception e)
-                    {
-                        _session.Log($"Failed to set ACLs on {filePath}: {e}");
-                        throw;
-                    }
-
-                    try
-                    {
-                        fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-                        _session.Log(
-                            $"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-                    }
-                    catch (Exception e)
-                    {
-                        _session.Log($"Failed to get ACLs on {filePath}: {e}");
-                    }
-                }
+                GrantAgentAccessPermissions();
             }
             catch (Exception e)
             {
@@ -835,11 +857,21 @@ namespace Datadog.CustomActions
                 var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
                     out _,
                     out _,
-                    out var securityIdentifier,
+                    out ddAgentUserSID,
                     out _);
-                if (!userFound)
+                if (!userFound || ddAgentUserSID == null)
                 {
                     throw new Exception($"Could not find user {ddAgentUserName}.");
+                }
+
+                try
+                {
+                    previousDdAgentUserSID = GetPreviousAgentUser();
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Could not find previous agent user: {e}");
+                    previousDdAgentUserSID = null;
                 }
 
                 var resetPassword = _session.Property("DDAGENTUSER_RESET_PASSWORD");
@@ -864,8 +896,8 @@ namespace Datadog.CustomActions
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);
                 }
-                ConfigureUserGroups(securityIdentifier);
-                ConfigureUserAccountRights(securityIdentifier);
+                ConfigureUserGroups();
+                ConfigureUserAccountRights();
 
                 {
                     using var actionRecord = new Record(
@@ -875,7 +907,7 @@ namespace Datadog.CustomActions
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);
                 }
-                ConfigureRegistryPermissions(securityIdentifier);
+                ConfigureRegistryPermissions();
 
                 {
                     using var actionRecord = new Record(
@@ -885,7 +917,7 @@ namespace Datadog.CustomActions
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);
                 }
-                ConfigureFilePermissions(securityIdentifier);
+                ConfigureFilePermissions();
 
                 return ActionResult.Success;
             }
@@ -976,12 +1008,7 @@ namespace Datadog.CustomActions
                 return;
             }
 
-            _session.Log($"{filePath} removing explicit access rule for {sid}");
-            _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
-            fileSystemSecurity =
-                _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-            _session.Log(
-                $"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+            UpdateAndLogAccessControl(filePath, fileSystemSecurity);
         }
 
         public ActionResult UninstallUser()
@@ -1010,7 +1037,7 @@ namespace Datadog.CustomActions
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);
                 }
-                _session.Log($"Removing file access for ${ddAgentUserName} ({securityIdentifier})");
+                _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
                 foreach (var filePath in pathsWithAgentAccess())
                 {
                     try
