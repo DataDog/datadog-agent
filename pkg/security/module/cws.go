@@ -191,14 +191,8 @@ func (c *CWSConsumer) Start() error {
 		RuleFilters:  ruleFilters,
 	}
 
-	// directory policy provider
-	if provider, err := rules.NewPoliciesDirProvider(c.config.PoliciesDir, c.config.WatchPoliciesDir); err != nil {
-		seclog.Errorf("failed to load policies: %s", err)
-	} else {
-		policyProviders = append(policyProviders, provider)
-	}
-
-	// add remote config as config provider if enabled
+	// add remote config as config provider if enabled.
+	// rules from RC override local rules if they share the same ID, so the RC policy provider is added first
 	if c.config.RemoteConfigurationEnabled {
 		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
 		if err != nil {
@@ -206,6 +200,17 @@ func (c *CWSConsumer) Start() error {
 		} else {
 			policyProviders = append(policyProviders, rcPolicyProvider)
 		}
+	}
+
+	// directory policy provider
+	if provider, err := rules.NewPoliciesDirProvider(c.config.PoliciesDir, c.config.WatchPoliciesDir); err != nil {
+		seclog.Errorf("failed to load policies: %s", err)
+	} else {
+		policyProviders = append(policyProviders, provider)
+	}
+
+	if len(policyProviders) > 1 && policyProviders[0].Type() != rconfig.PolicyProviderType {
+		seclog.Warnf("failed to load remote config policies first: local policies will override remote policies if there are conflicts")
 	}
 
 	if err := c.LoadPolicies(policyProviders, true); err != nil {

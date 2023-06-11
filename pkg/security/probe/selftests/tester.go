@@ -227,3 +227,7 @@ func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) error {
 		}
 	}
 }
+
+func (t *SelfTester) Type() string {
+	return "selfTesterPolicyProvider"
+}

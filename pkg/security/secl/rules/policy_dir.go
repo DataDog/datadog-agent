@@ -198,3 +198,7 @@ func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvide
 
 	return p, nil
 }
+
+func (p *PoliciesDirProvider) Type() string {
+	return "directoryPolicyProvider"
+}
