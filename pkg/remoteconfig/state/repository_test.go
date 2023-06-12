@@ -245,7 +245,7 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 	r := ta.repository
 	updatedProducts, err := r.Update(removalUpdate)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(updatedProducts))
+	assert.Equal(t, 1, len(updatedProducts))
 	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
 	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)))
 
@@ -261,7 +261,7 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 	r = ta.unverifiedRepository
 	updatedProducts, err = r.Update(removalUpdate)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(updatedProducts))
+	assert.Equal(t, 1, len(updatedProducts))
 	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
 	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)))
 
