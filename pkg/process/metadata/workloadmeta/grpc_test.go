@@ -91,6 +91,7 @@ func TestStreamServer(t *testing.T) {
 
 	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
+	defer cc.Close()
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
 
 	// Test that the sync message is sent to the client
@@ -162,10 +163,10 @@ func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.Proc
 
 	for i, expectedSet := range expected.SetEvents {
 		actualSet := expected.SetEvents[i]
-		assert.EqualExportedValues(t, *expectedSet, *actualSet)
+		assert.EqualExportedValues(t, *expectedSet, *actualSet) //nolint:copylocks
 	}
 	for i, expectedUnset := range expected.UnsetEvents {
 		actualSet := expected.SetEvents[i]
-		assert.EqualExportedValues(t, *expectedUnset, *actualSet)
+		assert.EqualExportedValues(t, *expectedUnset, *actualSet) //nolint:copylocks
 	}
 }
