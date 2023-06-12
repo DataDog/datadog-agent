@@ -99,8 +99,12 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	stackManager := infra.GetStackManager()
 
 	config := runner.ConfigMap{
-		runner.InfraEnvironmentVariables:         auto.ConfigValue{Value: opts.InfraEnv},
-		runner.AwsKeyPairName:                    auto.ConfigValue{Value: opts.SSHKeyName},
+		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
+		runner.AwsKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
+		// Its fine to hardcode the password here, since the remote ec2 instances do not have
+		// any password on sudo. This secret configuration was introduced in the test-infra-definitions
+		// scenario for dev environments: https://github.com/DataDog/test-infra-definitions/pull/159
+		"sudo-password":                          auto.ConfigValue{Value: "", Secret: true},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
 		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
