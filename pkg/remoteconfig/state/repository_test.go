@@ -242,8 +242,8 @@ func TestUpdateEmpty(t *testing.T) {
 	updatedProducts, err := r.Update(emptyUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts))
-	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
-	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
 
 	state, err := r.CurrentState()
 	assert.NoError(t, err)
@@ -258,8 +258,8 @@ func TestUpdateEmpty(t *testing.T) {
 	updatedProducts, err = r.Update(emptyUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts))
-	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
-	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
+	assert.Equal(t, 0, len(r.APMConfigs()))
+	assert.Equal(t, 1, len(r.CWSDDConfigs()))
 
 	state, err = r.CurrentState()
 	assert.NoError(t, err)
