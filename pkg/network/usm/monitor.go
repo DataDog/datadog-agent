@@ -194,7 +194,7 @@ func (m *Monitor) Start() error {
 	defer func() {
 		if err != nil {
 			if errors.Is(err, syscall.ENOMEM) {
-				err = fmt.Errorf("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+				err = fmt.Errorf("could not enable usm monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
 			}
 
 			// Cleanup every remaining protocols
