@@ -1,2 +1,3 @@
-component/system-probe: pkg/network/**/*
+component/system-probe:
+  - pkg/network/**/*
 #- any: ['pkg/network/**/*', 'pkg/security/**/*']
