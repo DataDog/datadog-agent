@@ -213,7 +213,6 @@ build do
         "req_file_path" => static_reqs_out_folder + lib + "-py2.in",
         "compiled_req_file_path" => compiled_req_file_path
       }
-      end
     end
 
     File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
