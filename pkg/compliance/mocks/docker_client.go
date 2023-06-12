@@ -273,19 +273,19 @@ func (_m *DockerClient) ContainerCreate(ctx context.Context, config *container.C
 }
 
 // ContainerDiff provides a mock function with given fields: ctx, _a1
-func (_m *DockerClient) ContainerDiff(ctx context.Context, _a1 string) ([]container.ContainerChangeResponseItem, error) {
+func (_m *DockerClient) ContainerDiff(ctx context.Context, _a1 string) ([]container.FilesystemChange, error) {
 	ret := _m.Called(ctx, _a1)
 
-	var r0 []container.ContainerChangeResponseItem
+	var r0 []container.FilesystemChange
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]container.ContainerChangeResponseItem, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]container.FilesystemChange, error)); ok {
 		return rf(ctx, _a1)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []container.ContainerChangeResponseItem); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) []container.FilesystemChange); ok {
 		r0 = rf(ctx, _a1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]container.ContainerChangeResponseItem)
+			r0 = ret.Get(0).([]container.FilesystemChange)
 		}
 	}
 
@@ -1592,21 +1592,21 @@ func (_m *DockerClient) Ping(ctx context.Context) (types.Ping, error) {
 }
 
 // RegistryLogin provides a mock function with given fields: ctx, auth
-func (_m *DockerClient) RegistryLogin(ctx context.Context, auth types.AuthConfig) (registry.AuthenticateOKBody, error) {
+func (_m *DockerClient) RegistryLogin(ctx context.Context, auth registry.AuthConfig) (registry.AuthenticateOKBody, error) {
 	ret := _m.Called(ctx, auth)
 
 	var r0 registry.AuthenticateOKBody
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, types.AuthConfig) (registry.AuthenticateOKBody, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, registry.AuthConfig) (registry.AuthenticateOKBody, error)); ok {
 		return rf(ctx, auth)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, types.AuthConfig) registry.AuthenticateOKBody); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, registry.AuthConfig) registry.AuthenticateOKBody); ok {
 		r0 = rf(ctx, auth)
 	} else {
 		r0 = ret.Get(0).(registry.AuthenticateOKBody)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, types.AuthConfig) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, registry.AuthConfig) error); ok {
 		r1 = rf(ctx, auth)
 	} else {
 		r1 = ret.Error(1)
@@ -1720,23 +1720,23 @@ func (_m *DockerClient) VolumeInspectWithRaw(ctx context.Context, volumeID strin
 	return r0, r1, r2
 }
 
-// VolumeList provides a mock function with given fields: ctx, filter
-func (_m *DockerClient) VolumeList(ctx context.Context, filter filters.Args) (volume.ListResponse, error) {
-	ret := _m.Called(ctx, filter)
+// VolumeList provides a mock function with given fields: ctx, options
+func (_m *DockerClient) VolumeList(ctx context.Context, options volume.ListOptions) (volume.ListResponse, error) {
+	ret := _m.Called(ctx, options)
 
 	var r0 volume.ListResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, filters.Args) (volume.ListResponse, error)); ok {
-		return rf(ctx, filter)
+	if rf, ok := ret.Get(0).(func(context.Context, volume.ListOptions) (volume.ListResponse, error)); ok {
+		return rf(ctx, options)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, filters.Args) volume.ListResponse); ok {
-		r0 = rf(ctx, filter)
+	if rf, ok := ret.Get(0).(func(context.Context, volume.ListOptions) volume.ListResponse); ok {
+		r0 = rf(ctx, options)
 	} else {
 		r0 = ret.Get(0).(volume.ListResponse)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, filters.Args) error); ok {
-		r1 = rf(ctx, filter)
+	if rf, ok := ret.Get(1).(func(context.Context, volume.ListOptions) error); ok {
+		r1 = rf(ctx, options)
 	} else {
 		r1 = ret.Error(1)
 	}

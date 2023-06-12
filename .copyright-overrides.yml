@@ -131,6 +131,24 @@ github.com/google/go-containerregistry:
  - "Copyright 2020 Google LLC All Rights Reserved."
  - "Copyright 2021 Google LLC All Rights Reserved."
  - "Copyright 2022 Google LLC All Rights Reserved."
+github.com/google/go-containerregistry/internal/compression:
+ - "Copyright 2018 Google LLC All Rights Reserved."
+ - "Copyright 2019 Google LLC All Rights Reserved."
+ - "Copyright 2020 Google LLC All Rights Reserved."
+ - "Copyright 2021 Google LLC All Rights Reserved."
+ - "Copyright 2022 Google LLC All Rights Reserved."
+github.com/google/go-containerregistry/internal/zstd:
+ - "Copyright 2018 Google LLC All Rights Reserved."
+ - "Copyright 2019 Google LLC All Rights Reserved."
+ - "Copyright 2020 Google LLC All Rights Reserved."
+ - "Copyright 2021 Google LLC All Rights Reserved."
+ - "Copyright 2022 Google LLC All Rights Reserved."
+github.com/google/go-containerregistry/pkg/compression:
+ - "Copyright 2018 Google LLC All Rights Reserved."
+ - "Copyright 2019 Google LLC All Rights Reserved."
+ - "Copyright 2020 Google LLC All Rights Reserved."
+ - "Copyright 2021 Google LLC All Rights Reserved."
+ - "Copyright 2022 Google LLC All Rights Reserved."
 github.com/google/licenseclassifier/v2:
  - "Copyright 2017 Google LLC All Rights Reserved."
  - "Copyright 2020 Google LLC All Rights Reserved."
@@ -210,3 +228,28 @@ github.com/klauspost/compress/s2:
 #  * https://github.com/godror/knownpb/blob/main/internal/writer.go 
 github.com/godror/knownpb/internal: Copyright 2014, 2021 Tamás Gulácsi
 github.com/godror/knownpb/timestamppb: Copyright 2019, 2021 Tamás Gulácsi
+
+
+github.com/google/s2a-go: Copyright (c) 2020 Google
+github.com/google/s2a-go/fallback: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/authinfo: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/handshaker: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/handshaker/service: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/common_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/s2a_context_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/s2a_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/v2/common_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/v2/s2a_context_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/proto/v2/s2a_go_proto: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/record: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/record/internal/aeadcrypter: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/record/internal/halfconn: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/tokenmanager: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2/certverifier: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2/remotesigner: Copyright (c) 2020 Google
+github.com/google/s2a-go/internal/v2/tlsconfigstore: Copyright (c) 2020 Google
+github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v1: Copyright 2018 New York University
+go.opentelemetry.io/otel/semconv/internal: Copyright The OpenTelemetry Authors
+go.opentelemetry.io/otel/semconv/v1.12.0: Copyright The OpenTelemetry Authors
+golang.org/x/crypto/chacha20poly1305: Copyright (c) 2009 The Go Authors. All rights reserved
