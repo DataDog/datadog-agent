@@ -70,6 +70,9 @@ type AgentDemultiplexerOptions struct {
 	EnableNoAggregationPipeline bool
 
 	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
+
+	UseDogstatsdContextLimiter bool
+	DogstatsdMaxMetricsTags    int
 }
 
 // DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
@@ -191,8 +194,8 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
 		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
-		tagsLimiter := tags_limiter.New(config.Datadog.GetInt("dogstatsd_max_metrics_tags"))
-		contextsLimiter := limiter.FromConfig(statsdPipelinesCount)
+		tagsLimiter := tags_limiter.New(options.DogstatsdMaxMetricsTags)
+		contextsLimiter := limiter.FromConfig(statsdPipelinesCount, options.UseDogstatsdContextLimiter)
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, contextsLimiter, tagsLimiter, agg.hostname)
 

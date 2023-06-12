@@ -7,6 +7,7 @@ package encoding
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -78,7 +79,9 @@ func newKafkaEncoder(payload *network.Connections) *kafkaEncoder {
 	// this allows us to skip encoding orphan Kafka objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.ConnectionKeysFromConnectionStats(conn) {
-			log.Tracef("Payload has a connection %v and was converted to kafka key %v", conn, key)
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("Payload has a connection %v and was converted to kafka key %v", conn, key)
+			}
 			encoder.aggregations[key] = nil
 		}
 	}
@@ -111,7 +114,9 @@ func (e *kafkaEncoder) buildAggregations(payload *network.Connections) {
 		aggregation, ok := e.aggregations[key.ConnectionKey]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize Kafka data
-			log.Tracef("Found kafka orphan connection %v", key.ConnectionKey)
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("Found kafka orphan connection %v", key.ConnectionKey)
+			}
 			e.orphanEntries++
 			continue
 		}

@@ -220,6 +220,8 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
+type StatCookie = uint64
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
@@ -232,7 +234,7 @@ type ConnectionStats struct {
 
 	Last StatCounters
 
-	Cookie uint32
+	Cookie StatCookie
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64

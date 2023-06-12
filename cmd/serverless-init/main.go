@@ -43,6 +43,11 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	setupProxy()
 
 	cloudService := cloudservice.GetCloudServiceType()
+
+	// Ignore errors for now. Once we go GA, check for errors
+	// and exit right away.
+	_ = cloudService.Init()
+
 	tags := tags.MergeWithOverwrite(tags.ArrayToMap(config.GetGlobalConfiguredTags(false)), cloudService.GetTags())
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()

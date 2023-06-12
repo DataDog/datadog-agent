@@ -16,6 +16,7 @@ import (
 
 	bpflib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
+	"github.com/cilium/ebpf/linux"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	manager "github.com/DataDog/ebpf-manager"
@@ -36,7 +37,7 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 	if btfData == nil {
 		return fmt.Errorf("could not find BTF data on host")
 	}
-	defer btf.FlushKernelSpec()
+	defer linux.FlushCaches()
 
 	buf, err := bytecode.GetReader(filepath.Join(cfg.BPFDir, "co-re"), filename)
 	if err != nil {
