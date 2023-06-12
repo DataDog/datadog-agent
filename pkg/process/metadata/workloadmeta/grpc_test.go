@@ -104,14 +104,13 @@ func TestStreamServer(t *testing.T) {
 	require.NoError(t, err)
 	assertEqualStreamEntitiesResponse(t, mockCacheState, msg)
 
+	// Test that diffs are sent to the client
 	srv.writeEvents([]*ProcessEntity{
 		toProcessEntity(proc1),
 		toProcessEntity(proc2),
 	}, []*ProcessEntity{
 		toProcessEntity(proc3),
 	})
-
-	// Test that diffs are sent to the client
 	msg, err = stream.Recv()
 	require.NoError(t, err)
 	assertEqualStreamEntitiesResponse(t, &pbgo.ProcessStreamResponse{
@@ -122,6 +121,19 @@ func TestStreamServer(t *testing.T) {
 		UnsetEvents: []*pbgo.ProcessEventUnset{
 			toEventUnset(proc1),
 			toEventUnset(proc2),
+		},
+	}, msg)
+
+	srv.writeEvents([]*ProcessEntity{
+		toProcessEntity(proc3),
+	}, []*ProcessEntity{})
+	msg, err = stream.Recv()
+	require.NoError(t, err)
+	assertEqualStreamEntitiesResponse(t, &pbgo.ProcessStreamResponse{
+		EventID:   2,
+		SetEvents: []*pbgo.ProcessEventSet{},
+		UnsetEvents: []*pbgo.ProcessEventUnset{
+			toEventUnset(proc3),
 		},
 	}, msg)
 }

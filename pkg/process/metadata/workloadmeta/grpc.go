@@ -25,7 +25,7 @@ var _ mockableGrpcListener = (*noopGRPCListener)(nil)
 
 type noopGRPCListener struct{}
 
-func (l *noopGRPCListener) writeEvents(_, _ []*ProcessEntity) {}
+func (l *noopGRPCListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {}
 
 var _ mockableGrpcListener = (*grpcListener)(nil)
 
@@ -36,8 +36,7 @@ type streamChan chan *pbgo.ProcessStreamResponse
 type grpcListener struct {
 	wg sync.WaitGroup
 
-	streams sync.Map
-	//streams      map[uint64]chan<- *pbgo.ProcessStreamResponse
+	streams      sync.Map
 	nextWorkerId uint64
 
 	getCache getCacheCB
@@ -119,14 +118,12 @@ func (l *grpcListener) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, stre
 	}
 
 	evtsChan := make(streamChan, 1)
-
 	currentWorkerId := l.nextWorkerId
 	l.streams.Store(currentWorkerId, evtsChan)
 	defer func() {
 		l.streams.Delete(currentWorkerId)
 		close(evtsChan)
 	}()
-	defer l.streams.Delete(currentWorkerId)
 	l.nextWorkerId++
 
 	var currentEventId int32 = 1
