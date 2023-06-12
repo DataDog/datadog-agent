@@ -21,6 +21,7 @@ func TestGetAppServiceTags(t *testing.T) {
 	tags := service.GetTags()
 	tags["aas.environment.os"] = "test_os"
 	tags["aas.environment.runtime"] = "test_runtime"
+	tags["aas.environment.instance_name"] = "test_instance_name"
 
 	assert.Equal(t, map[string]string{
 		"app_name":                      "test_site_name",
@@ -28,7 +29,7 @@ func TestGetAppServiceTags(t *testing.T) {
 		"region":                        "eastus",
 		"_dd.origin":                    "appservice",
 		"aas.environment.instance_id":   "",
-		"aas.environment.instance_name": "",
+		"aas.environment.instance_name": "test_instance_name",
 		"aas.environment.os":            "test_os",
 		"aas.environment.runtime":       "test_runtime",
 		"aas.resource.group":            "",
