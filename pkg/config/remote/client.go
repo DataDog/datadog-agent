@@ -276,11 +276,6 @@ func (c *Client) update() error {
 	if err != nil {
 		return err
 	}
-	// If there isn't a new update for us, the TargetFiles field will
-	// be nil and we can stop processing this update.
-	if response.TargetFiles == nil {
-		return nil
-	}
 
 	changedProducts, err := c.applyUpdate(response)
 	if err != nil {
