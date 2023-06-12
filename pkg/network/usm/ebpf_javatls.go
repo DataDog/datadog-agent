@@ -246,9 +246,6 @@ func isJavaProcess(pid int) bool {
 // allowRegex only    true  | false
 // blockRegex only    false | true
 func isAttachmentAllowed(pid int) bool {
-	if !isJavaProcess(pid) {
-		return false
-	}
 	allowIsSet := javaAgentAllowRegex != nil
 	blockIsSet := javaAgentBlockRegex != nil
 	// filter is disabled (default configuration)
@@ -282,6 +279,9 @@ func isAttachmentAllowed(pid int) bool {
 }
 
 func newJavaProcess(pid int) {
+	if !isJavaProcess(pid) {
+		return
+	}
 	if !isAttachmentAllowed(pid) {
 		log.Debugf("java pid %d attachment rejected", pid)
 		return
