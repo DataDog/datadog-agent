@@ -18,9 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )

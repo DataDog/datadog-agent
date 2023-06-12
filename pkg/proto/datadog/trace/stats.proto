@@ -1,6 +1,11 @@
 syntax = "proto3";
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+package datadog.trace;
+
+// TODO: this should be removed
+import "gogo/protobuf/gogoproto/gogo.proto";
+
+option go_package = "pkg/proto/pbgo/trace"; // golang
 
 package pb;
 

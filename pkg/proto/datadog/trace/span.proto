@@ -1,7 +1,8 @@
 syntax = "proto3";
 
-package pb;
-option go_package="github.com/DataDog/datadog-agent/pkg/trace/pb";
+package datadog.trace;
+
+option go_package="pkg/proto/pbgo/trace";
 
 message Span {
     // service is the name of the service with which this span is associated.
