@@ -142,7 +142,6 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.disallowList = initDisallowList(p.config)
 
 	p.initConnRates()
-
 	return nil
 }
 
