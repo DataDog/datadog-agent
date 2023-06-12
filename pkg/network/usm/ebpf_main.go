@@ -158,7 +158,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 		subprograms = append(subprograms, openSSLProg)
 	}
 
-	tailCalls := []manager.TailCallRoute{}
+	var tailCalls []manager.TailCallRoute
 
 	if c.EnableHTTP2Monitoring {
 		tailCalls = append(tailCalls, http2TailCall)
@@ -258,7 +258,6 @@ func (e *ebpfProgram) Close() error {
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
-
 	return e.Stop(manager.CleanAll)
 }
 
