@@ -31,6 +31,10 @@ Package log implements a component to handle logging internal to the agent.
 Package sysprobeconfig implements a component to handle system-probe configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/telemetry)
+
+Package telemetry implements a component for all agent telemetry.
+
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
