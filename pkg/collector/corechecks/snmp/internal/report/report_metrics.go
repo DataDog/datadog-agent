@@ -140,6 +140,10 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				tmpTags := common.CopyStrings(tags)
 				tmpTags = append(tmpTags, metricConfig.StaticTags...)
 				tmpTags = append(tmpTags, getTagsFromMetricTagConfigList(metricConfig.MetricTags, fullIndex, values)...)
+				if isInterfaceTableMetric(symbol.OID) {
+					interfaceCfg, _ := getInterfaceConfig(ms.interfaceConfigs, fullIndex, tmpTags)
+					tmpTags = append(tmpTags, interfaceCfg.Tags...)
+				}
 				rowTagsCache[fullIndex] = tmpTags
 			}
 			rowTags := rowTagsCache[fullIndex]

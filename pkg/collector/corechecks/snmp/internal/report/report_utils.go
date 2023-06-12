@@ -197,3 +197,10 @@ func getConstantMetricValues(mtcl checkconfig.MetricTagConfigList, values *value
 	}
 	return constantValues
 }
+
+// isInterfaceTableMetric takes in an OID and returns
+// true if the prefix matches ifTable or ifXTable from
+// the IF-MIB
+func isInterfaceTableMetric(oid string) bool {
+	return strings.HasPrefix(oid, "1.3.6.1.2.1.2.2") || strings.HasPrefix(oid, "1.3.6.1.2.1.31.1.1")
+}
