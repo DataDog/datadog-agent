@@ -134,6 +134,8 @@ kernel_matrix_testing_setup_env:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     AWS_EC2_SSH_KEY_NAME: datadog-agent-ci
     INFRA_ENV: "aws/agent-qa"
+    PIPELINE_ID: $CI_PIPELINE_ID
+    TEAM: "ebpf-platform"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
@@ -179,6 +181,8 @@ kernel_matrix_testing_upload_deps:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     AWS_EC2_SSH_KEY_NAME: datadog-agent-ci
     INFRA_ENV: "aws/agent-qa"
+    PIPELINE_ID: $CI_PIPELINE_ID
+    TEAM: "ebpf-platform"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
@@ -206,6 +210,12 @@ kernel_matrix_testing_run_tests:
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
+    - ALL_INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -instance-ip | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
+    - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi" "Name=private-ip-address,Values=$ALL_INSTANCE_IPS" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l )
+    - |
+      if [ $RUNNING_INSTANCES -eq "0" ]; then
+        echo "These jobs do not permit retries. The go tests are retried a user-specified number of times automatically. In order to re-run the tests, you must trigger the pipeline again"
+      fi
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
     - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH.$TAG | cut -d ' ' -f 1)
@@ -220,3 +230,16 @@ kernel_matrix_testing_run_tests:
     matrix:
       - TAG: ["bionic", "focal", "jammy"]
         ARCH: ["x86_64", "arm64"]
+
+kernel_matrix_testing_cleanup:
+  stage: kernel_matrix_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
+  needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests"]
+  tags: ["arch:amd64"]
+  before_script:
+    - !reference [.kernel_matrix_testing_new_profile]
+  script:
+    - INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -instance-ip | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
+    - INSTANCE_IDS=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi" "Name=private-ip-address,Values=$INSTANCE_IPS" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
+    - echo $INSTANCE_IDS
+    - aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
