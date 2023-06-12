@@ -658,7 +658,7 @@ func (p *protocolMock) Stop(mgr *manager.Manager)                               
 func (p *protocolMock) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {}
 func (p *protocolMock) GetStats() *protocols.ProtocolStats                                     { return nil }
 
-// patchProtocolMock updates the map of of known protocols to replace the mock
+// patchProtocolMock updates the map of known protocols to replace the mock
 // factory in place of the HTTP protocol factory
 func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType) {
 	t.Helper()

@@ -175,7 +175,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	return usmMonitor, nil
 }
 
-// Start consuming HTTP events
+// Start USM monitor.
 func (m *Monitor) Start() error {
 	if m == nil {
 		return nil

@@ -31,7 +31,7 @@ type EbpfProgram interface {
 	// should be performed here.
 	PreStart(*manager.Manager) error
 
-	// PostStart is called after the start of the provided eBPF manager.  Final
+	// PostStart is called after the start of the provided eBPF manager. Final
 	// initialisation steps, such as setting up a map cleaner, should be
 	// performed here.
 	PostStart(*manager.Manager) error
