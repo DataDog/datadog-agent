@@ -22,7 +22,8 @@
 #include "protocols/tls/go-tls-location.h"
 #include "protocols/tls/go-tls-conn.h"
 #include "protocols/tls/tags-types.h"
-#include "protocols/tls/java-tls-erpc.h"
+#include "protocols/tls/java/erpc_dispatcher.h"
+#include "protocols/tls/java/erpc_handlers.h"
 #include "protocols/kafka/kafka-parsing.h"
 
 #define SO_SUFFIX_SIZE 3

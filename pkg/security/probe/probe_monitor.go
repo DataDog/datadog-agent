@@ -26,7 +26,6 @@ import (
 type Monitor struct {
 	probe *Probe
 
-	loadController         *LoadController
 	perfBufferMonitor      *PerfBufferMonitor
 	activityDumpManager    *dump.ActivityDumpManager
 	securityProfileManager *profile.SecurityProfileManager
@@ -48,12 +47,6 @@ func (m *Monitor) Init() error {
 	var err error
 	p := m.probe
 
-	// instantiate a new load controller
-	m.loadController, err = NewLoadController(p)
-	if err != nil {
-		return err
-	}
-
 	// instantiate a new event statistics monitor
 	m.perfBufferMonitor, err = NewPerfBufferMonitor(p)
 	if err != nil {
@@ -67,7 +60,7 @@ func (m *Monitor) Init() error {
 		}
 	}
 
-	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
+	if p.IsSecurityProfileEnabled() {
 		m.securityProfileManager, err = profile.NewSecurityProfileManager(p.Config, p.StatsdClient, p.resolvers.CGroupResolver, p.resolvers.TimeResolver, p.Manager)
 		if err != nil {
 			return fmt.Errorf("couldn't create the security profile manager: %w", err)
@@ -109,15 +102,8 @@ func (m *Monitor) GetSecurityProfileManager() *profile.SecurityProfileManager {
 
 // Start triggers the goroutine of all the underlying controllers and monitors of the Monitor
 func (m *Monitor) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	delta := 1
 	if m.activityDumpManager != nil {
-		delta++
-	}
-	wg.Add(delta)
-
-	go m.loadController.Start(ctx, wg)
-
-	if m.activityDumpManager != nil {
+		wg.Add(1)
 		go m.activityDumpManager.Start(ctx, wg)
 	}
 	if m.securityProfileManager != nil {
@@ -159,10 +145,6 @@ func (m *Monitor) SendStats() error {
 	}
 	time.Sleep(delay)
 
-	if err := m.loadController.SendStats(); err != nil {
-		return fmt.Errorf("failed to send load controller stats: %w", err)
-	}
-
 	if m.activityDumpManager != nil {
 		if err := m.activityDumpManager.SendStats(); err != nil {
 			return fmt.Errorf("failed to send activity dump manager stats: %w", err)
@@ -198,8 +180,6 @@ func (m *Monitor) SendStats() error {
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
 func (m *Monitor) ProcessEvent(event *model.Event) {
-	m.loadController.Count(event)
-
 	// handle event errors
 	if event.Error == nil {
 		return

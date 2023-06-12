@@ -451,7 +451,7 @@ type AgentConfig struct {
 type RemoteClient interface {
 	Close()
 	Start()
-	RegisterAPMUpdate(func(update map[string]state.APMSamplingConfig))
+	Subscribe(string, func(update map[string]state.RawConfig))
 }
 
 // Tag represents a key/value pair.

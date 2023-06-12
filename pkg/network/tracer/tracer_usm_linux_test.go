@@ -870,16 +870,21 @@ func (s *USMSuite) TestJavaInjection() {
 				cfg.ProtocolClassificationEnabled = true
 				cfg.CollectTCPv4Conns = true
 				cfg.CollectTCPv6Conns = true
+
+				serverDoneFn := testutil.HTTPServer(t, "0.0.0.0:5443", testutil.Options{
+					EnableTLS: true,
+				})
+				t.Cleanup(serverDoneFn)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
-					for key := range payload.HTTP {
-						if key.Path.Content == "/anything/java-tls-request" {
+					for key, stats := range payload.HTTP {
+						if key.Path.Content == "/200/anything/java-tls-request" {
 							t.Log("path content found")
 							// socket filter is not supported on fentry tracer
 							if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
@@ -887,16 +892,28 @@ func (s *USMSuite) TestJavaInjection() {
 								return true
 							}
 
+							req, exists := stats.Data[200]
+							if !exists {
+								t.Logf("wrong response, not 200 : %#+v", key)
+								continue
+							}
+
+							if req.StaticTags != network.ConnTagJava {
+								t.Logf("tag not java : %#+v", key)
+								continue
+							}
+
 							for _, c := range payload.Conns {
 								if c.SPort == key.SrcPort && c.DPort == key.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 									return true
 								}
 							}
+							t.Logf("TLS connection tag not found : %#+v", key)
 						}
 					}
 
 					return false
-				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
+				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://host.docker.internal:5443/200/anything/java-tls-request")
 			},
 		},
 	}
