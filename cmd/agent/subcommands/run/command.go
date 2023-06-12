@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -60,7 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -157,6 +158,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func run(log log.Component,
 	config config.Component,
 	flare flare.Component,
+	telemetry telemetry.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	capture replay.Component,
@@ -204,7 +206,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug, forwarder); err != nil {
+	if err := startAgent(cliParams, flare, telemetry, sysprobeconfig, server, capture, serverDebug, forwarder); err != nil {
 		return err
 	}
 
@@ -221,6 +223,7 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 	err := fxutil.OneShot(func(log log.Component,
 		config config.Component,
 		flare flare.Component,
+		telemetry telemetry.Component,
 		sysprobeconfig sysprobeconfig.Component,
 		server dogstatsdServer.Component,
 		serverDebug dogstatsdDebug.Component,
@@ -229,7 +232,7 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 	) error {
 		dsdServer = server
 
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug, forwarder)
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, telemetry, sysprobeconfig, server, capture, serverDebug, forwarder)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -275,6 +278,7 @@ func getSharedFxOption() fx.Option {
 func startAgent(
 	cliParams *cliParams,
 	flare flare.Component,
+	telemetry telemetry.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	capture replay.Component,
@@ -336,6 +340,7 @@ func startAgent(
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
+
 	expvarPort := pkgconfig.Datadog.GetString("expvar_port")
 	http.Handle("/telemetry", telemetryHandler)
 	go func() {
@@ -439,7 +444,7 @@ func startAgent(
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
-		telemetry.RegisterStatsSender(sender)
+		pkgTelemetry.RegisterStatsSender(sender)
 	}
 
 	// Start OTLP intake

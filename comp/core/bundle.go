@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -32,6 +33,7 @@ var Bundle = fxutil.Bundle(
 	log.Module,
 	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
 	sysprobeconfig.Module,
+	telemetry.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
@@ -42,4 +44,5 @@ var MockBundle = fxutil.Bundle(
 	log.MockModule,
 	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
 	sysprobeconfig.MockModule,
+	telemetry.Module,
 )
