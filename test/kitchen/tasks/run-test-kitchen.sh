@@ -6,8 +6,6 @@
 IFS=$'\n\t'
 set -euxo pipefail
 
-pip3 install awscli --upgrade
-
 # Ensure that the ssh key is never reused between tests
 if [ -f "$(pwd)/ssh-key" ]; then
   rm ssh-key
