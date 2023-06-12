@@ -1,2 +1,2 @@
 component/system-probe:
-- any: ['pkg/network/**/*','pkg/security/**/*']
+- any: ['pkg/network/**/*', 'pkg/security/**/*']
