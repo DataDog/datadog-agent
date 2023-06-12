@@ -1,7 +1,10 @@
 # add system-probe label to any changes done in network, security, eventmonitor or ebpf packages
 component/system-probe:
-  - pkg/network/**
-  - pkg/security/**
-  - pkg/ebpf/**
-  - pkg/eventmonitor/**
+  - pkg/network/** # npm and usm
+  - pkg/security/** # cws
+  - pkg/ebpf/** # ebpf manager
+  - pkg/eventmonitor/** # new event monitor component
+  - cmd/system-probe/** # system-probe executable
+  - pkg/process/monitor/** # process monitor used by USM
+  - tasks/system_probe.py # invoke tasks
 
