@@ -6,13 +6,12 @@
 package telemetry
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 // SimpleHistogram tracks how many times something is happening.
 type SimpleHistogram interface {
-	// Observe the value to the Histogram value.
-	Observe(value float64)
+	telemetryComponent.SimpleHistogram
 }
 
 // NewSimpleHistogram creates a new SimpleHistogram with default options.

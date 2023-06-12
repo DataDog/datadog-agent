@@ -6,15 +6,12 @@
 package telemetry
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 // SimpleCounter tracks how many times something is happening.
 type SimpleCounter interface {
-	// Inc increments the counter.
-	Inc()
-	// Add increments the counter by given amount.
-	Add(float64)
+	telemetryComponent.SimpleCounter
 }
 
 // NewSimpleCounter creates a new SimpleCounter with default options.

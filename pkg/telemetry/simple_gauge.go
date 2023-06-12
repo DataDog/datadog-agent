@@ -6,21 +6,12 @@
 package telemetry
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 // SimpleGauge tracks how many times something is happening.
 type SimpleGauge interface {
-	// Inc increments the gaguge.
-	Inc()
-	// Dec decrements the gauge.
-	Dec()
-	// Add increments the gauge by given amount.
-	Add(float64)
-	// Sub decrements the gauge by given amount.
-	Sub(float64)
-	// Set sets the value of the gauge.
-	Set(float64)
+	telemetryComponent.SimpleGauge
 }
 
 // NewSimpleGauge creates a new SimpleGauge with default options.
