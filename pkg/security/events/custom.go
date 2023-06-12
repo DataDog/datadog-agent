@@ -24,6 +24,7 @@ const (
 	LostEventsRuleID = "lost_events"
 	//LostEventsRuleDesc is the rule description for the lost_events_* events
 	LostEventsRuleDesc = "Lost events"
+	SomeConst          = "Some Const2"
 
 	// RulesetLoadedRuleID is the rule ID for the ruleset_loaded events
 	RulesetLoadedRuleID = "ruleset_loaded"
