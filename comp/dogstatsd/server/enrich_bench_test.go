@@ -61,7 +61,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 	}
 
 	for i := 1; i <= 512; i *= 2 {
-		conf.metricBlocklist = list[:i]
+		conf.metricBlocklist = newBlocklist(list[:i], false)
 		b.Run(fmt.Sprintf("%d-exact", i),
 			func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
