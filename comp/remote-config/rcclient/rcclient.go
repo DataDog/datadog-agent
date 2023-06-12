@@ -6,7 +6,6 @@
 package rcclient
 
 import (
-	"regexp"
 	"sync"
 	"time"
 
@@ -29,39 +28,35 @@ const (
 	TaskFlare TaskType = "flare"
 )
 
-const agentConfigOrderID = "configuration_order"
-
-// matches datadog/<int>/<string>/<string>/<string> for datadog/<org_id>/<product>/<config_id>/<file>
-var datadogPathRegexp = regexp.MustCompile(`^datadog/(\d+)/([^/]+)/([^/]+)/([^/]+)$`)
-
 // RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
 type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, error)
 
-// RCAgentConfigListener is the FX-compatible listener, so RC can push updates through it
-type RCAgentConfigListener func(config ConfigContent) error
-
 type rcClient struct {
-	client        *remote.Client
-	m             *sync.Mutex
-	taskProcessed map[string]bool
+	client           *remote.Client
+	m                *sync.Mutex
+	taskProcessed    map[string]bool
+	fallbackLogLevel string
 
-	taskListeners   []RCAgentTaskListener
-	configListeners []RCAgentConfigListener
+	listeners []RCAgentTaskListener
 }
 
 type dependencies struct {
 	fx.In
 
-	TaskListeners   []RCAgentTaskListener   `group:"rCAgentTaskListener"`   // <-- Fill automatically by Fx
-	ConfigListeners []RCAgentConfigListener `group:"rCAgentConfigListener"` // <-- Fill automatically by Fx
+	Listeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
 func newRemoteConfigClient(deps dependencies) (Component, error) {
+	level, err := log.GetLogLevel()
+	if err != nil {
+		return nil, err
+	}
+
 	rc := rcClient{
-		taskListeners:   deps.TaskListeners,
-		configListeners: deps.ConfigListeners,
-		m:               &sync.Mutex{},
-		client:          nil,
+		listeners:        deps.Listeners,
+		m:                &sync.Mutex{},
+		fallbackLogLevel: level.String(),
+		client:           nil,
 	}
 
 	return rc, nil
@@ -90,85 +85,20 @@ func (rc rcClient) Listen() error {
 	return nil
 }
 
-// agentConfigUpdateCallback is the callback function called when there is an AGENT_CONFIG config update
-// The RCClient can directly call back listeners, because there would be no way to send back
-// RCTE2 configuration applied state to RC backend.
 func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig) {
-	var orderFile AgentConfigOrder
-	parsedLayers := map[string]AgentConfig{}
-	hasError := false
-
-	for configPath, c := range updates {
-		parsedConfigPath, err := data.ParseConfigPath(configPath)
-		if err != nil {
-			hasError = true
-			rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-			// If a layer is wrong, fail later to parse the rest and check them all
-			continue
-		}
-
-		// Ignore the configuration order file
-		if parsedConfigPath.ConfigID == agentConfigOrderID {
-			orderFile, err = parseConfigAgentConfigOrder(c.Config, c.Metadata)
-			if err != nil {
-				hasError = true
-				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
-					State: state.ApplyStateError,
-					Error: err.Error(),
-				})
-				// If a layer is wrong, fail later to parse the rest and check them all
-				continue
-			}
-		} else {
-			cfg, err := parseConfigAgentConfig(c.Config, c.Metadata)
-			if err != nil {
-				hasError = true
-				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
-					State: state.ApplyStateError,
-					Error: err.Error(),
-				})
-				// If a layer is wrong, fail later to parse the rest and check them all
-				continue
-			}
-			parsedLayers[parsedConfigPath.ConfigID] = cfg
-		}
-	}
-
-	// If there was at least one error, don't apply any config
-	if hasError || (len(orderFile.Config.Order) == 0 && len(orderFile.Config.InternalOrder) == 0) {
+	mergedConfig, err := remote.MergeRCAgentConfig(rc.client, updates)
+	if err != nil {
 		return
 	}
 
-	// Go through all the layers that were sent, and apply them one by one to the merged structure
-	mergedConfig := ConfigContent{}
-	for i := len(orderFile.Config.Order) - 1; i >= 0; i-- {
-		if layer, found := parsedLayers[orderFile.Config.Order[i]]; found {
-			mergedConfig.LogLevel = layer.Config.Config.LogLevel
-		}
-	}
-	// Same for internal config
-	for i := len(orderFile.Config.InternalOrder) - 1; i >= 0; i-- {
-		if layer, found := parsedLayers[orderFile.Config.InternalOrder[i]]; found {
-			mergedConfig.LogLevel = layer.Config.Config.LogLevel
-		}
-	}
-
-	log.Warnf("[RCM] Merged config %+v", mergedConfig)
-
 	if len(mergedConfig.LogLevel) > 0 {
 		settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
+	} else {
+		settings.SetRuntimeSetting("log_level", rc.fallbackLogLevel)
 	}
 
-	// Call all the listeners to the config change
-	var err error
-	for _, l := range rc.configListeners {
-		oneErr := l(mergedConfig)
-		if oneErr != nil {
-			err = errors.Wrap(err, oneErr.Error())
-		}
+	for cfgPath := range updates {
+		rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 }
 
@@ -200,7 +130,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 			var err error
 			var processed bool
 			// Call all the listeners component
-			for _, l := range rc.taskListeners {
+			for _, l := range rc.listeners {
 				oneProcessed, oneErr := l(TaskType(task.Config.TaskType), task)
 				// Check if the task was processed at least once
 				processed = oneProcessed || processed
@@ -228,16 +158,9 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 	}
 }
 
-// TaskListenerProvider defines component that can receive RC updates
-type TaskListenerProvider struct {
+// ListenerProvider defines component that can receive RC updates
+type ListenerProvider struct {
 	fx.Out
 
 	Listener RCAgentTaskListener `group:"rCAgentTaskListener"`
-}
-
-// ConfigListenerProvider defines component that can receive RC updates
-type ConfigListenerProvider struct {
-	fx.Out
-
-	Listener RCAgentTaskListener `group:"rCAgentConfigListener"`
 }
