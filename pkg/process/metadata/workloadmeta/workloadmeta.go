@@ -37,13 +37,13 @@ type WorkloadMetaExtractor struct {
 }
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
-func NewWorkloadMetaExtractor() *WorkloadMetaExtractor {
+func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor {
 	log.Debug("Instantiated the WorkloadMetaExtractor")
 	extractor := &WorkloadMetaExtractor{
 		cache: make(map[string]*ProcessEntity),
 	}
 
-	grpcListener := newGrpcListener(extractor.getCacheState)
+	grpcListener := newGrpcListener(config, extractor.getCacheState)
 	extractor.grpcListener = grpcListener
 
 	return extractor

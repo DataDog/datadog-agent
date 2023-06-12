@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -33,7 +34,7 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 }
 
 func TestExtractor(t *testing.T) {
-	extractor := NewWorkloadMetaExtractor()
+	extractor := NewWorkloadMetaExtractor(config.Mock(t))
 	mockGrpcListener := new(mockGrpcListener)
 	extractor.grpcListener = mockGrpcListener
 

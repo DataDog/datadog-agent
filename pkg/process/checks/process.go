@@ -41,7 +41,7 @@ const (
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 	var extractors []metadata.Extractor
 	if workloadMetaExtractor.Enabled(config) {
-		extractors = append(extractors, workloadMetaExtractor.NewWorkloadMetaExtractor())
+		extractors = append(extractors, workloadMetaExtractor.NewWorkloadMetaExtractor(config))
 	}
 
 	return &ProcessCheck{

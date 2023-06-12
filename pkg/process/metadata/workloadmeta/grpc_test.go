@@ -1,0 +1,171 @@
+package workloadmeta
+
+import (
+	"context"
+	"sort"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+)
+
+func toEventSet(proc *procutil.Process) *pbgo.ProcessEventSet {
+	return &pbgo.ProcessEventSet{Pid: proc.Pid}
+}
+
+func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
+	return &pbgo.ProcessEventUnset{Pid: proc.Pid}
+}
+
+func toProcessEntity(proc *procutil.Process) *ProcessEntity {
+	return &ProcessEntity{
+		pid:      proc.Pid,
+		language: &languagemodels.Language{Name: languagemodels.Unknown},
+	}
+}
+
+func TestGetGRPCStreamPort(t *testing.T) {
+	t.Run("invalid port", func(t *testing.T) {
+		cfg := config.Mock(t)
+		cfg.Set("process_config.language_detection.grpc_port", "lorem ipsum")
+
+		assert.Equal(t, config.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
+	})
+
+	t.Run("valid port", func(t *testing.T) {
+		cfg := config.Mock(t)
+		cfg.Set("process_config.language_detection.grpc_port", "1234")
+
+		assert.Equal(t, 1234, getGRPCStreamPort(cfg))
+	})
+
+	t.Run("default", func(t *testing.T) {
+		cfg := config.Mock(t)
+		assert.Equal(t, config.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
+	})
+}
+
+func TestStartStop(t *testing.T) {
+	cfg := config.Mock(t)
+	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+	srv := newGrpcListener(config.Mock(t), func() *pbgo.ProcessStreamResponse { return &pbgo.ProcessStreamResponse{} })
+
+	err := srv.start()
+	assert.NoError(t, err)
+
+	assertEventuallyReturns(t, func() {
+		srv.stop()
+	}, time.Second*5)
+}
+
+func TestStreamServer(t *testing.T) {
+	var (
+		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
+		proc2 = testProc(Pid2, []string{"python", "myprogram.py"})
+		proc3 = testProc(Pid3, []string{"corrina", "--at-her-best"})
+	)
+
+	mockCacheState := &pbgo.ProcessStreamResponse{
+		SetEvents: []*pbgo.ProcessEventSet{
+			toEventSet(proc1),
+			toEventSet(proc2),
+		},
+	}
+
+	cfg := config.Mock(t)
+	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+	srv := newGrpcListener(cfg, func() *pbgo.ProcessStreamResponse { return mockCacheState })
+	require.NoError(t, srv.start())
+	defer assertEventuallyReturns(t, func() {
+		srv.stop()
+	}, 5*time.Second)
+	require.NotNil(t, srv.addr)
+
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	streamClient := pbgo.NewProcessEntityStreamClient(cc)
+
+	// Test that the sync message is sent to the client
+	stream, err := streamClient.StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	require.NoError(t, err)
+
+	msg, err := stream.Recv()
+	sort.SliceStable(msg.SetEvents, func(i, j int) bool {
+		return msg.SetEvents[i].Pid < msg.SetEvents[j].Pid
+	})
+	require.NoError(t, err)
+	assertEqualStreamEntitiesResponse(t, mockCacheState, msg)
+
+	srv.writeEvents([]*ProcessEntity{
+		toProcessEntity(proc1),
+		toProcessEntity(proc2),
+	}, []*ProcessEntity{
+		toProcessEntity(proc3),
+	})
+
+	// Test that diffs are sent to the client
+	msg, err = stream.Recv()
+	require.NoError(t, err)
+	assertEqualStreamEntitiesResponse(t, &pbgo.ProcessStreamResponse{
+		EventID: 1,
+		SetEvents: []*pbgo.ProcessEventSet{
+			toEventSet(proc3),
+		},
+		UnsetEvents: []*pbgo.ProcessEventUnset{
+			toEventUnset(proc1),
+			toEventUnset(proc2),
+		},
+	}, msg)
+}
+
+func assertEventuallyReturns(t *testing.T, f func(), maximumWait time.Duration) {
+	t.Helper()
+
+	returnChan := make(chan struct{})
+	go func() {
+		f()
+		returnChan <- struct{}{}
+	}()
+
+	tick := time.NewTicker(maximumWait)
+	defer tick.Stop()
+
+	select {
+	case <-returnChan:
+	case <-tick.C:
+		t.Fail()
+	}
+}
+
+func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.ProcessStreamResponse) {
+	t.Helper()
+
+	sort.SliceStable(actual.SetEvents, func(i, j int) bool {
+		return actual.SetEvents[i].Pid < actual.SetEvents[j].Pid
+	})
+	sort.SliceStable(actual.UnsetEvents, func(i, j int) bool {
+		return actual.UnsetEvents[i].Pid < actual.UnsetEvents[j].Pid
+	})
+
+	assert.Equal(t, expected.EventID, actual.EventID)
+
+	assert.Len(t, expected.SetEvents, len(actual.SetEvents))
+	assert.Len(t, expected.UnsetEvents, len(actual.UnsetEvents))
+
+	for i, expectedSet := range expected.SetEvents {
+		actualSet := expected.SetEvents[i]
+		assert.EqualExportedValues(t, *expectedSet, *actualSet)
+	}
+	for i, expectedUnset := range expected.UnsetEvents {
+		actualSet := expected.SetEvents[i]
+		assert.EqualExportedValues(t, *expectedUnset, *actualSet)
+	}
+}

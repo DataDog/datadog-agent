@@ -6,7 +6,6 @@
 package workloadmeta
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -45,6 +44,9 @@ type grpcListener struct {
 	server *grpc.Server
 
 	config config.ConfigReader
+
+	// The address of the server set by start(). Primarily used for testing. May be nil if start() has not been called.
+	addr net.Addr
 }
 
 func newGrpcListener(config config.ConfigReader, getCache getCacheCB) *grpcListener {
@@ -84,21 +86,16 @@ func (l *grpcListener) start() error {
 	if err != nil {
 		return err
 	}
+	l.addr = listener.Addr()
+	log.Info("Process Entity WorkloadMeta gRPC server has started listening on", listener.Addr().String())
 
 	l.wg.Add(1)
 	go func() {
 		defer l.wg.Done()
 
 		err = l.server.Serve(listener)
-		if errors.Is(err, grpc.ErrServerStopped) {
-			log.Info("The WorkloadMeta gRPC server has stopped")
-		} else if err != nil {
-			_ = log.Error(err)
-		}
-
-		err = listener.Close()
 		if err != nil {
-			_ = log.Error("Failed to close listener", listener)
+			_ = log.Error(err)
 		}
 	}()
 
@@ -134,6 +131,7 @@ func (l *grpcListener) start() error {
 
 func (l *grpcListener) stop() {
 	close(l.evts)
+	l.server.GracefulStop()
 	l.wg.Wait()
 }
 
