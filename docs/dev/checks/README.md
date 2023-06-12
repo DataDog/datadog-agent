@@ -132,7 +132,7 @@ Scenario: You have implemented a custom check called `hello_world` and you would
 like to run this with a local Agent build.
 
 Example contents of `hello_world.py`:
-```
+```python
 from datadog_checks.checks import AgentCheck
 
 class MyCheck(AgentCheck):
@@ -172,17 +172,17 @@ In order for python to find this package, we must do two things:
 correctly.
 
 #### Example for virtualenv
-(see also the notes in [../agent_dev_env.md](../agent_dev_env.md)):
+(see also the notes in [../agent_dev_env.md](../agent_dev_env.md#python-dependencies)):
 
 1. `python3 -m pip install virtualenv`
 1. `virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv`
 1. Activate the virtualenv (OS-dependent)
-1. `python3 -m pip install ~/dev/integrations-core/datadog_checks_base[deps]`
+1. `python3 -m pip install '/path/to/integrations-core/datadog_checks_base[deps]'`
 1. `PYTHONPATH="$PWD/venv/lib/python3.10/site-packages:$PYTHONPATH" inv agent.run`
 
 
 #### Example for user install
-1. `python3 -m pip install --user ~/dev/integrations-core/datadog_checks_base[deps]`
+1. `python3 -m pip install --user '/path/to//integrations-core/datadog_checks_base[deps]'`
 1. `PYTHONPATH="$HOME/.local/lib/python3.10/site-packages:$PYTHONPATH" inv agent.run`
 
 #### Getting the right `PYTHONPATH`
