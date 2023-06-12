@@ -38,7 +38,7 @@ func TestProcess(t *testing.T) {
 `
 		return []byte(fmt.Sprintf(base, cluster, kind))
 	}
-	rcp, err := newRemoteConfigProvider(&remote.Client{}, make(chan struct{}), "dev")
+	rcp, err := newRemoteConfigProvider(&remote.Client{}, make(chan struct{}), "0090c771-add5-4313-948f-d1ab99b471d6", "dev")
 	require.NoError(t, err)
 	notifs := rcp.subscribe(KindDeployment)
 	in := map[string]state.APMTracingConfig{

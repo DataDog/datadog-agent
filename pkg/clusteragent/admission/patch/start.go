@@ -21,13 +21,14 @@ type ControllerContext struct {
 	K8sClient           kubernetes.Interface
 	RcClient            *remote.Client
 	ClusterName         string
+	ClusterId           string
 	StopCh              chan struct{}
 }
 
 // StartControllers starts the patch controllers
 func StartControllers(ctx ControllerContext) error {
 	log.Info("Starting patch controllers")
-	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), ctx.ClusterName)
+	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), ctx.ClusterId, ctx.ClusterName)
 	if err != nil {
 		return err
 	}

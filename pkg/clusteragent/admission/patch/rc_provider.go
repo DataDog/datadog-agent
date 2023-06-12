@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,13 +23,14 @@ type remoteConfigProvider struct {
 	client             *remote.Client
 	isLeaderNotif      <-chan struct{}
 	subscribers        map[TargetObjKind]chan PatchRequest
+	clusterId          string
 	clusterName        string
 	telemetryCollector telemetry.TelemetryCollector
 }
 
 var _ patchProvider = &remoteConfigProvider{}
 
-func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{}, clusterName string) (*remoteConfigProvider, error) {
+func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{}, clusterId string, clusterName string) (*remoteConfigProvider, error) {
 	if client == nil {
 		return nil, errors.New("remote config client not initialized")
 	}
@@ -38,6 +38,7 @@ func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{
 		client:             client,
 		isLeaderNotif:      isLeaderNotif,
 		subscribers:        make(map[TargetObjKind]chan PatchRequest),
+		clusterId:          clusterId,
 		clusterName:        clusterName,
 		telemetryCollector: telemetry.NewCollector(),
 	}, nil
@@ -105,11 +106,6 @@ func (rcp *remoteConfigProvider) getRemoteConfigPatchEvent(config state.APMTraci
 	if req.LibConfig.Env != nil {
 		env = *req.LibConfig.Env
 	}
-	clusterId, clusterError := clustername.GetClusterID()
-	if clusterError != nil {
-		log.Errorf("Failed to get the cluster ID: %v", clusterError)
-		clusterId = ""
-	}
 	return telemetry.ApmRemoteConfigEvent{
 		RequestType: "apm-remote-config-event",
 		ApiVersion:  "v2",
@@ -121,7 +117,7 @@ func (rcp *remoteConfigProvider) getRemoteConfigPatchEvent(config state.APMTraci
 				RcClientId:          rcp.client.ID,
 				RcRevision:          req.Revision,
 				RcVersion:           config.Metadata.Version,
-				KubernetesClusterId: clusterId,
+				KubernetesClusterId: rcp.clusterId,
 				KubernetesCluster:   req.K8sTarget.Cluster,
 				KubernetesNamespace: req.K8sTarget.Namespace,
 				KubernetesKind:      string(req.K8sTarget.Kind),
