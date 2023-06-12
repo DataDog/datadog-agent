@@ -88,6 +88,8 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
         command=f"llc -march=bpf -filetype=obj -o $out $in {strip}",
     )
 
+def test_label():
+    pass
 
 def ninja_define_co_re_compiler(nw):
     nw.variable("ebpfcoreflags", get_co_re_build_flags())
