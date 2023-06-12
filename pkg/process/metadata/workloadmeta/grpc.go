@@ -31,13 +31,14 @@ var _ mockableGrpcListener = (*grpcListener)(nil)
 
 type getCacheCB func() *pbgo.ProcessStreamResponse
 
+type streamChan chan *pbgo.ProcessStreamResponse
+
 type grpcListener struct {
 	wg sync.WaitGroup
 
-	evts chan *pbgo.ProcessStreamResponse
-
-	streamsLock sync.RWMutex
-	streams     []pbgo.ProcessEntityStream_StreamEntitiesServer
+	streams sync.Map
+	//streams      map[uint64]chan<- *pbgo.ProcessStreamResponse
+	nextWorkerId uint64
 
 	getCache getCacheCB
 
@@ -54,7 +55,6 @@ func newGrpcListener(config config.ConfigReader, getCache getCacheCB) *grpcListe
 		config:   config,
 		server:   grpc.NewServer(),
 		getCache: getCache,
-		evts:     make(chan *pbgo.ProcessStreamResponse, 1),
 	}
 
 	pbgo.RegisterProcessEntityStreamServer(l.server, l)
@@ -75,10 +75,14 @@ func (l *grpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
 		unsetEvents[i] = &pbgo.ProcessEventUnset{Pid: proc.pid}
 	}
 
-	l.evts <- &pbgo.ProcessStreamResponse{
-		SetEvents:   setEvents,
-		UnsetEvents: unsetEvents,
-	}
+	l.streams.Range(func(key, value any) bool {
+		stream := value.(streamChan)
+		stream <- &pbgo.ProcessStreamResponse{
+			SetEvents:   setEvents,
+			UnsetEvents: unsetEvents,
+		}
+		return true
+	})
 }
 
 func (l *grpcListener) start() error {
@@ -99,53 +103,41 @@ func (l *grpcListener) start() error {
 		}
 	}()
 
-	l.wg.Add(1)
-	go func() {
-		defer l.wg.Done()
-		for evt := range l.evts {
-			var errIndices []int
-
-			l.streamsLock.RLock()
-			for i, stream := range l.streams {
-				err := stream.Send(evt)
-				if err != nil {
-					errIndices = append(errIndices, i)
-				}
-			}
-			l.streamsLock.RUnlock()
-
-			// Most of the time we should have no errors
-			if len(errIndices) > 0 {
-				l.streamsLock.Lock()
-				// Clean up the streams that have an error when sending
-				for _, errIdx := range errIndices {
-					l.streams = append(l.streams[:errIdx], l.streams[errIdx+1:]...)
-				}
-				l.streamsLock.Unlock()
-			}
-		}
-	}()
-
 	return nil
 }
 
 func (l *grpcListener) stop() {
-	close(l.evts)
-	l.server.GracefulStop()
+	l.server.Stop()
 	l.wg.Wait()
 }
 
 func (l *grpcListener) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, stream pbgo.ProcessEntityStream_StreamEntitiesServer) error {
-	l.streamsLock.Lock()
-	defer l.streamsLock.Unlock()
-
 	syncMessage := l.getCache()
 	err := stream.Send(syncMessage)
 	if err != nil {
 		return err
 	}
 
-	l.streams = append(l.streams, stream)
+	evtsChan := make(streamChan, 1)
+
+	currentWorkerId := l.nextWorkerId
+	l.streams.Store(currentWorkerId, evtsChan)
+	defer func() {
+		l.streams.Delete(currentWorkerId)
+		close(evtsChan)
+	}()
+	defer l.streams.Delete(currentWorkerId)
+	l.nextWorkerId++
+
+	var currentEventId int32 = 1
+	for evt := range evtsChan {
+		evt.EventID = currentEventId
+		currentEventId++
+		err := stream.Send(evt)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

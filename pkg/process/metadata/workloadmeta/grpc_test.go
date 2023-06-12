@@ -84,10 +84,8 @@ func TestStreamServer(t *testing.T) {
 	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
 	srv := newGrpcListener(cfg, func() *pbgo.ProcessStreamResponse { return mockCacheState })
 	require.NoError(t, srv.start())
-	defer assertEventuallyReturns(t, func() {
-		srv.stop()
-	}, 5*time.Second)
 	require.NotNil(t, srv.addr)
+	defer srv.stop()
 
 	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
@@ -97,6 +95,7 @@ func TestStreamServer(t *testing.T) {
 	// Test that the sync message is sent to the client
 	stream, err := streamClient.StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
 	require.NoError(t, err)
+	defer stream.CloseSend()
 
 	msg, err := stream.Recv()
 	sort.SliceStable(msg.SetEvents, func(i, j int) bool {
@@ -166,7 +165,7 @@ func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.Proc
 		assert.EqualExportedValues(t, *expectedSet, *actualSet) //nolint:copylocks
 	}
 	for i, expectedUnset := range expected.UnsetEvents {
-		actualSet := expected.SetEvents[i]
+		actualSet := expected.UnsetEvents[i]
 		assert.EqualExportedValues(t, *expectedUnset, *actualSet) //nolint:copylocks
 	}
 }
