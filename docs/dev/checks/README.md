@@ -176,6 +176,8 @@ correctly.
 
 1. `python3 -m pip install virtualenv`
 1. `virtualenv $GOPATH/src/github.com/DataDog/datadog-agent/venv`
+    1. You may need a `-p python3` argument if the system has both `python2` and
+       `python3` bins.
 1. Activate the virtualenv (OS-dependent)
 1. `python3 -m pip install '/path/to/integrations-core/datadog_checks_base[deps]'`
 1. `PYTHONPATH="$PWD/venv/lib/python3.10/site-packages:$PYTHONPATH" inv agent.run`
