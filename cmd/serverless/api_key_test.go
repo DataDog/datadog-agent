@@ -8,6 +8,8 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"net"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/kms"
@@ -101,6 +103,20 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 	result, err := extractRegionFromSecretsManagerArn(mockMalformedPrefixSecretsManagerAPIKeyArn)
 	assert.Equal(t, result, "")
 	assert.Error(t, err, "could not extract region from arn: aws:secretsmanager:us-west-2:123456789012:secret:DatadogAPIKeySecret. arn: invalid prefix")
+}
+
+func TestSendAPIKeyToShellSuccess(t *testing.T) {
+	listen, err := net.Listen("tcp", "localhost:0")
+	assert.NoError(t, err)
+	defer listen.Close()
+	port := listen.Addr().(*net.TCPAddr).Port
+	t.Setenv("DD_SERVERLESS_SHELL_PORT", fmt.Sprint(port))
+	assert.NoError(t, sendAPIKeyToShell("abcd"))
+}
+
+func TestSendApiKeyToShellInvalidPort(t *testing.T) {
+	t.Setenv("DD_SERVERLESS_SHELL_PORT", "invalid")
+	assert.Error(t, sendAPIKeyToShell("abcd"))
 }
 
 func TestDDApiKey(t *testing.T) {

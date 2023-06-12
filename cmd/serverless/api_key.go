@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -41,7 +42,7 @@ const secretArnSuffix = "_SECRET_ARN"
 func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 	decodedBytes, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
-		return "", fmt.Errorf("Failed to decode ciphertext from base64: %v", err)
+		return "", fmt.Errorf("failed to decode ciphertext from base64: %v", err)
 	}
 
 	// When the API key is encrypted using the AWS console, the function name is added as an
@@ -66,7 +67,7 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 		}
 		response, err = kmsClient.Decrypt(params)
 		if err != nil {
-			return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
+			return "", fmt.Errorf("failed to decrypt ciphertext with kms: %v", err)
 		}
 	}
 
@@ -121,7 +122,7 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 
 	output, err := secretsManagerClient.GetSecretValue(secret)
 	if err != nil {
-		return "", fmt.Errorf("Secrets Manager read error: %s", err)
+		return "", fmt.Errorf("secrets Manager read error: %s", err)
 	}
 
 	if output.SecretString != nil {
@@ -160,4 +161,21 @@ func hasApiKey() bool {
 	return config.Datadog.IsSet("api_key") ||
 		len(os.Getenv(kmsAPIKeyEnvVar)) > 0 ||
 		len(os.Getenv(secretsManagerAPIKeyEnvVar)) > 0
+}
+
+func sendAPIKeyToShell(apiKey string) error {
+	conn, err := net.Dial("tcp", buildShellHostPort())
+	if err != nil {
+		return fmt.Errorf("could not establish connexion to the shell")
+	}
+	n, err := conn.Write([]byte(apiKey))
+	if err != nil || n != len(apiKey) {
+		return fmt.Errorf("error while writing to the shell")
+	}
+	return nil
+}
+
+func buildShellHostPort() string {
+	shell_port := config.Datadog.GetInt("serverless.shell_port")
+	return fmt.Sprintf("localhost:%d", shell_port)
 }

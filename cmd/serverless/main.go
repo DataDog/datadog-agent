@@ -209,6 +209,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	if _, err := config.Load(); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
+
+	if err := sendAPIKeyToShell(os.Getenv(apiKeyEnvVar)); err != nil {
+		log.Warn(err)
+	}
+
 	logChannel := make(chan *logConfig.ChannelMessage)
 	// Channels for ColdStartCreator
 	lambdaSpanChan := make(chan *pb.Span)
