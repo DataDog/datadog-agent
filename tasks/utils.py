@@ -16,10 +16,11 @@ from .libs.common.color import color_message
 from .libs.common.remote_api import APIError
 
 # constants
-ORG_PATH = "github.com/DataDog"
 DEFAULT_BRANCH = "main"
+GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"
-REPO_PATH = f"{ORG_PATH}/{REPO_NAME}"
+GITHUB_REPO_NAME = f"{GITHUB_ORG}/{REPO_NAME}"
+REPO_PATH = f"github.com/{GITHUB_REPO_NAME}"
 ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"stable", "beta", "none"}
 ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
 ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
