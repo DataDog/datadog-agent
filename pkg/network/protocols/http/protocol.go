@@ -117,7 +117,7 @@ func (p *httpProtocol) PostStart(mgr *manager.Manager) error {
 	return nil
 }
 
-func (p *httpProtocol) Stop(mgr *manager.Manager) {
+func (p *httpProtocol) Stop(_ *manager.Manager) {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
