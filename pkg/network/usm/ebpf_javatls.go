@@ -32,9 +32,8 @@ import (
 )
 
 const (
-	agentUSMJar            = "agent-usm.jar"
-	javaTLSConnectionsMap  = "java_tls_connections"
-	javaTLSConnectionsMap2 = "java_tls_connections2"
+	agentUSMJar           = "agent-usm.jar"
+	javaTLSConnectionsMap = "java_tls_connections"
 )
 
 var (
