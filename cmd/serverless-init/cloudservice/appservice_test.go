@@ -19,11 +19,23 @@ func TestGetAppServiceTags(t *testing.T) {
 	t.Setenv("APPSVC_RUN_ZIP", "false")
 
 	tags := service.GetTags()
+	tags["aas.environment.os"] = "test_os"
+	tags["aas.environment.runtime"] = "test_runtime"
 
 	assert.Equal(t, map[string]string{
-		"app_name":   "test_site_name",
-		"origin":     "appservice",
-		"region":     "eastus",
-		"_dd.origin": "appservice",
+		"app_name":                      "test_site_name",
+		"origin":                        "appservice",
+		"region":                        "eastus",
+		"_dd.origin":                    "appservice",
+		"aas.environment.instance_id":   "",
+		"aas.environment.instance_name": "",
+		"aas.environment.os":            "test_os",
+		"aas.environment.runtime":       "test_runtime",
+		"aas.resource.group":            "",
+		"aas.resource.id":               "",
+		"aas.site.kind":                 "app",
+		"aas.site.name":                 "test_site_name",
+		"aas.site.type":                 "app",
+		"aas.subscription.id":           "",
 	}, tags)
 }

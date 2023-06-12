@@ -32,8 +32,8 @@ func (a *AppService) GetTags() map[string]string {
 		"_dd.origin": a.GetOrigin(),
 	}
 
-	for k, v := range traceutil.GetAppServicesTags() {
-		tags[k] = v
+	for key, value := range traceutil.GetAppServicesTags() {
+		tags[key] = value
 	}
 
 	return tags
