@@ -86,6 +86,7 @@ func (cgce *CacheEntry) GetPIDs() []uint32 {
 	i := 0
 	for k := range cgce.PIDs {
 		pids[i] = k
+		i++
 	}
 
 	return pids
