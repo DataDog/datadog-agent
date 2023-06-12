@@ -69,6 +69,8 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 		}
 		newEntities = append(newEntities, entity)
 		newCache[hashProcess(pid, proc.Stats.CreateTime)] = entity
+
+		log.Trace("detected language", lang.Name, "for pid", pid)
 	}
 
 	deadProcs := getDifference(w.cache, newCache)
@@ -90,7 +92,7 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 	return oldProcs
 }
 
-// Enabled returns whether or not the extractor should be enabled
+// Enabled returns whether the extractor should be enabled
 func Enabled(ddconfig config.ConfigReader) bool {
 	return ddconfig.GetBool("process_config.language_detection.enabled")
 }
