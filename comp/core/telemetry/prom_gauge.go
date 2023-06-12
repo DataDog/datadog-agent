@@ -43,3 +43,13 @@ func (g *promGauge) Add(value float64, tagsValue ...string) {
 func (g *promGauge) Sub(value float64, tagsValue ...string) {
 	g.pg.WithLabelValues(tagsValue...).Sub(value)
 }
+
+// WithValues returns SimpleGauge for this metric with the given tag values.
+func (g *promGauge) WithValues(tagsValue ...string) SimpleGauge {
+	return &simplePromGauge{g: g.pg.WithLabelValues(tagsValue...)}
+}
+
+// Withtags returns SimpleGauge for this metric with the given tag values.
+func (g *promGauge) WithTags(tags map[string]string) SimpleGauge {
+	return &simplePromGauge{g: g.pg.With(tags)}
+}

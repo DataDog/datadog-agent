@@ -23,3 +23,15 @@ func (h *promHistogram) Observe(value float64, tagsValue ...string) {
 func (h *promHistogram) Delete(tagsValue ...string) {
 	h.ph.DeleteLabelValues(tagsValue...)
 }
+
+// WithValues returns SimpleHistogram for this metric with the given tag values.
+func (h *promHistogram) WithValues(tagsValue ...string) SimpleHistogram {
+	// Prometheus does not directly expose the underlying histogram so we have to cast it.
+	return &simplePromHistogram{h: h.ph.WithLabelValues(tagsValue...).(prometheus.Histogram)}
+}
+
+// WithValues returns SimpleHistogram for this metric with the given tag values.
+func (h *promHistogram) WithTags(tags map[string]string) SimpleHistogram {
+	// Prometheus does not directly expose the underlying histogram so we have to cast it.
+	return &simplePromHistogram{h: h.ph.With(tags).(prometheus.Histogram)}
+}
