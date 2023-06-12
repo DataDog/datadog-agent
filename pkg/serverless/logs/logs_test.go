@@ -889,6 +889,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 
 	requestID := "13dee504-0d50-4c86-8d82-efd20693afc9"
 	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetInitializationTime(startTime)
 	mockExecutionContext.SetFromInvocation("arn not used", requestID)
 	mockExecutionContext.UpdateStartTime(startTime)
 	computeEnhancedMetrics := true
@@ -943,6 +944,85 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Value:      postRuntimeDurationMs, // in milliseconds
 		Mtype:      metrics.DistributionType,
 		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
+	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
+	// The test ensures that the values listed in the report log statement
+	// matches the values of the metrics being reported.
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
+	runtimeDurationMs := 10.0
+	postRuntimeDurationMs := 90.0
+	durationMs := runtimeDurationMs + postRuntimeDurationMs
+
+	startTime := time.Now()
+	endTime := startTime.Add(time.Duration(runtimeDurationMs) * time.Millisecond)
+	reportLogTime := endTime.Add(time.Duration(postRuntimeDurationMs) * time.Millisecond)
+
+	requestID := "13dee504-0d50-4c86-8d82-efd20693afc9"
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetInitializationTime(startTime.Add(-15 * time.Second))
+	mockExecutionContext.SetFromInvocation("arn not used", requestID)
+	mockExecutionContext.UpdateStartTime(startTime)
+	computeEnhancedMetrics := true
+	tags := Tags{
+		Tags: []string{},
+	}
+
+	doneMessage := &LambdaLogAPIMessage{
+		time:    endTime,
+		logType: logTypePlatformRuntimeDone,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
+	reportMessage := &LambdaLogAPIMessage{
+		time:    reportLogTime,
+		logType: logTypePlatformReport,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+			reportLogItem: reportLogMetrics{
+				durationMs: durationMs,
+			},
+		},
+	}
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+	lc.invocationStartTime = startTime
+
+	lc.processMessage(doneMessage)
+	lc.processMessage(reportMessage)
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 100*time.Millisecond)
+	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
+	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
+	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.runtime_duration",
+		Value:      runtimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		SampleRate: 1,
+		Timestamp:  runtimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.duration",
+		Value:      durationMs / 1000, // in seconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.post_runtime_duration",
+		Value:      postRuntimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
 	})
