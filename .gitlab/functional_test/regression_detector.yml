@@ -58,7 +58,7 @@ single-machine-performance-regression_detector:
     - echo "Computing baseline..."
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     # TODO(geoffrey.oxberry@datadoghq.com): Make the statement below a multiline statement after debugging
-    - while [[ ! $(aws --profile single-machine-performance ecr describe-images --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64") ]]; do echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"; BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^); echo "Checking if image exists for commit ${BASELINE_SHA}..."; done
+    - while [[ ! $(aws --profile single-machine-performance ecr describe-images --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64" 2> /dev/null) ]]; do echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"; BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^); echo "Checking if image exists for commit ${BASELINE_SHA}..."; done
     - echo "Image exists for commit ${BASELINE_SHA}"
     - echo "Baseline SHA is ${BASELINE_SHA}"
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
