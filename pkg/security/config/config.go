@@ -186,9 +186,7 @@ func NewConfig() (*Config, error) {
 }
 
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
-	if !sysconfig.IsAdjusted(coreconfig.SystemProbe) {
-		sysconfig.Adjust(coreconfig.SystemProbe)
-	}
+	sysconfig.Adjust(coreconfig.SystemProbe)
 
 	rsConfig := &RuntimeSecurityConfig{
 		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),

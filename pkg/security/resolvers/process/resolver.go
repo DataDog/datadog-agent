@@ -529,6 +529,12 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, origin uint64
 func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, origin uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
+		// check exec bomb
+		if prev.Equals(entry) {
+			prev.ApplyExecTimeOf(entry)
+			return
+		}
+
 		prev.Exec(entry)
 	}
 

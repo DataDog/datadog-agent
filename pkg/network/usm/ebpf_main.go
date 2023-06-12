@@ -193,6 +193,10 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 			})
 	}
 
+	if IsJavaSubprogramEnabled(c) {
+		tailCalls = append(tailCalls, GetJavaTlsTailCallRoutes()...)
+	}
+
 	program := &ebpfProgram{
 		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
