@@ -48,9 +48,3 @@ func withSkipIfFentry(skip bool) psbOption {
 		psb.skipIfFentry = skip
 	}
 }
-
-func withUID(uid string) psbOption {
-	return func(psb *probeSelectorBuilder) {
-		psb.uid = uid
-	}
-}
