@@ -86,7 +86,7 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 func (p *httpProtocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[httpInFlightMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
-		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 
