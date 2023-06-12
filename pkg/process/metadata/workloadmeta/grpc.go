@@ -6,9 +6,16 @@
 package workloadmeta
 
 import (
+	"errors"
+	"fmt"
+	"net"
 	"sync"
 
+	"google.golang.org/grpc"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type mockableGrpcListener interface {
@@ -19,9 +26,11 @@ var _ mockableGrpcListener = (*noopGRPCListener)(nil)
 
 type noopGRPCListener struct{}
 
-func (l *noopGRPCListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {}
+func (l *noopGRPCListener) writeEvents(_, _ []*ProcessEntity) {}
 
 var _ mockableGrpcListener = (*grpcListener)(nil)
+
+type getCacheCB func() *pbgo.ProcessStreamResponse
 
 type grpcListener struct {
 	wg sync.WaitGroup
@@ -30,12 +39,24 @@ type grpcListener struct {
 
 	streamsLock sync.RWMutex
 	streams     []pbgo.ProcessEntityStream_StreamEntitiesServer
+
+	getCache getCacheCB
+
+	server *grpc.Server
+
+	config config.ConfigReader
 }
 
-func newGrpcListener() *grpcListener {
-	return &grpcListener{
-		evts: make(chan *pbgo.ProcessStreamResponse, 1),
+func newGrpcListener(config config.ConfigReader, getCache getCacheCB) *grpcListener {
+	l := &grpcListener{
+		config:   config,
+		server:   grpc.NewServer(),
+		getCache: getCache,
+		evts:     make(chan *pbgo.ProcessStreamResponse, 1),
 	}
+
+	pbgo.RegisterProcessEntityStreamServer(l.server, l)
+	return l
 }
 
 func (l *grpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
@@ -58,7 +79,29 @@ func (l *grpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
 	}
 }
 
-func (l *grpcListener) start() {
+func (l *grpcListener) start() error {
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%v", getGRPCStreamPort(l.config)))
+	if err != nil {
+		return err
+	}
+
+	l.wg.Add(1)
+	go func() {
+		defer l.wg.Done()
+
+		err = l.server.Serve(listener)
+		if errors.Is(err, grpc.ErrServerStopped) {
+			log.Info("The WorkloadMeta gRPC server has stopped")
+		} else if err != nil {
+			_ = log.Error(err)
+		}
+
+		err = listener.Close()
+		if err != nil {
+			_ = log.Error("Failed to close listener", listener)
+		}
+	}()
+
 	l.wg.Add(1)
 	go func() {
 		defer l.wg.Done()
@@ -77,7 +120,7 @@ func (l *grpcListener) start() {
 			// Most of the time we should have no errors
 			if len(errIndices) > 0 {
 				l.streamsLock.Lock()
-				// Close the streams that have an error when sending
+				// Clean up the streams that have an error when sending
 				for _, errIdx := range errIndices {
 					l.streams = append(l.streams[:errIdx], l.streams[errIdx+1:]...)
 				}
@@ -85,6 +128,8 @@ func (l *grpcListener) start() {
 			}
 		}
 	}()
+
+	return nil
 }
 
 func (l *grpcListener) stop() {
@@ -92,10 +137,26 @@ func (l *grpcListener) stop() {
 	l.wg.Wait()
 }
 
-func (l *grpcListener) StreamEntities(req *pbgo.ProcessStreamResponse, stream pbgo.ProcessEntityStream_StreamEntitiesServer) error {
+func (l *grpcListener) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, stream pbgo.ProcessEntityStream_StreamEntitiesServer) error {
 	l.streamsLock.Lock()
 	defer l.streamsLock.Unlock()
 
+	syncMessage := l.getCache()
+	err := stream.Send(syncMessage)
+	if err != nil {
+		return err
+	}
+
 	l.streams = append(l.streams, stream)
+
 	return nil
+}
+
+func getGRPCStreamPort(cfg config.ConfigReader) int {
+	grpcPort := cfg.GetInt("process_config.language_detection.grpc_port")
+	if grpcPort <= 0 {
+		_ = log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", grpcPort, config.DefaultProcessEntityStreamPort)
+		grpcPort = config.DefaultProcessEntityStreamPort
+	}
+	return grpcPort
 }

@@ -39,10 +39,14 @@ type WorkloadMetaExtractor struct {
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
 func NewWorkloadMetaExtractor() *WorkloadMetaExtractor {
 	log.Debug("Instantiated the WorkloadMetaExtractor")
-	return &WorkloadMetaExtractor{
-		cache:        make(map[string]*ProcessEntity),
-		grpcListener: &noopGRPCListener{},
+	extractor := &WorkloadMetaExtractor{
+		cache: make(map[string]*ProcessEntity),
 	}
+
+	grpcListener := newGrpcListener(extractor.getCacheState)
+	extractor.grpcListener = grpcListener
+
+	return extractor
 }
 
 // Extract detects the process language, creates a process entity, and sends that entity to WorkloadMeta
