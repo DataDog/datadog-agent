@@ -37,6 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+// team: agent-apm
+
 const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."

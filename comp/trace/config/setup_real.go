@@ -8,6 +8,8 @@
 
 package config
 
+// team: agent-apm
+
 import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )

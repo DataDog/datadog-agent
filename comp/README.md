@@ -134,7 +134,7 @@ Package systray
 
 ## [comp/trace](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace) (Component Bundle)
 
-*Datadog Team*: trace-agent
+*Datadog Team*: agent-apm
 
 Package process implements the "process" bundle, providing components for the Process Agent
 

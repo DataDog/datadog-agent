@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: trace-agent
+// team: agent-apm
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(

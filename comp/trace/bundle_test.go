@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// team: agent-apm
+
 func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
 		// instantiate all of the core components, since this is not done

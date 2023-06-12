@@ -7,6 +7,8 @@
 
 package config
 
+// team: agent-apm
+
 // DefaultLogFilePath is where the agent will write logs if not overridden in the conf
 const DefaultLogFilePath = "/var/log/datadog/trace-agent.log"
 
