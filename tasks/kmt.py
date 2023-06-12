@@ -81,6 +81,14 @@ distributions = {
     "jammy": "jammy",
     "focal": "focal",
     "bionic": "bionic",
+    "amazon_4.14": "amzn_4.14",
+    "amazon_5.4" : "amzn_5.4",
+    "amazon_5.10": "amzn_5.10",
+    "amazon_5.15": "amzn_5.15",
+    "amzn_4.14": "amzn_4.14",
+    "amzn_5.4" : "amzn_5.4" ,
+    "amzn_5.10": "amzn_5.10",
+    "amzn_5.15": "amzn_5.15",
 }
 distribution_version_mapping = {"jammy": "ubuntu", "focal": "ubuntu", "bionic": "ubuntu"}
 distro_arch_mapping = {"x86_64": "amd64", "arm64": "arm64"}
@@ -90,6 +98,21 @@ images_path = {
     "jammy": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-{arch}.qcow2",
     "bullseye": "file:///home/kernel-version-testing/rootfs/bullseye.qcow2.{arch}-DEV",
     "buster": "file:///home/kernel-version-testing/rootfs/buster.qcow2.{arch}-DEV",
+    "amzn_4.14": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-4.14.qcow2",
+    "amzn_5.4": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.4.qcow2",
+    "amzn_5.10": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.10.qcow2",
+    "amzn_5.15": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.15.qcow2",
+}
+images_name = {
+    "bionic": "bionic-server-cloudimg-{arch}.qcow2",
+    "focal": "focal-server-cloudimg-{arch}.qcow2",
+    "jammy": "jammy-server-cloudimg-{arch}.qcow2",
+    "bullseye": "bullseye.qcow2.{arch}-DEV",
+    "buster": "buster.qcow2.{arch}-DEV",
+    "amzn_4.14": "amzn2-kvm-2.0-{arch}-4.14.qcow2",
+    "amzn_5.4": "amzn2-kvm-2.0-{arch}-5.4.qcow2",
+    "amzn_5.10": "amzn2-kvm-2.0-{arch}-5.10.qcow2",
+    "amzn_5.15": "amzn2-kvm-2.0-{arch}-5.15.qcow2",
 }
 
 priv_key = """-----BEGIN OPENSSH PRIVATE KEY-----
@@ -164,9 +187,12 @@ def check_and_get_stack(stack, branch):
         raise Exit("Cannot specify stack when branch parameter is set")
 
     if branch:
-        return f"{get_active_branch_name()}-ddvm"
+        stack = get_active_branch_name()
 
-    return f"{stack}-ddvm"
+    if not stack.endswith("-ddvm"):
+        return f"{stack}-ddvm"
+    else:
+        return stack
 
 
 def gen_ssh_key(ctx):
@@ -343,20 +369,20 @@ def destroy_stack_force(ctx, stack):
 
 
 @task
-def destroy_stack(ctx, stack=None, branch=False, use_pulumi=False):
+def destroy_stack(ctx, stack=None, branch=False, force=False):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     print(f"[*] Destroying stack {stack}")
-    if use_pulumi:
-        destroy_stack_pulumi(ctx, stack)
-    else:
+    if force:
         destroy_stack_force(ctx, stack)
+        ctx.run(
+            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions/scenarios/aws/microVMs -s {stack}"
+        )
+    else:
+        destroy_stack_pulumi(ctx, stack)
 
-    ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions/scenarios/aws/microVMs -s {stack}"
-    )
     ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
 
 
@@ -444,7 +470,7 @@ def get_distro_image_config(version, arch):
         arch = archs_mapping[platform.machine()]
 
     return {
-        "dir": f"{distributions[version]}-server-cloudimg-{distro_arch_mapping[arch]}.qcow2",
+        "dir": images_name[version].format(arch=distro_arch_mapping[arch]),
         "tag": version,
         "image_source": images_path[version].format(arch=distro_arch_mapping[arch]),
     }
@@ -458,6 +484,7 @@ def get_distro_image_config(version, arch):
 # Each normalized_vm_def output corresponds to each VM
 # requested by the user
 def normalize_vm_def(vm_def):
+    print(vm_def)
     recipe, version, arch = vm_def.split('-')
 
     arch = archs_mapping[arch]
@@ -520,7 +547,7 @@ def vmset_id(recipe, version, arch):
         else:
             return (recipe, arch, "gt_414")
     else:
-        return recipe, arch, distribution_version_mapping[version]
+        return recipe, arch, "distro"#distribution_version_mapping[version]
 
 
 def vmset_exists(vm_config, set_name):
@@ -578,6 +605,7 @@ def generate_vm_config(vm_config, vms, vcpu, memory):
         normalized_vm_def = normalize_vm_def(vm_def)
         set_id = vmset_id(*normalized_vm_def)
         # generate kernel configuration for each vm-def
+        print(normalized_vm_def)
         if set_id not in kernels:
             kernels[set_id] = [get_kernel_config(*normalized_vm_def)]
         else:
