@@ -564,6 +564,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
+require github.com/lorenzosaino/go-sysctl v0.3.1
+
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.46.0-rc.2
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
@@ -585,8 +587,11 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20220613132600-b0d781184e0d // indirect
+	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gotest.tools/v3 v3.3.0 // indirect
+	honnef.co/go/tools v0.3.2 // indirect
 	inet.af/netaddr v0.0.0-20220617031823-097006376321 // indirect
 )
 
