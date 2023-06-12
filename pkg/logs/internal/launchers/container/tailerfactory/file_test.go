@@ -53,7 +53,7 @@ func fileTestSetup(t *testing.T) {
 
 func makeTestPod() (*workloadmeta.KubernetesPod, *workloadmeta.Container) {
 	podID := "poduuid"
-	containerID := "containeruuid"
+	containerID := "abc"
 	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			ID:   podID,
@@ -65,7 +65,7 @@ func makeTestPod() (*workloadmeta.KubernetesPod, *workloadmeta.Container) {
 		},
 		Containers: []workloadmeta.OrchestratorContainer{
 			{
-				ID:   "abc",
+				ID:   containerID,
 				Name: "cname",
 				Image: workloadmeta.ContainerImage{
 					Name: "iname",
