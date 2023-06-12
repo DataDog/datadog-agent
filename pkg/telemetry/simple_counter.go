@@ -21,15 +21,8 @@ func NewSimpleCounter(subsystem, name, help string) SimpleCounter {
 
 // NewSimpleCounterWithOpts creates a new SimpleCounter.
 func NewSimpleCounterWithOpts(subsystem, name, help string, opts Options) SimpleCounter {
-	name = opts.NameWithSeparator(subsystem, name)
-
-	pc := prometheus.NewCounter(prometheus.CounterOpts{
-		Subsystem: subsystem,
-		Name:      name,
-		Help:      help,
-	})
-
-	telemetryRegistry.MustRegister(pc)
-
-	return pc
+	compatOpts := telemetryComponent.Options{
+		NoDoubleUnderscoreSep: opts.NoDoubleUnderscoreSep,
+	}
+	return telemetryComponent.GetCompatComponent().NewSimpleCounterWithOpts(subsystem, name, help, compatOpts)
 }

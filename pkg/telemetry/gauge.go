@@ -23,18 +23,8 @@ func NewGauge(subsystem, name string, tags []string, help string) Gauge {
 // NewGaugeWithOpts creates a Gauge with the given options for telemetry purpose.
 // See NewGauge()
 func NewGaugeWithOpts(subsystem, name string, tags []string, help string, opts Options) Gauge {
-	name = opts.NameWithSeparator(subsystem, name)
-
-	g := &promGauge{
-		pg: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Subsystem: subsystem,
-				Name:      name,
-				Help:      help,
-			},
-			tags,
-		),
+	compatOpts := telemetryComponent.Options{
+		NoDoubleUnderscoreSep: opts.NoDoubleUnderscoreSep,
 	}
-	telemetryRegistry.MustRegister(g.pg)
-	return g
+	return telemetryComponent.GetCompatComponent().NewGaugeWithOpts(subsystem, name, tags, help, compatOpts)
 }

@@ -23,18 +23,8 @@ func NewCounter(subsystem, name string, tags []string, help string) Counter {
 // NewCounterWithOpts creates a Counter with the given options for telemetry purpose.
 // See NewCounter()
 func NewCounterWithOpts(subsystem, name string, tags []string, help string, opts Options) Counter {
-	name = opts.NameWithSeparator(subsystem, name)
-
-	c := &promCounter{
-		pc: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Subsystem: subsystem,
-				Name:      name,
-				Help:      help,
-			},
-			tags,
-		),
+	compatOpts := telemetryComponent.Options{
+		NoDoubleUnderscoreSep: opts.NoDoubleUnderscoreSep,
 	}
-	telemetryRegistry.MustRegister(c.pc)
-	return c
+	return telemetryComponent.GetCompatComponent().NewCounterWithOpts(subsystem, name, tags, help, compatOpts)
 }

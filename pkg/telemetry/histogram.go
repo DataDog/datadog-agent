@@ -37,19 +37,8 @@ func NewHistogram(subsystem, name string, tags []string, help string, buckets []
 // NewHistogramWithOpts creates a Histogram with the given options for telemetry purpose.
 // See NewHistogram()
 func NewHistogramWithOpts(subsystem, name string, tags []string, help string, buckets []float64, opts Options) Histogram {
-	name = opts.NameWithSeparator(subsystem, name)
-
-	h := &promHistogram{
-		ph: prometheus.NewHistogramVec(
-			prometheus.HistogramOpts{
-				Subsystem: subsystem,
-				Name:      name,
-				Help:      help,
-				Buckets:   buckets,
-			},
-			tags,
-		),
+	compatOpts := telemetryComponent.Options{
+		NoDoubleUnderscoreSep: opts.NoDoubleUnderscoreSep,
 	}
-	telemetryRegistry.MustRegister(h.ph)
-	return h
+	return telemetryComponent.GetCompatComponent().NewHistogramWithOpts(subsystem, name, tags, help, buckets, compatOpts)
 }

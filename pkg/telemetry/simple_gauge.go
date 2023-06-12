@@ -21,15 +21,8 @@ func NewSimpleGauge(subsystem, name, help string) SimpleGauge {
 
 // NewSimpleGaugeWithOpts creates a new SimpleGauge.
 func NewSimpleGaugeWithOpts(subsystem, name, help string, opts Options) SimpleGauge {
-	name = opts.NameWithSeparator(subsystem, name)
-
-	pc := prometheus.NewGauge(prometheus.GaugeOpts{
-		Subsystem: subsystem,
-		Name:      name,
-		Help:      help,
-	})
-
-	telemetryRegistry.MustRegister(pc)
-
-	return pc
+	compatOpts := telemetryComponent.Options{
+		NoDoubleUnderscoreSep: opts.NoDoubleUnderscoreSep,
+	}
+	return telemetryComponent.GetCompatComponent().NewSimpleGaugeWithOpts(subsystem, name, help, compatOpts)
 }
