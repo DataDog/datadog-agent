@@ -40,7 +40,7 @@ const (
 	httpEventStream    = "http"
 )
 
-var HttpSpec protocols.ProtocolSpec = protocols.ProtocolSpec{
+var Spec protocols.ProtocolSpec = protocols.ProtocolSpec{
 	Factory: newHttpProtocol,
 	Maps: []*manager.Map{
 		{Name: httpInFlightMap},
