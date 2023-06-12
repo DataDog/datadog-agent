@@ -833,7 +833,10 @@ namespace Datadog.CustomActions
 
                 EnablePermissionInheritance();
 
-                GrantAgentAccessPermissions();
+                if (ddAgentUserSID != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
+                {
+                    GrantAgentAccessPermissions();
+                }
             }
             catch (Exception e)
             {
@@ -1022,7 +1025,7 @@ namespace Datadog.CustomActions
                     out _,
                     out var securityIdentifier,
                     out _);
-                if (!userFound)
+                if (!userFound || securityIdentifier == null)
                 {
                     _session.Log($"Could not find user {ddAgentUserName}");
                     return ActionResult.Success;
@@ -1037,19 +1040,22 @@ namespace Datadog.CustomActions
                     );
                     _session.Message(InstallMessage.ActionStart, actionRecord);
                 }
-                _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
-                foreach (var filePath in pathsWithAgentAccess())
+                if (securityIdentifier != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
-                    try
+                    _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
+                    foreach (var filePath in pathsWithAgentAccess())
                     {
-                        if (_fileSystemServices.Exists(filePath))
+                        try
                         {
-                            removeAgentAccess(securityIdentifier, filePath);
+                            if (_fileSystemServices.Exists(filePath))
+                            {
+                                removeAgentAccess(securityIdentifier, filePath);
+                            }
                         }
-                    }
-                    catch (Exception e)
-                    {
-                        _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
+                        catch (Exception e)
+                        {
+                            _session.Log($"Failed to remove {ddAgentUserName} from {filePath}: {e}");
+                        }
                     }
                 }
 
