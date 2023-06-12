@@ -19,6 +19,7 @@ import (
 
 type mockableGrpcListener interface {
 	writeEvents(procsToDelete, procsToAdd []*ProcessEntity)
+	start() error
 }
 
 var _ mockableGrpcListener = (*noopGRPCListener)(nil)
@@ -26,6 +27,10 @@ var _ mockableGrpcListener = (*noopGRPCListener)(nil)
 type noopGRPCListener struct{}
 
 func (l *noopGRPCListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {}
+
+func (l *noopGRPCListener) start() error {
+	return nil
+}
 
 var _ mockableGrpcListener = (*grpcListener)(nil)
 

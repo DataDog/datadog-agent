@@ -49,6 +49,11 @@ func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor
 	return extractor
 }
 
+// Start starts the underlying grpc server for the WorkloadMetaExtractor
+func (w *WorkloadMetaExtractor) Start() error {
+	return w.grpcListener.start()
+}
+
 // Extract detects the process language, creates a process entity, and sends that entity to WorkloadMeta
 func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	newProcs := make([]*procutil.Process, 0, len(procs))

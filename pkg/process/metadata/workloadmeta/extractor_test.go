@@ -139,6 +139,11 @@ func (m *mockGrpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntit
 	m.Called(procsToDelete, procsToAdd)
 }
 
+func (m *mockGrpcListener) start() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
 func BenchmarkHashProcess(b *testing.B) {
 	b.Run("itoa", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {

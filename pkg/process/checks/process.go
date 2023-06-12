@@ -41,7 +41,13 @@ const (
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 	var extractors []metadata.Extractor
 	if workloadMetaExtractor.Enabled(config) {
-		extractors = append(extractors, workloadMetaExtractor.NewWorkloadMetaExtractor(config))
+		wlmExtractor := workloadMetaExtractor.NewWorkloadMetaExtractor(config)
+		err := wlmExtractor.Start()
+		if err != nil {
+			_ = log.Error("Failed to start the workload meta extractor:", err)
+		} else {
+			extractors = append(extractors, wlmExtractor)
+		}
 	}
 
 	return &ProcessCheck{
@@ -136,6 +142,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.disallowList = initDisallowList(p.config)
 
 	p.initConnRates()
+
 	return nil
 }
 
