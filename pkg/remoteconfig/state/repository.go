@@ -202,6 +202,7 @@ func (r *Repository) Update(update Update) ([]string, error) {
 			return nil, err
 		}
 
+		// 3.b and 3.c: Check if this configuration is either new or has been modified
 		storedMetadata, exists := r.metadata[path]
 		if exists && hashesEqual(targetFileMetadata.Hashes, storedMetadata.Hashes) {
 			continue
