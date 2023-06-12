@@ -1,12 +1,13 @@
 #ifndef __SOWATCHER_H
 #define __SOWATCHER_H
 
-#include "protocols/tls/sowatcher-types.h"
+#include "bpf_telemetry.h"
+#include "shared-libraries/types.h"
 
 static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-        bpf_probe_read_user(&path->buf[i], 1, &path_argument[i]);
+        bpf_probe_read_user_with_telemetry(&path->buf[i], 1, &path_argument[i]);
         if (path->buf[i] == 0) {
             path->len = i;
             break;

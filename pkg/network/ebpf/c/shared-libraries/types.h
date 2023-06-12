@@ -1,5 +1,5 @@
-#ifndef __SOWATCHER_TYPES_H
-#define __SOWATCHER_TYPES_H
+#ifndef __SHARED_LIBRARIES_H
+#define __SHARED_LIBRARIES_H
 
 #include "ktypes.h"
 

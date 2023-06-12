@@ -5,43 +5,29 @@
 
 //go:build linux_bpf
 
-package usm
+package sharedlibrary
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/gopsutil/process"
-	"github.com/cihub/seelog"
-	"github.com/cilium/ebpf"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func launchProcessMonitor(t *testing.T) {
@@ -71,7 +57,6 @@ func TestSharedLibrary(t *testing.T) {
 
 func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	t := s.T()
-	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 
@@ -80,17 +65,17 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		pathDetected string
 	)
 
-	callback := func(id pathIdentifier, root string, path string) error {
+	callback := func(id PathIdentifier, root string, path string) error {
 		mux.Lock()
 		defer mux.Unlock()
 		pathDetected = path
 		return nil
 	}
 
-	watcher := newSOWatcher(perfHandler,
-		soRule{
-			re:         regexp.MustCompile(`foo-libssl.so`),
-			registerCB: callback,
+	watcher := NewWatcher(config.New(), nil,
+		Rule{
+			Re:         regexp.MustCompile(`foo-libssl.so`),
+			RegisterCB: callback,
 		},
 	)
 	watcher.Start()
@@ -155,24 +140,22 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	err = exec.Command("cp", "/usr/bin/busybox", root+"/sleep").Run()
 	require.NoError(t, err)
 
-	perfHandler := initEBPFProgram(t)
-
 	var (
 		mux          sync.Mutex
 		pathDetected string
 	)
 
-	callback := func(id pathIdentifier, root string, path string) error {
+	callback := func(id PathIdentifier, root string, path string) error {
 		mux.Lock()
 		defer mux.Unlock()
 		pathDetected = path
 		return nil
 	}
 
-	watcher := newSOWatcher(perfHandler,
-		soRule{
-			re:         regexp.MustCompile(`fooroot-crypto.so`),
-			registerCB: callback,
+	watcher := NewWatcher(config.New(), nil,
+		Rule{
+			Re:         regexp.MustCompile(`fooroot-crypto.so`),
+			RegisterCB: callback,
 		},
 	)
 	watcher.Start()
@@ -215,26 +198,25 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 
 func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	t := s.T()
-	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "a-foo-libssl.so")
 	fooPath2 := filepath.Join(t.TempDir(), "b-foo-libssl.so")
 
 	// create a hard-link (a-foo-libssl.so and b-foo-libssl.so will share the same inode)
 	require.NoError(t, os.Link(fooPath1, fooPath2))
-	fooPathID2, err := newPathIdentifier(fooPath2)
+	fooPathID2, err := NewPathIdentifier(fooPath2)
 	require.NoError(t, err)
 
 	registers := atomic.NewInt64(0)
-	callback := func(id pathIdentifier, root string, path string) error {
+	callback := func(id PathIdentifier, root string, path string) error {
 		registers.Add(1)
 		return nil
 	}
 
-	watcher := newSOWatcher(perfHandler,
-		soRule{
-			re:         regexp.MustCompile(`foo-libssl.so`),
-			registerCB: callback,
+	watcher := NewWatcher(config.New(), nil,
+		Rule{
+			Re:         regexp.MustCompile(`foo-libssl.so`),
+			RegisterCB: callback,
 		},
 	)
 	watcher.Start()
@@ -285,24 +267,23 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 
 func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	t := s.T()
-	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
 
-	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
-	unregisterCB := func(id pathIdentifier) error { return errors.New("fake unregisterCB error") }
+	registerCB := func(id PathIdentifier, root string, path string) error { return nil }
+	unregisterCB := func(id PathIdentifier) error { return errors.New("fake unregisterCB error") }
 
-	watcher := newSOWatcher(perfHandler,
-		soRule{
-			re:           regexp.MustCompile(`foo-libssl.so`),
-			registerCB:   registerCB,
-			unregisterCB: unregisterCB,
+	watcher := NewWatcher(config.New(), nil,
+		Rule{
+			Re:           regexp.MustCompile(`foo-libssl.so`),
+			RegisterCB:   registerCB,
+			UnregisterCB: unregisterCB,
 		},
-		soRule{
-			re:           regexp.MustCompile(`foo2-gnutls.so`),
-			registerCB:   registerCB,
-			unregisterCB: unregisterCB,
+		Rule{
+			Re:           regexp.MustCompile(`foo2-gnutls.so`),
+			RegisterCB:   registerCB,
+			UnregisterCB: unregisterCB,
 		},
 	)
 	watcher.Start()
@@ -383,24 +364,23 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 
 func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	t := s.T()
-	perfHandler := initEBPFProgram(t)
 
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
 
-	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
-	unregisterCB := func(id pathIdentifier) error { return nil }
+	registerCB := func(id PathIdentifier, root string, path string) error { return nil }
+	unregisterCB := func(id PathIdentifier) error { return nil }
 
-	watcher := newSOWatcher(perfHandler,
-		soRule{
-			re:           regexp.MustCompile(`foo-libssl.so`),
-			registerCB:   registerCB,
-			unregisterCB: unregisterCB,
+	watcher := NewWatcher(config.New(), nil,
+		Rule{
+			Re:           regexp.MustCompile(`foo-libssl.so`),
+			RegisterCB:   registerCB,
+			UnregisterCB: unregisterCB,
 		},
-		soRule{
-			re:           regexp.MustCompile(`foo2-gnutls.so`),
-			registerCB:   registerCB,
-			unregisterCB: unregisterCB,
+		Rule{
+			Re:           regexp.MustCompile(`foo2-gnutls.so`),
+			RegisterCB:   registerCB,
+			UnregisterCB: unregisterCB,
 		},
 	)
 
@@ -458,7 +438,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
 	telEqual(t, 1, "usm.so_watcher.already_registered")
 	telEqual(t, 0, "usm.so_watcher.blocked")
-	telEqual(t, 3, "usm.so_watcher.matches") // command1 access to 2 files, command2 access to 1 file
+	telEqual(t, 0, "usm.so_watcher.matches")
 	telEqual(t, 2, "usm.so_watcher.registered")
 	telEqual(t, 0, "usm.so_watcher.unregister_errors")
 	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
@@ -501,16 +481,16 @@ func buildSOWatcherClientBin(t *testing.T) string {
 	return clientBinPath
 }
 
-func checkPathIDExists(watcher *soWatcher, pathID pathIdentifier) bool {
+func checkPathIDExists(watcher *Watcher, pathID PathIdentifier) bool {
 	_, ok := watcher.registry.byID[pathID]
 	return ok
 }
 
-func checkPathIDDoesNotExist(watcher *soWatcher, pathID pathIdentifier) bool {
+func checkPathIDDoesNotExist(watcher *Watcher, pathID PathIdentifier) bool {
 	return !checkPathIDExists(watcher, pathID)
 }
 
-func checkPIDAssociatedWithPathID(watcher *soWatcher, pathID pathIdentifier, pid uint32) bool {
+func checkPIDAssociatedWithPathID(watcher *Watcher, pathID PathIdentifier, pid uint32) bool {
 	value, ok := watcher.registry.byPID[pid]
 	if !ok {
 		return false
@@ -519,361 +499,27 @@ func checkPIDAssociatedWithPathID(watcher *soWatcher, pathID pathIdentifier, pid
 	return ok
 }
 
-func checkPIDNotAssociatedWithPathID(watcher *soWatcher, pathID pathIdentifier, pid uint32) bool {
+func checkPIDNotAssociatedWithPathID(watcher *Watcher, pathID PathIdentifier, pid uint32) bool {
 	return !checkPIDAssociatedWithPathID(watcher, pathID, pid)
 }
 
-func createTempTestFile(t *testing.T, name string) (string, pathIdentifier) {
+func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 	fullPath := filepath.Join(t.TempDir(), name)
 
 	f, err := os.Create(fullPath)
+	f.WriteString("foobar")
 	require.NoError(t, err)
 	f.Close()
 	t.Cleanup(func() {
 		os.RemoveAll(fullPath)
 	})
 
-	pathID, err := newPathIdentifier(fullPath)
+	pathID, err := NewPathIdentifier(fullPath)
 	require.NoError(t, err)
 
 	return fullPath, pathID
 }
 
-func checkWatcherStateIsClean(t *testing.T, watcher *soWatcher) {
+func checkWatcherStateIsClean(t *testing.T, watcher *Watcher) {
 	require.True(t, len(watcher.registry.byPID) == 0 && len(watcher.registry.byID) == 0, "watcher state is not clean")
-}
-
-func getTracepointFuncName(tracepointType, name string) string {
-	return fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", tracepointType, name)
-}
-
-const (
-	enterTracepoint = "enter"
-	exitTracepoint  = "exit"
-)
-
-func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
-	c := config.New()
-	if !http.HTTPSSupported(c) {
-		t.Skip("https not supported for this setup")
-	}
-
-	includeOpenat2 := sysOpenAt2Supported()
-	openat2Probes := []manager.ProbeIdentificationPair{
-		{
-			EBPFFuncName: getTracepointFuncName(enterTracepoint, openat2SysCall),
-			UID:          probeUID,
-		},
-		{
-			EBPFFuncName: getTracepointFuncName(exitTracepoint, openat2SysCall),
-			UID:          probeUID,
-		},
-	}
-
-	perfHandler := ddebpf.NewPerfHandler(10)
-	mgr := &manager.Manager{
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{Name: sharedLibrariesPerfMap},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      perfHandler.RecordHandler,
-					LostHandler:        perfHandler.LostHandler,
-					RecordGetter:       perfHandler.RecordGetter,
-				},
-			},
-		},
-		Probes: []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: getTracepointFuncName(enterTracepoint, openatSysCall),
-					UID:          probeUID,
-				},
-				KProbeMaxActive: maxActive,
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: getTracepointFuncName(exitTracepoint, openatSysCall),
-					UID:          probeUID,
-				},
-				KProbeMaxActive: maxActive,
-			},
-		},
-	}
-
-	options := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		MapSpecEditors: map[string]manager.MapSpecEditor{
-			// TODO: move shared library probes to their own compilation artifact
-			"http_batches": {
-				Type:       ebpf.Hash,
-				MaxEntries: 1,
-				EditorFlag: manager.EditMaxEntries,
-			},
-			"http2_batches": {
-				Type:       ebpf.Hash,
-				MaxEntries: 1,
-				EditorFlag: manager.EditMaxEntries,
-			},
-			"http_in_flight": {
-				Type:       ebpf.LRUHash,
-				MaxEntries: 1,
-				EditorFlag: manager.EditMaxEntries,
-			},
-			"kafka_batches": {
-				Type:       ebpf.Hash,
-				MaxEntries: 1,
-				EditorFlag: manager.EditMaxEntries,
-			},
-			"kafka_last_tcp_seq_per_connection": {
-				Type:       ebpf.Hash,
-				MaxEntries: 1,
-				EditorFlag: manager.EditMaxEntries,
-			},
-			"http2_in_flight": {
-				Type:       ebpf.LRUHash,
-				MaxEntries: 1,
-				EditorFlag: manager.EditMaxEntries,
-			},
-			connectionStatesMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: 1,
-				EditorFlag: manager.EditMaxEntries,
-			},
-			probes.ConnectionProtocolMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: 1,
-				EditorFlag: manager.EditMaxEntries,
-			},
-		},
-		ActivatedProbes: []manager.ProbesSelector{
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: getTracepointFuncName(enterTracepoint, openatSysCall),
-					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: getTracepointFuncName(exitTracepoint, openatSysCall),
-					UID:          probeUID,
-				},
-			},
-		},
-	}
-
-	if includeOpenat2 {
-		for _, probe := range openat2Probes {
-			mgr.Probes = append(mgr.Probes, &manager.Probe{
-				ProbeIdentificationPair: probe,
-				KProbeMaxActive:         maxActive,
-			})
-
-			options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probe.EBPFFuncName,
-					UID:          probeUID,
-				},
-			})
-		}
-	}
-
-	exclude := []string{
-		"socket__http_filter",
-		"socket__http2_filter",
-		"socket__kafka_filter",
-		"socket__protocol_dispatcher",
-		"socket__protocol_dispatcher_kafka",
-		"kprobe__tcp_sendmsg",
-		"kretprobe__security_sock_rcv_skb",
-		"tracepoint__net__netif_receive_skb",
-		"kprobe__do_vfs_ioctl",
-		"kprobe_handle_sync_payload",
-		"kprobe_handle_close_connection",
-		"kprobe_handle_connection_by_peer",
-		"kprobe_handle_async_payload",
-	}
-
-	if !includeOpenat2 {
-		exclude = append(exclude, getTracepointFuncName(enterTracepoint, openat2SysCall),
-			getTracepointFuncName(exitTracepoint, openat2SysCall))
-	}
-
-	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
-		for _, singleProbe := range sslProbeList {
-			for _, identifier := range singleProbe.GetProbesIdentificationPairList() {
-				options.ExcludedFunctions = append(options.ExcludedFunctions, identifier.EBPFFuncName)
-			}
-		}
-	}
-	for _, probeInfo := range functionToProbes {
-		if probeInfo.functionInfo != nil {
-			options.ExcludedFunctions = append(options.ExcludedFunctions, probeInfo.functionInfo.ebpfFunctionName)
-		}
-		if probeInfo.returnInfo != nil {
-			options.ExcludedFunctions = append(options.ExcludedFunctions, probeInfo.returnInfo.ebpfFunctionName)
-		}
-
-	}
-	options.ExcludedFunctions = append(options.ExcludedFunctions, exclude...)
-
-	mgr.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, false, nil)
-	}
-
-	bc, err := netebpf.ReadHTTPModule(c.BPFDir, c.BPFDebug)
-	require.NoError(t, err)
-	err = mgr.InitWithOptions(bc, options)
-	require.NoError(t, err)
-	err = mgr.Start()
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		mgr.Stop(manager.CleanAll)
-		perfHandler.Stop()
-	})
-
-	return perfHandler
-}
-
-func BenchmarkScanSOWatcherNew(b *testing.B) {
-	w := newSOWatcher(nil,
-		soRule{
-			re: regexp.MustCompile(`libssl.so`),
-		},
-		soRule{
-			re: regexp.MustCompile(`libcrypto.so`),
-		},
-		soRule{
-			re: regexp.MustCompile(`libgnutls.so`),
-		},
-	)
-
-	callback := func(path string) {
-		for _, r := range w.rules {
-			if r.re.MatchString(path) {
-				break
-			}
-		}
-	}
-
-	f := func(pid int) error {
-		mapsPath := fmt.Sprintf("%s/%d/maps", w.procRoot, pid)
-		maps, err := os.Open(mapsPath)
-		if err != nil {
-			log.Debugf("process %d parsing failed %s", pid, err)
-			return nil
-		}
-		defer maps.Close()
-
-		scanner := bufio.NewScanner(bufio.NewReader(maps))
-
-		parseMapsFile(scanner, callback)
-		return nil
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		util.WithAllProcs(w.procRoot, f)
-	}
-}
-
-func BenchmarkScanSOWatcherOld(b *testing.B) {
-	w := newSOWatcher(nil,
-		soRule{
-			re: regexp.MustCompile(`libssl.so`),
-		},
-		soRule{
-			re: regexp.MustCompile(`libcrypto.so`),
-		},
-		soRule{
-			re: regexp.MustCompile(`libgnutls.so`),
-		},
-	)
-
-	f := func(testPid int) error {
-		// report silently parsing /proc error as this could happen
-		// just exit processes
-		proc, err := process.NewProcess(int32(testPid))
-		if err != nil {
-			log.Debugf("process %d parsing failed %s", testPid, err)
-			return nil
-		}
-
-		mmaps, err := proc.MemoryMaps(true)
-		if err != nil {
-			if log.ShouldLog(seelog.TraceLvl) {
-				log.Tracef("process %d maps parsing failed %s", testPid, err)
-			}
-			return nil
-		}
-
-		for _, m := range *mmaps {
-			for _, r := range w.rules {
-				if r.re.MatchString(m.Path) {
-					break
-				}
-			}
-		}
-
-		return nil
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		util.WithAllProcs(w.procRoot, f)
-	}
-}
-
-var mapsFile = `
-7f178d0a6000-7f178d0cb000 r--p 00000000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
-7f178d0cb000-7f178d243000 r-xp 00025000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
-7f178d243000-7f178d28d000 r--p 0019d000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
-7f178d28d000-7f178d28e000 ---p 001e7000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
-7f178d28e000-7f178d291000 r--p 001e7000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
-7f178d291000-7f178d294000 rw-p 001ea000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
-7f178d294000-7f178d29a000 rw-p 00000000 00:00 0
-7f178d29a000-7f178d29b000 r--p 00000000 fd:00 262340                     /usr/lib/locale/C.UTF-8/LC_TELEPHONE
-7f178d29b000-7f178d29c000 r--p 00000000 fd:00 262333                     /usr/lib/locale/C.UTF-8/LC_MEASUREMENT
-7f178d29c000-7f178d2a3000 r--s 00000000 fd:00 269008                     /usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache
-7f178d2a3000-7f178d2a4000 r--p 00000000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
-7f178d2a4000-7f178d2c7000 r-xp 00001000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
-7f178d2c7000-7f178d2cf000 r--p 00024000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
-7f178d2cf000-7f178d2d0000 r--p 00000000 fd:00 262317                     /usr/lib/locale/C.UTF-8/LC_IDENTIFICATION
-7f178d2d0000-7f178d2d1000 r--p 0002c000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
-7f178d2d1000-7f178d2d2000 rw-p 0002d000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
-7f178d2d1000-7f178d2d2000 rw-p 0002d000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.2.so (deleted)
-7f178d2d1000-7f178d2d2000 rw-p 0002d000 fd:00 0		                     /usr/lib/x86_64-linux-gnu/ld-2.2.so (deleted)
-7f178d2d2000-7f178d2d3000 rw-p 00000000 00:00 0
-7ffe712a4000-7ffe712c5000 rw-p 00000000 00:00 0                          [stack]
-7ffe71317000-7ffe7131a000 r--p 00000000 00:00 0                          [vvar]
-7ffe7131a000-7ffe7131b000 r-xp 00000000 00:00 0                          [vdso]
-ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]
-`
-
-func Test_parseMapsFile(t *testing.T) {
-	scanner := bufio.NewScanner(strings.NewReader(mapsFile))
-
-	extractedEntries := make([]string, 0)
-	expectedEntries := []string{
-		"/usr/lib/x86_64-linux-gnu/libc-2.31.so",
-		"/usr/lib/locale/C.UTF-8/LC_TELEPHONE",
-		"/usr/lib/locale/C.UTF-8/LC_MEASUREMENT",
-		"/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache",
-		"/usr/lib/x86_64-linux-gnu/ld-2.31.so",
-		"/usr/lib/locale/C.UTF-8/LC_IDENTIFICATION",
-	}
-	testCallback := func(path string) {
-		extractedEntries = append(extractedEntries, path)
-	}
-
-	parseMapsFile(scanner, testCallback)
-
-	require.Equal(t, expectedEntries, extractedEntries)
 }
