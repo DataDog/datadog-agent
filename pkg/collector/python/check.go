@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,7 +65,7 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, er
 		class:        class,
 		interval:     defaults.DefaultCheckInterval,
 		lastWarnings: []error{},
-		telemetry:    telemetry_utils.IsCheckEnabled(name),
+		telemetry:    utils.IsCheckTelemetryEnabled(name),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 

@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // Mock Check implementation used for testing
@@ -47,7 +47,7 @@ func getTelemetryData() (string, error) {
 	}
 
 	rec := httptest.NewRecorder()
-	telemetry.Handler().ServeHTTP(rec, req)
+	telemetry.GetCompatComponent().Handler().ServeHTTP(rec, req)
 
 	return rec.Body.String(), nil
 }
