@@ -1,8 +1,10 @@
 syntax = "proto3";
 
-package pb;
-option go_package="github.com/DataDog/datadog-agent/pkg/trace/pb";
-import "span.proto";
+package datadog.trace;
+
+option go_package="pkg/proto/pbgo/trace";
+
+import "datadog/trace/span.proto";
 
 // TraceChunk represents a list of spans with the same trace ID. In other words, a chunk of a trace.
 message TraceChunk {

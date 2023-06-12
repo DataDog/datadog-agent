@@ -193,13 +193,40 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 def generate_protobuf(ctx):
     """
     Generates protobuf definitions in pkg/proto
+
+    We must build the packages one at a time due to protoc-gen-go limitations
     """
+
+    # Key: path, Value: grpc_gateway
+    PROTO_PACKAGES = {
+        'model/v1': False,
+        'remoteconfig': False,
+        'api/v1': True,
+        'trace': False,
+        'process': False,
+    }
+
+    # msgp targets
+    msgp_targets = {
+        'trace': ['remote_rates.pb.go', 'span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'trace.go'],
+        'core': ['remoteconfig.pb.go'],
+    }
+
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
+    protodep_root = os.path.join(proto_root, "protodep")
 
     print(f"nuking old definitions at: {proto_root}")
-    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.go"))
+    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.pb.go"))
+    for file_path in file_list:
+        try:
+            os.remove(file_path)
+        except OSError:
+            print("Error while deleting file : ", file_path)
+
+    # also cleanup gateway generated files
+    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.pb.gw.go"))
     for file_path in file_list:
         try:
             os.remove(file_path)
@@ -210,13 +237,29 @@ def generate_protobuf(ctx):
         # protobuf defs
         print(f"generating protobuf code from: {proto_root}")
 
-        files = []
-        for path in Path(os.path.join(proto_root, "datadog")).rglob('*.proto'):
-            files.append(path.as_posix())
+        for pkg, grpc_gateway in PROTO_PACKAGES.items():
+            files = []
+            pkg_root = os.path.join(proto_root, "datadog", pkg).rstrip(os.sep)
+            pkg_root_level = pkg_root.count(os.sep)
+            for path in Path(pkg_root).rglob('*.proto'):
+                if path.as_posix().count(os.sep) == pkg_root_level + 1:
+                    files.append(path.as_posix())
 
-        ctx.run(f"protoc -I{proto_root} --go_out=plugins=grpc:{repo_root} {' '.join(files)}")
-        # grpc-gateway logic
-        ctx.run(f"protoc -I{proto_root} --grpc-gateway_out=logtostderr=true:{repo_root} {' '.join(files)}")
+            # output_generator could potentially change for some packages
+            # so keep it in a variable for sanity.
+            output_generator = "--go_out=plugins=grpc:"
+
+            targets = ' '.join(files)
+            ctx.run(
+                f"protoc -I{proto_root} -I{protodep_root} {output_generator}{out_path} {targets}"
+            )
+
+            if grpc_gateway:
+                # grpc-gateway logic
+                ctx.run(
+                    f"protoc -I{proto_root} -I{protodep_root} --grpc-gateway_out=logtostderr=true:{repo_root} {targets}"
+                )
+
         # mockgen
         pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
@@ -225,10 +268,19 @@ def generate_protobuf(ctx):
         except FileExistsError:
             print(f"{mockgen_out} folder already exists")
 
-        ctx.run(f"mockgen -source={pbgo_dir}/api.pb.go -destination={mockgen_out}/api_mockgen.pb.go")
+        # TODO: this should be parametrized
+        ctx.run(
+            f"mockgen -source={pbgo_dir}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go"
+        )
 
     # generate messagepack marshallers
-    ctx.run("msgp -file pkg/proto/msgpgo/key.go -o=pkg/proto/msgpgo/key_gen.go")
+    for pkg, files in msgp_targets.items():
+        for src in files:
+            dst = os.path.splitext(os.path.basename(src))[0]  # .go
+            dst = os.path.splitext(dst)[0]  # .pb
+            ctx.run(
+                f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go"
+            )
 
 
 @task
