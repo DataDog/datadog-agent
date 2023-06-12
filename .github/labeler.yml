@@ -1,4 +1,7 @@
+# add system-probe label to any changes done in network, security, eventmonitor or ebpf packages
 component/system-probe:
-  - pkg/network/**/*
-  - pkg/security/**/*
-#- any: ['pkg/network/**/*', 'pkg/security/**/*']
+  - pkg/network/**
+  - pkg/security/**
+  - pkg/ebpf/**
+  - pkg/eventmonitor/**
+
