@@ -40,8 +40,7 @@ single-machine-performance-regression_detector:
     # Compute merge base of current commit and `main`
     - git fetch origin
     - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/main)
-    - echo -n "${SMP_MERGE_BASE}" > "${CI_COMMIT_SHA}-baseline_sha"
-    - echo "Merge base is $(cat ${CI_COMMIT_SHA}-baseline_sha)"
+    - echo "Merge base is ${SMP_MERGE_BASE}"
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
@@ -56,6 +55,13 @@ single-machine-performance-regression_detector:
     # Copy the merge base SHA to SMP for debugging purposes later
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_AGENT_TEAM_ID}-smp-artifacts/information/"
     - BASELINE_SHA="${SMP_MERGE_BASE}"  # NOTE(geoffrey.oxberry@datadoghq.com): cat the echoed file once computing merge commit is separate job
+    - echo "Computing baseline..."
+    - echo "Checking if image exists for commit ${BASELINE_SHA}..."
+    # TODO(geoffrey.oxberry@datadoghq.com): Make the statement below a multiline statement after debugging
+    - while [[ ! $(aws --profile single-machine-performance ecr describe-images --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64") ]]; do echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"; BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^); echo "Checking if image exists for commit ${BASELINE_SHA}..."; done
+    - echo "Image exists for commit ${BASELINE_SHA}"
+    - echo "Baseline SHA is ${BASELINE_SHA}"
+    - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
