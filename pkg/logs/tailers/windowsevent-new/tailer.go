@@ -9,6 +9,7 @@
 package windowsevent
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	"github.com/cenkalti/backoff"
 )
 
 const (
@@ -95,13 +97,15 @@ func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) {
 // Start starts tailing the event log.
 func (t *Tailer) Start() {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
+	t.stop = make(chan struct{})
+	t.done = make(chan struct{})
 	go t.tail()
 }
 
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing windows event log")
-	t.stop <- struct{}{}
+	close(t.stop)
 	<-t.done
 
 	t.sub.Stop()
@@ -121,7 +125,7 @@ func (t *Tailer) tail() {
 		evtsubscribe.WithNotifyEventsAvailable())
 	err := t.sub.Start()
 	if err != nil {
-		err = fmt.Errorf("Failed to start subscription: %v", err)
+		err = fmt.Errorf("failed to start subscription: %v", err)
 		log.Errorf("%v", err)
 		t.source.Status.Error(err)
 		return
@@ -130,7 +134,7 @@ func (t *Tailer) tail() {
 	// render context for system values
 	t.systemRenderContext, err = t.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
-		err = fmt.Errorf("Failed to create system render context: %v", err)
+		err = fmt.Errorf("failed to create system render context: %v", err)
 		log.Errorf("%v", err)
 		t.source.Status.Error(err)
 		return
@@ -141,18 +145,51 @@ func (t *Tailer) tail() {
 
 	// wait for stop signal
 	t.eventLoop()
-	t.done <- struct{}{}
-	return
+	close(t.done)
 }
 
 func (t *Tailer) eventLoop() {
 	for {
+		// if subscription is not running, try to start it with an exponential backoff
+		if !t.sub.Running() {
+			reset_backoff := backoff.NewExponentialBackOff()
+			reset_backoff.InitialInterval = 1 * time.Second
+			reset_backoff.MaxInterval = 1 * time.Minute
+			// retry never stops if MaxElapsedTime == 0
+			reset_backoff.MaxElapsedTime = 0
+			err := backoff.Retry(func() error {
+				err := t.sub.Start()
+				if err != nil {
+					err = fmt.Errorf("failed to start subscription: %v", err)
+					log.Error(err)
+					return err
+				}
+				// if stop event is set then return PermanentError to stop the retry loop
+				select {
+				case <-t.stop:
+					return backoff.Permanent(fmt.Errorf("stop event set"))
+				default:
+				}
+				// subscription started!
+				return nil
+			}, reset_backoff)
+			if err != nil {
+				var permanent *backoff.PermanentError
+				if errors.As(err, &permanent) {
+					return
+				}
+				continue
+			}
+			t.source.Status.Success()
+		}
+
+		// subscription is running, wait for and get events
 		select {
 		case <-t.stop:
 			return
 		case _, ok := <-t.sub.EventsAvailable():
 			if !ok {
-				return
+				break
 			}
 			// events are available, read them
 			for {
@@ -160,7 +197,9 @@ func (t *Tailer) eventLoop() {
 				if err != nil {
 					// error
 					log.Errorf("GetEvents failed: %v", err)
-					return
+					t.sub.Stop()
+					t.source.Status.Error(fmt.Errorf("subscription stopped: %v", err))
+					break
 				}
 				if events == nil {
 					// no more events

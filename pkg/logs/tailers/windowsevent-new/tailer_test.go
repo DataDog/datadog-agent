@@ -10,6 +10,7 @@ package windowsevent
 
 import (
 	"fmt"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -142,6 +143,78 @@ func (s *ReadEventsSuite) TestCustomQuery() {
 	s.Require().NoError(err)
 
 	totalEvents := uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		totalEvents += 1
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+}
+
+func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
+	// create tailer and ensure events can be read
+	config := Config{
+		ChannelPath: s.channelPath,
+	}
+	msgChan := make(chan *message.Message)
+	tailer, err := newtailer(s.ti.API(), &config, msgChan)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		tailer.Stop()
+	})
+
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	totalEvents := uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		totalEvents += 1
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+
+	// stop the EventLog service and assert the tailer detects the error
+	cmd := exec.Command("powershell.exe", "-Command", "Stop-Service", "EventLog", "-Force")
+	out, err := cmd.CombinedOutput()
+	s.T().Cleanup(func() {
+		// ensure service is started at end of this test
+		cmd = exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
+		out, err = cmd.CombinedOutput()
+	})
+	require.NoError(s.T(), err, "Failed to stop EventLog service %s", out)
+
+	err = backoff.Retry(func() error {
+		if tailer.source.Status.IsSuccess() {
+			return fmt.Errorf("tailer is still running")
+		} else if tailer.source.Status.IsError() {
+			return nil
+		}
+		return fmt.Errorf("start pending")
+	}, backoff.NewConstantBackOff(50*time.Millisecond))
+	s.Require().NoError(err, "tailer should catch the error and update the source status")
+	fmt.Println(tailer.source.Status.GetError())
+
+	// start the EventLog service and assert the tailer resumes from the previous error
+	cmd = exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
+	out, err = cmd.CombinedOutput()
+	require.NoError(s.T(), err, "Failed to start EventLog service %s", out)
+
+	err = backoff.Retry(func() error {
+		if tailer.source.Status.IsSuccess() {
+			return nil
+		} else if tailer.source.Status.IsError() {
+			return fmt.Errorf(tailer.source.Status.GetError())
+		}
+		return fmt.Errorf("start pending")
+	}, backoff.NewConstantBackOff(50*time.Millisecond))
+	s.Require().NoError(err, "tailer should auto restart after an error is resolved")
+
+	// ensure the tailer can receive events again
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	totalEvents = uint(0)
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
 		s.Require().NotEmpty(msg.Content, "Message must not be empty")
