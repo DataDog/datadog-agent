@@ -16,6 +16,22 @@
 #include "protocols/kafka/kafka-classification.h"
 #include "protocols/kafka/usm-events.h"
 
+__maybe_unused static __always_inline protocol_prog_t protocol_to_program(protocol_t proto) {
+    switch(proto) {
+    case PROTOCOL_HTTP:
+        return PROG_HTTP;
+    case PROTOCOL_HTTP2:
+        return PROG_HTTP2;
+    case PROTOCOL_KAFKA:
+        return PROG_KAFKA;
+    default:
+        if (proto != PROTOCOL_UNKNOWN) {
+            log_debug("protocol doesn't have a matching program: %d\n", proto);
+        }
+        return PROG_UNKNOWN;
+    }
+}
+
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
     return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);

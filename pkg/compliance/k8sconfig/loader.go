@@ -435,6 +435,9 @@ func (l *loader) pushError(err error) {
 }
 
 func (l *loader) parseBool(v string) bool {
+	if v == "" {
+		return true
+	}
 	b, err := strconv.ParseBool(v)
 	if err != nil {
 		l.pushError(err)
