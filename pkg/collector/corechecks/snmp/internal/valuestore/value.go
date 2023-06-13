@@ -42,21 +42,17 @@ func (sv ResultValue) ToString() (string, error) {
 
 // ExtractStringValue extract value using a regex
 func (sv ResultValue) ExtractStringValue(extractValuePattern *regexp.Regexp) (ResultValue, error) {
-	switch sv.Value.(type) {
-	case string, []byte:
-		srcValue := bytesOrStringToString(sv.Value)
-		matches := extractValuePattern.FindStringSubmatch(srcValue)
-		if matches == nil {
-			return ResultValue{}, fmt.Errorf("extract value extractValuePattern does not match (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
-		}
-		if len(matches) < 2 {
-			return ResultValue{}, fmt.Errorf("extract value pattern des not contain any matching group (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
-		}
-		matchedValue := matches[1] // use first matching group
-		return ResultValue{SubmissionType: sv.SubmissionType, Value: matchedValue}, nil
-	default:
-		return sv, nil
+	// Cast unknown type to a string
+	srcValue := fmt.Sprintf("%v", sv.Value)
+	matches := extractValuePattern.FindStringSubmatch(srcValue)
+	if matches == nil {
+		return ResultValue{}, fmt.Errorf("extract value extractValuePattern does not match (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
 	}
+	if len(matches) < 2 {
+		return ResultValue{}, fmt.Errorf("extract value pattern des not contain any matching group (extractValuePattern=%v, srcValue=%v)", extractValuePattern, srcValue)
+	}
+	matchedValue := matches[1] // use first matching group
+	return ResultValue{SubmissionType: sv.SubmissionType, Value: matchedValue}, nil
 }
 
 func bytesOrStringToString(value interface{}) string {

@@ -6,6 +6,7 @@
 package valuestore
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,6 +74,65 @@ func TestResultValue_ToString(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.expectedError)
 			}
 			assert.Equal(t, tt.expectedStr, strValue)
+		})
+	}
+}
+
+func TestExtractStringValue(t *testing.T) {
+	tests := []struct {
+		name          string
+		regex         string
+		resultValue   ResultValue
+		expectedStr   string
+		expectedError string
+	}{
+		{
+			name:  "ExtractFromString",
+			regex: `(\d+) RPM`,
+			resultValue: ResultValue{
+				Value: "3200 RPM",
+			},
+			expectedStr:   "3200",
+			expectedError: "",
+		},
+		{
+			name:  "ExtractFromInteger",
+			regex: `(\d+)\d{3}`,
+			resultValue: ResultValue{
+				Value: 123456,
+			},
+			expectedStr:   "123",
+			expectedError: "",
+		},
+		{
+			name:  "ExtractFromFloat",
+			regex: `(\d+)(\.\d+)?`,
+			resultValue: ResultValue{
+				Value: 1234.56,
+			},
+			expectedStr:   "1234",
+			expectedError: "",
+		},
+		{
+			name:  "ExtractWithError",
+			regex: `(\d+) F`,
+			resultValue: ResultValue{
+				Value: "32 C",
+			},
+			expectedStr:   "",
+			expectedError: "extract value extractValuePattern does not match",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rx := regexp.MustCompile(tt.regex)
+			rv, err := tt.resultValue.ExtractStringValue(rx)
+			if tt.expectedError == "" {
+				assert.Nil(t, err)
+				assert.Equal(t, tt.expectedStr, rv.Value)
+			} else {
+				assert.Contains(t, err.Error(), tt.expectedError)
+			}
 		})
 	}
 }
