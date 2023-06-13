@@ -32,7 +32,7 @@ func getMetricFromProfile(p profileDefinition, metricName string) *MetricsConfig
 	return nil
 }
 
-func fixtureProfileDefinitionMap() profileDefinitionMap {
+func fixtureProfileDefinitionMap() profileConfigMap {
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
@@ -51,130 +51,134 @@ func fixtureProfileDefinitionMap() profileDefinitionMap {
 		},
 		{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 	}
-	return profileDefinitionMap{
-		"f5-big-ip": profileDefinition{
-			Metrics:      metrics,
-			Extends:      []string{"_base.yaml", "_generic-if.yaml"},
-			Device:       DeviceMeta{Vendor: "f5"},
-			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
-			StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
-			MetricTags: []MetricTagConfig{
-				{
-					OID:     "1.3.6.1.2.1.1.5.0",
-					Name:    "sysName",
-					Match:   "(\\w)(\\w+)",
-					pattern: regexp.MustCompile("(\\w)(\\w+)"),
-					Tags: map[string]string{
-						"some_tag": "some_tag_value",
-						"prefix":   "\\1",
-						"suffix":   "\\2",
-					},
-				},
-				{Tag: "snmp_host", Index: 0x0, Column: SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-			},
-			Metadata: MetadataConfig{
-				"device": {
-					Fields: map[string]MetadataField{
-						"vendor": {
-							Value: "f5",
-						},
-						"description": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.1.1.0",
-								Name: "sysDescr",
-							},
-						},
-						"name": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.1.5.0",
-								Name: "sysName",
-							},
-						},
-						"serial_number": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
-								Name: "sysGeneralChassisSerialNum",
-							},
-						},
-						"sys_object_id": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.1.2.0",
-								Name: "sysObjectID",
-							},
+	return profileConfigMap{
+		"f5-big-ip": profileConfig{
+			Definition: profileDefinition{
+				Metrics:      metrics,
+				Extends:      []string{"_base.yaml", "_generic-if.yaml"},
+				Device:       DeviceMeta{Vendor: "f5"},
+				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+				StaticTags:   []string{"static_tag:from_profile_root", "static_tag:from_base_profile"},
+				MetricTags: []MetricTagConfig{
+					{
+						OID:     "1.3.6.1.2.1.1.5.0",
+						Name:    "sysName",
+						Match:   "(\\w)(\\w+)",
+						pattern: regexp.MustCompile("(\\w)(\\w+)"),
+						Tags: map[string]string{
+							"some_tag": "some_tag_value",
+							"prefix":   "\\1",
+							"suffix":   "\\2",
 						},
 					},
+					{Tag: "snmp_host", Index: 0x0, Column: SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 				},
-				"interface": {
-					Fields: map[string]MetadataField{
-						"admin_status": {
-							Symbol: SymbolConfig{
+				Metadata: MetadataConfig{
+					"device": {
+						Fields: map[string]MetadataField{
+							"vendor": {
+								Value: "f5",
+							},
+							"description": {
+								Symbol: SymbolConfig{
+									OID:  "1.3.6.1.2.1.1.1.0",
+									Name: "sysDescr",
+								},
+							},
+							"name": {
+								Symbol: SymbolConfig{
+									OID:  "1.3.6.1.2.1.1.5.0",
+									Name: "sysName",
+								},
+							},
+							"serial_number": {
+								Symbol: SymbolConfig{
+									OID:  "1.3.6.1.4.1.3375.2.1.3.3.3.0",
+									Name: "sysGeneralChassisSerialNum",
+								},
+							},
+							"sys_object_id": {
+								Symbol: SymbolConfig{
+									OID:  "1.3.6.1.2.1.1.2.0",
+									Name: "sysObjectID",
+								},
+							},
+						},
+					},
+					"interface": {
+						Fields: map[string]MetadataField{
+							"admin_status": {
+								Symbol: SymbolConfig{
 
-								OID:  "1.3.6.1.2.1.2.2.1.7",
-								Name: "ifAdminStatus",
+									OID:  "1.3.6.1.2.1.2.2.1.7",
+									Name: "ifAdminStatus",
+								},
+							},
+							"alias": {
+								Symbol: SymbolConfig{
+									OID:  "1.3.6.1.2.1.31.1.1.1.18",
+									Name: "ifAlias",
+								},
+							},
+							"description": {
+								Symbol: SymbolConfig{
+									OID:                  "1.3.6.1.2.1.31.1.1.1.1",
+									Name:                 "ifName",
+									ExtractValue:         "(Row\\d)",
+									ExtractValueCompiled: regexp.MustCompile("(Row\\d)"),
+								},
+							},
+							"mac_address": {
+								Symbol: SymbolConfig{
+									OID:    "1.3.6.1.2.1.2.2.1.6",
+									Name:   "ifPhysAddress",
+									Format: "mac_address",
+								},
+							},
+							"name": {
+								Symbol: SymbolConfig{
+									OID:  "1.3.6.1.2.1.31.1.1.1.1",
+									Name: "ifName",
+								},
+							},
+							"oper_status": {
+								Symbol: SymbolConfig{
+									OID:  "1.3.6.1.2.1.2.2.1.8",
+									Name: "ifOperStatus",
+								},
 							},
 						},
-						"alias": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.31.1.1.1.18",
-								Name: "ifAlias",
+						IDTags: MetricTagConfigList{
+							{
+								Tag: "custom-tag",
+								Column: SymbolConfig{
+									OID:  "1.3.6.1.2.1.31.1.1.1.1",
+									Name: "ifAlias",
+								},
 							},
-						},
-						"description": {
-							Symbol: SymbolConfig{
-								OID:                  "1.3.6.1.2.1.31.1.1.1.1",
-								Name:                 "ifName",
-								ExtractValue:         "(Row\\d)",
-								ExtractValueCompiled: regexp.MustCompile("(Row\\d)"),
-							},
-						},
-						"mac_address": {
-							Symbol: SymbolConfig{
-								OID:    "1.3.6.1.2.1.2.2.1.6",
-								Name:   "ifPhysAddress",
-								Format: "mac_address",
-							},
-						},
-						"name": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.31.1.1.1.1",
-								Name: "ifName",
-							},
-						},
-						"oper_status": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.2.2.1.8",
-								Name: "ifOperStatus",
-							},
-						},
-					},
-					IDTags: MetricTagConfigList{
-						{
-							Tag: "custom-tag",
-							Column: SymbolConfig{
-								OID:  "1.3.6.1.2.1.31.1.1.1.1",
-								Name: "ifAlias",
-							},
-						},
-						{
-							Tag: "interface",
-							Column: SymbolConfig{
-								OID:  "1.3.6.1.2.1.31.1.1.1.1",
-								Name: "ifName",
+							{
+								Tag: "interface",
+								Column: SymbolConfig{
+									OID:  "1.3.6.1.2.1.31.1.1.1.1",
+									Name: "ifName",
+								},
 							},
 						},
 					},
 				},
 			},
 		},
-		"another_profile": profileDefinition{
-			Metrics: []MetricsConfig{
-				{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "someMetric"}, ForcedType: ""},
+		"another_profile": profileConfig{
+			Definition: profileDefinition{
+				Metrics: []MetricsConfig{
+					{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "someMetric"}, ForcedType: ""},
+				},
+				MetricTags: []MetricTagConfig{
+					{Tag: "snmp_host2", Column: SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+					{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"},
+				},
+				Metadata: MetadataConfig{},
 			},
-			MetricTags: []MetricTagConfig{
-				{Tag: "snmp_host2", Column: SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
-				{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"},
-			},
-			Metadata: MetadataConfig{},
 		},
 	}
 }
@@ -217,7 +221,7 @@ func Test_loadProfiles(t *testing.T) {
 		name                  string
 		confdPath             string
 		inputProfileConfigMap profileConfigMap
-		expectedProfileDefMap profileDefinitionMap
+		expectedProfileDefMap profileConfigMap
 		expectedIncludeErrors []string
 		expectedLogs          []logCount
 	}{
@@ -235,7 +239,7 @@ func Test_loadProfiles(t *testing.T) {
 					DefinitionFile: filepath.Join(string(filepath.Separator), "does", "not", "exist"),
 				},
 			},
-			expectedProfileDefMap: profileDefinitionMap{},
+			expectedProfileDefMap: profileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to read profile definition `f5-big-ip`: failed to read file", 1},
 			},
@@ -247,7 +251,7 @@ func Test_loadProfiles(t *testing.T) {
 					DefinitionFile: profileWithInvalidExtends,
 				},
 			},
-			expectedProfileDefMap: profileDefinitionMap{},
+			expectedProfileDefMap: profileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: failed to read file", 1},
 			},
@@ -260,7 +264,7 @@ func Test_loadProfiles(t *testing.T) {
 					DefinitionFile: "f5-big-ip.yaml",
 				},
 			},
-			expectedProfileDefMap: profileDefinitionMap{},
+			expectedProfileDefMap: profileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`", 1},
 				{"invalid.yaml", 2},
@@ -274,7 +278,7 @@ func Test_loadProfiles(t *testing.T) {
 					DefinitionFile: "f5-big-ip.yaml",
 				},
 			},
-			expectedProfileDefMap: profileDefinitionMap{},
+			expectedProfileDefMap: profileConfigMap{},
 			expectedLogs: []logCount{
 				{"[WARN] loadProfiles: failed to expand profile `f5-big-ip`: cyclic profile extend detected, `_extend1.yaml` has already been extended, extendsHistory=`[_extend1.yaml _extend2.yaml]", 1},
 			},
@@ -286,7 +290,7 @@ func Test_loadProfiles(t *testing.T) {
 					DefinitionFile: invalidYamlProfile,
 				},
 			},
-			expectedProfileDefMap: profileDefinitionMap{},
+			expectedProfileDefMap: profileConfigMap{},
 			expectedLogs: []logCount{
 				{"failed to read profile definition `f5-big-ip`: failed to unmarshall", 1},
 			},
@@ -298,7 +302,7 @@ func Test_loadProfiles(t *testing.T) {
 					DefinitionFile: validationErrorProfile,
 				},
 			},
-			expectedProfileDefMap: profileDefinitionMap{},
+			expectedProfileDefMap: profileConfigMap{},
 			expectedLogs: []logCount{
 				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
 				{"cannot compile `match` (`table_match[\\w)`)", 1},
@@ -327,8 +331,10 @@ func Test_loadProfiles(t *testing.T) {
 				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
 			}
 
-			for _, profile := range profiles {
-				normalizeMetrics(profile.Metrics)
+			for i, profile := range profiles {
+				normalizeMetrics(profile.Definition.Metrics)
+				profile.DefinitionFile = ""
+				profiles[i] = profile
 			}
 
 			assert.Equal(t, tt.expectedProfileDefMap, profiles)
@@ -445,9 +451,9 @@ func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 	assert.Len(t, defaultProfiles, 3)
 	assert.NotNil(t, defaultProfiles)
 
-	p1 := defaultProfiles["p1"] // user p1 overrides datadog p1
-	p2 := defaultProfiles["p2"] // datadog p2
-	p3 := defaultProfiles["p3"] // user p3
+	p1 := defaultProfiles["p1"].Definition // user p1 overrides datadog p1
+	p2 := defaultProfiles["p2"].Definition // datadog p2
+	p3 := defaultProfiles["p3"].Definition // user p3
 
 	assert.Equal(t, "p1_user", p1.Device.Vendor) // overrides datadog p1 profile
 	assert.NotNil(t, getMetricFromProfile(p1, "p1_metric_override"))
@@ -487,7 +493,7 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 1, strings.Count(logs, "[WARN] loadProfiles: failed to expand profile `f5-big-ip"), logs)
-	assert.Equal(t, profileDefinitionMap{}, defaultProfiles)
+	assert.Equal(t, profileConfigMap{}, defaultProfiles)
 }
 
 func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
@@ -505,7 +511,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	defaultProfiles, err := loadDefaultProfiles()
 
 	for _, profile := range defaultProfiles {
-		normalizeMetrics(profile.Metrics)
+		normalizeMetrics(profile.Definition.Metrics)
 	}
 
 	w.Flush()
