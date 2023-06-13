@@ -44,7 +44,7 @@ SYSCALL_KPROBE4(execveat, int, fd, const char *, filename, const char **, argv, 
     return trace__sys_execveat(ctx, argv, env);
 }
 
-int __attribute__((always_inline)) handle_interpreted_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file) {
+int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
 
@@ -501,7 +501,7 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) fetch_interpreter(ctx_t *ctx, struct linux_binprm *bprm) {
+int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct linux_binprm *bprm) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -592,7 +592,7 @@ int kprobe_setup_arg_pages(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
+int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -687,7 +687,7 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
 }
 
 HOOK_ENTRY("mprotect_fixup")
-int hook_mprotect_fixup(struct pt_regs *ctx) {
+int hook_mprotect_fixup(ctx_t *ctx) {
     return send_exec_event(ctx);
 }
 
