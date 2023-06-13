@@ -204,6 +204,7 @@ def generate_protobuf(ctx):
         'api/v1': (True, False),
         'trace': (False, False),
         'process': (False, False),
+        'workloadmeta': (False, False),
     }
 
     # maybe put this in a separate function
