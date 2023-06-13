@@ -93,6 +93,7 @@ func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
 		log.Warnf("failed to read user_profiles: %s", err)
 	} else {
 		for profileName, profileDef := range userProfiles {
+			profileDef.isUserProfile = true // TODO: TEST ME
 			profiles[profileName] = profileDef
 		}
 	}
