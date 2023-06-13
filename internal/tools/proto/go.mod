@@ -7,6 +7,7 @@ require (
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.2
 	github.com/grpc-ecosystem/grpc-gateway v1.12.2
+	github.com/planetscale/vtprotobuf v0.4.0
 	github.com/tinylib/msgp v1.1.6
 	google.golang.org/grpc v1.24.0
 )
