@@ -121,6 +121,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
 	if opts.SSHKeyPath != "" {
 		config["ddinfra:aws/defaultPrivateKeyPath"] = auto.ConfigValue{Value: opts.SSHKeyPath}
+	} else {
+		config["ddinfra:aws/defaultPrivateKeyPath"] = auto.ConfigValue{Value: ""}
 	}
 
 	var upResult auto.UpResult
