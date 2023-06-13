@@ -182,9 +182,7 @@ Note that annotations are also possible with [`fx.Annotate`](https://pkg.go.dev/
 ### Value Groups
 
 [Value groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) make it easier to produce and consume many values of
-the same type. In a nutshell, on one side component can add any types into groups and on the other side other components
-to consume that group.
-
+the same type. A component can add any type into groups which can be consumed by other components.
 
 For example:
 
