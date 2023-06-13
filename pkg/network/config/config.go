@@ -6,13 +6,12 @@
 package config
 
 import (
-	"runtime"
 	"strings"
 	"time"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,11 +25,6 @@ const (
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
-
-	defaultOffsetThreshold = 400
-	maxOffsetThreshold     = 3000
-
-	defaultMaxProcessesTracked = 1024
 )
 
 // Config stores all flags used by the network eBPF tracer
@@ -146,11 +140,11 @@ type Config struct {
 	TCPClosedTimeout time.Duration
 
 	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
-	MaxTrackedConnections uint
+	MaxTrackedConnections uint32
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
 	// get flushed on every client request (default 30s check interval)
-	MaxClosedConnectionsBuffered int
+	MaxClosedConnectionsBuffered uint32
 
 	// ClosedConnectionFlushThreshold represents the number of closed connections stored before signalling
 	// the agent to flush the connections.  This value only valid on Windows
@@ -262,6 +256,7 @@ func join(pieces ...string) string {
 // New creates a config for the network tracer
 func New() *Config {
 	cfg := ddconfig.SystemProbe
+	sysconfig.Adjust(cfg)
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),
@@ -270,13 +265,13 @@ func New() *Config {
 		ServiceMonitoringEnabled: cfg.GetBool(join(smNS, "enabled")),
 		DataStreamsEnabled:       cfg.GetBool(join(dsNS, "enabled")),
 
-		CollectTCPv4Conns: true,
-		CollectTCPv6Conns: true,
+		CollectTCPv4Conns: cfg.GetBool(join(netNS, "collect_tcp_v4")),
+		CollectTCPv6Conns: cfg.GetBool(join(netNS, "collect_tcp_v6")),
 		TCPConnTimeout:    2 * time.Minute,
 		TCPClosedTimeout:  1 * time.Second,
 
-		CollectUDPv4Conns: true,
-		CollectUDPv6Conns: true,
+		CollectUDPv4Conns: cfg.GetBool(join(netNS, "collect_udp_v4")),
+		CollectUDPv6Conns: cfg.GetBool(join(netNS, "collect_udp_v6")),
 		UDPConnTimeout:    defaultUDPTimeoutSeconds * time.Second,
 		UDPStreamTimeout:  defaultUDPStreamTimeoutSeconds * time.Second,
 
@@ -284,8 +279,8 @@ func New() *Config {
 		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
 		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
 
-		MaxTrackedConnections:          uint(cfg.GetInt(join(spNS, "max_tracked_connections"))),
-		MaxClosedConnectionsBuffered:   cfg.GetInt(join(spNS, "max_closed_connections_buffered")),
+		MaxTrackedConnections:          uint32(cfg.GetInt64(join(spNS, "max_tracked_connections"))),
+		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(join(spNS, "max_closed_connections_buffered"))),
 		ClosedConnectionFlushThreshold: cfg.GetInt(join(spNS, "closed_connection_flush_threshold")),
 		ClosedChannelSize:              cfg.GetInt(join(spNS, "closed_channel_size")),
 		MaxConnectionsStateBuffered:    cfg.GetInt(join(spNS, "max_connection_state_buffered")),
@@ -304,12 +299,12 @@ func New() *Config {
 		EnableHTTPMonitoring:  cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		MaxHTTPStatsBuffered:  cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
-		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
-		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
-		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
+		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
+		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(join(smNS, "http_max_request_fragment")),
 
 		EnableConntrack:                 cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:           cfg.GetInt(join(spNS, "conntrack_max_state_size")),
@@ -332,8 +327,8 @@ func New() *Config {
 
 		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
 
-		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(spNS, "http_map_cleaner_interval_in_s"))) * time.Second,
-		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
+		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
@@ -345,47 +340,7 @@ func New() *Config {
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 	}
 
-	if cfg.GetBool(join(spNS, "disable_tcp")) {
-		c.CollectTCPv4Conns = false
-		c.CollectTCPv6Conns = false
-	}
-	if cfg.GetBool(join(spNS, "disable_udp")) {
-		c.CollectUDPv4Conns = false
-		c.CollectUDPv6Conns = false
-	}
-	if cfg.GetBool(join(spNS, "disable_ipv6")) {
-		c.CollectTCPv6Conns = false
-		c.CollectUDPv6Conns = false
-	}
-
-	if runtime.GOOS == "windows" {
-		if cfg.IsSet(join(spNS, "closed_connection_flush_threshold")) && c.ClosedConnectionFlushThreshold < 1024 {
-			log.Warnf("Closed connection notification threshold set to invalid value %d.  Resetting to default.", c.ClosedConnectionFlushThreshold)
-
-			// 0 will allow the underlying driver interface mechanism to choose appropriately
-			c.ClosedConnectionFlushThreshold = 0
-		}
-	}
-	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {
-		// make sure max_closed_connections_buffered is equal to
-		// max_tracked_connections, since the former is not set.
-		// this helps with lowering or eliminating dropped
-		// closed connections in environments with mostly short-lived
-		// connections
-		c.MaxClosedConnectionsBuffered = int(c.MaxTrackedConnections)
-	}
-	if c.HTTPNotificationThreshold >= c.MaxTrackedHTTPConnections {
-		log.Warnf("Notification threshold set higher than tracked connections.  %d > %d ; resetting to %d",
-			c.HTTPNotificationThreshold, c.MaxTrackedHTTPConnections, c.MaxTrackedHTTPConnections/2)
-		c.HTTPNotificationThreshold = c.MaxTrackedHTTPConnections / 2
-	}
-
-	maxHTTPFrag := uint64(160)
-	if c.HTTPMaxRequestFragment > int64(maxHTTPFrag) { // dbtodo where is the actual max defined?
-		log.Warnf("Max HTTP fragment too large (%d) resetting to (%d) ", c.HTTPMaxRequestFragment, maxHTTPFrag)
-		c.HTTPMaxRequestFragment = int64(maxHTTPFrag)
-	}
-	httpRRKey := join(netNS, "http_replace_rules")
+	httpRRKey := join(smNS, "http_replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {
 		log.Errorf("error parsing %q: %v", httpRRKey, err)
@@ -393,69 +348,26 @@ func New() *Config {
 		c.HTTPReplaceRules = rr
 	}
 
-	if c.OffsetGuessThreshold > maxOffsetThreshold {
-		log.Warn("offset_guess_threshold exceeds maximum of 3000. Setting it to the default of 400")
-		c.OffsetGuessThreshold = defaultOffsetThreshold
-	}
-
 	if !c.CollectTCPv4Conns {
-		log.Info("network tracer TCPv4 tracing disabled by configuration")
+		log.Info("network tracer TCPv4 tracing disabled")
 	}
 	if !c.CollectUDPv4Conns {
-		log.Info("network tracer UDPv4 tracing disabled by configuration")
+		log.Info("network tracer UDPv4 tracing disabled")
 	}
-
-	if !kernel.IsIPv6Enabled() {
-		c.CollectTCPv6Conns = false
-		c.CollectUDPv6Conns = false
-		log.Info("network tracer IPv6 tracing disabled by system")
-	} else {
-		if !c.CollectTCPv6Conns {
-			log.Info("network tracer TCPv6 tracing disabled by configuration")
-		}
-		if !c.CollectUDPv6Conns {
-			log.Info("network tracer UDPv6 tracing disabled by configuration")
-		}
+	if !c.CollectTCPv6Conns {
+		log.Info("network tracer TCPv6 tracing disabled")
 	}
-
+	if !c.CollectUDPv6Conns {
+		log.Info("network tracer UDPv6 tracing disabled")
+	}
 	if !c.DNSInspection {
 		log.Info("network tracer DNS inspection disabled by configuration")
-	}
-
-	c.ServiceMonitoringEnabled = c.ServiceMonitoringEnabled || c.DataStreamsEnabled
-
-	if c.ServiceMonitoringEnabled {
-		cfg.Set(join(smNS, "enable_http_monitoring"), true)
-		c.EnableHTTPMonitoring = true
-		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
-			cfg.Set(join(netNS, "enable_https_monitoring"), true)
-			c.EnableHTTPSMonitoring = true
-		}
-
-		if !cfg.IsSet(join(spNS, "enable_runtime_compiler")) {
-			cfg.Set(join(spNS, "enable_runtime_compiler"), true)
-			c.EnableRuntimeCompiler = true
-		}
-
-		if !cfg.IsSet(join(spNS, "enable_kernel_header_download")) {
-			cfg.Set(join(spNS, "enable_kernel_header_download"), true)
-			c.EnableKernelHeaderDownload = true
-		}
 	}
 
 	c.EnableKafkaMonitoring = c.DataStreamsEnabled
 
 	if c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring enabled")
-
-		if c.MaxProcessesTracked <= 0 {
-			c.MaxProcessesTracked = defaultMaxProcessesTracked
-		}
 	}
-
-	if !c.EnableRootNetNs {
-		c.EnableConntrackAllNamespaces = false
-	}
-
 	return c
 }

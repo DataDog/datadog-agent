@@ -15,8 +15,8 @@ const (
 	// OptExpvar designates a metric that should be emitted using expvar
 	OptExpvar = "_expvar"
 
-	// OptTelemetry designates a metric that should be emitted as agent payload telemetry
-	OptTelemetry = "_telemetry"
+	// OptPayloadTelemetry designates a metric that should be emitted as agent payload telemetry
+	OptPayloadTelemetry = "_telemetry"
 
 	// OptGauge represents a gauge-type metric
 	OptGauge = "_gauge"

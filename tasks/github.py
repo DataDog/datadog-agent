@@ -2,7 +2,12 @@ import os
 
 from invoke import Exit, task
 
-from .libs.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
+from .libs.github_actions_tools import (
+    download_artifacts,
+    follow_workflow_run,
+    print_workflow_conclusion,
+    trigger_macos_workflow,
+)
 from .utils import DEFAULT_BRANCH, load_release_versions
 
 
@@ -33,9 +38,14 @@ def trigger_macos_build(
         version_cache_file_content=version_cache,
     )
 
-    follow_workflow_run(run_id)
+    workflow_conclusion = follow_workflow_run(run_id)
+
+    print_workflow_conclusion(workflow_conclusion)
 
     download_artifacts(run_id, destination)
+
+    if workflow_conclusion != "success":
+        raise Exit(code=1)
 
 
 @task
@@ -56,9 +66,14 @@ def trigger_macos_test(
         python_runtimes=python_runtimes,
     )
 
-    follow_workflow_run(run_id)
+    workflow_conclusion = follow_workflow_run(run_id)
+
+    print_workflow_conclusion(workflow_conclusion)
 
     download_artifacts(run_id, destination)
+
+    if workflow_conclusion != "success":
+        raise Exit(code=1)
 
 
 @task

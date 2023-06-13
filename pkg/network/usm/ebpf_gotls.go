@@ -202,7 +202,7 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
-		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 }
@@ -254,11 +254,6 @@ func (p *GoTLSProgram) Start() {
 
 	if err != nil {
 		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
-		return
-	}
-
-	if err = p.procMonitor.monitor.Initialize(); err != nil {
-		log.Errorf("failed to initialize process monitor error: %s", err)
 		return
 	}
 

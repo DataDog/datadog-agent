@@ -43,8 +43,19 @@ type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type SharedMemoryConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type ExecutionPlansConfig struct {
 	Enabled bool `yaml:"enabled"`
+}
+
+type AgentSQLTrace struct {
+	Enabled    bool `yaml:"enabled"`
+	Binds      bool `yaml:"binds"`
+	Waits      bool `yaml:"waits"`
+	TracedRuns int  `yaml:"traced_runs"`
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -67,7 +78,9 @@ type InstanceConfig struct {
 	SysMetrics             SysMetricsConfig     `yaml:"sysmetrics"`
 	Tablespaces            TablespacesConfig    `yaml:"tablespaces"`
 	ProcessMemory          ProcessMemoryConfig  `yaml:"process_memory"`
+	SharedMemory           SharedMemoryConfig   `yaml:"shared_memory"`
 	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
+	AgentSQLTrace          AgentSQLTrace        `yaml:"agent_sql_trace"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -102,6 +115,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
+	instance.SharedMemory.Enabled = true
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {

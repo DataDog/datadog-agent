@@ -24,6 +24,11 @@ import (
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
+var MAX_OPEN_CONNECTIONS = 10
+var DEFAULT_SQL_TRACED_RUNS = 10
+
+var DB_TIMEOUT = "20000"
+
 // The structure is filled by activity sampling and serves as a filter for query metrics
 type StatementsFilter struct {
 	SQLIDs                  map[string]int
@@ -62,6 +67,7 @@ type Check struct {
 	statementsLastRun                       time.Time
 	filePath                                string
 	isRDS                                   bool
+	sqlTraceRunsCount                       int
 }
 
 // Run executes the check.
@@ -80,9 +86,10 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.SysMetrics.Enabled {
+		log.Trace("Entered sysmetrics")
 		err := c.SysMetrics()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to collecr sysmetrics %w", err)
 		}
 	}
 	if c.config.Tablespaces.Enabled {
@@ -111,6 +118,25 @@ func (c *Check) Run() error {
 				}
 			}
 		}
+		if c.config.SharedMemory.Enabled {
+			err := c.SharedMemory()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if c.config.AgentSQLTrace.Enabled {
+		log.Tracef("Traced runs %d", c.sqlTraceRunsCount)
+		c.sqlTraceRunsCount++
+		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
+			c.config.AgentSQLTrace.Enabled = false
+			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
+			if err != nil {
+				log.Errorf("failed to stop SQL trace: %v", err)
+			}
+			c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
+		}
 	}
 	return nil
 }
@@ -130,7 +156,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			connStr = fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
 		} else {
 			oracleDriver = "oracle"
-			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{})
+			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{"TIMEOUT": DB_TIMEOUT})
 			// https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
 			sqlx.BindDriver("oracle", sqlx.NAMED)
 		}
@@ -148,7 +174,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 
-	db.SetMaxOpenConns(10)
+	db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 
 	if c.cdbName == "" {
 		row := db.QueryRow("SELECT /* DD */ name FROM v$database")
@@ -187,7 +213,35 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		}
 	}
 
+	if c.config.AgentSQLTrace.Enabled {
+		db.SetMaxOpenConns(1)
+		_, err := db.Exec("ALTER SESSION SET tracefile_identifier='DDAGENT'")
+		if err != nil {
+			log.Warnf("failed to set tracefile_identifier: %v", err)
+		}
+
+		/* We are concatenating values instead of passing parameters, because there seems to be a problem
+		 * in go-ora with passing bool parameters to PL/SQL. As a mitigation, we are asserting that the
+		 * parameters are bool
+		 */
+		binds := assertBool(c.config.AgentSQLTrace.Binds)
+		waits := assertBool(c.config.AgentSQLTrace.Waits)
+		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
+		log.Trace("trace statement: %s", setEventsStatement)
+		_, err = db.Exec(setEventsStatement)
+		if err != nil {
+			log.Errorf("failed to set SQL trace: %v", err)
+		}
+		if c.config.AgentSQLTrace.TracedRuns == 0 {
+			c.config.AgentSQLTrace.TracedRuns = DEFAULT_SQL_TRACED_RUNS
+		}
+	}
+
 	return db, nil
+}
+
+func assertBool(val bool) bool {
+	return val
 }
 
 // Teardown cleans up resources used throughout the check.
@@ -231,7 +285,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 }
 
 func oracleFactory() check.Check {
-	return &Check{CheckBase: core.NewCheckBase(common.IntegrationNameScheduler)}
+	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
 }
 
 func init() {
@@ -266,4 +320,18 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 		return tags
 	}
 	return append(tags, "pdb:"+pdb.String)
+}
+
+func selectWrapper[T any](c *Check, s T, sql string) error {
+	err := c.db.Select(s, sql)
+	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
+		db, err := c.Connect()
+		if err != nil {
+			c.Teardown()
+			return err
+		}
+		c.db = db
+	}
+
+	return err
 }

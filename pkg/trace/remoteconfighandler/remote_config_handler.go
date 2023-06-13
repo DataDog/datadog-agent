@@ -7,6 +7,7 @@ package remoteconfighandler
 
 import (
 	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -55,10 +56,10 @@ func (h *RemoteConfigHandler) Start() {
 	}
 
 	h.remoteClient.Start()
-	h.remoteClient.RegisterAPMUpdate(h.onUpdate)
+	h.remoteClient.Subscribe(state.ProductAPMSampling, h.onUpdate)
 }
 
-func (h *RemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig) {
+func (h *RemoteConfigHandler) onUpdate(update map[string]state.RawConfig) {
 	if len(update) == 0 {
 		log.Debugf("no samplers configuration in remote config update payload")
 		return

@@ -39,6 +39,8 @@
              InstallPrivileges="elevated"
              Compressed="yes" />
 
+    <Condition Message="This application is only supported on Windows Server 2012 or Windows 8.1, and later."><![CDATA[(((VersionNT64 >= 602 AND WindowsBuild >= 9200) AND MsiNTProductType >= 2) OR ((VersionNT64 >= 603 AND WindowsBuild >= 9600) AND MsiNTProductType = 1))]]></Condition>
+
     <!-- This removes entirely the previous version -->
     <Upgrade Id="$(var.UpgradeCode)">
         <UpgradeVersion OnlyDetect='no'
@@ -328,6 +330,7 @@
                 <!-- for now, just comment out.  Needs actual variable to determine whether to include or not 
                 <Merge Id="ddprocmoninstall" SourceFile="$(var.BinFiles)\ddprocmon.msm" DiskId="1" Language="1033" />
                 -->
+        
               </Directory>
             <Component Id="DATADOGSYSPROBESERVICE" Guid="5D41ECDB-B91E-4802-878C-CDBA84721623">
               <File Id="system_probe.exe"
@@ -344,6 +347,9 @@
                     SupportsWarnings="yes"/>
             </Component>
           <?endif?>
+          <?if $(var.IncludeAPMInject) = true ?>
+            <Merge Id="ddapminstall" SourceFile="$(var.BinFiles)\ddapminstall.msm" DiskId="1" Language="1033" />
+          <?endif ?>
         </Directory>
       </Directory>
     </DirectoryRef>
@@ -491,9 +497,14 @@
         <?if $(var.IncludePython2) = true ?>
           <ComponentRef Id="MSVCRUNTIME" />
         <?endif ?>
-          <ComponentRef Id="DATADOGSYSPROBESERVICE" />
-          <ComponentRef Id="system_probe.yaml.example" />
-          <MergeRef Id="ddnpminstall"/>
+        <ComponentRef Id="DATADOGSYSPROBESERVICE" />
+        <ComponentRef Id="system_probe.yaml.example" />
+        <MergeRef Id="ddnpminstall"/>
+        <?if $(var.IncludeAPMInject) = true ?>
+          <MergeRef Id="ddapminstall"/>
+        <?endif ?>
+        
+
       <!-- don't install by default (indicated by level 100)  Only things with level
         <= INSTALLLEVEL (1 by default) will be installed.  Can be changed via gui or command line params to optionally install -->
       <Feature  Id="NPM"

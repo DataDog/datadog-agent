@@ -12,20 +12,23 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestHttpCompile(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < http.MinimumKernelVersion {
-		t.Skip("USM Runtime compilation not supported on this kernel version")
-	}
-	cfg := config.New()
-	cfg.BPFDebug = true
-	out, err := getRuntimeCompiledUSM(cfg)
-	require.NoError(t, err)
-	_ = out.Close()
+	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
+		currKernelVersion, err := kernel.HostVersion()
+		require.NoError(t, err)
+		if currKernelVersion < http.MinimumKernelVersion {
+			t.Skip("USM Runtime compilation not supported on this kernel version")
+		}
+		cfg := config.New()
+		cfg.BPFDebug = true
+		out, err := getRuntimeCompiledUSM(cfg)
+		require.NoError(t, err)
+		_ = out.Close()
+	})
 }

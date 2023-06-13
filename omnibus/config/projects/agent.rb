@@ -192,7 +192,7 @@ package :msi do
     "#{install_dir}\\bin\\agent\\ddtray.exe",
     "#{install_dir}\\embedded3\\python.exe",
     "#{install_dir}\\embedded3\\\\python3.dll",
-    "#{install_dir}\\embedded3\\\\python38.dll",
+    "#{install_dir}\\embedded3\\\\python39.dll",
     "#{install_dir}\\embedded3\\\\pythonw.exe"
   ]
   if with_python_runtime? '2'
@@ -215,6 +215,12 @@ package :msi do
     include_sysprobe = "true"
     additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
   end
+
+  include_apminject = "false"
+  if not windows_arch_i386? and ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+    include_apminject = "true"
+  end
+
   additional_sign_files additional_sign_files_list
   parameters({
     'InstallDir' => install_dir,
@@ -225,6 +231,7 @@ package :msi do
     'IncludePython3' => "#{with_python_runtime? '3'}",
     'Platform' => "#{arch}",
     'IncludeSysprobe' => "#{include_sysprobe}",
+    'IncludeAPMInject' => "#{include_apminject}"
   })
   # This block runs before harvesting with heat.exe
   # It runs in the scope of the packager, so all variables access are from the point-of-view of the packager.
@@ -278,6 +285,9 @@ end
 if windows?
   if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
     dependency 'datadog-windows-filter-driver'
+  end
+  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+    dependency 'datadog-windows-apminject'
   end
   if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     dependency 'datadog-windows-procmon-driver'

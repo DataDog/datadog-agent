@@ -28,8 +28,6 @@ var bpfMapNames = []string{
 	"events",
 	"events_ringbuf_",
 	"events_stats",
-	"exec_count_bb",
-	"exec_count_fb",
 	"exec_file_cache",
 	"exec_pid_transf",
 	"fb_approver_sta",

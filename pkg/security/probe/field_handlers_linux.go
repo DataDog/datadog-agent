@@ -183,7 +183,7 @@ func (fh *FieldHandlers) ResolveProcessCreatedAt(ev *model.Event, e *model.Proce
 
 // ResolveProcessArgv0 resolves the first arg of the event
 func (fh *FieldHandlers) ResolveProcessArgv0(ev *model.Event, process *model.Process) string {
-	arg0, _ := fh.resolvers.ProcessResolver.GetProcessArgv0(process)
+	arg0, _ := sprocess.GetProcessArgv0(process)
 	return arg0
 }
 
@@ -294,7 +294,7 @@ func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinu
 
 // GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *FieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
-	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.Inode, false)
+	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, false)
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
 		return ev.ProcessCacheEntry, false
@@ -309,7 +309,7 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 	}
 
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
-		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.Inode, true)
+		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, true)
 	}
 
 	if ev.ProcessCacheEntry == nil {

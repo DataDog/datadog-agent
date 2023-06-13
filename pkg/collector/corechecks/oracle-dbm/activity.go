@@ -334,7 +334,7 @@ func (c *Check) SampleSession() error {
 		activityQuery = ACTIVITY_QUERY
 	}
 
-	err := c.db.Select(&sessionSamples, activityQuery)
+	err := selectWrapper(c, &sessionSamples, activityQuery)
 
 	if err != nil {
 		return fmt.Errorf("failed to collect session sampling activity: %w", err)

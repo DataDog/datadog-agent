@@ -22,7 +22,7 @@ type clientServiceInitializer[T any] interface {
 }
 
 // UpResultDeserializer is an helper to build a new type that can be used in an environment.
-// It is designed to be used as an embeded field.
+// It is designed to be used as an embedded field.
 // See VM type in this package for an example of usage.
 type UpResultDeserializer[T any] struct {
 	initializer  clientServiceInitializer[T]

@@ -27,7 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -123,6 +125,13 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 		}
 	}
 
+	if len(checkArgs.args) == 1 && checkArgs.args[0] == "k8sconfig" {
+		_, resourceData := k8sconfig.LoadConfiguration(context.Background(), os.Getenv("HOST_ROOT"))
+		b, _ := json.MarshalIndent(resourceData, "", "  ")
+		fmt.Println(string(b))
+		return nil
+	}
+
 	var resolver compliance.Resolver
 	if checkArgs.overrideRegoInput != "" {
 		resolver = newFakeResolver(checkArgs.overrideRegoInput)
@@ -181,7 +190,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			var ruleEvents []*compliance.CheckEvent
 			switch {
 			case rule.IsXCCDF():
-				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, benchmark, rule)
+				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, statsdClient, benchmark, rule)
 			case rule.IsRego():
 				ruleEvents = compliance.ResolveAndEvaluateRegoRule(context.Background(), resolver, benchmark, rule)
 			}
@@ -229,7 +238,7 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 	runPath := config.GetString("compliance_config.run_path")
-	endpoints, context, err := command.NewLogContextCompliance(log)
+	endpoints, context, err := common.NewLogContextCompliance()
 	if err != nil {
 		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
 	}
@@ -238,11 +247,7 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 		return fmt.Errorf("reporter: could not create: %w", err)
 	}
 	for _, event := range events {
-		buf, err := json.Marshal(event)
-		if err != nil {
-			return fmt.Errorf("reporter: could not marshal event: %w", err)
-		}
-		reporter.ReportRaw(buf, "")
+		reporter.ReportEvent(event)
 	}
 	return nil
 }

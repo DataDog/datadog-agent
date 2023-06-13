@@ -193,6 +193,10 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 			})
 	}
 
+	if IsJavaSubprogramEnabled(c) {
+		tailCalls = append(tailCalls, GetJavaTlsTailCallRoutes()...)
+	}
+
 	program := &ebpfProgram{
 		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
@@ -357,22 +361,22 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.MapSpecEditors = map[string]manager.MapSpecEditor{
 		httpInFlightMap: {
 			Type:       ebpf.Hash,
-			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		http2InFlightMap: {
 			Type:       ebpf.Hash,
-			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		connectionStatesMap: {
 			Type:       ebpf.Hash,
-			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		kafkaLastTCPSeqPerConnectionMap: {
 			Type:       ebpf.Hash,
-			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}
@@ -384,7 +388,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	} else {
 		options.MapSpecEditors[probes.ConnectionProtocolMap] = manager.MapSpecEditor{
 			Type:       ebpf.Hash,
-			MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

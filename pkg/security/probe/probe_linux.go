@@ -99,13 +99,12 @@ type PlatformProbe struct {
 	// Approvers / discarders section
 	Erpc                           *erpc.ERPC
 	erpcRequest                    *erpc.ERPCRequest
-	pidDiscarders                  *pidDiscarders
 	inodeDiscarders                *inodeDiscarders
 	notifyDiscarderPushedCallbacks []NotifyDiscarderPushedCallback
 	approvers                      map[eval.EventType]kfilters.ActiveApprovers
 
 	// Events section
-	anomalyDetectionSent map[model.EventType]*atomic.Uint64
+	generatedAnomalyDetection map[model.EventType]*atomic.Uint64
 
 	// Approvers / discarders section
 	notifyDiscarderPushedCallbacksLock sync.Mutex
@@ -252,7 +251,6 @@ func (p *Probe) Init() error {
 		return fmt.Errorf("failed to init manager: %w", err)
 	}
 
-	p.pidDiscarders = newPidDiscarders(p.Erpc)
 	p.inodeDiscarders = newInodeDiscarders(p.Erpc, p.resolvers.DentryResolver)
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
@@ -310,6 +308,7 @@ func (p *Probe) PlaySnapshot() {
 		if entry.Source != model.ProcessCacheEntryFromProcFS {
 			return
 		}
+		entry.Retain()
 		event := NewEvent(p.fieldHandlers)
 		event.Type = uint32(model.ExecEventType)
 		event.TimestampRaw = uint64(time.Now().UnixNano())
@@ -322,6 +321,7 @@ func (p *Probe) PlaySnapshot() {
 	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
 		p.DispatchEvent(event)
+		event.ProcessCacheEntry.Release()
 	}
 }
 
@@ -332,10 +332,10 @@ func (p *Probe) sendAnomalyDetection(event *model.Event) {
 	}
 
 	p.DispatchCustomEvent(
-		events.NewCustomRule(events.AnomalyDetectionRuleID),
+		events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc),
 		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 	)
-	p.anomalyDetectionSent[event.GetEventType()].Inc()
+	p.generatedAnomalyDetection[event.GetEventType()].Inc()
 }
 
 func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
@@ -433,11 +433,11 @@ func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) 
 func (p *Probe) SendStats() error {
 	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
 
-	for evtType, count := range p.anomalyDetectionSent {
+	for evtType, count := range p.generatedAnomalyDetection {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
 		if value := count.Swap(0); value > 0 {
-			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionSent, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionSent metric: %w", err)
+			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionGenerated, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionGenerated metric: %w", err)
 			}
 		}
 	}
@@ -895,19 +895,25 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	}
 	event.ProcessCacheEntry = entry
+	if event.ProcessCacheEntry == nil {
+		panic("should always return a process cache entry")
+	}
 
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	if event.ProcessContext == nil {
+		panic("should always return a process context")
+	}
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return
 	}
 
 	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTime(event))
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, p.fieldHandlers.ResolveEventTime(event))
 	}
 
 	p.DispatchEvent(event)
@@ -1352,7 +1358,7 @@ func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid); err != nil {
+	if err := p.resolvers.MountResolver.Insert(*m); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
@@ -1428,19 +1434,19 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		PlatformProbe: PlatformProbe{
-			approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
-			managerOptions:       ebpf.NewDefaultOptions(),
-			Erpc:                 nerpc,
-			erpcRequest:          &erpc.ERPCRequest{},
-			isRuntimeDiscarded:   !opts.DontDiscardRuntime,
-			anomalyDetectionSent: make(map[model.EventType]*atomic.Uint64),
+			approvers:                 make(map[eval.EventType]kfilters.ActiveApprovers),
+			managerOptions:            ebpf.NewDefaultOptions(),
+			Erpc:                      nerpc,
+			erpcRequest:               &erpc.ERPCRequest{},
+			isRuntimeDiscarded:        !opts.DontDiscardRuntime,
+			generatedAnomalyDetection: make(map[model.EventType]*atomic.Uint64),
 		},
 	}
 
 	p.event = NewEvent(p.fieldHandlers)
 
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		p.anomalyDetectionSent[i] = atomic.NewUint64(0)
+		p.generatedAnomalyDetection[i] = atomic.NewUint64(0)
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1834,4 +1840,8 @@ func (p *Probe) IsActivityDumpEnabled() bool {
 
 func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpTagRulesEnabled
+}
+
+func (p *Probe) IsSecurityProfileEnabled() bool {
+	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }

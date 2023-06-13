@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/cache"
 
@@ -24,34 +25,49 @@ import (
 type reflectorStore struct {
 	wlmetaStore workloadmeta.Store
 
-	mu      sync.Mutex
-	seen    map[string]workloadmeta.EntityID
+	mu   sync.Mutex
+	seen map[string]workloadmeta.EntityID
+}
+
+type podReflectorStore struct {
+	reflectorStore
+
 	options *parseOptions
 }
 
-func newReflectorStore(wlmetaStore workloadmeta.Store) cache.Store {
+type nodeReflectorStore struct {
+	reflectorStore
+}
+
+func newPodReflectorStore(wlmetaStore workloadmeta.Store) cache.Store {
 	annotationsExclude := config.Datadog.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
 	parseOptions, err := newParseOptions(annotationsExclude)
 	if err != nil {
 		_ = log.Errorf("unable to parse all pod_annotations_exclude: %v, err:", err)
 	}
-	return &reflectorStore{
-		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
-		options:     parseOptions,
+	return &podReflectorStore{
+		reflectorStore: reflectorStore{
+			wlmetaStore: wlmetaStore,
+			seen:        make(map[string]workloadmeta.EntityID),
+		},
+		options: parseOptions,
 	}
 }
 
-// Add notifies the workloadmeta store with  an EventTypeSet for the given
-// object.
-func (r *reflectorStore) Add(obj interface{}) error {
+func newNodeReflectorStore(wlmetaStore workloadmeta.Store) cache.Store {
+	return &nodeReflectorStore{
+		reflectorStore: reflectorStore{
+			wlmetaStore: wlmetaStore,
+			seen:        make(map[string]workloadmeta.EntityID),
+		},
+	}
+}
+
+func (r *reflectorStore) add(uid types.UID, entity workloadmeta.Entity) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	pod := obj.(*corev1.Pod)
-	entity := parsePod(pod, r.options)
-
-	r.seen[string(pod.UID)] = entity.EntityID
+	r.seen[string(uid)] = entity.GetID()
 
 	r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 		{
@@ -64,9 +80,33 @@ func (r *reflectorStore) Add(obj interface{}) error {
 	return nil
 }
 
+// Add notifies the workloadmeta store with  an EventTypeSet for the given
+// object.
+func (r *podReflectorStore) Add(obj interface{}) error {
+	pod := obj.(*corev1.Pod)
+	entity := parsePod(pod, r.options)
+
+	return r.add(pod.UID, entity)
+}
+
+// Add notifies the workloadmeta store with  an EventTypeSet for the given
+// object.
+func (r *nodeReflectorStore) Add(obj interface{}) error {
+	node := obj.(*corev1.Node)
+	entity := parseNode(node)
+
+	return r.add(node.UID, entity)
+}
+
 // Update notifies the workloadmeta store with  an EventTypeSet for the given
 // object.
-func (r *reflectorStore) Update(obj interface{}) error {
+func (r *podReflectorStore) Update(obj interface{}) error {
+	return r.Add(obj)
+}
+
+// Update notifies the workloadmeta store with  an EventTypeSet for the given
+// object.
+func (r *nodeReflectorStore) Update(obj interface{}) error {
 	return r.Add(obj)
 }
 
@@ -76,9 +116,17 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	pod := obj.(*corev1.Pod)
+	var kind workloadmeta.Kind
+	var uid types.UID
+	if pod, ok := obj.(*corev1.Pod); ok {
+		kind = workloadmeta.KindKubernetesPod
+		uid = pod.UID
+	} else if node, ok := obj.(*corev1.Node); ok {
+		kind = workloadmeta.KindKubernetesNode
+		uid = node.UID
+	}
 
-	delete(r.seen, string(pod.UID))
+	delete(r.seen, string(uid))
 
 	r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 		{
@@ -86,8 +134,8 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 			Source: collectorID,
 			Entity: &workloadmeta.KubernetesPod{
 				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesPod,
-					ID:   string(pod.UID),
+					Kind: kind,
+					ID:   string(uid),
 				},
 			},
 		},
@@ -96,9 +144,14 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	return nil
 }
 
+type entityUid struct {
+	entity workloadmeta.Entity
+	uid    types.UID
+}
+
 // Replace diffs the given list with the contents of the workloadmeta store
 // (through r.seen), and updates and deletes the necessary objects.
-func (r *reflectorStore) Replace(list []interface{}, _ string) error {
+func (r *reflectorStore) replace(entities []entityUid) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -107,10 +160,9 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 	seenNow := make(map[string]workloadmeta.EntityID)
 	seenBefore := r.seen
 
-	for _, obj := range list {
-		pod := obj.(*corev1.Pod)
-		podUID := string(pod.UID)
-		entity := parsePod(pod, r.options)
+	for _, entityuid := range entities {
+		entity := entityuid.entity
+		uid := string(entityuid.uid)
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeSet,
@@ -118,11 +170,11 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 			Entity: entity,
 		})
 
-		if _, ok := seenBefore[podUID]; ok {
-			delete(seenBefore, podUID)
+		if _, ok := seenBefore[uid]; ok {
+			delete(seenBefore, uid)
 		}
 
-		seenNow[podUID] = entity.EntityID
+		seenNow[uid] = entity.GetID()
 	}
 
 	for _, entityID := range seenBefore {
@@ -140,6 +192,32 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 	r.seen = seenNow
 
 	return nil
+}
+
+// Replace diffs the given list with the contents of the workloadmeta store
+// (through r.seen), and updates and deletes the necessary objects.
+func (r *podReflectorStore) Replace(list []interface{}, _ string) error {
+	entities := make([]entityUid, 0, len(list))
+
+	for _, obj := range list {
+		pod := obj.(*corev1.Pod)
+		entities = append(entities, entityUid{parsePod(pod, r.options), pod.UID})
+	}
+
+	return r.replace(entities)
+}
+
+// Replace diffs the given list with the contents of the workloadmeta store
+// (through r.seen), and updates and deletes the necessary objects.
+func (r *nodeReflectorStore) Replace(list []interface{}, _ string) error {
+	entities := make([]entityUid, 0, len(list))
+
+	for _, obj := range list {
+		node := obj.(*corev1.Node)
+		entities = append(entities, entityUid{parseNode(node), node.UID})
+	}
+
+	return r.replace(entities)
 }
 
 // List is not implemented
@@ -237,6 +315,20 @@ func parsePod(pod *corev1.Pod, options *parseOptions) *workloadmeta.KubernetesPo
 		// to run in the Cluster Agent, and the total amount of
 		// containers can be quite significant
 		// Containers:                 []workloadmeta.OrchestratorContainer{},
+	}
+}
+
+func parseNode(node *corev1.Node) *workloadmeta.KubernetesNode {
+	return &workloadmeta.KubernetesNode{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesNode,
+			ID:   node.Name,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        node.Name,
+			Annotations: node.Annotations,
+			Labels:      node.Labels,
+		},
 	}
 }
 
