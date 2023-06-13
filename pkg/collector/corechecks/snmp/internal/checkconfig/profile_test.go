@@ -451,9 +451,9 @@ func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 	assert.Len(t, defaultProfiles, 3)
 	assert.NotNil(t, defaultProfiles)
 
-	p1 := defaultProfiles["p1"] // user p1 overrides datadog p1
-	p2 := defaultProfiles["p2"] // datadog p2
-	p3 := defaultProfiles["p3"] // user p3
+	p1 := defaultProfiles["p1"].Definition // user p1 overrides datadog p1
+	p2 := defaultProfiles["p2"].Definition // datadog p2
+	p3 := defaultProfiles["p3"].Definition // user p3
 
 	assert.Equal(t, "p1_user", p1.Device.Vendor) // overrides datadog p1 profile
 	assert.NotNil(t, getMetricFromProfile(p1, "p1_metric_override"))
