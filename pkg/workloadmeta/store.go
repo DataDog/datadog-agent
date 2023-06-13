@@ -276,9 +276,6 @@ func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 	return entity.(*KubernetesPod), nil
 }
 
-<<<<<<< HEAD
-// GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer.
-=======
 // GetProcess implements Store#GetProcess.
 func (s *store) GetProcess(pid int32) (*Process, error) {
 	id := strconv.Itoa(int(pid))
@@ -320,7 +317,6 @@ func (s *store) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
 }
 
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
->>>>>>> main
 func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
 	s.storeMut.RLock()
 	defer s.storeMut.RUnlock()
