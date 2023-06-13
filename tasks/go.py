@@ -212,7 +212,7 @@ def generate_protobuf(ctx):
     }
 
     PKG_CLI_EXTRAS = {
-        'trace': 'vtproto_opt=features=marshal+unmarshal+size',
+        'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
     }
 
     # protoc-go-inject-tag targets
@@ -222,7 +222,7 @@ def generate_protobuf(ctx):
 
     # msgp targets
     msgp_targets = {
-        'trace': ['remote_rates.pb.go', 'span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'trace.go'],
+        'trace': ['span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
         'core': ['remoteconfig.pb.go'],
     }
 
@@ -259,20 +259,25 @@ def generate_protobuf(ctx):
                 if path.as_posix().count(os.sep) == pkg_root_level + 1:
                     files.append(path.as_posix())
 
+            targets = ' '.join(files)
+
             # output_generator could potentially change for some packages
             # so keep it in a variable for sanity.
             output_generator = "--go_out=plugins=grpc:"
+            cli_extras = ''
+            ctx.run(
+                f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
+            )
+
             if pkg in PKG_PLUGINS:
                 output_generator = PKG_PLUGINS[pkg]
 
-            cli_extras = ''
-            if pkg in PKG_CLI_EXTRAS:
-                cli_extras = PKG_CLI_EXTRAS[pkg]
+                if pkg in PKG_CLI_EXTRAS:
+                    cli_extras = PKG_CLI_EXTRAS[pkg]
 
-            targets = ' '.join(files)
-            ctx.run(
-                f"protoc -I{proto_root} -I{protodep_root} {output_generator}{out_path} {cli_extras} {targets}"
-            )
+                ctx.run(
+                    f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
+                )
 
             if inject_tags:
                 # inject_tags logic
