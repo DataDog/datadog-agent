@@ -8,6 +8,11 @@
 * Commit titles should be prefixed with general area of pull request's change.
 * Draft PRs should be prefixed with `[WIP]` in their title.
 
+If you are interacting with the serverless agent/extension:
+  * Please make sure to tag your PR with the `team/serverless` label.
+  * Include a milestone for the next extension release in your PR (for example, `lambda-extension-x`).
+
+This process aids us in deciding what goes into a release candidate by allowing a quick search of closed PRs.
 -->
 ### What does this PR do?
 
