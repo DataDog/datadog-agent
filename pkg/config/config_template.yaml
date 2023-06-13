@@ -408,11 +408,11 @@ api_key:
 #
 # ec2_prefer_imdsv2: false
 
-## @param collect_gce_tags - boolean - optional - default: true
-## @env DD_COLLECT_GCE_TAGS - boolean - optional - default: true
+## @param collect_gce_tags - boolean - optional - default: false
+## @env DD_COLLECT_GCE_TAGS - boolean - optional - default: false
 ## Collect Google Cloud Engine metadata as host tags
 #
-# collect_gce_tags: true
+# collect_gce_tags: false
 
 ## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings"]
 ## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: kube-env kubelet-config containerd-configure-sh startup-script shutdown-script configure-sh sshKeys ssh-keys user-data cli-cert ipsec-cert ssl-cert google-container-manifest bosh_settings
