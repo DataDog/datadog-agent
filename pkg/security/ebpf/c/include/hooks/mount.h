@@ -234,7 +234,6 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(st
 
     struct unshare_mntns_event_t event = {
         .mountfields.mount_id = get_mount_mount_id(syscall->unshare_mntns.mnt),
-        .mountfields.group_id = get_mount_peer_group_id(syscall->unshare_mntns.mnt),
         .mountfields.device = get_mount_dev(syscall->unshare_mntns.mnt),
         .mountfields.parent_mount_id = syscall->unshare_mntns.path_key.mount_id,
         .mountfields.parent_inode = syscall->unshare_mntns.path_key.ino,
@@ -393,7 +392,6 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
     struct mount_event_t event = {
         .syscall.retval = retval,
         .mountfields.mount_id = get_mount_mount_id(syscall->mount.src_mnt),
-        .mountfields.group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
         .mountfields.device = get_mount_dev(syscall->mount.src_mnt),
         .mountfields.parent_mount_id = syscall->mount.path_key.mount_id,
         .mountfields.parent_inode = syscall->mount.path_key.ino,

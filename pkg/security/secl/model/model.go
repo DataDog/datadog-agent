@@ -771,7 +771,6 @@ type ArgsEnvsEvent struct {
 // Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32 `field:"-"`
-	GroupID        uint32 `field:"-"`
 	Device         uint32 `field:"-"`
 	ParentMountID  uint32 `field:"-"`
 	ParentInode    uint64 `field:"-"`
