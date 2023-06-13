@@ -8,6 +8,7 @@
 package activity_tree
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -344,6 +345,10 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool) (node *ProcessNode, newProcessNode bool, err error) {
 	if entry == nil {
 		return nil, false, nil
+	}
+
+	if !entry.HasCompleteLineage() {
+		return nil, false, errors.New("broken lineage")
 	}
 
 	// look for a ProcessActivityNode by process cookie
