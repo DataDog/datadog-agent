@@ -531,8 +531,8 @@ int __attribute__((always_inline)) fetch_interpreter(ctx_t *ctx, struct linux_bi
 }
 
 SEC("kprobe/setup_new_exec")
-int kprobe_setup_new_exec_interp(ctx_t *ctx) {
-    struct linux_binprm *bprm = (struct linux_binprm *) CTX_PARM1(ctx);
+int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
+    struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
     return fetch_interpreter(ctx, bprm);
 }
 
@@ -577,7 +577,7 @@ int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/setup_arg_pages")
-int kprobe_setup_arg_pages(ctx_t *ctx) {
+int kprobe_setup_arg_pages(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
