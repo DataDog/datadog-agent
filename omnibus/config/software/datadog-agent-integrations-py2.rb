@@ -432,9 +432,9 @@ build do
         end
 
         # Copy SNMP profiles
-        profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
-        if File.exist? profiles
-          copy profiles, "#{check_conf_dir}/"
+        default_profiles = "#{check_dir}/datadog_checks/#{check}/data/default_profiles"
+        if File.exist? default_profiles
+          copy default_profiles, "#{check_conf_dir}/"
         end
 
         # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
