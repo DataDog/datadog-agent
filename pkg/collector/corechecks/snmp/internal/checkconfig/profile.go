@@ -126,24 +126,23 @@ func getProfilesDefinitionFiles(profilesFolder string) (profileConfigMap, error)
 func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 	profiles := make(profileConfigMap, len(pConfig))
 
-	for name, profile := range pConfig {
-		if profile.DefinitionFile != "" {
-			profileDefinition, err := readProfileDefinition(profile.DefinitionFile)
+	for name, profConfig := range pConfig {
+		if profConfig.DefinitionFile != "" {
+			profDefinition, err := readProfileDefinition(profConfig.DefinitionFile)
 			if err != nil {
 				log.Warnf("failed to read profile definition `%s`: %s", name, err)
 				continue
 			}
 
-			err = recursivelyExpandBaseProfiles(profile.DefinitionFile, profileDefinition, profileDefinition.Extends, []string{})
+			err = recursivelyExpandBaseProfiles(profConfig.DefinitionFile, profDefinition, profDefinition.Extends, []string{})
 			if err != nil {
 				log.Warnf("failed to expand profile `%s`: %s", name, err)
 				continue
 			}
-			profile.Definition = *profileDefinition
-			profiles[name] = profile
-		} else {
-			profiles[name] = profile
+			profConfig.Definition = *profDefinition
+			profiles[name] = profConfig
 		}
+		profiles[name] = profConfig
 	}
 	return profiles, nil
 }
