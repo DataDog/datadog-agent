@@ -147,5 +147,4 @@ func disableConfig(deploy *corev1.Deployment, req PatchRequest) {
 	delete(deploy.Spec.Template.Annotations, configAnnotKey)
 	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
 	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
-
 }
