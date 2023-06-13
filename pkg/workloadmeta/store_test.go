@@ -599,6 +599,47 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+func TestGetProcess(t *testing.T) {
+	s := newTestStore()
+
+	process := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "123",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: process,
+		},
+	})
+
+	gotProcess, err := s.GetProcess(123)
+	if err != nil {
+		t.Errorf("expected to find process %q, not found", process.ID)
+	}
+
+	if !reflect.DeepEqual(process, gotProcess) {
+		t.Errorf("expected process %q to match the one in the store", process.ID)
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeUnset,
+			Source: fooSource,
+			Entity: process,
+		},
+	})
+
+	_, err = s.GetProcess(123)
+	if err == nil || !errors.IsNotFound(err) {
+		t.Errorf("expected process %q to be absent. found or had errors. err: %q", process.ID, err)
+	}
+}
+
 func TestListContainers(t *testing.T) {
 	container := &Container{
 		EntityID: EntityID{
@@ -681,6 +722,94 @@ func TestListContainersWithFilter(t *testing.T) {
 	runningContainers := testStore.ListContainersWithFilter(GetRunningContainers)
 
 	assert.DeepEqual(t, []*Container{runningContainer}, runningContainers)
+}
+
+func TestListProcesses(t *testing.T) {
+	process := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "123",
+		},
+	}
+
+	tests := []struct {
+		name              string
+		preEvents         []CollectorEvent
+		expectedProcesses []*Process
+	}{
+		{
+			name: "some processes stored",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: process,
+				},
+			},
+			expectedProcesses: []*Process{process},
+		},
+		{
+			name:              "no processes stored",
+			preEvents:         nil,
+			expectedProcesses: []*Process{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			testStore.handleEvents(test.preEvents)
+
+			processes := testStore.ListProcesses()
+
+			assert.DeepEqual(t, test.expectedProcesses, processes)
+		})
+	}
+}
+
+func TestListProcessesWithFilter(t *testing.T) {
+	java := "java"
+	golang := "golang"
+	javaProcess := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "123",
+		},
+		Language: &java,
+	}
+
+	goProcess := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "2",
+		},
+		Language: &golang,
+	}
+
+	testStore := newTestStore()
+
+	testStore.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: javaProcess,
+		},
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: goProcess,
+		},
+	})
+
+	retrievedProcesses := testStore.ListProcessesWithFilter(func(p *Process) bool {
+		if *p.Language == "java" {
+			return true
+		} else {
+			return false
+		}
+	})
+
+	assert.DeepEqual(t, []*Process{javaProcess}, retrievedProcesses)
 }
 
 func TestListImages(t *testing.T) {
