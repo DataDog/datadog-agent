@@ -492,6 +492,11 @@ shared_examples_for "an installed Agent" do
       expect(is_signed).to be_truthy
 
       program_files = safe_program_files
+      # The glob in the bottom makes sure we add the full Python version dll, e.g.
+      # python39.dll or python310.dll. Thanks to this, we don't have to fix this test case
+      # manually when we upgrade the Python version. Additionally, some scenarios like
+      # win-upgrade-rollback might test two Agents with two different Python versions,
+      # so hardcoding just one dll wouldn't work in these cases.
       verify_signature_files = [
         # TODO: Uncomment this when we start shipping the security agent on Windows
         # "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe",
@@ -503,8 +508,7 @@ shared_examples_for "an installed Agent" do
         "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll",
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll"
-      ]
+      ] + Dir.glob("#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3?*.dll")
       libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-two.dll"
       if File.file?(libdatadog_agent_two)
         verify_signature_files += [
