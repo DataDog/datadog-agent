@@ -16,6 +16,7 @@ type NodeType int
 
 // CheckName is the cluster check name of the orchestrator check
 var CheckName = "orchestrator"
+var ExtraLogContext = []interface{}{"check", CheckName}
 
 const (
 	// K8sUnsetType represents a Kubernetes unset type

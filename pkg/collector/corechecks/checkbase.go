@@ -174,6 +174,14 @@ func (c *CheckBase) Warnf(format string, params ...interface{}) error {
 	return w
 }
 
+// Warnc sends an integration warning to logs + agent status.
+func (c *CheckBase) Warnc(message string, context ...interface{}) error {
+	w := log.Warnc(message, context...)
+	c.latestWarnings = append(c.latestWarnings, w)
+
+	return w
+}
+
 // Stop does nothing by default, you need to implement it in
 // long-running checks (persisting after Run() exits)
 func (c *CheckBase) Stop() {}
