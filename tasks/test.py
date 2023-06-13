@@ -785,7 +785,20 @@ def lint_milestone(_):
 
         res = requests.get(f"https://api.github.com/repos/DataDog/datadog-agent/issues/{pr_id}")
         pr = res.json()
-        if pr.get("milestone"):
+        labels = pr.get("labels") or []
+        milestone = pr.get("milestone") or {}
+
+        # serverless team PRs must have serverless specific milestones
+        for label in labels:
+            if label.get("name") == "team/serverless":
+                title = milestone.get("title")
+                if not title or not title.startswith("lambda-extension-"):
+                    print(f"PR {pr_url} is assigned to 'team/serverless' and "
+                          "therefore requires a milestone that starts with "
+                          "'lambda-extension-'.")
+                    raise Exit(code=1)
+
+        if milestone:
             print(f"Milestone: {pr['milestone'].get('title', 'NO_TITLE')}")
             return
 
