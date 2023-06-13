@@ -210,7 +210,7 @@ kernel_matrix_testing_run_tests:
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
-    - ALL_INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -instance-ip | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
+    - ALL_INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep "-instance-ip" | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
     - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi" "Name=private-ip-address,Values=$ALL_INSTANCE_IPS" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l )
     - |
       if [ $RUNNING_INSTANCES -eq "0" ]; then
@@ -239,7 +239,7 @@ kernel_matrix_testing_cleanup:
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
-    - INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -instance-ip | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
+    - INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep "-instance-ip" | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
     - INSTANCE_IDS=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi" "Name=private-ip-address,Values=$INSTANCE_IPS" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
     - echo $INSTANCE_IDS
     - aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
