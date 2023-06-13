@@ -676,7 +676,7 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 	case workloadmeta.KindContainerImageMetadata:
 		return fmt.Sprintf("container_image_metadata://%s", entityID.ID)
 	case workloadmeta.KindProcess:
-		return fmt.Sprintf("process://%s", entityID.ID) // TODO: confirm the tagger entity name
+		return fmt.Sprintf("process://%s", entityID.ID)
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)
