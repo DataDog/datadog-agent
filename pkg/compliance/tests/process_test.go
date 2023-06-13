@@ -9,6 +9,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -175,6 +176,9 @@ findings[f] {
 			if err := cmd2.Start(); err != nil {
 				t.Fatal(err)
 			}
+			// without calling Wait(), we may create zombie processes
+			go cmd1.Wait()
+			go cmd2.Wait()
 		}).
 		WithInput(`
 - process:
@@ -201,17 +205,18 @@ valid(p) {
 }
 
 findings[f] {
-	count([p | p := input.process[_]; valid(p)]) == 2
+	c := count([p | p := input.process[_]; valid(p)])
 	f := dd.passed_finding(
 		"sleep",
 		"sleep",
-		{},
+		{ "c": c },
 	)
 }
 `, envFoo).
 		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "sleep", evt.ResourceID)
 			assert.Equal(t, "sleep", evt.ResourceType)
+			assert.Equal(t, json.Number("2"), evt.Data["c"])
 		})
 }
 
