@@ -197,13 +197,27 @@ def generate_protobuf(ctx):
     We must build the packages one at a time due to protoc-gen-go limitations
     """
 
-    # Key: path, Value: grpc_gateway
-    PROTO_PACKAGES = {
-        'model/v1': False,
-        'remoteconfig': False,
-        'api/v1': True,
-        'trace': False,
-        'process': False,
+    # Key: path, Value: grpc_gateway, inject_tags
+    PROTO_PKGS = {
+        'model/v1': (False, False),
+        'remoteconfig': (False, False),
+        'api/v1': (True, False),
+        'trace': (False, False),
+        'process': (False, False),
+    }
+
+    # maybe put this in a separate function
+    PKG_PLUGINS = {
+        'trace': '--go-vtproto_out=',
+    }
+
+    PKG_CLI_EXTRAS = {
+        'trace': 'vtproto_opt=features=marshal+unmarshal+size',
+    }
+
+    # protoc-go-inject-tag targets
+    inject_tag_targets = {
+        'trace': ['span.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
     }
 
     # msgp targets
@@ -237,7 +251,7 @@ def generate_protobuf(ctx):
         # protobuf defs
         print(f"generating protobuf code from: {proto_root}")
 
-        for pkg, grpc_gateway in PROTO_PACKAGES.items():
+        for pkg, (grpc_gateway, inject_tags) in PROTO_PKGS.items():
             files = []
             pkg_root = os.path.join(proto_root, "datadog", pkg).rstrip(os.sep)
             pkg_root_level = pkg_root.count(os.sep)
@@ -248,11 +262,24 @@ def generate_protobuf(ctx):
             # output_generator could potentially change for some packages
             # so keep it in a variable for sanity.
             output_generator = "--go_out=plugins=grpc:"
+            if pkg in PKG_PLUGINS:
+                output_generator = PKG_PLUGINS[pkg]
+
+            cli_extras = ''
+            if pkg in PKG_CLI_EXTRAS:
+                cli_extras = PKG_CLI_EXTRAS[pkg]
 
             targets = ' '.join(files)
             ctx.run(
-                f"protoc -I{proto_root} -I{protodep_root} {output_generator}{out_path} {targets}"
+                f"protoc -I{proto_root} -I{protodep_root} {output_generator}{out_path} {cli_extras} {targets}"
             )
+
+            if inject_tags:
+                # inject_tags logic
+                for target in targets:
+                    ctx.run(
+                        f"protoc-go-inject-tag -input={target}"
+                    )
 
             if grpc_gateway:
                 # grpc-gateway logic
