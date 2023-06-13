@@ -8,6 +8,7 @@
 package orchestrator
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -284,12 +285,12 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 
 		result, err := collector.Run(cb.runCfg)
 		if err != nil {
-			_ = cb.check.Warnf("Collector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
+			_ = cb.check.Warnc(fmt.Sprintf("Collector %s failed to run: %s", collector.Metadata().FullName(), err.Error()), orchestrator.ExtraLogContext...)
 			continue
 		}
 
 		runDuration := time.Since(runStartTime)
-		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().FullName(), result.ResourcesListed, result.ResourcesProcessed, len(result.Result.MetadataMessages), runDuration)
+		log.Debugc(fmt.Sprintf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().FullName(), result.ResourcesListed, result.ResourcesProcessed, len(result.Result.MetadataMessages), runDuration), orchestrator.ExtraLogContext...)
 
 		nt := collector.Metadata().NodeType
 		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt)

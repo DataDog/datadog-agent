@@ -120,7 +120,7 @@ func (o *OrchestratorCheck) Configure(integrationConfigDigest uint64, config, in
 	// load instance level config
 	err = o.instance.parse(config)
 	if err != nil {
-		_ = log.Error("could not parse check instance config")
+		_ = log.Errorc("could not parse check instance config", orchestrator.ExtraLogContext...)
 		return err
 	}
 
@@ -161,7 +161,7 @@ func (o *OrchestratorCheck) Run() error {
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
 		if !config.Datadog.GetBool("leader_election") {
-			return log.Error("Leader Election not enabled. The cluster-agent will not run the check.")
+			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 		}
 
 		leader, errLeader := cluster.RunLeaderElection()
