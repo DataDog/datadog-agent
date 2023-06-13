@@ -432,7 +432,10 @@ build do
         end
 
         # Copy SNMP profiles
-        default_profiles = "#{check_dir}/datadog_checks/#{check}/data/default_profiles"
+        # TODO RENAME TO default_profiles
+        # TODO RENAME TO default_profiles
+        # TODO RENAME TO default_profiles
+        default_profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
         if File.exist? default_profiles
           copy default_profiles, "#{check_conf_dir}/"
         end
