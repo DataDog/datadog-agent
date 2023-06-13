@@ -16,6 +16,7 @@ type blocklist struct {
 }
 
 func newBlocklist(data []string, matchPrefix bool) blocklist {
+	data = append([]string{}, data...)
 	sort.Strings(data)
 
 	if matchPrefix && len(data) > 0 {
