@@ -11,6 +11,7 @@ replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+
 
 require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.47.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.47.0-rc.3
