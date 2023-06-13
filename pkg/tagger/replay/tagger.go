@@ -9,7 +9,7 @@ import (
 	"context"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
