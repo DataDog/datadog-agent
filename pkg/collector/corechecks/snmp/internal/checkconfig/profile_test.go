@@ -418,7 +418,7 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 		{
 			name:               "relative path",
 			definitionFilePath: "myfile.yaml",
-			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "profiles", "myfile.yaml"),
+			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "default_profiles", "myfile.yaml"),
 		},
 	}
 	for _, tt := range tests {
@@ -441,6 +441,7 @@ func Test_loadDefaultProfiles(t *testing.T) {
 }
 
 func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
+	globalProfileConfigMap = nil
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
 	config.Datadog.Set("confd_path", defaultTestConfdPath)
 
@@ -470,8 +471,8 @@ func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
 	globalProfileConfigMap = nil
 
 	defaultProfiles, err := loadDefaultProfiles()
-	assert.Contains(t, err.Error(), "failed to get default profile definitions: failed to read dir")
-	assert.Nil(t, defaultProfiles)
+	assert.Nil(t, err)
+	assert.Len(t, defaultProfiles, 0)
 }
 
 func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
