@@ -436,9 +436,9 @@ build do
           copy auto_conf_yaml, "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
         end
 
-        # Copy SNMP profiles
-        profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
-        if File.exist? profiles
+        # Copy SNMP default_profiles
+        default_profiles = "#{check_dir}/datadog_checks/#{check}/data/default_profiles"
+        if File.exist? default_profiles
           copy profiles, "#{check_conf_dir}/"
         end
 
