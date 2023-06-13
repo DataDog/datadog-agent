@@ -12,6 +12,7 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,23 +20,27 @@ import (
 
 // remoteConfigProvider consumes tracing configs from RC and delivers them to the patcher
 type remoteConfigProvider struct {
-	client        *remote.Client
-	isLeaderNotif <-chan struct{}
-	subscribers   map[TargetObjKind]chan PatchRequest
-	clusterName   string
+	client             *remote.Client
+	isLeaderNotif      <-chan struct{}
+	subscribers        map[TargetObjKind]chan PatchRequest
+	clusterId          string
+	clusterName        string
+	telemetryCollector telemetry.TelemetryCollector
 }
 
 var _ patchProvider = &remoteConfigProvider{}
 
-func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{}, clusterName string) (*remoteConfigProvider, error) {
+func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{}, clusterId string, clusterName string) (*remoteConfigProvider, error) {
 	if client == nil {
 		return nil, errors.New("remote config client not initialized")
 	}
 	return &remoteConfigProvider{
-		client:        client,
-		isLeaderNotif: isLeaderNotif,
-		subscribers:   make(map[TargetObjKind]chan PatchRequest),
-		clusterName:   clusterName,
+		client:             client,
+		isLeaderNotif:      isLeaderNotif,
+		subscribers:        make(map[TargetObjKind]chan PatchRequest),
+		clusterId:          clusterId,
+		clusterName:        clusterName,
+		telemetryCollector: telemetry.NewCollector(),
 	}, nil
 }
 
@@ -83,10 +88,41 @@ func (rcp *remoteConfigProvider) process(update map[string]state.APMTracingConfi
 		}
 		if ch, found := rcp.subscribers[req.K8sTarget.Kind]; found {
 			valid++
+			// Log a telemetry event indicating a remote config patch to the Datadog backend
+			patchEvent := rcp.getRemoteConfigPatchEvent(config, req)
+			rcp.telemetryCollector.SendEvent(&patchEvent)
 			log.Debugf("Publishing patch request for target %s", req.K8sTarget)
 			ch <- req
 		}
 	}
 	metrics.RemoteConfigs.Set(valid)
 	metrics.InvalidRemoteConfigs.Set(invalid)
+}
+
+// getRemoteConfigPatchEvent fills out the fields of a telemetry event that can be sent
+// to the Datadog backend to indicate that a remote config has been successfully patched
+func (rcp *remoteConfigProvider) getRemoteConfigPatchEvent(config state.APMTracingConfig, req PatchRequest) telemetry.ApmRemoteConfigEvent {
+	env := ""
+	if req.LibConfig.Env != nil {
+		env = *req.LibConfig.Env
+	}
+	return telemetry.ApmRemoteConfigEvent{
+		RequestType: "apm-remote-config-event",
+		ApiVersion:  "v2",
+		Payload: telemetry.ApmRemoteConfigEventPayload{
+			EventName: "agent.k8s.patch",
+			Tags: telemetry.ApmRemoteConfigEventTags{
+				Env:                 env,
+				RcId:                req.ID,
+				RcClientId:          rcp.client.ID,
+				RcRevision:          req.Revision,
+				RcVersion:           config.Metadata.Version,
+				KubernetesClusterId: rcp.clusterId,
+				KubernetesCluster:   req.K8sTarget.Cluster,
+				KubernetesNamespace: req.K8sTarget.Namespace,
+				KubernetesKind:      string(req.K8sTarget.Kind),
+				KubernetesName:      req.K8sTarget.Name,
+			},
+		},
+	}
 }
