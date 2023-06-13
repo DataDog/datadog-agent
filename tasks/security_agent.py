@@ -130,8 +130,11 @@ def gen_mocks(ctx):
 
 
 @task
-def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
+def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=False):
     cmd = '{testsuite} {verbose_opt} {testflags}'
+    if fentry:
+        cmd = "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY=true " + cmd
+
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -401,6 +404,7 @@ def functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
+    fentry=False,
 ):
     build_functional_tests(
         ctx,
@@ -418,6 +422,7 @@ def functional_tests(
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
+        fentry=fentry,
     )
 
 
