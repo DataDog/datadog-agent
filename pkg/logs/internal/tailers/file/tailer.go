@@ -112,9 +112,8 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	info        *status.InfoRegistry
-	bytesRead   *status.CountInfo
-	encoderInfo *status.MappedInfo
+	info      *status.InfoRegistry
+	bytesRead *status.CountInfo
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -142,6 +141,8 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	bytesRead := status.NewCountInfo("Bytes Read")
 	info.Register(bytesRead)
 
+	encodingInfo := status.NewMappedInfo("Encoding")
+
 	t := &Tailer{
 		file:                   file,
 		outputChan:             outputChan,
@@ -159,19 +160,18 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 		isFinished:             atomic.NewBool(false),
 		didFileRotate:          atomic.NewBool(false),
 		info:                   info,
-		encoderInfo:            status.NewMappedInfo("Encoder"),
 		bytesRead:              bytesRead,
 	}
 
-	t.AddToInfo("Encoding", t.file.Source.Config().Encoding, t.encoderInfo, info)
-	return t
-}
-
-func (t *Tailer) AddToInfo(k, m string, newInfo *status.MappedInfo, info *status.InfoRegistry) {
-	if m != "" {
-		newInfo.SetMessage(k, m)
-		info.Register(newInfo)
+	if t.file.Source.Config().Encoding != "" {
+		encodingInfo.SetMessage("Encoding", t.file.Source.Config().Encoding)
+		info.Register(encodingInfo)
+	} else {
+		encodingInfo.SetMessage("Encoding", "utf-8")
+		info.Register(encodingInfo)
 	}
+
+	return t
 }
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
