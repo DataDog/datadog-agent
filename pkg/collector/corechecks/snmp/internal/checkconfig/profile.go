@@ -7,7 +7,6 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,13 +16,14 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-const datadogProfileFolder = "profiles"
-const userProfileFolder = "user_profiles"
+const datadogProfileFolder = "default_profiles"
+const userProfileFolder = "profiles"
 
 type profileDefinitionMap map[string]profileDefinition
 
@@ -86,7 +86,8 @@ func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
 	//  - loop `user_profiles` that takes precedence
 	profiles, err := getProfilesDefinitionFiles(datadogProfileFolder)
 	if err != nil {
-		return nil, err
+		log.Warnf("failed to read default_profiles: %s", err)
+		profiles = make(profileConfigMap)
 	}
 	// TODO: TEST ME
 	userProfiles, err := getProfilesDefinitionFiles(userProfileFolder)
