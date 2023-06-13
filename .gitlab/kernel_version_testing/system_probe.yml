@@ -230,20 +230,18 @@ kernel_matrix_testing_upload_deps:
 kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
-  variables:
-    ARCH: "x86_64"
   parallel:
     matrix:
       - TAG: ["bionic", "focal", "jammy"]
+        ARCH: "x86_64"
 
 kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
-  variables:
-    ARCH: "arm64"
   parallel:
     matrix:
       - TAG: ["focal", "jammy"]
+        ARCH: "arm64"
 
 kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
