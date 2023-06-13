@@ -442,7 +442,7 @@ build do
         # TODO RENAME TO default_profiles
         default_profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
         if File.exist? default_profiles
-          copy profiles, "#{check_conf_dir}/"
+          copy default_profiles, "#{check_conf_dir}/"
         end
 
         # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
