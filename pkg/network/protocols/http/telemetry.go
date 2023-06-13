@@ -30,6 +30,7 @@ func NewTelemetry() (*Telemetry, error) {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
+		libtelemetry.OptStatsd,
 		libtelemetry.OptMonotonic,
 	)
 
@@ -42,11 +43,10 @@ func NewTelemetry() (*Telemetry, error) {
 		hits5XX:      metricGroup.NewMetric("hits5xx"),
 		aggregations: metricGroup.NewMetric("aggregations"),
 
-		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
-		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
-		rejected:  metricGroup.NewMetric("rejected", libtelemetry.OptStatsd),
-		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
+		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptPayloadTelemetry),
+		dropped:   metricGroup.NewMetric("dropped"),
+		rejected:  metricGroup.NewMetric("rejected"),
+		malformed: metricGroup.NewMetric("malformed"),
 	}
 
 	t.LastCheck.Store(time.Now().Unix())
