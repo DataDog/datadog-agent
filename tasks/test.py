@@ -225,35 +225,36 @@ class ModuleTestResult(ModuleResult):
             # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
             # here, in system-probe.py, and in libs/pipeline_notifications.py
             # We should have some common result.json parsing lib.
-            with open(self.result_json_path, encoding="utf-8") as tf:
-                for line in tf:
-                    json_test = json.loads(line.strip())
-                    # This logic assumes that the lines in result.json are "in order", i.e. that retries
-                    # are logged after the initial test run.
+            if self.result_json_path is not None and os.path.exists(self.result_json_path):
+                with open(self.result_json_path, encoding="utf-8") as tf:
+                    for line in tf:
+                        json_test = json.loads(line.strip())
+                        # This logic assumes that the lines in result.json are "in order", i.e. that retries
+                        # are logged after the initial test run.
 
-                    # The line is a "Package" line, but not a "Test" line.
-                    # We take these into account, because in some cases (panics, race conditions),
-                    # individual test failures are not reported, only a package-level failure is.
-                    if 'Package' in json_test and 'Test' not in json_test:
-                        package = json_test['Package']
-                        action = json_test["Action"]
+                        # The line is a "Package" line, but not a "Test" line.
+                        # We take these into account, because in some cases (panics, race conditions),
+                        # individual test failures are not reported, only a package-level failure is.
+                        if 'Package' in json_test and 'Test' not in json_test:
+                            package = json_test['Package']
+                            action = json_test["Action"]
 
-                        if action == "fail":
-                            failed_packages.add(package)
-                        elif action == "pass" and package in failed_tests.keys():
-                            # The package was retried and fully succeeded, removing from the list of packages to report
-                            failed_packages.remove(package)
+                            if action == "fail":
+                                failed_packages.add(package)
+                            elif action == "pass" and package in failed_tests.keys():
+                                # The package was retried and fully succeeded, removing from the list of packages to report
+                                failed_packages.remove(package)
 
-                    # The line is a "Test" line.
-                    elif 'Package' in json_test and 'Test' in json_test:
-                        name = json_test['Test']
-                        package = json_test['Package']
-                        action = json_test["Action"]
-                        if action == "fail":
-                            failed_tests[package].add(name)
-                        elif action == "pass" and name in failed_tests.get(package, set()):
-                            # The test was retried and succeeded, removing from the list of tests to report
-                            failed_tests[package].remove(name)
+                        # The line is a "Test" line.
+                        elif 'Package' in json_test and 'Test' in json_test:
+                            name = json_test['Test']
+                            package = json_test['Package']
+                            action = json_test["Action"]
+                            if action == "fail":
+                                failed_tests[package].add(name)
+                            elif action == "pass" and name in failed_tests.get(package, set()):
+                                # The test was retried and succeeded, removing from the list of tests to report
+                                failed_tests[package].remove(name)
 
             if failed_packages:
                 failure_string += "Test failures:\n"
