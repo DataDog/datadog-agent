@@ -188,7 +188,7 @@ to consume that group.
 
 For example:
 
-Here, are two components adding a `server.Endpoint` type to the `server` group (note the `group` label in the `fx.Out` struct).
+Here, two components add a `server.Endpoint` type to the `server` group (note the `group` label in the `fx.Out` struct).
 ```go
 // todolist/todolist.go
 type provides struct {
