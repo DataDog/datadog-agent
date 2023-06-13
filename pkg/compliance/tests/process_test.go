@@ -175,6 +175,9 @@ findings[f] {
 			if err := cmd2.Start(); err != nil {
 				t.Fatal(err)
 			}
+			// without calling Wait(), we may create zombie processes
+			go cmd1.Wait()
+			go cmd2.Wait()
 		}).
 		WithInput(`
 - process:
