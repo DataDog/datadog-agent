@@ -187,26 +187,26 @@ func getProfileConfdRoot(profileFolderName string) string {
 
 func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinition, extends []string, extendsHistory []string) error {
 	parentBasePath := filepath.Base(parentPath)
-	for _, basePath := range extends {
-		// TODO: When replacing OOTB profile or base profile, user can import the existing OOTB profile with the same name.
-		// TODO: TEST ME
-		if basePath == parentBasePath {
-			basePath = filepath.Join(getProfileConfdRoot(defaultProfilesFolder), basePath)
+	for _, extendEntry := range extends {
+		// User profile can extend default profile by extending the default profile.
+		// If the extend entry has the same name as the profile name, we assume the extend entry is referring to a default profile.
+		if extendEntry == parentBasePath {
+			extendEntry = filepath.Join(getProfileConfdRoot(defaultProfilesFolder), extendEntry)
 		}
 		for _, extend := range extendsHistory {
-			if extend == basePath {
-				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", basePath, extendsHistory)
+			if extend == extendEntry {
+				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", extendEntry, extendsHistory)
 			}
 		}
-		baseDefinition, err := readProfileDefinition(basePath)
+		baseDefinition, err := readProfileDefinition(extendEntry)
 		if err != nil {
 			return err
 		}
 
 		mergeProfileDefinition(definition, baseDefinition)
 
-		newExtendsHistory := append(common.CopyStrings(extendsHistory), basePath)
-		err = recursivelyExpandBaseProfiles(basePath, definition, baseDefinition.Extends, newExtendsHistory)
+		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
+		err = recursivelyExpandBaseProfiles(extendEntry, definition, baseDefinition.Extends, newExtendsHistory)
 		if err != nil {
 			return err
 		}
