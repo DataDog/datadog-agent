@@ -299,8 +299,10 @@ func getBpfMapIDOffset(kv *kernel.Version) uint64 {
 		return 52
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19):
 		return 60
-	case kv.Code >= kernel.Kernel5_19:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_19, kernel.Kernel6_2):
 		return 68
+	case kv.Code >= kernel.Kernel6_2:
+		return 52
 	default:
 		return 48
 	}
