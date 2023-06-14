@@ -141,8 +141,6 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	bytesRead := status.NewCountInfo("Bytes Read")
 	info.Register(bytesRead)
 
-	encodingInfo := status.NewMappedInfo("Encoding")
-
 	t := &Tailer{
 		file:                   file,
 		outputChan:             outputChan,
@@ -161,14 +159,6 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 		didFileRotate:          atomic.NewBool(false),
 		info:                   info,
 		bytesRead:              bytesRead,
-	}
-
-	if t.file.Source.Config().Encoding != "" {
-		encodingInfo.SetMessage("Encoding", t.file.Source.Config().Encoding)
-		info.Register(encodingInfo)
-	} else {
-		encodingInfo.SetMessage("Encoding", "utf-8")
-		info.Register(encodingInfo)
 	}
 
 	return t

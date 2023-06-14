@@ -42,19 +42,28 @@ func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLin
 			lineParser = dockerfile.New()
 		}
 	default:
+		encodingInfo := status.NewMappedInfo("Encoding")
 		switch source.Config().Encoding {
 		case config.UTF16BE:
 			lineParser = encodedtext.New(encodedtext.UTF16BE)
 			framing = framer.UTF16BENewline
+			encodingInfo.SetMessage("Encoding", "utf-16-be")
+			tailerInfo.Register(encodingInfo)
 		case config.UTF16LE:
 			lineParser = encodedtext.New(encodedtext.UTF16LE)
 			framing = framer.UTF16LENewline
+			encodingInfo.SetMessage("Encoding", "utf-16-le")
+			tailerInfo.Register(encodingInfo)
 		case config.SHIFTJIS:
 			lineParser = encodedtext.New(encodedtext.SHIFTJIS)
 			framing = framer.SHIFTJISNewline
+			encodingInfo.SetMessage("Encoding", "shift-jis")
+			tailerInfo.Register(encodingInfo)
 		default:
 			lineParser = noop.New()
 			framing = framer.UTF8Newline
+			encodingInfo.SetMessage("Encoding", "utf-8")
+			tailerInfo.Register(encodingInfo)
 		}
 	}
 
