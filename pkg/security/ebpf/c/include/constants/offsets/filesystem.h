@@ -144,10 +144,6 @@ unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentr
     return get_inode_ino(get_dentry_inode(dentry));
 }
 
-void __attribute__((always_inline)) write_dentry_inode(struct dentry *dentry, struct inode **d_inode) {
-    bpf_probe_read(d_inode, sizeof(d_inode), &dentry->d_inode);
-}
-
 struct dentry* __attribute__((always_inline)) get_file_dentry(struct file *file) {
     struct dentry *file_dentry;
     bpf_probe_read(&file_dentry, sizeof(file_dentry), &file->f_path.dentry);
