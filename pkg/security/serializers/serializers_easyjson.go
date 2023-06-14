@@ -1987,8 +1987,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers15(
 			}
 		case "mount_id":
 			out.MountID = uint32(in.Uint32())
-		case "group_id":
-			out.GroupID = uint32(in.Uint32())
 		case "parent_mount_id":
 			out.ParentMountID = uint32(in.Uint32())
 		case "bind_src_mount_id":
@@ -2044,11 +2042,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers15(
 			out.RawString(prefix)
 		}
 		out.Uint32(uint32(in.MountID))
-	}
-	{
-		const prefix string = ",\"group_id\":"
-		out.RawString(prefix)
-		out.Uint32(uint32(in.GroupID))
 	}
 	{
 		const prefix string = ",\"parent_mount_id\":"
@@ -2848,8 +2841,6 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			}
 		case "new_mount_id":
 			out.NewMountID = uint32(in.Uint32())
-		case "group_id":
-			out.GroupID = uint32(in.Uint32())
 		case "device":
 			out.Device = uint32(in.Uint32())
 		case "fstype":
@@ -3006,16 +2997,6 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			out.RawString(prefix)
 		}
 		out.Uint32(uint32(in.NewMountID))
-	}
-	if in.GroupID != 0 {
-		const prefix string = ",\"group_id\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Uint32(uint32(in.GroupID))
 	}
 	if in.Device != 0 {
 		const prefix string = ",\"device\":"

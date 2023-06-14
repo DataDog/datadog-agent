@@ -76,6 +76,10 @@ func (p localProfile) NamePrefix() string {
 		username = "nouser"
 	}
 
+	if sepIdx := strings.Index(username, `\`); sepIdx != -1 {
+		username = username[sepIdx+1:]
+	}
+
 	parts := strings.Split(username, ".")
 	if numParts := len(parts); numParts > 1 {
 		var usernameBuilder strings.Builder
