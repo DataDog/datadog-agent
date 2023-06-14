@@ -142,6 +142,7 @@ variables:
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
   RUN_KITCHEN_TESTS: "true"
+  RUN_ALL_BUILDS: "true"
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
