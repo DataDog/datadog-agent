@@ -15,6 +15,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -470,7 +471,6 @@ func (s *checkSubmitter) messagesToCheckResult(start time.Time, name string, mes
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		case checks.ConnectionsCheckName, checks.ProcessCheckName:
 			requestID := s.getRequestID(start, messageIndex)
-			log.Debugf("the request id of the current message: %s", requestID)
 			extraHeaders.Set(headers.RequestIDHeader, requestID)
 		}
 
