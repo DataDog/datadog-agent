@@ -17,7 +17,7 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
 
     struct dentry *dentry;
     struct iattr *iattr;
-    if (has_usernamespace_first_arg()) {
+    if (security_have_usernamespace_first_arg()) {
         dentry = (struct dentry *)PT_REGS_PARM2(ctx);
         iattr = (struct iattr *)PT_REGS_PARM3(ctx);
     } else {

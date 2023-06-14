@@ -30,7 +30,7 @@ dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
     return dev;
 }
 
-u64 __attribute__((always_inline)) has_usernamespace_first_arg(void) {
+u64 __attribute__((always_inline)) security_have_usernamespace_first_arg(void) {
     u64 flag;
     LOAD_CONSTANT("has_usernamespace_first_arg", flag);
     return flag;
