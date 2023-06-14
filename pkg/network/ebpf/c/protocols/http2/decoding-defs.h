@@ -42,7 +42,7 @@ typedef enum {
     kMethod = 2,
     kPath = 4,
     kStatus = 9,
-} __attribute__ ((packed)) static_table_key_t;
+} static_table_key_t;
 
 typedef enum {
     kGET = 2,
@@ -56,7 +56,7 @@ typedef enum {
     k400 = 12,
     k404 = 13,
     k500 = 14,
-} __attribute__ ((packed)) static_table_value_t;
+} static_table_value_t;
 
 typedef struct {
     static_table_key_t key;
@@ -84,7 +84,7 @@ typedef struct {
     __u64 request_started;
 
     __u16 response_status_code;
-    __u8 request_method;
+    __u32 request_method;
     __u8 path_size;
     bool request_end_of_stream;
 
