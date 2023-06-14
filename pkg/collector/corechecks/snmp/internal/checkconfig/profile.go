@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-const datadogProfileFolder = "default_profiles"
-const userProfileFolder = "profiles"
+const defaultProfilesFolder = "default_profiles"
+const userProfilesFolder = "profiles"
 
 // DeviceMeta holds device related static metadata
 // DEPRECATED in favour of profile metadata syntax
@@ -79,21 +79,20 @@ func loadDefaultProfiles() (profileConfigMap, error) {
 }
 
 func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
-	// TODO:
-	//  - loop `profiles`
-	//  - loop `user_profiles` that takes precedence
-	profiles, err := getProfilesDefinitionFiles(datadogProfileFolder)
+	// Get default profiles
+	profiles, err := getProfilesDefinitionFiles(defaultProfilesFolder)
 	if err != nil {
 		log.Warnf("failed to read default_profiles: %s", err)
 		profiles = make(profileConfigMap)
 	}
-	// TODO: TEST ME
-	userProfiles, err := getProfilesDefinitionFiles(userProfileFolder)
+	// Get user profiles
+	// User profiles have precedence over default profiles
+	userProfiles, err := getProfilesDefinitionFiles(userProfilesFolder)
 	if err != nil {
 		log.Warnf("failed to read user_profiles: %s", err)
 	} else {
 		for profileName, profileDef := range userProfiles {
-			profileDef.isUserProfile = true // TODO: TEST ME
+			profileDef.isUserProfile = true
 			profiles[profileName] = profileDef
 		}
 	}
@@ -175,11 +174,11 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 		return definitionFile
 	}
 	// TODO: TEST ME
-	userProfile := filepath.Join(getProfileConfdRoot(userProfileFolder), definitionFile)
+	userProfile := filepath.Join(getProfileConfdRoot(userProfilesFolder), definitionFile)
 	if filesystem.FileExists(userProfile) {
 		return userProfile
 	}
-	return filepath.Join(getProfileConfdRoot(datadogProfileFolder), definitionFile)
+	return filepath.Join(getProfileConfdRoot(defaultProfilesFolder), definitionFile)
 }
 
 func getProfileConfdRoot(profileFolderName string) string {
@@ -193,7 +192,7 @@ func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinit
 		// TODO: When replacing OOTB profile or base profile, user can import the existing OOTB profile with the same name.
 		// TODO: TEST ME
 		if basePath == parentBasePath {
-			basePath = filepath.Join(getProfileConfdRoot(datadogProfileFolder), basePath)
+			basePath = filepath.Join(getProfileConfdRoot(defaultProfilesFolder), basePath)
 		}
 		for _, extend := range extendsHistory {
 			if extend == basePath {
