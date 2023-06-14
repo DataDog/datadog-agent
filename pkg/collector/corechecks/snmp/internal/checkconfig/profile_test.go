@@ -408,7 +408,8 @@ func Test_getMostSpecificOid(t *testing.T) {
 }
 
 func Test_resolveProfileDefinitionPath(t *testing.T) {
-	SetConfdPathAndCleanProfiles()
+	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
+	config.Datadog.Set("confd_path", defaultTestConfdPath)
 
 	absPath, _ := filepath.Abs(filepath.Join("tmp", "myfile.yaml"))
 	tests := []struct {
@@ -422,9 +423,19 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 			expectedPath:       absPath,
 		},
 		{
-			name:               "relative path",
-			definitionFilePath: "myfile.yaml",
-			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "default_profiles", "myfile.yaml"),
+			name:               "relative path with default profile",
+			definitionFilePath: "p2.yaml",
+			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "default_profiles", "p2.yaml"),
+		},
+		{
+			name:               "relative path with user profile",
+			definitionFilePath: "p3.yaml",
+			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "profiles", "p3.yaml"),
+		},
+		{
+			name:               "relative path with user profile precedence",
+			definitionFilePath: "p1.yaml",
+			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "profiles", "p1.yaml"),
 		},
 	}
 	for _, tt := range tests {
