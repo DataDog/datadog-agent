@@ -852,15 +852,17 @@ type ProcessCacheEntry struct {
 }
 
 const (
-	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromUnknown = iota
+	ProcessCacheEntryFromEvent
 	ProcessCacheEntryFromKernelMap
 	ProcessCacheEntryFromProcFS
 )
 
 var ProcessSources = [...]string{
-	"Event",
-	"KernelMap",
-	"ProcFS",
+	"unknown",
+	"event",
+	"map",
+	"procfs",
 }
 
 func ProcessSourceToString(source uint64) string {
