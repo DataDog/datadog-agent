@@ -52,7 +52,7 @@ single-machine-performance-regression_detector:
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
     - chmod +x smp
-    - BASELINE_SHA="${SMP_MERGE_BASE}"  # NOTE(geoffrey.oxberry@datadoghq.com): cat the echoed file once computing merge commit is separate job
+    - BASELINE_SHA="${SMP_MERGE_BASE}"
     - echo "Computing baseline..."
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - while [[ ! $(aws ecr describe-images --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64") ]]; do echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"; BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^); echo "Checking if image exists for commit ${BASELINE_SHA}..."; done
