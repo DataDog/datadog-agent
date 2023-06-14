@@ -12,10 +12,8 @@ require 'fileutils'
 # logged.
 RSpec.configure do |c|
   c.add_formatter "documentation"
-  if os != :windows
-    FileUtils.mkdir_p '/tmp/kitchen'
-    c.add_formatter("RspecJunitFormatter", "/tmp/kitchen/rspec.xml")
-  end
+  FileUtils.mkdir_p '/tmp'
+  c.add_formatter("RspecJunitFormatter", "/tmp/kitchen/rspec.xml")
 end
 
 os_cache = nil
