@@ -8,14 +8,29 @@
 package http
 
 import (
+	"strconv"
 	"time"
 
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
+
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	pkgtelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var telem = struct {
+	hits, dropped, rejected, malformed pkgtelemetry.Counter
+	aggregations                       pkgtelemetry.Counter
+}{
+	pkgtelemetry.NewCounter("usm__http", "hits", []string{"protocol", "status_class"}, ""),
+	pkgtelemetry.NewCounter("usm__http", "dropped", []string{"protocol"}, ""),
+	pkgtelemetry.NewCounter("usm__http", "rejected", []string{"protocol"}, ""),
+	pkgtelemetry.NewCounter("usm__http", "malformed", []string{"protocol"}, ""),
+	pkgtelemetry.NewCounter("usm__http", "aggregations", []string{"protocol"}, ""),
+}
+
 type Telemetry struct {
+	proto                                       string
 	LastCheck                                   *atomic.Int64
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
@@ -26,7 +41,7 @@ type Telemetry struct {
 	aggregations *libtelemetry.Metric
 }
 
-func NewTelemetry() *Telemetry {
+func NewTelemetry(proto string) *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
@@ -34,6 +49,7 @@ func NewTelemetry() *Telemetry {
 	)
 
 	t := &Telemetry{
+		proto:        proto,
 		LastCheck:    atomic.NewInt64(time.Now().Unix()),
 		hits1XX:      metricGroup.NewMetric("hits1xx"),
 		hits2XX:      metricGroup.NewMetric("hits2xx"),
@@ -69,6 +85,7 @@ func (t *Telemetry) Count(tx Transaction) {
 		t.hits5XX.Add(1)
 	}
 	t.totalHits.Add(1)
+	telem.hits.Inc(t.proto, strconv.Itoa(int(statusClass)))
 }
 
 func (t *Telemetry) Log() {

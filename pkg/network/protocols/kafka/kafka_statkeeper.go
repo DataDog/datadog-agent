@@ -46,6 +46,7 @@ func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
 	requestStats, ok := statKeeper.stats[key]
 	if !ok {
 		if len(statKeeper.stats) >= statKeeper.maxEntries {
+			telem.dropped.Inc()
 			statKeeper.telemetry.dropped.Add(1)
 			return
 		}

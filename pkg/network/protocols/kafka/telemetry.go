@@ -13,8 +13,16 @@ import (
 	"go.uber.org/atomic"
 
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	pkgtelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var telem = struct {
+	hits, dropped pkgtelemetry.Counter
+}{
+	pkgtelemetry.NewCounter("usm__kafka", "hits", []string{}, ""),
+	pkgtelemetry.NewCounter("usm__kafka", "dropped", []string{}, ""),
+}
 
 type Telemetry struct {
 	then *atomic.Int64
@@ -42,6 +50,7 @@ func NewTelemetry() *Telemetry {
 }
 
 func (t *Telemetry) Count(_ *EbpfKafkaTx) {
+	telem.hits.Inc()
 	t.totalHits.Add(1)
 }
 

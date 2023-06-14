@@ -13,17 +13,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProcessHTTPTransactions(t *testing.T) {
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
-	tel := NewTelemetry()
+	tel := NewTelemetry("http")
 	sk := NewStatkeeper(cfg, tel)
 
 	srcString := "1.1.1.1"
@@ -69,7 +70,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
-	tel := NewTelemetry()
+	tel := NewTelemetry("http")
 	sk := NewStatkeeper(cfg, tel)
 	tx := generateIPv4HTTPTransaction(
 		util.AddressFromString("1.1.1.1"),
@@ -103,7 +104,7 @@ func TestPathProcessing(t *testing.T) {
 		c := cfg
 		c.HTTPReplaceRules = rules
 
-		tel := NewTelemetry()
+		tel := NewTelemetry("http")
 		return NewStatkeeper(c, tel)
 	}
 
@@ -195,7 +196,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
-		tel := NewTelemetry()
+		tel := NewTelemetry("http")
 		sk := NewStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
@@ -219,7 +220,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
-		tel := NewTelemetry()
+		tel := NewTelemetry("http")
 		sk := NewStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
@@ -244,7 +245,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg := config.New()
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
-		tel := NewTelemetry()
+		tel := NewTelemetry("http")
 		sk := NewStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),

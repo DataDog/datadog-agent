@@ -85,6 +85,7 @@ func (h *StatKeeper) Close() {
 func (h *StatKeeper) add(tx Transaction) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
+		telem.malformed.Inc(h.telemetry.proto)
 		h.telemetry.malformed.Add(1)
 		return
 	}
@@ -94,6 +95,7 @@ func (h *StatKeeper) add(tx Transaction) {
 	}
 
 	if tx.Method() == MethodUnknown {
+		telem.malformed.Inc(h.telemetry.proto)
 		h.telemetry.malformed.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("method should never be unknown: %s", tx.String())
@@ -103,6 +105,7 @@ func (h *StatKeeper) add(tx Transaction) {
 
 	latency := tx.RequestLatency()
 	if latency <= 0 {
+		telem.malformed.Inc(h.telemetry.proto)
 		h.telemetry.malformed.Add(1)
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Warnf("latency should never be equal to 0: %s", tx.String())
@@ -114,9 +117,11 @@ func (h *StatKeeper) add(tx Transaction) {
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
+			telem.dropped.Inc(h.telemetry.proto)
 			h.telemetry.dropped.Add(1)
 			return
 		}
+		telem.aggregations.Inc(h.telemetry.proto)
 		h.telemetry.aggregations.Add(1)
 		stats = NewRequestStats(h.enableStatusCodeAggregation)
 		h.stats[key] = stats
@@ -151,6 +156,7 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr strin
 		if r.Re.Match(path) {
 			if r.Repl == "" {
 				// this is a "drop" rule
+				telem.rejected.Inc(h.telemetry.proto)
 				h.telemetry.rejected.Add(1)
 				return "", true
 			}
@@ -166,6 +172,7 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr strin
 		if h.oversizedLogLimit.ShouldLog() {
 			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).ConnectionKey, tx.String())
 		}
+		telem.malformed.Inc(h.telemetry.proto)
 		h.telemetry.malformed.Add(1)
 		return "", true
 	}
