@@ -173,7 +173,6 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 	if filepath.IsAbs(definitionFile) {
 		return definitionFile
 	}
-	// TODO: TEST ME
 	userProfile := filepath.Join(getProfileConfdRoot(userProfilesFolder), definitionFile)
 	if filesystem.FileExists(userProfile) {
 		return userProfile
