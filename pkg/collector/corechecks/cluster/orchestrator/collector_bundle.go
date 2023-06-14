@@ -134,13 +134,13 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 	if isCRD {
 		idx := strings.LastIndex(collectorName, "/")
 		if idx == -1 {
-			_ = cb.check.Warnf("Unsupported crd collector definition: %s. Definition needs to be of <apigroup_and_version>/<collector_name> (e.g. \"batch/v1/cronjobs\")", collectorName)
+			_ = cb.check.Warnc(fmt.Sprintf("Unsupported crd collector definition: %s. Definition needs to be of <apigroup_and_version>/<collector_name> (e.g. \"batch/v1/cronjobs\")", collectorName), orchestrator.ExtraLogContext...)
 			return
 		}
 		groupVersion := collectorName[:idx]
 		resource := collectorName[idx+1:]
 		if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
-			_ = cb.check.Warnf("Ignoring CRD collector %s: use builtin collection instead", collectorName)
+			_ = cb.check.Warnc(fmt.Sprintf("Ignoring CRD collector %s: use builtin collection instead", collectorName), orchestrator.ExtraLogContext...)
 
 			return
 		}
@@ -154,19 +154,19 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 	}
 
 	if err != nil {
-		_ = cb.check.Warnf("Unsupported collector: %s", collectorName)
+		_ = cb.check.Warnc(fmt.Sprintf("Unsupported collector: %s", collectorName), orchestrator.ExtraLogContext...)
 		return
 	}
 
 	// this is to stop multiple crds and/or people setting resources as custom resources which we already collect
 	// I am using the fullName for now on purpose in case we have the same resource across 2 different groups setup
 	if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
-		_ = cb.check.Warnf("collector %s has already been added", collectorName) // Before using unstable info
+		_ = cb.check.Warnc(fmt.Sprintf("collector %s has already been added", collectorName), orchestrator.ExtraLogContext...) // Before using unstable info
 		return
 	}
 
 	if !collector.Metadata().IsStable && !isCRD {
-		_ = cb.check.Warnf("Using unstable collector: %s", collector.Metadata().FullName())
+		_ = cb.check.Warnc(fmt.Sprintf("Using unstable collector: %s", collector.Metadata().FullName()), orchestrator.ExtraLogContext...)
 	}
 
 	cb.activatedCollectors[collector.Metadata().FullName()] = struct{}{}
@@ -209,11 +209,11 @@ func (cb *CollectorBundle) importCollectorsFromDiscovery() bool {
 
 	collectors, err := discovery.NewAPIServerDiscoveryProvider().Discover(cb.inventory)
 	if err != nil {
-		_ = cb.check.Warnf("Collector discovery failed: %s", err)
+		_ = cb.check.Warnc(fmt.Sprintf("Collector discovery failed: %s", err), orchestrator.ExtraLogContext...)
 		return false
 	}
 	if len(collectors) == 0 {
-		_ = cb.check.Warnf("Collector discovery returned no collector")
+		_ = cb.check.Warnc("Collector discovery returned no collector", orchestrator.ExtraLogContext...)
 		return false
 	}
 

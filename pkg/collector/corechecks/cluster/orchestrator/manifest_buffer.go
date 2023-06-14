@@ -31,7 +31,7 @@ var (
 	bufferedManifest        = map[orchestrator.NodeType]*expvar.Int{}
 	manifestFlushed         = &expvar.Int{}
 	bufferFlushedTotal      = &expvar.Int{}
-	tlmBufferedManifest     = telemetry.NewCounter("orchestrator", "manifest_buffered_manifest", []string{"orchestrator", "resource"}, "Number of manifest buffered")
+	tlmBufferedManifest     = telemetry.NewCounter("orchestrator", "manifest_buffered", []string{"orchestrator", "resource"}, "Number of manifest buffered")
 	tlmManifestFlushed      = telemetry.NewCounter("orchestrator", "manifest_manifest_flushed", []string{"orchestrator"}, "Number of manifest flushed")
 	tlmManifestFlushedTotal = telemetry.NewCounter("orchestrator", "manifest_manifest_flushed_total", []string{"orchestrator"}, "Number of times the buffer is flushed")
 )
