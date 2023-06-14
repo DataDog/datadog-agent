@@ -248,7 +248,6 @@ type Event struct {
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	ProcessCacheEntry      *ProcessCacheEntry     `field:"-" json:"-" platform:"linux"`
 	PIDContext             PIDContext             `field:"-" json:"-" platform:"linux"`
 	SpanContext            SpanContext            `field:"-" json:"-" platform:"linux"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*" platform:"linux"`
@@ -297,14 +296,15 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind" platform:"linux"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount           UmountEvent           `field:"-" json:"-" platform:"linux"`
-	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
-	MountReleased    MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
-	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
-	NetDevice        NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
-	VethPair         VethPairEvent         `field:"-" json:"-" platform:"linux"`
-	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
+	ProcessCacheEntry *ProcessCacheEntry    `field:"-" json:"-" platform:"linux"`
+	Umount            UmountEvent           `field:"-" json:"-" platform:"linux"`
+	InvalidateDentry  InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
+	ArgsEnvs          ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
+	MountReleased     MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
+	CgroupTracing     CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
+	NetDevice         NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
+	VethPair          VethPairEvent         `field:"-" json:"-" platform:"linux"`
+	UnshareMountNS    UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
 
 	// mark event with having error
 	Error error `field:"-" json:"-"`
@@ -538,6 +538,18 @@ type Credentials struct {
 	CapPermitted uint64 `field:"cap_permitted"` // SECLDoc[cap_permitted] Definition:`Permitted capability set of the process` Constants:`Kernel Capability constants`
 }
 
+// Equals returns if both credentials are equal
+func (c *Credentials) Equals(o *Credentials) bool {
+	return (c.UID == o.UID &&
+		c.GID == o.GID &&
+		c.EUID == o.EUID &&
+		c.EGID == o.EGID &&
+		c.FSUID == o.FSUID &&
+		c.FSGID == o.FSGID &&
+		c.CapEffective == o.CapEffective &&
+		c.CapPermitted == o.CapPermitted)
+}
+
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (p *Process) GetPathResolutionError() string {
 	return p.FileEvent.GetPathResolutionError()
@@ -584,7 +596,7 @@ type Process struct {
 	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
-	Credentials ``
+	Credentials
 
 	ArgsID uint32 `field:"-" json:"-"`
 	EnvsID uint32 `field:"-" json:"-"`
@@ -651,6 +663,11 @@ type FileFields struct {
 	Flags int32  `field:"-" json:"-"`
 }
 
+// Equals compares two FileFields
+func (f *FileFields) Equals(o *FileFields) bool {
+	return f.Inode == o.Inode && f.MountID == o.MountID && f.MTime == o.MTime && f.UID == o.UID && f.GID == o.GID && f.Mode == o.Mode
+}
+
 // IsFileless return whether it is a file less access
 func (f *FileFields) IsFileless() bool {
 	// TODO(safchain) fix this heuristic by add a flag in the event intead of using mount ID 0
@@ -689,6 +706,11 @@ type FileEvent struct {
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
 	IsBasenameStrResolved bool `field:"-" json:"-"`
+}
+
+// Equals compare two FileEvent
+func (e *FileEvent) Equals(o *FileEvent) bool {
+	return e.FileFields.Equals(&o.FileFields)
 }
 
 // SetPathnameStr set and mark as resolved
@@ -749,7 +771,6 @@ type ArgsEnvsEvent struct {
 // Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32 `field:"-"`
-	GroupID        uint32 `field:"-"`
 	Device         uint32 `field:"-"`
 	ParentMountID  uint32 `field:"-"`
 	ParentInode    uint64 `field:"-"`
@@ -831,15 +852,17 @@ type ProcessCacheEntry struct {
 }
 
 const (
-	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromUnknown = iota
+	ProcessCacheEntryFromEvent
 	ProcessCacheEntryFromKernelMap
 	ProcessCacheEntryFromProcFS
 )
 
 var ProcessSources = [...]string{
-	"Event",
-	"KernelMap",
-	"ProcFS",
+	"unknown",
+	"event",
+	"map",
+	"procfs",
 }
 
 func ProcessSourceToString(source uint64) string {

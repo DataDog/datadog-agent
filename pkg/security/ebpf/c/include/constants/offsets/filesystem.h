@@ -14,10 +14,6 @@ unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) 
     return ino;
 }
 
-void __attribute__((always_inline)) write_inode_ino(struct inode *inode, u64 *ino) {
-    bpf_probe_read(ino, sizeof(inode), &inode->i_ino);
-}
-
 dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
     dev_t dev;
     struct super_block *sb;
@@ -32,6 +28,12 @@ dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
     bpf_probe_read(&sb, sizeof(sb), &dentry->d_sb);
     bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
     return dev;
+}
+
+u64 __attribute__((always_inline)) security_have_usernamespace_first_arg(void) {
+    u64 flag;
+    LOAD_CONSTANT("has_usernamespace_first_arg", flag);
+    return flag;
 }
 
 u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
@@ -76,14 +78,6 @@ int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
 
     // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id));
     bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id());
-    return mount_id;
-}
-
-int __attribute__((always_inline)) get_mount_peer_group_id(void *mnt) {
-    int mount_id;
-
-    // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_group_id));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id() + 4);
     return mount_id;
 }
 
@@ -154,10 +148,6 @@ struct inode* __attribute__((always_inline)) get_dentry_inode(struct dentry *den
 
 unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentry) {
     return get_inode_ino(get_dentry_inode(dentry));
-}
-
-void __attribute__((always_inline)) write_dentry_inode(struct dentry *dentry, struct inode **d_inode) {
-    bpf_probe_read(d_inode, sizeof(d_inode), &dentry->d_inode);
 }
 
 struct dentry* __attribute__((always_inline)) get_file_dentry(struct file *file) {

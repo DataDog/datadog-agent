@@ -100,7 +100,7 @@ func (dp *DirectoryProvider) Start(ctx context.Context) error {
 	if dp.watcherEnabled {
 		var err error
 		if dp.watcher, err = fsnotify.NewWatcher(); err != nil {
-			return fmt.Errorf("coudln't setup inotify watcher: %w", err)
+			return fmt.Errorf("couldn't setup inotify watcher: %w", err)
 		}
 
 		if err = dp.watcher.Add(dp.directory); err != nil {

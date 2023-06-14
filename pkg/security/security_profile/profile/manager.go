@@ -44,14 +44,14 @@ type EventFilteringProfileState uint8
 const (
 	// NoProfile is used to count the events for which we didn't have a profile
 	NoProfile EventFilteringProfileState = iota
-	// UnstableProfile is used to count the events that didn't make it into a profile because their matching profile was
-	// unstable
-	UnstableProfile
+	// ProfileAtMaxSize is used to count the events that didn't make it into a profile because their matching profile
+	// reached the max size threshold
+	ProfileAtMaxSize
 	// UnstableEventType is used to count the events that didn't make it into a profile because their matching profile was
 	// unstable for their event type
 	UnstableEventType
-	// StableProfile is used to count the events linked to a stable profile
-	StableProfile
+	// StableEventType is used to count the events linked to a stable profile for their event type
+	StableEventType
 	// AutoLearning is used to count the event during the auto learning phase
 	AutoLearning
 	// WorkloadWarmup is used to count the learned events due to workload warm up time
@@ -62,12 +62,12 @@ func (efr EventFilteringProfileState) toTag() string {
 	switch efr {
 	case NoProfile:
 		return "profile_state:no_profile"
-	case UnstableProfile:
-		return "profile_state:unstable_profile"
+	case ProfileAtMaxSize:
+		return "profile_state:profile_at_max_size"
 	case UnstableEventType:
 		return "profile_state:unstable_event_type"
-	case StableProfile:
-		return "profile_state:stable_profile"
+	case StableEventType:
+		return "profile_state:stable_event_type"
 	case AutoLearning:
 		return "profile_state:auto_learning"
 	case WorkloadWarmup:
@@ -80,7 +80,7 @@ func (efr EventFilteringProfileState) toTag() string {
 type EventFilteringResult uint8
 
 const (
-	// Not applicable, for profil NoProfile and UnstableProfile state
+	// Not applicable, for profil NoProfile and ProfileAtMaxSize state
 	NA EventFilteringResult = iota
 	// InProfile is used to count the events that matched a profile
 	InProfile
@@ -101,7 +101,7 @@ func (efr EventFilteringResult) toTag() string {
 }
 
 var (
-	allEventFilteringProfileState = []EventFilteringProfileState{NoProfile, UnstableProfile, UnstableEventType, StableProfile, AutoLearning, WorkloadWarmup}
+	allEventFilteringProfileState = []EventFilteringProfileState{NoProfile, ProfileAtMaxSize, UnstableEventType, StableEventType, AutoLearning, WorkloadWarmup}
 	allEventFilteringResults      = []EventFilteringResult{InProfile, NotInProfile, NA}
 )
 
@@ -186,7 +186,16 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		cacheMiss:                  atomic.NewUint64(0),
 		eventFiltering:             make(map[eventFilteringEntry]*atomic.Uint64),
 	}
+	m.initMetricsMap()
 
+	// register the manager to the provider(s)
+	for _, p := range m.providers {
+		p.SetOnNewProfileCallback(m.OnNewProfileEvent)
+	}
+	return m, nil
+}
+
+func (m *SecurityProfileManager) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		for _, state := range allEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
@@ -198,12 +207,6 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 			}
 		}
 	}
-
-	// register the manager to the provider(s)
-	for _, p := range m.providers {
-		p.SetOnNewProfileCallback(m.OnNewProfileEvent)
-	}
-	return m, nil
 }
 
 // Start runs the manager of Security Profiles
@@ -588,7 +591,7 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 
 	// remove kernel space filters
 	if err := m.securityProfileSyscallsMap.Delete(profile.profileCookie); err != nil {
-		seclog.Errorf("coudln't remove syscalls filter: %v", err)
+		seclog.Errorf("couldn't remove syscalls filter: %v", err)
 	}
 
 	// TODO: delete all kernel space programs
@@ -651,14 +654,16 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// check if the event should be injected in the profile automatically
 	profileState := m.tryAutolearn(profile, event)
 	switch profileState {
-	case UnstableProfile, NoProfile: // an error occurred
+	case NoProfile, ProfileAtMaxSize, UnstableEventType:
+		// an error occurred or we are in unstable state
+		// do not link the profile to avoid sending anomalies
 		return
 	case AutoLearning, WorkloadWarmup:
 		// the event was either already in the profile, or has just been inserted
 		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
 		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 		return
-	case StableProfile:
+	case StableEventType:
 		// check if the event is in its profile
 		found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
 		if err != nil {
@@ -681,24 +686,41 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 	var nodeType activity_tree.NodeGenerationType
 	var profileState EventFilteringProfileState
 
+	profile.eventTypeStateLock.Lock()
+	defer profile.eventTypeStateLock.Unlock()
+	eventState, ok := profile.eventTypeState[event.GetEventType()]
+	if !ok {
+		eventState = &EventTypeState{
+			lastAnomalyNano: profile.loadedNano,
+			state:           NoProfile,
+		}
+		profile.eventTypeState[event.GetEventType()] = eventState
+	} else if eventState.state == UnstableEventType {
+		// If for the given event type we already are on UnstableEventType, just return
+		// (once reached, this state is immutable)
+		m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
+		return UnstableEventType
+	}
+
 	// check if we are at the beginning of a workload lifetime
 	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
 		nodeType = activity_tree.WorkloadWarmup
 		profileState = WorkloadWarmup
 	} else {
-		// have we reached the stable state time limit ?
-		lastAnomalyNano, ok := profile.lastAnomalyNano[event.GetEventType()]
-		if !ok {
-			profile.lastAnomalyNano[event.GetEventType()] = profile.loadedNano
-			lastAnomalyNano = profile.loadedNano
-		}
-		if time.Duration(event.TimestampRaw-lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
-			return StableProfile
+		// If for the given event type we already are on StableEventType (and outside of the warmup period), just return
+		if eventState.state == StableEventType {
+			return StableEventType
 		}
 
-		// have we reached the unstable time limit ?
+		// did we reached the stable state time limit ?
+		if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
+			eventState.state = StableEventType
+			return StableEventType
+		}
+
+		// did we reached the unstable time limit ?
 		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-			m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
+			eventState.state = UnstableEventType
 			return UnstableEventType
 		}
 
@@ -706,21 +728,33 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 		profileState = AutoLearning
 	}
 
-	// here we are either in AutoLearning or WorkloadWarmup
-
 	// check if the unstable size limit was reached
 	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
-		m.incrementEventFilteringStat(event.GetEventType(), UnstableProfile, NA)
-		return UnstableProfile
+		// for each event type we want to reach either the StableEventType or UnstableEventType states, even
+		// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
+		// rearming the lastAnomalyNano timer based on if it's something new or not.
+		found, err := profile.ActivityTree.Contains(event, nodeType)
+		if err != nil {
+			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
+			return NoProfile
+		} else if !found {
+			eventState.lastAnomalyNano = event.TimestampRaw
+		} else if profileState == WorkloadWarmup {
+			// if it's NOT something's new AND we are on container warmup period, just pretend
+			// we are in learning/warmup phase (as we know, this event is already present on the profile)
+			return WorkloadWarmup
+		}
+		return ProfileAtMaxSize
 	}
 
+	// here we are either in AutoLearning or WorkloadWarmup
 	// try to insert the event in the profile
 	newEntry, err := profile.ActivityTree.Insert(event, nodeType)
 	if err != nil {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return NoProfile
 	} else if newEntry {
-		profile.lastAnomalyNano[event.GetEventType()] = event.TimestampRaw
+		eventState.lastAnomalyNano = event.TimestampRaw
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 	} else { // no newEntry
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)

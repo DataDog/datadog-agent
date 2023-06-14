@@ -416,10 +416,6 @@
           "type": "integer",
           "description": "New Mount ID"
         },
-        "group_id": {
-          "type": "integer",
-          "description": "Group ID"
-        },
         "device": {
           "type": "integer",
           "description": "Device associated with the file"
@@ -581,9 +577,6 @@
         "mount_id": {
           "type": "integer"
         },
-        "group_id": {
-          "type": "integer"
-        },
         "parent_mount_id": {
           "type": "integer"
         },
@@ -613,7 +606,6 @@
       "type": "object",
       "required": [
         "mount_id",
-        "group_id",
         "parent_mount_id",
         "bind_src_mount_id",
         "device"

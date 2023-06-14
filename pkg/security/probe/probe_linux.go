@@ -87,8 +87,9 @@ type PlatformProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	monitor  *Monitor
-	scrubber *procutil.DataScrubber
+	monitor         *Monitor
+	profileManagers *SecurityProfileManagers
+	scrubber        *procutil.DataScrubber
 
 	// Ring
 	eventStream EventStream
@@ -99,13 +100,12 @@ type PlatformProbe struct {
 	// Approvers / discarders section
 	Erpc                           *erpc.ERPC
 	erpcRequest                    *erpc.ERPCRequest
-	pidDiscarders                  *pidDiscarders
 	inodeDiscarders                *inodeDiscarders
 	notifyDiscarderPushedCallbacks []NotifyDiscarderPushedCallback
 	approvers                      map[eval.EventType]kfilters.ActiveApprovers
 
 	// Events section
-	anomalyDetectionSent map[model.EventType]*atomic.Uint64
+	generatedAnomalyDetection map[model.EventType]*atomic.Uint64
 
 	// Approvers / discarders section
 	notifyDiscarderPushedCallbacksLock sync.Mutex
@@ -252,7 +252,6 @@ func (p *Probe) Init() error {
 		return fmt.Errorf("failed to init manager: %w", err)
 	}
 
-	p.pidDiscarders = newPidDiscarders(p.Erpc)
 	p.inodeDiscarders = newInodeDiscarders(p.Erpc, p.resolvers.DentryResolver)
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
@@ -264,9 +263,11 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	if p.monitor.activityDumpManager != nil {
-		p.monitor.activityDumpManager.AddActivityDumpHandler(p.activityDumpHandler)
+	p.profileManagers, err = NewSecurityProfileManagers(p)
+	if err != nil {
+		return err
 	}
+	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
@@ -286,7 +287,9 @@ func (p *Probe) Setup() error {
 
 	p.applyDefaultFilterPolicies()
 
-	return p.monitor.Start(p.ctx, &p.wg)
+	p.profileManagers.Start(p.ctx, &p.wg)
+
+	return nil
 }
 
 // Start processing events
@@ -310,6 +313,7 @@ func (p *Probe) PlaySnapshot() {
 		if entry.Source != model.ProcessCacheEntryFromProcFS {
 			return
 		}
+		entry.Retain()
 		event := NewEvent(p.fieldHandlers)
 		event.Type = uint32(model.ExecEventType)
 		event.TimestampRaw = uint64(time.Now().UnixNano())
@@ -322,6 +326,7 @@ func (p *Probe) PlaySnapshot() {
 	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
 	for _, event := range events {
 		p.DispatchEvent(event)
+		event.ProcessCacheEntry.Release()
 	}
 }
 
@@ -335,7 +340,7 @@ func (p *Probe) sendAnomalyDetection(event *model.Event) {
 		events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc),
 		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 	)
-	p.anomalyDetectionSent[event.GetEventType()].Inc()
+	p.generatedAnomalyDetection[event.GetEventType()].Inc()
 }
 
 func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
@@ -345,7 +350,7 @@ func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
 
 	// first, check if the current event is a kernel generated anomaly detection event
 	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
-		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
+		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
 		// check if the profile can generate anomalies for the current event type
 	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
 		return false
@@ -371,7 +376,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// filter out event if already present on a profile
 	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
-		p.monitor.securityProfileManager.LookupEventInProfiles(event)
+		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
 	// send wildcard first
@@ -386,8 +391,8 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
 	if !p.handleAnomalyDetection(event) && event.Error == nil {
 		// Process after evaluation because some monitors need the DentryResolver to have been called first.
-		if p.monitor.activityDumpManager != nil {
-			p.monitor.activityDumpManager.ProcessEvent(event)
+		if p.profileManagers.activityDumpManager != nil {
+			p.profileManagers.activityDumpManager.ProcessEvent(event)
 		}
 
 	}
@@ -433,11 +438,11 @@ func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) 
 func (p *Probe) SendStats() error {
 	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
 
-	for evtType, count := range p.anomalyDetectionSent {
+	for evtType, count := range p.generatedAnomalyDetection {
 		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
 		if value := count.Swap(0); value > 0 {
-			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionSent, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionSent metric: %w", err)
+			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionGenerated, int64(value), tags, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionGenerated metric: %w", err)
 			}
 		}
 	}
@@ -491,6 +496,17 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 	entry.Process.ContainerID = ev.ContainerContext.ID
 
 	return n, nil
+}
+
+func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
+	p.DispatchCustomEvent(
+		NewEventLostWriteEvent(perfMapName, perEvent),
+	)
+
+	// snapshot traced cgroups if a CgroupTracing event was lost
+	if p.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
+		p.profileManagers.SnapshotTracedCgroups()
+	}
 }
 
 func (p *Probe) handleEvent(CPU int, data []byte) {
@@ -554,7 +570,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
+		p.profileManagers.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
 		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
@@ -895,19 +911,25 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	}
 	event.ProcessCacheEntry = entry
+	if event.ProcessCacheEntry == nil {
+		panic("should always return a process cache entry")
+	}
 
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	if event.ProcessContext == nil {
+		panic("should always return a process context")
+	}
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return
 	}
 
 	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTime(event))
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, p.fieldHandlers.ResolveEventTime(event))
 	}
 
 	p.DispatchEvent(event)
@@ -1047,7 +1069,7 @@ func getApproverType(approverTableName string) string {
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
+		for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
 			if e.String() == eventType {
 				return true
 			}
@@ -1094,7 +1116,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 
 	// ActivityDumps
 	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
+		for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
 			if e == model.SyscallsEventType {
 				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 				break
@@ -1428,19 +1450,19 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		PlatformProbe: PlatformProbe{
-			approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
-			managerOptions:       ebpf.NewDefaultOptions(),
-			Erpc:                 nerpc,
-			erpcRequest:          &erpc.ERPCRequest{},
-			isRuntimeDiscarded:   !opts.DontDiscardRuntime,
-			anomalyDetectionSent: make(map[model.EventType]*atomic.Uint64),
+			approvers:                 make(map[eval.EventType]kfilters.ActiveApprovers),
+			managerOptions:            ebpf.NewDefaultOptions(),
+			Erpc:                      nerpc,
+			erpcRequest:               &erpc.ERPCRequest{},
+			isRuntimeDiscarded:        !opts.DontDiscardRuntime,
+			generatedAnomalyDetection: make(map[model.EventType]*atomic.Uint64),
 		},
 	}
 
 	p.event = NewEvent(p.fieldHandlers)
 
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		p.anomalyDetectionSent[i] = atomic.NewUint64(0)
+		p.generatedAnomalyDetection[i] = atomic.NewUint64(0)
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1516,6 +1538,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "do_fork_input",
 			Value: getDoForkInput(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "has_usernamespace_first_arg",
+			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "mount_id_offset",
@@ -1658,6 +1684,11 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	return p, nil
 }
 
+// GetProfileManagers returns the security profile managers
+func (p *Probe) GetProfileManagers() *SecurityProfileManagers {
+	return p.profileManagers
+}
+
 func (p *Probe) ensureConfigDefaults() {
 	// enable runtime compiled constants on COS by default
 	if !p.Config.Probe.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
@@ -1696,6 +1727,13 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 		return doForkStructInput
 	}
 	return doForkListInput
+}
+
+func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0 {
+		return 1
+	}
+	return 0
 }
 
 // isBPFSendSignalHelperAvailable returns true if the bpf_send_signal helper is available in the current kernel
