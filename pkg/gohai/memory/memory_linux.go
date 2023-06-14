@@ -61,6 +61,7 @@ func (info *Info) fillMemoryInfo() {
 
 	file, err := os.Open("/proc/meminfo")
 	if err == nil {
+		defer file.Close()
 		totalBytes, swapTotalKb, err = parseMemoryInfo(file)
 	} else {
 		err = fmt.Errorf("could not open /proc/meminfo: %w", err)
