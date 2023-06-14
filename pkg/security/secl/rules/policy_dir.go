@@ -15,7 +15,10 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-const policyExtension = ".policy"
+const (
+	policyExtension    = ".policy"
+	PolicyProviderType = "directoryPolicyProvider"
+)
 
 var _ PolicyProvider = (*PoliciesDirProvider)(nil)
 
@@ -200,5 +203,5 @@ func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvide
 }
 
 func (p *PoliciesDirProvider) Type() string {
-	return "directoryPolicyProvider"
+	return PolicyProviderType
 }
