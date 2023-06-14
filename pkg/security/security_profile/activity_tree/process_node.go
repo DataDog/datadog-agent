@@ -73,7 +73,7 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 	}
 	if len(pn.DNSNames) > 0 {
 		fmt.Fprintf(w, "%s  dns:\n", prefix)
-		for dnsName, _ := range pn.DNSNames {
+		for dnsName := range pn.DNSNames {
 			fmt.Fprintf(w, "%s    - %s\n", prefix, dnsName)
 		}
 	}
