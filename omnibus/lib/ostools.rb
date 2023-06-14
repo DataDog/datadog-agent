@@ -34,7 +34,7 @@ def arm7l?()
 end
 
 def heroku?()
-    return ENV['AGENT_FLAVOR'] == 'heroku' # Heroku flavor
+    return ENV['AGENT_FLAVOR'] == 'heroku'
 end
 
 def os

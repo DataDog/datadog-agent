@@ -14,7 +14,7 @@ dependency "python3" if with_python_runtime? "3"
 dependency "libarchive" if windows?
 dependency "yaml-cpp" if windows?
 
-dependency "openscap" if linux? and !arm7l? and !heroku?
+dependency "openscap" if linux? and !arm7l? and !heroku? # Security-agent dependency, not needed for Heroku
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
