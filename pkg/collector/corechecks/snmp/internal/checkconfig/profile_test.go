@@ -167,6 +167,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 					},
 				},
 			},
+			isUserProfile: true,
 		},
 		"another_profile": profileConfig{
 			Definition: profileDefinition{
@@ -179,6 +180,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 				},
 				Metadata: MetadataConfig{},
 			},
+			isUserProfile: true,
 		},
 	}
 }
@@ -192,9 +194,11 @@ func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
 	expectedProfileConfig := profileConfigMap{
 		"f5-big-ip": {
 			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "f5-big-ip.yaml"),
+			isUserProfile:  true,
 		},
 		"another_profile": {
 			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "another_profile.yaml"),
+			isUserProfile:  true,
 		},
 	}
 
