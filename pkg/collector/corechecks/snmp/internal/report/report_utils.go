@@ -18,6 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
+const (
+	ifTablePrefix  = "1.3.6.1.2.1.2.2."
+	ifXTablePrefix = "1.3.6.1.2.1.31.1.1."
+)
+
 func getScalarValueFromSymbol(values *valuestore.ResultValueStore, symbol checkconfig.SymbolConfig) (valuestore.ResultValue, error) {
 	value, err := values.GetScalarValue(symbol.OID)
 	if err != nil {
@@ -202,5 +207,6 @@ func getConstantMetricValues(mtcl checkconfig.MetricTagConfigList, values *value
 // true if the prefix matches ifTable or ifXTable from
 // the IF-MIB
 func isInterfaceTableMetric(oid string) bool {
-	return strings.HasPrefix(oid, "1.3.6.1.2.1.2.2") || strings.HasPrefix(oid, "1.3.6.1.2.1.31.1.1")
+	oid = strings.TrimPrefix(oid, ".")
+	return strings.HasPrefix(oid, ifTablePrefix) || strings.HasPrefix(oid, ifXTablePrefix)
 }

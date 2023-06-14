@@ -77,7 +77,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		// append user's custom interface tags
 		interfaceCfg, err := getInterfaceConfig(ms.interfaceConfigs, interfaceIndex, interfaceTags)
 		if err != nil {
-			log.Errorf("failed to tag interface status metric with user tags: %s", err.Error())
+			log.Tracef("unable to tag %s metric with interface_config data: %s", interfaceStatusMetric, err.Error())
 		}
 		interfaceTags = append(interfaceTags, interfaceCfg.Tags...)
 
