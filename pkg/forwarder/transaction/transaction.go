@@ -295,6 +295,8 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Client) (int, []byte, error) {
+	start := time.Now()
+
 	reader := bytes.NewReader(t.Payload.GetContent())
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
@@ -374,16 +376,18 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
 	if transactionsSuccess.Value() == 1 {
-		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
+		log.Infof("Successfully posted payload to %q in %s, the agent will only log transaction success every %d transactions",
+			logURL, time.Since(start), loggingFrequency)
 		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
 	if transactionsSuccess.Value()%loggingFrequency == 0 {
-		log.Infof("Successfully posted payload to %q", logURL)
+		log.Infof("Successfully posted payload to %q in %s", logURL, time.Since(start))
 		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
-	log.Tracef("Successfully posted payload to %q: %q", logURL, truncateBodyForLog(body))
+	log.Tracef("Successfully posted payload to %q in %s: %q",
+		logURL, time.Since(start), truncateBodyForLog(body))
 	return resp.StatusCode, body, nil
 }
 
