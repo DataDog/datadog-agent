@@ -112,8 +112,8 @@ type soWatcher struct {
 	processMonitor *monitor.ProcessMonitor
 	registry       *soRegistry
 
-	libEvents *telemetry.Metric
-	libMatch  *telemetry.Metric
+	libHits    *telemetry.Metric
+	libMatches *telemetry.Metric
 }
 
 type pathIdentifierSet = map[pathIdentifier]struct{}
@@ -163,8 +163,8 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 			libUnregisterPathIDNotFound: metricGroup.NewMetric("unregister_pathid_not_found"),
 		},
 
-		libEvents: metricGroup.NewMetric("events"),
-		libMatch:  metricGroup.NewMetric("match"),
+		libHits:    metricGroup.NewMetric("hits", telemetry.OptPayloadTelemetry),
+		libMatches: metricGroup.NewMetric("matches", telemetry.OptPayloadTelemetry),
 	}
 }
 
@@ -184,6 +184,7 @@ func (r *soRegistration) unregisterPath(pathID pathIdentifier, soreg *soRegistry
 		soreg.libUnregisterErrors.Add(1)
 		return true
 	}
+
 	// currentUniqueProcessesCount is 0, thus we should unregister.
 	if r.unregisterCB != nil {
 		if err := r.unregisterCB(pathID); err != nil {
@@ -303,7 +304,7 @@ func (w *soWatcher) Start() {
 					continue
 				}
 
-				w.libEvents.Add(1)
+				w.libHits.Add(1)
 				path := toBytes(&lib)
 				libPath := string(path)
 				procPid := fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
@@ -316,7 +317,7 @@ func (w *soWatcher) Start() {
 
 				for _, r := range w.rules {
 					if r.re.Match(path) {
-						w.libMatch.Add(1)
+						w.libMatches.Add(1)
 						w.registry.register(root, libPath, lib.Pid, r)
 						break
 					}
