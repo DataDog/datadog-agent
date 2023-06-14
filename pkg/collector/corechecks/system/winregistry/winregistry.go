@@ -116,6 +116,11 @@ func (c *WindowsRegistryCheck) Run() error {
 				log.Warnf("key %s was not found: %s", regKey.originalKeyPath, err)
 			}
 		} else {
+			// if err == nil the key was opened, so we need to close it after we are done.
+			//goland:noinspection GoDeferInLoop
+			defer func() {
+				k.Close()
+			}()
 			for valueName, metric := range regKey.metrics {
 				_, valueType, err := k.GetValue(valueName, nil)
 				gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKey.name, metric.Name)
