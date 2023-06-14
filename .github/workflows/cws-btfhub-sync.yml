@@ -32,23 +32,13 @@ jobs:
           cache: 'pip'
 
       - name: Install go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version-file: '.go-version'
 
       - name: Install python requirements
         run: |
           pip install -r requirements.txt
-
-      - name: Cache go dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
 
       - name: Install go deps
         run: |
