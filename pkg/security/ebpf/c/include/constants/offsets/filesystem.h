@@ -185,6 +185,10 @@ int __attribute__((always_inline)) get_sizeof_inode() {
     return sizeof_inode;
 }
 
+u64 __attribute__((always_inline)) get_ovl_path_in_inode() {
+	return 1;
+}
+
 int __attribute__((always_inline)) get_sb_magic_offset() {
     u64 offset;
     LOAD_CONSTANT("sb_magic_offset", offset);
@@ -210,7 +214,18 @@ static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     return get_sb_magic(sb) == OVERLAYFS_SUPER_MAGIC;
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
+int __attribute__((always_inline)) get_ovl_lower_ino_old(struct dentry *dentry) {
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+
+    // escape from the embedded vfs_inode to reach ovl_inode
+    struct inode *lower;
+    bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 8);
+
+    return get_inode_ino(lower);
+}
+
+int __attribute__((always_inline)) get_ovl_lower_ino_new(struct dentry *dentry) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
 
@@ -233,7 +248,7 @@ int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
 }
 
 void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *flags) {
-    u64 lower_inode = get_ovl_lower_ino(dentry);
+    u64 lower_inode = get_ovl_path_in_inode() ? get_ovl_lower_ino_new(dentry) : get_ovl_lower_ino_old(dentry);
     u64 upper_inode = get_ovl_upper_ino(dentry);
 
 #ifdef DEBUG
