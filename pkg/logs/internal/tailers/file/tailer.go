@@ -141,7 +141,7 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	bytesRead := status.NewCountInfo("Bytes Read")
 	info.Register(bytesRead)
 
-	t := &Tailer{
+	return &Tailer{
 		file:                   file,
 		outputChan:             outputChan,
 		decoder:                decoder,
@@ -160,8 +160,6 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 		info:                   info,
 		bytesRead:              bytesRead,
 	}
-
-	return t
 }
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
