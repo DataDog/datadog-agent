@@ -32,7 +32,7 @@ func (v *vmSuiteEx5) Test1_FakeIntakeReceivesMetrics() {
 			return err
 		}
 		if len(metricNames) == 0 {
-			return errors.New("No metrics yet")
+			return errors.New("no metrics yet")
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
@@ -47,7 +47,7 @@ func (v *vmSuiteEx5) Test2_FakeIntakeReceivesSystemLoadMetric() {
 			return err
 		}
 		if len(metrics) == 0 {
-			return errors.New("No 'system.load.1' metrics yet")
+			return errors.New("no 'system.load.1' metrics yet")
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
@@ -62,7 +62,7 @@ func (v *vmSuiteEx5) Test3_FakeIntakeReceivesSystemUptimeHigherThanZero() {
 			return err
 		}
 		if len(metrics) == 0 {
-			return errors.New("No 'system.uptime' with value higher than 0 yet")
+			return errors.New("no 'system.uptime' with value higher than 0 yet")
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))

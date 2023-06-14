@@ -15,23 +15,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type vmSuiteEx4 struct {
+type agentSuiteEx4 struct {
 	e2e.Suite[e2e.AgentEnv]
 }
 
 func TestVMSuiteEx4(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx4{}, e2e.AgentStackDef(
+	e2e.Run(t, &agentSuiteEx4{}, e2e.AgentStackDef(
 		[]e2e.Ec2VMOption{ec2vm.WithOS(os.UbuntuOS)},
 		agent.WithAgentConfig("log_level: debug"),
 	))
 }
 
-func (v *vmSuiteEx4) TestLogDebug() {
+func (v *agentSuiteEx4) TestLogDebug() {
 	v.Env().Agent.WaitForReady()
 	assert.Contains(v.T(), v.Env().Agent.Config(), "log_level: debug")
 }
 
-func (v *vmSuiteEx4) TestLogInfo() {
+func (v *agentSuiteEx4) TestLogInfo() {
 	v.UpdateEnv(e2e.AgentStackDef(
 		[]e2e.Ec2VMOption{ec2vm.WithOS(os.UbuntuOS)},
 		agent.WithAgentConfig("log_level: info"),
