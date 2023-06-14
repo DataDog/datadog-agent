@@ -34,14 +34,15 @@ func NewKafkaStatkeeper(c *config.Config, telemetry *Telemetry) *KafkaStatKeeper
 }
 
 func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
+	statKeeper.statsMutex.Lock()
+	defer statKeeper.statsMutex.Unlock()
+
 	key := Key{
 		RequestAPIKey:  tx.APIKey(),
 		RequestVersion: tx.APIVersion(),
 		TopicName:      statKeeper.extractTopicName(tx),
 		ConnectionKey:  tx.ConnTuple(),
 	}
-	statKeeper.statsMutex.Lock()
-	defer statKeeper.statsMutex.Unlock()
 	requestStats, ok := statKeeper.stats[key]
 	if !ok {
 		if len(statKeeper.stats) >= statKeeper.maxEntries {
