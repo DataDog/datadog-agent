@@ -5,6 +5,10 @@ package winregistry
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"strconv"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -13,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/registry"
 	"gopkg.in/yaml.v2"
-	"io/fs"
-	"strings"
 )
 
 const (
@@ -66,8 +68,6 @@ func (c *WindowsRegistryCheck) Configure(integrationConfigDigest uint64, data in
 		return err
 	}
 
-	c.registryKeys = make([]registryKey, len(conf.RegistryKeys))
-
 	hiveMap := map[string]registry.Key{
 		"HKLM":               registry.LOCAL_MACHINE,
 		"HKEY_LOCAL_MACHINE": registry.LOCAL_MACHINE,
@@ -112,22 +112,22 @@ func (c *WindowsRegistryCheck) Run() error {
 				// Treat access denied as errors
 				log.Errorf("access denied while accessing key %s: %s", regKey.originalKeyPath, err)
 			} else if errors.Is(err, registry.ErrNotExist) {
-				log.Warnf("key %s was not found: %s", regKey.originalKeyPath, err)?
+				log.Warnf("key %s was not found: %s", regKey.originalKeyPath, err)
 			}
 		} else {
 			for valueName, metric := range regKey.metrics {
 				_, valueType, err := k.GetValue(valueName, nil)
+				gaugeName := fmt.Sprintf("windows.registry.%s.%s", regKey.name, metric.Name)
 				// err will never be nil, because we pass a buffer that is too small
 				if errors.Is(err, registry.ErrNotExist) {
 					if valueIfMissing, found := metric.ValueIfMissing.Get(); found {
-						sender.Gauge(fmt.Sprintf("windows.registry.%s.%s", regKey.name, metric.Name), valueIfMissing, "", nil)
+						sender.Gauge(gaugeName, valueIfMissing, "", nil)
 					} else {
 						log.Warnf("value %s of key %s was not found: %s", valueName, regKey.name, err)
 					}
 				} else if errors.Is(err, fs.ErrPermission) {
 					log.Errorf("access denied while accessing value %s of key %s: %s", valueName, regKey.originalKeyPath, err)
-				} else if errors.Is(err, registry.ErrShortBuffer) {
-					// This is expected, but now we have the value type
+				} else if errors.Is(err, registry.ErrShortBuffer) || err == nil {
 					switch valueType {
 					case registry.DWORD:
 						fallthrough
@@ -137,8 +137,7 @@ func (c *WindowsRegistryCheck) Run() error {
 							log.Errorf("error accessing value %s of key %s: %s", valueName, regKey.originalKeyPath, err)
 							continue
 						}
-						sender.Gauge(fmt.Sprintf("windows.registry.%s.%s", regKey.name, metric.Name), float64(val), "", nil)
-						break
+						sender.Gauge(gaugeName, float64(val), "", nil)
 					case registry.SZ:
 						fallthrough
 					case registry.EXPAND_SZ: // Should we expand the references to environment variables ?
@@ -147,17 +146,23 @@ func (c *WindowsRegistryCheck) Run() error {
 							log.Errorf("error accessing value %s of key %s: %s", valueName, regKey.originalKeyPath, err)
 							continue
 						}
-						mappingFound := false
-						for _, mapping := range metric.Mappings {
-							if mappedValue, found := mapping[val]; found {
-								sender.Gauge(fmt.Sprintf("windows.registry.%s.%s", regKey.name, metric.Name), mappedValue, "", nil)
-								// Stop at first mapping found
-								mappingFound = true
-								break
+						// First try to parse the value into a float64
+						if parsedVal, err := strconv.ParseFloat(val, 64); err == nil {
+							sender.Gauge(gaugeName, parsedVal, "", nil)
+						} else {
+							// Value can't be parsed, let's check the mappings
+							mappingFound := false
+							for _, mapping := range metric.Mappings {
+								if mappedValue, found := mapping[val]; found {
+									sender.Gauge(gaugeName, mappedValue, "", nil)
+									// Stop at first mapping found
+									mappingFound = true
+									break
+								}
 							}
-						}
-						if !mappingFound {
-							log.Warnf("no mapping found for value %s of key %s", valueName, regKey.originalKeyPath)
+							if !mappingFound {
+								log.Warnf("no mapping found for value %s of key %s", valueName, regKey.originalKeyPath)
+							}
 						}
 					default:
 						log.Warnf("unsupported data type of value %s for key %s: %s", valueName, regKey.originalKeyPath, valueType)
