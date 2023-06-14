@@ -18,6 +18,10 @@ type KafkaStatKeeper struct {
 	statsMutex sync.RWMutex
 	maxEntries int
 	telemetry  *Telemetry
+
+	// topicNames stores interned versions of the all topics currently stored in
+	// the `KafkaStatKeeper`
+	topicNames map[string]string
 }
 
 func NewKafkaStatkeeper(c *config.Config, telemetry *Telemetry) *KafkaStatKeeper {
@@ -25,6 +29,7 @@ func NewKafkaStatkeeper(c *config.Config, telemetry *Telemetry) *KafkaStatKeeper
 		stats:      make(map[Key]*RequestStat),
 		maxEntries: c.MaxKafkaStatsBuffered,
 		telemetry:  telemetry,
+		topicNames: make(map[string]string),
 	}
 }
 
@@ -32,7 +37,7 @@ func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
 	key := Key{
 		RequestAPIKey:  tx.APIKey(),
 		RequestVersion: tx.APIVersion(),
-		TopicName:      tx.TopicName(),
+		TopicName:      statKeeper.extractTopicName(tx),
 		ConnectionKey:  tx.ConnTuple(),
 	}
 	statKeeper.statsMutex.Lock()
@@ -54,5 +59,21 @@ func (statKeeper *KafkaStatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 	defer statKeeper.statsMutex.RUnlock()
 	ret := statKeeper.stats // No deep copy needed since `statKeeper.stats` gets reset
 	statKeeper.stats = make(map[Key]*RequestStat)
+	statKeeper.topicNames = make(map[string]string)
 	return ret
+}
+
+func (statKeeper *KafkaStatKeeper) extractTopicName(tx *EbpfKafkaTx) string {
+	b := tx.Topic_name[:tx.Topic_name_size]
+
+	// the trick here is that the Go runtime doesn't allocate the string used in
+	// the map lookup, so if we have seen this topic name before, we don't
+	// perform any allocations
+	if v, ok := statKeeper.topicNames[string(b)]; ok {
+		return v
+	}
+
+	v := string(b)
+	statKeeper.topicNames[v] = v
+	return v
 }
