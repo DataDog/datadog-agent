@@ -20,13 +20,14 @@ import (
 )
 
 const (
-	checkName = "windows_registry"
+	checkName   = "windows_registry" // this appears in the Agent Manager and Agent status
+	checkPrefix = "winregistry"      // This is the prefix used for all metrics emitted by this check
 )
 
 type metricCfg struct {
 	Name           string
 	Mappings       []map[string]float64   `yaml:"mapping"`
-	ValueIfMissing util.Optional[float64] `yaml:"omitempty"`
+	ValueIfMissing util.Optional[float64] `yaml:"value_if_missing, omitempty"`
 }
 
 type registryKeyCfg struct {
@@ -117,8 +118,7 @@ func (c *WindowsRegistryCheck) Run() error {
 		} else {
 			for valueName, metric := range regKey.metrics {
 				_, valueType, err := k.GetValue(valueName, nil)
-				gaugeName := fmt.Sprintf("windows.registry.%s.%s", regKey.name, metric.Name)
-				// err will never be nil, because we pass a buffer that is too small
+				gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKey.name, metric.Name)
 				if errors.Is(err, registry.ErrNotExist) {
 					if valueIfMissing, found := metric.ValueIfMissing.Get(); found {
 						sender.Gauge(gaugeName, valueIfMissing, "", nil)
@@ -171,6 +171,7 @@ func (c *WindowsRegistryCheck) Run() error {
 			}
 		}
 	}
+	sender.Commit()
 	return nil
 }
 
