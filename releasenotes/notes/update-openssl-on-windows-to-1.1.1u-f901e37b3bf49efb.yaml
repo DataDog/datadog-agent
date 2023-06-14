@@ -1,0 +1,4 @@
+---
+security:
+  - |
+    Updated the version of OpenSSL used by Python to `1.1.1u` on Windows
