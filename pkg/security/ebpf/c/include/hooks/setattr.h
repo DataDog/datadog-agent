@@ -15,14 +15,18 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
         return 0;
     }
 
+    u64 param1 = PT_REGS_PARM1(ctx);
+    u64 param2 = PT_REGS_PARM2(ctx);
+    u64 param3 = PT_REGS_PARM3(ctx);
+
     struct dentry *dentry;
     struct iattr *iattr;
     if (security_have_usernamespace_first_arg()) {
-        dentry = (struct dentry *)PT_REGS_PARM2(ctx);
-        iattr = (struct iattr *)PT_REGS_PARM3(ctx);
+        dentry = (struct dentry *)param2;
+        iattr = (struct iattr *)param3;
     } else {
-        dentry = (struct dentry *)PT_REGS_PARM1(ctx);
-        iattr = (struct iattr *)PT_REGS_PARM2(ctx);
+        dentry = (struct dentry *)param1;
+        iattr = (struct iattr *)param2;
     }
 
     fill_file_metadata(dentry, &syscall->setattr.file.metadata);
