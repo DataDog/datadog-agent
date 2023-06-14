@@ -437,7 +437,7 @@ build do
         end
 
         # Copy SNMP profiles
-        profile_folders = ['profiles', 'user_profiles']
+        profile_folders = ['profiles', 'default_profiles']
         profile_folders.each do |profile_folder|
             folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
             if File.exist? folder_path
