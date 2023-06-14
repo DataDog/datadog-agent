@@ -272,7 +272,13 @@ class ModuleTestResult(ModuleResult):
 
 
 def lint_flavor(
-    ctx, modules: List[GoModule], flavor: AgentFlavor, build_tags: List[str], arch: str, rtloader_root: bool
+    ctx,
+    modules: List[GoModule],
+    flavor: AgentFlavor,
+    build_tags: List[str],
+    arch: str,
+    rtloader_root: bool,
+    concurrency: int,
 ):
     """
     Runs linters for given flavor, build tags, and modules.
@@ -281,7 +287,12 @@ def lint_flavor(
     def command(module_results, module, module_result):
         with ctx.cd(module.full_path()):
             lint_results = run_golangci_lint(
-                ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch
+                ctx,
+                targets=module.targets,
+                rtloader_root=rtloader_root,
+                build_tags=build_tags,
+                arch=arch,
+                concurrency=concurrency,
             )
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
@@ -457,7 +468,7 @@ def test(
     rtloader_root=None,
     python_home_2=None,
     python_home_3=None,
-    cpus=0,
+    cpus=None,
     major_version='7',
     python_runtimes='3',
     timeout=180,
@@ -495,11 +506,26 @@ def test(
     # }
     modules_results_per_phase = defaultdict(dict)
 
+    # Sanitize environment variables
+    # We want to ignore all `DD_` variables, as they will interfere with the behavior
+    # of some unit tests
+    for env in os.environ.keys():
+        if env.startswith("DD_"):
+            del os.environ[env]
+
     # Run linters first
 
     if not skip_linters:
         modules_results_per_phase["lint"] = run_lint_go(
-            ctx, module, targets, flavors, build_include, build_exclude, rtloader_root, arch
+            ctx,
+            module,
+            targets,
+            flavors,
+            build_include,
+            build_exclude,
+            rtloader_root,
+            arch,
+            cpus,
         )
 
     # Process input arguments
@@ -514,8 +540,6 @@ def test(
     }
 
     timeout = int(timeout)
-
-    # Lint
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -646,6 +670,7 @@ def run_lint_go(
     build_exclude=None,
     rtloader_root=None,
     arch="x64",
+    cpus=None,
 ):
     modules, flavors = process_input_args(module, targets, flavors)
 
@@ -662,7 +687,13 @@ def run_lint_go(
 
     for flavor, build_tags in linter_tags.items():
         modules_lint_results_per_flavor[flavor] = lint_flavor(
-            ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
+            ctx,
+            modules=modules,
+            flavor=flavor,
+            build_tags=build_tags,
+            arch=arch,
+            rtloader_root=rtloader_root,
+            concurrency=cpus,
         )
 
     return modules_lint_results_per_flavor
@@ -678,6 +709,7 @@ def lint_go(
     build_exclude=None,
     rtloader_root=None,
     arch="x64",
+    cpus=None,
 ):
     """
     Run go linters on the given module and targets.
@@ -704,7 +736,15 @@ def lint_go(
     modules_results_per_phase = defaultdict(dict)
 
     modules_results_per_phase["lint"] = run_lint_go(
-        ctx, module, targets, flavors, build_include, build_exclude, rtloader_root, arch
+        ctx,
+        module,
+        targets,
+        flavors,
+        build_include,
+        build_exclude,
+        rtloader_root,
+        arch,
+        cpus,
     )
 
     success = process_module_results(modules_results_per_phase)
