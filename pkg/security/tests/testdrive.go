@@ -76,7 +76,8 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 		// }
 
 		mkfsCmd := exec.Command("/sbin/mkfs."+fsType, dev.Path())
-		if err := mkfsCmd.Run(); err != nil {
+		if out, err := mkfsCmd.CombinedOutput(); err != nil {
+			tb.Error(string(out))
 			_ = dev.Detach()
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)
