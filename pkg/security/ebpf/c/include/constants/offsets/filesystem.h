@@ -186,6 +186,8 @@ int __attribute__((always_inline)) get_sizeof_inode() {
 }
 
 u64 __attribute__((always_inline)) get_ovl_path_in_inode() {
+    u64 sizeof_inode;
+    LOAD_CONSTANT("ovl_path_in_ovl_inode", sizeof_inode);
 	return 1;
 }
 

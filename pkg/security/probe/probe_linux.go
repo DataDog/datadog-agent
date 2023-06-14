@@ -1544,6 +1544,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "ovl_path_in_ovl_inode",
+			Value: getOvlPathInOvlInode(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "mount_id_offset",
 			Value: mount.GetMountIDOffset(p.kernelVersion),
 		},
@@ -1733,6 +1737,14 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0 {
 		return 1
 	}
+	return 0
+}
+
+func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_19 {
+		return 1
+	}
+
 	return 0
 }
 
