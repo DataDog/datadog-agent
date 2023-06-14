@@ -17,7 +17,7 @@ import (
 
 var serverPort = getFreePort()
 
-const defaultTimeout = 3 * time.Second
+const defaultTimeout = 1 * time.Second
 
 func TestListenV1GenericTrap(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
@@ -166,7 +166,7 @@ func TestListenerTrapsReceivedTelemetry(t *testing.T) {
 
 func receivePacket(t *testing.T, listener *TrapListener, timeoutDuration time.Duration) *SnmpPacket {
 	timeout := time.After(timeoutDuration)
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 
 	// Wait for a packet to be received, if packet is invalid wait until receivedTrapsCount is incremented
