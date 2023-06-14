@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 )
 
 var runtimeSettings = make(map[string]RuntimeSetting)
+var runtimeSettingsLock = sync.Mutex{}
 
 // SettingNotFoundError is used to warn about non existing/not registered runtime setting
 type SettingNotFoundError struct {
@@ -53,6 +55,8 @@ func RuntimeSettings() map[string]RuntimeSetting {
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
 func SetRuntimeSetting(setting string, value interface{}) error {
+	runtimeSettingsLock.Lock()
+	defer runtimeSettingsLock.Unlock()
 	if _, ok := runtimeSettings[setting]; !ok {
 		return &SettingNotFoundError{name: setting}
 	}
