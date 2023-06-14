@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
 
@@ -93,7 +94,7 @@ func TestGetAPIEndpoints(t *testing.T) {
 				cfg.Set("process_config.additional_endpoints", tc.additionalEndpoints)
 			}
 
-			if eps, err := GetAPIEndpoints(cfg); tc.error {
+			if eps, err := endpoint.GetAPIEndpoints(cfg); tc.error {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
@@ -150,13 +151,13 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 				cfg.Set("process_config.events_dd_url", tc.eventsDDURL)
 			}
 
-			eps, err := GetAPIEndpoints(cfg)
+			eps, err := endpoint.GetAPIEndpoints(cfg)
 			assert.NoError(t, err)
 
 			mainEndpoint := eps[0]
 			assert.Equal(t, tc.expectedHostname, mainEndpoint.Endpoint.Hostname())
 
-			eventsEps, err := getEventsAPIEndpoints(cfg)
+			eventsEps, err := endpoint.GetEventsAPIEndpoints(cfg)
 			assert.NoError(t, err)
 
 			mainEventEndpoint := eventsEps[0]
@@ -298,11 +299,11 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 				cfg.Set("process_config.events_additional_endpoints", tc.additionalEventsEndpoints)
 			}
 
-			eps, err := GetAPIEndpoints(cfg)
+			eps, err := endpoint.GetAPIEndpoints(cfg)
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tc.expectedEndpoints, eps)
 
-			eventsEps, err := getEventsAPIEndpoints(cfg)
+			eventsEps, err := endpoint.GetEventsAPIEndpoints(cfg)
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tc.expectedEventsEndpoints, eventsEps)
 		})

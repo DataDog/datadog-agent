@@ -4,17 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package tracer
 
 import (
 	"testing"
 )
-
-func isTLSTag(staticTags uint64) bool {
-	return false
-}
 
 func TestProtocolClassification(t *testing.T) {
 	cfg := testConfig()

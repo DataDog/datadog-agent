@@ -14,6 +14,7 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -154,11 +155,14 @@ const (
 	MonotonicPerfLost               ConnTelemetryType = "perf_lost"
 	MonotonicUDPSendsProcessed      ConnTelemetryType = "udp_sends_processed"
 	MonotonicUDPSendsMissed         ConnTelemetryType = "udp_sends_missed"
+	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
 	DNSStatsDropped                 ConnTelemetryType = "dns_stats_dropped"
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
+
+	// USM Payload Telemetry
+	USMHTTPHits ConnTelemetryType = "usm.http.total_hits"
 )
 
 //revive:enable
@@ -167,9 +171,9 @@ var (
 	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
 	// into the network connections payload
 	ConnTelemetryTypes = []ConnTelemetryType{
+		DNSStatsDropped,
 		ConnsBpfMapSize,
 		ConntrackSamplingPercent,
-		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
 	}
 
@@ -180,13 +184,18 @@ var (
 		MonotonicKprobesMissed,
 		MonotonicClosedConnDropped,
 		MonotonicConnDropped,
+		MonotonicConnsClosed,
 		MonotonicConntrackRegisters,
 		MonotonicDNSPacketsProcessed,
-		MonotonicConnsClosed,
+		MonotonicPerfLost,
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
-		MonotonicPerfLost,
+	}
+
+	// USMPayloadTelemetry lists all USM metrics that are sent as payload telemetry
+	USMPayloadTelemetry = []ConnTelemetryType{
+		USMHTTPHits,
 	}
 )
 
@@ -219,6 +228,8 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
+type StatCookie = uint64
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
@@ -231,7 +242,7 @@ type ConnectionStats struct {
 
 	Last StatCounters
 
-	Cookie uint32
+	Cookie StatCookie
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -256,7 +267,7 @@ type ConnectionStats struct {
 
 	ContainerID *string
 
-	Protocol ProtocolType
+	ProtocolStack protocols.Stack
 }
 
 // Via has info about the routing decision for a flow
@@ -388,7 +399,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	}
 
 	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
-	str += fmt.Sprintf(", protocol: %v", c.Protocol)
+	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
 
 	return str

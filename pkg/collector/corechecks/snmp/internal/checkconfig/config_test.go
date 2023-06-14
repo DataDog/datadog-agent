@@ -1107,7 +1107,7 @@ oid_batch_size: 10
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, false, config.CollectTopology)
+	assert.Equal(t, true, config.CollectTopology)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`

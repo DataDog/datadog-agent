@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package ebpf
 
@@ -15,11 +14,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
+	"github.com/cilium/ebpf/linux"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // LoadCOREAsset attempts to find kernel BTF, reads the CO-RE object file, and then calls the callback function with the
@@ -37,7 +37,7 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 	if btfData == nil {
 		return fmt.Errorf("could not find BTF data on host")
 	}
-	defer btf.FlushKernelSpec()
+	defer linux.FlushCaches()
 
 	buf, err := bytecode.GetReader(filepath.Join(cfg.BPFDir, "co-re"), filename)
 	if err != nil {

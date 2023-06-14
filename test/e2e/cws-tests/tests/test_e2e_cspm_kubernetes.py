@@ -5,10 +5,8 @@ import unittest
 import warnings
 
 import emoji
-from lib.const import CSPM_START_LOG
 from lib.cspm.api import App
 from lib.kubernetes import KubernetesHelper
-from lib.log import wait_agent_log
 from lib.stepper import Step
 from test_e2e_cspm import expect_findings
 
@@ -115,36 +113,6 @@ class TestE2EKubernetes(unittest.TestCase):
         ],
     }
     expectedFindingsWorkerNode = {
-        "cis-kubernetes-1.5.1-4.1.1": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.2": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.3": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.4": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.7": [
-            {
-                "result": "error",
-            }
-        ],
-        "cis-kubernetes-1.5.1-4.1.8": [
-            {
-                "result": "error",
-            }
-        ],
         "cis-kubernetes-1.5.1-4.2.1": [
             {
                 "result": "failed",
@@ -200,14 +168,12 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="select pod", emoji=":man_running:"):
             self.kubernetes_helper.select_pod_name("app.kubernetes.io/component=agent")
 
-        with Step(msg="check agent start", emoji=":man_running:"):
-            wait_agent_log(agent_name, self.kubernetes_helper, CSPM_START_LOG)
-
         with Step(msg="check agent events", emoji=":check_mark_button:"):
             self.kubernetes_helper.exec_command(
                 agent_name, ["security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"]
             )
             output = self.kubernetes_helper.exec_command(agent_name, ["bash", "-c", "cat /tmp/reports"])
+            print(output)
             # if the output is JSON, it automatically calls json.loads on it. Yeah, I know... I've felt the same too
             findings = eval(output)
             expected_findings = dict(

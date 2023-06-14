@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -110,6 +111,9 @@ type Tailer struct {
 	// force the forwardMessages goroutine to stop, even if it is currently
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
+
+	info      *status.InfoRegistry
+	bytesRead *status.CountInfo
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -121,7 +125,7 @@ type Tailer struct {
 //
 // The Tailer must poll for content in the file.  The `sleepDuration` parameter
 // specifies how long the tailer should wait between polls.
-func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder) *Tailer {
+func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
 
 	var tagProvider tag.Provider
 	if file.Source.Config().Identifier != "" {
@@ -133,6 +137,9 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	forwardContext, stopForward := context.WithCancel(context.Background())
 	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout") * time.Second
 	windowsOpenFileTimeout := coreConfig.Datadog.GetDuration("logs_config.windows_open_file_timeout") * time.Second
+
+	bytesRead := status.NewCountInfo("Bytes Read")
+	info.Register(bytesRead)
 
 	return &Tailer{
 		file:                   file,
@@ -150,13 +157,15 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 		stopForward:            stopForward,
 		isFinished:             atomic.NewBool(false),
 		didFileRotate:          atomic.NewBool(false),
+		info:                   info,
+		bytesRead:              bytesRead,
 	}
 }
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
 // messages to the same channel but using an updated file and decoder.
-func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder) *Tailer {
-	return NewTailer(t.outputChan, file, t.sleepDuration, decoder)
+func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
+	return NewTailer(t.outputChan, file, t.sleepDuration, decoder, info)
 }
 
 // Identifier returns a string that identifies this tailer in the registry.
@@ -320,7 +329,8 @@ func (t *Tailer) wait() {
 }
 
 func (t *Tailer) recordBytes(n int64) {
-	t.file.Source.RecordBytes(n)
+	t.Source().BytesRead.Add(n)
+	t.bytesRead.Add(n)
 }
 
 // ReplaceSource replaces the current source
@@ -331,4 +341,16 @@ func (t *Tailer) ReplaceSource(newSource *sources.LogSource) {
 // Source gets the source (currently only used for testing)
 func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
+}
+
+func (t *Tailer) GetId() string {
+	return t.file.GetScanKey()
+}
+
+func (t *Tailer) GetType() string {
+	return "file"
+}
+
+func (t *Tailer) GetInfo() *status.InfoRegistry {
+	return t.info
 }

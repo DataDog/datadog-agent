@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
@@ -78,6 +77,28 @@ func TestExtractNamespace(t *testing.T) {
 				},
 				Status:           "a-phase",
 				ConditionMessage: "right msg",
+				Conditions: []*model.NamespaceCondition{
+					{
+						Type:    "NamespaceFinalizersRemaining",
+						Status:  "False",
+						Message: "wrong msg",
+					},
+					{
+						Type:    "NamespaceDeletionContentFailure",
+						Status:  "True",
+						Message: "also the wrong msg",
+					},
+					{
+						Type:    "NamespaceDeletionDiscoveryFailure",
+						Status:  "True",
+						Message: "right msg",
+					},
+				},
+				Tags: []string{
+					"kube_condition_namespacefinalizersremaining:false",
+					"kube_condition_namespacedeletioncontentfailure:true",
+					"kube_condition_namespacedeletiondiscoveryfailure:true",
+				},
 			},
 		},
 		"nil-safety": {

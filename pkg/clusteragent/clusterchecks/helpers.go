@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -16,9 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-const (
-	checkExecutionTimeWeight = 0.8
-	checkMetricSamplesWeight = 0.2
+var (
+	checkExecutionTimeWeight float64 = 0
+	checkMetricSamplesWeight float64 = 1
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice

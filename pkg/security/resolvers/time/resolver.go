@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package time
 
@@ -13,7 +12,7 @@ import (
 
 	_ "unsafe"
 
-	"github.com/DataDog/gopsutil/host"
+	"github.com/shirou/gopsutil/v3/host"
 )
 
 // Resolver converts kernel monotonic timestamps to absolute times

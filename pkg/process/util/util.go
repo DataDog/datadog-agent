@@ -18,7 +18,7 @@ import (
 )
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
-// OS doesn't support and API. Unfortunately it's in an internal package so
+// OS doesn't support an API. Unfortunately it's in an internal package so
 // we can't import it so we'll copy it here.
 var ErrNotImplemented = errors.New("not implemented yet")
 
@@ -127,29 +127,40 @@ func GetSysRoot() string {
 	return "/sys"
 }
 
+// AllPidsProcs will return all pids under procRoot
+func AllPidsProcs(procRoot string) ([]int, error) {
+	f, err := os.Open(procRoot)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dirs, err := f.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	pids := make([]int, 0, len(dirs))
+	for _, name := range dirs {
+		if pid, err := strconv.Atoi(name); err == nil {
+			pids = append(pids, pid)
+		}
+	}
+	return pids, nil
+}
+
 // WithAllProcs will execute `fn` for every pid under procRoot. `fn` is
 // passed the `pid`. If `fn` returns an error the iteration aborts,
 // returning the last error returned from `fn`.
 func WithAllProcs(procRoot string, fn func(int) error) error {
-	files, err := os.ReadDir(procRoot)
+	pids, err := AllPidsProcs(procRoot)
 	if err != nil {
 		return err
 	}
 
-	for _, f := range files {
-		if !f.IsDir() || f.Name() == "." || f.Name() == ".." {
-			continue
-		}
-
-		var pid int
-		if pid, err = strconv.Atoi(f.Name()); err != nil {
-			continue
-		}
-
+	for _, pid := range pids {
 		if err = fn(pid); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }

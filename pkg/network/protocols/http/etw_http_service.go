@@ -119,7 +119,6 @@
 //
 
 //go:build windows && npm
-// +build windows,npm
 
 package http
 

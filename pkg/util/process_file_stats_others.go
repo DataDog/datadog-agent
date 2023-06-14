@@ -4,14 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package util
 
 import "errors"
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
-// OS doesn't support and API. Unfortunately it's in an internal package so
+// OS doesn't support an API. Unfortunately it's in an internal package so
 // we can't import it so we'll copy it here.
 var ErrNotImplemented = errors.New("not implemented yet")
 

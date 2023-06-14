@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -64,9 +63,6 @@ func (c *UnassignedPodCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.informer = rcfg.APIClient.UnassignedPodInformerFactory.Core().V1().Pods()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *UnassignedPodCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *UnassignedPodCollector) Metadata() *collectors.CollectorMetadata {

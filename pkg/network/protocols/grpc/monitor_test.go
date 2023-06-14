@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package grpc
 
@@ -15,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	"github.com/stretchr/testify/require"
@@ -31,6 +31,10 @@ const (
 )
 
 func TestGRPCScenarios(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", testGRPCScenarios)
+}
+
+func testGRPCScenarios(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
@@ -587,7 +591,7 @@ func TestGRPCScenarios(t *testing.T) {
 					t.Skip("Skipping test due to known issue")
 				}
 
-				monitor, err := usm.NewMonitor(cfg, nil, nil, nil, nil)
+				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
 				defer monitor.Stop()

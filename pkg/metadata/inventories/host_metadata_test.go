@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/memory"
-	"github.com/DataDog/gohai/network"
-	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
+	"github.com/DataDog/datadog-agent/pkg/gohai/network"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"

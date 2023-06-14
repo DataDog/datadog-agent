@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package model
 
@@ -13,9 +12,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -38,9 +37,9 @@ func NewWorkloadSelector(image string, tag string) (WorkloadSelector, error) {
 	}, nil
 }
 
-// IsEmpty returns true if the selector is set
-func (ws *WorkloadSelector) IsEmpty() bool {
-	return len(ws.Tag) != 0 && len(ws.Image) != 0
+// IsReady returns true if the selector is ready
+func (ws *WorkloadSelector) IsReady() bool {
+	return len(ws.Image) != 0
 }
 
 // Match returns true if the input selector matches the current selector
@@ -55,48 +54,50 @@ func (ws WorkloadSelector) String() string {
 
 // CacheEntry cgroup resolver cache entry
 type CacheEntry struct {
+	model.ContainerContext
 	sync.RWMutex
 	Deleted          *atomic.Bool
-	ID               string
-	Tags             []string
-	CreationTime     uint64
 	WorkloadSelector WorkloadSelector
-	PIDs             *simplelru.LRU[uint32, int8]
+	PIDs             map[uint32]int8
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
 func NewCacheEntry(id string, pids ...uint32) (*CacheEntry, error) {
-	pidsLRU, err := simplelru.NewLRU[uint32, int8](1000, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
-		ID:      id,
-		PIDs:    pidsLRU,
+		ContainerContext: model.ContainerContext{
+			ID: id,
+		},
+		PIDs: make(map[uint32]int8, 10),
 	}
 
 	for _, pid := range pids {
-		newCGroup.PIDs.Add(pid, 0)
+		newCGroup.PIDs[pid] = 1
 	}
 	return &newCGroup, nil
 }
 
-// GetPIDs returns the list of root pids for the current workload
+// GetPIDs returns the list of pids for the current workload
 func (cgce *CacheEntry) GetPIDs() []uint32 {
 	cgce.RLock()
 	defer cgce.RUnlock()
 
-	return cgce.PIDs.Keys()
+	pids := make([]uint32, len(cgce.PIDs))
+	i := 0
+	for k := range cgce.PIDs {
+		pids[i] = k
+		i++
+	}
+
+	return pids
 }
 
-// RemovePID removes the provided root pid from the list of pids
+// RemovePID removes the provided pid from the list of pids
 func (cgce *CacheEntry) RemovePID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	cgce.PIDs.Remove(pid)
+	delete(cgce.PIDs, pid)
 }
 
 // AddPID adds a pid to the list of pids
@@ -104,7 +105,7 @@ func (cgce *CacheEntry) AddPID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	cgce.PIDs.Add(pid, 0)
+	cgce.PIDs[pid] = 1
 }
 
 // SetTags sets the tags for the provided workload
@@ -113,8 +114,8 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 	defer cgce.Unlock()
 
 	cgce.Tags = tags
-	cgce.WorkloadSelector.Image = utils.GetTagValue("image_name", cgce.Tags)
-	cgce.WorkloadSelector.Tag = utils.GetTagValue("image_tag", cgce.Tags)
+	cgce.WorkloadSelector.Image = utils.GetTagValue("image_name", tags)
+	cgce.WorkloadSelector.Tag = utils.GetTagValue("image_tag", tags)
 	if len(cgce.WorkloadSelector.Image) != 0 && len(cgce.WorkloadSelector.Tag) == 0 {
 		cgce.WorkloadSelector.Tag = "latest"
 	}
@@ -122,5 +123,5 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 
 // NeedsTagsResolution returns true if this workload is missing its tags
 func (cgce *CacheEntry) NeedsTagsResolution() bool {
-	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsEmpty()
+	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsReady()
 }

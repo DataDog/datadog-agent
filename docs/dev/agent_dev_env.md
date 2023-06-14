@@ -68,6 +68,8 @@ though).
 PYTHONPATH="./venv/lib/python3.8/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
+See also some notes in [./checks](./checks) about running custom python checks.
+
 #### Invoke
 
 [Invoke](http://www.pyinvoke.org/) is a task runner written in Python

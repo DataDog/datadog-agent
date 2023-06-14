@@ -10,6 +10,7 @@ package config
 import (
 	"fmt"
 	"path"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
@@ -98,13 +99,11 @@ const (
 	Dot // dot
 	// Profile is used to request the generation of a profile
 	Profile // profile
-	// SecL is used to request the Secl policy format
-	SecL // secl
 )
 
 // AllStorageFormats returns the list of supported formats
 func AllStorageFormats() []StorageFormat {
-	return []StorageFormat{Json, Protobuf, Dot, Profile, SecL}
+	return []StorageFormat{Json, Protobuf, Dot, Profile}
 }
 
 // ParseStorageFormat returns a storage format from a string input
@@ -113,9 +112,9 @@ func ParseStorageFormat(input string) (StorageFormat, error) {
 		input = input[1:]
 	}
 
-	for _, fmt := range AllStorageFormats() {
-		if fmt.String() == input {
-			return fmt, nil
+	for _, s := range AllStorageFormats() {
+		if strings.ToLower(s.String()) == input {
+			return s, nil
 		}
 	}
 

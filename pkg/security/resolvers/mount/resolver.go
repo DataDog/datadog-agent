@@ -4,15 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package mount
 
 import (
 	"context"
-	"errors"
 	"path"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,20 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-)
-
-var (
-	// ErrMountNotFound is used when an unknown mount identifier is found
-	ErrMountNotFound = errors.New("unknown mount ID")
-	// ErrMountUndefined is used when a mount identifier is undefined
-	ErrMountUndefined = errors.New("undefined mountID")
-	// ErrMountLoop is returned when there is a resolution loop
-	ErrMountLoop = errors.New("mount resolution loop")
-	// ErrMountPathEmpty is returned when the resolved mount path is empty
-	ErrMountPathEmpty = errors.New("mount resolution return empty path")
-	// ErrMountKernelID
-	ErrMountKernelID = errors.New("not a critical error")
 )
 
 const (
@@ -49,32 +34,11 @@ const (
 	fallbackLimiterPeriod = 5 * time.Second
 )
 
-func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
-	// Has optional fields, which is a space separated list of values.
-	// Example: shared:2 master:7
-	if len(mnt.Optional) > 0 {
-		for _, field := range strings.Split(mnt.Optional, " ") {
-			target, value, found := strings.Cut(field, ":")
-			if found {
-				if target == "shared" || target == "master" {
-					groupID, err := strconv.ParseUint(value, 10, 32)
-					return uint32(groupID), err
-				}
-			}
-		}
-	}
-	return 0, nil
-}
-
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
-	// groupID is not use for the path resolution, don't make it critical
-	groupID, _ := parseGroupID(mnt)
-
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
 		MountID:       uint32(mnt.ID),
-		GroupID:       groupID,
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
 		ParentMountID: uint32(mnt.Parent),
 		FSType:        mnt.FSType,
@@ -105,7 +69,7 @@ type Resolver struct {
 	deleteQueue     []deleteRequest
 	minMountID      uint32
 	redemption      *simplelru.LRU[uint32, *model.Mount]
-	fallbackLimiter *simplelru.LRU[uint32, time.Time]
+	fallbackLimiter *utils.Limiter[uint32]
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -223,7 +187,7 @@ func (mr *Resolver) Delete(mountID uint32) error {
 
 	mount, exists := mr.mounts[mountID]
 	if !exists {
-		return ErrMountNotFound
+		return &ErrMountNotFound{MountID: mountID}
 	}
 
 	mr.deleteQueue = append(mr.deleteQueue, deleteRequest{mount: mount, timeoutAt: time.Now().Add(deleteDelayTime)})
@@ -245,7 +209,7 @@ func (mr *Resolver) ResolveFilesystem(mountID, pid uint32, containerID string) (
 }
 
 // Insert a new mount point in the cache
-func (mr *Resolver) Insert(e model.Mount, pid uint32, containerID string) error {
+func (mr *Resolver) Insert(e model.Mount) error {
 	if e.MountID == 0 {
 		return ErrMountUndefined
 	}
@@ -293,7 +257,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string
 
 	mount, exists := mr.mounts[mountID]
 	if !exists {
-		return "", ErrMountNotFound
+		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
 	if len(mount.Path) > 0 {
@@ -404,23 +368,11 @@ func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (s
 	return mr.resolveMountPath(mountID, containerID, pid)
 }
 
-func (mr *Resolver) isSyncCacheAllowed(mountID uint32) bool {
-	now := time.Now()
-	if ts, ok := mr.fallbackLimiter.Get(mountID); ok {
-		if now.After(ts) {
-			mr.fallbackLimiter.Remove(mountID)
-		} else {
-			return false
-		}
-	}
-	return true
-}
-
 func (mr *Resolver) syncCacheMiss(mountID uint32) {
 	mr.procMissStats.Inc()
 
 	// add to fallback limiter to avoid storm of file access
-	mr.fallbackLimiter.Add(mountID, time.Now().Add(fallbackLimiterPeriod))
+	mr.fallbackLimiter.Count(mountID)
 }
 
 func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ...uint32) (string, error) {
@@ -448,11 +400,11 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ..
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return "", ErrMountNotFound
+		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.isSyncCacheAllowed(mountID) {
-		return "", ErrMountNotFound
+	if !mr.fallbackLimiter.IsAllowed(mountID) {
+		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
 	if err := mr.syncCache(pids...); err != nil {
@@ -503,7 +455,11 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return nil, ErrMountNotFound
+		return nil, &ErrMountNotFound{MountID: mountID}
+	}
+
+	if !mr.fallbackLimiter.IsAllowed(mountID) {
+		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if err := mr.syncCache(pids...); err != nil {
@@ -518,7 +474,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 	}
 	mr.procMissStats.Inc()
 
-	return nil, ErrMountNotFound
+	return nil, &ErrMountNotFound{MountID: mountID}
 }
 
 // GetMountIDOffset returns the mount id offset
@@ -642,11 +598,11 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	}
 	mr.redemption = redemption
 
-	fallbackLimiter, err := simplelru.NewLRU[uint32, time.Time](64, nil)
+	limiter, err := utils.NewLimiter[uint32](64, fallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}
-	mr.fallbackLimiter = fallbackLimiter
+	mr.fallbackLimiter = limiter
 
 	return mr, nil
 }

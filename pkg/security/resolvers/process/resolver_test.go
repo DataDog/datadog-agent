@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package process
 
@@ -128,6 +127,7 @@ func TestForkExec(t *testing.T) {
 
 	exec := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	exec.PPid = child.PPid
+	exec.FileEvent.Inode = 123
 	exec.ExecTime = time.Now()
 
 	// parent
@@ -184,6 +184,7 @@ func TestOrphanExec(t *testing.T) {
 	exec := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	exec.Pid = child.Pid
 	exec.PPid = child.PPid
+	exec.FileEvent.Inode = 123
 	exec.ExecTime = time.Now()
 
 	// parent
@@ -238,11 +239,13 @@ func TestForkExecExec(t *testing.T) {
 
 	exec1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	exec1.PPid = child.PPid
+	exec1.FileEvent.Inode = 123
 	exec1.ExecTime = time.Now()
 
 	exec2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	exec2.Pid = child.Pid
 	exec2.PPid = child.PPid
+	exec2.FileEvent.Inode = 456
 	exec2.ExecTime = time.Now()
 
 	// parent
@@ -307,6 +310,7 @@ func TestForkReuse(t *testing.T) {
 
 	exec1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child1.Pid, Tid: child1.Pid})
 	exec1.PPid = child1.PPid
+	exec1.FileEvent.Inode = 123
 	exec1.ExecTime = time.Now()
 
 	parent2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
@@ -406,6 +410,7 @@ func TestForkForkExec(t *testing.T) {
 	childExec := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	childExec.Pid = child.Pid
 	childExec.PPid = child.PPid
+	childExec.FileEvent.Inode = 123
 	childExec.ExecTime = time.Now()
 
 	// parent
@@ -456,6 +461,75 @@ func TestForkForkExec(t *testing.T) {
 
 	// nothing
 	resolver.DeleteEntry(grandChild.Pid, time.Now())
+	assert.Zero(t, len(resolver.entryCache))
+
+	testCacheSize(t, resolver)
+}
+
+func TestExecBomb(t *testing.T) {
+	resolver, err := NewResolver(nil, nil, &statsd.NoOpClient{}, nil, nil, nil, nil, nil, nil, nil, NewResolverOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent.ForkTime = time.Now()
+
+	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child.PPid = parent.Pid
+	child.ForkTime = time.Now()
+
+	exec1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
+	exec1.PPid = child.PPid
+	exec1.FileEvent.Inode = 123
+	exec1.ExecTime = time.Now()
+
+	exec2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
+	exec2.Pid = child.Pid
+	exec2.PPid = child.PPid
+	exec2.FileEvent.Inode = 123
+	exec2.ExecTime = time.Now()
+
+	// parent
+	resolver.AddForkEntry(parent)
+	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.EqualValues(t, 1, resolver.cacheSize.Load())
+
+	// parent
+	//     \ child
+	resolver.AddForkEntry(child)
+	assert.Equal(t, child, resolver.entryCache[child.Pid])
+	assert.Equal(t, 2, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
+	assert.EqualValues(t, 2, resolver.cacheSize.Load())
+
+	// [parent]
+	//     \ child
+	resolver.DeleteEntry(parent.Pid, time.Now())
+	assert.Nil(t, resolver.entryCache[parent.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, parent, child.Ancestor)
+
+	// [parent]
+	//     \ [child] -> exec1
+	resolver.AddExecEntry(exec1)
+	assert.Equal(t, exec1, resolver.entryCache[exec1.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, child, exec1.Ancestor)
+	assert.Equal(t, parent, exec1.Ancestor.Ancestor)
+	assert.EqualValues(t, 3, resolver.cacheSize.Load())
+
+	// [parent]
+	//     \ [child] -> [exec1] -> exec2
+	resolver.AddExecEntry(exec2)
+	assert.Equal(t, exec1, resolver.entryCache[exec2.Pid])
+	assert.Equal(t, 1, len(resolver.entryCache))
+	assert.Equal(t, exec1.ExecTime, exec2.ExecTime)
+	assert.EqualValues(t, 3, resolver.cacheSize.Load())
+
+	// nothing
+	resolver.DeleteEntry(exec1.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
 	testCacheSize(t, resolver)

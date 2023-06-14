@@ -123,6 +123,23 @@ func (c *RuntimeSecurityClient) GetActivityDumpStream() (api.SecurityModule_GetA
 	return stream, nil
 }
 
+// ListSecurityProfiles lists the profiles held in memory by the Security Profile manager
+func (c *RuntimeSecurityClient) ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error) {
+	return c.apiClient.ListSecurityProfiles(context.Background(), &api.SecurityProfileListParams{
+		IncludeCache: includeCache,
+	})
+}
+
+// SaveSecurityProfile saves the requested security profile to disk
+func (c *RuntimeSecurityClient) SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error) {
+	return c.apiClient.SaveSecurityProfile(context.Background(), &api.SecurityProfileSaveParams{
+		Selector: &api.WorkloadSelectorMessage{
+			Name: name,
+			Tag:  tag,
+		},
+	})
+}
+
 // Close closes the connection
 func (c *RuntimeSecurityClient) Close() {
 	c.conn.Close()

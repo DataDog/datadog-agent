@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package network
 
@@ -13,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -114,7 +114,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Family = family
 	cs.Direction = connDirection(flow.Flags)
 	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
-	cs.Cookie = uint32(flow.FlowHandle)
+	cs.Cookie = flow.FlowHandle
 	if connectionType == TCP {
 		tf := flow.TCPFlow()
 		if tf != nil {
@@ -141,11 +141,11 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 				// the request portion of the flow was missed.
 
 			case crq >= driver.ClassificationRequestHTTPUnknown && crq < driver.ClassificationRequestHTTPLast:
-				cs.Protocol = ProtocolHTTP
+				cs.ProtocolStack = protocols.Stack{Application: protocols.HTTP}
 			case crq == driver.ClassificationRequestHTTP2:
-				cs.Protocol = ProtocolHTTP2
+				cs.ProtocolStack = protocols.Stack{Application: protocols.HTTP2}
 			case crq == driver.ClassificationRequestTLS:
-				cs.Protocol = ProtocolTLS
+				cs.ProtocolStack = protocols.Stack{Encryption: protocols.TLS}
 			}
 
 			switch crsp := flow.ClassifyResponse; {
@@ -158,17 +158,17 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 
 			case crsp == driver.ClassificationResponseHTTP:
 				if flow.HttpUpgradeToH2Accepted == 1 {
-					cs.Protocol = ProtocolHTTP2
+					cs.ProtocolStack = protocols.Stack{Application: protocols.HTTP2}
 				} else {
 					// could have missed the request.  Most likely this is just
 					// resetting the existing value
-					cs.Protocol = ProtocolHTTP
+					cs.ProtocolStack = protocols.Stack{Application: protocols.HTTP}
 				}
 			}
 		} else {
 			// one of
 			// ClassificationUnableInsufficientData, ClassificationUnknown, ClassificationUnclassified
-			cs.Protocol = ProtocolUnknown
+			cs.ProtocolStack = protocols.Stack{}
 		}
 	}
 }

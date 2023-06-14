@@ -79,14 +79,6 @@ int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
     return mount_id;
 }
 
-int __attribute__((always_inline)) get_mount_peer_group_id(void *mnt) {
-    int mount_id;
-
-    // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_group_id));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id() + 4);
-    return mount_id;
-}
-
 struct dentry * __attribute__((always_inline)) get_mount_mountpoint_dentry(struct mount *mnt) {
     struct dentry *dentry;
     bpf_probe_read(&dentry, sizeof(dentry), (char *)mnt + 24);

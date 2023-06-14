@@ -30,7 +30,7 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 	defer Clear()
 	initStatus()
 
-	status := Get()
+	status := Get(false)
 	assert.Equal(t, true, status.IsRunning)
 	assert.Equal(t, 2, len(status.Integrations))
 
@@ -55,11 +55,11 @@ func TestStatusDeduplicateWarnings(t *testing.T) {
 	AddGlobalWarning("foo", "Identical Warning")
 	AddGlobalWarning("foo", "Identical Warning")
 
-	status := Get()
+	status := Get(false)
 	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Warnings)
 
 	RemoveGlobalWarning("foo")
-	status = Get()
+	status = Get(false)
 	assert.ElementsMatch(t, []string{"Unique Warning"}, status.Warnings)
 }
 
@@ -71,7 +71,7 @@ func TestStatusDeduplicateErrors(t *testing.T) {
 	AddGlobalError("foo", "Identical Error")
 	AddGlobalError("foo", "Identical Error")
 
-	status := Get()
+	status := Get(false)
 	assert.ElementsMatch(t, []string{"Identical Error", "Unique Error"}, status.Errors)
 }
 
@@ -86,7 +86,7 @@ func TestStatusDeduplicateErrorsAndWarnings(t *testing.T) {
 	AddGlobalError("foo", "Identical Error")
 	AddGlobalError("foo", "Identical Error")
 
-	status := Get()
+	status := Get(false)
 	assert.ElementsMatch(t, []string{"Identical Error", "Unique Error"}, status.Errors)
 	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Warnings)
 }
@@ -108,7 +108,7 @@ func TestStatusMetrics(t *testing.T) {
 	defer Clear()
 	initStatus()
 
-	status := Get()
+	status := Get(false)
 	assert.Equal(t, int64(0), status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, int64(0), status.StatusMetrics["LogsSent"])
 	assert.Equal(t, int64(0), status.StatusMetrics["BytesSent"])
@@ -118,7 +118,7 @@ func TestStatusMetrics(t *testing.T) {
 	metrics.LogsSent.Set(3)
 	metrics.BytesSent.Set(42)
 	metrics.EncodedBytesSent.Set(21)
-	status = Get()
+	status = Get(false)
 
 	assert.Equal(t, int64(5), status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, int64(3), status.StatusMetrics["LogsSent"])
@@ -127,7 +127,7 @@ func TestStatusMetrics(t *testing.T) {
 
 	metrics.LogsProcessed.Set(math.MaxInt64)
 	metrics.LogsProcessed.Add(1)
-	status = Get()
+	status = Get(false)
 	assert.Equal(t, int64(math.MinInt64), status.StatusMetrics["LogsProcessed"])
 }
 
@@ -135,6 +135,6 @@ func TestStatusEndpoints(t *testing.T) {
 	defer Clear()
 	initStatus()
 
-	status := Get()
+	status := Get(false)
 	assert.Equal(t, "Reliable: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com on port 10516", status.Endpoints[0])
 }

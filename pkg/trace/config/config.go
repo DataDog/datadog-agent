@@ -11,9 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -36,9 +34,6 @@ type Endpoint struct {
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
-
-// App Services env var
-const azureAppServices = "DD_AZURE_APP_SERVICES"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -66,14 +61,6 @@ type OTLP struct {
 	// MaxRequestBytes specifies the maximum number of bytes that will be read
 	// from an incoming HTTP request.
 	MaxRequestBytes int64 `mapstructure:"-"`
-
-	// UsePreviewHostnameLogic specifies wether to use the 'preview' OpenTelemetry attributes to hostname rules,
-	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature gate.
-	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
-	// one sent by Datadog cloud integrations.
-	//
-	// Deprecated: Field UsePreviewHostnameLogic is not used.
-	UsePreviewHostnameLogic bool `mapstructure:"-"`
 
 	// ProbabilisticSampling specifies the percentage of traces to ingest. Exceptions are made for errors
 	// and rare traces (outliers) if "RareSamplerEnabled" is true. Invalid values are equivalent to 100.
@@ -447,9 +434,6 @@ type AgentConfig struct {
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
 
-	// Azure App Services
-	InAzureAppServices bool
-
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 }
@@ -459,7 +443,7 @@ type AgentConfig struct {
 type RemoteClient interface {
 	Close()
 	Start()
-	RegisterAPMUpdate(func(update map[string]state.APMSamplingConfig))
+	Subscribe(string, func(update map[string]state.RawConfig))
 }
 
 // Tag represents a key/value pair.
@@ -530,8 +514,6 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		InAzureAppServices: inAzureAppServices(os.Getenv),
-
 		Features: make(map[string]struct{}),
 	}
 }
@@ -590,13 +572,4 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
-}
-
-func inAzureAppServices(getenv func(string) string) bool {
-	str := getenv(azureAppServices)
-	if val, err := strconv.ParseBool(str); err == nil {
-		return val
-	} else {
-		return false
-	}
 }

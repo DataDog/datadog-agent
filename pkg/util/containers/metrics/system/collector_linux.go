@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package system
 
@@ -232,6 +231,11 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.SwapLimit, &cs.SwapLimit)
 	convertField(cgs.OOMEvents, &cs.OOMEvents)
 	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
+
+	// Compute complex fields
+	if cgs.UsageTotal != nil && cgs.InactiveFile != nil {
+		cs.WorkingSet = pointer.Ptr(float64(*cgs.UsageTotal - *cgs.InactiveFile))
+	}
 
 	return cs
 }
