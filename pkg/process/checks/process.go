@@ -347,7 +347,8 @@ func createProcCtrMessages(
 		messages = append(messages, m)
 	}
 
-	log.Tracef("Created %d process messages", len(messages))
+	log.Debugf("Created %d process messages using max size %d and max weight %d",
+		len(messages), maxBatchSize, maxBatchWeight)
 
 	return messages, totalProcs, totalContainers
 }
