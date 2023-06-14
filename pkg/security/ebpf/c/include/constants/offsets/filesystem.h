@@ -14,10 +14,6 @@ unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) 
     return ino;
 }
 
-void __attribute__((always_inline)) write_inode_ino(struct inode *inode, u64 *ino) {
-    bpf_probe_read(ino, sizeof(inode), &inode->i_ino);
-}
-
 dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
     dev_t dev;
     struct super_block *sb;
