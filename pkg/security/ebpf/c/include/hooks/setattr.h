@@ -14,10 +14,10 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+    struct dentry *dentry = (struct dentry *)PT_REGS_PARM2(ctx);
     fill_file_metadata(dentry, &syscall->setattr.file.metadata);
 
-    struct iattr *iattr = (struct iattr *)PT_REGS_PARM2(ctx);
+    struct iattr *iattr = (struct iattr *)PT_REGS_PARM3(ctx);
     if (iattr != NULL) {
         int valid;
         bpf_probe_read(&valid, sizeof(valid), &iattr->ia_valid);
