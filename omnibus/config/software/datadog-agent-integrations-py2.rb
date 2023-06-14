@@ -432,12 +432,12 @@ build do
         end
 
         # Copy SNMP profiles
-        # TODO RENAME TO default_profiles
-        # TODO RENAME TO default_profiles
-        # TODO RENAME TO default_profiles
-        default_profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
-        if File.exist? default_profiles
-          copy default_profiles, "#{check_conf_dir}/"
+        profile_folders = ['profiles', 'user_profiles']
+        profile_folders.each do |profile_folder|
+            folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
+            if File.exist? folder_path
+              copy folder_path, "#{check_conf_dir}/"
+            end
         end
 
         # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
