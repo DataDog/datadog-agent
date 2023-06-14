@@ -12,11 +12,12 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -43,11 +44,13 @@ type rcClient struct {
 type dependencies struct {
 	fx.In
 
+	Log log.Component
+
 	Listeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
 func newRemoteConfigClient(deps dependencies) (Component, error) {
-	level, err := log.GetLogLevel()
+	level, err := pkglog.GetLogLevel()
 	if err != nil {
 		return nil, err
 	}
@@ -91,14 +94,25 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		return
 	}
 
+	// If there is no error, override the configs
 	if len(mergedConfig.LogLevel) > 0 {
-		settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
+		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
+		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
 	} else {
-		settings.SetRuntimeSetting("log_level", rc.fallbackLogLevel)
+		pkglog.Infof("Removing remote-config log level override, falling back to %s", rc.fallbackLogLevel)
+		err = settings.SetRuntimeSetting("log_level", rc.fallbackLogLevel)
 	}
 
+	// Apply the new status to all configs
 	for cfgPath := range updates {
-		rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		if err != nil {
+			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
 	}
 }
 

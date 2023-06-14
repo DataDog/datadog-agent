@@ -8,7 +8,6 @@ package remote
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -16,9 +15,6 @@ import (
 )
 
 const agentConfigOrderID = "configuration_order"
-
-// matches datadog/<int>/<string>/<string>/<string> for datadog/<org_id>/<product>/<config_id>/<file>
-var datadogPathRegexp = regexp.MustCompile(`^datadog/(\d+)/([^/]+)/([^/]+)/([^/]+)$`)
 
 // AgentConfig is a deserialized agent configuration file
 // along with the associated metadata
