@@ -460,8 +460,10 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 528
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_17):
 		nameOffset = 544
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_17:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_17, kernel.Kernel6_1):
 		nameOffset = 528
+	case kv.Code != 0 && kv.Code >= kernel.Kernel6_1:
+		nameOffset = 912
 	}
 
 	return nameOffset
