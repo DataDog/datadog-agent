@@ -1540,6 +1540,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Value: getDoForkInput(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "has_usernamespace_first_arg",
+			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "mount_id_offset",
 			Value: mount.GetMountIDOffset(p.kernelVersion),
 		},
@@ -1723,6 +1727,13 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 		return doForkStructInput
 	}
 	return doForkListInput
+}
+
+func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0 {
+		return 1
+	}
+	return 0
 }
 
 // isBPFSendSignalHelperAvailable returns true if the bpf_send_signal helper is available in the current kernel
