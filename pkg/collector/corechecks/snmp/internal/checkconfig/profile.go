@@ -134,7 +134,7 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 				continue
 			}
 
-			err = recursivelyExpandBaseProfiles(profDefinition, profDefinition.Extends, []string{})
+			err = recursivelyExpandBaseProfiles(profConfig.DefinitionFile, profDefinition, profDefinition.Extends, []string{})
 			if err != nil {
 				log.Warnf("failed to expand profile `%s`: %s", name, err)
 				continue
@@ -185,8 +185,14 @@ func getProfileConfdRoot(profileFolderName string) string {
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []string, extendsHistory []string) error {
+func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinition, extends []string, extendsHistory []string) error {
+	parentBasePath := filepath.Base(parentPath)
 	for _, basePath := range extends {
+		// TODO: When replacing OOTB profile or base profile, user can import the existing OOTB profile with the same name.
+		// TODO: TEST ME
+		if basePath == parentBasePath {
+			basePath = filepath.Join(getProfileConfdRoot(defaultProfilesFolder), basePath)
+		}
 		for _, extend := range extendsHistory {
 			if extend == basePath {
 				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", basePath, extendsHistory)
@@ -200,7 +206,7 @@ func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []stri
 		mergeProfileDefinition(definition, baseDefinition)
 
 		newExtendsHistory := append(common.CopyStrings(extendsHistory), basePath)
-		err = recursivelyExpandBaseProfiles(definition, baseDefinition.Extends, newExtendsHistory)
+		err = recursivelyExpandBaseProfiles(basePath, definition, baseDefinition.Extends, newExtendsHistory)
 		if err != nil {
 			return err
 		}
