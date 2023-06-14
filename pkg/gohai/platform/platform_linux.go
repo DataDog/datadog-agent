@@ -7,10 +7,12 @@ package platform
 
 import (
 	"bufio"
-	"golang.org/x/sys/unix"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	"golang.org/x/sys/unix"
 )
 
 // getUnameOS returns the same value as `uname -o`
@@ -73,13 +75,13 @@ func getUnameHardwarePlatform(machine string) string {
 }
 
 func updateArchInfo(archInfo map[string]string, uname *unix.Utsname) {
-	archInfo["kernel_name"] = string(uname.Sysname[:])
-	archInfo["hostname"] = string(uname.Nodename[:])
-	archInfo["kernel_release"] = string(uname.Release[:])
-	machine := string(uname.Machine[:])
+	archInfo["kernel_name"] = utils.StringFromBytes(uname.Sysname[:])
+	archInfo["hostname"] = utils.StringFromBytes(uname.Nodename[:])
+	archInfo["kernel_release"] = utils.StringFromBytes(uname.Release[:])
+	machine := utils.StringFromBytes(uname.Machine[:])
 	archInfo["machine"] = machine
 	archInfo["processor"] = getUnameProcessor(machine)
 	archInfo["hardware_platform"] = getUnameHardwarePlatform(machine)
 	archInfo["os"] = getUnameOS()
-	archInfo["kernel_version"] = string(uname.Version[:])
+	archInfo["kernel_version"] = utils.StringFromBytes(uname.Version[:])
 }

@@ -8,6 +8,7 @@ package platform
 import (
 	"runtime"
 
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	log "github.com/cihub/seelog"
 	"golang.org/x/sys/unix"
 )
@@ -53,14 +54,14 @@ func processIsTranslated() (bool, error) {
 }
 
 func updateArchInfo(archInfo map[string]string, uname *unix.Utsname) {
-	archInfo["kernel_name"] = string(uname.Sysname[:])
-	archInfo["hostname"] = string(uname.Nodename[:])
-	archInfo["kernel_release"] = string(uname.Release[:])
-	archInfo["machine"] = string(uname.Machine[:])
+	archInfo["kernel_name"] = utils.StringFromBytes(uname.Sysname[:])
+	archInfo["hostname"] = utils.StringFromBytes(uname.Nodename[:])
+	archInfo["kernel_release"] = utils.StringFromBytes(uname.Release[:])
+	archInfo["machine"] = utils.StringFromBytes(uname.Machine[:])
 	archInfo["processor"] = getUnameProcessor()
 	// for backward-compatibility reasons we just use the Sysname field
-	archInfo["os"] = string(uname.Sysname[:])
-	archInfo["kernel_version"] = string(uname.Version[:])
+	archInfo["os"] = utils.StringFromBytes(uname.Sysname[:])
+	archInfo["kernel_version"] = utils.StringFromBytes(uname.Version[:])
 
 	if isTranslated, err := processIsTranslated(); err == nil && isTranslated {
 		log.Debug("Running under Rosetta translator; overriding architecture values")
