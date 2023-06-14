@@ -9,20 +9,28 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 )
 
-// DefaultScrubber is the scrubber used by the package-level cleaning functions.
-//
-// It includes a set of agent-specific replacers.  It can scrub DataDog App
-// and API keys, passwords from URLs, and multi-line PEM-formatted TLS keys and
-// certificates.  It contains special handling for YAML-like content (with
-// lines of the form "key: value") and can scrub passwords, tokens, and SNMP
-// community strings in such content.
-//
-// See default.go for details of these replacers.
-var DefaultScrubber = &Scrubber{}
+var (
+	// DefaultScrubber is the scrubber used by the package-level cleaning functions.
+	//
+	// It includes a set of agent-specific replacers.  It can scrub DataDog App
+	// and API keys, passwords from URLs, and multi-line PEM-formatted TLS keys and
+	// certificates.  It contains special handling for YAML-like content (with
+	// lines of the form "key: value") and can scrub passwords, tokens, and SNMP
+	// community strings in such content.
+	//
+	// See default.go for details of these replacers.
+	DefaultScrubber = &Scrubber{}
 
-var defaultReplacement = "********"
+	defaultReplacement = "********"
+
+	// dynamicReplacers are replacers added at runtime. New Replacer can be added through configuration or by the
+	// secrets package for example.
+	dynamicReplacers      = []Replacer{}
+	dynamicReplacersMutex = sync.Mutex{}
+)
 
 func init() {
 	AddDefaultReplacers(DefaultScrubber)
@@ -158,6 +166,12 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
+
+	dynamicReplacersMutex.Lock()
+	for _, r := range dynamicReplacers {
+		scrubber.AddReplacer(SingleLine, r)
+	}
+	dynamicReplacersMutex.Unlock()
 }
 
 // Yaml helpers produce replacers that work on both a yaml object (aka map[interface{}]interface{}) and on a serialized
@@ -276,15 +290,20 @@ func ScrubLine(url string) string {
 	return DefaultScrubber.ScrubLine(url)
 }
 
-// AddStrippedKeys adds to the set of YAML keys that will be recognized and have
-// their values stripped.  This modifies the DefaultScrubber directly.
+// AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies
+// the DefaultScrubber directly and be added to any created scrubbers.
 func AddStrippedKeys(strippedKeys []string) {
 	if len(strippedKeys) > 0 {
-		configReplacer := matchYAMLKey(
+		replacer := matchYAMLKey(
 			fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|")),
 			strippedKeys,
 			[]byte(`$1 "********"`),
 		)
-		DefaultScrubber.AddReplacer(SingleLine, configReplacer)
+		// We add the new replacer to the default scrubber and to the list of dynamicReplacers so any new
+		// scubber will inherit it.
+		DefaultScrubber.AddReplacer(SingleLine, replacer)
+		dynamicReplacersMutex.Lock()
+		dynamicReplacers = append(dynamicReplacers, replacer)
+		dynamicReplacersMutex.Unlock()
 	}
 }

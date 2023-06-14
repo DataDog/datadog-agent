@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -39,7 +38,7 @@ func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *cont
 			continue
 		}
 
-		if split[1] == "images" && fil.IsExcluded("", e.ID, "") {
+		if split[1] == "images" && fil.IsExcluded(nil, "", e.ID, "") {
 			continue
 		}
 

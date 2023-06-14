@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -151,52 +150,4 @@ func TestTruncatedParentsMap(t *testing.T) {
 
 func TestTruncatedParentsERPC(t *testing.T) {
 	truncatedParents(t, testOpts{disableMapDentryResolution: true, disableAbnormalPathCheck: true})
-}
-
-func TestNoisyProcess(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID: "path_test",
-		// use the basename as an approver. The rule won't match as the parent folder differs but we will get the event because of the approver.
-		Expression: `open.file.path == "{{.Root}}/do_not_match/test-open"`,
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	file, _, err := test.Path("test-open")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("noisy_process", func(t *testing.T) {
-		err = test.GetCustomEventSent(t, func() error {
-			// generate load
-			for i := int64(0); i < testMod.secconfig.Probe.LoadControllerEventsCountThreshold*2; i++ {
-				f, err := os.OpenFile(file, os.O_CREATE, 0755)
-				if err != nil {
-					return err
-				}
-				if err = f.Close(); err != nil {
-					return err
-				}
-				if err = os.Remove(file); err != nil {
-					return err
-				}
-			}
-			return nil
-		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
-			assert.Equal(t, events.NoisyProcessRuleID, rule.ID, "wrong rule")
-			return true
-		}, getEventTimeout, model.CustomNoisyProcessEventType)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// make sure the discarder has expired before moving on to other tests
-		t.Logf("waiting for the discarder to expire (%s)", testMod.secconfig.Probe.LoadControllerDiscarderTimeout)
-		time.Sleep(testMod.secconfig.Probe.LoadControllerDiscarderTimeout + 1*time.Second)
-	})
 }

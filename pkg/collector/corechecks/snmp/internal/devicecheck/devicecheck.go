@@ -17,14 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -258,8 +259,8 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 	alreadySeenMetrics := make(map[string]bool)
 	// If a global tag has already been encountered, we won't try to add it again.
 	alreadyGlobalTags := make(map[string]bool)
-	for _, profileDef := range d.config.Profiles {
-		for _, metricConfig := range profileDef.Metrics {
+	for _, profileConfig := range d.config.Profiles {
+		for _, metricConfig := range profileConfig.Definition.Metrics {
 			newMetricConfig := metricConfig
 			if metricConfig.IsScalar() {
 				metricName := metricConfig.Symbol.Name
@@ -283,7 +284,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 				}
 			}
 		}
-		for _, metricTag := range profileDef.MetricTags {
+		for _, metricTag := range profileConfig.Definition.MetricTags {
 			if root.LeafExist(metricTag.OID) || root.LeafExist(metricTag.Column.OID) {
 				if metricTag.Tag != "" {
 					if alreadyGlobalTags[metricTag.Tag] {

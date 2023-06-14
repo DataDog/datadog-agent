@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package kernel
 
@@ -82,6 +81,12 @@ var (
 	Kernel5_15 = kernel.VersionCode(5, 15, 0)
 	// Kernel5_16 is the KernelVersion representation of kernel version 5.16
 	Kernel5_16 = kernel.VersionCode(5, 16, 0)
+	// Kernel5_17 is the KernelVersion representation of kernel version 5.17
+	Kernel5_17 = kernel.VersionCode(5, 17, 0)
+	// Kernel5_18 is the KernelVersion representation of kernel version 5.18
+	Kernel5_18 = kernel.VersionCode(5, 18, 0)
+	// Kernel5_19 is the KernelVersion representation of kernel version 5.19
+	Kernel5_19 = kernel.VersionCode(5, 19, 0)
 )
 
 // Version defines a kernel version helper

@@ -3,6 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package server implements a dummy http Datadog intake, meant to be used with integration and e2e tests.
+// It runs an catch-all http server that stores submitted payloads into a dictionary of [api.Payloads], indexed by the route
+// It implements 3 testing endpoints:
+//   - /fakeintake/payloads/<payload_route> returns any received payloads on the specified route as [api.Payload]s
+//   - /fakeintake/health returns current fakeintake server health
+//   - /fakeintake/routestats returns stats for collected payloads, by route
+//   - /fakeintake/flushPayloads returns all stored payloads and clear them up
+//
+// [api.Payloads]: https://pkg.go.dev/github.com/DataDog/datadog-agent@main/test/fakeintake/api#Payload
 package server
 
 import (
@@ -44,9 +53,10 @@ func NewServer(options ...func(*Server)) *Server {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", fi.handleDatadogRequest)
-	mux.HandleFunc("/fakeintake/payloads/", fi.getPayloads)
-	mux.HandleFunc("/fakeintake/health/", fi.getFakeHealth)
-	mux.HandleFunc("/fakeintake/routestats/", fi.getRouteStats)
+	mux.HandleFunc("/fakeintake/payloads/", fi.handleGetPayloads)
+	mux.HandleFunc("/fakeintake/health/", fi.handleFakeHealth)
+	mux.HandleFunc("/fakeintake/routestats/", fi.handleGetRouteStats)
+	mux.HandleFunc("/fakeintake/flushPayloads/", fi.handleFlushPayloads)
 
 	fi.server = http.Server{
 		Handler: mux,
@@ -192,6 +202,15 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 	writeHttpResponse(w, response)
 }
 
+func (fi *Server) handleFlushPayloads(w http.ResponseWriter, req *http.Request) {
+	fi.safeFlushPayloads()
+
+	// send response
+	writeHttpResponse(w, httpResponse{
+		statusCode: http.StatusOK,
+	})
+}
+
 func buildPostResponse(responseError error) httpResponse {
 	ret := httpResponse{}
 
@@ -218,7 +237,7 @@ func buildPostResponse(responseError error) httpResponse {
 	return ret
 }
 
-func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 	routes := req.URL.Query()["endpoint"]
 	if len(routes) == 0 {
 		writeHttpResponse(w, httpResponse{
@@ -255,7 +274,7 @@ func (fi *Server) getPayloads(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func (fi *Server) getFakeHealth(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleFakeHealth(w http.ResponseWriter, req *http.Request) {
 	writeHttpResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
@@ -282,7 +301,13 @@ func (fi *Server) safeGetPayloads(route string) []api.Payload {
 	return payloads
 }
 
-func (fi *Server) getRouteStats(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) safeFlushPayloads() {
+	fi.mu.Lock()
+	defer fi.mu.Unlock()
+	fi.payloadStore = map[string][]api.Payload{}
+}
+
+func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
 	log.Print("Handling getRouteStats request")
 	routes := fi.safeGetRouteStats()
 	// build response

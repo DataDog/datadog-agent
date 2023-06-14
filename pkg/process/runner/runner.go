@@ -15,10 +15,11 @@ import (
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
@@ -52,6 +53,8 @@ type Runner interface {
 
 // CheckRunner will collect metrics from the local system and ship to the backend.
 type CheckRunner struct {
+	config ddconfig.ConfigReader
+
 	// required for being able to start and stop the collector
 	wg   *sync.WaitGroup
 	stop chan struct{}
@@ -88,8 +91,8 @@ func (l *CheckRunner) RunRealTime() bool {
 }
 
 // NewRunner creates a new CheckRunner
-func NewRunner(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
-	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+func NewRunner(config ddconfig.ConfigReader, sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
+	runRealTime := !config.GetBool("process_config.disable_realtime_checks")
 
 	cfg := &checks.SysProbeConfig{}
 	if sysCfg != nil && sysCfg.Enabled {
@@ -106,17 +109,19 @@ func NewRunner(sysCfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledCheck
 		}
 	}
 
-	return NewRunnerWithChecks(enabledChecks, runRealTime, rtNotifierChan)
+	return NewRunnerWithChecks(config, enabledChecks, runRealTime, rtNotifierChan)
 }
 
 // NewRunnerWithChecks creates a new CheckRunner
-func NewRunnerWithChecks(checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
+func NewRunnerWithChecks(config ddconfig.ConfigReader, checks []checks.Check, runRealTime bool, rtNotifierChan <-chan types.RTResponse) (*CheckRunner, error) {
 	orchestrator := oconfig.NewDefaultOrchestratorConfig()
 	if err := orchestrator.Load(); err != nil {
 		return nil, err
 	}
 
 	return &CheckRunner{
+		config: config,
+
 		wg:   &sync.WaitGroup{},
 		stop: make(chan struct{}),
 
@@ -243,7 +248,7 @@ const (
 )
 
 func (l *CheckRunner) Run() error {
-	realTimeAllowed := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+	realTimeAllowed := !l.config.GetBool("process_config.disable_realtime_checks")
 
 	checkNamesLength := len(l.enabledChecks)
 	if realTimeAllowed {
@@ -311,8 +316,8 @@ func (l *CheckRunner) runnerForCheck(c checks.Check) (func(), error) {
 	}
 
 	rtName := checks.RTName(c.Name())
-	interval := checks.GetInterval(c.Name())
-	rtInterval := checks.GetInterval(rtName)
+	interval := checks.GetInterval(l.config, c.Name())
+	rtInterval := checks.GetInterval(l.config, rtName)
 
 	if interval < rtInterval || interval%rtInterval != 0 {
 		// Check interval must be greater or equal to realtime check interval and the intervals must be divisible
@@ -354,7 +359,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 			l.runCheck(c)
 		}
 
-		ticker := time.NewTicker(checks.GetInterval(c.Name()))
+		ticker := time.NewTicker(checks.GetInterval(l.config, c.Name()))
 		for {
 			select {
 			case <-ticker.C:
@@ -460,7 +465,7 @@ func getContainerCount(mb model.MessageBody) int {
 	return 0
 }
 
-func readResponseStatuses(checkName string, responses <-chan forwarder.Response) []*model.CollectorStatus {
+func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Response) []*model.CollectorStatus {
 	var statuses []*model.CollectorStatus
 
 	for response := range responses {

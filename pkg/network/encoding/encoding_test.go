@@ -23,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -157,6 +159,24 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 		out.Conns[1].Tags = []uint32{0, 1}
 		out.Conns[1].TagsChecksum = uint32(3359960845)
 	}
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 *
+		 * Also on windows, we do not use the NAT translation.  There
+		 * is an artifact of the NAT translation that results in
+		 * being unable to match the connectoin at this time, due
+		 * to the above.  Remove the nat translation, so that we're
+		 * still testing the rest of the encoding functions.
+		 *
+		 * there is the corresponding change required in
+		 * testSerialization() below
+		 */
+		out.Conns[0].IpTranslation = nil
+	}
 	return out
 }
 
@@ -209,18 +229,18 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 							Alias: "subnet-foo",
 						},
 					},
-					Protocol: network.ProtocolHTTP,
+					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
 				},
 				{
-					Source:     util.AddressFromString("10.1.1.1"),
-					Dest:       util.AddressFromString("8.8.8.8"),
-					SPort:      1000,
-					DPort:      53,
-					Type:       network.UDP,
-					Family:     network.AFINET6,
-					Direction:  network.LOCAL,
-					StaticTags: tagOpenSSL | tagTLS,
-					Protocol:   network.ProtocolHTTP2,
+					Source:        util.AddressFromString("10.1.1.1"),
+					Dest:          util.AddressFromString("8.8.8.8"),
+					SPort:         1000,
+					DPort:         53,
+					Type:          network.UDP,
+					Family:        network.AFINET6,
+					Direction:     network.LOCAL,
+					StaticTags:    tagOpenSSL | tagTLS,
+					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
 				},
 			},
 		},
@@ -257,6 +277,35 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		},
 	}
 
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 *
+		 * Also on windows, we do not use the NAT translation.  There
+		 * is an artifact of the NAT translation that results in
+		 * being unable to match the connectoin at this time, due
+		 * to the above.  Remove the nat translation, so that we're
+		 * still testing the rest of the encoding functions.
+		 *
+		 * there is a corresponding change in the above helper function
+		 * getExpectedConnections()
+		 */
+		in.BufferedData.Conns[0].IPTranslation = nil
+		in.HTTP = map[http.Key]*http.RequestStats{
+			http.NewKey(
+				util.AddressFromString("10.1.1.1"),
+				util.AddressFromString("10.2.2.2"),
+				1000,
+				9000,
+				"/testpath",
+				true,
+				http.MethodGet,
+			): httpReqStats,
+		}
+	}
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
 			{
@@ -296,6 +345,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		result.PrebuiltEBPFAssets = nil
 		assert.Equal(out, result)
 	})
+
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
 		newConfig(t)
 		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
@@ -494,6 +544,25 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 			): httpReqStats,
 		},
 	}
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 */
+		httpKeyWin := http.NewKey(
+			localhost,
+			localhost,
+			serverPort,
+			clientPort,
+			"/testpath",
+			true,
+			http.MethodGet,
+		)
+
+		in.HTTP[httpKeyWin] = httpReqStats
+	}
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
@@ -516,14 +585,14 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -550,6 +619,7 @@ func TestHTTP2SerializationWithLocalhostTraffic(t *testing.T) {
 	t.Run("status class", func(t *testing.T) {
 		testHTTP2SerializationWithLocalhostTraffic(t, false)
 	})
+
 }
 
 func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCode bool) {
@@ -589,6 +659,25 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 			): http2ReqStats,
 		},
 	}
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 */
+		httpKeyWin := http.NewKey(
+			localhost,
+			localhost,
+			serverPort,
+			clientPort,
+			"/testpath",
+			true,
+			http.MethodPost,
+		)
+
+		in.HTTP2[httpKeyWin] = http2ReqStats
+	}
 
 	http2Out := &model.HTTP2Aggregations{
 		EndpointAggregations: []*model.HTTPStats{
@@ -611,14 +700,14 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
 				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          formatProtocol(network.ProtocolUnknown, 0),
+				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -772,4 +861,34 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
 	}
+}
+
+func TestUSMPayloadTelemetry(t *testing.T) {
+	telemetry.Clear()
+	t.Cleanup(telemetry.Clear)
+
+	// Set metric present in the payload telemetry list to an arbitrary value
+	m1 := telemetry.NewMetric("usm.http.total_hits", telemetry.OptPayloadTelemetry)
+	m1.Add(10)
+	require.Contains(t, network.USMPayloadTelemetry, network.ConnTelemetryType(m1.Name()))
+
+	// Add another metric that is not present in the allowed list
+	m2 := telemetry.NewMetric("foobar", telemetry.OptPayloadTelemetry)
+	m2.Add(50)
+	require.NotContains(t, network.USMPayloadTelemetry, network.ConnTelemetryType(m2.Name()))
+
+	// Perform a marshal/unmarshal cycle
+	in := new(network.Connections)
+	marshaler := GetMarshaler("application/protobuf")
+	blob, err := marshaler.Marshal(in)
+	require.NoError(t, err)
+
+	unmarshaler := GetUnmarshaler("application/protobuf")
+	result, err := unmarshaler.Unmarshal(blob)
+	require.NoError(t, err)
+
+	// Assert that the correct metric is present in the emitted payload
+	payloadTelemetry := result.ConnTelemetryMap
+	assert.Equal(t, int64(10), payloadTelemetry["usm.http.total_hits"])
+	assert.NotContains(t, payloadTelemetry, "foobar")
 }

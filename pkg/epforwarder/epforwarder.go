@@ -29,6 +29,7 @@ const (
 	eventTypeDBMSamples  = "dbm-samples"
 	eventTypeDBMMetrics  = "dbm-metrics"
 	eventTypeDBMActivity = "dbm-activity"
+	eventTypeDBMMetadata = "dbm-metadata"
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
@@ -63,6 +64,22 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		endpointsConfigPrefix:  "database_monitoring.metrics.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
 		intakeTrackType:        "dbmmetrics",
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
+	{
+		eventType:   eventTypeDBMMetadata,
+		contentType: http.JSONContentType,
+		// set the endpoint config to "metrics" since metadata will hit the same endpoint
+		// as metrics, so there is no need to add an extra config endpoint.
+		// As a follow-on PR, we should clean this up to have a single config for each track type since
+		// all of our data now flows through the same intake
+		endpointsConfigPrefix:  "database_monitoring.metrics.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		intakeTrackType:        "dbmmetadata",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
@@ -312,15 +329,20 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 	}
 
-	strategy := sender.NewBatchStrategy(inputChan,
-		senderInput,
-		make(chan struct{}),
-		sender.ArraySerializer,
-		endpoints.BatchWait,
-		endpoints.BatchMaxSize,
-		endpoints.BatchMaxContentSize,
-		desc.eventType,
-		encoder)
+	var strategy sender.Strategy
+	if desc.contentType == http.ProtobufContentType {
+		strategy = sender.NewStreamStrategy(inputChan, senderInput, encoder)
+	} else {
+		strategy = sender.NewBatchStrategy(inputChan,
+			senderInput,
+			make(chan struct{}),
+			sender.ArraySerializer,
+			endpoints.BatchWait,
+			endpoints.BatchMaxSize,
+			endpoints.BatchMaxContentSize,
+			desc.eventType,
+			encoder)
+	}
 
 	a := auditor.NewNullAuditor()
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",

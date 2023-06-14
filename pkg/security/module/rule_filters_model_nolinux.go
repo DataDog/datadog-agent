@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux
-// +build !linux
 
 package module
 
@@ -58,8 +57,6 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
-
-func (e *RuleFilterEvent) Init() {}
 
 func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {

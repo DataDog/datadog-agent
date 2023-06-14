@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -20,17 +19,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
-//go:generate go run ../../../pkg/ebpf/include_headers.go ../../../pkg/network/ebpf/c/runtime/offsetguess-test.c ../../../pkg/ebpf/bytecode/build/runtime/offsetguess-test.c ../../../pkg/ebpf/c ../../../pkg/ebpf/c/protocols ../../../pkg/network/ebpf/c/runtime ../../../pkg/network/ebpf/c
-//go:generate go run ../../../pkg/ebpf/bytecode/runtime/integrity.go ../../../pkg/ebpf/bytecode/build/runtime/offsetguess-test.c ../../../pkg/ebpf/bytecode/runtime/offsetguess-test.go runtime
+//go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/offsetguess-test.c pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
+//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/bytecode/runtime/offsetguess-test.go runtime
 
 type offsetT int
 
@@ -127,19 +127,29 @@ func (o offsetT) String() string {
 }
 
 func TestOffsetGuess(t *testing.T) {
+	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", testOffsetGuess)
+}
+
+func testOffsetGuess(t *testing.T) {
 	cfg := testConfig()
-	if !cfg.EnableRuntimeCompiler {
-		t.Skip("runtime compilation is not enabled")
-	}
+	// offset guessing used to rely on this previously,
+	// but doesn't anymore
+	cfg.ProtocolClassificationEnabled = false
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	require.NoError(t, err, "could not read offset bpf module")
 	t.Cleanup(func() { offsetBuf.Close() })
 
-	_consts, err := runOffsetGuessing(cfg, offsetBuf, offsetguess.NewTracerOffsetGuesser)
+	// prebuilt on 5.18+ does not support UDPv6
+	if kv >= kernel.VersionCode(5, 18, 0) {
+		cfg.CollectUDPv6Conns = false
+	}
+
+	offsetguess.TracerOffsets.Reset()
+	_consts, err := offsetguess.TracerOffsets.Offsets(cfg)
 	require.NoError(t, err)
-	cts, err := runOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
-		return offsetguess.NewConntrackOffsetGuesser(_consts)
+	cts, err := offsetguess.RunOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
+		return offsetguess.NewConntrackOffsetGuesser(cfg)
 	})
 	require.NoError(t, err)
 	_consts = append(_consts, cts...)
@@ -272,7 +282,7 @@ func TestOffsetGuess(t *testing.T) {
 	for o := offsetSaddr; o < offsetMax; o++ {
 		switch o {
 		case offsetSkBuffHead, offsetSkBuffSock, offsetSkBuffTransportHeader:
-			if !kprobe.ClassificationSupported(cfg) {
+			if kv < kernel.VersionCode(4, 7, 0) {
 				continue
 			}
 		case offsetSaddrFl6, offsetDaddrFl6, offsetSportFl6, offsetDportFl6:

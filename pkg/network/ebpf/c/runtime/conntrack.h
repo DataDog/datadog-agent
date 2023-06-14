@@ -5,13 +5,28 @@
 #include <linux/types.h>
 #include <linux/sched.h>
 #include "bpf_builtins.h"
-#include "tracer.h"
-#include "conntrack-types.h"
-#include "conntrack-maps.h"
+#include "conn_tuple.h"
 #include "ip.h"
 #include "netns.h"
 
-#include "conntrack-helpers.h"
+#include "conntrack/types.h"
+#include "conntrack/maps.h"
+#include "conntrack/helpers.h"
+
+// depending on the kernel version p_net may be a struct net** or possible_net_t*
+static __always_inline u32 get_netns(void *p_net) {
+    u32 net_ns_inum = 0;
+#ifdef CONFIG_NET_NS
+    struct net *ns = NULL;
+    bpf_probe_read_kernel_with_telemetry(&ns, sizeof(ns), p_net);
+#ifdef _LINUX_NS_COMMON_H
+    bpf_probe_read_kernel_with_telemetry(&net_ns_inum, sizeof(net_ns_inum), &ns->ns.inum);
+#else
+    bpf_probe_read_kernel_with_telemetry(&net_ns_inum, sizeof(net_ns_inum), &ns->proc_inum);
+#endif
+#endif
+    return net_ns_inum;
+}
 
 static __always_inline u32 ct_status(const struct nf_conn *ct) {
     u32 status = 0;

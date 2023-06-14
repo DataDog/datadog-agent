@@ -61,10 +61,10 @@ type WindowsServiceInfo struct {
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
-func NewServiceExtractor() *ServiceExtractor {
+func NewServiceExtractor(sysProbeConfig ddconfig.ConfigReader) *ServiceExtractor {
 	var (
-		enabled               = ddconfig.SystemProbe.GetBool("service_monitoring_config.process_service_inference.enabled")
-		useWindowsServiceName = ddconfig.SystemProbe.GetBool("service_monitoring_config.process_service_inference.use_windows_service_name")
+		enabled               = sysProbeConfig.GetBool("service_monitoring_config.process_service_inference.enabled")
+		useWindowsServiceName = sysProbeConfig.GetBool("service_monitoring_config.process_service_inference.use_windows_service_name")
 	)
 	return &ServiceExtractor{
 		enabled:               enabled,

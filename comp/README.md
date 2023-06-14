@@ -49,6 +49,16 @@ Package server implements a component to run the dogstatsd server
 
 Package serverDebug implements a component to run the dogstatsd server debug
 
+## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package forwarder implements the "forwarder" bundle
+
+### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder/defaultforwarder)
+
+Package defaultForwarder implements a component to send payloads to the backend
+
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 
 *Datadog Team*: processes
@@ -70,6 +80,10 @@ Package containercheck implements a component to handle Container data collectio
 ### [comp/process/expvars](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/expvars)
 
 Package expvars initializes the expvar server of the process agent.
+
+### [comp/process/forwarders](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/forwarders)
+
+Package forwarders implements a component to provide forwarders used by the process agent.
 
 ### [comp/process/hostinfo](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/hostinfo)
 
@@ -107,6 +121,16 @@ Package runner implements a component to run data collection checks in the Proce
 
 Package submitter implements a component to submit collected data in the Process Agent to
 supported Datadog intakes.
+
+## [comp/remote-config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/remote-config) (Component Bundle)
+
+*Datadog Team*: remote-config
+
+
+
+### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/remote-config/rcclient)
+
+
 
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray) (Component Bundle)
 

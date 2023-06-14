@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -79,6 +78,8 @@ type ContainerdUtil struct {
 	queryTimeout      time.Duration
 	connectionTimeout time.Duration
 }
+
+type ContainerdAccessor func() (ContainerdItf, error)
 
 // NewContainerdUtil creates the Containerd util containing the Containerd client and implementing the ContainerdItf
 // Errors are handled in the retrier.

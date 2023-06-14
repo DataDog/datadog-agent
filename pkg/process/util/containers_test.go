@@ -52,6 +52,7 @@ func TestGetContainers(t *testing.T) {
 	// cID4 missing tags
 	// cID5 garden container full stats
 	// cID6 garden container missing tags
+	// cID7 container from pod with exclude annotation
 
 	// cID1 full stats
 	cID1Metrics := mock.GetFullSampleContainerEntry()
@@ -167,11 +168,13 @@ func TestGetContainers(t *testing.T) {
 		},
 	})
 
-	// cID5 garden container full stats
+	// cID5 garden container full stats (replacing Linux WorkingSet with CommitBytes)
 	cID5Metrics := mock.GetFullSampleContainerEntry()
 	cID5Metrics.ContainerStats.Timestamp = testTime
 	cID5Metrics.NetworkStats.Timestamp = testTime
 	cID5Metrics.ContainerStats.PID.PIDs = []int{6, 7}
+	cID5Metrics.ContainerStats.Memory.WorkingSet = nil
+	cID5Metrics.ContainerStats.Memory.CommitBytes = pointer.Ptr(355.0)
 	metricsCollector.SetContainerEntry("cID5", cID5Metrics)
 	metadataProvider.SetEntity(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -228,6 +231,70 @@ func TestGetContainers(t *testing.T) {
 		},
 	})
 
+	// cID7 container from pod with exclude annotation
+	cID7Metrics := mock.GetFullSampleContainerEntry()
+	cID7Metrics.ContainerStats.Timestamp = testTime
+	cID7Metrics.NetworkStats.Timestamp = testTime
+	cID7Metrics.ContainerStats.PID.PIDs = []int{1, 2, 3}
+	metricsCollector.SetContainerEntry("cID7", cID7Metrics)
+	metadataProvider.SetEntity(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "pod7",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "foobar-pod7",
+			Namespace: "default",
+			Annotations: map[string]string{
+				fmt.Sprintf("ad.datadoghq.com/container7.exclude"): `true`,
+			},
+		},
+		IP: "127.0.0.1",
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "cID7",
+				Name: "container7",
+			},
+		},
+	})
+	metadataProvider.SetEntity(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "cID7",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "container7",
+			Namespace: "foo",
+		},
+		NetworkIPs: map[string]string{
+			"net1": "10.0.0.1",
+			"net2": "192.168.0.1",
+		},
+		Ports: []workloadmeta.ContainerPort{
+			{
+				Port:     420,
+				Protocol: "tcp",
+			},
+		},
+		Image: workloadmeta.ContainerImage{
+			ID:   "somesha",
+			Name: "myapp/foo",
+		},
+		Runtime: workloadmeta.ContainerRuntimeContainerd,
+		State: workloadmeta.ContainerState{
+			Running:   true,
+			Status:    workloadmeta.ContainerStatusRunning,
+			Health:    workloadmeta.ContainerHealthHealthy,
+			CreatedAt: testTime.Add(-10 * time.Minute),
+			StartedAt: testTime,
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "pod7",
+		},
+	})
+	fakeTagger.SetTags(containers.BuildTaggerEntityName("cID7"), "fake", []string{"low:common"}, []string{"orch:orch7"}, []string{"id:container7"}, nil)
+
 	//
 	// Running and checking
 	///
@@ -235,19 +302,22 @@ func TestGetContainers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, compareResults(processContainers, []*process.Container{
 		{
-			Type:        "containerd",
-			Id:          "cID1",
-			CpuLimit:    50,
-			MemoryLimit: 42000,
-			State:       process.ContainerState_running,
-			Health:      process.ContainerHealth_healthy,
-			Created:     testTime.Add(-10 * time.Minute).Unix(),
-			UserPct:     -1,
-			SystemPct:   -1,
-			TotalPct:    -1,
-			MemRss:      42000,
-			MemCache:    200,
-			Started:     testTime.Unix(),
+			Type:         "containerd",
+			Id:           "cID1",
+			CpuLimit:     50,
+			MemoryLimit:  42000,
+			State:        process.ContainerState_running,
+			Health:       process.ContainerHealth_healthy,
+			Created:      testTime.Add(-10 * time.Minute).Unix(),
+			UserPct:      -1,
+			SystemPct:    -1,
+			TotalPct:     -1,
+			CpuUsageNs:   -1,
+			MemUsage:     42000,
+			MemRss:       300,
+			MemAccounted: 350,
+			MemCache:     200,
+			Started:      testTime.Unix(),
 			Tags: []string{
 				"low:common",
 				"orch:orch1",
@@ -294,19 +364,22 @@ func TestGetContainers(t *testing.T) {
 			},
 		},
 		{
-			Type:        "containerd",
-			Id:          "cID4",
-			CpuLimit:    50,
-			MemoryLimit: 42000,
-			State:       process.ContainerState_running,
-			Health:      process.ContainerHealth_healthy,
-			Created:     testTime.Add(-10 * time.Minute).Unix(),
-			UserPct:     -1,
-			SystemPct:   -1,
-			TotalPct:    -1,
-			MemRss:      42000,
-			MemCache:    200,
-			Started:     testTime.Unix(),
+			Type:         "containerd",
+			Id:           "cID4",
+			CpuLimit:     50,
+			MemoryLimit:  42000,
+			State:        process.ContainerState_running,
+			Health:       process.ContainerHealth_healthy,
+			Created:      testTime.Add(-10 * time.Minute).Unix(),
+			UserPct:      -1,
+			SystemPct:    -1,
+			TotalPct:     -1,
+			CpuUsageNs:   -1,
+			MemUsage:     42000,
+			MemRss:       300,
+			MemCache:     200,
+			MemAccounted: 350,
+			Started:      testTime.Unix(),
 			Addresses: []*process.ContainerAddr{
 				{
 					Ip:       "192.168.0.4",
@@ -323,19 +396,22 @@ func TestGetContainers(t *testing.T) {
 			ThreadLimit: 20,
 		},
 		{
-			Type:        "garden",
-			Id:          "cID5",
-			CpuLimit:    50,
-			MemoryLimit: 42000,
-			State:       process.ContainerState_running,
-			Created:     testTime.Unix(),
-			UserPct:     -1,
-			SystemPct:   -1,
-			TotalPct:    -1,
-			MemRss:      42000,
-			MemCache:    200,
-			Started:     testTime.Unix(),
-			Tags:        []string{"from:pcf", "id:container5"},
+			Type:         "garden",
+			Id:           "cID5",
+			CpuLimit:     50,
+			MemoryLimit:  42000,
+			State:        process.ContainerState_running,
+			Created:      testTime.Unix(),
+			UserPct:      -1,
+			SystemPct:    -1,
+			TotalPct:     -1,
+			CpuUsageNs:   -1,
+			MemUsage:     42000,
+			MemRss:       300,
+			MemCache:     200,
+			MemAccounted: 355,
+			Started:      testTime.Unix(),
+			Tags:         []string{"from:pcf", "id:container5"},
 			Addresses: []*process.ContainerAddr{
 				{
 					Ip:       "10.0.0.5",
@@ -423,25 +499,28 @@ func TestGetContainers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, compareResults(processContainers, []*process.Container{
 		{
-			Type:        "containerd",
-			Id:          "cID1",
-			CpuLimit:    50,
-			MemoryLimit: 42000,
-			State:       process.ContainerState_running,
-			Health:      process.ContainerHealth_healthy,
-			Created:     testTime.Add(-10 * time.Minute).Unix(),
-			UserPct:     60,
-			SystemPct:   40,
-			TotalPct:    20,
-			MemRss:      43000,
-			MemCache:    200,
-			Rbps:        20,
-			Wbps:        40,
-			NetRcvdPs:   40,
-			NetSentPs:   40,
-			NetRcvdBps:  4,
-			NetSentBps:  4,
-			Started:     testTime.Unix(),
+			Type:         "containerd",
+			Id:           "cID1",
+			CpuLimit:     50,
+			MemoryLimit:  42000,
+			State:        process.ContainerState_running,
+			Health:       process.ContainerHealth_healthy,
+			Created:      testTime.Add(-10 * time.Minute).Unix(),
+			UserPct:      60,
+			SystemPct:    40,
+			TotalPct:     20,
+			CpuUsageNs:   199999984,
+			MemUsage:     43000,
+			MemRss:       300,
+			MemCache:     200,
+			MemAccounted: 350,
+			Rbps:         20,
+			Wbps:         40,
+			NetRcvdPs:    40,
+			NetSentPs:    40,
+			NetRcvdBps:   4,
+			NetSentBps:   4,
+			Started:      testTime.Unix(),
 			Tags: []string{
 				"low:common",
 				"orch:orch1",
@@ -488,25 +567,28 @@ func TestGetContainers(t *testing.T) {
 			},
 		},
 		{
-			Type:        "containerd",
-			Id:          "cID4",
-			CpuLimit:    50,
-			MemoryLimit: 42000,
-			State:       process.ContainerState_running,
-			Health:      process.ContainerHealth_healthy,
-			Created:     testTime.Add(-10 * time.Minute).Unix(),
-			UserPct:     -1,
-			SystemPct:   -1,
-			TotalPct:    -1,
-			MemRss:      42000,
-			MemCache:    200,
-			Rbps:        0,
-			Wbps:        0,
-			NetRcvdPs:   0,
-			NetSentPs:   0,
-			NetRcvdBps:  0,
-			NetSentBps:  0,
-			Started:     testTime.Unix(),
+			Type:         "containerd",
+			Id:           "cID4",
+			CpuLimit:     50,
+			MemoryLimit:  42000,
+			State:        process.ContainerState_running,
+			Health:       process.ContainerHealth_healthy,
+			Created:      testTime.Add(-10 * time.Minute).Unix(),
+			UserPct:      -1,
+			SystemPct:    -1,
+			TotalPct:     -1,
+			CpuUsageNs:   -1,
+			MemUsage:     42000,
+			MemRss:       300,
+			MemCache:     200,
+			MemAccounted: 350,
+			Rbps:         0,
+			Wbps:         0,
+			NetRcvdPs:    0,
+			NetSentPs:    0,
+			NetRcvdBps:   0,
+			NetSentBps:   0,
+			Started:      testTime.Unix(),
 			Addresses: []*process.ContainerAddr{
 				{
 					Ip:       "192.168.0.4",
@@ -523,19 +605,22 @@ func TestGetContainers(t *testing.T) {
 			ThreadLimit: 20,
 		},
 		{
-			Type:        "garden",
-			Id:          "cID5",
-			CpuLimit:    50,
-			MemoryLimit: 42000,
-			State:       process.ContainerState_running,
-			Created:     testTime.Unix(),
-			UserPct:     0,
-			SystemPct:   0,
-			TotalPct:    0,
-			MemRss:      42000,
-			MemCache:    200,
-			Started:     testTime.Unix(),
-			Tags:        []string{"from:pcf", "id:container5"},
+			Type:         "garden",
+			Id:           "cID5",
+			CpuLimit:     50,
+			MemoryLimit:  42000,
+			State:        process.ContainerState_running,
+			Created:      testTime.Unix(),
+			UserPct:      0,
+			SystemPct:    0,
+			TotalPct:     0,
+			CpuUsageNs:   0,
+			MemUsage:     42000,
+			MemRss:       300,
+			MemCache:     200,
+			MemAccounted: 355,
+			Started:      testTime.Unix(),
+			Tags:         []string{"from:pcf", "id:container5"},
 			Addresses: []*process.ContainerAddr{
 				{
 					Ip:       "10.0.0.5",

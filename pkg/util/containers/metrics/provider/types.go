@@ -22,6 +22,7 @@ type ContainerMemStats struct {
 	SwapLimit    *float64 // Memory+Swap Limit (>= Limit)
 
 	// Linux-only fields
+	WorkingSet       *float64 // Following cAdvisor/Kubernetes: defined as UsageTotal - InactiveFiles
 	RSS              *float64
 	Cache            *float64
 	OOMEvents        *float64 // Number of events where memory allocation failed

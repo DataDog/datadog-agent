@@ -15,14 +15,19 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -50,11 +55,11 @@ type CheckSubmitter struct {
 	podResults         *api.WeightedQueue
 
 	// Forwarders
-	processForwarder     *forwarder.DefaultForwarder
-	rtProcessForwarder   *forwarder.DefaultForwarder
-	connectionsForwarder *forwarder.DefaultForwarder
+	processForwarder     defaultforwarder.Component
+	rtProcessForwarder   defaultforwarder.Component
+	connectionsForwarder defaultforwarder.Component
 	podForwarder         *forwarder.DefaultForwarder
-	eventForwarder       *forwarder.DefaultForwarder
+	eventForwarder       defaultforwarder.Component
 
 	orchestrator *oconfig.OrchestratorConfig
 	hostname     string
@@ -74,14 +79,14 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 }
 
-func NewSubmitter(hostname string) (*CheckSubmitter, error) {
-	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")
+func NewSubmitter(config config.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
+	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
 		queueBytes = ddconfig.DefaultProcessQueueBytes
 	}
 
-	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
+	queueSize := config.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
 		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
 		queueSize = ddconfig.DefaultProcessQueueSize
@@ -89,7 +94,7 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	processResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", processResults.MaxSize(), processResults.MaxWeight())
 
-	rtQueueSize := ddconfig.Datadog.GetInt("process_config.rt_queue_size")
+	rtQueueSize := config.GetInt("process_config.rt_queue_size")
 	if rtQueueSize <= 0 {
 		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
 		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
@@ -111,41 +116,27 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 	eventResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating event check queue with max_size=%d and max_weight=%d", eventResults.MaxSize(), eventResults.MaxWeight())
 
-	dropCheckPayloads := ddconfig.Datadog.GetStringSlice("process_config.drop_check_payloads")
+	dropCheckPayloads := config.GetStringSlice("process_config.drop_check_payloads")
 	if len(dropCheckPayloads) > 0 {
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
 	}
 	status.UpdateDropCheckPayloads(dropCheckPayloads)
 
 	// Forwarder initialization
-	processAPIEndpoints, err := GetAPIEndpoints()
+	processAPIEndpoints, err := endpoint.GetAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
-	processForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints)))
-	processForwarderOpts.DisableAPIKeyChecking = true
-	processForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	processForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
-	// rt forwarder reuses processForwarder's config
-	rtProcessForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
-
-	// connections forwarder reuses processForwarder's config
-	connectionsForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
-
-	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
+	podForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
+	podForwarder := forwarder.NewDefaultForwarder(config, podForwarderOpts)
 
-	processEventsAPIEndpoints, err := getEventsAPIEndpoints()
+	processEventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
-	eventForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processEventsAPIEndpoints)))
-	eventForwarderOpts.DisableAPIKeyChecking = true
-	eventForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	eventForwarder := forwarder.NewDefaultForwarder(eventForwarderOpts)
 
 	printStartMessage(hostname, processAPIEndpoints, processEventsAPIEndpoints, orchestrator.OrchestratorEndpoints)
 	return &CheckSubmitter{
@@ -155,11 +146,11 @@ func NewSubmitter(hostname string) (*CheckSubmitter, error) {
 		connectionsResults: connectionsResults,
 		podResults:         podResults,
 
-		processForwarder:     processForwarder,
-		rtProcessForwarder:   rtProcessForwarder,
-		connectionsForwarder: connectionsForwarder,
+		processForwarder:     forwarders.GetProcessForwarder(),
+		rtProcessForwarder:   forwarders.GetRTProcessForwarder(),
+		connectionsForwarder: forwarders.GetConnectionsForwarder(),
 		podForwarder:         podForwarder,
-		eventForwarder:       eventForwarder,
+		eventForwarder:       forwarders.GetEventForwarder(),
 
 		orchestrator: orchestrator,
 		hostname:     hostname,
@@ -360,7 +351,6 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 				updateRTStatus = true
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.ConnectionsCheckName:
-				updateRTStatus = true
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			// Pod check metadata
 			case checks.PodCheckName:

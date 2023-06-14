@@ -13,8 +13,11 @@
 #define REVISION_ARRAY_SIZE 4096
 #define INODE_DISCARDER_TYPE 0
 #define PID_DISCARDER_TYPE 1
+#define BASENAME_APPROVER_TYPE 0
+#define FLAG_APPROVER_TYPE 1
 #define ERPC_MONITOR_KEY 1
 #define DISCARDER_MONITOR_KEY 2
+#define APPROVER_MONITOR_KEY 3
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
@@ -155,6 +158,12 @@ static __attribute__((always_inline)) u64 is_send_signal_available() {
     u64 send_signal;
     LOAD_CONSTANT("send_signal", send_signal);
     return send_signal;
+};
+
+static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
+    u64 anomaly;
+    LOAD_CONSTANT("anomaly_syscalls", anomaly);
+    return anomaly;
 };
 
 #endif

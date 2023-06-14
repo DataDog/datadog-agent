@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
@@ -47,32 +46,19 @@ namespace Datadog.CustomActions
         {
         }
 
-        private static ActionResult EnsureNpmServiceDepdendency(ISession session)
+        private static ActionResult EnsureNpmServiceDependendency(ISession session)
         {
             try
             {
-                var addLocal = session.Property("ADDLOCAL").ToUpper();
-                session.Log($"ADDLOCAL={addLocal}");
                 using var systemProbeDef = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\datadog-system-probe", true);
                 if (systemProbeDef != null)
                 {
-                    if (string.IsNullOrEmpty(addLocal))
+                    // Remove the dependency between "datadog-system-probe" and "ddnpm" services since
+                    // the "datadog-system-probe" service now takes care of starting the "ddnpm" service directly.
+                    systemProbeDef.SetValue("DependOnService", new[]
                     {
-                        systemProbeDef.SetValue("DependOnService", new[]
-                        {
-                            Constants.AgentServiceName
-                        }, RegistryValueKind.MultiString);
-
-                    }
-                    else if (addLocal.Contains("NPM") ||
-                             addLocal.Contains("ALL"))
-                    {
-                        systemProbeDef.SetValue("DependOnService", new[]
-                        {
-                            Constants.AgentServiceName,
-                            Constants.NpmServiceName
-                        }, RegistryValueKind.MultiString);
-                    }
+                        Constants.AgentServiceName
+                    }, RegistryValueKind.MultiString);
                 }
                 else
                 {
@@ -89,7 +75,7 @@ namespace Datadog.CustomActions
         [CustomAction]
         public static ActionResult EnsureNpmServiceDependency(Session session)
         {
-            return EnsureNpmServiceDepdendency(new SessionWrapper(session));
+            return EnsureNpmServiceDependendency(new SessionWrapper(session));
         }
 
         private ActionResult ConfigureServiceUsers()
@@ -228,19 +214,19 @@ namespace Datadog.CustomActions
                 {
                     try
                     {
-                        var svcNames = _serviceController.GetServiceNames().FirstOrDefault(svc => svc.Item1 == service);
+                        var svcNames = _serviceController.Services.FirstOrDefault(svc => svc.ServiceName == service);
                         if (svcNames != null)
                         {
                             using var actionRecord = new Record(
                                 "Stop Datadog services",
-                                $"Stopping {svcNames.Item2} service",
+                                $"Stopping {svcNames.DisplayName} service",
                                 ""
                             );
                             _session.Message(InstallMessage.ActionStart, actionRecord);
                             _session.Log($"Stopping service {service}");
                             _serviceController.StopService(service, TimeSpan.FromMinutes(3));
 
-                            _session.Log($"Service {service} status: {_serviceController.ServiceStatus(service)}");
+                            _session.Log($"Service {service} status: {svcNames.Status}");
                         }
                         else
                         {
@@ -249,7 +235,6 @@ namespace Datadog.CustomActions
                     }
                     catch (Exception e)
                     {
-                        _session.Log($"Service {service} status: {_serviceController.ServiceStatus(service)}");
                         if (!continueOnError)
                         {
                             // rethrow exception implicitly to preserve the original error information

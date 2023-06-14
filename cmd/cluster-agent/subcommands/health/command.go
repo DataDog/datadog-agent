@@ -4,16 +4,15 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && kubeapiserver
-// +build !windows,kubeapiserver
 
 // Package health implements 'cluster-agent health'.
 package health
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/health"
-
-	"github.com/spf13/cobra"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.

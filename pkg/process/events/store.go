@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -80,8 +80,8 @@ type RingStore struct {
 }
 
 // readPositiveInt reads a config stored in the given key and asserts that it's a positive value
-func readPositiveInt(key string) (int, error) {
-	i := ddconfig.Datadog.GetInt(key)
+func readPositiveInt(cfg config.ConfigReader, key string) (int, error) {
+	i := cfg.GetInt(key)
 	if i <= 0 {
 		return 0, fmt.Errorf("invalid setting. %s must be > 0", key)
 	}
@@ -90,23 +90,23 @@ func readPositiveInt(key string) (int, error) {
 }
 
 // NewRingStore creates a new RingStore to store process events
-func NewRingStore(client statsd.ClientInterface) (Store, error) {
-	maxItems, err := readPositiveInt("process_config.event_collection.store.max_items")
+func NewRingStore(cfg config.ConfigReader, client statsd.ClientInterface) (Store, error) {
+	maxItems, err := readPositiveInt(cfg, "process_config.event_collection.store.max_items")
 	if err != nil {
 		return nil, err
 	}
 
-	maxPushes, err := readPositiveInt("process_config.event_collection.store.max_pending_pushes")
+	maxPushes, err := readPositiveInt(cfg, "process_config.event_collection.store.max_pending_pushes")
 	if err != nil {
 		return nil, err
 	}
 
-	maxPulls, err := readPositiveInt("process_config.event_collection.store.max_pending_pulls")
+	maxPulls, err := readPositiveInt(cfg, "process_config.event_collection.store.max_pending_pulls")
 	if err != nil {
 		return nil, err
 	}
 
-	statsInterval, err := readPositiveInt("process_config.event_collection.store.stats_interval")
+	statsInterval, err := readPositiveInt(cfg, "process_config.event_collection.store.stats_interval")
 	if err != nil {
 		return nil, err
 	}

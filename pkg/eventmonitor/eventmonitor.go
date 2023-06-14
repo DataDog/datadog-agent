@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
+//go:build linux || windows
 
 package eventmonitor
 
@@ -13,25 +12,21 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	procstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	statsdPoolSize = 64
 )
 
 var (
@@ -102,8 +97,9 @@ func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 
 // Init initializes the module
 func (m *EventMonitor) Init() error {
-	// force socket cleanup of previous socket not cleanup
-	os.Remove(m.Config.SocketPath)
+	if err := m.init(); err != nil {
+		return err
+	}
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
@@ -116,12 +112,8 @@ func (m *EventMonitor) Init() error {
 
 // Start the module
 func (m *EventMonitor) Start() error {
-	ln, err := net.Listen("unix", m.Config.SocketPath)
+	ln, err := m.getListener()
 	if err != nil {
-		return fmt.Errorf("unable to register event monitoring module: %w", err)
-	}
-
-	if err := os.Chmod(m.Config.SocketPath, 0700); err != nil {
 		return fmt.Errorf("unable to register event monitoring module: %w", err)
 	}
 
@@ -177,8 +169,9 @@ func (m *EventMonitor) Close() {
 
 	if m.netListener != nil {
 		m.netListener.Close()
-		os.Remove(m.Config.SocketPath)
 	}
+
+	m.cleanup()
 
 	m.cancelFnc()
 	m.wg.Wait()
@@ -235,12 +228,7 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 // NewEventMonitor instantiates an event monitoring system-probe module
 func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
-		statsdClient, err := getStatsdClient(config)
-		if err != nil {
-			log.Info("Unable to init statsd client")
-			return nil, module.ErrNotEnabled
-		}
-		opts.StatsdClient = statsdClient
+		opts.StatsdClient = procstatsd.Client
 	}
 
 	if opts.ProbeOpts.StatsdClient == nil {
@@ -264,13 +252,4 @@ func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Op
 		cancelFnc:     cancelFnc,
 		sendStatsChan: make(chan chan bool, 1),
 	}, nil
-}
-
-func getStatsdClient(cfg *config.Config) (statsd.ClientInterface, error) {
-	statsdAddr := os.Getenv("STATSD_URL")
-	if statsdAddr == "" {
-		statsdAddr = cfg.StatsdAddr
-	}
-
-	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))
 }

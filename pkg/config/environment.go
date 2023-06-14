@@ -53,9 +53,17 @@ func IsECS() bool {
 		return false
 	}
 
-	return os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" ||
+	if os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" ||
 		os.Getenv("ECS_CONTAINER_METADATA_URI") != "" ||
-		os.Getenv("ECS_CONTAINER_METADATA_URI_V4") != ""
+		os.Getenv("ECS_CONTAINER_METADATA_URI_V4") != "" {
+		return true
+	}
+
+	if _, err := os.Stat("/etc/ecs/ecs.config"); err == nil {
+		return true
+	}
+
+	return false
 }
 
 // IsECSFargate returns whether the Agent is running in ECS Fargate

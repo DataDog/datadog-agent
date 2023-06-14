@@ -15,5 +15,16 @@ namespace Datadog.CustomActions.Native
 
             return new RegistryKey(key.CreateSubKey(path));
         }
+
+        public IRegistryKey OpenRegistryKey(Registries registry, string path)
+        {
+            var key = registry switch
+            {
+                Registries.LocalMachine => Registry.LocalMachine,
+                _ => null
+            };
+
+            return new RegistryKey(key.OpenSubKey(path));
+        }
     }
 }

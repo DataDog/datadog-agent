@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -41,7 +40,7 @@ func IsContainerExcluded(name, image, namespace *C.char) C.int {
 		goNs = C.GoString(namespace)
 	}
 
-	if filter.IsExcluded(goName, goImg, goNs) {
+	if filter.IsExcluded(nil, goName, goImg, goNs) {
 		return 1
 	}
 	return 0

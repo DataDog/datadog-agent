@@ -6,6 +6,7 @@
 package util
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -40,7 +41,12 @@ func GetClient(verify bool) *http.Client {
 
 // DoGet is a wrapper around performing HTTP GET requests
 func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
-	req, e := http.NewRequest("GET", url, nil)
+	return DoGetWithContext(context.Background(), c, url, conn)
+}
+
+// DoGetWithContext is a wrapper around performing HTTP GET requests
+func DoGetWithContext(ctx context.Context, c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
+	req, e := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if e != nil {
 		return body, e
 	}
@@ -63,7 +69,6 @@ func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte,
 		return body, fmt.Errorf("%s", body)
 	}
 	return body, nil
-
 }
 
 // DoPost is a wrapper around performing HTTP POST requests

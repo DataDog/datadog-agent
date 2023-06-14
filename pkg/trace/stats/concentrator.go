@@ -103,10 +103,10 @@ func (c *Concentrator) Run() {
 	for {
 		select {
 		case <-flushTicker.C:
-			c.Out <- c.Flush()
+			c.Out <- c.Flush(false)
 		case <-c.exit:
 			log.Info("Exiting concentrator, computing remaining stats")
-			c.Out <- c.Flush()
+			c.Out <- c.Flush(true)
 			return
 		}
 	}
@@ -205,12 +205,13 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 }
 
-// Flush deletes and returns complete statistic buckets
-func (c *Concentrator) Flush() pb.StatsPayload {
-	return c.flushNow(time.Now().UnixNano())
+// Flush deletes and returns complete statistic buckets.
+// The force boolean guarantees flushing all buckets if set to true.
+func (c *Concentrator) Flush(force bool) pb.StatsPayload {
+	return c.flushNow(time.Now().UnixNano(), force)
 }
 
-func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
+func (c *Concentrator) flushNow(now int64, force bool) pb.StatsPayload {
 	m := make(map[PayloadAggregationKey][]pb.ClientStatsBucket)
 
 	c.mu.Lock()
@@ -218,10 +219,15 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 		// Always keep `bufferLen` buckets (default is 2: current + previous one).
 		// This is a trade-off: we accept slightly late traces (clock skew and stuff)
 		// but we delay flushing by at most `bufferLen` buckets.
-		if ts > now-int64(c.bufferLen)*c.bsize {
+		//
+		// This delay might result in not flushing stats payload (data loss)
+		// if the agent stops while the latest buckets aren't old enough to be flushed.
+		// The "force" boolean skips the delay and flushes all buckets, typically on agent shutdown.
+		if !force && ts > now-int64(c.bufferLen)*c.bsize {
+			log.Tracef("Bucket %d is not old enough to be flushed, keeping it", ts)
 			continue
 		}
-		log.Debugf("flushing bucket %d", ts)
+		log.Debugf("Flushing bucket %d", ts)
 		for k, b := range srb.Export() {
 			m[k] = append(m[k], b)
 		}
@@ -231,7 +237,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 	// an already-flushed bucket.
 	newOldestTs := alignTs(now, c.bsize) - int64(c.bufferLen-1)*c.bsize
 	if newOldestTs > c.oldestTs {
-		log.Debugf("update oldestTs to %d", newOldestTs)
+		log.Debugf("Update oldestTs to %d", newOldestTs)
 		c.oldestTs = newOldestTs
 	}
 	c.mu.Unlock()

@@ -297,11 +297,36 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				{
 					LibName:    "libname",
 					LibVersion: "1.2",
-					Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "1234cid"},
+					Attributes: map[string]interface{}{
+						string(semconv.AttributeK8SPodUID):  "1234cid",
+						string(semconv.AttributeK8SJobName): "kubejob",
+					},
+					Spans: []*testutil.OTLPSpan{
+						{
+							TraceID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+							Name:    "first",
+							Attributes: map[string]interface{}{
+								string(semconv.AttributeContainerImageName): "lorem-ipsum",
+							},
+						},
+						{
+							TraceID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17},
+							SpanID:  [8]byte{10, 10, 11, 12, 13, 14, 15, 16},
+							Name:    "second",
+							Attributes: map[string]interface{}{
+								string(semconv.AttributeContainerImageTag): "v2.0",
+							},
+						},
+					},
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
 				require.Equal("1234cid", out.ContainerID)
+				require.Equal(map[string]string{
+					"kube_job":   "kubejob",
+					"image_name": "lorem-ipsum",
+					"image_tag":  "v2.0",
+				}, unflatten(out.Tags[tagContainersTags]))
 			},
 		},
 		{
@@ -492,6 +517,58 @@ func TestOTLPSetAttributes(t *testing.T) {
 	})
 }
 
+func unflatten(str string) map[string]string {
+	parts := strings.Split(str, ",")
+	m := make(map[string]string, len(parts))
+	if len(str) == 0 {
+		return m
+	}
+	for _, p := range parts {
+		parts2 := strings.SplitN(p, ":", 2)
+		k := parts2[0]
+		if k == "" {
+			continue
+		}
+		if len(parts2) > 1 {
+			m[k] = parts2[1]
+		} else {
+			m[k] = ""
+		}
+	}
+	return m
+}
+
+func TestUnflatten(t *testing.T) {
+	for in, out := range map[string]map[string]string{
+		"a:b": {
+			"a": "b",
+		},
+		"a:b,c:d": {
+			"a": "b",
+			"c": "d",
+		},
+		"a:b,c:d:e": {
+			"a": "b",
+			"c": "d:e",
+		},
+		"a:b,c": {
+			"a": "b",
+			"c": "",
+		},
+		"a:b,": {
+			"a": "b",
+		},
+		"bogus": {
+			"bogus": "",
+		},
+		"": {},
+	} {
+		t.Run("", func(t *testing.T) {
+			assert.Equal(t, unflatten(in), out)
+		})
+	}
+}
+
 func TestOTLPHostname(t *testing.T) {
 	for _, tt := range []struct {
 		config, resource, span string
@@ -625,7 +702,7 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 
 	t.Run("status2Error", func(t *testing.T) {
-		for _, tt := range []struct {
+		for _, tt := range []*struct {
 			status ptrace.StatusCode
 			msg    string
 			events ptrace.SpanEventSlice
@@ -839,6 +916,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 		libver  string
 		in      ptrace.Span
 		out     *pb.Span
+		outTags map[string]string
 	}{
 		{
 			rattr: map[string]string{
@@ -875,6 +953,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"error.msg":               "Out of memory",
 					"error.type":              "mem",
 					"error.stack":             "1/2/3",
+					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
 					"approx": 1.2,
@@ -906,6 +985,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"http.route":             "/path",
 					"approx":                 1.2,
 					"count":                  2,
+					"span.kind":              "server",
 				},
 				Events: []testutil.OTLPSpanEvent{
 					{
@@ -968,7 +1048,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 				StatusCode: ptrace.StatusCodeError,
 			}),
 			out: &pb.Span{
-				Service:  "userbase",
+				Service:  "myservice",
 				Name:     "ddtracer.server",
 				Resource: "GET /path",
 				TraceID:  2594128270069917171,
@@ -997,6 +1077,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"http.method":             "GET",
 					"http.route":              "/path",
 					"peer.service":            "userbase",
+					"_dd.peer.service.source": "peer.service",
+					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
 					"approx": 1.2,
@@ -1117,6 +1199,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"error.stack":             "1/2/3",
 					"http.method":             "GET",
 					"http.route":              "/path",
+					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
 					"approx":                               1.2,
@@ -1172,6 +1255,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"otel.library.version":            "v2",
 					"name":                            "john",
 					"otel.trace_id":                   "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":                       "unspecified",
 				},
 				Metrics: map[string]float64{
 					"approx":                               1.2,
@@ -1179,6 +1263,10 @@ func TestOTLPConvertSpan(t *testing.T) {
 					sampler.KeySamplingRateEventExtraction: 1,
 				},
 				Type: "db",
+			},
+			outTags: map[string]string{
+				"container_id":        "cid",
+				"kube_container_name": "k8s-container",
 			},
 		},
 	} {
@@ -1188,7 +1276,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
 			want := tt.out
-			got := o.convertSpan(tt.rattr, lib, tt.in)
+			ctags := make(map[string]string)
+			got := o.convertSpan(tt.rattr, lib, tt.in, ctags)
 			if len(want.Meta) != len(got.Meta) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
@@ -1238,6 +1327,378 @@ func TestOTLPConvertSpan(t *testing.T) {
 			got.Meta = nil
 			got.Metrics = nil
 			assert.Equal(want, got, i)
+			if len(tt.outTags) > 0 || len(ctags) > 0 {
+				assert.Equal(ctags, tt.outTags)
+			}
+		})
+	}
+}
+
+func TestFlatten(t *testing.T) {
+	for _, tt := range []map[string]string{
+		{"a": "b", "c": "d"},
+		{"x": "y"},
+	} {
+		assert.Equal(t, unflatten(flatten(tt).String()), tt)
+	}
+	assert.Equal(t, flatten(map[string]string{}).String(), "")
+	assert.Equal(t, flatten(nil).String(), "")
+}
+
+func TestAppendTags(t *testing.T) {
+	var str strings.Builder
+	appendTags(&str, "a:b,c:d")
+	assert.Equal(t, str.String(), "a:b,c:d")
+	appendTags(&str, "e:f,g:h")
+	assert.Equal(t, str.String(), "a:b,c:d,e:f,g:h")
+	appendTags(&str, "i:j")
+	assert.Equal(t, str.String(), "a:b,c:d,e:f,g:h,i:j")
+}
+
+func TestOTLPConvertSpanSetPeerService(t *testing.T) {
+	now := uint64(otlpTestSpan.StartTimestamp())
+	cfg := config.New()
+	o := NewOTLPReceiver(nil, cfg)
+	for i, tt := range []struct {
+		rattr   map[string]string
+		libname string
+		libver  string
+		in      ptrace.Span
+		out     *pb.Span
+	}{
+		{
+			rattr: map[string]string{
+				"service.version": "v1.2.3",
+				"service.name":    "myservice",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"peer.service":           "userbase",
+					"deployment.environment": "prod",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "myservice",
+				Name:     "ddtracer.server",
+				Resource: "/path",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                     "prod",
+					"deployment.environment":  "prod",
+					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":        "Unset",
+					"otel.library.name":       "ddtracer",
+					"otel.library.version":    "v2",
+					"service.version":         "v1.2.3",
+					"version":                 "v1.2.3",
+					"peer.service":            "userbase",
+					"_dd.peer.service.source": "peer.service",
+					"span.kind":               "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version": "v1.2.3",
+				"service.name":    "myservice",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"db.instance":            "postgres",
+					"peer.service":           "userbase",
+					"deployment.environment": "prod",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "myservice",
+				Name:     "ddtracer.server",
+				Resource: "/path",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"db.instance":             "postgres",
+					"env":                     "prod",
+					"deployment.environment":  "prod",
+					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":        "Unset",
+					"otel.library.name":       "ddtracer",
+					"otel.library.version":    "v2",
+					"service.version":         "v1.2.3",
+					"version":                 "v1.2.3",
+					"peer.service":            "userbase",
+					"_dd.peer.service.source": "peer.service",
+					"span.kind":               "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version": "v1.2.3",
+				"service.name":    "myservice",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindClient,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"db.system":              "postgres",
+					"net.peer.name":          "remotehost",
+					"deployment.environment": "prod",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "myservice",
+				Name:     "ddtracer.client",
+				Resource: "/path",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                     "prod",
+					"deployment.environment":  "prod",
+					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":        "Unset",
+					"otel.library.name":       "ddtracer",
+					"otel.library.version":    "v2",
+					"service.version":         "v1.2.3",
+					"version":                 "v1.2.3",
+					"db.system":               "postgres",
+					"net.peer.name":           "remotehost",
+					"peer.service":            "postgres",
+					"_dd.peer.service.source": "db.system",
+					"span.kind":               "client",
+				},
+				Type:    "db",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version": "v1.2.3",
+				"service.name":    "myservice",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindClient,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"rpc.service":            "GetInstance",
+					"net.peer.name":          "remotehost",
+					"deployment.environment": "prod",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "myservice",
+				Name:     "ddtracer.client",
+				Resource: "/path",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                     "prod",
+					"deployment.environment":  "prod",
+					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":        "Unset",
+					"otel.library.name":       "ddtracer",
+					"otel.library.version":    "v2",
+					"service.version":         "v1.2.3",
+					"version":                 "v1.2.3",
+					"rpc.service":             "GetInstance",
+					"net.peer.name":           "remotehost",
+					"peer.service":            "GetInstance",
+					"_dd.peer.service.source": "rpc.service",
+					"span.kind":               "client",
+				},
+				Type:    "http",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version": "v1.2.3",
+				"service.name":    "myservice",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"net.peer.name":          "remotehost",
+					"deployment.environment": "prod",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "myservice",
+				Name:     "ddtracer.server",
+				Resource: "/path",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                     "prod",
+					"deployment.environment":  "prod",
+					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":        "Unset",
+					"otel.library.name":       "ddtracer",
+					"otel.library.version":    "v2",
+					"service.version":         "v1.2.3",
+					"version":                 "v1.2.3",
+					"net.peer.name":           "remotehost",
+					"peer.service":            "remotehost",
+					"_dd.peer.service.source": "net.peer.name",
+					"span.kind":               "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version": "v1.2.3",
+				"service.name":    "myservice",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"aws.dynamodb.table_names": "my-table",
+					"deployment.environment":   "prod",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "myservice",
+				Name:     "ddtracer.server",
+				Resource: "/path",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                      "prod",
+					"deployment.environment":   "prod",
+					"otel.trace_id":            "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":         "Unset",
+					"otel.library.name":        "ddtracer",
+					"otel.library.version":     "v2",
+					"service.version":          "v1.2.3",
+					"version":                  "v1.2.3",
+					"aws.dynamodb.table_names": "my-table",
+					"peer.service":             "my-table",
+					"_dd.peer.service.source":  "aws.dynamodb.table_names",
+					"span.kind":                "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version": "v1.2.3",
+				"service.name":    "myservice",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"faas.document.collection": "my-s3-bucket",
+					"deployment.environment":   "prod",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "myservice",
+				Name:     "ddtracer.server",
+				Resource: "/path",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                      "prod",
+					"deployment.environment":   "prod",
+					"otel.trace_id":            "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":         "Unset",
+					"otel.library.name":        "ddtracer",
+					"otel.library.version":     "v2",
+					"service.version":          "v1.2.3",
+					"version":                  "v1.2.3",
+					"faas.document.collection": "my-s3-bucket",
+					"peer.service":             "my-s3-bucket",
+					"_dd.peer.service.source":  "faas.document.collection",
+					"span.kind":                "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName(tt.libname)
+			lib.SetVersion(tt.libver)
+			assert := assert.New(t)
+			assert.Equal(tt.out, o.convertSpan(tt.rattr, lib, tt.in, map[string]string{}), i)
 		})
 	}
 }
@@ -1248,7 +1709,8 @@ func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span)
+	ctags := make(map[string]string)
+	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span, ctags)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }

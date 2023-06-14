@@ -89,7 +89,6 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 
 	options := []metrics.TranslatorOption{
 		metrics.WithFallbackSourceProvider(sourceProviderFunc(hostname.Get)),
-		metrics.WithPreviewHostnameFromAttributes(),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
@@ -171,12 +170,15 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 
 func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
 	consumer := &serializerConsumer{cardinality: e.cardinality, extraTags: e.extraTags}
-	err := e.tr.MapMetrics(ctx, ld, consumer)
+	rmt, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
 		return err
 	}
 
 	consumer.addTelemetryMetric(e.hostname)
+	if rmt.HasRuntimeMetrics {
+		consumer.addRuntimeTelemetryMetric(e.hostname, rmt.LanguageTags)
+	}
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}

@@ -35,6 +35,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
+	config.Load()
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
@@ -189,9 +190,6 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
-	opts.FlushInterval = 10 * time.Millisecond
-	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
 	s := dogstatsdServer.NewServerlessServer()

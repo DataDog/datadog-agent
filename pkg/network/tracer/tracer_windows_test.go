@@ -4,20 +4,22 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package tracer
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-
-	"testing"
 )
 
-func httpSupported(t *testing.T) bool {
+func httpSupported() bool {
 	return false
 }
 
 func classificationSupported(config *config.Config) bool {
 	return true
+}
+
+func testConfig() *config.Config {
+	cfg := config.New()
+	return cfg
 }

@@ -21,3 +21,5 @@ rsa-key
 rsa-key.pub
 ed25519-key
 ed25519-key.pub
+Gemfile
+Gemfile.lock

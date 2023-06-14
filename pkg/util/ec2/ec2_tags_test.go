@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ec2
-// +build ec2
 
 package ec2
 
@@ -90,6 +89,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, "us-east-1", val.Region)
 	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
+	assert.Equal(t, "REMOVED", val.AccountID)
 }
 
 func TestFetchEc2TagsFromIMDS(t *testing.T) {

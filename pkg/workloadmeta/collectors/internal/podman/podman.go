@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build podman
-// +build podman
 
 package podman
 
@@ -105,7 +104,7 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		log.Warnf("Could not get env vars for container %s", containerID)
 	}
 
-	image, err := workloadmeta.NewContainerImage(container.Config.RawImageName)
+	image, err := workloadmeta.NewContainerImage(container.Config.ContainerRootFSConfig.RootfsImageID, container.Config.RawImageName)
 	if err != nil {
 		log.Warnf("Could not get image for container %s", containerID)
 	}

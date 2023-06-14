@@ -1,6 +1,7 @@
 using Microsoft.Deployment.WindowsInstaller;
 using System;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
 
 namespace Datadog.CustomActions
 {
@@ -38,6 +39,11 @@ namespace Datadog.CustomActions
         public ComponentInfoCollection Components => _session.Components;
 
         public FeatureInfoCollection Features => _session.Features;
+
+        public IFeatureInfo Feature(string FeatureName)
+        {
+            return new FeatureInfoAdapter(_session.Features[FeatureName]);
+        }
 
         public CustomActionData CustomActionData => _session.CustomActionData;
     }

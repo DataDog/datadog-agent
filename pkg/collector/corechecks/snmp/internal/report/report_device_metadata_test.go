@@ -18,10 +18,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -436,65 +437,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	assert.NoError(t, err)
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
-}
-
-func Test_batchPayloads(t *testing.T) {
-	collectTime := common.MockTimeNow()
-	deviceID := "123"
-	device := metadata.DeviceMetadata{ID: deviceID}
-
-	var interfaces []metadata.InterfaceMetadata
-	for i := 0; i < 350; i++ {
-		interfaces = append(interfaces, metadata.InterfaceMetadata{DeviceID: deviceID, Index: int32(i)})
-	}
-	var ipAddresses []metadata.IPAddressMetadata
-	for i := 0; i < 100; i++ {
-		ipAddresses = append(ipAddresses, metadata.IPAddressMetadata{InterfaceID: deviceID + ":1", IPAddress: "1.2.3.4", Prefixlen: 24})
-	}
-	var topologyLinks []metadata.TopologyLinkMetadata
-	for i := 0; i < 100; i++ {
-		topologyLinks = append(topologyLinks, metadata.TopologyLinkMetadata{
-			Local:  &metadata.TopologyLinkSide{Interface: &metadata.TopologyLinkInterface{ID: "a"}},
-			Remote: &metadata.TopologyLinkSide{Interface: &metadata.TopologyLinkInterface{ID: "b"}},
-		})
-	}
-	payloads := batchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, device, interfaces, ipAddresses, topologyLinks)
-
-	assert.Equal(t, 6, len(payloads))
-
-	assert.Equal(t, "my-ns", payloads[0].Namespace)
-	assert.Equal(t, "127.0.0.0/30", payloads[0].Subnet)
-	assert.Equal(t, int64(946684800), payloads[0].CollectTimestamp)
-	assert.Equal(t, []metadata.DeviceMetadata{device}, payloads[0].Devices)
-	assert.Equal(t, 99, len(payloads[0].Interfaces))
-	assert.Equal(t, interfaces[0:99], payloads[0].Interfaces)
-
-	assert.Equal(t, "127.0.0.0/30", payloads[1].Subnet)
-	assert.Equal(t, int64(946684800), payloads[1].CollectTimestamp)
-	assert.Equal(t, 0, len(payloads[1].Devices))
-	assert.Equal(t, 100, len(payloads[1].Interfaces))
-	assert.Equal(t, interfaces[99:199], payloads[1].Interfaces)
-
-	assert.Equal(t, 0, len(payloads[2].Devices))
-	assert.Equal(t, 100, len(payloads[2].Interfaces))
-	assert.Equal(t, interfaces[199:299], payloads[2].Interfaces)
-
-	assert.Equal(t, 0, len(payloads[3].Devices))
-	assert.Equal(t, 51, len(payloads[3].Interfaces))
-	assert.Equal(t, 49, len(payloads[3].IPAddresses))
-	assert.Equal(t, interfaces[299:350], payloads[3].Interfaces)
-	assert.Equal(t, ipAddresses[:49], payloads[3].IPAddresses)
-
-	assert.Equal(t, 0, len(payloads[4].Devices))
-	assert.Equal(t, 51, len(payloads[4].IPAddresses))
-	assert.Equal(t, 49, len(payloads[4].Links))
-	assert.Equal(t, ipAddresses[49:], payloads[4].IPAddresses)
-	assert.Equal(t, topologyLinks[:49], payloads[4].Links)
-
-	assert.Equal(t, 0, len(payloads[5].Devices))
-	assert.Equal(t, 0, len(payloads[5].Interfaces))
-	assert.Equal(t, 51, len(payloads[5].Links))
-	assert.Equal(t, topologyLinks[49:100], payloads[5].Links)
 }
 
 func TestComputeInterfaceStatus(t *testing.T) {

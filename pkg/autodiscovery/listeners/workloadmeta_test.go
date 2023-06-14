@@ -4,7 +4,6 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package listeners
 
@@ -49,8 +48,8 @@ func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentS
 	}
 }
 
-func (l *testWorkloadmetaListener) IsExcluded(ft containers.FilterType, name string, image string, ns string) bool {
-	return l.filters.IsExcluded(ft, name, image, ns)
+func (l *testWorkloadmetaListener) IsExcluded(ft containers.FilterType, annotations map[string]string, name string, image string, ns string) bool {
+	return l.filters.IsExcluded(ft, annotations, name, image, ns)
 }
 
 func (l *testWorkloadmetaListener) assertServices(expectedServices map[string]wlmListenerSvc) {

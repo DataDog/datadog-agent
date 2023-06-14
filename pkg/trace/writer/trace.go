@@ -20,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 // pathTraces is the target host API path for delivering traces.
@@ -199,7 +197,7 @@ func (w *TraceWriter) addSpans(pkg *SampledChunks) {
 		w.flush()
 	}
 	if len(pkg.TracerPayload.Chunks) > 0 {
-		log.Tracef("Handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
+		log.Tracef("Writer: handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
 		w.tracerPayloads = append(w.tracerPayloads, pkg.TracerPayload)
 	}
 	w.bufferedSize += size
@@ -248,7 +246,7 @@ func (w *TraceWriter) flush() {
 		TracerPayloads:     w.tracerPayloads,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
-	b, err := proto.Marshal(&p)
+	b, err := p.MarshalVT()
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return

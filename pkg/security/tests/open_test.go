@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -61,7 +60,7 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0755)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateOpenSchema(t, event)
@@ -83,7 +82,7 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 		})
 	})
@@ -111,7 +110,7 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 		})
 	})
@@ -131,7 +130,7 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 		})
 	}))
@@ -165,7 +164,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 		})
 	})
@@ -211,7 +210,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 		})
 	})
@@ -275,7 +274,7 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0747)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
 			executable, err := os.Executable()
@@ -317,7 +316,7 @@ func TestOpen(t *testing.T) {
 			assertRights(t, uint16(event.Open.Mode), 0711)
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
 			executable, err := os.Executable()
@@ -368,7 +367,7 @@ func TestOpenMetadata(t *testing.T) {
 			assertNearTime(t, event.Open.File.MTime)
 			assertNearTime(t, event.Open.File.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 		})
 	})

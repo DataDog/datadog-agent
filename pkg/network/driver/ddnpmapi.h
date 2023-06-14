@@ -16,7 +16,7 @@ typedef __int64 LONG64;
 typedef unsigned char       uint8_t;
 
 // define a version signature so that the driver won't load out of date structures, etc.
-#define DD_NPMDRIVER_VERSION       0x15
+#define DD_NPMDRIVER_VERSION       0x16
 #define DD_NPMDRIVER_SIGNATURE     ((uint64_t)0xDDFD << 32 | DD_NPMDRIVER_VERSION)
 
 // for more information on defining control codes, see
@@ -262,7 +262,7 @@ typedef struct _userFlowData {
     uint64_t packetsOut;
     uint64_t monotonicSentBytes;              // total bytes including ip header
     uint64_t transportBytesOut;     // payload (not including ip or transport header)
-//80
+
     uint64_t packetsIn;
     uint64_t monotonicRecvBytes;
     uint64_t transportBytesIn;
@@ -284,10 +284,9 @@ typedef struct _userFlowData {
     uint16_t        tls_version_chosen;
     uint64_t        tls_alpn_requested;
     uint64_t        tls_alpn_chosen;
-//64 144
     // stats unique to a particular transport
     union {
-        TCP_FLOW_DATA     tcp; //36
+        TCP_FLOW_DATA     tcp;
         UDP_FLOW_DATA     udp;
     } protocol_u;
 } USER_FLOW_DATA;
@@ -389,10 +388,10 @@ typedef enum _HttpMethodType {
 #pragma pack(1)
 
 typedef struct _ConnTupleType {
-    uint8_t  cliAddr[16]; // only first 4 bytes valid for AF_INET, in network byte order
-    uint8_t  srvAddr[16]; // ditto
-    uint16_t cliPort;     // host byte order
-    uint16_t srvPort;     // host byte order
+    uint8_t  localAddr[16]; // only first 4 bytes valid for AF_INET, in network byte order
+    uint8_t  remoteAddr[16]; // ditto
+    uint16_t localPort;     // host byte order
+    uint16_t remotePort;     // host byte order
     uint16_t family;      // AF_INET or AF_INET6
     uint16_t pad;         // make struct 64 bit aligned
 } CONN_TUPLE_TYPE, * PCONN_TUPLE_TYPE;

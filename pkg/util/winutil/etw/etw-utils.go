@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package etw
 
@@ -305,17 +304,17 @@ func ip6format(ip [16]uint8) string {
 	return ipObj.String()
 }
 
-func ipAndPortFromTup(tup driver.ConnTupleType, srv bool) ([16]uint8, uint16) {
-	if srv {
-		return tup.SrvAddr, tup.SrvPort
+func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) {
+	if local {
+		return tup.LocalAddr, tup.LocalPort
 	} else {
-		return tup.CliAddr, tup.CliPort
+		return tup.RemoteAddr, tup.RemotePort
 	}
 }
 
 // IpFormat takes a binary ip representation and returns a string type
-func IpFormat(tup driver.ConnTupleType, srv bool) string {
-	ip, port := ipAndPortFromTup(tup, srv)
+func IpFormat(tup driver.ConnTupleType, local bool) string {
+	ip, port := ipAndPortFromTup(tup, local)
 
 	if tup.Family == 2 {
 		// IPv4

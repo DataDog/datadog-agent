@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -303,6 +302,8 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 	} else {
 		s.FinalizeCheckServiceTag()
 	}
+
+	s.SetNoIndex(commonOptions.NoIndex)
 
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)

@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 

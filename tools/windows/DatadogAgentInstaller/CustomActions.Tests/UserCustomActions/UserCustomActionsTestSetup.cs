@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
 using System.Security.Principal;
 using AutoFixture;
@@ -9,14 +8,10 @@ using Moq;
 
 namespace CustomActions.Tests.UserCustomActions
 {
-    public class UserCustomActionsTestSetup
+    public class UserCustomActionsTestSetup : SessionTestBaseSetup
     {
         private readonly Fixture _fixture = new();
-        private readonly Dictionary<string, string> _properties = new();
 
-        public IReadOnlyDictionary<string, string> Properties => _properties;
-
-        public Mock<ISession> Session { get; } = new();
         public Mock<INativeMethods> NativeMethods { get; } = new();
         public Mock<IRegistryServices> RegistryServices { get; } = new();
         public Mock<IDirectoryServices> DirectoryServices { get; } = new();
@@ -30,10 +25,7 @@ namespace CustomActions.Tests.UserCustomActions
             // By default computers are not domain-joined
             NativeMethods.Setup(n => n.IsDomainController()).Returns(false);
             NativeMethods.Setup(n => n.GetComputerDomain()).Throws<ActiveDirectoryObjectNotFoundException>();
-
-            Session
-                .SetupSet(s => s[It.IsAny<string>()] = It.IsAny<string>())
-                .Callback((string key, string value) => _properties[key] = value);
+            ServiceController.SetupGet(s => s.Services).Returns(new WindowsService[] { });
         }
 
         public Datadog.CustomActions.UserCustomActions Create()
@@ -79,8 +71,13 @@ namespace CustomActions.Tests.UserCustomActions
 
         public UserCustomActionsTestSetup WithDatadogAgentService()
         {
-            ServiceController.Setup(s => s.GetServiceNames()).Returns(new[] { Tuple.Create("datadogagent", "Datadog Agent") });
-            ServiceController.Setup(s => s.ServiceExists("datadogagent")).Returns(true);
+            var service = new Mock<IWindowsService>();
+            service.SetupGet(s => s.DisplayName).Returns("Datadog Agent");
+            service.SetupGet(s => s.ServiceName).Returns("datadogagent");
+            ServiceController.SetupGet(s => s.Services).Returns(new[]
+            {
+                service.Object
+            });
 
             return this;
         }

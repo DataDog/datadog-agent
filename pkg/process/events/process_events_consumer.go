@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-// +build linux
-
 package events
 
 import (
@@ -82,12 +79,9 @@ func (p *ProcessConsumer) SendStats() {
 func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
 	// Force resolution of all event fields before exposing it through the API server
 	event.ResolveFields()
-	event.ResolveEventTimestamp()
+	event.ResolveEventTime()
 
-	entry, _ := event.ResolveProcessCacheEntry()
-	if entry == nil {
-		return
-	}
+	entry := event.ProcessContext
 
 	var cmdline []string
 	if entry.ArgsEntry != nil {

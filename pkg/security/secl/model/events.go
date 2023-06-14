@@ -11,7 +11,7 @@ import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 type EventType uint32
 
 const (
-	// UnknownEventType unknow event
+	// UnknownEventType unknown event
 	UnknownEventType EventType = iota
 	// FileOpenEventType File open event
 	FileOpenEventType
@@ -106,14 +106,15 @@ const (
 	// LastDiscarderEventType last event that accepts discarders
 	LastDiscarderEventType = FileRemoveXAttrEventType
 
+	// LastApproverEventType is the last event that accepts approvers
+	LastApproverEventType = SpliceEventType
+
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
 	CustomLostReadEventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
 	CustomRulesetLoadedEventType
-	// CustomNoisyProcessEventType is the custom event used to report the detection of a noisy process
-	CustomNoisyProcessEventType
 	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
@@ -211,8 +212,6 @@ func (t EventType) String() string {
 		return "lost_events_write"
 	case CustomRulesetLoadedEventType:
 		return "ruleset_loaded"
-	case CustomNoisyProcessEventType:
-		return "noisy_process"
 	case CustomForkBombEventType:
 		return "fork_bomb"
 	case CustomTruncatedParentsEventType:

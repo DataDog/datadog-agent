@@ -440,18 +440,29 @@ other_config_with_list: [abc]
 		`privacy_key: "********"`)
 }
 
-func TestYamlConfig(t *testing.T) {
+func TestAddStrippedKeys(t *testing.T) {
 	contents := `foobar: baz`
 	cleaned, err := ScrubBytes([]byte(contents))
-	assert.Nil(t, err)
-	cleanedString := string(cleaned)
+	require.Nil(t, err)
 
 	// Sanity check
-	assert.Equal(t, contents, cleanedString)
+	assert.Equal(t, contents, string(cleaned))
 
 	AddStrippedKeys([]string{"foobar"})
 
 	assertClean(t, contents, `foobar: "********"`)
+}
+
+func TestAddStrippedKeysNewReplacer(t *testing.T) {
+	contents := `foobar: baz`
+	AddStrippedKeys([]string{"foobar"})
+
+	newScrubber := New()
+	AddDefaultReplacers(newScrubber)
+
+	cleaned, err := newScrubber.ScrubBytes([]byte(contents))
+	require.Nil(t, err)
+	assert.Equal(t, strings.TrimSpace(`foobar: "********"`), strings.TrimSpace(string(cleaned)))
 }
 
 func TestCertConfig(t *testing.T) {

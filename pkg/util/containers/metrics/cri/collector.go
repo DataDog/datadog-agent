@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build cri
-// +build cri
 
 package cri
 
@@ -64,15 +63,25 @@ func (collector *criCollector) GetContainerStats(containerNS, containerID string
 		return nil, err
 	}
 
-	return &provider.ContainerStats{
-		Timestamp: time.Now(),
-		CPU: &provider.ContainerCPUStats{
-			Total: pointer.Ptr(float64(stats.GetCpu().GetUsageCoreNanoSeconds().GetValue())),
-		},
-		Memory: &provider.ContainerMemStats{
-			UsageTotal: pointer.Ptr(float64(stats.GetMemory().GetWorkingSetBytes().GetValue())),
-		},
-	}, nil
+	containerStats := &provider.ContainerStats{}
+
+	if stats.Cpu != nil {
+		containerStats.Timestamp = time.Unix(0, stats.Cpu.Timestamp)
+		containerStats.CPU = &provider.ContainerCPUStats{
+			Total: convertRuntimeUInt64Value(stats.Cpu.UsageCoreNanoSeconds),
+		}
+	}
+
+	if stats.Memory != nil {
+		containerStats.Timestamp = time.Unix(0, stats.Memory.Timestamp)
+		containerStats.Memory = &provider.ContainerMemStats{
+			UsageTotal: convertRuntimeUInt64Value(stats.Memory.UsageBytes),
+			WorkingSet: convertRuntimeUInt64Value(stats.Memory.WorkingSetBytes),
+			RSS:        convertRuntimeUInt64Value(stats.Memory.RssBytes),
+		}
+	}
+
+	return containerStats, nil
 }
 
 // GetContainerOpenFilesCount returns open files count by container ID.
@@ -106,4 +115,12 @@ func (collector *criCollector) getCriContainerStats(containerID string) (*v1.Con
 	}
 
 	return stats, nil
+}
+
+func convertRuntimeUInt64Value(v *v1.UInt64Value) *float64 {
+	if v == nil {
+		return nil
+	}
+
+	return pointer.Ptr(float64(v.GetValue()))
 }

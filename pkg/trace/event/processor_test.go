@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 func TestProcessor(t *testing.T) {
@@ -95,7 +96,11 @@ func TestProcessor(t *testing.T) {
 			testChunk.DroppedTrace = test.droppedTrace
 
 			p.Start()
-			numEvents, extracted := p.Process(root, testChunk)
+			pt := &traceutil.ProcessedTrace{
+				TraceChunk: testChunk,
+				Root:       root,
+			}
+			numEvents, extracted := p.Process(pt)
 			p.Stop()
 
 			expectedExtracted := float64(numSpans) * test.expectedExtractedPct

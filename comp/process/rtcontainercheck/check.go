@@ -8,6 +8,7 @@ package rtcontainercheck
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
@@ -18,6 +19,12 @@ type check struct {
 	rtContainerCheck *checks.RTContainerCheck
 }
 
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
+
 type result struct {
 	fx.Out
 
@@ -25,9 +32,9 @@ type result struct {
 	Component Component
 }
 
-func newCheck() result {
+func newCheck(deps dependencies) result {
 	c := &check{
-		rtContainerCheck: checks.NewRTContainerCheck(),
+		rtContainerCheck: checks.NewRTContainerCheck(deps.Config),
 	}
 	return result{
 		Check: types.ProvidesCheck{

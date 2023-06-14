@@ -4,13 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -155,15 +153,7 @@ func TestLoadModule(t *testing.T) {
 
 	t.Run("init_module", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var f *os.File
-			f, err = os.Open(modulePath)
-			if err != nil {
-				return fmt.Errorf("couldn't open module: %w", err)
-			}
-			defer f.Close()
-
-			var module []byte
-			module, err = io.ReadAll(f)
+			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
 			}
@@ -176,11 +166,13 @@ func TestLoadModule(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_from_memory", r.ID, "invalid rule triggered")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			event.ResolveFields()
 			assert.Equal(t, "", event.LoadModule.File.PathnameStr, "shouldn't get a path")
+
+			assert.Empty(t, event.LoadModule.Argv, "shouldn't get args")
 
 			test.validateLoadModuleNoFileSchema(t, event)
 		})
@@ -188,8 +180,7 @@ func TestLoadModule(t *testing.T) {
 
 	t.Run("finit_module", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var f *os.File
-			f, err = os.Open(modulePath)
+			f, err := os.Open(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't open module: %w", err)
 			}
@@ -237,8 +228,7 @@ func TestLoadModule(t *testing.T) {
 
 	t.Run("load_module_with_any_params", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var f *os.File
-			f, err = os.Open(modulePath)
+			f, err := os.Open(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't open module: %w", err)
 			}
@@ -259,15 +249,7 @@ func TestLoadModule(t *testing.T) {
 
 	t.Run("load_module_with_specific_param", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var f *os.File
-			f, err = os.Open(modulePath)
-			if err != nil {
-				return fmt.Errorf("couldn't open module: %w", err)
-			}
-			defer f.Close()
-
-			var module []byte
-			module, err = io.ReadAll(f)
+			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
 			}
@@ -288,15 +270,7 @@ func TestLoadModule(t *testing.T) {
 
 	t.Run("load_module_args_should_be_truncated", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var f *os.File
-			f, err = os.Open(modulePath)
-			if err != nil {
-				return fmt.Errorf("couldn't open module: %w", err)
-			}
-			defer f.Close()
-
-			var module []byte
-			module, err = io.ReadAll(f)
+			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
 			}
@@ -354,15 +328,7 @@ func TestUnloadModule(t *testing.T) {
 
 	t.Run("delete_module", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			var f *os.File
-			f, err = os.Open(modulePath)
-			if err != nil {
-				return fmt.Errorf("couldn't open module: %w", err)
-			}
-			defer f.Close()
-
-			var module []byte
-			module, err = io.ReadAll(f)
+			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
 			}

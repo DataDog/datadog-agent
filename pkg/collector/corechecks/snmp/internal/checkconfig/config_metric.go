@@ -24,8 +24,9 @@ type SymbolConfig struct {
 	MatchValue           string `yaml:"match_value"`
 	MatchPatternCompiled *regexp.Regexp
 
-	ScaleFactor float64 `yaml:"scale_factor"`
-	Format      string  `yaml:"format"`
+	ScaleFactor      float64 `yaml:"scale_factor"`
+	Format           string  `yaml:"format"`
+	ConstantValueOne bool    `yaml:"constant_value_one"`
 }
 
 // MetricTagConfig holds metric tag info

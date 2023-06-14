@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package events
 
@@ -35,9 +34,6 @@ func NewNetworkConsumer(evm *eventmonitor.EventMonitor) (*NetworkConsumer, error
 		return nil, err
 	}
 	if err := evm.AddEventTypeHandler(smodel.ExecEventType, h); err != nil {
-		return nil, err
-	}
-	if err := evm.AddEventTypeHandler(smodel.ExitEventType, h); err != nil {
 		return nil, err
 	}
 

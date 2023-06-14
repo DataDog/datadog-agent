@@ -19,23 +19,25 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func writerTest(t *testing.T, z bool) {
 	fs := afero.NewMemMapFs()
-
 	// setup directory
 	fs.MkdirAll("foo/bar", 0777)
 	file, path, err := OpenFile(fs, "foo/bar", "")
 	require.NoError(t, err)
 
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+
 	writer := NewTrafficCaptureWriter(1)
 
 	// register pools
-	manager := packets.NewPoolManager(packets.NewPool(config.Datadog.GetInt("dogstatsd_buffer_size")))
+	manager := packets.NewPoolManager(packets.NewPool(cfg.GetInt("dogstatsd_buffer_size")))
 	oobManager := packets.NewPoolManager(packets.NewPool(32))
 
 	writer.RegisterSharedPoolManager(manager)

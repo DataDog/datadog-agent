@@ -4,22 +4,26 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux && trivy
-// +build linux,trivy
 
 package sbom
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
-	"k8s.io/utils/temp"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
+	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -31,6 +35,8 @@ import (
 
 // SBOMSource defines is the default log source for the SBOM events
 const SBOMSource = "runtime-security-agent"
+
+const maxSBOMGenerationRetries = 3
 
 type SBOM struct {
 	sync.RWMutex
@@ -93,7 +99,7 @@ type Resolver struct {
 	sbomsCache     *simplelru.LRU[string, *SBOM]
 	scannerChan    chan *SBOM
 	statsdClient   statsd.ClientInterface
-	trivyScanner   trivy.Collector
+	sbomScanner    *sbomscanner.Scanner
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -108,17 +114,12 @@ type Resolver struct {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	tmpDir, err := temp.CreateTempDir("sbom-resolver")
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(coreconfig.SystemProbe)
 	if err != nil {
 		return nil, err
 	}
-	trivyConfiguration := trivy.DefaultCollectorConfig([]string{trivy.OSAnalyzers}, tmpDir.Name)
-	trivyConfiguration.ClearCacheOnClose = true
-	trivyConfiguration.ArtifactOption.Slow = false
-
-	trivyScanner, err := trivy.NewCollector(trivyConfiguration)
-	if err != nil {
-		return nil, err
+	if sbomScanner == nil {
+		return nil, errors.New("sbom is disabled")
 	}
 
 	sbomsCache, err := simplelru.NewLRU[string, *SBOM](c.SBOMResolverWorkloadsCacheSize, nil)
@@ -131,7 +132,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		sboms:                 make(map[string]*SBOM),
 		sbomsCache:            sbomsCache,
 		scannerChan:           make(chan *SBOM, 100),
-		trivyScanner:          trivyScanner,
+		sbomScanner:           sbomScanner,
 		sbomGenerations:       atomic.NewUint64(0),
 		sbomsCacheHit:         atomic.NewUint64(0),
 		sbomsCacheMiss:        atomic.NewUint64(0),
@@ -173,6 +174,8 @@ func (r *Resolver) prepareContextTags() {
 
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) {
+	r.sbomScanner.Start(ctx)
+
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -182,8 +185,10 @@ func (r *Resolver) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case sbom := <-r.scannerChan:
-				if err := r.analyzeWorkload(sbom); err != nil {
-					seclog.Errorf("couldn't scan '%s': %v", sbom.ContainerID, err)
+				if err := retry.Do(func() error {
+					return r.analyzeWorkload(sbom)
+				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(20*time.Millisecond)); err != nil {
+					seclog.Errorf(err.Error())
 				}
 			}
 		}
@@ -195,17 +200,25 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	report, err := r.trivyScanner.ScanFilesystem(context.Background(), root)
-	if err != nil {
+	scanRequest := &host.ScanRequest{Path: root}
+	ch := make(chan sbompkg.ScanResult, 1)
+	if err := r.sbomScanner.Scan(scanRequest, sbompkg.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true}, ch); err != nil {
 		r.failedSBOMGenerations.Inc()
-		return fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
+		return fmt.Errorf("failed to trigger SBOM generation for %s: %w", root, err)
+	}
+
+	result := <-ch
+
+	if result.Error != nil {
+		// TODO: add a retry mechanism for retryable errors
+		return fmt.Errorf("failed to generate SBOM for %s: %w", root, result.Error)
 	}
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
-	trivyReport, ok := report.(*trivy.TrivyReport)
+	trivyReport, ok := result.Report.(*trivy.TrivyReport)
 	if !ok {
-		return fmt.Errorf("failed to convert report for %s: %w", root, err)
+		return fmt.Errorf("failed to convert report for %s", root)
 	}
 	sbom.report = trivyReport
 

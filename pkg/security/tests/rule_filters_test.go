@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -27,7 +26,8 @@ func TestSECLRuleFilter(t *testing.T) {
 		Code:         kernel.Kernel5_9,
 	}
 
-	m := module.NewRuleFilterModel(kv)
+	m := module.NewRuleFilterModel()
+	m.Version = kv
 	seclRuleFilter := rules.NewSECLRuleFilter(m)
 
 	t.Run("true", func(t *testing.T) {

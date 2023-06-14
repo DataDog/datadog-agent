@@ -10,8 +10,8 @@
 package connectivity
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/forwarder/endpoints"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
 // endpointInfo is a value object that contains all the information we need to

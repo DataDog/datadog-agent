@@ -108,7 +108,7 @@ func TestTracerHostname(t *testing.T) {
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
 
-	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 	assert.Equal("tracer-hostname", stats.Stats[0].Hostname)
 }
 
@@ -138,14 +138,14 @@ func TestConcentratorOldestTs(t *testing.T) {
 		c.addNow(testTrace, "")
 
 		for i := 0; i < c.bufferLen; i++ {
-			stats := c.flushNow(flushTime)
+			stats := c.flushNow(flushTime, false)
 			if !assert.Equal(0, len(stats.Stats), "We should get exactly 0 Bucket") {
 				t.FailNow()
 			}
 			flushTime += testBucketInterval
 		}
 
-		stats := c.flushNow(flushTime)
+		stats := c.flushNow(flushTime, false)
 
 		if !assert.Equal(1, len(stats.Stats), "We should get exactly 1 Bucket") {
 			t.FailNow()
@@ -175,14 +175,14 @@ func TestConcentratorOldestTs(t *testing.T) {
 		c.addNow(testTrace, "")
 
 		for i := 0; i < c.bufferLen-1; i++ {
-			stats := c.flushNow(flushTime)
+			stats := c.flushNow(flushTime, false)
 			if !assert.Equal(0, len(stats.Stats), "We should get exactly 0 Bucket") {
 				t.FailNow()
 			}
 			flushTime += testBucketInterval
 		}
 
-		stats := c.flushNow(flushTime)
+		stats := c.flushNow(flushTime, false)
 		if !assert.Equal(1, len(stats.Stats), "We should get exactly 1 Bucket") {
 			t.FailNow()
 		}
@@ -204,7 +204,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
 
-		stats = c.flushNow(flushTime)
+		stats = c.flushNow(flushTime, false)
 		if !assert.Equal(1, len(stats.Stats), "We should get exactly 1 Bucket") {
 			t.FailNow()
 		}
@@ -261,7 +261,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 
 		flushTime := now.UnixNano()
 		for i := 0; i <= c.bufferLen; i++ {
-			stats := c.flushNow(flushTime)
+			stats := c.flushNow(flushTime, false)
 
 			if len(stats.Stats) == 0 {
 				continue
@@ -427,7 +427,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 	flushTime := now.UnixNano()
 	for i := 0; i <= c.bufferLen+2; i++ {
 		t.Run(fmt.Sprintf("flush-%d", i), func(t *testing.T) {
-			stats := c.flushNow(flushTime)
+			stats := c.flushNow(flushTime, false)
 
 			expectedFlushedTs := alignTs(flushTime, c.bsize) - int64(c.bufferLen)*testBucketInterval
 			if len(expectedCountValByKeyByTime[expectedFlushedTs]) == 0 {
@@ -446,7 +446,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			assert.Equal(false, stats.ClientComputed)
 
 			// Flushing again at the same time should return nothing
-			stats = c.flushNow(flushTime)
+			stats = c.flushNow(flushTime, false)
 			if !assert.Equal(0, len(stats.Stats), "Second flush of the same time should be empty") {
 				t.FailNow()
 			}
@@ -471,7 +471,7 @@ func generateDistribution(t *testing.T, generator func(i int) int64) *ddsketch.D
 	}
 	traceutil.ComputeTopLevel(spans)
 	c.addNow(toProcessedTrace(spans, "none", ""), "")
-	stats := c.flushNow(now.UnixNano() + c.bsize*int64(c.bufferLen))
+	stats := c.flushNow(now.UnixNano()+c.bsize*int64(c.bufferLen), false)
 	expectedFlushedTs := alignedNow
 	assert.Len(stats.Stats, 1)
 	assert.Len(stats.Stats[0].Stats, 1)
@@ -523,8 +523,34 @@ func TestIgnoresPartialSpans(t *testing.T) {
 	c := NewTestConcentrator(now)
 	c.addNow(testTrace, "")
 
-	stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 	assert.Empty(stats.GetStats())
+}
+
+func TestForceFlush(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+
+	spans := []*pb.Span{testSpan(1, 0, 50, 5, "A1", "resource1", 0)}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "")
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+
+	assert.Len(c.buckets, 1)
+
+	// ts=0 so that flushNow always considers buckets not old enough to be flushed
+	ts := int64(0)
+
+	// Without force flush, flushNow should skip the bucket
+	stats := c.flushNow(ts, false)
+	assert.Len(c.buckets, 1)
+	assert.Len(stats.GetStats(), 0)
+
+	// With force flush, flushNow should flush buckets regardless of the age
+	stats = c.flushNow(ts, true)
+	assert.Len(c.buckets, 0)
+	assert.Len(stats.GetStats(), 1)
 }
 
 // TestPeerServiceStats tests that if peer.service is present in the span's meta, we will generate stats with it as an additional field.
@@ -556,7 +582,7 @@ func TestPeerServiceStats(t *testing.T) {
 		c := NewTestConcentrator(now)
 		c.peerSvcAggregation = true
 		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			if st.Name == "postgres.query" {
@@ -573,7 +599,7 @@ func TestPeerServiceStats(t *testing.T) {
 		c := NewTestConcentrator(now)
 		c.peerSvcAggregation = false
 		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			assert.Equal("", st.PeerService)
@@ -632,7 +658,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
 		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 3)
 		opNames := make(map[string]struct{}, 3)
 		for _, s := range stats.Stats {
@@ -651,7 +677,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 		c := NewTestConcentrator(now)
 		c.computeStatsBySpanKind = true
 		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano() + int64(c.bufferLen)*testBucketInterval)
+		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 4)
 		opNames := make(map[string]struct{}, 4)
 		for _, s := range stats.Stats {

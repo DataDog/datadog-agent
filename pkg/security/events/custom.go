@@ -6,9 +6,10 @@
 package events
 
 import (
+	"time"
+
 	"github.com/mailru/easyjson"
 	"github.com/mailru/easyjson/jwriter"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -21,16 +22,38 @@ const (
 
 	// LostEventsRuleID is the rule ID for the lost_events_* events
 	LostEventsRuleID = "lost_events"
+	//LostEventsRuleDesc is the rule description for the lost_events_* events
+	LostEventsRuleDesc = "Lost events"
+
 	// RulesetLoadedRuleID is the rule ID for the ruleset_loaded events
 	RulesetLoadedRuleID = "ruleset_loaded"
-	// NoisyProcessRuleID is the rule ID for the noisy_process events
-	NoisyProcessRuleID = "noisy_process"
+	// RulesetLoadedRuleDesc is the rule description for the ruleset_loaded events
+	RulesetLoadedRuleDesc = "New ruleset loaded"
+
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
+	// AbnormalPathRuleDesc is the rule description for the abnormal_path events
+	AbnormalPathRuleDesc = "Abnormal path detected"
+
 	// SelfTestRuleID is the rule ID for the self_test events
 	SelfTestRuleID = "self_test"
+	// SelfTestRuleDesc is the rule description for the self_test events
+	SelfTestRuleDesc = "Self tests result"
+
 	// AnomalyDetectionRuleID is the rule ID for anomaly_detection events
 	AnomalyDetectionRuleID = "anomaly_detection"
+	// AnomalyDetectionRuleID is the rule description for anomaly_detection events
+	AnomalyDetectionRuleDesc = "Anomaly detection"
+
+	// NoProcessContextErrorRuleID is the rule ID for events without process context
+	NoProcessContextErrorRuleID = "no_process_context"
+	// NoProcessContextErrorRuleDesc is the rule description for events without process context
+	NoProcessContextErrorRuleDesc = "No process context detected"
+
+	// BrokenProcessLineageErrorRuleID is the rule ID for events with a broken process lineage
+	BrokenProcessLineageErrorRuleID = "broken_process_lineage"
+	// BrokenProcessLineageErrorRuleDesc is the rule description for events with a broken process lineage
+	BrokenProcessLineageErrorRuleDesc = "Broken process lineage detected"
 )
 
 type CustomEventCommonFields struct {
@@ -44,10 +67,10 @@ func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
 }
 
 // NewCustomRule returns a new custom rule
-func NewCustomRule(id eval.RuleID) *rules.Rule {
+func NewCustomRule(id eval.RuleID, description string) *rules.Rule {
 	return &rules.Rule{
 		Rule:       &eval.Rule{ID: id},
-		Definition: &rules.RuleDefinition{ID: id},
+		Definition: &rules.RuleDefinition{ID: id, Description: description},
 	}
 }
 
@@ -56,34 +79,42 @@ func AllCustomRuleIDs() []string {
 	return []string{
 		LostEventsRuleID,
 		RulesetLoadedRuleID,
-		NoisyProcessRuleID,
 		AbnormalPathRuleID,
 		SelfTestRuleID,
 		AnomalyDetectionRuleID,
+		NoProcessContextErrorRuleID,
+		BrokenProcessLineageErrorRuleID,
 	}
 }
 
 // NewCustomEvent returns a new custom event
-func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler) *CustomEvent {
+func NewCustomEventLazy(eventType model.EventType, marshalerCtor func() easyjson.Marshaler, tags ...string) *CustomEvent {
 	return &CustomEvent{
-		eventType: eventType,
-		marshaler: marshaler,
+		eventType:     eventType,
+		marshalerCtor: marshalerCtor,
+		tags:          tags,
 	}
+}
+
+func NewCustomEvent(eventType model.EventType, marshaler easyjson.Marshaler, tags ...string) *CustomEvent {
+	return NewCustomEventLazy(eventType, func() easyjson.Marshaler {
+		return marshaler
+	}, tags...)
 }
 
 // CustomEvent is used to send custom security events to Datadog
 type CustomEvent struct {
-	eventType model.EventType
-	tags      []string
-	marshaler easyjson.Marshaler
+	eventType     model.EventType
+	tags          []string
+	marshalerCtor func() easyjson.Marshaler
 }
 
 // Clone returns a copy of the current CustomEvent
 func (ce *CustomEvent) Clone() CustomEvent {
 	return CustomEvent{
-		eventType: ce.eventType,
-		tags:      ce.tags,
-		marshaler: ce.marshaler,
+		eventType:     ce.eventType,
+		tags:          ce.tags,
+		marshalerCtor: ce.marshalerCtor,
 	}
 }
 
@@ -103,5 +134,5 @@ func (ce *CustomEvent) GetEventType() model.EventType {
 }
 
 func (ce *CustomEvent) MarshalEasyJSON(w *jwriter.Writer) {
-	ce.marshaler.MarshalEasyJSON(w)
+	ce.marshalerCtor().MarshalEasyJSON(w)
 }

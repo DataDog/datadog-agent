@@ -26,10 +26,8 @@ import (
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -91,6 +89,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 
+				fx.Invoke(command.SetHostMountEnv),
+
 				processComponent.Bundle,
 			)
 		},
@@ -116,7 +116,7 @@ func runCheckCmd(deps dependencies) error {
 	// Start workload metadata store before tagger (used for containerCollection)
 	// TODO: (Components) Add to dependencies once workloadmeta is migrated to components
 	var workloadmetaCollectors workloadmeta.CollectorCatalog
-	if ddconfig.Datadog.GetBool("process_config.remote_workloadmeta") {
+	if deps.Config.GetBool("process_config.remote_workloadmeta") {
 		workloadmetaCollectors = workloadmeta.RemoteCatalog
 	} else {
 		workloadmetaCollectors = workloadmeta.NodeAgentCatalog
@@ -152,19 +152,13 @@ func runCheckCmd(deps dependencies) error {
 		}
 	}()
 
-	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := deps.Syscfg.Object().EnabledModules[sysconfig.ProcessModule]
-
-	if processModuleEnabled {
-		net.SetSystemProbePath(deps.Syscfg.Object().SocketAddress)
-	}
-
 	names := make([]string, 0, len(deps.Checks))
 	for _, checkComponent := range deps.Checks {
 		ch := checkComponent.Object()
 
 		names = append(names, ch.Name())
 
+		_, processModuleEnabled := deps.Syscfg.Object().EnabledModules[sysconfig.ProcessModule]
 		cfg := &checks.SysProbeConfig{
 			MaxConnsPerMessage:   deps.Syscfg.Object().MaxConnsPerMessage,
 			SystemProbeAddress:   deps.Syscfg.Object().SocketAddress,

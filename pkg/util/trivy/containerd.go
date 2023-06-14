@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build trivy
-// +build trivy
 
 package trivy
 
@@ -16,13 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images/archive"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/platforms"
 	refdocker "github.com/containerd/containerd/reference/docker"
 	api "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -32,6 +29,8 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/samber/lo"
 	"golang.org/x/xerrors"
+
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
@@ -62,7 +61,7 @@ func imageWriter(client *containerd.Client, img containerd.Image) imageSave {
 		}
 		imgOpts := archive.WithImage(client.ImageService(), ref[0])
 		manifestOpts := archive.WithManifest(img.Target())
-		platOpts := archive.WithPlatform(platforms.DefaultStrict())
+		platOpts := archive.WithPlatform(img.Platform())
 		pr, pw := io.Pipe()
 		go func() {
 			pw.CloseWithError(archive.Export(ctx, client.ContentStore(), pw, imgOpts, manifestOpts, platOpts))
@@ -147,13 +146,17 @@ func inspect(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, 
 	for k := range imgConfig.Config.ExposedPorts {
 		portSet[nat.Port(k)] = struct{}{}
 	}
+	created := ""
+	if lastHistory.Created != nil {
+		created = lastHistory.Created.Format(time.RFC3339Nano)
+	}
 
 	return api.ImageInspect{
 		ID:          imgConfigDesc.Digest.String(),
 		RepoTags:    imgMeta.RepoTags,
 		RepoDigests: imgMeta.RepoDigests,
 		Comment:     lastHistory.Comment,
-		Created:     lastHistory.Created.Format(time.RFC3339Nano),
+		Created:     created,
 		Author:      lastHistory.Author,
 		Config: &container.Config{
 			User:         imgConfig.Config.User,

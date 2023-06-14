@@ -13,6 +13,7 @@ dependency 'pip3'
 dependency 'setuptools3'
 
 dependency 'snowflake-connector-python-py3'
+dependency 'confluent-kafka-python'
 
 if arm?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
@@ -41,10 +42,10 @@ if linux?
 end
 
 relative_path 'integrations-core'
-whitelist_file "embedded/lib/python3.8/site-packages/.libsaerospike"
-whitelist_file "embedded/lib/python3.8/site-packages/aerospike.libs"
-whitelist_file "embedded/lib/python3.8/site-packages/psycopg2"
-whitelist_file "embedded/lib/python3.8/site-packages/pymqi"
+whitelist_file "embedded/lib/python3.9/site-packages/.libsaerospike"
+whitelist_file "embedded/lib/python3.9/site-packages/aerospike.libs"
+whitelist_file "embedded/lib/python3.9/site-packages/psycopg2"
+whitelist_file "embedded/lib/python3.9/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
@@ -67,6 +68,7 @@ blacklist_packages = Array.new
 
 # We build these manually
 blacklist_packages.push(/^snowflake-connector-python==/)
+blacklist_packages.push(/^confluent-kafka==/)
 
 if suse?
   # Temporarily blacklist Aerospike until builder supports new dependency
@@ -356,7 +358,7 @@ build do
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows? then '"c:\Program files\python38\scripts\aws"' else 'aws' end
+    awscli = if windows? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       command "inv -e agent.get-integrations-from-cache " \
@@ -479,7 +481,7 @@ build do
       if windows?
         patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
       else
-        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.8/site-packages/psutil/__init__.py"
+        patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.9/site-packages/psutil/__init__.py"
       end
 
       # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible

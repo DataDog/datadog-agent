@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests && !386
-// +build functionaltests,!386
 
 package tests
 
@@ -89,7 +88,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
@@ -118,7 +117,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
@@ -157,7 +156,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
@@ -183,7 +182,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.MTime)
 			assertNearTime(t, event.Chown.File.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
@@ -205,7 +204,7 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, int64(104), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(-1), event.Chown.GID, "wrong group")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
@@ -227,7 +226,7 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, int64(-1), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(204), event.Chown.GID, "wrong group")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)

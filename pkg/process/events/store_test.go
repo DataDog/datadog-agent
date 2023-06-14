@@ -35,7 +35,7 @@ func TestRingStoreWithoutLoop(t *testing.T) {
 
 	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 4)
-	store, err := NewRingStore(&statsd.NoOpClient{})
+	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
 	s, ok := store.(*RingStore)
@@ -87,7 +87,7 @@ func TestRingStoreWithLoop(t *testing.T) {
 
 	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 3)
-	store, err := NewRingStore(&statsd.NoOpClient{})
+	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
 	s, ok := store.(*RingStore)
@@ -140,7 +140,7 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 
 	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 3)
-	store, err := NewRingStore(&statsd.NoOpClient{})
+	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
 	s, ok := store.(*RingStore)
@@ -199,7 +199,7 @@ func TestRingStoreAsynchronousPush(t *testing.T) {
 
 	cfg := config.Mock(t)
 	cfg.Set("process_config.event_collection.store.max_items", 3)
-	store, err := NewRingStore(&statsd.NoOpClient{})
+	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
 	s, ok := store.(*RingStore)
@@ -239,7 +239,7 @@ func TestRingStorePullErrors(t *testing.T) {
 	cfg := config.Mock(t)
 	maxPulls := 2
 	cfg.Set("process_config.event_collection.store.max_pending_pulls", maxPulls)
-	store, err := NewRingStore(&statsd.NoOpClient{})
+	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
 	s, ok := store.(*RingStore)
@@ -267,7 +267,7 @@ func TestRingStorePushErrors(t *testing.T) {
 	cfg := config.Mock(t)
 	maxPushes := 2
 	cfg.Set("process_config.event_collection.store.max_pending_pushes", 2)
-	store, err := NewRingStore(&statsd.NoOpClient{})
+	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
 	s, ok := store.(*RingStore)

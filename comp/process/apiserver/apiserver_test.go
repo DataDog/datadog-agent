@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestLifecycle(t *testing.T) {
-	_ = fxutil.Test[Component](t, fx.Options(Module, log.MockModule))
+	_ = fxutil.Test[Component](t, fx.Options(Module, core.MockBundle))
 
 	assert.Eventually(t, func() bool {
 		res, err := http.Get("http://localhost:6162/config")

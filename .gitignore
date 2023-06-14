@@ -115,6 +115,7 @@ compile_commands.json
 pkg/ebpf/bytecode/build/**/*.d
 pkg/ebpf/bytecode/runtime/conntrack.go
 pkg/ebpf/bytecode/runtime/http.go
+pkg/ebpf/bytecode/runtime/usm.go
 pkg/ebpf/bytecode/runtime/offsetguess-test.go
 pkg/ebpf/bytecode/runtime/oom-kill.go
 pkg/ebpf/bytecode/runtime/runtime-security.go
@@ -201,3 +202,9 @@ tools/windows/DatadogAgentInstaller/WixSetup/cabcache/
 
 # e2e test intake generated binary
 test/fakeintake/build/*
+
+# dev container
+.devcontainer/
+
+# Allow Regression Detector material to ignore excludes
+!test/regression/**

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests || stresstests
-// +build functionaltests stresstests
 
 package tests
 
@@ -51,10 +50,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -91,8 +94,6 @@ event_monitoring_config:
   network:
     enabled: true
   flush_discarder_window: 0
-  load_controller:
-    events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -120,7 +121,16 @@ runtime_security_config:
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:
       enabled: {{ .ActivityDumpTagRules }}
-    cgroup_dump_timeout: {{ .ActivityDumpCgroupDumpTimeout }}
+    dump_duration: {{ .ActivityDumpDuration }}
+    {{if .ActivityDumpLoadControllerPeriod }}
+    load_controller_period: {{ .ActivityDumpLoadControllerPeriod }}
+    {{end}}
+    {{if .ActivityDumpCleanupPeriod }}
+    cleanup_period: {{ .ActivityDumpCleanupPeriod }}
+    {{end}}
+    {{if .ActivityDumpLoadControllerTimeout }}
+    min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
+    {{end}}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
@@ -131,6 +141,15 @@ runtime_security_config:
       formats: {{range .ActivityDumpLocalStorageFormats}}
       - {{.}}
       {{end}}
+{{end}}
+  security_profile:
+    enabled: {{ .EnableSecurityProfile }}
+{{if .EnableSecurityProfile}}
+    dir: {{ .SecurityProfileDir }}
+    watch_dir: {{ .SecurityProfileWatchDir }}
+    anomaly_detection:
+      minimum_stable_period: {{.AnomalyDetectionMinimumStablePeriod}}
+      workload_warmup_period: {{.AnomalyDetectionWarmupPeriod}}
 {{end}}
 
   self_test:
@@ -208,12 +227,20 @@ type testOpts struct {
 	enableActivityDump                  bool
 	activityDumpRateLimiter             int
 	activityDumpTagRules                bool
-	activityDumpCgroupDumpTimeout       int
+	activityDumpDuration                time.Duration
+	activityDumpLoadControllerPeriod    time.Duration
+	activityDumpCleanupPeriod           time.Duration
+	activityDumpLoadControllerTimeout   time.Duration
 	activityDumpTracedCgroupsCount      int
 	activityDumpTracedEventTypes        []string
 	activityDumpLocalStorageDirectory   string
 	activityDumpLocalStorageCompression bool
 	activityDumpLocalStorageFormats     []string
+	enableSecurityProfile               bool
+	securityProfileDir                  string
+	securityProfileWatchDir             bool
+	anomalyDetectionMinimumStablePeriod time.Duration
+	anomalyDetectionWarmupPeriod        time.Duration
 	disableDiscarders                   bool
 	eventsCountThreshold                int
 	disableERPCDentryResolution         bool
@@ -223,6 +250,7 @@ type testOpts struct {
 	disableRuntimeSecurity              bool
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
+	tagsResolver                        tags.Resolver
 }
 
 func (s *stringSlice) String() string {
@@ -240,12 +268,19 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.activityDumpTagRules == opts.activityDumpTagRules &&
-		to.activityDumpCgroupDumpTimeout == opts.activityDumpCgroupDumpTimeout &&
+		to.activityDumpDuration == opts.activityDumpDuration &&
+		to.activityDumpLoadControllerPeriod == opts.activityDumpLoadControllerPeriod &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
+		to.activityDumpLoadControllerTimeout == opts.activityDumpLoadControllerTimeout &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
 		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
 		reflect.DeepEqual(to.activityDumpLocalStorageFormats, opts.activityDumpLocalStorageFormats) &&
+		to.enableSecurityProfile == opts.enableSecurityProfile &&
+		to.securityProfileDir == opts.securityProfileDir &&
+		to.securityProfileWatchDir == opts.securityProfileWatchDir &&
+		to.anomalyDetectionMinimumStablePeriod == opts.anomalyDetectionMinimumStablePeriod &&
+		to.anomalyDetectionWarmupPeriod == opts.anomalyDetectionWarmupPeriod &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
@@ -375,6 +410,12 @@ func assertNearTime(tb testing.TB, ns uint64) bool {
 func assertTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
 	tb.Helper()
 	return assert.Equal(tb, id, r.ID, "wrong triggered rule")
+}
+
+//nolint:deadcode,unused
+func assertNotTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
+	tb.Helper()
+	return assert.NotEqual(tb, id, r.ID, "wrong triggered rule")
 }
 
 //nolint:deadcode,unused
@@ -681,8 +722,8 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		opts.activityDumpTracedCgroupsCount = 5
 	}
 
-	if opts.activityDumpCgroupDumpTimeout == 0 {
-		opts.activityDumpTracedCgroupsCount = 30
+	if opts.activityDumpDuration == 0 {
+		opts.activityDumpDuration = testActivityDumpDuration
 	}
 
 	if len(opts.activityDumpTracedEventTypes) == 0 {
@@ -691,6 +732,10 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 
 	if opts.activityDumpLocalStorageDirectory == "" {
 		opts.activityDumpLocalStorageDirectory = "/tmp/activity_dumps"
+	}
+
+	if opts.securityProfileDir == "" {
+		opts.securityProfileDir = "/tmp/activity_dumps/profiles"
 	}
 
 	erpcDentryResolutionEnabled := true
@@ -716,12 +761,20 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		"EnableActivityDump":                  opts.enableActivityDump,
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
 		"ActivityDumpTagRules":                opts.activityDumpTagRules,
-		"ActivityDumpCgroupDumpTimeout":       opts.activityDumpCgroupDumpTimeout,
+		"ActivityDumpDuration":                opts.activityDumpDuration,
+		"ActivityDumpLoadControllerPeriod":    opts.activityDumpLoadControllerPeriod,
+		"ActivityDumpLoadControllerTimeout":   opts.activityDumpLoadControllerTimeout,
+		"ActivityDumpCleanupPeriod":           opts.activityDumpCleanupPeriod,
 		"ActivityDumpTracedCgroupsCount":      opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":   opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression": opts.activityDumpLocalStorageCompression,
 		"ActivityDumpLocalStorageFormats":     opts.activityDumpLocalStorageFormats,
+		"EnableSecurityProfile":               opts.enableSecurityProfile,
+		"SecurityProfileDir":                  opts.securityProfileDir,
+		"SecurityProfileWatchDir":             opts.securityProfileWatchDir,
+		"AnomalyDetectionMinimumStablePeriod": opts.anomalyDetectionMinimumStablePeriod,
+		"AnomalyDetectionWarmupPeriod":        opts.anomalyDetectionWarmupPeriod,
 		"EventsCountThreshold":                opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled":         erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":          mapDentryResolutionEnabled,
@@ -866,11 +919,16 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: probe.Opts{
-			StatsdClient:       statsdClient,
-			DontDiscardRuntime: true,
+			StatsdClient:          statsdClient,
+			DontDiscardRuntime:    true,
+			PathResolutionEnabled: true,
 		},
 	}
-
+	if opts.tagsResolver != nil {
+		emopts.ProbeOpts.TagsResolver = opts.tagsResolver
+	} else {
+		emopts.ProbeOpts.TagsResolver = NewFakeResolver()
+	}
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
 	if err != nil {
 		return nil, err
@@ -887,10 +945,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.cws.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
+		testMod.cws.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			rs.AddListener(testMod)
+			for _, ruleSet := range es.RuleSets {
+				ruleSet.AddListener(testMod)
+			}
 		})
 	}
 
@@ -1650,13 +1710,13 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 }
 
 func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, formats []string) ([]string, error) {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
 	p := &api.ActivityDumpParams{
 		Comm:              comm,
-		Timeout:           1,
+		Timeout:           "1m",
 		DifferentiateArgs: true,
 		Storage: &api.StorageRequestParams{
 			LocalStorageDirectory:    outputDir,
@@ -1666,7 +1726,7 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 			RemoteStorageCompression: false,
 		},
 	}
-	mess, err := monitor.DumpActivity(p)
+	mess, err := managers.DumpActivity(p)
 	if err != nil || mess == nil || len(mess.Storage) < 1 {
 		return nil, errors.New("failed to start activity dump")
 	}
@@ -1679,8 +1739,8 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 }
 
 func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return errors.New("No monitor")
 	}
 	p := &api.ActivityDumpStopParams{
@@ -1688,7 +1748,7 @@ func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 		ContainerID: containerID,
 		Comm:        comm,
 	}
-	_, err := monitor.StopActivityDump(p)
+	_, err := managers.StopActivityDump(p)
 	if err != nil {
 		return err
 	}
@@ -1703,12 +1763,12 @@ type activityDumpIdentifier struct {
 }
 
 func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
 	p := &api.ActivityDumpListParams{}
-	mess, err := monitor.ListActivityDumps(p)
+	mess, err := managers.ListActivityDumps(p)
 	if err != nil || mess == nil {
 		return nil, err
 	}
@@ -1736,12 +1796,12 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 }
 
 func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error) {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
 
-	adm := monitor.GetActivityDumpManager()
+	adm := managers.GetActivityDumpManager()
 	if adm == nil {
 		return nil, errors.New("No activity dump manager")
 	}
@@ -1758,7 +1818,28 @@ func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error
 	return ad, nil
 }
 
+func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
+	protoProfile, err := profile.LoadProfileFromFile(path)
+	if err != nil {
+		return nil, err
+	} else if protoProfile == nil {
+		return nil, errors.New("Profile parsing error")
+	}
+
+	newProfile := profile.NewSecurityProfile(cgroupModel.WorkloadSelector{},
+		[]model.EventType{
+			model.ExecEventType,
+			model.DNSEventType,
+		})
+	if newProfile == nil {
+		return nil, errors.New("Profile creation")
+	}
+	profile.ProtoToSecurityProfile(newProfile, protoProfile)
+	return newProfile, nil
+}
+
 func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
+	// we use alpine to use nslookup on some tests, and validate all busybox specificities
 	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine")
 	if err != nil {
 		return nil, err
@@ -1855,12 +1936,12 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, i
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) triggerLoadControlerReducer(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+func (tm *testModule) triggerLoadControllerReducer(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return
 	}
-	adm := monitor.GetActivityDumpManager()
+	adm := managers.GetActivityDumpManager()
 	if adm == nil {
 		return
 	}
@@ -1907,7 +1988,7 @@ func (tm *testModule) findNextPartialDump(dockerInstance *dockerCmdWrapper, id *
 
 //nolint:deadcode,unused
 func searchForOpen(ad *dump.ActivityDump) bool {
-	for _, node := range ad.ProcessActivityTree {
+	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.Files) > 0 {
 			return true
 		}
@@ -1917,7 +1998,7 @@ func searchForOpen(ad *dump.ActivityDump) bool {
 
 //nolint:deadcode,unused
 func searchForDns(ad *dump.ActivityDump) bool {
-	for _, node := range ad.ProcessActivityTree {
+	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.DNSNames) > 0 {
 			return true
 		}
@@ -1927,7 +2008,7 @@ func searchForDns(ad *dump.ActivityDump) bool {
 
 //nolint:deadcode,unused
 func searchForBind(ad *dump.ActivityDump) bool {
-	for _, node := range ad.ProcessActivityTree {
+	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.Sockets) > 0 {
 			return true
 		}
@@ -1937,7 +2018,7 @@ func searchForBind(ad *dump.ActivityDump) bool {
 
 //nolint:deadcode,unused
 func searchForSyscalls(ad *dump.ActivityDump) bool {
-	for _, node := range ad.ProcessActivityTree {
+	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.Syscalls) > 0 {
 			return true
 		}
@@ -1977,7 +2058,7 @@ func (tm *testModule) findNumberOfExistingDirectoryFiles(id *activityDumpIdentif
 	lastDir := filepath.Base(testDir)
 
 firstLoop:
-	for _, node := range ad.ProcessActivityTree {
+	for _, node := range ad.ActivityTree.ProcessNodes {
 		current := node.Files
 		for _, part := range tempPathParts {
 			if part == "" {
@@ -2045,4 +2126,82 @@ func (tm *testModule) StopAllActivityDumps() error {
 func IsDedicatedNode(env string) bool {
 	_, present := os.LookupEnv(env)
 	return present
+}
+
+// for test purpose only
+type ProcessNodeAndParent struct {
+	Node   *activity_tree.ProcessNode
+	Parent *ProcessNodeAndParent
+}
+
+// for test purpose only
+func NewProcessNodeAndParent(node *activity_tree.ProcessNode, parent *ProcessNodeAndParent) *ProcessNodeAndParent {
+	return &ProcessNodeAndParent{
+		Node:   node,
+		Parent: parent,
+	}
+}
+
+// for test purpose only
+func WalkActivityTree(at *activity_tree.ActivityTree, walkFunc func(node *ProcessNodeAndParent) bool) []*activity_tree.ProcessNode {
+	var result []*activity_tree.ProcessNode
+	if len(at.ProcessNodes) == 0 {
+		return result
+	}
+	var nodes []*ProcessNodeAndParent
+	var node *ProcessNodeAndParent
+	for _, n := range at.ProcessNodes {
+		nodes = append(nodes, NewProcessNodeAndParent(n, nil))
+	}
+	node = nodes[0]
+	nodes = nodes[1:]
+
+	for node != nil {
+		if walkFunc(node) {
+			result = append(result, node.Node)
+		}
+
+		for _, child := range node.Node.Children {
+			nodes = append(nodes, NewProcessNodeAndParent(child, node))
+		}
+		if len(nodes) > 0 {
+			node = nodes[0]
+			nodes = nodes[1:]
+		} else {
+			node = nil
+		}
+	}
+	return result
+}
+
+func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupModel.WorkloadSelector, error) {
+	ad, err := tm.getADFromDumpId(dumpID)
+	if err != nil {
+		return nil, err
+	}
+
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+	return &selector, err
+}
+
+func (tm *testModule) SetProfileStatus(selector *cgroupModel.WorkloadSelector, newStatus model.Status) error {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
+		return errors.New("No monitor")
+	}
+
+	spm := managers.GetSecurityProfileManager()
+	if spm == nil {
+		return errors.New("No security profile manager")
+	}
+
+	profile := spm.GetProfile(*selector)
+	if profile == nil || profile.Status == 0 {
+		return errors.New("No profile found for given selector")
+	}
+
+	profile.Lock()
+	profile.Status = newStatus
+	profile.Unlock()
+	return nil
 }

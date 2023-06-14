@@ -14,24 +14,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/google/uuid"
 )
 
 const (
 	// logsIntakeURLTemplate specifies the template for obtaining the intake URL along with the site.
 	logsIntakeURLTemplate = "https://http-intake.logs.%s/api/v2/logs"
+
+	// logsIntakeMaximumTagsLength is the maximum number of characters we send as ddtags.
+	logsIntakeMaximumTagsLength = 4001
 )
 
 // debuggerProxyHandler returns an http.Handler proxying requests to the logs intake. If the logs intake url cannot be
 // parsed, the returned handler will always return http.StatusInternalServerError with a clarifying message.
 func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
-	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
+	hostTags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
-		tags = tags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
+		hostTags = hostTags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
 	}
 	intake := fmt.Sprintf(logsIntakeURLTemplate, r.conf.Site)
 	if v := r.conf.DebuggerProxy.DDURL; v != "" {
@@ -46,9 +47,11 @@ func (r *HTTPReceiver) debuggerProxyHandler() http.Handler {
 	}
 	apiKey := r.conf.APIKey()
 	if k := r.conf.DebuggerProxy.APIKey; k != "" {
-		apiKey = k
+		apiKey = strings.TrimSpace(k)
 	}
-	return newDebuggerProxy(r.conf, target, strings.TrimSpace(apiKey), tags)
+	transport := newMeasuringForwardingTransport(
+		r.conf.NewHTTPTransport(), target, apiKey, r.conf.DebuggerProxy.AdditionalEndpoints, "datadog.trace_agent.debugger", []string{})
+	return newDebuggerProxy(r.conf, transport, hostTags)
 }
 
 // debuggerErrorHandler always returns http.StatusInternalServerError with a clarifying message.
@@ -60,49 +63,39 @@ func debuggerErrorHandler(err error) http.Handler {
 }
 
 // newDebuggerProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
-func newDebuggerProxy(conf *config.AgentConfig, target *url.URL, key string, tags string) *httputil.ReverseProxy {
-	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+func newDebuggerProxy(conf *config.AgentConfig, transport http.RoundTripper, hostTags string) *httputil.ReverseProxy {
 	cidProvider := NewIDProvider(conf.ContainerProcRoot)
-	director := func(req *http.Request) {
-		ddtags := tags
-		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
-		if ct := getContainerTags(conf.ContainerTags, containerID); ct != "" {
-			ddtags = fmt.Sprintf("%s,%s", ddtags, ct)
-		}
-		q := req.URL.Query()
-		if qtags := q.Get("ddtags"); qtags != "" {
-			ddtags = fmt.Sprintf("%s,%s", ddtags, qtags)
-		}
-		q.Set("ddtags", ddtags)
-		newTarget := *target
-		newTarget.RawQuery = q.Encode()
-		req.Header.Set("DD-API-KEY", key)
+	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
+	return &httputil.ReverseProxy{
+		Director:  getDirector(hostTags, cidProvider, conf.ContainerTags),
+		ErrorLog:  stdlog.New(logger, "debugger.Proxy: ", 0),
+		Transport: transport,
+	}
+}
+
+func getDirector(hostTags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*http.Request) {
+	return func(req *http.Request) {
 		req.Header.Set("DD-REQUEST-ID", uuid.New().String())
 		req.Header.Set("DD-EVP-ORIGIN", "agent-debugger")
-		req.URL = &newTarget
-		req.Host = target.Host
-	}
-	return &httputil.ReverseProxy{
-		Director:  director,
-		ErrorLog:  stdlog.New(logger, "debugger.Proxy: ", 0),
-		Transport: &measuringDebuggerTransport{conf.NewHTTPTransport()},
-	}
-}
-
-// measuringDebuggerTransport sends HTTP requests to a defined target url. It also sets the API keys in the headers.
-type measuringDebuggerTransport struct {
-	rt http.RoundTripper
-}
-
-func (m *measuringDebuggerTransport) RoundTrip(req *http.Request) (res *http.Response, err error) {
-	defer func(start time.Time) {
-		var tags []string
-		metrics.Count("datadog.trace_agent.debugger.proxy_request", 1, tags, 1)
-		metrics.Timing("datadog.trace_agent.debugger.proxy_request_duration_ms", time.Since(start), tags, 1)
-		if err != nil {
-			tags := append(tags, fmt.Sprintf("error:%s", fmt.Sprintf("%T", err)))
-			metrics.Count("datadog.trace_agent.debugger.proxy_request_error", 1, tags, 1)
+		q := req.URL.Query()
+		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
+		tags := hostTags
+		if ctags := getContainerTags(containerTags, containerID); ctags != "" {
+			tags = fmt.Sprintf("%s,%s", tags, ctags)
 		}
-	}(time.Now())
-	return m.rt.RoundTrip(req)
+		if htags := req.Header.Get("X-Datadog-Additional-Tags"); htags != "" {
+			tags = fmt.Sprintf("%s,%s", tags, htags)
+		}
+		if qtags := q.Get("ddtags"); qtags != "" {
+			tags = fmt.Sprintf("%s,%s", tags, qtags)
+		}
+		maxLen := len(tags)
+		if maxLen > logsIntakeMaximumTagsLength {
+			log.Warn("Truncating tags in debugger endpoint. Got %d, max is %d.", maxLen, logsIntakeMaximumTagsLength)
+			maxLen = logsIntakeMaximumTagsLength
+		}
+		tags = tags[0:maxLen]
+		q.Set("ddtags", tags)
+		req.URL.RawQuery = q.Encode()
+	}
 }

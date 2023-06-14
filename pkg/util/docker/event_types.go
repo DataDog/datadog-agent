@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -37,6 +36,8 @@ const (
 	ImageEventActionTag = "tag"
 	// ImageEventActionUntag is the action of untagging a docker image
 	ImageEventActionUntag = "untag"
+	// ImageEventActionSbom is the action of getting SBOM information for a docker image
+	ImageEventActionSbom = "sbom"
 )
 
 var containerEventActions = []string{

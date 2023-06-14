@@ -7,6 +7,7 @@ package flowaggregator
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -15,6 +16,7 @@ import (
 )
 
 func Test_buildPayload(t *testing.T) {
+	curTime := time.Now()
 	tests := []struct {
 		name            string
 		flow            common.Flow
@@ -27,7 +29,7 @@ func Test_buildPayload(t *testing.T) {
 				FlowType:        common.TypeNetFlow9,
 				SamplingRate:    10,
 				Direction:       1,
-				DeviceAddr:      []byte{127, 0, 0, 1},
+				ExporterAddr:    []byte{127, 0, 0, 1},
 				StartTimestamp:  1234568,
 				EndTimestamp:    1234569,
 				Bytes:           10,
@@ -49,18 +51,21 @@ func Test_buildPayload(t *testing.T) {
 				TCPFlags:        uint32(19), // 19 = SYN,ACK,FIN
 			},
 			expectedPayload: payload.FlowPayload{
-				FlowType:     "netflow9",
-				SamplingRate: 10,
-				Direction:    "egress",
-				Start:        1234568,
-				End:          1234569,
-				Bytes:        10,
-				Packets:      2,
-				EtherType:    "IPv4",
-				IPProtocol:   "TCP",
+				FlushTimestamp: curTime.UnixMilli(),
+				FlowType:       "netflow9",
+				SamplingRate:   10,
+				Direction:      "egress",
+				Start:          1234568,
+				End:            1234569,
+				Bytes:          10,
+				Packets:        2,
+				EtherType:      "IPv4",
+				IPProtocol:     "TCP",
 				Device: payload.Device{
-					IP:        "127.0.0.1",
 					Namespace: "my-namespace",
+				},
+				Exporter: payload.Exporter{
+					IP: "127.0.0.1",
 				},
 				Source: payload.Endpoint{
 					IP:   "10.10.10.10",
@@ -89,7 +94,7 @@ func Test_buildPayload(t *testing.T) {
 				FlowType:        common.TypeNetFlow9,
 				SamplingRate:    10,
 				Direction:       1,
-				DeviceAddr:      []byte{127, 0, 0, 1},
+				ExporterAddr:    []byte{127, 0, 0, 1},
 				StartTimestamp:  1234568,
 				EndTimestamp:    1234569,
 				Bytes:           10,
@@ -111,18 +116,21 @@ func Test_buildPayload(t *testing.T) {
 				TCPFlags:        uint32(19), // 19 = SYN,ACK,FIN
 			},
 			expectedPayload: payload.FlowPayload{
-				FlowType:     "netflow9",
-				SamplingRate: 10,
-				Direction:    "egress",
-				Start:        1234568,
-				End:          1234569,
-				Bytes:        10,
-				Packets:      2,
-				EtherType:    "IPv4",
-				IPProtocol:   "TCP",
+				FlushTimestamp: curTime.UnixMilli(),
+				FlowType:       "netflow9",
+				SamplingRate:   10,
+				Direction:      "egress",
+				Start:          1234568,
+				End:            1234569,
+				Bytes:          10,
+				Packets:        2,
+				EtherType:      "IPv4",
+				IPProtocol:     "TCP",
 				Device: payload.Device{
-					IP:        "127.0.0.1",
 					Namespace: "my-namespace",
+				},
+				Exporter: payload.Exporter{
+					IP: "127.0.0.1",
 				},
 				Source: payload.Endpoint{
 					IP:   "10.10.10.10",
@@ -151,7 +159,7 @@ func Test_buildPayload(t *testing.T) {
 				FlowType:        common.TypeNetFlow9,
 				SamplingRate:    10,
 				Direction:       1,
-				DeviceAddr:      []byte{127, 0, 0, 1},
+				ExporterAddr:    []byte{127, 0, 0, 1},
 				StartTimestamp:  1234568,
 				EndTimestamp:    1234569,
 				Bytes:           10,
@@ -173,18 +181,21 @@ func Test_buildPayload(t *testing.T) {
 				TCPFlags:        uint32(19), // 19 = SYN,ACK,FIN
 			},
 			expectedPayload: payload.FlowPayload{
-				FlowType:     "netflow9",
-				SamplingRate: 10,
-				Direction:    "egress",
-				Start:        1234568,
-				End:          1234569,
-				Bytes:        10,
-				Packets:      2,
-				EtherType:    "IPv4",
-				IPProtocol:   "TCP",
+				FlushTimestamp: curTime.UnixMilli(),
+				FlowType:       "netflow9",
+				SamplingRate:   10,
+				Direction:      "egress",
+				Start:          1234568,
+				End:            1234569,
+				Bytes:          10,
+				Packets:        2,
+				EtherType:      "IPv4",
+				IPProtocol:     "TCP",
 				Device: payload.Device{
-					IP:        "127.0.0.1",
 					Namespace: "my-namespace",
+				},
+				Exporter: payload.Exporter{
+					IP: "127.0.0.1",
 				},
 				Source: payload.Endpoint{
 					IP:   "10.10.10.10",
@@ -209,7 +220,7 @@ func Test_buildPayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			flowPayload := buildPayload(&tt.flow, "my-hostname")
+			flowPayload := buildPayload(&tt.flow, "my-hostname", curTime)
 			assert.Equal(t, tt.expectedPayload, flowPayload)
 		})
 	}

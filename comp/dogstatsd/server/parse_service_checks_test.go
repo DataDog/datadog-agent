@@ -8,17 +8,20 @@ package server
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func parseServiceCheck(rawServiceCheck []byte) (dogstatsdServiceCheck, error) {
-	parser := newParser(newFloat64ListPool())
+func parseServiceCheck(t *testing.T, rawServiceCheck []byte) (dogstatsdServiceCheck, error) {
+	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	parser := newParser(cfg, newFloat64ListPool())
 	return parser.parseServiceCheck(rawServiceCheck)
 }
 
 func TestServiceCheckMinimal(t *testing.T) {
-	sc, err := parseServiceCheck([]byte("_sc|agent.up|0"))
+	sc, err := parseServiceCheck(t, []byte("_sc|agent.up|0"))
 
 	assert.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.name)
@@ -30,36 +33,36 @@ func TestServiceCheckMinimal(t *testing.T) {
 
 func TestServiceCheckError(t *testing.T) {
 	// not enough information
-	_, err := parseServiceCheck([]byte("_sc|agent.up"))
+	_, err := parseServiceCheck(t, []byte("_sc|agent.up"))
 	assert.Error(t, err)
 
-	_, err = parseServiceCheck([]byte("_sc|agent.up|"))
+	_, err = parseServiceCheck(t, []byte("_sc|agent.up|"))
 	assert.Error(t, err)
 
-	_, err = parseServiceCheck([]byte("_sc||"))
+	_, err = parseServiceCheck(t, []byte("_sc||"))
 	assert.Error(t, err)
 
-	_, err = parseServiceCheck([]byte("_sc|"))
+	_, err = parseServiceCheck(t, []byte("_sc|"))
 	assert.Error(t, err)
 
 	// not invalid status
-	_, err = parseServiceCheck([]byte("_sc|agent.up|OK"))
+	_, err = parseServiceCheck(t, []byte("_sc|agent.up|OK"))
 	assert.Error(t, err)
 
 	// not unknown status
-	_, err = parseServiceCheck([]byte("_sc|agent.up|21"))
+	_, err = parseServiceCheck(t, []byte("_sc|agent.up|21"))
 	assert.Error(t, err)
 
 	// invalid timestamp
-	_, err = parseServiceCheck([]byte("_sc|agent.up|0|d:some_time"))
+	_, err = parseServiceCheck(t, []byte("_sc|agent.up|0|d:some_time"))
 	assert.NoError(t, err)
 
 	// unknown metadata
-	_, err = parseServiceCheck([]byte("_sc|agent.up|0|u:unknown"))
+	_, err = parseServiceCheck(t, []byte("_sc|agent.up|0|u:unknown"))
 	assert.NoError(t, err)
 }
 func TestServiceCheckMetadataTimestamp(t *testing.T) {
-	sc, err := parseServiceCheck([]byte("_sc|agent.up|0|d:21"))
+	sc, err := parseServiceCheck(t, []byte("_sc|agent.up|0|d:21"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.name)
@@ -70,7 +73,7 @@ func TestServiceCheckMetadataTimestamp(t *testing.T) {
 }
 
 func TestServiceCheckMetadataHostname(t *testing.T) {
-	sc, err := parseServiceCheck([]byte("_sc|agent.up|0|h:localhost"))
+	sc, err := parseServiceCheck(t, []byte("_sc|agent.up|0|h:localhost"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.name)
@@ -82,7 +85,7 @@ func TestServiceCheckMetadataHostname(t *testing.T) {
 }
 
 func TestServiceCheckMetadataTags(t *testing.T) {
-	sc, err := parseServiceCheck([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"))
+	sc, err := parseServiceCheck(t, []byte("_sc|agent.up|0|#tag1,tag2:test,tag3"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.name)
@@ -93,7 +96,7 @@ func TestServiceCheckMetadataTags(t *testing.T) {
 }
 
 func TestServiceCheckMetadataMessage(t *testing.T) {
-	sc, err := parseServiceCheck([]byte("_sc|agent.up|0|m:this is fine"))
+	sc, err := parseServiceCheck(t, []byte("_sc|agent.up|0|m:this is fine"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.name)
@@ -105,7 +108,7 @@ func TestServiceCheckMetadataMessage(t *testing.T) {
 
 func TestServiceCheckMetadataMultiple(t *testing.T) {
 	// all type
-	sc, err := parseServiceCheck([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"))
+	sc, err := parseServiceCheck(t, []byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"))
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.name)
 	assert.Equal(t, "localhost", sc.hostname)
@@ -115,7 +118,7 @@ func TestServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.tags)
 
 	// multiple time the same tag
-	sc, err = parseServiceCheck([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"))
+	sc, err = parseServiceCheck(t, []byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"))
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.name)
 	assert.Equal(t, "localhost2", sc.hostname)

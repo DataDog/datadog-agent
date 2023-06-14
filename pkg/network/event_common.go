@@ -14,9 +14,9 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -155,11 +155,14 @@ const (
 	MonotonicPerfLost               ConnTelemetryType = "perf_lost"
 	MonotonicUDPSendsProcessed      ConnTelemetryType = "udp_sends_processed"
 	MonotonicUDPSendsMissed         ConnTelemetryType = "udp_sends_missed"
+	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
 	DNSStatsDropped                 ConnTelemetryType = "dns_stats_dropped"
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-	MonotonicDNSPacketsDropped      ConnTelemetryType = "dns_packets_dropped"
+
+	// USM Payload Telemetry
+	USMHTTPHits ConnTelemetryType = "usm.http.total_hits"
 )
 
 //revive:enable
@@ -168,9 +171,9 @@ var (
 	// ConnTelemetryTypes lists all the possible (non-monotonic) telemetry which can be bundled
 	// into the network connections payload
 	ConnTelemetryTypes = []ConnTelemetryType{
+		DNSStatsDropped,
 		ConnsBpfMapSize,
 		ConntrackSamplingPercent,
-		DNSStatsDropped,
 		NPMDriverFlowsMissedMaxExceeded,
 	}
 
@@ -181,13 +184,18 @@ var (
 		MonotonicKprobesMissed,
 		MonotonicClosedConnDropped,
 		MonotonicConnDropped,
+		MonotonicConnsClosed,
 		MonotonicConntrackRegisters,
 		MonotonicDNSPacketsProcessed,
-		MonotonicConnsClosed,
+		MonotonicPerfLost,
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
-		MonotonicPerfLost,
+	}
+
+	// USMPayloadTelemetry lists all USM metrics that are sent as payload telemetry
+	USMPayloadTelemetry = []ConnTelemetryType{
+		USMHTTPHits,
 	}
 )
 
@@ -220,6 +228,8 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
+type StatCookie = uint64
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
@@ -232,7 +242,7 @@ type ConnectionStats struct {
 
 	Last StatCounters
 
-	Cookie uint32
+	Cookie StatCookie
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -257,7 +267,7 @@ type ConnectionStats struct {
 
 	ContainerID *string
 
-	Protocol ProtocolType
+	ProtocolStack protocols.Stack
 }
 
 // Via has info about the routing decision for a flow
@@ -389,7 +399,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	}
 
 	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
-	str += fmt.Sprintf(", protocol: %v", c.Protocol)
+	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
 
 	return str
@@ -407,32 +417,6 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 		b.WriteString(dns.ToString(s))
 	}
 	return b.String()
-}
-
-// ConnectionKeysFromConnectionStats constructs connection key using the underlying raw connection stats object, which is produced by the tracer.
-// Each ConnectionStats object contains both the source and destination addresses, as well as an IPTranslation object that stores the original addresses in the event that the connection is NAT'd.
-// This function generates all relevant combinations of connection keys: [(source, dest), (dest, source), (NAT'd source, NAT'd dest), (NAT'd dest, NAT'd source)].
-// This is necessary to handle all possible scenarios for connections originating from the USM module (i.e., whether they are NAT'd or not, and whether they use TLS).
-func ConnectionKeysFromConnectionStats(connectionStats ConnectionStats) []types.ConnectionKey {
-
-	// USM data is always indexed as (client, server), but we don't know which is the remote
-	// and which is the local address. To account for this, we'll construct 2 possible
-	// connection keys and check for both of them in the aggregations map.
-	connectionKeys := []types.ConnectionKey{
-		types.NewConnectionKey(connectionStats.Source, connectionStats.Dest, connectionStats.SPort, connectionStats.DPort),
-		types.NewConnectionKey(connectionStats.Dest, connectionStats.Source, connectionStats.DPort, connectionStats.SPort),
-	}
-
-	// if IPTranslation is not nil, at least one of the sides has a translation, thus we need to add translated addresses.
-	if connectionStats.IPTranslation != nil {
-		localAddress, localPort := GetNATLocalAddress(connectionStats)
-		remoteAddress, remotePort := GetNATRemoteAddress(connectionStats)
-		connectionKeys = append(connectionKeys,
-			types.NewConnectionKey(localAddress, remoteAddress, localPort, remotePort),
-			types.NewConnectionKey(remoteAddress, localAddress, remotePort, localPort))
-	}
-
-	return connectionKeys
 }
 
 func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {

@@ -32,13 +32,15 @@ type dependencies struct {
 	Lc fx.Lifecycle
 
 	Log log.Component
+
+	APIServerDeps api.APIServerDeps
 }
 
 func newApiServer(deps dependencies) Component {
 	initRuntimeSettings(deps.Log)
 
 	r := mux.NewRouter()
-	api.SetupAPIServerHandlers(r) // Set up routes
+	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
 
 	addr, err := ddconfig.GetProcessAPIAddressPort()
 	if err != nil {

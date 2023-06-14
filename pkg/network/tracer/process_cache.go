@@ -4,20 +4,19 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
 import (
-	"fmt"
 	"strings"
 	"sync"
+	"time"
 
-	lru "github.com/hashicorp/golang-lru"
-	"go.uber.org/atomic"
+	"github.com/cihub/seelog"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,8 +29,21 @@ var defaultFilteredEnvs = []string{
 const (
 	maxProcessQueueLen = 100
 	// maxProcessListSize is the max size of a processList
-	maxProcessListSize = 3
+	maxProcessListSize     = 3
+	processCacheModuleName = "network_tracer__process_cache"
 )
+
+var processCacheTelemetry = struct {
+	cacheEvicts   telemetry.Counter
+	cacheLength   telemetry.Gauge
+	eventsDropped telemetry.Counter
+	eventsSkipped telemetry.Counter
+}{
+	telemetry.NewCounter(processCacheModuleName, "cache_evicts", []string{}, "Counter measuring the number of evictions in the process cache"),
+	telemetry.NewGauge(processCacheModuleName, "cache_length", []string{}, "Gauge measuring the current size of the process cache"),
+	telemetry.NewCounter(processCacheModuleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
+	telemetry.NewCounter(processCacheModuleName, "events_skipped", []string{}, "Counter measuring the number of skipped process events"),
+}
 
 type process struct {
 	Pid         uint32
@@ -42,23 +54,16 @@ type process struct {
 
 type processList []*process
 
-type _processCacheStats struct {
-	cacheEvicts   *atomic.Uint64 `stats:""`
-	cacheLength   *atomic.Uint64 `stats:""`
-	eventsDropped *atomic.Uint64 `stats:""`
-	eventsSkipped *atomic.Uint64 `stats:""`
-}
-
 type processCache struct {
 	sync.Mutex
 
 	// cache of pid -> list of processes holds a list of processes
 	// with the same pid but differing start times up to a max of
 	// maxProcessListSize. this is used to determine the closest
-	// match to a connection's tiimestamp
+	// match to a connection's timestamp
 	cacheByPid map[uint32]processList
 	// lru cache; keyed by (pid, start time)
-	cache *lru.Cache
+	cache *lru.Cache[processCacheKey, *process]
 	// filteredEnvs contains environment variable names
 	// that a process in the cache must have; empty filteredEnvs
 	// means no filter, and any process can be inserted the cache
@@ -67,8 +72,6 @@ type processCache struct {
 	in      chan *process
 	stopped chan struct{}
 	stop    sync.Once
-
-	stats _processCacheStats
 }
 
 type processCacheKey struct {
@@ -82,12 +85,6 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		cacheByPid:   map[uint32]processList{},
 		in:           make(chan *process, maxProcessQueueLen),
 		stopped:      make(chan struct{}),
-		stats: _processCacheStats{
-			cacheEvicts:   atomic.NewUint64(0),
-			cacheLength:   atomic.NewUint64(0),
-			eventsDropped: atomic.NewUint64(0),
-			eventsSkipped: atomic.NewUint64(0),
-		},
 	}
 
 	for _, e := range filteredEnvs {
@@ -95,8 +92,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	}
 
 	var err error
-	pc.cache, err = lru.NewWithEvict(maxProcs, func(key, value interface{}) {
-		p := value.(*process)
+	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *process) {
 		pl, _ := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
 			delete(pc.cacheByPid, p.Pid)
@@ -121,10 +117,25 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 		}
 	}()
 
+	// Refreshes process cache telemetry on a loop
+	// TODO: Replace with prometheus collector interface
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-pc.stopped:
+				return
+			case <-ticker.C:
+				processCacheTelemetry.cacheLength.Set(float64(pc.cache.Len()))
+			}
+		}
+	}()
+
 	return pc, nil
 }
 
-func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
+func (pc *processCache) handleProcessEvent(entry *smodel.ProcessContext) {
 
 	select {
 	case <-pc.stopped:
@@ -134,7 +145,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 
 	p := pc.processEvent(entry)
 	if p == nil {
-		pc.stats.eventsSkipped.Add(1)
+		processCacheTelemetry.eventsSkipped.Inc()
 		return
 	}
 
@@ -142,11 +153,11 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	case pc.in <- p:
 	default:
 		// dropped
-		pc.stats.eventsDropped.Add(1)
+		processCacheTelemetry.eventsDropped.Inc()
 	}
 }
 
-func (pc *processCache) processEvent(entry *smodel.ProcessCacheEntry) *process {
+func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 	var envs map[string]string
 	if entry.EnvsEntry != nil {
 		for _, v := range entry.EnvsEntry.Values {
@@ -196,29 +207,17 @@ func (pc *processCache) add(p *process) {
 	pc.Lock()
 	defer pc.Unlock()
 
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("adding process %+v to process cache", p)
-	})
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("adding process %+v to process cache", p)
+	}
 
 	evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
 	pl, _ := pc.cacheByPid[p.Pid]
 	pc.cacheByPid[p.Pid] = pl.update(p)
 
 	if evicted {
-		pc.stats.cacheEvicts.Add(1)
+		processCacheTelemetry.cacheEvicts.Inc()
 	}
-}
-
-func (pc *processCache) GetStats() map[string]interface{} {
-	if pc == nil {
-		return map[string]interface{}{}
-	}
-
-	pc.Lock()
-	defer pc.Unlock()
-
-	pc.stats.cacheLength.Store(uint64(pc.cache.Len()))
-	return atomicstats.Report(&pc.stats)
 }
 
 func (pc *processCache) Get(pid uint32, ts int64) (*process, bool) {

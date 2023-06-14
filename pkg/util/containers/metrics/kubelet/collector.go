@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
@@ -258,10 +257,12 @@ func convertContainerStats(kubeContainerStats *v1alpha1.ContainerStats, outConta
 			RSS:        pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.RSSBytes),
 		}
 
-		// On Linux `UsageBytes` is set. On Windows only `WorkingSetBytes` is set
-		if outContainerStats.Memory.UsageTotal == nil && kubeContainerStats.Memory.WorkingSetBytes != nil {
+		// On Linux `RSS` is set. On Windows only `WorkingSetBytes` is set
+		if outContainerStats.Memory.RSS == nil {
 			outContainerStats.Memory.UsageTotal = pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.WorkingSetBytes)
 			outContainerStats.Memory.PrivateWorkingSet = pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.WorkingSetBytes)
+		} else {
+			outContainerStats.Memory.WorkingSet = pointer.UIntPtrToFloatPtr(kubeContainerStats.Memory.WorkingSetBytes)
 		}
 	}
 }

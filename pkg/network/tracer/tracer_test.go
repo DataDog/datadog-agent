@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf || (windows && npm)
-// +build linux_bpf windows,npm
 
 package tracer
 
@@ -31,13 +30,16 @@ import (
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"golang.org/x/sync/errgroup"
 
+	syscfg "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,16 +56,27 @@ func TestMain(m *testing.M) {
 		logLevel = "warn"
 	}
 	log.SetupLogger(seelog.Default, logLevel)
-	cfg := testConfig()
-	if cfg.EnableRuntimeCompiler {
-		fmt.Println("RUNTIME COMPILER ENABLED")
-	}
-
+	_ = driver.Init(&syscfg.Config{})
 	os.Exit(m.Run())
 }
 
+type TracerSuite struct {
+	suite.Suite
+}
+
+func TestTracerSuite(t *testing.T) {
+	ebpftest.TestBuildModes(t, ebpftest.SupportedBuildModes(), "", func(t *testing.T) {
+		suite.Run(t, new(TracerSuite))
+	})
+}
+
+func isFentry() bool {
+	fentryTests := os.Getenv("NETWORK_TRACER_FENTRY_TESTS")
+	return fentryTests == "true"
+}
+
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
-	if fentryTests := os.Getenv("NETWORK_TRACER_FENTRY_TESTS"); fentryTests == "true" {
+	if isFentry() {
 		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
@@ -77,58 +90,11 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	return tr
 }
 
-func TestGetStats(t *testing.T) {
-	httpSupported := httpSupported(t)
+func (s *TracerSuite) TestGetStats() {
+	t := s.T()
+	httpSupported := httpSupported()
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
-      "conntrack": {
-        "enobufs": 0,
-        "evicts_total": 0,
-        "gets_total": 9,
-        "msg_errors": 0,
-        "orphan_size": 0,
-        "read_errors": 0,
-        "registers_total": 0,
-        "sampling_pct": 100,
-        "state_size": 0,
-        "throttles": 0,
-        "unregisters_total": 0
-      },
-      "dns": {
-        "added": 0,
-        "decoding_errors": 583,
-        "dropped_stats": 0,
-        "errors": 0,
-        "expired": 0,
-        "ips": 0,
-        "lookups": 5,
-        "num_stats": 0,
-        "oversized": 0,
-        "packets_captured": 586,
-        "packets_dropped": 0,
-        "packets_processed": 586,
-        "queries": 0,
-        "resolved": 0,
-        "socket_polls": 6,
-        "successes": 0,
-        "timestamp_micro_secs": 1649790301434884,
-        "truncated_packets": 0
-      },
-      "ebpf": {
-        "closed_conn_polling_lost": 0,
-        "closed_conn_polling_received": 0,
-        "missed_tcp_close": 0,
-        "missed_udp_close": 0,
-        "pid_collisions": 0,
-        "tcp_conns4": 1,
-        "tcp_conns6": 0,
-        "tcp_sent_miscounts": 0,
-        "tcp_failed_connects": 0,
-        "udp_conns4": 4,
-        "udp_conns6": 0,
-        "udp_sends_missed": 0,
-        "udp_sends_processed": 162
-      },
       "usm": {
         "http": {
           "aggregations": 0,
@@ -142,24 +108,14 @@ func TestGetStats(t *testing.T) {
           "rejected": 0
         }
       },
-      "kprobes": {},
       "state": {
         "closed_conn_dropped": 0,
-		"conn_dropped": 0,
-		"dns_pid_collisions": 0,
-		"dns_stats_dropped": 0,
-		"http_stats_dropped": 0,
-		"stats_underflows": 0,
-		"time_sync_collisions": 0
+		"conn_dropped": 0
       },
       "tracer": {
-        "closed_conns": 1,
-        "conn_stats_map_size": 5,
-        "expired_tcp_conns": 0,
         "runtime": {
           "runtime_compilation_enabled": 0
-        },
-        "skipped_conns": 0
+        }
       }
     }`), &linuxExpected)
 	require.NoError(t, err)
@@ -175,12 +131,7 @@ func TestGetStats(t *testing.T) {
 	expected := linuxExpected
 	if runtime.GOOS == "windows" {
 		expected = map[string]interface{}{
-			"driver":                   map[string]interface{}{},
-			"flows":                    map[string]interface{}{},
-			"driver_total_flow_stats":  map[string]interface{}{},
-			"driver_flow_handle_stats": map[string]interface{}{},
-			"state":                    map[string]interface{}{},
-			"dns":                      map[string]interface{}{},
+			"state": map[string]interface{}{},
 		}
 	}
 
@@ -189,7 +140,6 @@ func TestGetStats(t *testing.T) {
 			cfg := testConfig()
 			cfg.EnableHTTPMonitoring = true
 			cfg.EnableEbpfConntracker = enableEbpfConntracker
-			cfg.AllowPrecompiledFallback = true
 			tr := setupTracer(t, cfg)
 
 			<-time.After(time.Second)
@@ -218,8 +168,8 @@ func TestGetStats(t *testing.T) {
 	}
 }
 
-func TestTCPSendAndReceive(t *testing.T) {
-	// Enable BPF-based system probe
+func (s *TracerSuite) TestTCPSendAndReceive() {
+	t := s.T()
 	tr := setupTracer(t, testConfig())
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
@@ -275,7 +225,8 @@ func TestTCPSendAndReceive(t *testing.T) {
 	assert.True(t, conn.IntraHost)
 }
 
-func TestTCPShortLived(t *testing.T) {
+func (s *TracerSuite) TestTCPShortLived() {
+	t := s.T()
 	// Enable BPF-based system probe
 	cfg := testConfig()
 	cfg.TCPClosedTimeout = 10 * time.Millisecond
@@ -328,14 +279,11 @@ func TestTCPShortLived(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestTCPOverIPv6(t *testing.T) {
+func (s *TracerSuite) TestTCPOverIPv6() {
+	t := s.T()
 	t.SkipNow()
-	if !kernel.IsIPv6Enabled() {
-		t.Skip("IPv6 not enabled on host")
-	}
-
 	cfg := testConfig()
-	cfg.CollectIPv6Conns = true
+	cfg.CollectTCPv6Conns = true
 	tr := setupTracer(t, cfg)
 
 	ln, err := net.Listen("tcp6", ":0")
@@ -388,13 +336,15 @@ func TestTCPOverIPv6(t *testing.T) {
 	doneChan <- struct{}{}
 }
 
-func TestTCPCollectionDisabled(t *testing.T) {
+func (s *TracerSuite) TestTCPCollectionDisabled() {
+	t := s.T()
 	if runtime.GOOS == "windows" {
 		t.Skip("Test disabled on Windows")
 	}
 	// Enable BPF-based system probe with TCP disabled
 	cfg := testConfig()
-	cfg.CollectTCPConns = false
+	cfg.CollectTCPv4Conns = false
+	cfg.CollectTCPv6Conns = false
 	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which sends back serverMessageSize bytes
@@ -428,10 +378,12 @@ func TestTCPCollectionDisabled(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestTCPConnsReported(t *testing.T) {
+func (s *TracerSuite) TestTCPConnsReported() {
+	t := s.T()
 	// Setup
 	cfg := testConfig()
-	cfg.CollectTCPConns = true
+	cfg.CollectTCPv4Conns = true
+	cfg.CollectTCPv6Conns = true
 	tr := setupTracer(t, cfg)
 
 	processedChan := make(chan struct{})
@@ -458,8 +410,12 @@ func TestTCPConnsReported(t *testing.T) {
 	require.True(t, ok)
 }
 
-func TestUDPSendAndReceive(t *testing.T) {
+func (s *TracerSuite) TestUDPSendAndReceive() {
+	t := s.T()
 	t.Run("v4", func(t *testing.T) {
+		if !testConfig().CollectUDPv4Conns {
+			t.Skip("UDPv4 disabled")
+		}
 		t.Run("fixed port", func(t *testing.T) {
 			testUDPSendAndReceive(t, "127.0.0.1:8081")
 		})
@@ -468,6 +424,9 @@ func TestUDPSendAndReceive(t *testing.T) {
 		})
 	})
 	t.Run("v6", func(t *testing.T) {
+		if !testConfig().CollectUDPv6Conns {
+			t.Skip("UDPv6 disabled")
+		}
 		t.Run("fixed port", func(t *testing.T) {
 			testUDPSendAndReceive(t, "[::1]:8081")
 		})
@@ -529,10 +488,12 @@ func testUDPSendAndReceive(t *testing.T, addr string) {
 	}
 }
 
-func TestUDPDisabled(t *testing.T) {
+func (s *TracerSuite) TestUDPDisabled() {
+	t := s.T()
 	// Enable BPF-based system probe with UDP disabled
 	cfg := testConfig()
-	cfg.CollectUDPConns = false
+	cfg.CollectUDPv4Conns = false
+	cfg.CollectUDPv6Conns = false
 	tr := setupTracer(t, cfg)
 
 	// Create UDP Server which sends back serverMessageSize bytes
@@ -567,7 +528,8 @@ func TestUDPDisabled(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestLocalDNSCollectionDisabled(t *testing.T) {
+func (s *TracerSuite) TestLocalDNSCollectionDisabled() {
+	t := s.T()
 	// Enable BPF-based system probe with DNS disabled (by default)
 	config := testConfig()
 
@@ -591,12 +553,12 @@ func TestLocalDNSCollectionDisabled(t *testing.T) {
 	}
 }
 
-func TestLocalDNSCollectionEnabled(t *testing.T) {
+func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
+	t := s.T()
 	// Enable BPF-based system probe with DNS enabled
 	cfg := testConfig()
 	cfg.CollectLocalDNS = true
-	cfg.CollectUDPConns = true
-
+	cfg.CollectUDPv4Conns = true
 	tr := setupTracer(t, cfg)
 
 	// Connect to local DNS
@@ -625,7 +587,8 @@ func isLocalDNS(c network.ConnectionStats) bool {
 	return c.Source.String() == "127.0.0.1" && c.Dest.String() == "127.0.0.1" && c.DPort == 53
 }
 
-func TestShouldSkipExcludedConnection(t *testing.T) {
+func (s *TracerSuite) TestShouldSkipExcludedConnection() {
+	t := s.T()
 	// exclude connections from 127.0.0.1:80
 	cfg := testConfig()
 	// exclude source SSH connections to make this pass in VM
@@ -663,7 +626,8 @@ func TestShouldSkipExcludedConnection(t *testing.T) {
 	}, "Unable to find UDP connection to 127.0.0.1:80")
 }
 
-func TestShouldExcludeEmptyStatsConnection(t *testing.T) {
+func (s *TracerSuite) TestShouldExcludeEmptyStatsConnection() {
+	t := s.T()
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
@@ -976,21 +940,23 @@ func (s *UDPServer) Run(payloadSize int) error {
 		networkType = s.network
 	}
 	var err error
+	var ln net.PacketConn
 	if s.lc != nil {
-		s.ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
+		ln, err = s.lc.ListenPacket(context.Background(), networkType, s.address)
 	} else {
-		s.ln, err = net.ListenPacket(networkType, s.address)
+		ln, err = net.ListenPacket(networkType, s.address)
 	}
 	if err != nil {
 		return err
 	}
 
+	s.ln = ln
 	s.address = s.ln.LocalAddr().String()
 
 	go func() {
 		buf := make([]byte, payloadSize)
 		for {
-			n, addr, err := s.ln.ReadFrom(buf)
+			n, addr, err := ln.ReadFrom(buf)
 			if err != nil {
 				if !errors.Is(err, net.ErrClosed) {
 					fmt.Printf("readfrom: %s\n", err)
@@ -1119,19 +1085,21 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	assert.Equal(t, uint32(timeout), timeouts)
 }
 
-func TestDNSStatsForValidDomain(t *testing.T) {
-	testDNSStats(t, "golang.org", 1, 0, 0, validDNSServer)
+func (s *TracerSuite) TestDNSStats() {
+	t := s.T()
+	t.Run("valid domain", func(t *testing.T) {
+		testDNSStats(t, "golang.org", 1, 0, 0, validDNSServer)
+	})
+	t.Run("invalid domain", func(t *testing.T) {
+		testDNSStats(t, "abcdedfg", 0, 1, 0, validDNSServer)
+	})
+	t.Run("timeout", func(t *testing.T) {
+		testDNSStats(t, "golang.org", 0, 0, 1, "1.2.3.4")
+	})
 }
 
-func TestDNSStatsForInvalidDomain(t *testing.T) {
-	testDNSStats(t, "abcdedfg", 0, 1, 0, validDNSServer)
-}
-
-func TestDNSStatsForTimeout(t *testing.T) {
-	testDNSStats(t, "golang.org", 0, 0, 1, "1.2.3.4")
-}
-
-func TestTCPEstablished(t *testing.T) {
+func (s *TracerSuite) TestTCPEstablished() {
+	t := s.T()
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
 	cfg.TCPClosedTimeout = 500 * time.Millisecond
@@ -1169,7 +1137,8 @@ func TestTCPEstablished(t *testing.T) {
 	assert.Equal(t, uint32(1), conn.Last.TCPClosed)
 }
 
-func TestTCPEstablishedPreExistingConn(t *testing.T) {
+func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
+	t := s.T()
 	server := NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
 		c.Close()
@@ -1200,7 +1169,8 @@ func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	assert.Equal(t, uint32(1), m.TCPClosed)
 }
 
-func TestUnconnectedUDPSendIPv4(t *testing.T) {
+func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
+	t := s.T()
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
@@ -1223,13 +1193,12 @@ func TestUnconnectedUDPSendIPv4(t *testing.T) {
 	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 }
 
-func TestConnectedUDPSendIPv6(t *testing.T) {
-	if !kernel.IsIPv6Enabled() {
-		t.Skip("IPv6 not enabled on host")
-	}
-
+func (s *TracerSuite) TestConnectedUDPSendIPv6() {
+	t := s.T()
 	cfg := testConfig()
-	cfg.CollectIPv6Conns = true
+	if !testConfig().CollectUDPv6Conns {
+		t.Skip("UDPv6 disabled")
+	}
 	tr := setupTracer(t, cfg)
 
 	remotePort := rand.Int()%5000 + 15000
@@ -1251,9 +1220,11 @@ func TestConnectedUDPSendIPv6(t *testing.T) {
 	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 }
 
-func TestConnectionClobber(t *testing.T) {
+func (s *TracerSuite) TestConnectionClobber() {
+	t := s.T()
 	cfg := testConfig()
-	cfg.CollectUDPConns = false
+	cfg.CollectUDPv4Conns = false
+	cfg.CollectUDPv6Conns = false
 	cfg.ExcludedDestinationConnections = map[string][]string{
 		"0.0.0.0/2":   {"*"},
 		"64.0.0.0/3":  {"*"},
@@ -1370,7 +1341,8 @@ func TestConnectionClobber(t *testing.T) {
 	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 }
 
-func TestTCPDirection(t *testing.T) {
+func (s *TracerSuite) TestTCPDirection() {
+	t := s.T()
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
@@ -1425,12 +1397,4 @@ func TestTCPDirection(t *testing.T) {
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
 	conn = incomingConns[0]
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
-}
-
-func testConfig() *config.Config {
-	cfg := config.New()
-	if os.Getenv("BPF_DEBUG") != "" {
-		cfg.BPFDebug = true
-	}
-	return cfg
 }

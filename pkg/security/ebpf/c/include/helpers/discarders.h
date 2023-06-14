@@ -9,7 +9,7 @@
 #include "events.h"
 
 int __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
-    struct bpf_map_def *discarder_stats = select_buffer(&discarder_stats_fb, &discarder_stats_bb, DISCARDER_MONITOR_KEY);
+    struct bpf_map_def *discarder_stats = select_buffer(&fb_discarder_stats, &bb_discarder_stats, DISCARDER_MONITOR_KEY);
     if (discarder_stats == NULL) {
         return 0;
     }
@@ -26,7 +26,7 @@ int __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
 }
 
 int __attribute__((always_inline)) monitor_discarded(u64 event_type) {
-    struct bpf_map_def *discarder_stats = select_buffer(&discarder_stats_fb, &discarder_stats_bb, DISCARDER_MONITOR_KEY);
+    struct bpf_map_def *discarder_stats = select_buffer(&fb_discarder_stats, &bb_discarder_stats, DISCARDER_MONITOR_KEY);
     if (discarder_stats == NULL) {
         return 0;
     }
@@ -44,14 +44,14 @@ int __attribute__((always_inline)) monitor_discarded(u64 event_type) {
 
 int __attribute__((always_inline)) get_mount_discarder_revision(u32 mount_id) {
     u32 i = mount_id % REVISION_ARRAY_SIZE;
-    u32 *revision = bpf_map_lookup_elem(&inode_discarder_revisions, &i);
+    u32 *revision = bpf_map_lookup_elem(&inode_disc_revisions, &i);
 
     return revision ? *revision : 0;
 }
 
 int __attribute__((always_inline)) bump_mount_discarder_revision(u32 mount_id) {
     u32 i = mount_id % REVISION_ARRAY_SIZE;
-    u32 *revision = bpf_map_lookup_elem(&inode_discarder_revisions, &i);
+    u32 *revision = bpf_map_lookup_elem(&inode_disc_revisions, &i);
     if (!revision) {
         return 0;
     }
