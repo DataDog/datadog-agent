@@ -8,6 +8,7 @@ package traps
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"go.uber.org/atomic"
 	"net"
 	"time"
 
@@ -18,11 +19,12 @@ import (
 
 // TrapListener opens an UDP socket and put all received traps in a channel
 type TrapListener struct {
-	config        Config
-	aggregator    aggregator.Sender
-	packets       PacketsChannel
-	listener      *gosnmp.TrapListener
-	errorsChannel chan error
+	config             Config
+	aggregator         aggregator.Sender
+	packets            PacketsChannel
+	listener           *gosnmp.TrapListener
+	receivedTrapsCount *atomic.Uint64
+	errorsChannel      chan error
 }
 
 // NewTrapListener creates a simple TrapListener instance but does not start it
@@ -35,11 +37,12 @@ func NewTrapListener(config Config, aggregator aggregator.Sender, packets Packet
 	}
 	errorsChan := make(chan error, 1)
 	trapListener := &TrapListener{
-		config:        config,
-		aggregator:    aggregator,
-		packets:       packets,
-		listener:      gosnmpListener,
-		errorsChannel: errorsChan,
+		config:             config,
+		aggregator:         aggregator,
+		packets:            packets,
+		listener:           gosnmpListener,
+		receivedTrapsCount: atomic.NewUint64(0),
+		errorsChannel:      errorsChan,
 	}
 
 	gosnmpListener.OnNewTrap = trapListener.receiveTrap
@@ -84,6 +87,7 @@ func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	tags := packet.getTags()
 
 	t.aggregator.Count("datadog.snmp_traps.received", 1, "", tags)
+	t.receivedTrapsCount.Inc()
 
 	if err := validatePacket(p, t.config); err != nil {
 		log.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
