@@ -39,8 +39,8 @@ type testIteration struct {
 func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) *model.Event {
 	event := model.NewDefaultEvent().(*model.Event)
 	event.Type = uint32(ti.eventType)
-	event.ContainerContext.CreatedAt = uint64(t0.Add(ti.containerCreatedAt).Unix()) * 1000000000
-	event.TimestampRaw = uint64(t0.Add(ti.eventTimestampRaw).Unix()) * 1000000000
+	event.ContainerContext.CreatedAt = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
+	event.TimestampRaw = uint64(t0.Add(ti.eventTimestampRaw).UnixNano())
 	event.Timestamp = t0.Add(ti.eventTimestampRaw)
 
 	// setting process
@@ -598,7 +598,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 					},
 					WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 				})
-				profile.loadedNano = uint64(t0.Unix()) * 1000000000
+				profile.loadedNano = uint64(t0.UnixNano())
 			}
 			profile.ActivityTree.Stats.ProcessNodes += ti.addFakeProcessNodes
 
