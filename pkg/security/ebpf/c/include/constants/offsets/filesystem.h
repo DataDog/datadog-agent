@@ -215,10 +215,10 @@ int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
 
     // escape from the embedded vfs_inode to reach ovl_inode
-    struct inode *lower;
-    bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 8);
+    struct dentry *lower;
+    bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 16);
 
-    return get_inode_ino(lower);
+    return get_dentry_ino(lower);
 }
 
 int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
