@@ -162,8 +162,6 @@ func (c *CWSConsumer) Start() error {
 		}
 	}
 
-	var policyProviders []rules.PolicyProvider
-
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {
 		seclog.Errorf("failed to parse agent version: %v", err)
@@ -191,28 +189,7 @@ func (c *CWSConsumer) Start() error {
 		RuleFilters:  ruleFilters,
 	}
 
-	// add remote config as config provider if enabled.
-	// rules from RC override local rules if they share the same ID, so the RC policy provider is added first
-	if c.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
-		if err != nil {
-			seclog.Errorf("will be unable to load remote policy: %s", err)
-		} else {
-			policyProviders = append(policyProviders, rcPolicyProvider)
-		}
-	}
-
-	// directory policy provider
-	if provider, err := rules.NewPoliciesDirProvider(c.config.PoliciesDir, c.config.WatchPoliciesDir); err != nil {
-		seclog.Errorf("failed to load policies: %s", err)
-	} else {
-		policyProviders = append(policyProviders, provider)
-	}
-
-	if len(policyProviders) > 1 && policyProviders[0].Type() != rconfig.PolicyProviderType {
-		seclog.Warnf("failed to load remote config policies first: local policies will override remote policies if there are conflicts")
-	}
-
+	policyProviders := c.gatherPolicyProviders()
 	if err := c.LoadPolicies(policyProviders, true); err != nil {
 		return fmt.Errorf("failed to load policies: %s", err)
 	}
@@ -251,6 +228,30 @@ func (c *CWSConsumer) Start() error {
 	seclog.Infof("runtime security started")
 
 	return nil
+}
+
+func (c *CWSConsumer) gatherPolicyProviders() []rules.PolicyProvider {
+	var policyProviders []rules.PolicyProvider
+
+	// add remote config as config provider if enabled.
+	// rules from RC override local rules if they share the same ID, so the RC policy provider is added first
+	if c.config.RemoteConfigurationEnabled {
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
+		if err != nil {
+			seclog.Errorf("will be unable to load remote policies: %s", err)
+		} else {
+			policyProviders = append(policyProviders, rcPolicyProvider)
+		}
+	}
+
+	// directory policy provider
+	if provider, err := rules.NewPoliciesDirProvider(c.config.PoliciesDir, c.config.WatchPoliciesDir); err != nil {
+		seclog.Errorf("failed to load local policies: %s", err)
+	} else {
+		policyProviders = append(policyProviders, provider)
+	}
+
+	return policyProviders
 }
 
 func (c *CWSConsumer) displayApplyRuleSetReport(report *kfilters.ApplyRuleSetReport) {
