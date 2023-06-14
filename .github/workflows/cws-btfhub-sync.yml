@@ -9,6 +9,11 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Cleanup runner
+        run: |
+          sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
+          docker rmi $(docker image ls -aq) >/dev/null 2>&1
+
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
         with:
