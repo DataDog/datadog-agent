@@ -347,10 +347,6 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 		return nil, false, nil
 	}
 
-	if !entry.HasCompleteLineage() {
-		return nil, false, errors.New("broken lineage")
-	}
-
 	// look for a ProcessActivityNode by process cookie
 	if entry.Cookie > 0 {
 		var found bool
