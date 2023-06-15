@@ -125,6 +125,7 @@ func (c *WindowsRegistryCheck) Run() error {
 }
 
 func processRegistryKeyMetrics(sender aggregator.Sender, regKey registry.Key, regKeyCfg registryKey) {
+NextMetric:
 	for valueName, metric := range regKeyCfg.metrics {
 		_, valueType, err := regKey.GetValue(valueName, nil)
 		gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKeyCfg.name, metric.Name)
@@ -156,18 +157,13 @@ func processRegistryKeyMetrics(sender aggregator.Sender, regKey registry.Key, re
 					sender.Gauge(gaugeName, parsedVal, "", nil)
 				} else {
 					// Value can't be parsed, let's check the mappings
-					mappingFound := false
 					for _, mapping := range metric.Mappings {
 						if mappedValue, found := mapping[val]; found {
 							sender.Gauge(gaugeName, mappedValue, "", nil)
-							// Stop at first mapping found
-							mappingFound = true
-							break
+							continue NextMetric
 						}
 					}
-					if !mappingFound {
-						log.Warnf("no mapping found for value %s of key %s", valueName, regKeyCfg.originalKeyPath)
-					}
+					log.Warnf("no mapping found for value %s of key %s", valueName, regKeyCfg.originalKeyPath)
 				}
 			default:
 				log.Warnf("unsupported data type of value %s for key %s: %d", valueName, regKeyCfg.originalKeyPath, valueType)
