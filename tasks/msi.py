@@ -152,6 +152,11 @@ def build(
         raise Exit("Failed to build the MSI installer.", code=1)
     # And copy it to the output path as a build artifact
     for artefact in glob.glob(f'{BUILD_SOURCE_DIR}\\WixSetup\\*.msi'):
+        # Temporary solution.  Sign the MSI here prior to moving using the new signing
+        # method as the old signature method is going away
+        dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
+        if dd_wcs_enabled:
+            ctx.run(f'dd-wcs sign {artefact}')
         shutil.copy2(artefact, OUTPUT_PATH)
 
 
