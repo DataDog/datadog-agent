@@ -22,8 +22,8 @@ const ProtocolDispatcherProgramsMap = "protocols_progs"
 // methods used to manage its lifetime and initialisation.
 type EbpfProgram interface {
 	// ConfigureOptions configures the provided Manager and Options structs with
-	// additional options that can not be defined statically via the
-	// ProtocolSpec struct, such as options depending on configuration values.
+	// additional options necessary for the program to work, such as options
+	// depending on configuration values.
 	ConfigureOptions(*manager.Manager, *manager.Options)
 
 	// PreStart is called before the start of the provided eBPF manager.
@@ -58,11 +58,11 @@ type ProtocolStats struct {
 // Protocol is the interface that represents a protocol supported by USM.
 //
 // Protocol extends EbpfProgram, and provides an additional method, GetStats, to
-// get monitoring data from that protocol monitoring.
+// get monitoring stats from that protocol monitoring.
 type Protocol interface {
 	EbpfProgram
 
-	// GetStats returns the latest monitoring data from a protocol
+	// GetStats returns the latest monitoring stats from a protocol
 	// implementation.
 	GetStats() *ProtocolStats
 }
