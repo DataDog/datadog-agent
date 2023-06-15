@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package remoteworkloadmeta
+package remote
 
 import (
 	"context"
@@ -16,36 +16,47 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 const (
-	collectorID       = "remote-workloadmeta"
 	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
 )
 
-// Note: some code in this collector is the same as in the remote-tagger.
-
 var errWorkloadmetaStreamNotStarted = errors.New("workloadmeta stream not started")
 
-type collector struct {
+// NewClient returns a remote grpc client
+type NewClient func(cc grpc.ClientConnInterface) RemoteGrpcClient
+
+type RemoteGrpcClient interface {
+	// StreamEntites establishes the stream between the client and the remote gRPC endpoint
+	StreamEntities(ctx context.Context, opts ...grpc.CallOption) (Stream, error)
+}
+
+type Stream interface {
+	// Recv returns an object sent by the remote gRPC endpoint
+	Recv() (interface{}, error)
+}
+
+// ResponseHandler handles a response sent by the remote gRPC endpoint
+type ResponseHandler func(response interface{}) ([]workloadmeta.CollectorEvent, error)
+
+type GenericCollector struct {
+	NewClient       NewClient
+	ResponseHandler ResponseHandler
+	Port            int
+
 	store        workloadmeta.Store
 	resyncNeeded bool
 
-	conn   *grpc.ClientConn
-	client pb.AgentSecureClient
-	stream pb.AgentSecure_WorkloadmetaStreamEntitiesClient
+	client RemoteGrpcClient
+	stream Stream
 
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
@@ -54,15 +65,7 @@ type collector struct {
 	cancel context.CancelFunc
 }
 
-func init() {
-	grpclog.SetLoggerV2(grpcutil.NewLogger())
-
-	workloadmeta.RegisterRemoteCollector(collectorID, func() workloadmeta.Collector {
-		return &collector{}
-	})
-}
-
-func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
+func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) error {
 	c.store = store
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
@@ -77,9 +80,9 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	})
 
 	var err error
-	c.conn, err = grpc.DialContext(
+	conn, err := grpc.DialContext(
 		c.ctx,
-		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
+		fmt.Sprintf(":%v", c.Port),
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
 			return net.Dial("tcp", url)
@@ -89,20 +92,19 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
-	c.client = pb.NewAgentSecureClient(c.conn)
+	c.client = c.NewClient(conn)
 
 	log.Info("remote workloadmeta initialized successfully")
-
-	go c.run()
+	go c.Run()
 
 	return nil
 }
 
-func (c *collector) Pull(ctx context.Context) error {
+func (c *GenericCollector) Pull(context.Context) error {
 	return nil
 }
 
-func (c *collector) startWorkloadmetaStream(maxElapsed time.Duration) error {
+func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 500 * time.Millisecond
 	expBackoff.MaxInterval = 5 * time.Minute
@@ -115,43 +117,32 @@ func (c *collector) startWorkloadmetaStream(maxElapsed time.Duration) error {
 		default:
 		}
 
-		token, err := security.FetchAuthToken()
-		if err != nil {
-			err = fmt.Errorf("unable to fetch authentication token: %w", err)
-			log.Infof("unable to establish stream, will possibly retry: %s", err)
-			return err
-		}
+		// token, err := security.FetchAuthToken()
+		// if err != nil {
+		// 	err = fmt.Errorf("unable to fetch authentication token: %w", err)
+		// 	log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
+		// 	return err
+		// }
 
 		c.streamCtx, c.streamCancel = context.WithCancel(
 			metadata.NewOutgoingContext(
 				c.ctx,
-				metadata.MD{
-					"authorization": []string{
-						fmt.Sprintf("Bearer %s", token),
-					},
-				},
+				metadata.MD{},
 			),
 		)
-
-		c.stream, err = c.client.WorkloadmetaStreamEntities(
-			c.streamCtx,
-			&pb.WorkloadmetaStreamRequest{
-				Filter: nil, // Subscribes to all events
-			},
-		)
-
+		var err error
+		c.stream, err = c.client.StreamEntities(c.streamCtx)
 		if err != nil {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return err
 		}
 
 		log.Info("workloadmeta stream established successfully")
-
 		return nil
 	}, expBackoff)
 }
 
-func (c *collector) run() {
+func (c *GenericCollector) Run() {
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -166,7 +157,7 @@ func (c *collector) run() {
 			}
 		}
 
-		var response *pb.WorkloadmetaStreamResponse
+		var response interface{}
 		err := grpcutil.DoWithTimeout(func() error {
 			var err error
 			response, err = c.stream.Recv()
@@ -189,50 +180,29 @@ func (c *collector) run() {
 			continue
 		}
 
-		err = c.processResponse(response)
+		collectorEvents, err := c.ResponseHandler(response)
 		if err != nil {
 			log.Warnf("error processing event received from remote workloadmeta: %s", err)
 			continue
 		}
-	}
-}
 
-func (c *collector) processResponse(response *pb.WorkloadmetaStreamResponse) error {
-	var collectorEvents []workloadmeta.CollectorEvent
+		if c.resyncNeeded {
+			var entities []workloadmeta.Entity
+			for _, event := range collectorEvents {
+				entities = append(entities, event.Entity)
+			}
 
-	for _, protoEvent := range response.Events {
-		workloadmetaEvent, err := protoutils.WorkloadmetaEventFromProtoEvent(protoEvent)
-		if err != nil {
-			return err
+			// This should be the first response that we got from workloadmeta after
+			// we lost the connection and specified that a re-sync is needed. So, at
+			// this point we know that "entities" contains all the existing entities
+			// in the store, because when a client subscribes to workloadmeta, the
+			// first response is always a bundle of events with all the existing
+			// entities in the store that match the filters specified (see
+			// workloadmeta.Store#Subscribe).
+			c.store.Reset(entities, workloadmeta.SourceRemoteWorkloadmeta)
+			c.resyncNeeded = false
 		}
 
-		collectorEvent := workloadmeta.CollectorEvent{
-			Type:   workloadmetaEvent.Type,
-			Source: workloadmeta.SourceRemoteWorkloadmeta,
-			Entity: workloadmetaEvent.Entity,
-		}
-
-		collectorEvents = append(collectorEvents, collectorEvent)
+		c.store.Notify(collectorEvents)
 	}
-
-	if c.resyncNeeded {
-		var entities []workloadmeta.Entity
-		for _, event := range collectorEvents {
-			entities = append(entities, event.Entity)
-		}
-
-		// This should be the first response that we got from workloadmeta after
-		// we lost the connection and specified that a re-sync is needed. So, at
-		// this point we know that "entities" contains all the existing entities
-		// in the store, because when a client subscribes to workloadmeta, the
-		// first response is always a bundle of events with all the existing
-		// entities in the store that match the filters specified (see
-		// workloadmeta.Store#Subscribe).
-		c.store.Reset(entities, workloadmeta.SourceRemoteWorkloadmeta)
-		c.resyncNeeded = false
-		return nil
-	}
-
-	c.store.Notify(collectorEvents)
-	return nil
 }
