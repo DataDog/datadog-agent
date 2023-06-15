@@ -31,6 +31,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -1741,7 +1742,25 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 }
 
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
+	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
+	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
+	// are in this configuration we first probe the kernel version, then we check for the
+	// presence of the function introduced in the same patch.
+	const patchSentinel = "ovl_i_path_real"
+
 	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_19 {
+		return 1
+	}
+
+	check, err := commonebpf.VerifyKernelFuncs(patchSentinel)
+	if err != nil {
+		return 0
+	}
+
+	fmt.Println(check)
+
+	// VerifyKernelFuncs returns the missing functions
+	if _, ok := check[patchSentinel]; !ok {
 		return 1
 	}
 
