@@ -112,8 +112,19 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	info      *status.InfoRegistry
-	bytesRead *status.CountInfo
+	info         *status.InfoRegistry
+	bytesRead    *status.CountInfo
+	fileRotation *status.MappedInfo
+}
+
+// TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
+type TailerOptions struct {
+	OutputChan    chan *message.Message // Required
+	File          *File                 // Required
+	SleepDuration time.Duration         // Required
+	Decoder       *decoder.Decoder      // Required
+	Info          *status.InfoRegistry  // Required
+	Rotated       bool                  // Optional
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -125,11 +136,12 @@ type Tailer struct {
 //
 // The Tailer must poll for content in the file.  The `sleepDuration` parameter
 // specifies how long the tailer should wait between polls.
-func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
+func NewTailer(opts *TailerOptions) *Tailer {
+	// func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
 
 	var tagProvider tag.Provider
-	if file.Source.Config().Identifier != "" {
-		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config().Identifier))
+	if opts.File.Source.Config().Identifier != "" {
+		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier))
 	} else {
 		tagProvider = tag.NewLocalProvider([]string{})
 	}
@@ -139,16 +151,16 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	windowsOpenFileTimeout := coreConfig.Datadog.GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
-	info.Register(bytesRead)
+	opts.Info.Register(bytesRead)
 
-	return &Tailer{
-		file:                   file,
-		outputChan:             outputChan,
-		decoder:                decoder,
+	t := &Tailer{
+		file:                   opts.File,
+		outputChan:             opts.OutputChan,
+		decoder:                opts.Decoder,
 		tagProvider:            tagProvider,
 		lastReadOffset:         atomic.NewInt64(0),
 		decodedOffset:          atomic.NewInt64(0),
-		sleepDuration:          sleepDuration,
+		sleepDuration:          opts.SleepDuration,
 		closeTimeout:           closeTimeout,
 		windowsOpenFileTimeout: windowsOpenFileTimeout,
 		stop:                   make(chan struct{}, 1),
@@ -157,15 +169,29 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 		stopForward:            stopForward,
 		isFinished:             atomic.NewBool(false),
 		didFileRotate:          atomic.NewBool(false),
-		info:                   info,
+		info:                   opts.Info,
 		bytesRead:              bytesRead,
+		fileRotation:           status.NewMappedInfo("File Rotated"),
 	}
+
+	t.fileRotation.SetMessage("File Rotated:", strconv.FormatBool(opts.Rotated))
+	t.info.Register(t.fileRotation)
+	return t
 }
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
 // messages to the same channel but using an updated file and decoder.
 func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
-	return NewTailer(t.outputChan, file, t.sleepDuration, decoder, info)
+	options := &TailerOptions{
+		OutputChan:    t.outputChan,
+		File:          file,
+		SleepDuration: t.sleepDuration,
+		Decoder:       decoder,
+		Info:          info,
+		Rotated:       true,
+	}
+
+	return NewTailer(options)
 }
 
 // Identifier returns a string that identifies this tailer in the registry.
