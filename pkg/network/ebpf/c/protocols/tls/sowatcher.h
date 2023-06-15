@@ -54,11 +54,19 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_openat_ctx *args) {
         return;
     }
 
-    // Detect whether the file being opened is a shared library
+// Check the last 6 characters of the following libraries to ensure the file is a relevant `.so`.
+// Libraries:
+//    libssl.so -> ssl.so
+// libcrypto.so -> pto.so
+// libgnutls.so -> tls.so
     bool is_shared_library = false;
+#define match3chars(_base, _a,_b,_c) (path->buf[_base+i] == _a && path->buf[_base+i+1] == _b && path->buf[_base+i+2] == _c)
 #pragma unroll
-    for (int i = 0; i < LIB_PATH_MAX_SIZE - SO_SUFFIX_SIZE; i++) {
-        if (path->buf[i] == '.' && path->buf[i + 1] == 's' && path->buf[i + 2] == 'o') {
+    for (int i = 0; i < LIB_PATH_MAX_SIZE - (LIB_SO_SUFFIX_SIZE); i++) {
+        if ((match3chars(0, 's','s','l') ||
+                match3chars(0, 'p','t','o') ||
+                match3chars(0, 't','l','s')) &&
+            match3chars(3, '.','s','o')) {
             is_shared_library = true;
             break;
         }

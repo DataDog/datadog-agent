@@ -66,7 +66,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
-	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo-ssl.so")
 
 	var (
 		mux          sync.Mutex
@@ -82,7 +82,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:         regexp.MustCompile(`foo.so`),
+			re:         regexp.MustCompile(`foo-ssl.so`),
 			registerCB: callback,
 		},
 	)
@@ -125,7 +125,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	err = os.MkdirAll(root, 0755)
 	require.NoError(t, err)
 
-	libpath := "/fooroot.so"
+	libpath := "/fooroot-pto.so"
 
 	err = exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:         regexp.MustCompile(`fooroot.so`),
+			re:         regexp.MustCompile(`fooroot-pto.so`),
 			registerCB: callback,
 		},
 	)
@@ -166,7 +166,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 
 	time.Sleep(10 * time.Millisecond)
 
-	// assert that soWatcher detected foo.so being opened and triggered the callback
+	// assert that soWatcher detected foo-ssl.so being opened and triggered the callback
 	require.Equal(t, libpath, pathDetected)
 
 	// must fail on the host
@@ -178,10 +178,10 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
-	fooPath1, fooPathID1 := createTempTestFile(t, "a-foo.so")
-	fooPath2 := filepath.Join(t.TempDir(), "b-foo.so")
+	fooPath1, fooPathID1 := createTempTestFile(t, "a-foo-ssl.so")
+	fooPath2 := filepath.Join(t.TempDir(), "b-foo-ssl.so")
 
-	// create a hard-link (a-foo.so and b-foo.so will share the same inode)
+	// create a hard-link (a-foo-ssl.so and b-foo-ssl.so will share the same inode)
 	require.NoError(t, os.Link(fooPath1, fooPath2))
 	fooPathID2, err := newPathIdentifier(fooPath2)
 	require.NoError(t, err)
@@ -194,7 +194,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:         regexp.MustCompile(`foo.so`),
+			re:         regexp.MustCompile(`foo-ssl.so`),
 			registerCB: callback,
 		},
 	)
@@ -232,20 +232,20 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
-	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
-	fooPath2, fooPathID2 := createTempTestFile(t, "foo2.so")
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo-ssl.so")
+	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-tls.so")
 
 	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
 	unregisterCB := func(id pathIdentifier) error { return nil }
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:           regexp.MustCompile(`foo.so`),
+			re:           regexp.MustCompile(`foo-ssl.so`),
 			registerCB:   registerCB,
 			unregisterCB: unregisterCB,
 		},
 		soRule{
-			re:           regexp.MustCompile(`foo2.so`),
+			re:           regexp.MustCompile(`foo2-tls.so`),
 			registerCB:   registerCB,
 			unregisterCB: unregisterCB,
 		},
@@ -314,20 +314,20 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
-	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
-	fooPath2, fooPathID2 := createTempTestFile(t, "foo2.so")
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo-ssl.so")
+	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-tls.so")
 
 	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
 	unregisterCB := func(id pathIdentifier) error { return nil }
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:           regexp.MustCompile(`foo.so`),
+			re:           regexp.MustCompile(`foo-ssl.so`),
 			registerCB:   registerCB,
 			unregisterCB: unregisterCB,
 		},
 		soRule{
-			re:           regexp.MustCompile(`foo2.so`),
+			re:           regexp.MustCompile(`foo2-tls.so`),
 			registerCB:   registerCB,
 			unregisterCB: unregisterCB,
 		},
