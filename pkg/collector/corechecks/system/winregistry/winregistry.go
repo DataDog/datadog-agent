@@ -5,6 +5,7 @@ package winregistry
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"io/fs"
 	"strconv"
 	"strings"
@@ -104,73 +105,75 @@ func (c *WindowsRegistryCheck) Run() error {
 		return err
 	}
 
-	for _, regKey := range c.registryKeys {
-		k, err := registry.OpenKey(regKey.hive, regKey.keyPath, registry.QUERY_VALUE)
+	for _, regKeyCfg := range c.registryKeys {
+		regKey, err := registry.OpenKey(regKeyCfg.hive, regKeyCfg.keyPath, registry.QUERY_VALUE)
 		if err != nil {
 			if errors.Is(err, fs.ErrPermission) {
 				// Treat access denied as errors
-				log.Errorf("access denied while accessing key %s: %s", regKey.originalKeyPath, err)
+				log.Errorf("access denied while accessing key %s: %s", regKeyCfg.originalKeyPath, err)
 			} else if errors.Is(err, registry.ErrNotExist) {
-				log.Warnf("key %s was not found: %s", regKey.originalKeyPath, err)
+				log.Warnf("key %s was not found: %s", regKeyCfg.originalKeyPath, err)
 			}
 		} else {
 			// if err == nil the key was opened, so we need to close it after we are done.
-			defer func() {
-				k.Close()
-			}()
-			for valueName, metric := range regKey.metrics {
-				_, valueType, err := k.GetValue(valueName, nil)
-				gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKey.name, metric.Name)
-				if errors.Is(err, registry.ErrNotExist) {
-					log.Warnf("value %s of key %s was not found: %s", valueName, regKey.name, err)
-				} else if errors.Is(err, fs.ErrPermission) {
-					log.Errorf("access denied while accessing value %s of key %s: %s", valueName, regKey.originalKeyPath, err)
-				} else if errors.Is(err, registry.ErrShortBuffer) || err == nil {
-					switch valueType {
-					case registry.DWORD:
-						fallthrough
-					case registry.QWORD:
-						val, _, err := k.GetIntegerValue(valueName)
-						if err != nil {
-							log.Errorf("error accessing value %s of key %s: %s", valueName, regKey.originalKeyPath, err)
-							continue
-						}
-						sender.Gauge(gaugeName, float64(val), "", nil)
-					case registry.SZ:
-						fallthrough
-					case registry.EXPAND_SZ: // Should we expand the references to environment variables ?
-						val, _, err := k.GetStringValue(valueName)
-						if err != nil {
-							log.Errorf("error accessing value %s of key %s: %s", valueName, regKey.originalKeyPath, err)
-							continue
-						}
-						// First try to parse the value into a float64
-						if parsedVal, err := strconv.ParseFloat(val, 64); err == nil {
-							sender.Gauge(gaugeName, parsedVal, "", nil)
-						} else {
-							// Value can't be parsed, let's check the mappings
-							mappingFound := false
-							for _, mapping := range metric.Mappings {
-								if mappedValue, found := mapping[val]; found {
-									sender.Gauge(gaugeName, mappedValue, "", nil)
-									// Stop at first mapping found
-									mappingFound = true
-									break
-								}
-							}
-							if !mappingFound {
-								log.Warnf("no mapping found for value %s of key %s", valueName, regKey.originalKeyPath)
-							}
-						}
-					default:
-						log.Warnf("unsupported data type of value %s for key %s: %d", valueName, regKey.originalKeyPath, valueType)
-					}
-				}
-			}
+			processRegistryKeyMetrics(sender, regKey, regKeyCfg)
+			regKey.Close()
 		}
 	}
 	sender.Commit()
 	return nil
+}
+
+func processRegistryKeyMetrics(sender aggregator.Sender, regKey registry.Key, regKeyCfg registryKey) {
+	for valueName, metric := range regKeyCfg.metrics {
+		_, valueType, err := regKey.GetValue(valueName, nil)
+		gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKeyCfg.name, metric.Name)
+		if errors.Is(err, registry.ErrNotExist) {
+			log.Warnf("value %s of key %s was not found: %s", valueName, regKeyCfg.name, err)
+		} else if errors.Is(err, fs.ErrPermission) {
+			log.Errorf("access denied while accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
+		} else if errors.Is(err, registry.ErrShortBuffer) || err == nil {
+			switch valueType {
+			case registry.DWORD:
+				fallthrough
+			case registry.QWORD:
+				val, _, err := regKey.GetIntegerValue(valueName)
+				if err != nil {
+					log.Errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
+					continue
+				}
+				sender.Gauge(gaugeName, float64(val), "", nil)
+			case registry.SZ:
+				fallthrough
+			case registry.EXPAND_SZ: // Should we expand the references to environment variables ?
+				val, _, err := regKey.GetStringValue(valueName)
+				if err != nil {
+					log.Errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
+					continue
+				}
+				// First try to parse the value into a float64
+				if parsedVal, err := strconv.ParseFloat(val, 64); err == nil {
+					sender.Gauge(gaugeName, parsedVal, "", nil)
+				} else {
+					// Value can't be parsed, let's check the mappings
+					mappingFound := false
+					for _, mapping := range metric.Mappings {
+						if mappedValue, found := mapping[val]; found {
+							sender.Gauge(gaugeName, mappedValue, "", nil)
+							// Stop at first mapping found
+							mappingFound = true
+							break
+						}
+					}
+					if !mappingFound {
+						log.Warnf("no mapping found for value %s of key %s", valueName, regKeyCfg.originalKeyPath)
+					}
+				}
+			default:
+				log.Warnf("unsupported data type of value %s for key %s: %d", valueName, regKeyCfg.originalKeyPath, valueType)
+			}
+		}
+	}
 }
 
 func windowsRegistryCheckFactory() check.Check {
