@@ -8,6 +8,7 @@ package invocationlifecycle
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ type LifecycleProcessor struct {
 	SubProcessor         InvocationSubProcessor
 
 	requestHandler *RequestHandler
+	serviceName    string
 }
 
 // RequestHandler is the struct that stores information about the trace,
@@ -226,10 +228,12 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 					log.Debug("[lifecycle] Completing a secondary inferred span")
 					lp.setParentIDForMultipleInferredSpans()
 					lp.requestHandler.inferredSpans[1].AddTagToInferredSpan("http.status_code", statusCode)
+					lp.requestHandler.inferredSpans[1].AddTagToInferredSpan("peer.service", lp.GetServiceName())
 					lp.requestHandler.inferredSpans[1].CompleteInferredSpan(lp.ProcessTrace, lp.getInferredSpanStart(), endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
 					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
 				}
 				lp.GetInferredSpan().AddTagToInferredSpan("http.status_code", statusCode)
+				lp.GetInferredSpan().AddTagToInferredSpan("peer.service", lp.GetServiceName())
 				lp.GetInferredSpan().CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
 				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
 			} else {
@@ -264,6 +268,16 @@ func (lp *LifecycleProcessor) GetInferredSpan() *inferredspan.InferredSpan {
 
 func (lp *LifecycleProcessor) getInferredSpanStart() time.Time {
 	return time.Unix(lp.GetInferredSpan().Span.Start, 0)
+}
+
+// GetServiceName returns the value stored in the environment variable
+// DD_SERVICE. Also assigned into `lp.serviceName` if not previously set
+func (lp *LifecycleProcessor) GetServiceName() string {
+	if lp.serviceName != "" {
+		return lp.serviceName
+	}
+	lp.serviceName = os.Getenv("DD_SERVICE")
+	return lp.serviceName
 }
 
 // NewRequest initializes basic information about the current request
