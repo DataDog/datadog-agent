@@ -11,11 +11,12 @@ import (
 	"os"
 	"sync"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/iovisor/gobpf/pkg/cpupossible"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // handlerByProtocol holds a temporary reference to a `ddebpf.PerfHandler`
@@ -30,9 +31,9 @@ var handlerMux sync.Mutex
 // Must be called *before* manager.InitWithOptions
 func Configure(proto string, m *manager.Manager, o *manager.Options) {
 	setupPerfMap(proto, m)
-	onlineCPUs, err := cpupossible.Get()
+	onlineCPUs, err := kernel.PossibleCPUs()
 	if err != nil {
-		onlineCPUs = make([]uint, 96)
+		onlineCPUs = 96
 		log.Error("unable to detect number of CPUs. assuming 96 cores")
 	}
 
@@ -42,7 +43,7 @@ func Configure(proto string, m *manager.Manager, o *manager.Options) {
 
 	o.MapSpecEditors[proto+batchMapSuffix] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
-		MaxEntries: uint32(len(onlineCPUs) * batchPagesPerCPU),
+		MaxEntries: uint32(onlineCPUs * batchPagesPerCPU),
 		EditorFlag: manager.EditMaxEntries,
 	}
 }
