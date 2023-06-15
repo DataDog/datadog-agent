@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
@@ -87,6 +88,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	// create files
@@ -111,6 +113,12 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		// Checking path1 still exists, and path2 not.
 		return checkPathIDDoesNotExist(watcher, fooPathID1) && checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid))
 	}, time.Second*10, time.Second, "")
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	hits := tel["usm.shared_libraries.hits"]
+	matches := tel["usm.shared_libraries.matches"]
+	require.Equal(t, int64(1), matches, "usm.shared_libraries.matches doesn't match")
+	require.GreaterOrEqual(t, hits, matches, "usm.shared_libraries.hits is too low")
 }
 
 func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace() {
@@ -153,6 +161,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	time.Sleep(10 * time.Millisecond)
@@ -199,6 +208,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	clientBin := buildSOWatcherClientBin(t)
@@ -251,6 +261,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	// create files
@@ -344,6 +355,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	registerProcessTerminationUponCleanup(t, command1)
 	time.Sleep(time.Second)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	require.Eventuallyf(t, func() bool {
