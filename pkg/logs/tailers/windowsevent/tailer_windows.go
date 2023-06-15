@@ -25,7 +25,8 @@ import (
 )
 
 // Start starts tailing the event log.
-func (t *Tailer) Start() {
+func (t *Tailer) Start(bookmark string) {
+	// bookmark is unused by this implementation
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	go t.forwardMessages()
 	t.decoder.Start()

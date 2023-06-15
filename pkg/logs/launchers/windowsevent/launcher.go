@@ -24,7 +24,8 @@ import (
 )
 
 type Tailer interface {
-	startstop.StartStoppable
+	Start(bookmark string)
+	startstop.Stoppable
 	Identifier() string
 }
 
@@ -33,6 +34,7 @@ type Launcher struct {
 	evtapi           evtapi.API
 	sources          chan *sources.LogSource
 	pipelineProvider pipeline.Provider
+	registry         auditor.Registry
 	tailers          map[string]Tailer
 	stop             chan struct{}
 }
@@ -120,6 +122,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (Tailer, error) {
 		}
 		t = tailer.NewTailer(source, config, l.pipelineProvider.NextPipelineChan())
 	}
-	t.Start()
+	bookmark := l.registry.GetOffset(t.Identifier())
+	t.Start(bookmark)
 	return t, nil
 }

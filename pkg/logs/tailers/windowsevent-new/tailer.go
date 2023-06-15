@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 	"github.com/cenkalti/backoff"
 )
@@ -61,6 +62,7 @@ type Tailer struct {
 	done       chan struct{}
 
 	sub                 evtsubscribe.PullSubscription
+	bookmark            evtbookmark.Bookmark
 	systemRenderContext evtapi.EventRenderContextHandle
 }
 
@@ -95,11 +97,11 @@ func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) {
 }
 
 // Start starts tailing the event log.
-func (t *Tailer) Start() {
+func (t *Tailer) Start(bookmark string) {
 	log.Infof("Starting windows event log tailing for channel %s query %s", t.config.ChannelPath, t.config.Query)
 	t.stop = make(chan struct{})
 	t.done = make(chan struct{})
-	go t.tail()
+	go t.tail(bookmark)
 }
 
 // Stop stops the tailer
@@ -112,18 +114,50 @@ func (t *Tailer) Stop() {
 }
 
 // tail subscribes to the channel for the windows events
-func (t *Tailer) tail() {
+func (t *Tailer) tail(bookmark string) {
 	if t.evtapi == nil {
 		t.evtapi = winevtapi.New()
 	}
+
+	var err error
+
+	opts := []evtsubscribe.PullSubscriptionOption{
+		evtsubscribe.WithWindowsEventLogAPI(t.evtapi),
+		evtsubscribe.WithEventBatchCount(10),
+		evtsubscribe.WithNotifyEventsAvailable(),
+	}
+
+	if bookmark != "" {
+		// load bookmark
+		t.bookmark, err = evtbookmark.New(
+			evtbookmark.WithWindowsEventLogAPI(t.evtapi),
+			evtbookmark.FromXML(bookmark))
+		if err != nil {
+			err = fmt.Errorf("error creating bookmark: %v", err)
+			log.Errorf("%v", err)
+			t.source.Status.Error(err)
+			return
+		}
+		opts = append(opts, evtsubscribe.WithStartAfterBookmark(t.bookmark))
+	} else {
+		// new bookmark
+		t.bookmark, err = evtbookmark.New(
+			evtbookmark.WithWindowsEventLogAPI(t.evtapi))
+		if err != nil {
+			err = fmt.Errorf("error creating bookmark: %v", err)
+			log.Errorf("%v", err)
+			t.source.Status.Error(err)
+			return
+		}
+	}
+
 	// subscription
 	t.sub = evtsubscribe.NewPullSubscription(
 		t.config.ChannelPath,
 		t.config.Query,
-		evtsubscribe.WithWindowsEventLogAPI(t.evtapi),
-		evtsubscribe.WithEventBatchCount(10),
-		evtsubscribe.WithNotifyEventsAvailable())
-	err := t.sub.Start()
+		opts...,
+	)
+	err = t.sub.Start()
 	if err != nil {
 		err = fmt.Errorf("failed to start subscription: %v", err)
 		log.Errorf("%v", err)
@@ -219,10 +253,25 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 
 	richEvt := t.enrichEvent(eventRecordHandle)
 
+	err := t.bookmark.Update(eventRecordHandle)
+	if err != nil {
+		log.Warnf("Failed to update bookmark: %v, to event %s", err, richEvt.xmlEvent)
+	}
+
 	msg, err := t.toMessage(richEvt)
 	if err != nil {
-		log.Warnf("Couldn't convert xml to json: %s for event %s", err, richEvt.xmlEvent)
+		log.Warnf("Failed to convert xml to json: %s for event %s", err, richEvt.xmlEvent)
 		return
+	}
+
+	// Store bookmark in origin offset so that it is persisted to disk by the auditor registry
+	offset, err := t.bookmark.Render()
+	if err == nil {
+		msg.Origin.Identifier = t.Identifier()
+		msg.Origin.Offset = offset
+		t.sub.SetBookmark(t.bookmark)
+	} else {
+		log.Warnf("Failed to render bookmark: %v for event %s", richEvt.xmlEvent)
 	}
 
 	t.source.RecordBytes(int64(len(msg.Content)))

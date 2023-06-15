@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -43,6 +43,9 @@ func TestReadEventsSuite(t *testing.T) {
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
 	for _, tiName := range testerNames {
+		if tiName != "Windows" {
+			t.Skip("test interface not implemented")
+		}
 		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
 			var s ReadEventsSuite
 			s.channelPath = "dd-test-channel-logtailer"
@@ -78,11 +81,11 @@ func (s *ReadEventsSuite) SetupTest() {
 	s.Require().NoError(err)
 }
 
-func newtailer(evtapi evtapi.API, tailerconfig *Config, msgChan chan *message.Message) (*Tailer, error) {
-	source := sources.NewLogSource("", &config.LogsConfig{})
+func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan chan *message.Message) (*Tailer, error) {
+	source := sources.NewLogSource("", &logconfig.LogsConfig{})
 
 	tailer := NewTailer(evtapi, source, tailerconfig, msgChan)
-	tailer.Start()
+	tailer.Start(bookmark)
 	err := backoff.Retry(func() error {
 		if source.Status.IsSuccess() {
 			return nil
@@ -102,7 +105,7 @@ func (s *ReadEventsSuite) TestReadEvents() {
 		ChannelPath: s.channelPath,
 	}
 	msgChan := make(chan *message.Message)
-	tailer, err := newtailer(s.ti.API(), &config, msgChan)
+	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -133,7 +136,7 @@ func (s *ReadEventsSuite) TestCustomQuery() {
 		Query:       query,
 	}
 	msgChan := make(chan *message.Message)
-	tailer, err := newtailer(s.ti.API(), &config, msgChan)
+	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -157,7 +160,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 		ChannelPath: s.channelPath,
 	}
 	msgChan := make(chan *message.Message)
-	tailer, err := newtailer(s.ti.API(), &config, msgChan)
+	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
 	s.Require().NoError(err)
 	s.T().Cleanup(func() {
 		tailer.Stop()
@@ -223,6 +226,55 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 }
 
+func (s *ReadEventsSuite) TestBookmarkNewTailer() {
+	// create a new tailer and read some events to create a bookmark
+	config := Config{
+		ChannelPath: s.channelPath,
+	}
+	msgChan := make(chan *message.Message)
+	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		tailer.Stop()
+	})
+
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	bookmark := ""
+	totalEvents := uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		totalEvents += 1
+		bookmark = msg.Origin.Offset
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+	// we are done with the original tailer now
+	tailer.Stop()
+
+	// add some new events to the log
+	// the tailer should resume from the bookmark and see these events even though
+	// it wasn't running at the time they were generated
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	// create a new tailer, and provide it the bookmark from the previous run
+	msgChan = make(chan *message.Message)
+	tailer, err = newtailer(s.ti.API(), &config, bookmark, msgChan)
+	s.Require().NoError(err)
+
+	totalEvents = uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		totalEvents += 1
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+
+	// if tailer started from bookmark correctly, there should only be s.numEvents
+}
+
 func BenchmarkReadEvents(b *testing.B) {
 	numEvents := []uint{10, 100, 1000, 10000}
 	testerNames := eventlog_test.GetEnabledAPITesters()
@@ -258,7 +310,7 @@ func BenchmarkReadEvents(b *testing.B) {
 					Query:       query,
 				}
 				msgChan := make(chan *message.Message)
-				tailer, err := newtailer(ti.API(), &config, msgChan)
+				tailer, err := newtailer(ti.API(), &config, "", msgChan)
 				require.NoError(b, err)
 				b.Cleanup(func() {
 					tailer.Stop()
