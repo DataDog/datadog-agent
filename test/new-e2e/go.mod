@@ -11,7 +11,9 @@ replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.46.0-rc.2
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
-	// You should bump .gitlab/e2e.yml .new_e2e_template.image too !
+	// You should bump the image version at the `image` field in `.new_e2e_template` job
+	// in .gitlab/e2e.yml. You can find the image name a the end of the `build-runner-image`
+	// job in `test-infra-definitions` pipeline on `main` branch
 	github.com/DataDog/test-infra-definitions v0.0.0-20230613085340-ae907a97ca4f
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
