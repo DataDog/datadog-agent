@@ -253,14 +253,19 @@ func (k *Version) IsCOSKernel() bool {
 	return k.OsRelease["ID"] == "cos"
 }
 
-// IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
+// IsAmazonLinuxKernel returns whether the kernel is an amazon linux kernel
 func (k *Version) IsAmazonLinuxKernel() bool {
 	return k.OsRelease["ID"] == "amzn"
 }
 
-// IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
+// IsAmazonLinux2022Kernel returns whether the kernel is an amazon linux 2022 kernel
 func (k *Version) IsAmazonLinux2022Kernel() bool {
 	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2022"
+}
+
+// IsAmazonLinux2023Kernel returns whether the kernel is an amazon linux 2023 kernel
+func (k *Version) IsAmazonLinux2023Kernel() bool {
+	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2023"
 }
 
 // IsInRangeCloseOpen returns whether the kernel version is between the begin
