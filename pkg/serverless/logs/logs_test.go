@@ -966,7 +966,8 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	// The test ensures that the values listed in the report log statement
 	// matches the values of the metrics being reported.
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
 	runtimeDurationMs := 10.0
