@@ -132,7 +132,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.3
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/iceber/iouring-go v0.0.0-20220609112130-b1dc8dd9fbfd
-	github.com/imdario/mergo v0.3.15
+	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.7.0
 	github.com/itchyny/gojq v0.12.13
 	github.com/json-iterator/go v1.1.12
