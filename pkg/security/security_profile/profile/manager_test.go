@@ -64,8 +64,8 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	}
 
 	// setting process ancestor
-	event.ProcessCacheEntry.Ancestor = model.NewEmptyProcessCacheEntry(41, 41, false)
-	event.ProcessCacheEntry.Ancestor.FileEvent.PathnameStr = "runc"
+	event.ProcessCacheEntry.Ancestor = model.NewEmptyProcessCacheEntry(1, 1, false)
+	event.ProcessCacheEntry.Ancestor.FileEvent.PathnameStr = "systemd"
 	event.ProcessCacheEntry.Ancestor.FileEvent.Inode = 41
 	event.ProcessCacheEntry.Ancestor.Args = "foo"
 	return event
