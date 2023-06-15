@@ -261,7 +261,9 @@ func (m *Monitor) Start() error {
 	for protocolType, protocol := range m.enabledProtocols {
 		startErr := protocol.PostStart(m.ebpfProgram.Manager.Manager)
 		if startErr != nil {
-			// Cleanup the protocol
+			// Cleanup the protocol. Note that at this point we can't unload the
+			// ebpf programs of a specific protocol without shutting down the
+			// entire manager.
 			enabledCount--
 			protocol.Stop(m.ebpfProgram.Manager.Manager)
 			delete(m.enabledProtocols, protocolType)
