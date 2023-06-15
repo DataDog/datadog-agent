@@ -287,6 +287,10 @@ func (m *Monitor) Start() error {
 		err = m.processMonitor.Initialize()
 	}
 
+	for protocolName, _ := range m.enabledProtocols {
+		log.Infof("enabled USM protocol: %s", protocolName)
+	}
+
 	return err
 }
 
