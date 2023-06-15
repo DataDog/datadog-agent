@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package pb
+package trace
 
 //go:generate go run github.com/tinylib/msgp -file=span.pb.go -o span_gen.go -io=false
 //go:generate go run github.com/tinylib/msgp -file=tracer_payload.pb.go -o tracer_payload_gen.go -io=false

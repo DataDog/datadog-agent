@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package pb
+package trace
 
 // traceChunkCopiedFields records the fields that are copied in ShallowCopy.
 // This should match exactly the fields set in (*TraceChunk).ShallowCopy.

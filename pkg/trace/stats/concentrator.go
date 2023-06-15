@@ -27,7 +27,7 @@ const defaultBufferLen = 2
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
 	In  chan Input
-	Out chan pb.StatsPayload
+	Out chan *pb.StatsPayload
 
 	// bucket duration in nanoseconds
 	bsize int64
@@ -51,7 +51,7 @@ type Concentrator struct {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now time.Time) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
@@ -207,12 +207,12 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 
 // Flush deletes and returns complete statistic buckets.
 // The force boolean guarantees flushing all buckets if set to true.
-func (c *Concentrator) Flush(force bool) pb.StatsPayload {
+func (c *Concentrator) Flush(force bool) *pb.StatsPayload {
 	return c.flushNow(time.Now().UnixNano(), force)
 }
 
-func (c *Concentrator) flushNow(now int64, force bool) pb.StatsPayload {
-	m := make(map[PayloadAggregationKey][]pb.ClientStatsBucket)
+func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
+	m := make(map[PayloadAggregationKey][]*pb.ClientStatsBucket)
 
 	c.mu.Lock()
 	for ts, srb := range c.buckets {
@@ -241,9 +241,9 @@ func (c *Concentrator) flushNow(now int64, force bool) pb.StatsPayload {
 		c.oldestTs = newOldestTs
 	}
 	c.mu.Unlock()
-	sb := make([]pb.ClientStatsPayload, 0, len(m))
+	sb := make([]*pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
-		p := pb.ClientStatsPayload{
+		p := &pb.ClientStatsPayload{
 			Env:         k.Env,
 			Hostname:    k.Hostname,
 			ContainerID: k.ContainerID,
@@ -252,7 +252,7 @@ func (c *Concentrator) flushNow(now int64, force bool) pb.StatsPayload {
 		}
 		sb = append(sb, p)
 	}
-	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
+	return &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 
 // alignTs returns the provided timestamp truncated to the bucket size.
