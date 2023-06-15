@@ -49,7 +49,7 @@ var (
 	}
 )
 
-var errNoProtocols = errors.New("no protocols monitoring could be initialised")
+var errNoProtocols = errors.New("no protocol monitors were initialised")
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -276,7 +276,7 @@ func (m *Monitor) Start() error {
 	if enabledCount == 0 {
 		err = m.ebpfProgram.Close()
 		if err != nil {
-			log.Error("error during USM shutdown: %s", err)
+			log.Errorf("error during USM shutdown: %s", err)
 		}
 
 		return errNoProtocols
