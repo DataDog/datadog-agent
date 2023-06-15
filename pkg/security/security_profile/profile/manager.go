@@ -111,13 +111,19 @@ type eventFilteringEntry struct {
 	result    EventFilteringResult
 }
 
+// ActivityDumpManager is a generic interface to reach the Activity Dump manager
+type ActivityDumpManager interface {
+	StopDumpsWithSelector(selector cgroupModel.WorkloadSelector)
+}
+
 // SecurityProfileManager is used to manage Security Profiles
 type SecurityProfileManager struct {
-	config         *config.Config
-	statsdClient   statsd.ClientInterface
-	cgroupResolver *cgroup.Resolver
-	timeResolver   *timeResolver.Resolver
-	providers      []Provider
+	config              *config.Config
+	statsdClient        statsd.ClientInterface
+	cgroupResolver      *cgroup.Resolver
+	timeResolver        *timeResolver.Resolver
+	providers           []Provider
+	activityDumpManager ActivityDumpManager
 
 	manager                    *manager.Manager
 	securityProfileMap         *ebpf.Map
@@ -207,6 +213,11 @@ func (m *SecurityProfileManager) initMetricsMap() {
 			}
 		}
 	}
+}
+
+// SetActivityDumpManager sets the stopDumpsWithSelectorCallback function
+func (m *SecurityProfileManager) SetActivityDumpManager(manager ActivityDumpManager) {
+	m.activityDumpManager = manager
 }
 
 // Start runs the manager of Security Profiles
@@ -715,6 +726,10 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 		// did we reached the stable state time limit ?
 		if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
 			eventState.state = StableEventType
+			// call the activity dump manager to stop dumping workloads from the current profile selector
+			if m.activityDumpManager != nil {
+				m.activityDumpManager.StopDumpsWithSelector(profile.selector)
+			}
 			return StableEventType
 		}
 

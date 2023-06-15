@@ -51,7 +51,8 @@ func NewSecurityProfileManagers(probe *Probe) (*SecurityProfileManagers, error) 
 	}
 
 	if probe.IsActivityDumpEnabled() && probe.IsSecurityProfileEnabled() {
-		managers.activityDumpManager.SetSilentWorkloadsFetcher(managers.securityProfileManager.FetchSilentWorkloads)
+		managers.activityDumpManager.SetSecurityProfileManager(managers.securityProfileManager)
+		managers.securityProfileManager.SetActivityDumpManager(managers.activityDumpManager)
 	}
 
 	return &managers, nil
