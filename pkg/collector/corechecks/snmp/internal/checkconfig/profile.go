@@ -140,7 +140,6 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 				continue
 			}
 			profConfig.Definition = *profDefinition
-			profiles[name] = profConfig
 		}
 		profiles[name] = profConfig
 	}
