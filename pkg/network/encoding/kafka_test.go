@@ -260,7 +260,7 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 		payload.Kafka[kafka.NewKey(
 			localhost,
 			localhost,
-			11112,
+			1112,
 			1111,
 			fmt.Sprintf("%s-%d", topicName, index+1),
 			kafka.ProduceAPIKey,
