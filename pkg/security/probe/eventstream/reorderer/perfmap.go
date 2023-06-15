@@ -19,30 +19,25 @@ import (
 	"github.com/cilium/ebpf/perf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
-
-const EventStreamMap = "events"
 
 // OrderedPerfMap implements the EventStream interface
 // using an eBPF perf map associated with a event reorder.
 type OrderedPerfMap struct {
 	perfMap          *manager.PerfMap
-	lostEventCounter LostEventCounter
+	lostEventCounter eventstream.LostEventCounter
 	reordererMonitor *ReordererMonitor
 	reOrderer        *ReOrderer
 	recordPool       *RecordPool
 }
 
-type LostEventCounter interface {
-	CountLostEvent(count uint64, perfMapName string, CPU int)
-}
-
 // Init the event stream.
 func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error {
 	var ok bool
-	if m.perfMap, ok = mgr.GetPerfMap(EventStreamMap); !ok {
+	if m.perfMap, ok = mgr.GetPerfMap(eventstream.EventStreamMap); !ok {
 		return errors.New("couldn't find events perf map")
 	}
 
@@ -67,7 +62,7 @@ func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manage
 }
 
 // SetMonitor set the monitor
-func (m *OrderedPerfMap) SetMonitor(counter LostEventCounter) {
+func (m *OrderedPerfMap) SetMonitor(counter eventstream.LostEventCounter) {
 	m.lostEventCounter = counter
 }
 
