@@ -322,6 +322,11 @@ func (p *Probe) PlaySnapshot() {
 		event.ProcessContext = &entry.ProcessContext
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
+
+		if !entry.HasCompleteLineage() {
+			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+		}
+
 		events = append(events, event)
 	}
 	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
