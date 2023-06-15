@@ -69,11 +69,11 @@ const (
 // easyjson:json
 type ActivityDump struct {
 	*sync.Mutex
-	state ActivityDumpStatus
-	adm   *ActivityDumpManager
+	state    ActivityDumpStatus
+	adm      *ActivityDumpManager
+	selector *cgroupModel.WorkloadSelector
 
 	countedByLimiter bool
-	selector         cgroupModel.WorkloadSelector
 
 	// standard attributes used by the intake
 	Host    string   `json:"host,omitempty"`
@@ -229,6 +229,19 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		))
 	}
 	return ad, nil
+}
+
+// GetWorkloadSelector returns the workload selector of the dump
+func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
+	if ad.selector != nil && ad.selector.IsReady() {
+		return ad.selector
+	}
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+	if err != nil {
+		return nil
+	}
+	ad.selector = &selector
+	return ad.selector
 }
 
 // SetState sets the status of the activity dump
