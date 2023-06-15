@@ -1728,7 +1728,7 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 	}
 	mess, err := managers.DumpActivity(p)
 	if err != nil || mess == nil || len(mess.Storage) < 1 {
-		return nil, errors.New("failed to start activity dump")
+		return nil, fmt.Errorf("failed to start activity dump: err:%v message:%v len:%v", err, mess, len(mess.Storage))
 	}
 
 	var files []string
