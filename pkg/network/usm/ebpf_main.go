@@ -357,6 +357,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		},
 	}
 
+	// Set some eBPF constants to tell the protocol dispatcher which ones are
+	// enabled. These needs to be set here, even if some protocols are not
+	// enabled, to make sure they exists. Without this, the dispatcher would try
+	// to check non-existing constants, which is not possible and an error.
 	protocols.AddBoolConst(&options, e.cfg.EnableHTTPMonitoring, "http_monitoring_enabled")
 	protocols.AddBoolConst(&options, e.cfg.EnableHTTP2Monitoring, "http2_monitoring_enabled")
 	protocols.AddBoolConst(&options, e.cfg.EnableKafkaMonitoring, "kafka_monitoring_enabled")
