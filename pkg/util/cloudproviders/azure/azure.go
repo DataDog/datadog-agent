@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -43,6 +44,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 		res, err := getResponseWithMaxLength(ctx,
 			metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
 			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+		log.Debug("/metadata/instance/compute/vmId?api-version=2017-04-02&format=text", res, err)
 		if err != nil {
 			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 		}
@@ -60,6 +62,7 @@ var resourceGroupNameFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		rg, err := getResponse(ctx,
 			metadataURL+"/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
+		log.Debug("/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text", rg, err)
 		if err != nil {
 			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
 		}
@@ -122,6 +125,8 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		metadataJSON, err := getResponse(ctx,
 			metadataURL+"/metadata/instance/compute?api-version=2017-08-01")
+		log.Debug("/metadata/instance/compute?api-version=2017-08-01", metadataJSON, err)
+
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure instance metadata: %s", err)
 		}
@@ -177,6 +182,8 @@ var publicIPv4Fetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		publicIPv4, err := getResponse(ctx,
 			metadataURL+"/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-04-02&format=text")
+		log.Debug("/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-04-02&format=text", publicIPv4, err)
+
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure public ip: %s", err)
 		}
