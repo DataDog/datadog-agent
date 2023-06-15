@@ -7,8 +7,10 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"regexp"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var validMetadataResources = map[string]map[string]bool{
@@ -138,6 +140,7 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 			errors = append(errors, fmt.Sprintf("symbol oid missing: name=`%s` oid=`%s`", symbol.Name, symbol.OID))
 		}
 	}
+	symbol.OID = strings.TrimPrefix(symbol.OID, ".")
 	if symbol.ExtractValue != "" {
 		pattern, err := regexp.Compile(symbol.ExtractValue)
 		if err != nil {
