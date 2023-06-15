@@ -141,6 +141,7 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 		telemetry.OptStatsd,
 		telemetry.OptExpvar,
 		telemetry.OptMonotonic,
+		telemetry.OptPayloadTelemetry,
 	)
 	return &soWatcher{
 		wg:             sync.WaitGroup{},
@@ -163,8 +164,8 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 			libUnregisterPathIDNotFound: metricGroup.NewMetric("unregister_pathid_not_found"),
 		},
 
-		libHits:    metricGroup.NewMetric("hits", telemetry.OptPayloadTelemetry),
-		libMatches: metricGroup.NewMetric("matches", telemetry.OptPayloadTelemetry),
+		libHits:    metricGroup.NewMetric("hits"),
+		libMatches: metricGroup.NewMetric("matches"),
 	}
 }
 
