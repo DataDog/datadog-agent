@@ -51,6 +51,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -93,8 +94,6 @@ event_monitoring_config:
   network:
     enabled: true
   flush_discarder_window: 0
-  load_controller:
-    events_count_threshold: {{ .EventsCountThreshold }}
 {{if .DisableFilters}}
   enable_kernel_filters: false
 {{end}}
@@ -251,6 +250,7 @@ type testOpts struct {
 	disableRuntimeSecurity              bool
 	enableSBOM                          bool
 	preStartCallback                    func(test *testModule)
+	tagsResolver                        tags.Resolver
 }
 
 func (s *stringSlice) String() string {
@@ -922,8 +922,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			StatsdClient:          statsdClient,
 			DontDiscardRuntime:    true,
 			PathResolutionEnabled: true,
-			TagsResolver:          NewFakeResolver(),
 		},
+	}
+	if opts.tagsResolver != nil {
+		emopts.ProbeOpts.TagsResolver = opts.tagsResolver
+	} else {
+		emopts.ProbeOpts.TagsResolver = NewFakeResolver()
 	}
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
 	if err != nil {
@@ -1706,8 +1710,8 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 }
 
 func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, formats []string) ([]string, error) {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
 	p := &api.ActivityDumpParams{
@@ -1722,7 +1726,7 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 			RemoteStorageCompression: false,
 		},
 	}
-	mess, err := monitor.DumpActivity(p)
+	mess, err := managers.DumpActivity(p)
 	if err != nil || mess == nil || len(mess.Storage) < 1 {
 		return nil, errors.New("failed to start activity dump")
 	}
@@ -1735,8 +1739,8 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 }
 
 func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return errors.New("No monitor")
 	}
 	p := &api.ActivityDumpStopParams{
@@ -1744,7 +1748,7 @@ func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 		ContainerID: containerID,
 		Comm:        comm,
 	}
-	_, err := monitor.StopActivityDump(p)
+	_, err := managers.StopActivityDump(p)
 	if err != nil {
 		return err
 	}
@@ -1759,12 +1763,12 @@ type activityDumpIdentifier struct {
 }
 
 func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
 	p := &api.ActivityDumpListParams{}
-	mess, err := monitor.ListActivityDumps(p)
+	mess, err := managers.ListActivityDumps(p)
 	if err != nil || mess == nil {
 		return nil, err
 	}
@@ -1792,12 +1796,12 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 }
 
 func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error) {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
 
-	adm := monitor.GetActivityDumpManager()
+	adm := managers.GetActivityDumpManager()
 	if adm == nil {
 		return nil, errors.New("No activity dump manager")
 	}
@@ -1933,11 +1937,11 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, i
 
 //nolint:deadcode,unused
 func (tm *testModule) triggerLoadControllerReducer(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return
 	}
-	adm := monitor.GetActivityDumpManager()
+	adm := managers.GetActivityDumpManager()
 	if adm == nil {
 		return
 	}
@@ -2181,12 +2185,12 @@ func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupMode
 }
 
 func (tm *testModule) SetProfileStatus(selector *cgroupModel.WorkloadSelector, newStatus model.Status) error {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
+	managers := tm.probe.GetProfileManagers()
+	if managers == nil {
 		return errors.New("No monitor")
 	}
 
-	spm := monitor.GetSecurityProfileManager()
+	spm := managers.GetSecurityProfileManager()
 	if spm == nil {
 		return errors.New("No security profile manager")
 	}

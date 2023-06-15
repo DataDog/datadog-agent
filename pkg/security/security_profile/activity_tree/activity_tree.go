@@ -8,6 +8,7 @@
 package activity_tree
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -164,7 +165,7 @@ func (at *ActivityTree) IsEmpty() bool {
 }
 
 // nolint: unused
-func (at *ActivityTree) debug(w io.Writer) {
+func (at *ActivityTree) Debug(w io.Writer) {
 	for _, root := range at.ProcessNodes {
 		root.debug(w, "")
 	}
@@ -249,7 +250,7 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 	}
 	if node == nil {
 		// a process node couldn't be found or created for this event, ignore it
-		return false, err
+		return false, errors.New("a process node couldn't be found or created for this event")
 	}
 
 	// resolve fields
@@ -344,6 +345,10 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool) (node *ProcessNode, newProcessNode bool, err error) {
 	if entry == nil {
 		return nil, false, nil
+	}
+
+	if !entry.HasCompleteLineage() {
+		return nil, false, errors.New("broken lineage")
 	}
 
 	// look for a ProcessActivityNode by process cookie
@@ -443,15 +448,12 @@ func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 }
 
 // Snapshot uses procfs to snapshot the nodes of the tree
-func (at *ActivityTree) Snapshot(newEvent func() *model.Event) error {
+func (at *ActivityTree) Snapshot(newEvent func() *model.Event) {
 	for _, pn := range at.ProcessNodes {
-		if err := pn.snapshot(at.validator, at.Stats, newEvent); err != nil {
-			return err
-		}
+		pn.snapshot(at.validator, at.Stats, newEvent)
 		// iterate slowly
 		time.Sleep(50 * time.Millisecond)
 	}
-	return nil
 }
 
 // SendStats sends the tree statistics

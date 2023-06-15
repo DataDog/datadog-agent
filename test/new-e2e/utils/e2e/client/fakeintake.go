@@ -29,6 +29,6 @@ func NewFakeintake(exporter *infraFakeintake.ConnectionExporter) *Fakeintake {
 
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
 func (fi *Fakeintake) initService(t *testing.T, data *infraFakeintake.ClientData) error {
-	fi.Client = fakeintake.NewClient("http://" + data.URL)
+	fi.Client = fakeintake.NewClient("http://" + data.Host)
 	return nil
 }

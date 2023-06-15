@@ -337,9 +337,8 @@ func (m *Monitor) GetHTTP2Stats() map[http.Key]*http.RequestStats {
 		return nil
 	}
 
-	defer m.http2Telemetry.Log()
-
 	m.http2Consumer.Sync()
+	m.http2Telemetry.Log()
 	return m.http2Statkeeper.GetAndResetAllStats()
 }
 
@@ -349,9 +348,8 @@ func (m *Monitor) GetKafkaStats() map[kafka.Key]*kafka.RequestStat {
 		return nil
 	}
 
-	defer m.kafkaTelemetry.Log()
-
 	m.kafkaConsumer.Sync()
+	m.kafkaTelemetry.Log()
 	return m.kafkaStatkeeper.GetAndResetAllStats()
 }
 

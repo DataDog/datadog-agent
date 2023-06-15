@@ -29,8 +29,9 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
+	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -263,8 +264,9 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
-			t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
+			config.ResetSystemProbeConfig(t)
+			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
+			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
 			monitor := newHTTPMonitor(t)
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
@@ -636,7 +638,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 }
 
 func newHTTPMonitor(t *testing.T) *Monitor {
-	cfg := config.New()
+	cfg := networkconfig.New()
 	cfg.EnableHTTPMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	skipIfNotSupported(t, err)
