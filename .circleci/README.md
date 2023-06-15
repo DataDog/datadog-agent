@@ -6,7 +6,7 @@ CircleCI is used to run unit tests on Unix env.
 
 /!\ Disclaimer: the datadog/agent-buildimages-circleci-runner image should never be used for anything else than CircleCI tests /!\
 
-This image is now built alongside with other images in [agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) repository. Change of Golang version must occur in this repository.
+This image is now built alongside other images in [agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages) repository. Change of Golang version must occur in this repository.
 
 Once you have created a new image by building a new version of agent-buildimages, you can test your modification with the associated invoke task:
 
@@ -14,7 +14,7 @@ Once you have created a new image by building a new version of agent-buildimages
 invoke -e pipeline.update-buildimages --image-tag v12345678-c0mm1t5
 ```
 This will update the configuration of circleci and gitlab to use the __test version__ of these images.
-Once your test is succesful, you can either move the `_test_version` from files or invoke
+Once your test is successful, you can either move the `_test_version` from files or invoke
 ```bash
 invoke -e pipeline.update-buildimages --image-tag v12345678-c0mm1t5 --no-test-version
 ```

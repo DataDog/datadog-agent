@@ -29,11 +29,11 @@ templates:
           # If incremental dep fails, increase the cache gen number
           # in restore_deps AND save_deps
           # See https://github.com/DataDog/datadog-agent/pull/2384
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/README.md" }}-{{ .Branch }}-{{ .Revision }}
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/README.md" }}-{{ .Branch }}-
-          - gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/README.md" }}-main-
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-{{ .Revision }}
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-
+          - gen19-godeps-{{ checksum ".circleci/config.yml" }}-main-
     - save_cache: &save_deps
-        key: gen19-godeps-{{ checksum "requirements.txt" }}-{{ checksum ".circleci/requirements.txt" }}-{{ checksum ".circleci/README.md" }}-{{ .Branch }}-{{ .Revision }}
+        key: gen19-godeps-{{ checksum ".circleci/config.yml" }}-{{ .Branch }}-{{ .Revision }}
     - restore_cache: &restore_source
         keys:
           # Cache retrieval is faster than full git checkout
