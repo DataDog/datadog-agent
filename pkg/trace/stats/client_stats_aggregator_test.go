@@ -23,18 +23,18 @@ func newTestAggregator() *ClientStatsAggregator {
 		DefaultEnv: "agentEnv",
 		Hostname:   "agentHostname",
 	}
-	a := NewClientStatsAggregator(conf, make(chan pb.StatsPayload, 100))
+	a := NewClientStatsAggregator(conf, make(chan *pb.StatsPayload, 100))
 	a.Start()
 	a.flushTicker.Stop()
 	return a
 }
 
-func wrapPayload(p pb.ClientStatsPayload) pb.StatsPayload {
-	return wrapPayloads([]pb.ClientStatsPayload{p})
+func wrapPayload(p *pb.ClientStatsPayload) *pb.StatsPayload {
+	return wrapPayloads([]*pb.ClientStatsPayload{p})
 }
 
-func wrapPayloads(p []pb.ClientStatsPayload) pb.StatsPayload {
-	return pb.StatsPayload{
+func wrapPayloads(p []*pb.ClientStatsPayload) *pb.StatsPayload {
+	return &pb.StatsPayload{
 		AgentEnv:       "agentEnv",
 		AgentHostname:  "agentHostname",
 		ClientComputed: true,
@@ -42,14 +42,14 @@ func wrapPayloads(p []pb.ClientStatsPayload) pb.StatsPayload {
 	}
 }
 
-func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64) pb.ClientStatsPayload {
-	return pb.ClientStatsPayload{
+func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64) *pb.ClientStatsPayload {
+	return &pb.ClientStatsPayload{
 		Env:     "test-env",
 		Version: "test-version",
-		Stats: []pb.ClientStatsBucket{
+		Stats: []*pb.ClientStatsBucket{
 			{
 				Start: uint64(ts.UnixNano()),
-				Stats: []pb.ClientGroupedStats{
+				Stats: []*pb.ClientGroupedStats{
 					{
 						Service:        k.Service,
 						PeerService:    k.PeerService,
@@ -69,18 +69,18 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, dura
 	}
 }
 
-func getTestStatsWithStart(start time.Time) pb.ClientStatsPayload {
-	b := pb.ClientStatsBucket{}
+func getTestStatsWithStart(start time.Time) *pb.ClientStatsPayload {
+	b := &pb.ClientStatsBucket{}
 	fuzzer.Fuzz(&b)
 	b.Start = uint64(start.UnixNano())
-	p := pb.ClientStatsPayload{}
+	p := &pb.ClientStatsPayload{}
 	fuzzer.Fuzz(&p)
 	p.Tags = nil
-	p.Stats = []pb.ClientStatsBucket{b}
+	p.Stats = []*pb.ClientStatsBucket{b}
 	return p
 }
 
-func assertDistribPayload(t *testing.T, withCounts, res pb.StatsPayload) {
+func assertDistribPayload(t *testing.T, withCounts, res *pb.StatsPayload) {
 	for j, p := range withCounts.Stats {
 		withCounts.Stats[j].AgentAggregation = keyDistributions
 		for _, s := range p.Stats {
@@ -94,7 +94,7 @@ func assertDistribPayload(t *testing.T, withCounts, res pb.StatsPayload) {
 	assert.Equal(t, withCounts, res)
 }
 
-func assertAggCountsPayload(t *testing.T, aggCounts pb.StatsPayload) {
+func assertAggCountsPayload(t *testing.T, aggCounts *pb.StatsPayload) {
 	for _, p := range aggCounts.Stats {
 		assert.Empty(t, p.Lang)
 		assert.Empty(t, p.TracerVersion)
@@ -110,7 +110,7 @@ func assertAggCountsPayload(t *testing.T, aggCounts pb.StatsPayload) {
 	}
 }
 
-func agg2Counts(insertionTime time.Time, p pb.ClientStatsPayload) pb.ClientStatsPayload {
+func agg2Counts(insertionTime time.Time, p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
 	p.Lang = ""
 	p.TracerVersion = ""
 	p.RuntimeID = ""
@@ -172,7 +172,7 @@ func TestMergeMany(t *testing.T) {
 		assert.Len(a.out, 3)
 		a.flushOnTime(payloadTime.Add(oldestBucketStart))
 		assert.Len(a.out, 4)
-		assertDistribPayload(t, wrapPayloads([]pb.ClientStatsPayload{merge1, merge2}), <-a.out)
+		assertDistribPayload(t, wrapPayloads([]*pb.ClientStatsPayload{merge1, merge2}), <-a.out)
 		assertDistribPayload(t, wrapPayload(merge3), <-a.out)
 		assert.Equal(wrapPayload(other), <-a.out)
 		assertAggCountsPayload(t, <-a.out)
@@ -244,7 +244,7 @@ func TestFuzzCountFields(t *testing.T) {
 		assert.Len(a.out, 1)
 		a.flushOnTime(payloadTime.Add(oldestBucketStart))
 		assert.Len(a.out, 2)
-		assertDistribPayload(t, wrapPayloads([]pb.ClientStatsPayload{deepCopy(merge1), deepCopy(merge1)}), <-a.out)
+		assertDistribPayload(t, wrapPayloads([]*pb.ClientStatsPayload{deepCopy(merge1), deepCopy(merge1)}), <-a.out)
 		aggCounts := <-a.out
 		expectedAggCounts := wrapPayload(agg2Counts(insertionTime, merge1))
 		// map gives random orders post aggregation
@@ -257,6 +257,89 @@ func TestFuzzCountFields(t *testing.T) {
 }
 
 func TestCountAggregation(t *testing.T) {
+	assert := assert.New(t)
+	type tt struct {
+		k    BucketsAggregationKey
+		res  pb.ClientGroupedStats
+		name string
+	}
+	tts := []tt{
+		{
+			BucketsAggregationKey{Service: "s"},
+			pb.ClientGroupedStats{Service: "s"},
+			"service",
+		},
+		{
+			BucketsAggregationKey{Name: "n"},
+			pb.ClientGroupedStats{Name: "n"},
+			"name",
+		},
+		{
+			BucketsAggregationKey{Resource: "r"},
+			pb.ClientGroupedStats{Resource: "r"},
+			"resource",
+		},
+		{
+			BucketsAggregationKey{Type: "t"},
+			pb.ClientGroupedStats{Type: "t"},
+			"resource",
+		},
+		{
+			BucketsAggregationKey{Synthetics: true},
+			pb.ClientGroupedStats{Synthetics: true},
+			"synthetics",
+		},
+		{
+			BucketsAggregationKey{StatusCode: 10},
+			pb.ClientGroupedStats{HTTPStatusCode: 10},
+			"status",
+		},
+	}
+	for _, tc := range tts {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newTestAggregator()
+			testTime := time.Unix(time.Now().Unix(), 0)
+
+			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
+			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
+			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
+			keyDefault := BucketsAggregationKey{}
+			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4)
+
+			assert.Len(a.out, 0)
+			a.add(testTime, deepCopy(c1))
+			a.add(testTime, deepCopy(c2))
+			a.add(testTime, deepCopy(c3))
+			a.add(testTime, deepCopy(cDefault))
+			assert.Len(a.out, 3)
+			a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+			assert.Len(a.out, 4)
+
+			assertDistribPayload(t, wrapPayloads([]*pb.ClientStatsPayload{c1, c2}), <-a.out)
+			assertDistribPayload(t, wrapPayload(c3), <-a.out)
+			assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
+			aggCounts := <-a.out
+			assertAggCountsPayload(t, aggCounts)
+
+			tc.res.Hits = 43
+			tc.res.Errors = 19
+			tc.res.Duration = 403
+			assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []*pb.ClientGroupedStats{
+				&tc.res,
+				// Additional grouped stat object that corresponds to the keyDefault/cDefault.
+				// We do not expect this to be aggregated with the non-default key in the test.
+				{
+					Hits:     0,
+					Errors:   2,
+					Duration: 4,
+				},
+			})
+			assert.Len(a.buckets, 0)
+		})
+	}
+}
+
+func TestCountAggregationPeerService(t *testing.T) {
 	assert := assert.New(t)
 	type tt struct {
 		k                BucketsAggregationKey
@@ -341,7 +424,7 @@ func TestCountAggregation(t *testing.T) {
 			a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
 			assert.Len(a.out, 4)
 
-			assertDistribPayload(t, wrapPayloads([]pb.ClientStatsPayload{c1, c2}), <-a.out)
+			assertDistribPayload(t, wrapPayloads([]*pb.ClientStatsPayload{c1, c2}), <-a.out)
 			assertDistribPayload(t, wrapPayload(c3), <-a.out)
 			assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
 			aggCounts := <-a.out
@@ -350,8 +433,8 @@ func TestCountAggregation(t *testing.T) {
 			tc.res.Hits = 43
 			tc.res.Errors = 19
 			tc.res.Duration = 403
-			assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []pb.ClientGroupedStats{
-				tc.res,
+			assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []*pb.ClientGroupedStats{
+				&tc.res,
 				// Additional grouped stat object that corresponds to the keyDefault/cDefault.
 				// We do not expect this to be aggregated with the non-default key in the test.
 				{
@@ -368,27 +451,27 @@ func TestCountAggregation(t *testing.T) {
 func TestNewBucketAggregationKeyPeerService(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		assert := assert.New(t)
-		r := newBucketAggregationKey(pb.ClientGroupedStats{Service: "a", PeerService: "remote-test"}, false)
+		r := newBucketAggregationKey(&pb.ClientGroupedStats{Service: "a", PeerService: "remote-test"}, false)
 		assert.Equal(BucketsAggregationKey{Service: "a"}, r)
 	})
 	t.Run("enabled", func(t *testing.T) {
 		assert := assert.New(t)
-		r := newBucketAggregationKey(pb.ClientGroupedStats{Service: "a", PeerService: "remote-test"}, true)
+		r := newBucketAggregationKey(&pb.ClientGroupedStats{Service: "a", PeerService: "remote-test"}, true)
 		assert.Equal(BucketsAggregationKey{Service: "a", PeerService: "remote-test"}, r)
 	})
 }
 
-func deepCopy(p pb.ClientStatsPayload) pb.ClientStatsPayload {
+func deepCopy(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
 	new := p
 	new.Stats = deepCopyStatsBucket(p.Stats)
 	return new
 }
 
-func deepCopyStatsBucket(s []pb.ClientStatsBucket) []pb.ClientStatsBucket {
+func deepCopyStatsBucket(s []*pb.ClientStatsBucket) []*pb.ClientStatsBucket {
 	if s == nil {
 		return nil
 	}
-	new := make([]pb.ClientStatsBucket, len(s))
+	new := make([]*pb.ClientStatsBucket, len(s))
 	for i, b := range s {
 		new[i] = b
 		new[i].Stats = deepCopyGroupedStats(b.Stats)
@@ -396,11 +479,11 @@ func deepCopyStatsBucket(s []pb.ClientStatsBucket) []pb.ClientStatsBucket {
 	return new
 }
 
-func deepCopyGroupedStats(s []pb.ClientGroupedStats) []pb.ClientGroupedStats {
+func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 	if s == nil {
 		return nil
 	}
-	new := make([]pb.ClientGroupedStats, len(s))
+	new := make([]*pb.ClientGroupedStats, len(s))
 	for i, b := range s {
 		new[i] = b
 		if b.OkSummary != nil {
