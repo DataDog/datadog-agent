@@ -6,6 +6,7 @@
 package encoding
 
 import (
+	"fmt"
 	"runtime"
 	"testing"
 
@@ -113,6 +114,8 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 	}
 
 	encoder := newKafkaEncoder(in)
+	t.Cleanup(encoder.Close)
+
 	aggregations := getKafkaAggregations(t, encoder, in.Conns[0])
 
 	require.NotNil(t, aggregations)
@@ -161,6 +164,7 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 	}
 
 	encoder := newKafkaEncoder(in)
+	t.Cleanup(encoder.Close)
 	aggregations := getKafkaAggregations(t, encoder, in.Conns[0])
 
 	// assert that the first connection matching the Kafka data will get back a non-nil result
@@ -215,6 +219,7 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 	}
 
 	encoder := newKafkaEncoder(in)
+	t.Cleanup(encoder.Close)
 
 	// assert that both ends (client:server, server:client) of the connection
 	// will have Kafka stats
@@ -234,4 +239,56 @@ func getKafkaAggregations(t *testing.T, encoder *kafkaEncoder, c network.Connect
 	require.NoError(t, err)
 
 	return aggregations
+}
+
+func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
+	localhost := util.AddressFromString("127.0.0.1")
+
+	payload := network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: make([]network.ConnectionStats, 1),
+		},
+		Kafka: map[kafka.Key]*kafka.RequestStat{},
+	}
+
+	payload.Conns[0].Dest = localhost
+	payload.Conns[0].Source = localhost
+	payload.Conns[0].DPort = 1111
+	payload.Conns[0].SPort = 1112
+
+	for index := uint16(0); index < entries; index++ {
+		payload.Kafka[kafka.NewKey(
+			localhost,
+			localhost,
+			11112,
+			1111,
+			fmt.Sprintf("%s-%d", topicName, index+1),
+			kafka.ProduceAPIKey,
+			apiVersion1,
+		)] = &kafka.RequestStat{
+			Count: 10,
+		}
+	}
+
+	return payload
+}
+
+func commonBenchmarkKafkaEncoder(b *testing.B, entries uint16) {
+	payload := generateBenchMarkPayloadKafka(entries)
+	b.ResetTimer()
+	b.ReportAllocs()
+	var h *kafkaEncoder
+	for i := 0; i < b.N; i++ {
+		h = newKafkaEncoder(&payload)
+		h.GetKafkaAggregations(payload.Conns[0])
+		h.Close()
+	}
+}
+
+func BenchmarkKafkaEncoder100Requests(b *testing.B) {
+	commonBenchmarkKafkaEncoder(b, 100)
+}
+
+func BenchmarkKafkaEncoder10000Requests(b *testing.B) {
+	commonBenchmarkKafkaEncoder(b, 10000)
 }
