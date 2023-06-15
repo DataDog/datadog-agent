@@ -1,4 +1,4 @@
-name: "System Probe PRs labeler"
+name: "PR labeler"
 
 on:
   pull_request:
