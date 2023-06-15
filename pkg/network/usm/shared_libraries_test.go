@@ -115,10 +115,18 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	}, time.Second*10, time.Second, "")
 
 	tel := telemetry.ReportPayloadTelemetry("1")
-	hits := tel["usm.shared_libraries.hits"]
-	matches := tel["usm.shared_libraries.matches"]
-	require.Equal(t, int64(1), matches, "usm.shared_libraries.matches doesn't match")
-	require.GreaterOrEqual(t, hits, matches, "usm.shared_libraries.hits is too low")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
+	telEqual(t, 0, "usm.shared_libraries.already_registered")
+	telEqual(t, 0, "usm.shared_libraries.blocked")
+	telEqual(t, 1, "usm.shared_libraries.matches")
+	telEqual(t, 1, "usm.shared_libraries.registered")
+	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
+	telEqual(t, 1, "usm.shared_libraries.unregister_no_callback")
+	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.shared_libraries.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace() {
@@ -181,6 +189,20 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	// must fail on the host
 	_, err = os.Stat(libpath)
 	require.Error(t, err)
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
+	telEqual(t, 0, "usm.shared_libraries.already_registered")
+	telEqual(t, 0, "usm.shared_libraries.blocked")
+	telEqual(t, 1, "usm.shared_libraries.matches")
+	telEqual(t, 1, "usm.shared_libraries.registered")
+	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
+	telEqual(t, 1, "usm.shared_libraries.unregister_no_callback")
+	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.shared_libraries.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSameInodeRegression() {
@@ -236,6 +258,20 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 			checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) &&
 			checkPIDNotAssociatedWithPathID(watcher, fooPathID2, uint32(command1.Process.Pid))
 	}, time.Second*10, time.Second, "")
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
+	telEqual(t, 0, "usm.shared_libraries.already_registered")
+	telEqual(t, 0, "usm.shared_libraries.blocked")
+	telEqual(t, 1, "usm.shared_libraries.matches")
+	telEqual(t, 1, "usm.shared_libraries.registered")
+	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
+	telEqual(t, 1, "usm.shared_libraries.unregister_no_callback")
+	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.shared_libraries.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
@@ -319,6 +355,20 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	}, time.Second*10, time.Second, "")
 
 	checkWatcherStateIsClean(t, watcher)
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
+	telEqual(t, 0, "usm.shared_libraries.already_registered")
+	telEqual(t, 0, "usm.shared_libraries.blocked")
+	telEqual(t, 1, "usm.shared_libraries.matches")
+	telEqual(t, 1, "usm.shared_libraries.registered")
+	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
+	telEqual(t, 1, "usm.shared_libraries.unregister_no_callback")
+	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.shared_libraries.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
@@ -390,6 +440,20 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	}, time.Second*10, time.Second, "")
 
 	checkWatcherStateIsClean(t, watcher)
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
+	telEqual(t, 0, "usm.shared_libraries.already_registered")
+	telEqual(t, 0, "usm.shared_libraries.blocked")
+	telEqual(t, 1, "usm.shared_libraries.matches")
+	telEqual(t, 1, "usm.shared_libraries.registered")
+	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
+	telEqual(t, 1, "usm.shared_libraries.unregister_no_callback")
+	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.shared_libraries.unregistered")
 }
 
 func buildSOWatcherClientBin(t *testing.T) string {
