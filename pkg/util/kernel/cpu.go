@@ -1,8 +1,10 @@
-// MIT License
+// This file is licensed under the MIT License.
 //
 // Copyright (c) 2017 Nathan Sweet
 // Copyright (c) 2018, 2019 Cloudflare
 // Copyright (c) 2019 Authors of Cilium
+//
+// MIT License
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
