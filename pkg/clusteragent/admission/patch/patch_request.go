@@ -10,6 +10,7 @@ package patch
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
@@ -58,6 +59,33 @@ func (pr PatchRequest) Validate(clusterName string) error {
 		return errors.New("library version is empty")
 	}
 	return pr.K8sTarget.validate(clusterName)
+}
+
+func (pr PatchRequest) getApmRemoteConfigEvent(err error, errorCode int) telemetry.ApmRemoteConfigEvent {
+	env := ""
+	if pr.LibConfig.Env != nil {
+		env = *pr.LibConfig.Env
+	}
+	return telemetry.ApmRemoteConfigEvent{
+		RequestType: "apm-remote-config-event",
+		ApiVersion:  "v2",
+		Payload: telemetry.ApmRemoteConfigEventPayload{
+			Tags: telemetry.ApmRemoteConfigEventTags{
+				Env:                 env,
+				RcId:                pr.ID,
+				RcRevision:          pr.Revision,
+				RcVersion:           pr.RcVersion,
+				KubernetesCluster:   pr.K8sTarget.Cluster,
+				KubernetesNamespace: pr.K8sTarget.Namespace,
+				KubernetesKind:      string(pr.K8sTarget.Kind),
+				KubernetesName:      pr.K8sTarget.Name,
+			},
+			Error: telemetry.ApmRemoteConfigEventError{
+				Code:    errorCode,
+				Message: err.Error(),
+			},
+		},
+	}
 }
 
 // K8sTarget represent the targetet k8s object

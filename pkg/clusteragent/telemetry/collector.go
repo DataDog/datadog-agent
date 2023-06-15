@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -68,8 +67,8 @@ type ApmRemoteConfigEventError struct {
 
 // TelemetryCollector is the interface used to send reports about startup to the instrumentation telemetry intake
 type TelemetryCollector interface {
-	SendRemoteConfigPatchEvent(req patch.PatchRequest, err error, errorCode int)
-	SendRemoteConfigMutateEvent(req patch.PatchRequest, err error, errorCode int)
+	SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent)
+	SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent)
 }
 
 type telemetryCollector struct {
@@ -106,55 +105,20 @@ func NewNoopCollector() TelemetryCollector {
 	return &noopTelemetryCollector{}
 }
 
-func (tc *telemetryCollector) SendRemoteConfigPatchEvent(req patch.PatchRequest, err error, errorCode int) {
-	tc.sendRemoteConfigEvent("agent.k8s.patch", req, err, errorCode)
+func (tc *telemetryCollector) SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent) {
+	tc.sendRemoteConfigEvent("agent.k8s.patch", event)
 }
 
-func (tc *telemetryCollector) SendRemoteConfigMutateEvent(req patch.PatchRequest, err error, errorCode int) {
-	tc.sendRemoteConfigEvent("agent.k8s.mutate", req, err, errorCode)
+func (tc *telemetryCollector) SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent) {
+	tc.sendRemoteConfigEvent("agent.k8s.mutate", event)
 }
 
 // getRemoteConfigPatchEvent fills out and sends a telemetry event to the Datadog backend
 // to indicate that a remote config has been successfully patched
-func (tc *telemetryCollector) sendRemoteConfigEvent(eventName string, req patch.PatchRequest, err error, errorCode int) {
-	env := ""
-	if req.LibConfig.Env != nil {
-		env = *req.LibConfig.Env
-	}
-	event := tc.getApmRemoteConfigEvent(eventName, env, req, err, errorCode)
-	tc.SendEvent(&event)
-}
-
-func (tc *telemetryCollector) getApmRemoteConfigEvent(eventName string, env string, req patch.PatchRequest, err error, errorCode int) ApmRemoteConfigEvent {
-	if err != nil {
-		errorCode = -1
-	}
-	return ApmRemoteConfigEvent{
-		RequestType: "apm-remote-config-event",
-		ApiVersion:  "v2",
-		Payload: ApmRemoteConfigEventPayload{
-			EventName: eventName,
-			Tags: ApmRemoteConfigEventTags{
-				Env:                 env,
-				RcId:                req.ID,
-				RcClientId:          tc.rcClientId,
-				RcRevision:          req.Revision,
-				RcVersion:           req.RcVersion,
-				KubernetesClusterId: tc.kubernetesClusterId,
-				KubernetesCluster:   req.K8sTarget.Cluster,
-				KubernetesNamespace: req.K8sTarget.Namespace,
-				KubernetesKind:      string(req.K8sTarget.Kind),
-				KubernetesName:      req.K8sTarget.Name,
-			},
-			Error: ApmRemoteConfigEventError{
-				Code:    errorCode,
-				Message: err.Error(),
-			},
-		},
-	}
-}
-
-func (tc *telemetryCollector) SendEvent(event *ApmRemoteConfigEvent) {
+func (tc *telemetryCollector) sendRemoteConfigEvent(eventName string, event ApmRemoteConfigEvent) {
+	event.Payload.Tags.RcClientId = tc.rcClientId
+	event.Payload.Tags.KubernetesClusterId = tc.kubernetesClusterId
+	event.Payload.EventName = eventName
 	body, err := json.Marshal(event)
 	if err != nil {
 		log.Errorf("Error while trying to marshal a remote config event to JSON: %v", err)
@@ -187,8 +151,8 @@ func (tc *telemetryCollector) SendEvent(event *ApmRemoteConfigEvent) {
 
 type noopTelemetryCollector struct{}
 
-func (*noopTelemetryCollector) SendRemoteConfigPatchEvent(req patch.PatchRequest, err error, errorCode int) {
+func (*noopTelemetryCollector) SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent) {
 }
 
-func (*noopTelemetryCollector) SendRemoteConfigMutateEvent(req patch.PatchRequest, err error, errorCode int) {
+func (*noopTelemetryCollector) SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent) {
 }

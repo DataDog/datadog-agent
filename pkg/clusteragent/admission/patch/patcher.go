@@ -104,10 +104,10 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	}
 	log.Infof("Patching %s with patch %s", req.K8sTarget, string(patch))
 	if _, err = p.k8sClient.AppsV1().Deployments(req.K8sTarget.Namespace).Patch(context.TODO(), req.K8sTarget.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{}); err != nil {
-		p.telemetryCollector.SendRemoteConfigMutateEvent(req, err, telemetry.FailedToMutateConfig)
+		p.telemetryCollector.SendRemoteConfigMutateEvent(req.getApmRemoteConfigEvent(err, telemetry.FailedToMutateConfig))
 		return err
 	}
-	p.telemetryCollector.SendRemoteConfigMutateEvent(req, nil, telemetry.Success)
+	p.telemetryCollector.SendRemoteConfigMutateEvent(req.getApmRemoteConfigEvent(nil, telemetry.Success))
 	metrics.PatchCompleted.Inc()
 	return nil
 }
