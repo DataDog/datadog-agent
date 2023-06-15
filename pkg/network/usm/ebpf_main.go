@@ -361,9 +361,9 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	// enabled. These needs to be set here, even if some protocols are not
 	// enabled, to make sure they exists. Without this, the dispatcher would try
 	// to check non-existing constants, which is not possible and an error.
-	protocols.AddBoolConst(&options, e.cfg.EnableHTTPMonitoring, "http_monitoring_enabled")
-	protocols.AddBoolConst(&options, e.cfg.EnableHTTP2Monitoring, "http2_monitoring_enabled")
-	protocols.AddBoolConst(&options, e.cfg.EnableKafkaMonitoring, "kafka_monitoring_enabled")
+	addBoolConst(&options, e.cfg.EnableHTTPMonitoring, "http_monitoring_enabled")
+	addBoolConst(&options, e.cfg.EnableHTTP2Monitoring, "http2_monitoring_enabled")
+	addBoolConst(&options, e.cfg.EnableKafkaMonitoring, "kafka_monitoring_enabled")
 
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
@@ -417,4 +417,18 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
+}
+
+func addBoolConst(options *manager.Options, flag bool, name string) {
+	val := uint64(1)
+	if !flag {
+		val = uint64(0)
+	}
+
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  name,
+			Value: val,
+		},
+	)
 }
