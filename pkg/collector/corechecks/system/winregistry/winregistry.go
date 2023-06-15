@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/registry"
 	"gopkg.in/yaml.v2"
@@ -25,9 +24,8 @@ const (
 )
 
 type metricCfg struct {
-	Name           string
-	Mappings       []map[string]float64   `yaml:"mapping"`
-	ValueIfMissing util.Optional[float64] `yaml:"value_if_missing, omitempty"`
+	Name     string
+	Mappings []map[string]float64 `yaml:"mapping"`
 }
 
 type registryKeyCfg struct {
@@ -117,7 +115,6 @@ func (c *WindowsRegistryCheck) Run() error {
 			}
 		} else {
 			// if err == nil the key was opened, so we need to close it after we are done.
-			//goland:noinspection GoDeferInLoop
 			defer func() {
 				k.Close()
 			}()
@@ -125,11 +122,7 @@ func (c *WindowsRegistryCheck) Run() error {
 				_, valueType, err := k.GetValue(valueName, nil)
 				gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKey.name, metric.Name)
 				if errors.Is(err, registry.ErrNotExist) {
-					if valueIfMissing, found := metric.ValueIfMissing.Get(); found {
-						sender.Gauge(gaugeName, valueIfMissing, "", nil)
-					} else {
-						log.Warnf("value %s of key %s was not found: %s", valueName, regKey.name, err)
-					}
+					log.Warnf("value %s of key %s was not found: %s", valueName, regKey.name, err)
 				} else if errors.Is(err, fs.ErrPermission) {
 					log.Errorf("access denied while accessing value %s of key %s: %s", valueName, regKey.originalKeyPath, err)
 				} else if errors.Is(err, registry.ErrShortBuffer) || err == nil {
@@ -170,7 +163,7 @@ func (c *WindowsRegistryCheck) Run() error {
 							}
 						}
 					default:
-						log.Warnf("unsupported data type of value %s for key %s: %s", valueName, regKey.originalKeyPath, valueType)
+						log.Warnf("unsupported data type of value %s for key %s: %d", valueName, regKey.originalKeyPath, valueType)
 					}
 				}
 			}
