@@ -11,4 +11,4 @@ fixes:
     APM: Fix a bug introduced in Agent versions 7.44 and 6.44 that
     changed the expected strings separator from comma to space when
     multiple features are defined in DD_APM_FEATURES.
-    Now either separator can be used (e.g DD_APM_FEATURES="feat1,feat2" or DD_APM_FEATURES="feat1 feat2").
+    Now either separator can be used (for example, DD_APM_FEATURES="feat1,feat2" or DD_APM_FEATURES="feat1 feat2").
