@@ -66,6 +66,10 @@ func (pr PatchRequest) getApmRemoteConfigEvent(err error, errorCode int) telemet
 	if pr.LibConfig.Env != nil {
 		env = *pr.LibConfig.Env
 	}
+	errorMessage := ""
+	if err != nil {
+		errorMessage = err.Error()
+	}
 	return telemetry.ApmRemoteConfigEvent{
 		RequestType: "apm-remote-config-event",
 		ApiVersion:  "v2",
@@ -82,7 +86,7 @@ func (pr PatchRequest) getApmRemoteConfigEvent(err error, errorCode int) telemet
 			},
 			Error: telemetry.ApmRemoteConfigEventError{
 				Code:    errorCode,
-				Message: err.Error(),
+				Message: errorMessage,
 			},
 		},
 	}
