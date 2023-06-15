@@ -223,7 +223,7 @@ def generate_protobuf(ctx):
 
     # msgp targets
     msgp_targets = {
-        'trace': ['span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
+        'trace': ['trace.go', 'span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
         'core': ['remoteconfig.pb.go'],
     }
 
