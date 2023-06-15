@@ -567,7 +567,7 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-20230613-devel
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
