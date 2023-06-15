@@ -63,7 +63,27 @@ func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 
 func (mr *MetricsRetriever) retrieveMetricsValues() {
 	// We only update active DatadogMetrics
-	datadogMetrics := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool { return datadogMetric.Active })
+	// We split metrics in two slices, those with errors and those without.
+	// Query first slice one by one, other as batch.
+	datadogMetrics := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
+		return datadogMetric.Active && datadogMetric.Error == nil
+	})
+
+	// Do all errors warrant separate query?
+	datadogMetricsErr := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
+		return datadogMetric.Active && datadogMetric.Error != nil
+	})
+
+	// First split then query because store state is shared and query mutates it
+	mr.retrieveMetricsValuesSlice(datadogMetrics)
+	for _, metrics := range datadogMetricsErr {
+		singleton := []model.DatadogMetricInternal{metrics}
+		mr.retrieveMetricsValuesSlice(singleton)
+	}
+}
+
+func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.DatadogMetricInternal) {
+
 	if len(datadogMetrics) == 0 {
 		log.Debugf("No active DatadogMetric, nothing to refresh")
 		return
@@ -99,9 +119,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		query := datadogMetric.Query()
 		timeWindow := MaybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
 		results := resultsByTimeWindow[timeWindow]
-
 		if queryResult, found := results[query]; found {
-			log.Debugf("QueryResult from DD for %q: %v", query, queryResult)
 
 			if queryResult.Valid {
 				datadogMetricFromStore.Value = queryResult.Value
@@ -125,6 +143,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricErrorMessage, queryResult.Error, query)
 			}
 		} else {
+			log.Info("EMDEBUGGING.metrics_retriever.retrieveMetricsValues queryResult notfound", "query", query)
 			datadogMetricFromStore.Valid = false
 			if globalError {
 				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage)
