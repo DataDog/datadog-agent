@@ -1757,8 +1757,6 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 0
 	}
 
-	fmt.Println(check)
-
 	// VerifyKernelFuncs returns the missing functions
 	if _, ok := check[patchSentinel]; !ok {
 		return 1
