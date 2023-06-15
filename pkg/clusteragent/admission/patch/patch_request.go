@@ -38,6 +38,7 @@ const (
 type PatchRequest struct {
 	ID            string `json:"id"`
 	Revision      int64  `json:"revision"`
+	RcVersion     uint64 `json:"rc_version"`
 	SchemaVersion string `json:"schema_version"`
 	Action        Action `json:"action"`
 
