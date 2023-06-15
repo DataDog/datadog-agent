@@ -65,7 +65,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 			// Replace the HTTP protocol with a Mock
 			patchProtocolMock(t, protocols.HTTP, tt.spec)
 
-			cfg := config.New()
+			cfg := networkconfig.New()
 			cfg.EnableHTTPMonitoring = true
 			monitor, err := NewMonitor(cfg, nil, nil, nil)
 			skipIfNotSupported(t, err)
