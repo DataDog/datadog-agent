@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -48,18 +47,34 @@ var (
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
-	// Mock the HTTP protocol and inject an error in PreStart
-	patchProtocolMock(t, protocols.HTTP)
+	failingStartupMock := func(_ *manager.Manager) error {
+		return fmt.Errorf("mock error")
+	}
 
-	cfg := config.New()
-	cfg.EnableHTTPMonitoring = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
-	t.Cleanup(monitor.Stop)
+	testCases := []struct {
+		name string
+		spec protocolMockSpec
+	}{
+		{name: "PreStart fails", spec: protocolMockSpec{preStartFn: failingStartupMock}},
+		{name: "PostStart fails", spec: protocolMockSpec{postStartFn: failingStartupMock}},
+	}
 
-	err = monitor.Start()
-	require.ErrorIs(t, err, errNoProtocols)
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			// Replace the HTTP protocol with a Mock
+			patchProtocolMock(t, protocols.HTTP, tt.spec)
+
+			cfg := config.New()
+			cfg.EnableHTTPMonitoring = true
+			monitor, err := NewMonitor(cfg, nil, nil, nil)
+			skipIfNotSupported(t, err)
+			require.NoError(t, err)
+			t.Cleanup(monitor.Stop)
+
+			err = monitor.Start()
+			require.ErrorIs(t, err, errNoProtocols)
+		})
+	}
 }
 
 type HTTPTestSuite struct {
@@ -641,50 +656,4 @@ func skipIfNotSupported(t *testing.T, err error) {
 	if errors.As(err, &notSupported) {
 		t.Skipf("skipping test because this kernel is not supported: %s", notSupported)
 	}
-}
-
-// Helper type to wrap & mock Protocols in tests. We keep an instance of the
-// inner protocol to be able to call ConfigureOptions.
-type protocolMock struct {
-	inner protocols.Protocol
-}
-
-func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Options) {
-	p.inner.ConfigureOptions(m, opts)
-}
-
-func (p *protocolMock) PreStart(mgr *manager.Manager) (err error)                              { return fmt.Errorf("mock") }
-func (p *protocolMock) PostStart(mgr *manager.Manager) error                                   { return nil }
-func (p *protocolMock) Stop(mgr *manager.Manager)                                              {}
-func (p *protocolMock) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {}
-func (p *protocolMock) GetStats() *protocols.ProtocolStats                                     { return nil }
-
-// patchProtocolMock updates the map of known protocols to replace the mock
-// factory in place of the HTTP protocol factory
-func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType) {
-	t.Helper()
-
-	p, present := knownProtocols[protocolType]
-	require.True(t, present, "trying to patch non-existing protocol")
-
-	innerFactory := p.Factory
-
-	// Restore the old protocol factory at end of test
-	t.Cleanup(func() {
-		p.Factory = innerFactory
-		knownProtocols[protocolType] = p
-	})
-
-	p.Factory = func(c *config.Config) (protocols.Protocol, error) {
-		inner, err := innerFactory(c)
-		if err != nil {
-			return nil, err
-		}
-
-		return &protocolMock{
-			inner,
-		}, nil
-	}
-
-	knownProtocols[protocolType] = p
 }
