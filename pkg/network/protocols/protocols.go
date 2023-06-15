@@ -73,17 +73,3 @@ type ProtocolSpec struct {
 	Maps      []*manager.Map
 	TailCalls []manager.TailCallRoute
 }
-
-func AddBoolConst(options *manager.Options, flag bool, name string) {
-	val := uint64(1)
-	if !flag {
-		val = uint64(0)
-	}
-
-	options.ConstantEditors = append(options.ConstantEditors,
-		manager.ConstantEditor{
-			Name:  name,
-			Value: val,
-		},
-	)
-}
