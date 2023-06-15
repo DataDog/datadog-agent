@@ -27,8 +27,8 @@ func NewTracer(_ *config.Config) (*Tracer, error) {
 func (t *Tracer) Stop() {}
 
 // GetActiveConnections is not implemented on this OS for Tracer
-func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
-	return nil, ebpf.ErrNotImplemented
+func (t *Tracer) GetActiveConnections(_ string, _ int) (*network.Connections, bool, error) {
+	return nil, false, ebpf.ErrNotImplemented
 }
 
 // RegisterClient registers the client

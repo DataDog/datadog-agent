@@ -13,15 +13,20 @@ type SysProbeUtil struct {
 	mock.Mock
 }
 
-// GetConnections provides a mock function with given fields: clientID
-func (_m *SysProbeUtil) GetConnections(clientID string) (*process.Connections, error) {
-	ret := _m.Called(clientID)
+// GetConnections provides a mock function with given fields: clientID, maxConnsPerMessage
+func (_m *SysProbeUtil) GetConnections(clientID string, pageSize int, pageToken int) (*process.Connections, error) {
+	ret := _m.Called(clientID, maxConnsPerMessage)
 
 	var r0 *process.Connections
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string) (*process.Connections, error)); ok {
-		return rf(clientID)
+	if rf, ok := ret.Get(0).(func(string, int, int) (*process.Connections, error)); ok {
+		return rf(clientID, pageSize, pageToken)
 	}
+
+	if rf, ok := ret.Get(0).(func(string) (*process.Connections, error)); ok {
+		r0, r1 = rf(clientID)
+	}
+
 	if rf, ok := ret.Get(0).(func(string) *process.Connections); ok {
 		r0 = rf(clientID)
 	} else {
