@@ -112,9 +112,8 @@ type Tailer struct {
 	// blocked sending to the tailer's outputChan.
 	stopForward context.CancelFunc
 
-	info         *status.InfoRegistry
-	bytesRead    *status.CountInfo
-	fileRotation *status.MappedInfo
+	info      *status.InfoRegistry
+	bytesRead *status.CountInfo
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -151,6 +150,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	windowsOpenFileTimeout := coreConfig.Datadog.GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
+	fileRotated := opts.Rotated
 	opts.Info.Register(bytesRead)
 
 	t := &Tailer{
@@ -171,12 +171,21 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		didFileRotate:          atomic.NewBool(false),
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
-		fileRotation:           status.NewMappedInfo("File Rotated"),
 	}
 
-	t.fileRotation.SetMessage("File Rotated:", strconv.FormatBool(opts.Rotated))
-	t.info.Register(t.fileRotation)
+	if fileRotated {
+		addToTailerInfo("File Rotated", strconv.FormatBool(fileRotated), t.info)
+		addToTailerInfo("Last Rotation Date", log.GetFormattedTime(), t.info)
+	}
+
 	return t
+}
+
+// addToTailerInfo add NewMappedInfo with a key value pair into the tailer info for displaying
+func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
+	newInfo := status.NewMappedInfo(k)
+	newInfo.SetMessage(k+":", m)
+	tailerInfo.Register(newInfo)
 }
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
