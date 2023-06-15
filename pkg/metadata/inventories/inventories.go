@@ -131,7 +131,7 @@ func SetAgentMetadata(name AgentMetadataName, value interface{}) {
 		return
 	}
 
-	log.Debugf("setting agent metadata '%s': '%s'", name, value)
+	log.Debugf("setting agent metadata '%v': '%v'", name, value)
 
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()

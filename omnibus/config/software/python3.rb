@@ -1,13 +1,13 @@
 name "python3"
 
 if ohai["platform"] != "windows"
-  default_version "3.8.16"
+  default_version "3.9.17"
 
   dependency "libxcrypt"
   dependency "libffi"
   dependency "ncurses"
   dependency "zlib"
-  dependency "openssl"
+  dependency ENV["OMNIBUS_OPENSSL_SOFTWARE"] || "openssl"
   dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
@@ -15,7 +15,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "71ca9d935637ed2feb59e90a368361dc91eca472a90acb1d344a2e8178ccaf10"
+         :sha256 => "8ead58f669f7e19d777c3556b62fae29a81d7f06a7122ff9bc57f7dd82d7e014"
 
   relative_path "Python-#{version}"
 
@@ -57,7 +57,7 @@ if ohai["platform"] != "windows"
     command python_configure.join(" "), :env => env
     command "make -j #{workers}", :env => env
     command "make install", :env => env
-    delete "#{install_dir}/embedded/lib/python3.8/test"
+    delete "#{install_dir}/embedded/lib/python3.9/test"
 
     # There exists no configure flag to tell Python to not compile readline support :(
     major, minor, bugfix = version.split(".")
@@ -68,7 +68,7 @@ if ohai["platform"] != "windows"
   end
 
 else
-  default_version "3.8.16-2609a9b"
+  default_version "3.9.17-18093c4"
   dependency "vc_redist_14"
 
   if windows_arch_i386?
@@ -80,7 +80,7 @@ else
 
     # note that startring with 3.7.3 on Windows, the zip should be created without the built-in pip
     source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-x64.zip",
-         :sha256 => "E93C7A7290F422FDC09131B01DCE1F9FD94DC5273F26149FCDF8CC6B26454DE1".downcase
+           :sha256 => "DF4C583CF359C48AB31E83DD6E89FA08692190D91EBCEBC55BB5EDC97E04F4AA".downcase
 
   end
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"

@@ -81,10 +81,7 @@ func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
 	event.ResolveFields()
 	event.ResolveEventTime()
 
-	entry, _ := event.ResolveProcessCacheEntry()
-	if entry == nil {
-		return
-	}
+	entry := event.ProcessContext
 
 	var cmdline []string
 	if entry.ArgsEntry != nil {

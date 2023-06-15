@@ -124,6 +124,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getLinuxBinPrmArgcOffset(f.kernelVersion)
 	case OffsetNameLinuxBinprmEnvc:
 		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
+	case OffsetNameVmAreaStructFlags:
+		value = getVmAreaStructFlagsOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -299,8 +301,10 @@ func getBpfMapIDOffset(kv *kernel.Version) uint64 {
 		return 52
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19):
 		return 60
-	case kv.Code >= kernel.Kernel5_19:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_19, kernel.Kernel6_2):
 		return 68
+	case kv.Code >= kernel.Kernel6_2:
+		return 52
 	default:
 		return 48
 	}
@@ -341,8 +345,10 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 88
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_19):
 		nameOffset = 96
-	case kv.Code >= kernel.Kernel5_19:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_19, kernel.Kernel6_2):
 		nameOffset = 104
+	case kv.Code >= kernel.Kernel6_2:
+		nameOffset = 96
 	case kv.Code != 0 && kv.Code < kernel.Kernel4_15:
 		return ErrorSentinel
 	}
@@ -456,8 +462,10 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 		nameOffset = 528
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_16, kernel.Kernel5_17):
 		nameOffset = 544
-	case kv.Code != 0 && kv.Code >= kernel.Kernel5_17:
+	case kv.IsInRangeCloseOpen(kernel.Kernel5_17, kernel.Kernel6_1):
 		nameOffset = 528
+	case kv.Code != 0 && kv.Code >= kernel.Kernel6_1:
+		nameOffset = 912
 	}
 
 	return nameOffset
@@ -885,6 +893,10 @@ func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
 	}
 
 	return offset
+}
+
+func getVmAreaStructFlagsOffset(kv *kernel.Version) uint64 {
+	return 80
 }
 
 func getTaskStructPIDOffset(kv *kernel.Version) uint64 {

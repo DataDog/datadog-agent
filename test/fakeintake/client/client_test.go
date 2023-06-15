@@ -91,14 +91,14 @@ func TestClient(t *testing.T) {
 		assert.False(t, client.metricAggregator.ContainsPayloadNameAndTags("snmp.ifAdminStatus", []string{"totoro"}))
 	})
 
-	t.Run("GetMetric", func(t *testing.T) {
+	t.Run("getMetric", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SeriesResponse)
 		}))
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
-		metrics, err := client.GetMetric("snmp.ifAdminStatus")
+		metrics, err := client.getMetric("snmp.ifAdminStatus")
 		assert.NoError(t, err)
 		assert.NotEmpty(t, aggregator.FilterByTags(metrics, []string{"interface:lo", "snmp_profile:generic-router"}))
 		assert.Empty(t, aggregator.FilterByTags(metrics, []string{"totoro"}))
@@ -161,14 +161,14 @@ func TestClient(t *testing.T) {
 		assert.False(t, client.logAggregator.ContainsPayloadName("totoro"))
 	})
 
-	t.Run("GetLog", func(t *testing.T) {
+	t.Run("getLog", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2LogsResponse)
 		}))
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
-		logs, err := client.GetLog("testapp")
+		logs, err := client.getLog("testapp")
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(logs))
 		assert.Equal(t, "hello there, can you hear me", logs[0].Message)

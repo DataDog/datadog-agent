@@ -10,7 +10,7 @@ replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 
 require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.46.0-rc.2
-	github.com/DataDog/test-infra-definitions v0.0.0-20230607143804-fef23444c9da
+	github.com/DataDog/test-infra-definitions v0.0.0-20230609191500-6e0f7d96fc6d
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4

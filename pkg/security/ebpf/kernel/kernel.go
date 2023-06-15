@@ -87,6 +87,12 @@ var (
 	Kernel5_18 = kernel.VersionCode(5, 18, 0)
 	// Kernel5_19 is the KernelVersion representation of kernel version 5.19
 	Kernel5_19 = kernel.VersionCode(5, 19, 0)
+	// Kernel6_0 is the KernelVersion representation of kernel version 6.0
+	Kernel6_0 = kernel.VersionCode(6, 0, 0)
+	// Kernel6_1 is the KernelVersion representation of kernel version 6.1
+	Kernel6_1 = kernel.VersionCode(6, 1, 0)
+	// Kernel6_2 is the KernelVersion representation of kernel version 6.2
+	Kernel6_2 = kernel.VersionCode(6, 2, 0)
 )
 
 // Version defines a kernel version helper
