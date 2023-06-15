@@ -36,7 +36,7 @@ const (
 // While distributions are not tied to the agent.
 type ClientStatsAggregator struct {
 	In      chan *pb.ClientStatsPayload
-	out     chan pb.StatsPayload
+	out     chan *pb.StatsPayload
 	buckets map[int64]*bucket // buckets used to aggregate client stats
 
 	flushTicker        *time.Ticker
@@ -51,7 +51,7 @@ type ClientStatsAggregator struct {
 }
 
 // NewClientStatsAggregator initializes a new aggregator ready to be started
-func NewClientStatsAggregator(conf *config.AgentConfig, out chan pb.StatsPayload) *ClientStatsAggregator {
+func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayload) *ClientStatsAggregator {
 	c := &ClientStatsAggregator{
 		flushTicker:        time.NewTicker(time.Second),
 		In:                 make(chan *pb.ClientStatsPayload, 10),
@@ -146,7 +146,7 @@ func (a *ClientStatsAggregator) flush(p []*pb.ClientStatsPayload) {
 	if len(p) == 0 {
 		return
 	}
-	a.out <- pb.StatsPayload{
+	a.out <- &pb.StatsPayload{
 		Stats:          p,
 		AgentEnv:       a.agentEnv,
 		AgentHostname:  a.agentHostname,

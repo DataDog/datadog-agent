@@ -87,7 +87,7 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
-func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
+func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:    g.Resource,
