@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
@@ -67,9 +68,6 @@ func (c *CRDCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	}
 	c.lister = c.informer.Lister() // return that Lister
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *CRDCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *CRDCollector) Metadata() *collectors.CollectorMetadata {

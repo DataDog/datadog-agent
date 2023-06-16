@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -239,8 +240,6 @@ type FileEventSerializer struct {
 
 	// New Mount ID
 	NewMountID uint32 `json:"new_mount_id,omitempty"`
-	// Group ID
-	GroupID uint32 `json:"group_id,omitempty"`
 	// Device associated with the file
 	Device uint32 `json:"device,omitempty"`
 	// Filesystem type
@@ -513,7 +512,6 @@ type MountEventSerializer struct {
 	MountPoint                     *FileSerializer `json:"mp,omitempty"`                    // Mount point file information
 	Root                           *FileSerializer `json:"root,omitempty"`                  // Root file information
 	MountID                        uint32          `json:"mount_id"`                        // Mount ID of the new mount
-	GroupID                        uint32          `json:"group_id"`                        // ID of the peer group
 	ParentMountID                  uint32          `json:"parent_mount_id"`                 // Mount ID of the parent mount
 	BindSrcMountID                 uint32          `json:"bind_src_mount_id"`               // Mount ID of the source of a bind mount
 	Device                         uint32          `json:"device"`                          // Device associated with the file
@@ -667,7 +665,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 	if ps.IsNotKworker() {
 		argv, argvTruncated := resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
 		envs, EnvsTruncated := resolvers.ProcessResolver.GetProcessEnvs(ps)
-		argv0, _ := resolvers.ProcessResolver.GetProcessArgv0(ps)
+		argv0, _ := sprocess.GetProcessArgv0(ps)
 
 		psSerializer := &ProcessSerializer{
 			ForkTime: getTimeIfNotZero(ps.ForkTime),
@@ -1013,7 +1011,6 @@ func newMountEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *Mo
 			Inode:   &e.Mount.RootInode,
 		},
 		MountID:         e.Mount.MountID,
-		GroupID:         e.Mount.GroupID,
 		ParentMountID:   e.Mount.ParentMountID,
 		BindSrcMountID:  e.Mount.BindSrcMountID,
 		Device:          e.Mount.Device,
@@ -1070,17 +1067,14 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
-	var pc model.ProcessContext
-	if entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event); entry != nil {
-		pc = entry.ProcessContext
-	}
+	pc := event.ProcessContext
 
 	s := &EventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:  model.EventType(event.Type).String(),
 			Async: event.FieldHandlers.ResolveAsync(event),
 		},
-		ProcessContextSerializer: newProcessContextSerializer(&pc, event, resolvers),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event, resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
 		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),

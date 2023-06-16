@@ -7,7 +7,11 @@
 
 package activity_tree
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+import (
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+)
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
@@ -24,4 +28,19 @@ func NewDNSNode(event *model.DNSEvent, rules []*model.MatchedRule, generationTyp
 		GenerationType: generationType,
 		Requests:       []model.DNSEvent{*event},
 	}
+}
+
+func dnsFilterSubdomains(name string, maxDepth int) string {
+	tab := strings.Split(name, ".")
+	if len(tab) < maxDepth {
+		return name
+	}
+	result := ""
+	for i := 0; i < maxDepth; i++ {
+		if result != "" {
+			result = "." + result
+		}
+		result = tab[len(tab)-i-1] + result
+	}
+	return result
 }

@@ -492,6 +492,20 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(o.CreditCards.Luhn)
 }
 
+func TestFileLoggingDisabled(t *testing.T) {
+	defer cleanConfig()()
+	origcfg := coreconfig.Datadog
+	coreconfig.Datadog = coreconfig.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	defer func() {
+		coreconfig.Datadog = origcfg
+	}()
+	assert := assert.New(t)
+	c, err := prepareConfig("./testdata/disable_file_logging.yaml")
+	assert.NoError(err)
+	assert.NoError(applyDatadogConfig(c))
+	assert.Equal("", c.LogFilePath)
+}
+
 func TestUndocumentedYamlConfig(t *testing.T) {
 	defer cleanConfig()()
 	origcfg := coreconfig.Datadog
@@ -1059,6 +1073,29 @@ func TestLoadEnv(t *testing.T) {
 		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.profiling_additional_endpoints"))
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_FEATURES"
+	t.Run(env, func(t *testing.T) {
+		assert := func(in string, expected []string) {
+			defer cleanConfig()()
+			t.Setenv(env, in)
+			_, err := LoadConfigFile("./testdata/full.yaml")
+			assert.NoError(t, err)
+			assert.Equal(t, expected, coreconfig.Datadog.GetStringSlice("apm_config.features"))
+		}
+		cases := map[string][]string{
+			"":                      nil,
+			"feat1":                 {"feat1"},
+			"feat1,feat2,feat3":     {"feat1", "feat2", "feat3"},
+			"feat1 feat2 feat3":     {"feat1", "feat2", "feat3"},
+			"feat1,feat2 feat3":     {"feat1", "feat2 feat3"},    // mixing separators is not supported, comma wins
+			"feat1, feat2, feat3":   {"feat1", "feat2", "feat3"}, // trim whitespaces
+			"feat1 , feat2 , feat3": {"feat1", "feat2", "feat3"}, // trim whitespaces
+		}
+		for in, expected := range cases {
+			assert(in, expected)
 		}
 	})
 }

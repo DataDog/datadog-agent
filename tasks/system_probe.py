@@ -1477,7 +1477,6 @@ def print_failed_tests(_, output_dir):
                 tgz.extractall(path=unpack_dir)
 
             for test_json in glob.glob(f"{unpack_dir}/*.json"):
-                bundle, _ = os.path.splitext(os.path.basename(test_json))
                 with open(test_json) as tf:
                     for line in tf:
                         json_test = json.loads(line.strip())
@@ -1487,7 +1486,7 @@ def print_failed_tests(_, output_dir):
                             action = json_test["Action"]
 
                             if action == "fail":
-                                print(f"FAIL: [{test_platform}] [{bundle}] {package} {name}")
+                                print(f"FAIL: [{test_platform}] {package} {name}")
                                 fail_count += 1
 
     if fail_count > 0:
@@ -1527,27 +1526,34 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 @task
 def test_microvms(
     ctx,
-    security_groups=None,
-    subnets=None,
+    infra_env,
     instance_type_x86=None,
     instance_type_arm=None,
     x86_ami_id=None,
     arm_ami_id=None,
     destroy=False,
     upload_dependencies=False,
+    ssh_key_name=None,
+    ssh_key_path=None,
+    dependencies_dir=None,
+    shutdown_period=320,
 ):
     args = [
-        f"--sgs {security_groups}" if security_groups is not None else "",
-        f"--subnets {subnets}" if subnets is not None else "",
-        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
-        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
-        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
-        f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id else "",
         "--destroy" if destroy else "",
         "--upload-dependencies" if upload_dependencies else "",
+        f"--ssh-key-path {ssh_key_path}" if ssh_key_path else "",
+        f"--ssh-key-name {ssh_key_name}" if ssh_key_name else "",
+        f"--infra-env {infra_env}",
+        f"--shutdown-period {shutdown_period}",
+        f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
+        "--name kernel-matrix-testing-system",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
     ctx.run(
-        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
     )

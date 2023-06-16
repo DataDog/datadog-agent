@@ -45,6 +45,12 @@ const (
 	Input             = "input"
 	Remote            = "remote"
 
+	// Security Profile Subcommand
+	SecurityProfileInput = "input"
+	IncludeCache         = "include-cache"
+	ImageName            = "name"
+	ImageTag             = "tag"
+
 	// Compliance Subcommand
 	SourceType   = "source-type"
 	SourceName   = "source-name"

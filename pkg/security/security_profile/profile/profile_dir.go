@@ -21,6 +21,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -99,7 +100,7 @@ func (dp *DirectoryProvider) Start(ctx context.Context) error {
 	if dp.watcherEnabled {
 		var err error
 		if dp.watcher, err = fsnotify.NewWatcher(); err != nil {
-			return err
+			return fmt.Errorf("couldn't setup inotify watcher: %w", err)
 		}
 
 		if err = dp.watcher.Add(dp.directory); err != nil {

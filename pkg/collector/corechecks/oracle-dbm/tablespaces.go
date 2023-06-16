@@ -35,7 +35,7 @@ type RowDB struct {
 
 func (c *Check) Tablespaces() error {
 	rows := []RowDB{}
-	err := c.db.Select(&rows, QUERY)
+	err := selectWrapper(c, &rows, QUERY)
 	if err != nil {
 		return fmt.Errorf("failed to collect tablespace info: %w", err)
 	}

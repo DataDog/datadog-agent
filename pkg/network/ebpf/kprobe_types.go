@@ -51,6 +51,8 @@ const (
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
 const SizeofBatch = C.sizeof_batch_t
 
+const SizeofConn = C.sizeof_conn_t
+
 type ClassificationProgram = uint32
 
 const (

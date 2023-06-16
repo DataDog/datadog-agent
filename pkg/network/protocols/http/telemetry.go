@@ -26,7 +26,7 @@ type Telemetry struct {
 	aggregations *libtelemetry.Metric
 }
 
-func NewTelemetry() (*Telemetry, error) {
+func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
@@ -43,7 +43,7 @@ func NewTelemetry() (*Telemetry, error) {
 		aggregations: metricGroup.NewMetric("aggregations"),
 
 		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd),
+		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
 		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
 		rejected:  metricGroup.NewMetric("rejected", libtelemetry.OptStatsd),
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
@@ -51,7 +51,7 @@ func NewTelemetry() (*Telemetry, error) {
 
 	t.LastCheck.Store(time.Now().Unix())
 
-	return t, nil
+	return t
 }
 
 func (t *Telemetry) Count(tx HttpTX) {

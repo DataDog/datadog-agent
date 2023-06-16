@@ -183,7 +183,7 @@ func (fh *FieldHandlers) ResolveProcessCreatedAt(ev *model.Event, e *model.Proce
 
 // ResolveProcessArgv0 resolves the first arg of the event
 func (fh *FieldHandlers) ResolveProcessArgv0(ev *model.Event, process *model.Process) string {
-	arg0, _ := fh.resolvers.ProcessResolver.GetProcessArgv0(process)
+	arg0, _ := sprocess.GetProcessArgv0(process)
 	return arg0
 }
 
@@ -292,28 +292,28 @@ func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinu
 	return e.BoolName
 }
 
+// GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
+func (fh *FieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, false)
+	if ev.ProcessCacheEntry == nil {
+		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
+		return ev.ProcessCacheEntry, false
+	}
+	return ev.ProcessCacheEntry, true
+}
+
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	if ev.PIDContext.IsKworker {
 		return model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
 	}
 
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.Inode)
+	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
+		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, true)
 	}
 
 	if ev.ProcessCacheEntry == nil {
-		// keep the original PIDContext
-		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
-		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
-
-		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
-		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
-
-		// mark interpreter as resolved too
-		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
-		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
-
+		ev.ProcessCacheEntry = model.NewEmptyProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
 		return ev.ProcessCacheEntry, false
 	}
 

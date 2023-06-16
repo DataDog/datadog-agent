@@ -60,6 +60,8 @@
       -m 8192M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e SIGN_WINDOWS=true
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"

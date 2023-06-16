@@ -98,7 +98,7 @@ build_vcpkg_deps:
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - >
       docker run --rm
-      -m 4096M
+      -m 8192M
       -v "$(Get-Location):c:\mnt"
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl},readwrite"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
@@ -107,7 +107,7 @@ build_vcpkg_deps:
 
 build_processed_btfhub_archive:
   rules:
-    !reference [.manual]
+    !reference [.on_scheduled_main_or_manual]
   stage: deps_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["arch:amd64"]

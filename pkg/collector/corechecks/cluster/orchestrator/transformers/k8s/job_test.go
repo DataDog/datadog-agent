@@ -12,6 +12,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
@@ -183,6 +184,15 @@ func TestExtractJob(t *testing.T) {
 					Succeeded:      1,
 					StartTime:      startTime.Unix(),
 				},
+				Conditions: []*model.JobCondition{
+					{
+						LastProbeTime:      lastTransitionTime.Unix(),
+						LastTransitionTime: lastTransitionTime.Unix(),
+						Status:             string(corev1.ConditionTrue),
+						Type:               string(batchv1.JobComplete),
+					},
+				},
+				Tags: []string{"kube_condition_complete:true"},
 			},
 		},
 		"job started by cronjob (failed)": {
@@ -268,6 +278,17 @@ func TestExtractJob(t *testing.T) {
 					Failed:           1,
 					StartTime:        startTime.Unix(),
 				},
+				Conditions: []*model.JobCondition{
+					{
+						LastProbeTime:      lastTransitionTime.Unix(),
+						LastTransitionTime: lastTransitionTime.Unix(),
+						Message:            "Job has reached the specified backoff limit",
+						Reason:             "BackoffLimitExceeded",
+						Status:             string(corev1.ConditionTrue),
+						Type:               string(batchv1.JobFailed),
+					},
+				},
+				Tags: []string{"kube_condition_failed:true"},
 			},
 		},
 		"job with resources": {

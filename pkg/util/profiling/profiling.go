@@ -50,6 +50,7 @@ func Start(settings Settings) error {
 		profiler.CPUDuration(settings.CPUDuration),
 		profiler.WithDeltaProfiles(settings.WithDeltaProfiles),
 		profiler.WithTags(settings.Tags...),
+		profiler.WithAPIKey(""), // to silence the error log about `DD_API_KEY`
 	}
 
 	// If block or mutex profiling was configured via runtime configuration, pass current

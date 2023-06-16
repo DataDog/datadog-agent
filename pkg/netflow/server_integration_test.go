@@ -24,7 +24,8 @@ import (
 
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 	// Setup NetFlow feature config
-	port := uint16(52055)
+	port := testutil.GetFreePort()
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
@@ -52,6 +53,10 @@ network_devices:
 	require.NoError(t, err, "cannot start Netflow Server")
 	assert.NotNil(t, server)
 
+	server.flowAgg.TimeNowFunction = func() time.Time {
+		return flushTime
+	}
+
 	// Send netflowV5Data twice to test aggregator
 	// Flows will have 2x bytes/packets after aggregation
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
@@ -72,7 +77,7 @@ network_devices:
 
 func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 	// Setup NetFlow feature config
-	port := uint16(52056)
+	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:
@@ -118,7 +123,7 @@ network_devices:
 
 func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	// Setup NetFlow feature config
-	port := uint16(52057)
+	port := testutil.GetFreePort()
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.MergeConfigOverride(strings.NewReader(fmt.Sprintf(`
 network_devices:

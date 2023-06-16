@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/cilium/ebpf/btf"
+	"github.com/cilium/ebpf/linux"
 )
 
 // BTFConstantFetcher is a constant fetcher based on BTF data (from file or current kernel)
@@ -41,11 +42,11 @@ func NewBTFConstantFetcherFromReader(btfReader io.ReaderAt) (*BTFConstantFetcher
 
 // NewBTFConstantFetcherFromCurrentKernel creates a BTFConstantFetcher, reading BTF from current kernel
 func NewBTFConstantFetcherFromCurrentKernel() (*BTFConstantFetcher, error) {
-	spec, err := btf.LoadKernelSpec()
+	spec, err := linux.Types()
 	if err != nil {
 		return nil, err
 	}
-	defer btf.FlushKernelSpec()
+	defer linux.FlushCaches()
 	return NewBTFConstantFetcherFromSpec(spec), nil
 }
 

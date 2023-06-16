@@ -97,6 +97,8 @@ const (
 	IP6MakeSkbReturn ProbeFuncName = "kretprobe__ip6_make_skb"
 	// IP6MakeSkbPre470 traces ip6_make_skb on kernel versions < 4.7
 	IP6MakeSkbPre470 ProbeFuncName = "kprobe__ip6_make_skb__pre_4_7_0"
+	// IP6MakeSkbPre5180 traces ip6_make_skb on kernel versions < 5.18
+	IP6MakeSkbPre5180 ProbeFuncName = "kprobe__ip6_make_skb__pre_5_18_0"
 
 	// UDPRecvMsg traces the udp_recvmsg() system call
 	UDPRecvMsg ProbeFuncName = "kprobe__udp_recvmsg"
