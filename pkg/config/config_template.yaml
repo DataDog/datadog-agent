@@ -1283,8 +1283,8 @@ api_key:
   # max_cpu_percent: 50
 
   ## @param obfuscation - object - optional
-  ## @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean
-  ## @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean
+  ## @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional
+  ## @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional.
   ## @param DD_APM_OBFUSCATION_MONGODB - object - optional
   ## @param DD_APM_OBFUSCATION_ELASTICSEARCH - object - optional
   ## @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
