@@ -381,7 +381,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
 	t.activeBuffer.Reset()
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
@@ -813,7 +813,6 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *net
 		return nil
 	}
 
-	log.Info("http monitoring enabled")
 	if c.EnableHTTP2Monitoring {
 		log.Info("http2 monitoring enabled")
 	}

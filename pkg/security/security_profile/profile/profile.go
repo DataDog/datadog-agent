@@ -28,6 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+type EventTypeState struct {
+	lastAnomalyNano uint64
+	state           EventFilteringProfileState
+}
+
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
@@ -36,7 +41,8 @@ type SecurityProfile struct {
 	selector               cgroupModel.WorkloadSelector
 	profileCookie          uint64
 	anomalyDetectionEvents []model.EventType
-	lastAnomalyNano        map[model.EventType]uint64
+	eventTypeState         map[model.EventType]*EventTypeState
+	eventTypeStateLock     sync.Mutex
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -70,7 +76,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 	return &SecurityProfile{
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
-		lastAnomalyNano:        make(map[model.EventType]uint64),
+		eventTypeState:         make(map[model.EventType]*EventTypeState),
 	}
 }
 
@@ -79,7 +85,7 @@ func (p *SecurityProfile) reset() {
 	p.loadedInKernel = false
 	p.loadedNano = 0
 	p.profileCookie = 0
-	p.lastAnomalyNano = make(map[model.EventType]uint64)
+	p.eventTypeState = make(map[model.EventType]*EventTypeState)
 	p.Instances = nil
 }
 
@@ -193,8 +199,8 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 		msg.AnomalyDetectionEvents = append(msg.AnomalyDetectionEvents, evt.String())
 	}
 
-	for evt, ts := range p.lastAnomalyNano {
-		lastAnomaly := timeResolver.ResolveMonotonicTimestamp(ts)
+	for evt, state := range p.eventTypeState {
+		lastAnomaly := timeResolver.ResolveMonotonicTimestamp(state.lastAnomalyNano)
 		msg.LastAnomalies = append(msg.LastAnomalies, &api.LastAnomalyTimestampMessage{
 			EventType:         evt.String(),
 			Timestamp:         lastAnomaly.String(),

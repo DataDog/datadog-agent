@@ -153,3 +153,7 @@ func (r *RCPolicyProvider) Close() error {
 	r.client.Close()
 	return nil
 }
+
+func (r *RCPolicyProvider) Type() string {
+	return PolicyProviderType
+}

@@ -21,8 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
-type profileDefinitionMap map[string]profileDefinition
-
 // DeviceMeta holds device related static metadata
 // DEPRECATED in favour of profile metadata syntax
 type DeviceMeta struct {
@@ -48,13 +46,13 @@ func newProfileDefinition() *profileDefinition {
 
 var defaultProfilesMu = &sync.Mutex{}
 
-var globalProfileConfigMap profileDefinitionMap
+var globalProfileConfigMap profileConfigMap
 
 // loadDefaultProfiles will load the profiles from disk only once and store it
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
 // globalProfileConfigMap. The mutex will help loading once when `loadDefaultProfiles`
 // is called by multiple check instances.
-func loadDefaultProfiles() (profileDefinitionMap, error) {
+func loadDefaultProfiles() (profileConfigMap, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
@@ -100,8 +98,8 @@ func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
 	return profiles, nil
 }
 
-func loadProfiles(pConfig profileConfigMap) (profileDefinitionMap, error) {
-	profiles := make(map[string]profileDefinition, len(pConfig))
+func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
+	profiles := make(profileConfigMap, len(pConfig))
 
 	for name, profile := range pConfig {
 		if profile.DefinitionFile != "" {
@@ -116,9 +114,10 @@ func loadProfiles(pConfig profileConfigMap) (profileDefinitionMap, error) {
 				log.Warnf("failed to expand profile `%s`: %s", name, err)
 				continue
 			}
-			profiles[name] = *profileDefinition
+			profile.Definition = *profileDefinition
+			profiles[name] = profile
 		} else {
-			profiles[name] = profile.Definition
+			profiles[name] = profile
 		}
 	}
 	return profiles, nil

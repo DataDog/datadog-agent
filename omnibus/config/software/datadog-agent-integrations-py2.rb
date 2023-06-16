@@ -349,7 +349,7 @@ build do
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows? then '"c:\Program files\python38\scripts\aws"' else 'aws' end
+    awscli = if windows? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       command "inv -e agent.get-integrations-from-cache " \

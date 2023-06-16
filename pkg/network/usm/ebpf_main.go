@@ -23,20 +23,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	httpInFlightMap  = "http_in_flight"
 	http2InFlightMap = "http2_in_flight"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
 	protocolDispatcherSocketFilterFunction   = "socket__protocol_dispatcher"
-	protocolDispatcherProgramsMap            = "protocols_progs"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	connectionStatesMap                      = "connection_states"
 
@@ -55,9 +52,11 @@ type ebpfProgram struct {
 	cfg                   *config.Config
 	subprograms           []subprogram
 	probesResolvers       []probeResolver
-	mapCleaner            *ddebpf.MapCleaner
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
+
+	enabledProtocols  map[protocols.ProtocolType]protocols.Protocol
+	disabledProtocols []*protocols.ProtocolSpec
 }
 
 type probeResolver interface {
@@ -94,7 +93,7 @@ type subprogram interface {
 }
 
 var http2TailCall = manager.TailCallRoute{
-	ProgArrayName: protocolDispatcherProgramsMap,
+	ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 	Key:           uint32(protocols.ProgramHTTP2),
 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
 		EBPFFuncName: "socket__http2_filter",
@@ -104,9 +103,8 @@ var http2TailCall = manager.TailCallRoute{
 func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
-			{Name: httpInFlightMap},
 			{Name: sslSockByCtxMap},
-			{Name: protocolDispatcherProgramsMap},
+			{Name: protocols.ProtocolDispatcherProgramsMap},
 			{Name: "ssl_read_args"},
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
@@ -160,15 +158,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 		subprograms = append(subprograms, openSSLProg)
 	}
 
-	tailCalls := []manager.TailCallRoute{
-		{
-			ProgArrayName: protocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP),
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "socket__http_filter",
-			},
-		},
-	}
+	var tailCalls []manager.TailCallRoute
 
 	if c.EnableHTTP2Monitoring {
 		tailCalls = append(tailCalls, http2TailCall)
@@ -178,7 +168,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 	if c.EnableKafkaMonitoring {
 		tailCalls = append(tailCalls,
 			manager.TailCallRoute{
-				ProgArrayName: protocolDispatcherProgramsMap,
+				ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 				Key:           uint32(protocols.ProgramKafka),
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "socket__kafka_filter",
@@ -191,6 +181,10 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 					EBPFFuncName: "socket__protocol_dispatcher_kafka",
 				},
 			})
+	}
+
+	if IsJavaSubprogramEnabled(c) {
+		tailCalls = append(tailCalls, GetJavaTlsTailCallRoutes()...)
 	}
 
 	program := &ebpfProgram{
@@ -215,7 +209,7 @@ func (e *ebpfProgram) Init() error {
 		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
 	}
 
-	e.DumpHandler = dumpMapsHandler
+	e.DumpHandler = e.dumpMapsHandler
 	e.InstructionPatcher = func(m *manager.Manager) error {
 		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
 	}
@@ -261,13 +255,10 @@ func (e *ebpfProgram) Start() error {
 		s.Start()
 	}
 
-	e.setupMapCleaner()
-
 	return nil
 }
 
 func (e *ebpfProgram) Close() error {
-	e.mapCleaner.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
@@ -303,46 +294,6 @@ func (e *ebpfProgram) initPrebuilt() error {
 	return e.init(bc, manager.Options{ConstantEditors: offsets})
 }
 
-func (e *ebpfProgram) setupMapCleaner() {
-	httpMap, _, _ := e.GetMap(httpInFlightMap)
-	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(http.EbpfHttpTx))
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-		return
-	}
-
-	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*http.EbpfHttpTx)
-		if !ok {
-			return false
-		}
-
-		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
-			return (now - updated) > ttl
-		}
-
-		started := int64(httpTxn.RequestStarted())
-		return started > 0 && (now-started) > ttl
-	})
-
-	e.mapCleaner = httpMapCleaner
-}
-
-func addBoolConst(options *manager.Options, flag bool, name string) {
-	val := uint64(1)
-	if !flag {
-		val = uint64(0)
-	}
-
-	options.ConstantEditors = append(options.ConstantEditors,
-		manager.ConstantEditor{
-			Name:  name,
-			Value: val,
-		},
-	)
-}
-
 func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
@@ -355,11 +306,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	options.MapSpecEditors = map[string]manager.MapSpecEditor{
-		httpInFlightMap: {
-			Type:       ebpf.Hash,
-			MaxEntries: e.cfg.MaxTrackedConnections,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		http2InFlightMap: {
 			Type:       ebpf.Hash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
@@ -410,9 +356,15 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			},
 		},
 	}
+
+	// Set some eBPF constants to tell the protocol dispatcher which ones are
+	// enabled. These needs to be set here, even if some protocols are not
+	// enabled, to make sure they exists. Without this, the dispatcher would try
+	// to check non-existing constants, which is not possible and an error.
 	addBoolConst(&options, e.cfg.EnableHTTPMonitoring, "http_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableHTTP2Monitoring, "http2_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableKafkaMonitoring, "kafka_monitoring_enabled")
+
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
 
@@ -420,9 +372,29 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		s.ConfigureOptions(&options)
 	}
 
-	// Configure event streams
-	events.Configure("http", e.Manager.Manager, &options)
+	for _, p := range e.enabledProtocols {
+		p.ConfigureOptions(e.Manager.Manager, &options)
+	}
 
+	// Add excluded functions from disabled protocols
+	for _, p := range e.disabledProtocols {
+		for _, m := range p.Maps {
+			// Unused maps still needs to have a non-zero size
+			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(1),
+				EditorFlag: manager.EditMaxEntries,
+			}
+
+			log.Debugf("disabled map: %v", m.Name)
+		}
+
+		for _, tc := range p.TailCalls {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
+		}
+	}
+
+	// Configure event streams
 	if e.cfg.EnableHTTP2Monitoring {
 		events.Configure("http2", e.Manager.Manager, &options)
 	} else {
@@ -445,4 +417,18 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
+}
+
+func addBoolConst(options *manager.Options, flag bool, name string) {
+	val := uint64(1)
+	if !flag {
+		val = uint64(0)
+	}
+
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  name,
+			Value: val,
+		},
+	)
 }
