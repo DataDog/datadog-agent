@@ -32,7 +32,7 @@ type vmFakeintakeSuite struct {
 }
 
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, e2e.AgentStackDef(nil))
+	e2e.Run[e2e.AgentEnv](t, &vmFakeintakeSuite{}, e2e.AgentStackDef(nil))
 }
 
 func (s *vmFakeintakeSuite) TestVM() {

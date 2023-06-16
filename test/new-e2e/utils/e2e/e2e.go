@@ -20,7 +20,7 @@
 //	}
 //
 //	func TestVMSuite(t *testing.T) {
-//		e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
+//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef())
 //	}
 //
 //	func (v *vmSuite) TestBasicVM() {
@@ -40,7 +40,7 @@
 // 2. Write a regular Go test function that runs the test suite using [e2e.Run].
 //
 //	func TestVMSuite(t *testing.T) {
-//		e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
+//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef())
 //	}
 //
 // The first argument of [e2e.Run] is an instance of type [*testing.T].
@@ -71,7 +71,7 @@
 //	}
 //
 //	func TestVMSuite(t *testing.T) {
-//		e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
+//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef())
 //	}
 //
 // In this example, the components available are defined by the struct [e2e.VMEnv] which contains a virtual machine.
@@ -92,7 +92,7 @@
 //	}
 //
 //	func TestDockerSuite(t *testing.T) {
-//		e2e.Run(t, &dockerSuite{}, e2e.EnvFactoryStackDef(dockerEnvFactory))
+//		e2e.Run[e2e.VMEnv](t, &dockerSuite{}, e2e.EnvFactoryStackDef(dockerEnvFactory))
 //	}
 //
 //	func dockerEnvFactory(ctx *pulumi.Context) (*e2e.VMEnv, error) {
@@ -136,7 +136,7 @@
 //	}
 //
 //	func TestSingleEnvSuite(t *testing.T) {
-//		e2e.Run(t, &singleEnvSuite{}, e2e.AgentStackDef(nil))
+//		e2e.Run[e2e.AgentEnv](t, &singleEnvSuite{}, e2e.AgentStackDef(nil))
 //	}
 //
 //	func (suite *singleEnvSuite) Test1() {
@@ -165,7 +165,7 @@
 //	}
 //
 //	func TestMultipleEnvSuite(t *testing.T) {
-//		e2e.Run(t, &multipleEnvSuite{}, e2e.AgentStackDef(nil))
+//		e2e.Run[e2e.AgentEnv](t, &multipleEnvSuite{}, e2e.AgentStackDef(nil))
 //	}
 //
 //	func (suite *multipleEnvSuite) TestLogDebug() {
@@ -191,7 +191,7 @@
 //	}
 //
 //	func TestSubTestSuite(t *testing.T) {
-//		e2e.Run(t, &subTestSuite{}, e2e.AgentStackDef(nil))
+//		e2e.Run[e2e.AgentEnv](t, &subTestSuite{}, e2e.AgentStackDef(nil))
 //	}
 //
 //	func (suite *subTestSuite) TestLogDebug() {
