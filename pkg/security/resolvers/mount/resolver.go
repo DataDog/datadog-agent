@@ -143,7 +143,7 @@ func (mr *Resolver) syncCache(pids ...uint32) error {
 }
 
 func (mr *Resolver) finalize(first *model.Mount) {
-	open_queue := make([]*model.Mount, 0, mr.mounts.OverLen())
+	open_queue := make([]*model.Mount, 0, mr.mounts.Len())
 	open_queue = append(open_queue, first)
 
 	for len(open_queue) != 0 {
@@ -226,7 +226,7 @@ func (mr *Resolver) Insert(e model.Mount) error {
 }
 
 func (mr *Resolver) insert(m *model.Mount) {
-	fmt.Printf("device id: %d; id %d; len %d\n", m.Device, m.MountID, mr.mounts.RealLen())
+	fmt.Printf("device id: %d; id %d; len %d\n", m.Device, m.MountID, mr.mounts.Len())
 
 	// umount the previous one if exists
 	if prev, ok := mr.mounts.GetChecked(m.MountID); ok {
@@ -573,7 +573,7 @@ func (mr *Resolver) SendStats() error {
 		return err
 	}
 
-	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(mr.mounts.RealLen()), []string{}, 1.0)
+	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(mr.mounts.Len()), []string{}, 1.0)
 }
 
 // NewResolver instantiates a new mount resolver

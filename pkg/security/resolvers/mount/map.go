@@ -13,6 +13,8 @@ type MountMap struct {
 	lower []*model.Mount
 	upper map[uint32]*model.Mount
 
+	lowersize int
+
 	fastPathCounter int
 	slowPathCounter int
 }
@@ -43,8 +45,12 @@ func (mm *MountMap) Get(id uint32) *model.Mount {
 func (mm *MountMap) Delete(id uint32) {
 	if id < LOWER_SIZE {
 		mm.fastPathCounter++
+		if mm.lower[id] != nil {
+			mm.lowersize--
+		}
 		mm.lower[id] = nil
 	}
+
 	mm.slowPathCounter++
 	delete(mm.upper, id)
 }
@@ -52,6 +58,9 @@ func (mm *MountMap) Delete(id uint32) {
 func (mm *MountMap) Insert(id uint32, mount *model.Mount) {
 	if id < LOWER_SIZE {
 		mm.fastPathCounter++
+		if mm.lower[id] == nil {
+			mm.lowersize++
+		}
 		mm.lower[id] = mount
 	}
 	mm.slowPathCounter++
@@ -71,20 +80,8 @@ func (mm *MountMap) Contains(id uint32) bool {
 	return mm.upper[id] != nil
 }
 
-func (mm *MountMap) OverLen() int {
-	return LOWER_SIZE + len(mm.upper)
-}
-
-func (mm *MountMap) RealLen() int {
-	count := 0
-	for _, mount := range mm.lower {
-		if mount != nil {
-			count += 1
-		}
-	}
-
-	count += len(mm.upper)
-	return count
+func (mm *MountMap) Len() int {
+	return mm.lowersize + len(mm.upper)
 }
 
 func (mm *MountMap) ForEach(f func(uint32, *model.Mount) bool) {
