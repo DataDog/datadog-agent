@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -81,7 +82,7 @@ func (s *vmFakeintakeSuite) TestCheckRuns() {
 	require.NoError(t, err)
 }
 
-func LogsExampleStackDef(vmParams []e2e.Ec2VMOption, agentParams ...func(*agent.Params) error) *e2e.StackDefinition[e2e.AgentEnv] {
+func LogsExampleStackDef(vmParams []ec2params.Option, agentParams ...func(*agent.Params) error) *e2e.StackDefinition[e2e.AgentEnv] {
 	return e2e.EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*e2e.AgentEnv, error) {
 			vm, err := ec2vm.NewEc2VM(ctx, vmParams...)
