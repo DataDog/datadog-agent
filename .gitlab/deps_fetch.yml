@@ -4,12 +4,12 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $GOPATH/pkg/mod && tar xzf modcache.tar.gz -C $GOPATH/pkg/mod
-  - rm -f modcache.tar.gz
+  - mkdir -p "${GOPATH}/pkg/mod" && tar xzf "modcache_${CI_PIPELINE_ID}.tar.gz" -C "${GOPATH}/pkg/mod"
+  - rm -f "modcache_${CI_PIPELINE_ID}.tar.gz"
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/pkg/mod && tar xzf modcache_tools.tar.gz -C $GOPATH/pkg/mod
-  - rm -f modcache_tools.tar.gz
+  - mkdir -p "${GOPATH}/pkg/mod" && tar xzf "modcache_tools_${CI_PIPELINE_ID}.tar.gz" -C "${GOPATH}/pkg/mod"
+  - rm -f "modcache_tools_${CI_PIPELINE_ID}.tar.gz"
 
 go_deps:
   stage: deps_fetch
@@ -19,11 +19,11 @@ go_deps:
   script:
     - source /root/.bashrc
     - inv -e deps --verbose
-    - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
+    - cd "${GOPATH}/pkg/mod/" && tar czf "${CI_PROJECT_DIR}/modcache_${CI_PIPELINE_ID}.tar.gz" .
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache.tar.gz
+      - "${CI_PROJECT_DIR}/modcache_$CI_PIPELINE_ID.tar.gz"
   retry: 1
 
 go_tools_deps:
@@ -34,9 +34,9 @@ go_tools_deps:
   script:
     - source /root/.bashrc
     - inv -e download-tools
-    - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache_tools.tar.gz .
+    - cd "${GOPATH}/pkg/mod/" && tar czf "${CI_PROJECT_DIR}/modcache_tools_${CI_PIPELINE_ID}.tar.gz" .
   artifacts:
     expire_in: 1 day
     paths:
-      - $CI_PROJECT_DIR/modcache_tools.tar.gz
+      - "${CI_PROJECT_DIR}/modcache_tools_${CI_PIPELINE_ID}.tar.gz"
   retry: 1
