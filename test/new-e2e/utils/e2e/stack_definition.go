@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/vm"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
@@ -73,7 +74,7 @@ type AgentEnv struct {
 //
 // [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#Params
 // [agent.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Params
-func AgentStackDef(vmParams []ec2params.Option, agentParams ...func(*agent.Params) error) *StackDefinition[AgentEnv] {
+func AgentStackDef(vmParams []ec2params.Option, agentParameters ...agentparams.Option) *StackDefinition[AgentEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*AgentEnv, error) {
 			vm, err := ec2vm.NewEc2VM(ctx, vmParams...)
@@ -86,8 +87,8 @@ func AgentStackDef(vmParams []ec2params.Option, agentParams ...func(*agent.Param
 				return nil, err
 			}
 
-			agentParams = append(agentParams, agent.WithFakeintake(fakeintakeExporter))
-			installer, err := agent.NewInstaller(vm, agentParams...)
+			agentParameters = append(agentParameters, agentparams.WithFakeintake(fakeintakeExporter))
+			installer, err := agent.NewInstaller(vm, agentParameters...)
 			if err != nil {
 				return nil, err
 			}
