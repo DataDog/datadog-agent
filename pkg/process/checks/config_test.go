@@ -68,8 +68,8 @@ func TestEnsureValidMaxBatchBytes(t *testing.T) {
 		},
 		{
 			name:                  "valid larger batch size",
-			maxMessageBytes:       5000000,
-			expectedMaxBatchBytes: 5000000,
+			maxMessageBytes:       2000000,
+			expectedMaxBatchBytes: 2000000,
 		},
 		{
 			name:                  "invalid negative batch size",
