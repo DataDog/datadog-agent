@@ -7,10 +7,11 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/stretchr/testify/assert"
 
@@ -1547,6 +1548,9 @@ interface_configs:
     match_value: "eth0"
     in_speed: 25
     out_speed: 10
+    tags:
+      - "muted"
+      - "test1:value1"
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1556,6 +1560,10 @@ interface_configs:
 					MatchValue: "eth0",
 					InSpeed:    25,
 					OutSpeed:   10,
+					Tags: []string{
+						"muted",
+						"test1:value1",
+					},
 				},
 			},
 		},
@@ -1564,7 +1572,7 @@ interface_configs:
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
-interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]'
+interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10, "tags":["test2:value2", "aTag"]}]'
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1574,6 +1582,10 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 					MatchValue: "eth0",
 					InSpeed:    25,
 					OutSpeed:   10,
+					Tags: []string{
+						"test2:value2",
+						"aTag",
+					},
 				},
 			},
 		},
