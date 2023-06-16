@@ -244,19 +244,8 @@ const (
 	deleteTimeout = 30 * time.Minute
 )
 
-// Suite manages the environment creation and runs E2E tests.
-type Suite[Env any] struct {
-	suite.Suite
-
-	stackName       string
-	defaultStackDef *StackDefinition[Env]
-	currentStackDef *StackDefinition[Env]
-	firstFailTest   string
-
-	// These fields are initialized in SetupSuite
-	env *Env
-
-	isUpdateEnvCalledInThisTest bool
+type suiteOptions struct {
+	stackName string
 
 	// Setting devMode allows to skip deletion regardless of test results
 	// Unavailable in CI.
@@ -265,9 +254,24 @@ type Suite[Env any] struct {
 	skipDeleteOnFailure bool
 }
 
+// Suite manages the environment creation and runs E2E tests.
+type Suite[Env any] struct {
+	suite.Suite
+
+	options         suiteOptions
+	defaultStackDef *StackDefinition[Env]
+	currentStackDef *StackDefinition[Env]
+	firstFailTest   string
+
+	// These fields are initialized in SetupSuite
+	env *Env
+
+	isUpdateEnvCalledInThisTest bool
+}
+
 type suiteConstraint[Env any] interface {
 	suite.TestingSuite
-	initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env]))
+	initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*suiteOptions))
 }
 
 // Run runs the tests defined in e2eSuite
@@ -285,7 +289,7 @@ type suiteConstraint[Env any] interface {
 //	}
 //	// ...
 //	e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
-func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...func(*suiteOptions)) {
 	suiteType := reflect.TypeOf(e2eSuite).Elem()
 	name := suiteType.Name()
 	pkgPaths := suiteType.PkgPath()
@@ -301,35 +305,35 @@ func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *St
 	suite.Run(t, e2eSuite)
 }
 
-func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) {
-	suite.stackName = stackName
+func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*suiteOptions)) {
+	suite.options.stackName = stackName
 	suite.defaultStackDef = stackDef
 	for _, o := range options {
-		o(suite)
+		o(&suite.options)
 	}
 }
 
 // WithStackName overrides the default stack name.
 // This function is useful only when using [Run].
-func WithStackName[Env any](stackName string) func(*Suite[Env]) {
-	return func(suite *Suite[Env]) {
-		suite.stackName = stackName
+func WithStackName(stackName string) func(*suiteOptions) {
+	return func(options *suiteOptions) {
+		options.stackName = stackName
 	}
 }
 
-// DevMode enables dev mode.
+// WithDevMode enables dev mode.
 // Dev mode doesn't destroy the environment when the test finished which can
 // be useful when writing a new E2E test.
-func DevMode[Env any]() func(*Suite[Env]) {
-	return func(suite *Suite[Env]) {
-		suite.devMode = true
+func WithDevMode() func(*suiteOptions) {
+	return func(options *suiteOptions) {
+		options.devMode = true
 	}
 }
 
-// SkipDeleteOnFailure doesn't destroy the environment when a test fail.
-func SkipDeleteOnFailure[Env any]() func(*Suite[Env]) {
-	return func(suite *Suite[Env]) {
-		suite.skipDeleteOnFailure = true
+// WithSkipDeleteOnFailure doesn't destroy the environment when a test fail.
+func WithSkipDeleteOnFailure() func(*suiteOptions) {
+	return func(options *suiteOptions) {
+		options.skipDeleteOnFailure = true
 	}
 }
 
@@ -383,10 +387,10 @@ func (suite *Suite[Env]) AfterTest(suiteName, testName string) {
 func (suite *Suite[Env]) SetupSuite() {
 	skipDelete, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	if skipDelete {
-		suite.skipDeleteOnFailure = true
+		suite.options.skipDeleteOnFailure = true
 	}
 
-	suite.Require().NotEmptyf(suite.stackName, "The stack name is empty. You must define it with WithName")
+	suite.Require().NotEmptyf(suite.options.stackName, "The stack name is empty. You must define it with WithName")
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
 	suite.Require().NoError(err)
@@ -399,11 +403,11 @@ func (suite *Suite[Env]) SetupSuite() {
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite[Env]) TearDownSuite() {
-	if runner.GetProfile().AllowDevMode() && suite.devMode {
+	if runner.GetProfile().AllowDevMode() && suite.options.devMode {
 		return
 	}
 
-	if suite.firstFailTest != "" && suite.skipDeleteOnFailure {
+	if suite.firstFailTest != "" && suite.options.skipDeleteOnFailure {
 		suite.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
 			"The environment of %v was kept.", suite.firstFailTest, suite.firstFailTest, suite.firstFailTest))
 		return
@@ -412,9 +416,9 @@ func (suite *Suite[Env]) TearDownSuite() {
 	// TODO: Implement retry on delete
 	ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
 	defer cancel()
-	err := infra.GetStackManager().DeleteStack(ctx, suite.stackName)
+	err := infra.GetStackManager().DeleteStack(ctx, suite.options.stackName)
 	if err != nil {
-		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.stackName, err)
+		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.options.stackName, err)
 		suite.T().Fail()
 	}
 }
@@ -425,7 +429,7 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 
 	_, stackOutput, err := infra.GetStackManager().GetStack(
 		ctx,
-		suite.stackName,
+		suite.options.stackName,
 		stackDef.configMap,
 		func(ctx *pulumi.Context) error {
 			var err error
@@ -441,7 +445,7 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 // Test functions that don't call UpdateEnv have the environment defined by [e2e.Run].
 func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
 	if stackDef != suite.currentStackDef {
-		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.skipDeleteOnFailure {
+		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.options.skipDeleteOnFailure {
 			// In case of failure, do not override the environment
 			suite.T().SkipNow()
 		}

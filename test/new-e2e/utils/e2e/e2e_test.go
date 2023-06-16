@@ -71,7 +71,7 @@ type skipDeleteOnFailureSuite struct {
 // prefixed by `Test` and so not run.
 func E2ESuiteSkipDeleteOnFailure(t *testing.T) {
 	e2e2Suite := &skipDeleteOnFailureSuite{
-		Suite: newSuite("SkipDeleteOnFailure", nil, SkipDeleteOnFailure[struct{}]()),
+		Suite: newSuite[struct{}]("SkipDeleteOnFailure", nil, WithSkipDeleteOnFailure()),
 	}
 	suite.Run(t, e2e2Suite)
 	require.Equal(t, []string{"Test1"}, e2e2Suite.testsRun)
@@ -97,7 +97,7 @@ func (suite *skipDeleteOnFailureSuite) updateStack(testName string) *StackDefini
 	})
 }
 
-func newSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*Suite[Env])) *Suite[Env] {
+func newSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...func(*suiteOptions)) *Suite[Env] {
 	testSuite := Suite[Env]{}
 	testSuite.initSuite(stackName, stackDef, options...)
 	return &testSuite
