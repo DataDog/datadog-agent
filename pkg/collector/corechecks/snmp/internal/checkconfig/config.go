@@ -166,7 +166,7 @@ type CheckConfig struct {
 	MetricTags            []MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
-	Profiles              profileDefinitionMap
+	Profiles              profileConfigMap
 	ProfileTags           []string
 	Profile               string
 	ProfileDef            *profileDefinition
@@ -201,7 +201,7 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	}
 	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
-	definition := c.Profiles[profile]
+	definition := c.Profiles[profile].Definition
 	c.ProfileDef = &definition
 	c.Profile = profile
 
@@ -500,7 +500,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
 
 	// Profile Configs
-	var profiles profileDefinitionMap
+	var profiles profileConfigMap
 	if len(initConfig.Profiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
@@ -518,7 +518,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	for _, profileDef := range profiles {
-		normalizeMetrics(profileDef.Metrics)
+		normalizeMetrics(profileDef.Definition.Metrics)
 	}
 
 	c.Profiles = profiles
@@ -719,12 +719,12 @@ func (c *CheckConfig) parseColumnOids(metrics []MetricsConfig, metadataConfigs M
 }
 
 // GetProfileForSysObjectID return a profile for a sys object id
-func GetProfileForSysObjectID(profiles profileDefinitionMap, sysObjectID string) (string, error) {
+func GetProfileForSysObjectID(profiles profileConfigMap, sysObjectID string) (string, error) {
 	tmpSysOidToProfile := map[string]string{}
 	var matchedOids []string
 
-	for profile, definition := range profiles {
-		for _, oidPattern := range definition.SysObjectIds {
+	for profile, profConfig := range profiles {
+		for _, oidPattern := range profConfig.Definition.SysObjectIds {
 			found, err := filepath.Match(oidPattern, sysObjectID)
 			if err != nil {
 				log.Debugf("pattern error: %s", err)

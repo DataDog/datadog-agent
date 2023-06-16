@@ -146,7 +146,7 @@
 /cmd/system-probe/modules/network_tracer*   @DataDog/Networks
 /cmd/system-probe/modules/oom_kill_probe*   @DataDog/container-integrations
 /cmd/system-probe/modules/process*      @DataDog/processes
-/cmd/system-probe/modules/security_runtime* @DataDog/agent-security
+/cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
@@ -194,6 +194,7 @@
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-shared-components
 /comp/process @DataDog/processes
+/comp/remote-config @DataDog/remote-config
 /comp/systray @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 # END COMPONENTS
@@ -290,6 +291,7 @@
 /pkg/util/containers/collectors/cloudfoundry.go              @DataDog/platform-integrations
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
+/pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/kernel/                       @DataDog/ebpf-platform
 /pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-app
 /pkg/util/orchestrator/                 @DataDog/container-app

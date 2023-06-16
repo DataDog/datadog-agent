@@ -23,7 +23,7 @@ jobs:
       - name: Setup Python3
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.10'
+          python-version: '3.9.16'
 
       - name: Install Python requirements
         run: |

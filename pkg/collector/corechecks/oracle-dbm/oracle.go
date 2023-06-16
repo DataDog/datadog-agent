@@ -285,7 +285,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 }
 
 func oracleFactory() check.Check {
-	return &Check{CheckBase: core.NewCheckBase(common.IntegrationNameScheduler)}
+	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
 }
 
 func init() {
@@ -320,4 +320,18 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 		return tags
 	}
 	return append(tags, "pdb:"+pdb.String)
+}
+
+func selectWrapper[T any](c *Check, s T, sql string) error {
+	err := c.db.Select(s, sql)
+	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
+		db, err := c.Connect()
+		if err != nil {
+			c.Teardown()
+			return err
+		}
+		c.db = db
+	}
+
+	return err
 }
