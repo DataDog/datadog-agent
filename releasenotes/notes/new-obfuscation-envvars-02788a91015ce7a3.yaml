@@ -1,0 +1,28 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: Bind ``apm_config.obfuscation`` parameter to new obfuscation environment variables. In particular, bind:
+    ``apm_config.obfuscation.mongodb`` to ``DD_APM_OBFUSCATION_MONGODB``:
+    It accepts a JSON formatted string of the form ``[{"enabled":true,"keep_values":["id1", "id2"]}]``.
+
+    ``apm_config.obfuscation.elasticsearch`` to ``DD_APM_OBFUSCATION_ELASTICSEARCH``:
+    It accepts a JSON formatted string of the form ``[{"enabled":true,"keep_values":["id1", "id2"]}]``.
+
+    ``apm_config.obfuscation.memcached.enabled`` to ``DD_APM_OBFUSCATION_MEMCACHED_ENABLED``:
+    It accepts a boolean value.
+
+    ``apm_config.obfuscation.redis.enabled`` to ``DD_APM_OBFUSCATION_REDIS_ENABLED``:
+    It also accepts a boolean value.
+
+    ``apm_config.obfuscation.http`` to ``DD_APM_OBFUSCATION_HTTP``,
+    It accepts a JSON formatted string of the form ``[{"remove_query_string":true,"remove_path_with_digits":true}]``.
+
+    ``apm_config.obfuscation.remove_stack_traces`` to ``DD_APM_OBFUSCATION_REMOVE_STACK_TRACES``:
+    It accepts a boolean value.
