@@ -1372,7 +1372,7 @@ api_key:
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
-  ## Enables sending different kinds of data to multiple endpoints and/or with multiple API keys via dual shipping.
+  ## Enables sending data to multiple endpoints and/or with multiple API keys via dual shipping.
   ## See https://docs.datadoghq.com/agent/guide/dual-shipping
   #
   # additional_endpoints:
