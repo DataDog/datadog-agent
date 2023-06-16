@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -63,6 +64,8 @@ type GenericCollector struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	Insecure bool // for testing
 }
 
 func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) error {
@@ -70,23 +73,29 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) 
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
-	// NOTE: we're using InsecureSkipVerify because the gRPC server only
-	// persists its TLS certs in memory, and we currently have no
-	// infrastructure to make them available to clients. This is NOT
-	// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
-	// connection.
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
+	opts := []grpc.DialOption{grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+		return net.Dial("tcp", url)
+	})}
 
-	var err error
+	if c.Insecure {
+		// for test purposes
+		opts = append(opts, grpc.WithInsecure())
+	} else {
+		// NOTE: we're using InsecureSkipVerify because the gRPC server only
+		// persists its TLS certs in memory, and we currently have no
+		// infrastructure to make them available to clients. This is NOT
+		// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
+		// connection.
+		creds := credentials.NewTLS(&tls.Config{
+			InsecureSkipVerify: true,
+		})
+		opts = append(opts, grpc.WithTransportCredentials(creds))
+	}
+
 	conn, err := grpc.DialContext(
 		c.ctx,
 		fmt.Sprintf(":%v", c.Port),
-		grpc.WithTransportCredentials(creds),
-		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
-			return net.Dial("tcp", url)
-		}),
+		opts...,
 	)
 	if err != nil {
 		return err
@@ -117,20 +126,24 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		default:
 		}
 
-		// token, err := security.FetchAuthToken()
-		// if err != nil {
-		// 	err = fmt.Errorf("unable to fetch authentication token: %w", err)
-		// 	log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
-		// 	return err
-		// }
+		token, err := security.FetchAuthToken()
+		if err != nil {
+			err = fmt.Errorf("unable to fetch authentication token: %w", err)
+			log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
+			return err
+		}
 
 		c.streamCtx, c.streamCancel = context.WithCancel(
 			metadata.NewOutgoingContext(
 				c.ctx,
-				metadata.MD{},
+				metadata.MD{
+					"authorization": []string{
+						fmt.Sprintf("Bearer %s", token),
+					},
+				},
 			),
 		)
-		var err error
+
 		c.stream, err = c.client.StreamEntities(c.streamCtx)
 		if err != nil {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
