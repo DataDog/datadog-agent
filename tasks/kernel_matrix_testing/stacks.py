@@ -1,4 +1,5 @@
 from .init_kmt import KMT_DIR, KMT_STACKS_DIR, VMCONFIG, check_and_get_stack, get_active_branch_name
+import json
 import os
 from invoke.exceptions import Exit
 import getpass
@@ -33,8 +34,18 @@ def find_ssh_key(ssh_key):
 
     return ssh_key_file
 
+def remote_vms_in_config(vmconfig):
+    with open(vmconfig, 'r') as f:
+        data = json.load(f)
+
+    for s in data["vmsets"]:
+        if s["arch"] != "local":
+            return True
+
+    return False
+
 def launch_stack(
-    ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0584a00dd384af6ab", arm_ami="ami-0b7cd13521845570c"
+    ctx, stack, branch, ssh_key, x86_ami, arm_ami
 ):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
@@ -43,11 +54,8 @@ def launch_stack(
     if not vm_config_exists(stack):
         raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'inv kmt.gen-config --help'")
 
-    if not os.path.exists("../test-infra-definitions"):
-        raise Exit("'test-infra-definitions' repository required to launc VMs")
-
-    vm_config = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
-    micro_vm_scenario = "../test-infra-definitions/scenarios/aws/microVMs"
+    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    vm_config = f"{stack_dir}/{VMCONFIG}"
 
     if ssh_key != "":
         ssh_key_file = find_ssh_key(ssh_key)
@@ -55,32 +63,21 @@ def launch_stack(
     else:
         ssh_add_cmd = ""
 
-    pulumi_cmd = [
-        "PULUMI_CONFIG_PASSPHRASE=1234",
-        "pulumi",
-        "up",
-        "-c scenario=aws/microvms",
-        f"-c ddinfra:aws/defaultKeyPairName={ssh_key}",
-        "-c ddinfra:env=aws/sandbox",
-        "-c ddinfra:aws/defaultARMInstanceType=m6g.metal",
-        "-c ddinfra:aws/defaultInstanceType=i3.metal",
-        "-c ddinfra:aws/defaultInstanceStorageSize=500",
-        f"-c microvm:microVMConfigFile={vm_config}",
-        f"-c microvm:workingDir={KMT_DIR}",
-        "-c microvm:provision=false",
-        f"-c microvm:x86AmiID={x86_ami}",
-        f"-c microvm:arm64AmiID={arm_ami}",
-        f"-C {micro_vm_scenario}",
-        "-y",
-        f"-s {stack}",
-    ]
+    ctx.run(ssh_add_cmd)
 
-    if not os.path.exists(micro_vm_scenario):
-        raise Exit(f"Could not find scenario directory at {micro_vm_scenario}")
+    env = ["PULUMI_CONFIG_PASSPHRASE=1234",
+            f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
+            f"LibvirtSSHKeyARM={stack_dir}/libvirt_rsa-arm64",
+            f"CI_PROJECT_DIR={stack_dir}",
+            ]
 
-    print("Run this ->\n")
-    print(ssh_add_cmd)
-    print(' '.join(pulumi_cmd))
+    prefix = ""
+    if remote_vms_in_config(vm_config):
+        prefix = "aws-vault exec sandbox-account-admin --"
+
+    env_vars = ' '.join(env)
+    ctx.run(f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86=m5.metal --instance-type-arm=m6g.metal --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack}")
+
 
 def resource_in_stack(stack, resource):
     return resource.startswith(stack)
@@ -151,18 +148,31 @@ def delete_networks(conn, stack):
         print(f"[+] Network {name} deleted")
 
 
-def destroy_stack_pulumi(ctx, stack):
-    destroy_cmd = [
-        "PULUMI_CONFIG_PASSPHRASE=1234",
-        "pulumi",
-        "destroy",
-        f"-C ../test-infra-definitions/scenarios/aws/microVMs -s {stack}",
-    ]
+def destroy_stack_pulumi(ctx, stack, ssh_key):
+    if ssh_key != "":
+        ssh_key_file = find_ssh_key(ssh_key)
+        ssh_add_cmd = f"ssh-add -l | grep {ssh_key} || ssh-add {ssh_key_file}"
+    else:
+        ssh_add_cmd = ""
 
-    print("Run this ->\n")
-    print(' '.join(destroy_cmd))
+    ctx.run(ssh_add_cmd)
+
+    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    env = ["PULUMI_CONFIG_PASSPHRASE=1234",
+            f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
+            f"LibvirtSSHKeyARM={stack_dir}/libvirt_rsa-arm64",
+            f"CI_PROJECT_DIR={stack_dir}",
+            ]
 
 
+    vm_config = f"{stack_dir}/{VMCONFIG}"
+    prefix = ""
+    if remote_vms_in_config(vm_config):
+        prefix = "aws-vault exec sandbox-account-admin --"
+
+    env_vars = ' '.join(env)
+    ctx.run(f"{env_vars} {prefix} inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy")
+    
 def is_ec2_ip_entry(entry):
     return entry.startswith("arm64-instance-ip") or entry.startswith("x86_64-instance-ip")
 
@@ -218,7 +228,7 @@ def destroy_stack_force(ctx, stack):
     conn.close()
 
 
-def destroy_stack(ctx, stack=None, branch=False, force=False):
+def destroy_stack(ctx, stack, branch, force, ssh_key):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -230,6 +240,6 @@ def destroy_stack(ctx, stack=None, branch=False, force=False):
             f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions/scenarios/aws/microVMs -s {stack}"
         )
     else:
-        destroy_stack_pulumi(ctx, stack)
+        destroy_stack_pulumi(ctx, stack, ssh_key)
 
     ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")

@@ -11,10 +11,6 @@ from .kernel_matrix_testing import stacks
 
 
 @task
-def destroy_stack(ctx, stack=None, branch=False, force=False):
-    stacks.destroy_stack(ctx, stack, branch, force)
-
-@task
 def create_stack(ctx, stack=None, branch=False):
     stacks.create_stack(ctx, stack, branch)
 
@@ -131,3 +127,9 @@ def launch_stack(
     ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0584a00dd384af6ab", arm_ami="ami-0b7cd13521845570c"
 ):
     stacks.launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami)
+
+@task
+def destroy_stack(ctx, stack=None, branch=False, force=False, ssh_key=""):
+    stacks.destroy_stack(ctx, stack, branch, force, ssh_key)
+
+

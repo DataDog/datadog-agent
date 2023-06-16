@@ -1537,7 +1537,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
 
 @task
-def test_microvms(
+def start_microvms(
     ctx,
     infra_env,
     instance_type_x86=None,
@@ -1551,6 +1551,8 @@ def test_microvms(
     dependencies_dir=None,
     shutdown_period=320,
     subnets=None,
+    stack_name="kernel-matrix-testing-system",
+    vmconfig=None
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1565,7 +1567,8 @@ def test_microvms(
         f"--shutdown-period {shutdown_period}",
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
         f"--subnets {subnets}" if subnets else "",
-        "--name kernel-matrix-testing-system",
+        f"--name {stack_name}",
+        f"--vmconfig {vmconfig}" if vmconfig else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
