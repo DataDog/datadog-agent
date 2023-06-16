@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
 
 var DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
+var defaultVMConfigPath = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 
 func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.SystemProbeEnvOpts) error {
 	if destroy {
@@ -47,6 +49,7 @@ func main() {
 	infraEnv := flag.String("infra-env", "", "name of infra env to use")
 	dependenciesDirectoryPtr := flag.String("dependencies-dir", DD_AGENT_TESTING_DIR, "directory where dependencies package is present")
 	subnetsPtr := flag.String("subnets", "", "list of subnets to use")
+	vmconfigPathPtr := flag.String("vmconfig", defaultVMConfigPath, "vmconfig path")
 
 	flag.Parse()
 
@@ -67,6 +70,7 @@ func main() {
 		InfraEnv:              *infraEnv,
 		DependenciesDirectory: *dependenciesDirectoryPtr,
 		Subnets:               *subnetsPtr,
+		VMConfigPath:          *vmconfigPathPtr,
 	}
 
 	fmt.Printf("shutdown period: %d\n", opts.ShutdownPeriod)

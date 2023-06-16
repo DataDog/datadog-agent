@@ -45,6 +45,7 @@ type SystemProbeEnvOpts struct {
 	UploadDependencies    bool
 	DependenciesDirectory string
 	Subnets               string
+	VMConfigPath          string
 }
 
 type TestEnv struct {
@@ -59,7 +60,6 @@ type TestEnv struct {
 var (
 	MicroVMsDependenciesPath = filepath.Join("/", "opt", "kernel-version-testing", "dependencies-%s.tar.gz")
 	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
-	vmConfig                 = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 
 	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
@@ -94,7 +94,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	var err error
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
-		name:    fmt.Sprintf("microvm-scenario-%s", name),
+		name:    name,
 	}
 
 	stackManager := infra.GetStackManager()
@@ -108,16 +108,14 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"sudo-password-remote":                   auto.ConfigValue{Value: "", Secret: true},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
-		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
 		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
-		"microvm:microVMConfigFile":              auto.ConfigValue{Value: vmConfig},
+		"microvm:microVMConfigFile":              auto.ConfigValue{Value: opts.VMConfigPath},
 		"microvm:libvirtSSHKeyFileX86":           auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":           auto.ConfigValue{Value: sshKeyArm},
 		"microvm:provision":                      auto.ConfigValue{Value: "false"},
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
-		"microvm:shutdownPeriod":                 auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)},
 	}
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
 	if opts.SSHKeyPath != "" {
@@ -129,6 +127,10 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	// Specify the subnets to use instead of default ones
 	if opts.Subnets != "" {
 		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: opts.Subnets}
+	}
+	if opts.ShutdownPeriod != 0 {
+		config["microvm:shutdownPeriod"] = auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)}
+		config["ddinfra:aws/defaultShutdownBehavior"] = auto.ConfigValue{Value: "terminate"}
 	}
 
 	var upResult auto.UpResult
