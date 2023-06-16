@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package kprobe
 
@@ -58,6 +57,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.InetCskListenStop,
 	probes.UDPDestroySock,
 	probes.UDPDestroySockReturn,
+	probes.UDPv6DestroySock,
+	probes.UDPv6DestroySockReturn,
 	probes.InetBind,
 	probes.Inet6Bind,
 	probes.InetBindRet,
@@ -132,6 +133,7 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRetransmitPre470, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre470, UID: probeUID}},
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre5180, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre5190, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6RecvMsgPre5190, UID: probeUID}},
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre470, UID: probeUID}},

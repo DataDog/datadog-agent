@@ -401,14 +401,15 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	m.MountID = ByteOrder.Uint32(data[0:4])
-	m.GroupID = ByteOrder.Uint32(data[4:8])
-	m.Device = ByteOrder.Uint32(data[8:12])
-	m.ParentMountID = ByteOrder.Uint32(data[12:16])
-	m.ParentInode = ByteOrder.Uint64(data[16:24])
-	m.RootInode = ByteOrder.Uint64(data[24:32])
-	m.RootMountID = ByteOrder.Uint32(data[32:36])
-	m.BindSrcMountID = ByteOrder.Uint32(data[36:40])
+	m.ParentInode = ByteOrder.Uint64(data[0:8])
+	m.RootInode = ByteOrder.Uint64(data[8:16])
+	m.Device = ByteOrder.Uint32(data[16:20])
+	m.MountID = ByteOrder.Uint32(data[20:24])
+	m.ParentMountID = ByteOrder.Uint32(data[24:28])
+	m.RootMountID = ByteOrder.Uint32(data[28:32])
+	m.BindSrcMountID = ByteOrder.Uint32(data[32:36])
+
+	// +4 for padding
 
 	var err error
 	m.FSType, err = UnmarshalString(data[40:56], 16)
@@ -510,7 +511,7 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.Tid = ByteOrder.Uint32(data[4:8])
 	p.NetNS = ByteOrder.Uint32(data[8:12])
 	p.IsKworker = ByteOrder.Uint32(data[12:16]) > 0
-	p.Inode = ByteOrder.Uint64(data[16:24])
+	p.ExecInode = ByteOrder.Uint64(data[16:24])
 
 	return 24, nil
 }

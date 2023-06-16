@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package http
 
@@ -32,6 +31,7 @@ func runningOnARM() bool {
 	return strings.HasPrefix(runtime.GOARCH, "arm")
 }
 
+// HTTPSSupported returns true if HTTPs monitoring is supported on the current OS.
 // We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
 func HTTPSSupported(c *config.Config) bool {
 	kversion, err := kernel.HostVersion()

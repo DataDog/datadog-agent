@@ -158,7 +158,8 @@ CWS logs have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "id"
+                "id",
+                "question"
             ],
             "description": "DNSEventSerializer serializes a DNS event to JSON"
         },
@@ -431,10 +432,6 @@ CWS logs have the following JSON schema:
                     "type": "integer",
                     "description": "New Mount ID"
                 },
-                "group_id": {
-                    "type": "integer",
-                    "description": "Group ID"
-                },
                 "device": {
                     "type": "integer",
                     "description": "Device associated with the file"
@@ -596,9 +593,6 @@ CWS logs have the following JSON schema:
                 "mount_id": {
                     "type": "integer"
                 },
-                "group_id": {
-                    "type": "integer"
-                },
                 "parent_mount_id": {
                     "type": "integer"
                 },
@@ -628,7 +622,6 @@ CWS logs have the following JSON schema:
             "type": "object",
             "required": [
                 "mount_id",
-                "group_id",
                 "parent_mount_id",
                 "bind_src_mount_id",
                 "device"
@@ -826,6 +819,10 @@ CWS logs have the following JSON schema:
                 "is_kworker": {
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Process source"
                 }
             },
             "additionalProperties": false,
@@ -942,6 +939,10 @@ CWS logs have the following JSON schema:
                 "is_kworker": {
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Process source"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -1536,7 +1537,8 @@ CWS logs have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "id"
+        "id",
+        "question"
     ],
     "description": "DNSEventSerializer serializes a DNS event to JSON"
 }
@@ -1900,10 +1902,6 @@ CWS logs have the following JSON schema:
             "type": "integer",
             "description": "New Mount ID"
         },
-        "group_id": {
-            "type": "integer",
-            "description": "Group ID"
-        },
         "device": {
             "type": "integer",
             "description": "Device associated with the file"
@@ -1948,7 +1946,6 @@ CWS logs have the following JSON schema:
 | `package_version` | System package version |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
-| `group_id` | Group ID |
 | `device` | Device associated with the file |
 | `fstype` | Filesystem type |
 
@@ -2175,9 +2172,6 @@ CWS logs have the following JSON schema:
         "mount_id": {
             "type": "integer"
         },
-        "group_id": {
-            "type": "integer"
-        },
         "parent_mount_id": {
             "type": "integer"
         },
@@ -2207,7 +2201,6 @@ CWS logs have the following JSON schema:
     "type": "object",
     "required": [
         "mount_id",
-        "group_id",
         "parent_mount_id",
         "bind_src_mount_id",
         "device"
@@ -2471,6 +2464,10 @@ CWS logs have the following JSON schema:
         "is_kworker": {
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
+        },
+        "source": {
+            "type": "string",
+            "description": "Process source"
         }
     },
     "additionalProperties": false,
@@ -2510,6 +2507,7 @@ CWS logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
+| `source` | Process source |
 
 | References |
 | ---------- |
@@ -2629,6 +2627,10 @@ CWS logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
+        "source": {
+            "type": "string",
+            "description": "Process source"
+        },
         "parent": {
             "$ref": "#/$defs/Process",
             "description": "Parent process"
@@ -2678,6 +2680,7 @@ CWS logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
+| `source` | Process source |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 

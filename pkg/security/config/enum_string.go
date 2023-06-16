@@ -12,12 +12,11 @@ func _() {
 	_ = x[Protobuf-1]
 	_ = x[Dot-2]
 	_ = x[Profile-3]
-	_ = x[SecL-4]
 }
 
-const _StorageFormat_name = "jsonprotobufdotprofilesecl"
+const _StorageFormat_name = "jsonprotobufdotprofile"
 
-var _StorageFormat_index = [...]uint8{0, 4, 12, 15, 22, 26}
+var _StorageFormat_index = [...]uint8{0, 4, 12, 15, 22}
 
 func (i StorageFormat) String() string {
 	if i < 0 || i >= StorageFormat(len(_StorageFormat_index)-1) {

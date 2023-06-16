@@ -10,8 +10,8 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"

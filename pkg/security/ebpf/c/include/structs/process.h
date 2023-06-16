@@ -61,10 +61,6 @@ struct str_array_buffer_t {
     char value[MAX_STR_BUFF_LEN];
 };
 
-struct exec_path {
-    char filename[MAX_PATH_LEN];
-};
-
 union selinux_write_payload_t {
     // 1 for true, 0 for false, -1 (max) for error
     u32 bool_value;

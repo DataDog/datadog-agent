@@ -13,10 +13,11 @@
     - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
-      -m 4096M
+      -m 8192M
       -v "$(Get-Location):c:\mnt"
       -e CI_JOB_ID=${CI_JOB_ID}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
       -e OMNIBUS_TARGET=${OMNIBUS_TARGET}
       -e WINDOWS_BUILDER=true
@@ -75,6 +76,7 @@ windows_msi_x64-a6:
     PYTHON_RUNTIMES: '2,3'
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_6
+  timeout: 3h
 
 # cloudfoundry IoT build for Windows
 windows_zip_agent_binaries_x64-a7:
@@ -99,9 +101,11 @@ windows_zip_agent_binaries_x64-a7:
     - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
-      -m 4096M
+      -m 8192M
       -v "$(Get-Location):c:\mnt"
       -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e OMNIBUS_TARGET=${OMNIBUS_TARGET}
       -e WINDOWS_BUILDER=true
       -e RELEASE_VERSION="$RELEASE_VERSION"

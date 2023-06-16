@@ -4,7 +4,6 @@
 // Copyright 2016-2020 Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -14,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/gopsutil/process"
+	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 

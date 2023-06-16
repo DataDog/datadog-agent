@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -44,7 +43,7 @@ func TestSpliceEvent(t *testing.T) {
 			assert.Equal(t, uint32(0), event.Splice.PipeEntryFlag, "wrong pipe entry flag")
 			assert.Equal(t, uint32(0), event.Splice.PipeExitFlag, "wrong pipe exit flag")
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateSpliceSchema(t, event)

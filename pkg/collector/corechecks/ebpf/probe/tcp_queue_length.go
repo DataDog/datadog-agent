@@ -4,10 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
-//go:generate go run ../../../../ebpf/include_headers.go ../c/runtime/tcp-queue-length-kern.c ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/c
-//go:generate go run ../../../../ebpf/bytecode/runtime/integrity.go ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/bytecode/runtime/tcp-queue-length.go runtime
+//go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern.c pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/c
+//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/bytecode/runtime/tcp-queue-length.go runtime
 
 package probe
 
@@ -16,7 +15,6 @@ import (
 	"math"
 	"unsafe"
 
-	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -113,12 +111,11 @@ func (t *TCPQueueLengthTracer) Close() {
 }
 
 func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
-	cpus, err := cpupossible.Get()
+	nbCpus, err := kernel.PossibleCPUs()
 	if err != nil {
 		log.Errorf("Failed to get online CPUs: %v", err)
 		return TCPQueueLengthStats{}
 	}
-	nbCpus := len(cpus)
 
 	result := make(TCPQueueLengthStats)
 
@@ -134,7 +131,7 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 		}
 
 		max := TCPQueueLengthStatsValue{}
-		for _, cpu := range cpus {
+		for cpu := 0; cpu < nbCpus; cpu++ {
 			if uint32(statsValue[cpu].read_buffer_max_usage) > max.ReadBufferMaxUsage {
 				max.ReadBufferMaxUsage = uint32(statsValue[cpu].read_buffer_max_usage)
 			}

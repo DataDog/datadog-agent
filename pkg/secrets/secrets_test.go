@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build secrets
-// +build secrets
 
 package secrets
 
@@ -140,7 +139,7 @@ func resetPackageVars() {
 	secretCache = map[string]string{}
 	secretOrigin = make(handleToContext)
 	secretFetcher = fetchSecret
-	secretBackendTimeout = 0
+	secretBackendTimeout = 5
 	scrubberAddReplacer = scrubber.AddStrippedKeys
 	removeTrailingLinebreak = false
 }

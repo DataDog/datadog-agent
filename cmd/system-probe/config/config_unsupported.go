@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux && !windows
-// +build !linux,!windows
 
 package config
 
@@ -18,10 +17,4 @@ const (
 // ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.
 func ValidateSocketAddress(sockPath string) error {
 	return fmt.Errorf("system-probe unsupported")
-}
-
-// Right now, no, because there isn't a way to consent to closed source on Linux
-// and there aren't any closed source components
-func isClosedSourceAllowed() bool {
-	return false
 }

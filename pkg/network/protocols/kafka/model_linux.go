@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package kafka
 
@@ -19,10 +18,6 @@ func (tx *EbpfKafkaTx) ConnTuple() types.ConnectionKey {
 		SrcPort:   tx.Tup.Sport,
 		DstPort:   tx.Tup.Dport,
 	}
-}
-
-func (tx *EbpfKafkaTx) TopicName() string {
-	return string(tx.Topic_name[:tx.Topic_name_size])
 }
 
 func (tx *EbpfKafkaTx) APIKey() uint16 {

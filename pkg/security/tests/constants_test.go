@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests && linux_bpf
-// +build functionaltests,linux_bpf
 
 package tests
 
@@ -64,7 +63,7 @@ func TestOctogonConstants(t *testing.T) {
 
 	t.Run("rc-vs-fallback", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel()
+			return kv.IsSLESKernel() || (kv.IsAmazonLinux2023Kernel() && (testEnvironment == DockerEnvironment))
 		})
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
@@ -75,7 +74,7 @@ func TestOctogonConstants(t *testing.T) {
 
 	t.Run("btfhub-vs-rc", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel()
+			return kv.IsSLESKernel() || (kv.IsAmazonLinux2023Kernel() && (testEnvironment == DockerEnvironment))
 		})
 
 		btfhubFetcher, err := constantfetch.NewBTFHubConstantFetcher(kv)
@@ -118,7 +117,7 @@ func TestOctogonConstants(t *testing.T) {
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
 		checkKernelCompatibility(t, "SLES kernels", func(kv *kernel.Version) bool {
-			return kv.IsSLESKernel()
+			return kv.IsSLESKernel() || (kv.IsAmazonLinux2023Kernel() && (testEnvironment == DockerEnvironment))
 		})
 
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)

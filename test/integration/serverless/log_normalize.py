@@ -77,6 +77,15 @@ def normalize_traces(stage):
         cold_start = log['chunks'][0]['spans'][0]['meta'].get('cold_start')
         return name, cold_start
 
+    def sort__dd_tags_container(log):
+        tags = log.get("tags") or {}
+        tags = tags.get("_dd.tag.container")
+        if not tags:
+            return
+        tags = tags.split(',')
+        tags.sort()
+        log["tags"]["_dd.tags.container"] = ','.join(tags)
+
     return [
         require(r'BEGINTRACE.*ENDTRACE'),
         exclude(r'BEGINTRACE'),
@@ -93,8 +102,11 @@ def normalize_traces(stage):
         replace(r'("architecture":)"(x86_64|arm64)"', r'\1"XXX"'),
         replace(r'("process_id":)[0-9]+', r'\1null'),
         replace(r'("otel.trace_id":")[a-zA-Z0-9]+"', r'\1null"'),
+        replace(r'("faas.execution":")[a-zA-Z0-9-]+"', r'\1null"'),
+        replace(r'("faas.instance":")[a-zA-Z0-9-/]+\[\$LATEST\][a-zA-Z0-9]+"', r'\1null"'),
         replace(stage, 'XXXXXX'),
         exclude(r'[ ]$'),
+        foreach(sort__dd_tags_container),
         sort_by(trace_sort_key),
     ]
 

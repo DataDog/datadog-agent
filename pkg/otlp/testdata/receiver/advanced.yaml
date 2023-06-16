@@ -15,3 +15,4 @@ otlp_config:
         keepalive:
           enforcement_policy:
             min_time: 10m
+        max_recv_msg_size_mib: 10

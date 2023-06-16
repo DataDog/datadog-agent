@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -63,9 +62,6 @@ func (c *ReplicaSetCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	c.informer = rcfg.APIClient.InformerFactory.Apps().V1().ReplicaSets()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *ReplicaSetCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *ReplicaSetCollector) Metadata() *collectors.CollectorMetadata {

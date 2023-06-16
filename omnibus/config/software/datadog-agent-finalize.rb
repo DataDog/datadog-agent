@@ -78,7 +78,7 @@ build do
                 link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
 
                 delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-3.8", "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-3.9", "#{install_dir}/embedded/bin/2to3"
             end
         end
 
@@ -193,7 +193,7 @@ build do
             # Do not strip eBPF programs
             strip_exclude("*tracer*")
             strip_exclude("*offset-guess*")
-            strip_exclude("*http*")
+            strip_exclude("*usm*")
             strip_exclude("*runtime-security*")
             strip_exclude("*dns*")
             strip_exclude("*conntrack*")

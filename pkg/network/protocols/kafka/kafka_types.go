@@ -4,12 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ignore
-// +build ignore
 
 package kafka
 
 /*
-#include "../../ebpf/c/tracer.h"
+#include "../../ebpf/c/conn_tuple.h"
 #include "../../ebpf/c/protocols/kafka/types.h"
 */
 import "C"

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package http
 
@@ -27,6 +26,12 @@ func (tx *EbpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
 	if err != nil {
 		return nil, false
 	}
+
+	// ensure we found a '/' in the beginning of the path
+	if len(str) == 0 || str[0] != '/' {
+		return nil, false
+	}
+
 	n := copy(buffer, str)
 	// indicate if we knowingly captured the entire path
 	return buffer[:n], true
@@ -102,7 +107,7 @@ func (tx *EbpfHttp2Tx) RequestStarted() uint64 {
 }
 
 func (tx *EbpfHttp2Tx) SetRequestMethod(m Method) {
-	tx.Request_method = uint8(m)
+	tx.Request_method = uint32(m)
 }
 
 func (tx *EbpfHttp2Tx) StaticTags() uint64 {

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package mutate
 
@@ -12,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
@@ -126,7 +126,7 @@ func TestInjectService(t *testing.T) {
 	pod = withLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
 	err := injectConfig(pod, "", nil)
 	assert.Nil(t, err)
-	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_AGENT_HOST", "datadog.default.svc.cluster.local"))
+	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_AGENT_HOST", "datadog."+common.GetMyNamespace()+".svc.cluster.local"))
 }
 
 func TestInjectSocket(t *testing.T) {

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package v1
 
@@ -22,6 +21,7 @@ import (
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func installKubernetesMetadataEndpoints(r *mux.Router) {
@@ -37,7 +37,7 @@ func installKubernetesMetadataEndpoints(r *mux.Router) {
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
-func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClient, string) (map[string]string, error), what string, filterList []string) {
+func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*workloadmeta.KubernetesNode) map[string]string, what string, filterList []string) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/node/localhost
@@ -55,24 +55,18 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClien
 			Example: "no cached metadata found for the node localhost"
 	*/
 
-	// As HTTP query handler, we do not retry getting the APIServer
-	// Client will have to retry query in case of failure
-	cl, err := as.GetAPIClient()
-	if err != nil {
-		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	vars := mux.Vars(r)
 	var dataBytes []byte
 	nodeName := vars["nodeName"]
-	nodeData, err := f(cl, nodeName)
+
+	nodeEntity, err := workloadmeta.GetGlobalStore().GetKubernetesNode(nodeName)
 	if err != nil {
 		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	nodeData := f(nodeEntity)
 
 	// Filter data to avoid returning too big useless data
 	if filterList != nil {
@@ -101,11 +95,11 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, f func(*as.APIClien
 }
 
 func getNodeLabels(w http.ResponseWriter, r *http.Request) {
-	getNodeMetadata(w, r, as.GetNodeLabels, "labels", nil)
+	getNodeMetadata(w, r, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Labels }, "labels", nil)
 }
 
 func getNodeAnnotations(w http.ResponseWriter, r *http.Request) {
-	getNodeMetadata(w, r, as.GetNodeAnnotations, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
+	getNodeMetadata(w, r, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Annotations }, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
 }
 
 // getNamespaceLabels is only used when the node agent hits the DCA for the list of labels

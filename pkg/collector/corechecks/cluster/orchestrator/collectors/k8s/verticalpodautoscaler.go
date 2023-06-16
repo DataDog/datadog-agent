@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -42,7 +41,7 @@ func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
 	return &VerticalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
-			IsStable:                  false,
+			IsStable:                  true,
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
@@ -64,9 +63,6 @@ func (c *VerticalPodAutoscalerCollector) Init(rcfg *collectors.CollectorRunConfi
 	c.informer = rcfg.APIClient.VPAInformerFactory.Autoscaling().V1().VerticalPodAutoscalers()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *VerticalPodAutoscalerCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *VerticalPodAutoscalerCollector) Metadata() *collectors.CollectorMetadata {

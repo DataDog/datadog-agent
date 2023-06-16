@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package mutate
 
@@ -92,6 +91,16 @@ func fakePodWithAnnotation(k, v string) *corev1.Pod {
 			Annotations: map[string]string{
 				k: v,
 			},
+		},
+	}
+	return withContainer(pod, "-container")
+}
+
+func fakePodWithAnnotations(as map[string]string) *corev1.Pod {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "pod",
+			Annotations: as,
 		},
 	}
 	return withContainer(pod, "-container")

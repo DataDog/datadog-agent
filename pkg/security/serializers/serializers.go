@@ -7,7 +7,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package serializers
 
@@ -22,9 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -217,6 +216,8 @@ type ProcessSerializer struct {
 	IsThread bool `json:"is_thread,omitempty"`
 	// Indicates whether the process is a kworker
 	IsKworker bool `json:"is_kworker,omitempty"`
+	// Process source
+	Source string `json:"source,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -239,8 +240,6 @@ type FileEventSerializer struct {
 
 	// New Mount ID
 	NewMountID uint32 `json:"new_mount_id,omitempty"`
-	// Group ID
-	GroupID uint32 `json:"group_id,omitempty"`
 	// Device associated with the file
 	Device uint32 `json:"device,omitempty"`
 	// Filesystem type
@@ -431,9 +430,9 @@ type NetworkContextSerializer struct {
 	// l4_protocol is the layer 4 protocol name
 	L4Protocol string `json:"l4_protocol"`
 	// source is the emitter of the network event
-	Source *IPPortSerializer `json:"source"`
+	Source IPPortSerializer `json:"source"`
 	// destination is the receiver of the network event
-	Destination *IPPortSerializer `json:"destination"`
+	Destination IPPortSerializer `json:"destination"`
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
 }
@@ -459,7 +458,7 @@ type DNSEventSerializer struct {
 	// id is the unique identifier of the DNS request
 	ID uint16 `json:"id"`
 	// question is a DNS question for the DNS request
-	Question *DNSQuestionSerializer `json:"question,omitempty"`
+	Question DNSQuestionSerializer `json:"question"`
 }
 
 // DDContextSerializer serializes a span context to JSON
@@ -495,7 +494,7 @@ type SpliceEventSerializer struct {
 // easyjson:json
 type BindEventSerializer struct {
 	// Bound address (if any)
-	Addr *IPPortFamilySerializer `json:"addr"`
+	Addr IPPortFamilySerializer `json:"addr"`
 }
 
 // ExitEventSerializer serializes an exit event to JSON
@@ -513,7 +512,6 @@ type MountEventSerializer struct {
 	MountPoint                     *FileSerializer `json:"mp,omitempty"`                    // Mount point file information
 	Root                           *FileSerializer `json:"root,omitempty"`                  // Root file information
 	MountID                        uint32          `json:"mount_id"`                        // Mount ID of the new mount
-	GroupID                        uint32          `json:"group_id"`                        // ID of the peer group
 	ParentMountID                  uint32          `json:"parent_mount_id"`                 // Mount ID of the parent mount
 	BindSrcMountID                 uint32          `json:"bind_src_mount_id"`               // Mount ID of the source of a bind mount
 	Device                         uint32          `json:"device"`                          // Device associated with the file
@@ -667,7 +665,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 	if ps.IsNotKworker() {
 		argv, argvTruncated := resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
 		envs, EnvsTruncated := resolvers.ProcessResolver.GetProcessEnvs(ps)
-		argv0, _ := resolvers.ProcessResolver.GetProcessArgv0(ps)
+		argv0, _ := sprocess.GetProcessArgv0(ps)
 
 		psSerializer := &ProcessSerializer{
 			ForkTime: getTimeIfNotZero(ps.ForkTime),
@@ -687,6 +685,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 			EnvsTruncated: EnvsTruncated,
 			IsThread:      ps.IsThread,
 			IsKworker:     ps.IsKworker,
+			Source:        model.ProcessSourceToString(ps.Source),
 		}
 
 		if ps.HasInterpreter() {
@@ -708,7 +707,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 				ID: ps.ContainerID,
 			}
 			if cgroup, _ := resolvers.CGroupResolver.GetWorkload(ps.ContainerID); cgroup != nil {
-				psSerializer.Container.CreatedAt = getTimeIfNotZero(time.Unix(0, int64(cgroup.CreationTime)))
+				psSerializer.Container.CreatedAt = getTimeIfNotZero(time.Unix(0, int64(cgroup.CreatedAt)))
 			}
 		}
 		return psSerializer
@@ -717,6 +716,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 			Pid:       ps.Pid,
 			Tid:       ps.Tid,
 			IsKworker: ps.IsKworker,
+			Source:    model.ProcessSourceToString(ps.Source),
 			Credentials: &ProcessCredentialsSerializer{
 				CredentialsSerializer: &CredentialsSerializer{},
 			},
@@ -929,32 +929,28 @@ func newSpliceEventSerializer(e *model.Event) *SpliceEventSerializer {
 	}
 }
 
-func newDNSQuestionSerializer(d *model.DNSEvent) *DNSQuestionSerializer {
-	return &DNSQuestionSerializer{
-		Class: model.QClass(d.Class).String(),
-		Type:  model.QType(d.Type).String(),
-		Name:  d.Name,
-		Size:  d.Size,
-		Count: d.Count,
-	}
-}
-
 func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 	return &DNSEventSerializer{
-		ID:       d.ID,
-		Question: newDNSQuestionSerializer(d),
+		ID: d.ID,
+		Question: DNSQuestionSerializer{
+			Class: model.QClass(d.Class).String(),
+			Type:  model.QType(d.Type).String(),
+			Name:  d.Name,
+			Size:  d.Size,
+			Count: d.Count,
+		},
 	}
 }
 
-func newIPPortSerializer(c *model.IPPortContext) *IPPortSerializer {
-	return &IPPortSerializer{
+func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
+	return IPPortSerializer{
 		IP:   c.IPNet.IP.String(),
 		Port: c.Port,
 	}
 }
 
-func newIPPortFamilySerializer(c *model.IPPortContext, family string) *IPPortFamilySerializer {
-	return &IPPortFamilySerializer{
+func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFamilySerializer {
+	return IPPortFamilySerializer{
 		IP:     c.IPNet.IP.String(),
 		Port:   c.Port,
 		Family: family,
@@ -1015,7 +1011,6 @@ func newMountEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *Mo
 			Inode:   &e.Mount.RootInode,
 		},
 		MountID:         e.Mount.MountID,
-		GroupID:         e.Mount.GroupID,
 		ParentMountID:   e.Mount.ParentMountID,
 		BindSrcMountID:  e.Mount.BindSrcMountID,
 		Device:          e.Mount.Device,
@@ -1072,26 +1067,23 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
-	var pc model.ProcessContext
-	if entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event); entry != nil {
-		pc = entry.ProcessContext
-	}
+	pc := event.ProcessContext
 
 	s := &EventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:  model.EventType(event.Type).String(),
 			Async: event.FieldHandlers.ResolveAsync(event),
 		},
-		ProcessContextSerializer: newProcessContextSerializer(&pc, event, resolvers),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event, resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
-		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTimestamp(event)),
+		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),
 	}
 
-	if id := event.FieldHandlers.ResolveContainerID(event, &event.ContainerContext); id != "" {
+	if id := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); id != "" {
 		var creationTime time.Time
 		if cgroup, _ := resolvers.CGroupResolver.GetWorkload(id); cgroup != nil {
-			creationTime = time.Unix(0, int64(cgroup.CreationTime))
+			creationTime = time.Unix(0, int64(cgroup.CreatedAt))
 		}
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        id,
@@ -1107,7 +1099,7 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		s.NetworkContextSerializer = newNetworkContextSerializer(event)
 	}
 
-	if profile.IsAnomalyDetectionEvent(eventType) {
+	if event.SecurityProfileContext.Name != "" {
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
 	}
 

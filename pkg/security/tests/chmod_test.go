@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -62,7 +61,7 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
@@ -85,7 +84,7 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
@@ -106,7 +105,7 @@ func TestChmod(t *testing.T) {
 			assertNearTime(t, event.Chmod.File.MTime)
 			assertNearTime(t, event.Chmod.File.CTime)
 
-			value, _ := event.GetFieldValue("async")
+			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)

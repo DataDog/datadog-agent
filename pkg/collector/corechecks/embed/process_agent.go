@@ -4,8 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build process && (darwin || freebsd)
-// +build process
-// +build darwin freebsd
 
 package embed
 

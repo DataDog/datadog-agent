@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package kfilters
 
@@ -16,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
+
+const BasenameApproverKernelMapName = "basename_approvers"
 
 type onApproverHandler func(approvers rules.Approvers) (ActiveApprovers, error)
 type activeApprover = activeKFilter
@@ -84,7 +85,7 @@ func onNewBasenameApprovers(eventType model.EventType, field string, approvers r
 	for field, values := range approvers {
 		switch field {
 		case prefix + model.NameSuffix:
-			activeApprovers, err := approveBasenames("basename_approvers", eventType, stringValues(values)...)
+			activeApprovers, err := approveBasenames(BasenameApproverKernelMapName, eventType, stringValues(values)...)
 			if err != nil {
 				return nil, err
 			}
@@ -93,7 +94,7 @@ func onNewBasenameApprovers(eventType model.EventType, field string, approvers r
 		case prefix + model.PathSuffix:
 			for _, value := range stringValues(values) {
 				basename := path.Base(value)
-				activeApprover, err := approveBasename("basename_approvers", eventType, basename)
+				activeApprover, err := approveBasename(BasenameApproverKernelMapName, eventType, basename)
 				if err != nil {
 					return nil, err
 				}

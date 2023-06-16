@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -65,7 +64,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 
 	expectedTags := []string{"runtime:docker"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 13)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 15)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 16)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "docker.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "docker.cpu.usage", 1e-5, "", expectedTags)
@@ -81,6 +80,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.soft_limit", 40000, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.rss", 300, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.cache", 200, "", expectedTags)
+	mockSender.AssertMetric(t, "Gauge", "docker.mem.working_set", 350, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.swap", 0, "", expectedTags)
 	mockSender.AssertMetric(t, "Gauge", "docker.mem.failed_count", 10, "", expectedTags)
 	mockSender.AssertMetricInRange(t, "Gauge", "docker.mem.in_use", 0, 1, "", expectedTags)

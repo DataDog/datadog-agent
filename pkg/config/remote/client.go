@@ -72,11 +72,7 @@ type Client struct {
 
 	state *state.Repository
 
-	// Listeners
-	apmListeners        []func(update map[string]state.APMSamplingConfig)
-	cwsListeners        []func(update map[string]state.ConfigCWSDD)
-	cwsCustomListeners  []func(update map[string]state.ConfigCWSCustom)
-	apmTracingListeners []func(update map[string]state.APMTracingConfig)
+	listeners map[string][]func(update map[string]state.RawConfig)
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -186,24 +182,21 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	ctx, close := context.WithCancel(context.Background())
 
 	return &Client{
-		ID:                  generateID(),
-		startupSync:         sync.Once{},
-		ctx:                 ctx,
-		close:               close,
-		agentName:           agentName,
-		agentVersion:        agentVersion,
-		clusterName:         clusterName,
-		clusterID:           clusterID,
-		cwsWorkloads:        make([]string, 0),
-		products:            data.ProductListToString(products),
-		state:               repository,
-		pollInterval:        pollInterval,
-		backoffPolicy:       backoffPolicy,
-		apmListeners:        make([]func(update map[string]state.APMSamplingConfig), 0),
-		cwsListeners:        make([]func(update map[string]state.ConfigCWSDD), 0),
-		cwsCustomListeners:  make([]func(update map[string]state.ConfigCWSCustom), 0),
-		apmTracingListeners: make([]func(update map[string]state.APMTracingConfig), 0),
-		updater:             updater,
+		ID:            generateID(),
+		startupSync:   sync.Once{},
+		ctx:           ctx,
+		close:         close,
+		agentName:     agentName,
+		agentVersion:  agentVersion,
+		clusterName:   clusterName,
+		clusterID:     clusterID,
+		cwsWorkloads:  make([]string, 0),
+		products:      data.ProductListToString(products),
+		state:         repository,
+		pollInterval:  pollInterval,
+		backoffPolicy: backoffPolicy,
+		listeners:     make(map[string][]func(update map[string]state.RawConfig)),
+		updater:       updater,
 	}, nil
 }
 
@@ -220,6 +213,33 @@ func (c *Client) Start() {
 // A client that has been closed cannot be restarted
 func (c *Client) Close() {
 	c.close()
+}
+
+// UpdateApplyStatus updates the config's metadata to reflect its applied status
+func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
+	c.state.UpdateApplyStatus(cfgPath, status)
+}
+
+// Subscribe subscribes to config updates of a product.
+func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.listeners[product] = append(c.listeners[product], fn)
+	fn(c.state.GetConfigs(product))
+}
+
+// GetConfigs returns the current configs applied of a product.
+func (c *Client) GetConfigs(product string) map[string]state.RawConfig {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return c.state.GetConfigs(product)
+}
+
+// SetCWSWorkloads updates the list of workloads that needs cws profiles
+func (c *Client) SetCWSWorkloads(workloads []string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsWorkloads = workloads
 }
 
 func (c *Client) startFn() {
@@ -261,11 +281,6 @@ func (c *Client) update() error {
 	if err != nil {
 		return err
 	}
-	// If there isn't a new update for us, the TargetFiles field will
-	// be nil and we can stop processing this update.
-	if response.TargetFiles == nil {
-		return nil
-	}
 
 	changedProducts, err := c.applyUpdate(response)
 	if err != nil {
@@ -279,27 +294,13 @@ func (c *Client) update() error {
 
 	c.m.Lock()
 	defer c.m.Unlock()
-	if containsProduct(changedProducts, state.ProductAPMSampling) {
-		for _, listener := range c.apmListeners {
-			listener(c.state.APMConfigs())
+	for product, productListeners := range c.listeners {
+		if containsProduct(changedProducts, product) {
+			for _, listener := range productListeners {
+				listener(c.state.GetConfigs(product))
+			}
 		}
 	}
-	if containsProduct(changedProducts, state.ProductCWSDD) {
-		for _, listener := range c.cwsListeners {
-			listener(c.state.CWSDDConfigs())
-		}
-	}
-	if containsProduct(changedProducts, state.ProductCWSCustom) {
-		for _, listener := range c.cwsCustomListeners {
-			listener(c.state.CWSCustomConfigs())
-		}
-	}
-	if containsProduct(changedProducts, state.ProductAPMTracing) {
-		for _, listener := range c.apmTracingListeners {
-			listener(c.state.APMTracingConfigs())
-		}
-	}
-
 	return nil
 }
 
@@ -311,56 +312,6 @@ func containsProduct(products []string, product string) bool {
 	}
 
 	return false
-}
-
-// RegisterAPMUpdate registers a callback function to be called after a successful client update that will
-// contain the current state of the APMSampling product.
-func (c *Client) RegisterAPMUpdate(fn func(update map[string]state.APMSamplingConfig)) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.apmListeners = append(c.apmListeners, fn)
-	fn(c.state.APMConfigs())
-}
-
-// RegisterCWSDDUpdate registers a callback function to be called after a successful client update that will
-// contain the current state of the CWSDD product.
-func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]state.ConfigCWSDD)) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.cwsListeners = append(c.cwsListeners, fn)
-	fn(c.state.CWSDDConfigs())
-}
-
-// RegisterCWSCustomUpdate registers a callback function to be called after a successful client update that will
-// contain the current state of the CWS_CUSTOM product.
-func (c *Client) RegisterCWSCustomUpdate(fn func(update map[string]state.ConfigCWSCustom)) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.cwsCustomListeners = append(c.cwsCustomListeners, fn)
-	fn(c.state.CWSCustomConfigs())
-}
-
-// RegisterAPMTracing registers a callback function to be called after a successful client update that will
-// contain the current state of the APMTracing product.
-func (c *Client) RegisterAPMTracing(fn func(update map[string]state.APMTracingConfig)) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.apmTracingListeners = append(c.apmTracingListeners, fn)
-	fn(c.state.APMTracingConfigs())
-}
-
-// APMTracingConfigs returns the current set of valid APM Tracing configs
-func (c *Client) APMTracingConfigs() map[string]state.APMTracingConfig {
-	c.m.Lock()
-	defer c.m.Unlock()
-	return c.state.APMTracingConfigs()
-}
-
-// SetCWSWorkloads updates the list of workloads that needs cws profiles
-func (c *Client) SetCWSWorkloads(workloads []string) {
-	c.m.Lock()
-	defer c.m.Unlock()
-	c.cwsWorkloads = workloads
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
@@ -412,9 +363,10 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 	pbConfigState := make([]*pbgo.ConfigState, 0, len(state.Configs))
 	for _, f := range state.Configs {
 		pbConfigState = append(pbConfigState, &pbgo.ConfigState{
-			Id:      f.ID,
-			Version: f.Version,
-			Product: f.Product,
+			Id:         f.ID,
+			Version:    f.Version,
+			Product:    f.Product,
+			ApplyState: uint64(f.ApplyStatus.State),
 		})
 	}
 
