@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/vm"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
-	ec2vm "github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2VM"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
