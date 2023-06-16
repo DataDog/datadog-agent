@@ -9,4 +9,5 @@
 fixes:
   - |
     Fixes an issue where `process_config.max_per_message` and `process_config.max_message_bytes`
-    were ignored when set larger than the default values.
+    were ignored when set larger than the default values, and increases the limit on accepted values for these 
+    variables.

@@ -41,7 +41,7 @@ const (
 	// DefaultProcessMaxMessageBytes is the default max for size of a message containing processes or container data. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxMessageBytes = 1000000
 
-	// ProcessMaxMessageBytesLimit is the maximum allowed value for the max size of a message containing processes or container data.
+	// ProcessMaxMessageBytesLimit is the maximum allowed value for the maximum size of a message containing processes or container data.
 	ProcessMaxMessageBytesLimit = 4000000
 
 	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
