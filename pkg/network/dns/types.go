@@ -65,7 +65,7 @@ type StatsByKeyByNameByType map[Key]map[Hostname]map[QueryType]Stats
 
 // ReverseDNS translates IPs to names
 type ReverseDNS interface {
-	Resolve(map[util.Address]struct{}) map[util.Address][]Hostname
+	Resolve([]util.Address) map[util.Address][]Hostname
 	GetDNSStats() StatsByKeyByNameByType
 	Start() error
 	Close()

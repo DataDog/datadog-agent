@@ -20,9 +20,6 @@ type CloudService interface {
 	// gcp.run.{metric_name}. In this example, `gcp.run` is the
 	// prefix.
 	GetPrefix() string
-
-	// Init bootstraps the CloudService.
-	Init() error
 }
 
 type LocalService struct{}
@@ -42,22 +39,13 @@ func (l *LocalService) GetPrefix() string {
 	return "local"
 }
 
-// Init is not necessary for LocalService
-func (l *LocalService) Init() error {
-	return nil
-}
-
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
 		return &CloudRun{}
 	}
 
 	if isContainerAppService() {
-		return NewContainerApp()
-	}
-
-	if isAppService() {
-		return &AppService{}
+		return &ContainerApp{}
 	}
 
 	return &LocalService{}

@@ -9,8 +9,6 @@
 package filesystem
 
 import (
-	"os"
-	"runtime"
 	"testing"
 	"time"
 
@@ -136,10 +134,6 @@ func TestFaileDfWithData(t *testing.T) {
 }
 
 func TestGetFileSystemInfo(t *testing.T) {
-	if os.Getenv("CI") != "" && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-		t.Skip("Test disabled on arm64 Linux CI runners, as df doesn't work")
-	}
-
 	out, err := getFileSystemInfo()
 	require.NoError(t, err)
 	outArray := out.([]interface{})

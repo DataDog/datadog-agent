@@ -1,6 +1,0 @@
----
-deprecations:
-  - The `system_probe_config.http_map_cleaner_interval_in_s` configuration has been deprecated. Use `service_monitoring_config.http_map_cleaner_interval_in_s` instead.
-  - The `system_probe_config.http_idle_connection_ttl_in_s` configuration has been deprecated. Use `service_monitoring_config.http_idle_connection_ttl_in_s` instead.
-  - The `network_config.http_notification_threshold` configuration has been deprecated. Use `service_monitoring_config.http_notification_threshold` instead.
-  - The `network_config.http_max_request_fragment` configuration has been deprecated. Use `service_monitoring_config.http_max_request_fragment` instead.

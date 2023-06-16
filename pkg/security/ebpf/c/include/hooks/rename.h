@@ -83,7 +83,7 @@ int kprobe_vfs_rename(struct pt_regs *ctx) {
     // if destination already exists invalidate
     u64 inode = get_dentry_ino(target_dentry);
     if (inode) {
-        expire_inode_discarders(syscall->rename.target_file.path_key.mount_id, inode);
+        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
     }
 
     // always return after any invalidate_inode call
@@ -120,16 +120,16 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
 
     u64 inode = get_dentry_ino(syscall->rename.src_dentry);
 
-    // remove discarder inode from src dentry to handle ovl folder
+    // invalidate inode from src dentry to handle ovl folder
     if (syscall->rename.target_file.path_key.ino != inode && retval >= 0) {
-        expire_inode_discarders(syscall->rename.target_file.path_key.mount_id, inode);
+        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, inode, 1);
     }
 
     int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RENAME);
 
-    // invalid discarder + path_id
+    // invalidate user space inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
-        expire_inode_discarders(syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino);
+        invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, !pass_to_userspace);
 
         if (S_ISDIR(syscall->rename.target_file.metadata.mode)) {
             // remove all discarders on the mount point as the rename could invalidate a child discarder in case of a

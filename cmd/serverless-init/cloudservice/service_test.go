@@ -12,11 +12,11 @@ import (
 )
 
 func TestGetCloudServiceType(t *testing.T) {
-	assert.Equal(t, "local", GetCloudServiceType().GetOrigin())
+	assert.Equal(t, &LocalService{}, GetCloudServiceType())
 
 	t.Setenv(ContainerAppNameEnvVar, "test-name")
-	assert.Equal(t, "containerapp", GetCloudServiceType().GetOrigin())
+	assert.Equal(t, &ContainerApp{}, GetCloudServiceType())
 
 	t.Setenv(serviceNameEnvVar, "test-name")
-	assert.Equal(t, "cloudrun", GetCloudServiceType().GetOrigin())
+	assert.Equal(t, &CloudRun{}, GetCloudServiceType())
 }

@@ -26,7 +26,6 @@ import (
 
 var MAX_OPEN_CONNECTIONS = 10
 var DEFAULT_SQL_TRACED_RUNS = 10
-
 var DB_TIMEOUT = "20000"
 
 // The structure is filled by activity sampling and serves as a filter for query metrics
@@ -86,10 +85,9 @@ func (c *Check) Run() error {
 	}
 
 	if c.config.SysMetrics.Enabled {
-		log.Trace("Entered sysmetrics")
 		err := c.SysMetrics()
 		if err != nil {
-			return fmt.Errorf("failed to collecr sysmetrics %w", err)
+			return err
 		}
 	}
 	if c.config.Tablespaces.Enabled {
@@ -116,12 +114,6 @@ func (c *Check) Run() error {
 				if err != nil {
 					return err
 				}
-			}
-		}
-		if c.config.SharedMemory.Enabled {
-			err := c.SharedMemory()
-			if err != nil {
-				return err
 			}
 		}
 	}
@@ -285,7 +277,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 }
 
 func oracleFactory() check.Check {
-	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
+	return &Check{CheckBase: core.NewCheckBase(common.IntegrationNameScheduler)}
 }
 
 func init() {
@@ -320,18 +312,4 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 		return tags
 	}
 	return append(tags, "pdb:"+pdb.String)
-}
-
-func selectWrapper[T any](c *Check, s T, sql string) error {
-	err := c.db.Select(s, sql)
-	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
-		db, err := c.Connect()
-		if err != nil {
-			c.Teardown()
-			return err
-		}
-		c.db = db
-	}
-
-	return err
 }

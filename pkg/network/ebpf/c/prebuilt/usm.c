@@ -11,8 +11,7 @@
 #include "protocols/http2/decoding.h"
 #include "protocols/tls/https.h"
 #include "protocols/tls/tags-types.h"
-#include "protocols/tls/java/erpc_dispatcher.h"
-#include "protocols/tls/java/erpc_handlers.h"
+#include "protocols/tls/java-tls-erpc.h"
 #include "protocols/kafka/kafka-parsing.h"
 
 #define SO_SUFFIX_SIZE 3

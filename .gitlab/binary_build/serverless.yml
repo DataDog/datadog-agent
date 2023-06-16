@@ -2,7 +2,6 @@
 .build_serverless_common:
   stage: binary_build
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv check-go-version
@@ -13,7 +12,7 @@ build_serverless-deb_x64:
   variables:
     BINARY_NAME: datadog-agent-x64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  tags: ["runner:main"]
   needs: ["go_deps"]
   artifacts:
     expire_in: 1 day
@@ -25,5 +24,5 @@ build_serverless-deb_arm64:
   variables:
     BINARY_NAME: datadog-agent-arm64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_deps"]

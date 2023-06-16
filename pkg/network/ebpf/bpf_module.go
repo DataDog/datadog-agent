@@ -11,14 +11,12 @@ import (
 	"fmt"
 	"sync"
 
-	"golang.org/x/exp/maps"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
 // prebuiltModulesInUse is a global object which is responsible for keeping a list of all the prebuilt ebpf assets in use.
 // This is used to report ebpf asset telemetry
-var prebuiltModulesInUse = map[string]struct{}{}
+var prebuiltModulesInUse = []string{}
 var telemetrymu sync.Mutex
 
 func ModuleFileName(moduleName string, debug bool) string {
@@ -37,7 +35,8 @@ func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, er
 
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
-	prebuiltModulesInUse[moduleName] = struct{}{}
+	prebuiltModulesInUse = append(prebuiltModulesInUse, moduleName)
+
 	return ebpfReader, nil
 }
 
@@ -67,12 +66,24 @@ func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 
 // ReadConntrackBPFModule from the asset file
 func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "conntrack", debug)
+	file := "conntrack.o"
+	if debug {
+		file = "conntrack-debug.o"
+	}
+
+	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
+
+	return ebpfReader, nil
 }
 
 func GetModulesInUse() []string {
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
 
-	return maps.Keys(prebuiltModulesInUse)
+	result := make([]string, len(prebuiltModulesInUse))
+	copy(result, prebuiltModulesInUse)
+	return result
 }

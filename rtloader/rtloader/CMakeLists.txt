@@ -32,7 +32,6 @@ add_library(datadog-agent-rtloader SHARED
 find_library(EXECINFO execinfo)
 if(EXECINFO)
     target_link_libraries(datadog-agent-rtloader execinfo)
-    add_compile_definitions(HAS_BACKTRACE_LIB)
 endif()
 endif()
 
@@ -40,7 +39,6 @@ endif()
 if(${CMAKE_SYSTEM_NAME} STREQUAL FreeBSD)
   find_package(Backtrace REQUIRED)
   target_link_libraries(datadog-agent-rtloader ${Backtrace_LIBRARIES})
-  add_compile_definitions(HAS_BACKTRACE_LIB)
 endif()
 
 set_target_properties(datadog-agent-rtloader PROPERTIES

@@ -183,10 +183,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
 
-	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
+	ips := make([]util.Address, 0, len(delta.Conns)*2)
 	for _, conn := range delta.Conns {
-		ips[conn.Source] = struct{}{}
-		ips[conn.Dest] = struct{}{}
+		ips = append(ips, conn.Source, conn.Dest)
 	}
 	names := t.reverseDNS.Resolve(ips)
 	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())

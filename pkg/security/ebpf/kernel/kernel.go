@@ -87,12 +87,6 @@ var (
 	Kernel5_18 = kernel.VersionCode(5, 18, 0)
 	// Kernel5_19 is the KernelVersion representation of kernel version 5.19
 	Kernel5_19 = kernel.VersionCode(5, 19, 0)
-	// Kernel6_0 is the KernelVersion representation of kernel version 6.0
-	Kernel6_0 = kernel.VersionCode(6, 0, 0)
-	// Kernel6_1 is the KernelVersion representation of kernel version 6.1
-	Kernel6_1 = kernel.VersionCode(6, 1, 0)
-	// Kernel6_2 is the KernelVersion representation of kernel version 6.2
-	Kernel6_2 = kernel.VersionCode(6, 2, 0)
 )
 
 // Version defines a kernel version helper
@@ -253,19 +247,14 @@ func (k *Version) IsCOSKernel() bool {
 	return k.OsRelease["ID"] == "cos"
 }
 
-// IsAmazonLinuxKernel returns whether the kernel is an amazon linux kernel
+// IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
 func (k *Version) IsAmazonLinuxKernel() bool {
 	return k.OsRelease["ID"] == "amzn"
 }
 
-// IsAmazonLinux2022Kernel returns whether the kernel is an amazon linux 2022 kernel
+// IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
 func (k *Version) IsAmazonLinux2022Kernel() bool {
 	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2022"
-}
-
-// IsAmazonLinux2023Kernel returns whether the kernel is an amazon linux 2023 kernel
-func (k *Version) IsAmazonLinux2023Kernel() bool {
-	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2023"
 }
 
 // IsInRangeCloseOpen returns whether the kernel version is between the begin

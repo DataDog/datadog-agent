@@ -132,10 +132,8 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 	defer udpServer.Close()
 
 	for i := 0; i < 100; i++ {
-		tc := nettestutil.PingTCP(t, clientIP, natPort)
-		tc.Close()
-		uc := nettestutil.PingUDP(t, clientIP, nonNatPort)
-		uc.Close()
+		nettestutil.PingTCP(t, clientIP, natPort)
+		nettestutil.PingUDP(t, clientIP, nonNatPort)
 	}
 
 	time.Sleep(time.Second)

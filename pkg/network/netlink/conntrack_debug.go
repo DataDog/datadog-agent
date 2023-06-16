@@ -47,12 +47,20 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 	ns := uint32(0)
 	table[ns] = []DebugConntrackEntry{}
 
-	for _, ck := range keys {
+	for _, k := range keys {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 
-		te, ok := ctr.cache.cache.Peek(ck)
+		ck, ok := k.(connKey)
+		if !ok {
+			continue
+		}
+		v, ok := ctr.cache.cache.Peek(ck)
+		if !ok {
+			continue
+		}
+		te, ok := v.(*translationEntry)
 		if !ok {
 			continue
 		}

@@ -8,19 +8,34 @@ package languagedetection
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
+// LanguageName is a string enum that represents a detected language name.
+type LanguageName string
+
+const (
+	Node    LanguageName = "node"
+	Dotnet  LanguageName = "dotnet"
+	Python  LanguageName = "python"
+	Java    LanguageName = "java"
+	Unknown LanguageName = ""
+)
+
+// Language contains metadata collected from the call to `DetectLanguage`
+type Language struct {
+	Name LanguageName
+}
+
 type languageFromCLI struct {
-	name      languagemodels.LanguageName
+	name      LanguageName
 	validator func(exe string) bool
 }
 
 // knownPrefixes maps languages names to their prefix
 var knownPrefixes = map[string]languageFromCLI{
-	"python": {name: languagemodels.Python},
-	"java": {name: languagemodels.Java, validator: func(exe string) bool {
+	"python": {name: Python},
+	"java": {name: Java, validator: func(exe string) bool {
 		if exe == "javac" {
 			return false
 		}
@@ -30,18 +45,18 @@ var knownPrefixes = map[string]languageFromCLI{
 
 // exactMatches maps an exact exe name match to a prefix
 var exactMatches = map[string]languageFromCLI{
-	"py":     {name: languagemodels.Python},
-	"python": {name: languagemodels.Python},
+	"py":     {name: Python},
+	"python": {name: Python},
 
-	"java": {name: languagemodels.Java},
+	"java": {name: Java},
 
-	"npm":  {name: languagemodels.Node},
-	"node": {name: languagemodels.Node},
+	"npm":  {name: Node},
+	"node": {name: Node},
 
-	"dotnet": {name: languagemodels.Dotnet},
+	"dotnet": {name: Dotnet},
 }
 
-func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {
+func languageNameFromCommandLine(cmdline []string) LanguageName {
 	exe := getExe(cmdline)
 
 	// First check to see if there is an exact match
@@ -61,15 +76,15 @@ func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {
 		}
 	}
 
-	return languagemodels.Unknown
+	return Unknown
 }
 
 // DetectLanguage uses a combination of commandline parsing and binary analysis to detect a process' language
-func DetectLanguage(procs []*procutil.Process) []*languagemodels.Language {
-	langs := make([]*languagemodels.Language, len(procs))
+func DetectLanguage(procs []*procutil.Process) []*Language {
+	langs := make([]*Language, len(procs))
 	for i, proc := range procs {
 		languageName := languageNameFromCommandLine(proc.Cmdline)
-		langs[i] = &languagemodels.Language{Name: languageName}
+		langs[i] = &Language{Name: languageName}
 	}
 	return langs
 }

@@ -11,15 +11,11 @@ import (
 )
 
 // FromConfig builds new Limiter from the configuration.
-func FromConfig(pipelineCount int, enabled bool) *Limiter {
-	return fromConfig(pipelineCount, enabled, getCgroupMemoryLimit)
+func FromConfig(pipelineCount int) *Limiter {
+	return fromConfig(pipelineCount, getCgroupMemoryLimit)
 }
 
-func fromConfig(pipelineCount int, enabled bool, cgroupLimitGetter func() (uint64, error)) *Limiter {
-	if !enabled {
-		return nil
-	}
-
+func fromConfig(pipelineCount int, cgroupLimitGetter func() (uint64, error)) *Limiter {
 	// If all of the following are true:
 	//
 	// - dogstatsd_context_limiter.cgroup_memory_ratio is set to a valid value

@@ -8,18 +8,14 @@
 package connection
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash"
 	"math"
 	"sync"
 	"time"
 	"unsafe"
 
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
-	"github.com/twmb/murmur3"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -79,6 +75,7 @@ type Tracer interface {
 
 const (
 	defaultClosedChannelSize = 500
+	ProbeUID                 = "net"
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 
@@ -122,8 +119,6 @@ type tracer struct {
 	ebpfTracerType TracerType
 
 	exitTelemetry chan struct{}
-
-	ch *cookieHasher
 }
 
 // NewTracer creates a new tracer
@@ -188,7 +183,10 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		return nil, fmt.Errorf("could not create connection batch maanager: %w", err)
 	}
 
-	closeConsumer := newTCPCloseConsumer(perfHandlerTCP, batchMgr)
+	closeConsumer, err := newTCPCloseConsumer(m, perfHandlerTCP, batchMgr)
+	if err != nil {
+		return nil, fmt.Errorf("could not create TCPCloseConsumer: %w", err)
+	}
 
 	tr := &tracer{
 		m:              m,
@@ -198,7 +196,6 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		closeTracer:    closeTracerFn,
 		ebpfTracerType: tracerType,
 		exitTelemetry:  make(chan struct{}),
-		ch:             newCookieHasher(),
 	}
 
 	tr.conns, _, err = m.GetMap(probes.ConnMap)
@@ -312,7 +309,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		populateConnStats(conn, key, stats, t.ch)
+		populateConnStats(conn, key, stats)
 
 		isTCP := conn.Type == network.TCP
 		switch conn.Family {
@@ -406,10 +403,9 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 
 	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
 	t.removeTuple.Pid = 0
-	if conn.Type == network.TCP {
-		// We can ignore the error for this map since it will not always contain the entry
-		_ = t.tcpStats.Delete(unsafe.Pointer(t.removeTuple))
-	}
+	// We can ignore the error for this map since it will not always contain the entry
+	_ = t.tcpStats.Delete(unsafe.Pointer(t.removeTuple))
+
 	return nil
 }
 
@@ -425,9 +421,7 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 		// This can happen if we haven't initialized the telemetry object yet
 		// so let's just use a trace log
-		if log.ShouldLog(seelog.TraceLvl) {
-			log.Tracef("error retrieving the telemetry struct: %s", err)
-		}
+		log.Tracef("error retrieving the telemetry struct: %s", err)
 		return nil
 	}
 	return telemetry
@@ -540,7 +534,7 @@ func (t *tracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, 
 	return true
 }
 
-func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {
+func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
 	*stats = network.ConnectionStats{
 		Pid:    t.Pid,
 		NetNS:  t.Netns,
@@ -557,7 +551,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
 		LastUpdateEpoch:  s.Timestamp,
 		IsAssured:        s.IsAssured(),
-		Cookie:           network.StatCookie(s.Cookie),
+		Cookie:           s.Cookie,
 	}
 
 	stats.ProtocolStack = protocols.Stack{
@@ -587,10 +581,6 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	default:
 		stats.Direction = network.OUTGOING
 	}
-
-	if ch != nil {
-		ch.Hash(stats)
-	}
 }
 
 func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
@@ -603,30 +593,4 @@ func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *nete
 	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
-}
-
-type cookieHasher struct {
-	hash hash.Hash64
-	buf  []byte
-}
-
-func newCookieHasher() *cookieHasher {
-	return &cookieHasher{
-		hash: murmur3.New64(),
-		buf:  make([]byte, network.ConnectionByteKeyMaxLen),
-	}
-}
-
-func (h *cookieHasher) Hash(stats *network.ConnectionStats) {
-	h.hash.Reset()
-	if err := binary.Write(h.hash, binary.BigEndian, stats.Cookie); err != nil {
-		log.Errorf("error writing cookie to hash: %s", err)
-		return
-	}
-	key := stats.ByteKey(h.buf)
-	if _, err := h.hash.Write(key); err != nil {
-		log.Errorf("error writing byte key to hash: %s", err)
-		return
-	}
-	stats.Cookie = h.hash.Sum64()
 }

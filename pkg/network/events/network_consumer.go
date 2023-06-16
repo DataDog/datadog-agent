@@ -36,6 +36,9 @@ func NewNetworkConsumer(evm *eventmonitor.EventMonitor) (*NetworkConsumer, error
 	if err := evm.AddEventTypeHandler(smodel.ExecEventType, h); err != nil {
 		return nil, err
 	}
+	if err := evm.AddEventTypeHandler(smodel.ExitEventType, h); err != nil {
+		return nil, err
+	}
 
 	return &NetworkConsumer{}, nil
 }

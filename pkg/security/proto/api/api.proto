@@ -139,9 +139,8 @@ message ActivityDumpMessage {
     repeated string Tags = 4;
     repeated StorageRequestMessage Storage = 5;
     MetadataMessage Metadata = 6;
-    string Error = 7;
     repeated string DNSNames = 8;
-    ActivityTreeStatsMessage Stats = 9;
+    string Error = 7;
 }
 
 message ActivityDumpListParams {}

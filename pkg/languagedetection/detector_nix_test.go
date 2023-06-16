@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -28,62 +27,62 @@ func TestLanguageFromCommandline(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		cmdline  []string
-		expected languagemodels.LanguageName
+		expected LanguageName
 	}{
 		{
 			name:     "python2",
 			cmdline:  []string{"/opt/Python/2.7.11/bin/python2.7", "/opt/foo/bar/baz", "--config=asdf"},
-			expected: languagemodels.Python,
+			expected: Python,
 		},
 		{
 			name:     "Java",
 			cmdline:  []string{"/usr/bin/Java", "-Xfoo=true", "org.elasticsearch.bootstrap.Elasticsearch"},
-			expected: languagemodels.Java,
+			expected: Java,
 		},
 		{
 			name:     "Unknown",
 			cmdline:  []string{"mine-bitcoins", "--all"},
-			expected: languagemodels.Unknown,
+			expected: Unknown,
 		},
 		{
 			name:     "Python with space and special chars in path",
 			cmdline:  []string{"//..//path/\"\\ to/Python", "asdf"},
-			expected: languagemodels.Python,
+			expected: Python,
 		},
 		{
 			name:     "args in first element",
 			cmdline:  []string{"/usr/bin/Python myapp.py --config=/etc/mycfg.yaml"},
-			expected: languagemodels.Python,
+			expected: Python,
 		},
 		{
 			name:     "javac is not Java",
 			cmdline:  []string{"javac", "main.Java"},
-			expected: languagemodels.Unknown,
+			expected: Unknown,
 		},
 		{
 			name:     "py is Python",
 			cmdline:  []string{"py", "test.py"},
-			expected: languagemodels.Python,
+			expected: Python,
 		},
 		{
 			name:     "py is not a prefix",
 			cmdline:  []string{"pyret", "main.pyret"},
-			expected: languagemodels.Unknown,
+			expected: Unknown,
 		},
 		{
 			name:     "node",
 			cmdline:  []string{"node", "/etc/app/index.js"},
-			expected: languagemodels.Node,
+			expected: Node,
 		},
 		{
 			name:     "npm",
 			cmdline:  []string{"npm", "start"},
-			expected: languagemodels.Node,
+			expected: Node,
 		},
 		{
 			name:     "dotnet",
 			cmdline:  []string{"dotnet", "myApp"},
-			expected: languagemodels.Dotnet,
+			expected: Dotnet,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

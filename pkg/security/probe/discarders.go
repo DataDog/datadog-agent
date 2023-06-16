@@ -37,7 +37,7 @@ const (
 	maxParentDiscarderDepth = 3
 
 	// allEventTypes is a mask to match all the events
-	allEventTypes = math.MaxUint32 //nolint:deadcode,unused
+	allEventTypes = math.MaxUint32
 
 	// inode/mountid that won't be resubmitted
 	maxRecentlyAddedCacheSize = uint64(64)
@@ -125,12 +125,10 @@ func marshalDiscardHeader(req *erpc.ERPCRequest, eventType model.EventType, time
 	return 16
 }
 
-//nolint:deadcode,unused
 type pidDiscarders struct {
 	erpc *erpc.ERPC
 }
 
-//nolint:deadcode,unused
 func (p *pidDiscarders) discardWithTimeout(req *erpc.ERPCRequest, eventType model.EventType, pid uint32, timeout int64) error {
 	req.OP = erpc.DiscardPidOp
 	offset := marshalDiscardHeader(req, eventType, uint64(timeout))
@@ -139,7 +137,6 @@ func (p *pidDiscarders) discardWithTimeout(req *erpc.ERPCRequest, eventType mode
 	return p.erpc.Request(req)
 }
 
-//nolint:deadcode,unused
 func newPidDiscarders(erpc *erpc.ERPC) *pidDiscarders {
 	return &pidDiscarders{erpc: erpc}
 }

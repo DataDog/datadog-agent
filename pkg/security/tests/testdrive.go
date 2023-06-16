@@ -75,22 +75,8 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 		// 	mountOpts = append(mountOpts, "auto")
 		// }
 
-		var env []string
-		if fsType == "xfs" {
-			// starting with v5.19, mkfs.xfs does not accept filesystem of size < 300MB
-			// for more info see
-			// https://lore.kernel.org/all/164738662491.3191861.15611882856331908607.stgit@magnolia/
-			// https://patchwork.ozlabs.org/project/ltp/patch/20220817204015.31420-1-pvorel@suse.cz/#2950033
-			// so we re-use the undocumented escape path used in fstests
-			env = os.Environ()
-			env = append(env, "TEST_DIR=1", "TEST_DEV=1", "QA_CHECK_FS=1")
-		}
-
 		mkfsCmd := exec.Command("/sbin/mkfs."+fsType, dev.Path())
-		mkfsCmd.Env = env
-
-		if out, err := mkfsCmd.CombinedOutput(); err != nil {
-			tb.Error(string(out))
+		if err := mkfsCmd.Run(); err != nil {
 			_ = dev.Detach()
 			os.Remove(backingFile.Name())
 			os.RemoveAll(mountPoint)

@@ -17,8 +17,6 @@ import (
 	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/metadata"
-	workloadMetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -37,18 +35,12 @@ const (
 	configDisallowList         = configPrefix + "blacklist_patterns"
 )
 
-// NewProcessCheck returns an instance of the ProcessCheck.
+// NewProcessCehck returns an instance of the ProcessCheck.
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
-	var extractors []metadata.Extractor
-	if workloadMetaExtractor.Enabled(config) {
-		extractors = append(extractors, workloadMetaExtractor.NewWorkloadMetaExtractor())
-	}
-
 	return &ProcessCheck{
 		config:        config,
 		scrubber:      procutil.NewDefaultDataScrubber(),
 		lookupIdProbe: NewLookupIdProbe(config),
-		extractors:    extractors,
 	}
 }
 
@@ -102,8 +94,6 @@ type ProcessCheck struct {
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
 	lookupIdProbe *LookupIdProbe
-
-	extractors []metadata.Extractor
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -201,10 +191,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	procs, err := p.probe.ProcessesByPID(time.Now(), true)
 	if err != nil {
 		return nil, err
-	}
-
-	for _, extractor := range p.extractors {
-		extractor.Extract(procs)
 	}
 
 	// stores lastPIDs to be used by RTProcess

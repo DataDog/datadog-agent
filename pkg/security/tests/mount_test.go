@@ -73,7 +73,7 @@ func TestMount(t *testing.T) {
 			}
 
 			// filter by pid
-			if event.ProcessContext.Pid != testSuitePid {
+			if pce, _ := event.ResolveProcessCacheEntry(); pce.Pid != testSuitePid {
 				return false
 			}
 
@@ -125,7 +125,7 @@ func TestMount(t *testing.T) {
 			}
 
 			// filter by process
-			if event.ProcessContext.Pid != testSuitePid {
+			if pce, _ := event.ResolveProcessCacheEntry(); pce.Pid != testSuitePid {
 				return false
 			}
 

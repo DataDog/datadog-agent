@@ -6,18 +6,12 @@
 package gohai
 
 import (
-	"os"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetPayload(t *testing.T) {
-	if os.Getenv("CI") != "" && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-		t.Skip("Test disabled on arm64 Linux CI runners, as df doesn't work")
-	}
-
 	gohai := GetPayload()
 
 	assert.NotNil(t, gohai.Gohai.CPU)
@@ -28,10 +22,6 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestGetPayloadContainerized(t *testing.T) {
-	if os.Getenv("CI") != "" && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-		t.Skip("Test disabled on arm64 Linux CI runners, as df doesn't work")
-	}
-
 	t.Setenv("DOCKER_DD_AGENT", "true")
 
 	detectDocker0()
@@ -49,10 +39,6 @@ func TestGetPayloadContainerized(t *testing.T) {
 }
 
 func TestGetPayloadContainerizedWithDocker0(t *testing.T) {
-	if os.Getenv("CI") != "" && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-		t.Skip("Test disabled on arm64 Linux CI runners, as df doesn't work")
-	}
-
 	t.Setenv("DOCKER_DD_AGENT", "true")
 
 	detectDocker0()

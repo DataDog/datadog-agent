@@ -10,9 +10,8 @@ package ebpf
 import (
 	"sync"
 
-	"github.com/cilium/ebpf/perf"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/perf"
 )
 
 // PerfHandler wraps an eBPF perf buffer

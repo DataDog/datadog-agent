@@ -216,18 +216,9 @@ def omnibus_build(
     if overrides:
         overrides_cmd = "--override=" + " ".join(overrides)
 
-    env = load_release_versions(ctx, release_version)
-
-    env['PACKAGE_VERSION'] = get_version(
-        ctx,
-        include_git=True,
-        url_safe=True,
-        git_sha_length=7,
-        major_version=major_version,
-        include_pipeline_id=True,
-    )
-
     with ctx.cd("omnibus"):
+        env = load_release_versions(ctx, release_version)
+
         cmd = "bundle install"
         if gem_path:
             cmd += f" --path {gem_path}"
@@ -240,6 +231,14 @@ def omnibus_build(
         if omnibus_s3_cache:
             args['populate_s3_cache'] = " --populate-s3-cache "
 
+        env['PACKAGE_VERSION'] = get_version(
+            ctx,
+            include_git=True,
+            url_safe=True,
+            git_sha_length=7,
+            major_version=major_version,
+            include_pipeline_id=True,
+        )
         env['MAJOR_VERSION'] = major_version
 
         integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')

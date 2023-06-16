@@ -16,8 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/hashicorp/golang-lru/simplelru"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -304,7 +303,7 @@ func (ctr *realConntracker) compact() {
 }
 
 type conntrackCache struct {
-	cache         *simplelru.LRU[connKey, *translationEntry]
+	cache         *simplelru.LRU
 	orphans       *list.List
 	orphanTimeout time.Duration
 }
@@ -315,7 +314,8 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 		orphanTimeout: orphanTimeout,
 	}
 
-	c.cache, _ = simplelru.NewLRU(maxSize, func(_ connKey, t *translationEntry) {
+	c.cache, _ = simplelru.NewLRU(maxSize, func(key, value interface{}) {
+		t := value.(*translationEntry)
 		if t.orphan != nil {
 			c.orphans.Remove(t.orphan)
 		}
@@ -325,11 +325,12 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 }
 
 func (cc *conntrackCache) Get(k connKey) (*translationEntry, bool) {
-	t, ok := cc.cache.Get(k)
+	v, ok := cc.cache.Get(k)
 	if !ok {
 		return nil, false
 	}
 
+	t := v.(*translationEntry)
 	if t.orphan != nil {
 		cc.orphans.Remove(t.orphan)
 		t.orphan = nil
@@ -354,10 +355,11 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 			return
 		}
 
-		if t, ok := cc.cache.Peek(key); ok {
+		if v, ok := cc.cache.Peek(key); ok {
 			// value is going to get replaced
 			// by the call to Add below, make
 			// sure orphan is removed
+			t := v.(*translationEntry)
 			if t.orphan != nil {
 				cc.orphans.Remove(t.orphan)
 			}
@@ -378,9 +380,7 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 		}
 	}
 
-	if log.ShouldLog(seelog.TraceLvl) {
-		log.Tracef("%s", c)
-	}
+	log.Tracef("%s", c)
 
 	registerTuple(&c.Origin, &c.Reply)
 	registerTuple(&c.Reply, &c.Origin)
@@ -400,9 +400,7 @@ func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
 
 		cc.cache.Remove(o.key)
 		removed++
-		if log.ShouldLog(seelog.TraceLvl) {
-			log.Tracef("removed orphan %+v", o.key)
-		}
+		log.Tracef("removed orphan %+v", o.key)
 	}
 
 	return removed

@@ -57,6 +57,7 @@ type Resolver struct {
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
 	cache                 map[uint32]*lru.Cache[uint64, *PathEntry]
+	cacheGeneration       *atomic.Uint64
 	erpc                  *erpc.ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
@@ -76,9 +77,9 @@ var ErrEntryNotFound = errors.New("entry not found")
 
 // PathEntry is the path structure saved in cache
 type PathEntry struct {
-	Parent model.PathKey
-	Name   string
-	PathID uint32
+	Parent     model.PathKey
+	Name       string
+	Generation uint64
 }
 
 // eRPCStats is used to collect kernel space metrics about the eRPC resolution
@@ -207,7 +208,7 @@ func (dr *Resolver) DelCacheEntries(mountID uint32) {
 	delete(dr.cache, mountID)
 }
 
-func (dr *Resolver) lookupInodeFromCache(mountID uint32, inode uint64, pathID uint32) (*PathEntry, error) {
+func (dr *Resolver) lookupInodeFromCache(mountID uint32, inode uint64) (*PathEntry, error) {
 	entries, exists := dr.cache[mountID]
 	if !exists {
 		return nil, ErrEntryNotFound
@@ -218,7 +219,7 @@ func (dr *Resolver) lookupInodeFromCache(mountID uint32, inode uint64, pathID ui
 		return nil, ErrEntryNotFound
 	}
 
-	if entry.PathID < pathID {
+	if entry.Generation < dr.cacheGeneration.Load() {
 		return nil, ErrEntryNotFound
 	}
 
@@ -240,6 +241,7 @@ func (dr *Resolver) cacheInode(key model.PathKey, path *PathEntry) error {
 		}
 		dr.cache[key.MountID] = entries
 	}
+	path.Generation = dr.cacheGeneration.Load()
 
 	// release before in case of override
 	if prev, exists := entries.Get(key.Inode); exists {
@@ -252,13 +254,13 @@ func (dr *Resolver) cacheInode(key model.PathKey, path *PathEntry) error {
 }
 
 // ResolveNameFromCache returns the name
-func (dr *Resolver) ResolveNameFromCache(mountID uint32, inode uint64, pathID uint32) (string, error) {
+func (dr *Resolver) ResolveNameFromCache(mountID uint32, inode uint64) (string, error) {
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.SegmentResolutionTag,
 	}
 
-	path, err := dr.lookupInodeFromCache(mountID, inode, pathID)
+	path, err := dr.lookupInodeFromCache(mountID, inode)
 	if err != nil {
 		dr.missCounters[entry].Inc()
 		return "", err
@@ -277,11 +279,11 @@ func (dr *Resolver) lookupInodeFromMap(mountID uint32, inode uint64, pathID uint
 	return pathLeaf, nil
 }
 
-func (dr *Resolver) getPathEntryFromPool(parent model.PathKey, name string, pathID uint32) *PathEntry {
+func (dr *Resolver) getPathEntryFromPool(parent model.PathKey, name string) *PathEntry {
 	entry := dr.pathEntryPool.Get().(*PathEntry)
 	entry.Parent = parent
 	entry.Name = name
-	entry.PathID = pathID
+	entry.Generation = dr.cacheGeneration.Load()
 
 	return entry
 }
@@ -304,8 +306,8 @@ func (dr *Resolver) ResolveNameFromMap(mountID uint32, inode uint64, pathID uint
 	name := pathLeaf.GetName()
 
 	if !IsFakeInode(inode) {
-		cacheKey := model.PathKey{MountID: mountID, Inode: inode, PathID: pathID}
-		cacheEntry := dr.getPathEntryFromPool(pathLeaf.Parent, name, pathID)
+		cacheKey := model.PathKey{MountID: mountID, Inode: inode}
+		cacheEntry := dr.getPathEntryFromPool(pathLeaf.Parent, name)
 		if err := dr.cacheInode(cacheKey, cacheEntry); err != nil {
 			dr.pathEntryPool.Put(cacheEntry)
 		}
@@ -316,7 +318,7 @@ func (dr *Resolver) ResolveNameFromMap(mountID uint32, inode uint64, pathID uint
 
 // ResolveName resolves an inode/mount ID pair to a file basename
 func (dr *Resolver) ResolveName(mountID uint32, inode uint64, pathID uint32) string {
-	name, err := dr.ResolveNameFromCache(mountID, inode, pathID)
+	name, err := dr.ResolveNameFromCache(mountID, inode)
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		name, err = dr.ResolveNameFromERPC(mountID, inode, pathID)
 	}
@@ -331,7 +333,7 @@ func (dr *Resolver) ResolveName(mountID uint32, inode uint64, pathID uint32) str
 }
 
 // ResolveFromCache resolves path from the cache
-func (dr *Resolver) ResolveFromCache(mountID uint32, inode uint64, pathID uint32) (string, error) {
+func (dr *Resolver) ResolveFromCache(mountID uint32, inode uint64) (string, error) {
 	var path *PathEntry
 	var err error
 	depth := int64(0)
@@ -345,7 +347,7 @@ func (dr *Resolver) ResolveFromCache(mountID uint32, inode uint64, pathID uint32
 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
-		path, err = dr.lookupInodeFromCache(key.MountID, key.Inode, pathID)
+		path, err = dr.lookupInodeFromCache(key.MountID, key.Inode)
 		if err != nil {
 			dr.missCounters[entry].Inc()
 			break
@@ -446,7 +448,7 @@ func (dr *Resolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, 
 
 		// do not cache fake path keys in the case of rename events
 		if !IsFakeInode(key.Inode) && cache {
-			cacheEntry = dr.getPathEntryFromPool(pathLeaf.Parent, name, pathID)
+			cacheEntry = dr.getPathEntryFromPool(pathLeaf.Parent, name)
 
 			keys = append(keys, cacheKey)
 			entries = append(entries, cacheEntry)
@@ -628,7 +630,7 @@ func (dr *Resolver) ResolveFromERPC(mountID uint32, inode uint64, pathID uint32,
 		if !IsFakeInode(cacheKey.Inode) && cache {
 			keys = append(keys, cacheKey)
 
-			entry := dr.getPathEntryFromPool(model.PathKey{}, segment, pathID)
+			entry := dr.getPathEntryFromPool(model.PathKey{}, segment)
 			entries = append(entries, entry)
 		}
 	}
@@ -652,7 +654,7 @@ func (dr *Resolver) Resolve(mountID uint32, inode uint64, pathID uint32, cache b
 	var err = ErrEntryNotFound
 
 	if cache {
-		path, err = dr.ResolveFromCache(mountID, inode, pathID)
+		path, err = dr.ResolveFromCache(mountID, inode)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		path, err = dr.ResolveFromERPC(mountID, inode, pathID, cache)
@@ -664,13 +666,13 @@ func (dr *Resolver) Resolve(mountID uint32, inode uint64, pathID uint32, cache b
 }
 
 // ResolveParentFromCache resolves the parent
-func (dr *Resolver) ResolveParentFromCache(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
+func (dr *Resolver) ResolveParentFromCache(mountID uint32, inode uint64) (uint32, uint64, error) {
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.ParentResolutionTag,
 	}
 
-	path, err := dr.lookupInodeFromCache(mountID, inode, pathID)
+	path, err := dr.lookupInodeFromCache(mountID, inode)
 	if err != nil {
 		dr.missCounters[entry].Inc()
 		return 0, 0, ErrEntryNotFound
@@ -725,7 +727,7 @@ func (dr *Resolver) ResolveParentFromMap(mountID uint32, inode uint64, pathID ui
 
 // GetParent returns the parent mount_id/inode
 func (dr *Resolver) GetParent(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
-	parentMountID, parentInode, err := dr.ResolveParentFromCache(mountID, inode, pathID)
+	parentMountID, parentInode, err := dr.ResolveParentFromCache(mountID, inode)
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		parentMountID, parentInode, err = dr.ResolveParentFromERPC(mountID, inode, pathID)
 	}
@@ -738,6 +740,11 @@ func (dr *Resolver) GetParent(mountID uint32, inode uint64, pathID uint32) (uint
 	}
 
 	return parentMountID, parentInode, err
+}
+
+// BumpCacheGenerations bumps the generations of all the mount points
+func (dr *Resolver) BumpCacheGenerations() {
+	dr.cacheGeneration.Inc()
 }
 
 // Start the dentry resolver
@@ -833,15 +840,16 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 	}
 
 	return &Resolver{
-		config:        config,
-		statsdClient:  statsdClient,
-		cache:         make(map[uint32]*lru.Cache[uint64, *PathEntry]),
-		erpc:          e,
-		erpcRequest:   erpc.ERPCRequest{},
-		erpcStatsZero: make([]eRPCStats, numCPU),
-		hitsCounters:  hitsCounters,
-		missCounters:  missCounters,
-		numCPU:        numCPU,
-		pathEntryPool: pathEntryPool,
+		config:          config,
+		statsdClient:    statsdClient,
+		cache:           make(map[uint32]*lru.Cache[uint64, *PathEntry]),
+		erpc:            e,
+		erpcRequest:     erpc.ERPCRequest{},
+		erpcStatsZero:   make([]eRPCStats, numCPU),
+		hitsCounters:    hitsCounters,
+		missCounters:    missCounters,
+		cacheGeneration: atomic.NewUint64(0),
+		numCPU:          numCPU,
+		pathEntryPool:   pathEntryPool,
 	}, nil
 }

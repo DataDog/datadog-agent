@@ -209,10 +209,15 @@ func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEnt
 	workload.Lock()
 	defer workload.Unlock()
 
-	delete(workload.PIDs, pid)
+	for _, workloadPID := range workload.PIDs.Keys() {
+		if pid == workloadPID {
+			workload.PIDs.Remove(pid)
+			break
+		}
+	}
 
 	// check if the workload should be deleted
-	if len(workload.PIDs) <= 0 {
+	if workload.PIDs.Len() <= 0 {
 		cr.workloads.Remove(workload.ID)
 	}
 }

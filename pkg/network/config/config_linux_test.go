@@ -11,12 +11,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
-
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestDisableRootNetNamespace(t *testing.T) {
-	aconfig.ResetSystemProbeConfig(t)
+	newConfig(t)
 	t.Setenv("DD_NETWORK_CONFIG_ENABLE_ROOT_NETNS", "false")
 
 	cfg := New()

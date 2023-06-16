@@ -27,13 +27,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	manager "github.com/DataDog/ebpf-manager"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
@@ -46,37 +42,6 @@ const (
 var (
 	emptyBody = []byte(nil)
 )
-
-func TestMonitorProtocolFail(t *testing.T) {
-	failingStartupMock := func(_ *manager.Manager) error {
-		return fmt.Errorf("mock error")
-	}
-
-	testCases := []struct {
-		name string
-		spec protocolMockSpec
-	}{
-		{name: "PreStart fails", spec: protocolMockSpec{preStartFn: failingStartupMock}},
-		{name: "PostStart fails", spec: protocolMockSpec{postStartFn: failingStartupMock}},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			// Replace the HTTP protocol with a Mock
-			patchProtocolMock(t, protocols.HTTP, tt.spec)
-
-			cfg := networkconfig.New()
-			cfg.EnableHTTPMonitoring = true
-			monitor, err := NewMonitor(cfg, nil, nil, nil)
-			skipIfNotSupported(t, err)
-			require.NoError(t, err)
-			t.Cleanup(monitor.Stop)
-
-			err = monitor.Start()
-			require.ErrorIs(t, err, errNoProtocols)
-		})
-	}
-}
 
 type HTTPTestSuite struct {
 	suite.Suite
@@ -111,7 +76,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 
 	occurrences := 0
 	require.Eventually(t, func() bool {
-		stats := getHttpStats(t, monitor)
+		stats := monitor.GetHTTPStats()
 		occurrences += countRequestOccurrences(stats, req)
 		return occurrences == expectedOccurrences
 	}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expectedOccurrences, occurrences)
@@ -157,7 +122,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	// then we are using a variable to check if "we ever found it" among the iterations.
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := getHttpStats(t, monitor)
+		stats := monitor.GetHTTPStats()
 		for req := range abortedRequests {
 			requestNotIncluded(t, stats, req)
 		}
@@ -264,9 +229,8 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.ResetSystemProbeConfig(t)
-			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
-			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
+			t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
+			t.Setenv("DD_SYSTEM_PROBE_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
 			monitor := newHTTPMonitor(t)
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
@@ -284,7 +248,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 
 			// Ensure all captured transactions get sent to user-space
 			time.Sleep(10 * time.Millisecond)
-			stats := getHttpStats(t, monitor)
+			stats := monitor.GetHTTPStats()
 
 			if tt.shouldCapture {
 				includesRequest(t, stats, req)
@@ -352,7 +316,7 @@ func (s *HTTPTestSuite) TestUnknownMethodRegression() {
 	}
 
 	time.Sleep(10 * time.Millisecond)
-	stats := getHttpStats(t, monitor)
+	stats := monitor.GetHTTPStats()
 
 	for key := range stats {
 		if key.Method == http.MethodUnknown {
@@ -389,7 +353,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	time.Sleep(100 * time.Millisecond)
 
 	// Assert that the HTTP request was correctly handled despite its forceful termination
-	stats := getHttpStats(t, monitor)
+	stats := monitor.GetHTTPStats()
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	includesRequest(t, stats, &nethttp.Request{URL: url})
@@ -461,7 +425,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	requestsExist := make([]bool, len(requests))
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := getHttpStats(t, monitor)
+		stats := monitor.GetHTTPStats()
 		for reqIndex, req := range requests {
 			included, err := isRequestIncludedOnce(stats, req)
 			require.NoError(t, err)
@@ -610,18 +574,6 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
-func getHttpStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
-	t.Helper()
-
-	allStats := mon.GetProtocolStats()
-	require.NotNil(t, allStats)
-
-	httpStats, ok := allStats[protocols.HTTP]
-	require.True(t, ok)
-
-	return httpStats.(map[http.Key]*http.RequestStats)
-}
-
 func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) int {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
@@ -638,7 +590,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 }
 
 func newHTTPMonitor(t *testing.T) *Monitor {
-	cfg := networkconfig.New()
+	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	skipIfNotSupported(t, err)

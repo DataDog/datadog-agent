@@ -21,7 +21,6 @@ from .test import test_flavor
         'tags': 'Build tags to use',
         'targets': 'Target packages (same as inv test)',
         'configparams': 'Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)',
-        'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
     },
 )
 def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cache=False, junit_tar=""):  # noqa: B006
@@ -53,12 +52,7 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
     if parsedParams:
         envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
 
-    gotestsum_format = "standard-verbose" if verbose else "pkgname"
-
-    cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += (
-        '--packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache}'
-    )
+    cmd = 'gotestsum --format pkgname --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache}'
     args = {
         "go_mod": "mod",
         "timeout": "4h",

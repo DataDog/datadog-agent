@@ -6,7 +6,6 @@
 package encoding
 
 import (
-	"github.com/cihub/seelog"
 	"github.com/gogo/protobuf/proto"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -100,9 +99,7 @@ func newHTTP2Encoder(payload *network.Connections) *http2Encoder {
 	// this allows us to skip encoding orphan HTTP2 objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.ConnectionKeysFromConnectionStats(conn) {
-			if log.ShouldLog(seelog.TraceLvl) {
-				log.Tracef("Payload has a connection %v and was converted to http2 key %v", conn, key)
-			}
+			log.Tracef("Payload has a connection %v and was converted to http2 key %v", conn, key)
 			encoder.aggregations[key] = nil
 		}
 	}
@@ -121,9 +118,7 @@ func (e *http2Encoder) buildAggregations(payload *network.Connections) {
 		aggregation, ok := e.aggregations[key.ConnectionKey]
 		if !ok {
 			// if there is no matching connection don't even bother to serialize HTTP2 data
-			if log.ShouldLog(seelog.TraceLvl) {
-				log.Tracef("Found http2 orphan connection %v", key.ConnectionKey)
-			}
+			log.Tracef("Found http2 orphan connection %v", key.ConnectionKey)
 			e.orphanEntries++
 			continue
 		}

@@ -123,18 +123,14 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 
 // FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
-	// Fetch USM payload telemetry
-	ret := GetUSMPayloadTelemetry()
-
-	// Merge it with NPM telemetry
-	for k, v := range tel {
-		ret[string(k)] = v
-	}
-
-	if len(ret) == 0 {
+	if tel == nil {
 		return nil
 	}
 
+	ret := make(map[string]int64)
+	for k, v := range tel {
+		ret[string(k)] = v
+	}
 	return ret
 }
 

@@ -55,7 +55,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		{envs: []string{ddService, ddVersion, ddEnv}},
 	}
 
-	testFunc := func(t *testing.T, entry *smodel.ProcessContext) {
+	testFunc := func(t *testing.T, entry *smodel.ProcessCacheEntry) {
 		for i, te := range tests {
 			t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 				pc, err := newProcessCache(10, te.filter)
@@ -93,12 +93,14 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 	}
 
 	t.Run("without container id", func(t *testing.T) {
-		entry := smodel.ProcessContext{
-			Process: smodel.Process{
-				PIDContext: smodel.PIDContext{
-					Pid: 1234,
+		entry := smodel.ProcessCacheEntry{
+			ProcessContext: smodel.ProcessContext{
+				Process: smodel.Process{
+					PIDContext: smodel.PIDContext{
+						Pid: 1234,
+					},
+					EnvsEntry: &smodel.EnvsEntry{},
 				},
-				EnvsEntry: &smodel.EnvsEntry{},
 			},
 		}
 
@@ -106,13 +108,15 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 	})
 
 	t.Run("with container id", func(t *testing.T) {
-		entry := smodel.ProcessContext{
-			Process: smodel.Process{
-				PIDContext: smodel.PIDContext{
-					Pid: 1234,
+		entry := smodel.ProcessCacheEntry{
+			ProcessContext: smodel.ProcessContext{
+				Process: smodel.Process{
+					PIDContext: smodel.PIDContext{
+						Pid: 1234,
+					},
+					ContainerID: "container",
+					EnvsEntry:   &smodel.EnvsEntry{},
 				},
-				ContainerID: "container",
-				EnvsEntry:   &smodel.EnvsEntry{},
 			},
 		}
 

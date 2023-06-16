@@ -29,6 +29,12 @@ var (
 	// Tags: -
 	MetricProcessEventsServerExpired = newRuntimeMetric(".event_server.process_events_expired")
 
+	// Load controller metrics
+
+	// MetricLoadControllerPidDiscarder is the name of the metric used to count the number of pid discarders
+	// Tags: -
+	MetricLoadControllerPidDiscarder = newRuntimeMetric(".load_controller.pids_discarder")
+
 	// Rate limiter metrics
 
 	// MetricRateLimiterDrop is the name of the metric used to count the amount of events dropped by the rate limiter
@@ -247,9 +253,9 @@ var (
 	// MetricSecurityProfileCacheMiss is the name of the metric used to report the count of Security Profile cache misses
 	// Tags: -
 	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
-	// MetricSecurityProfileAnomalyDetectionGenerated
+	// MetricSecurityProfileAnomalyDetectionSent
 	// Tags: event_type
-	MetricSecurityProfileAnomalyDetectionGenerated = newRuntimeMetric(".security_profile.anomaly_detection.generated")
+	MetricSecurityProfileAnomalyDetectionSent = newRuntimeMetric(".security_profile.anomaly_detection.sent")
 	// MetricSecurityProfileEventFiltering
 	// Tags: event_type, profile_state ('no_profile', 'unstable', 'unstable_event_type', 'stable', 'auto_learning', 'workload_warmup'), in_profile ('true', 'false' or none)
 	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")

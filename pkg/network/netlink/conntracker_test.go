@@ -264,9 +264,10 @@ func TestConntrackCacheAdd(t *testing.T) {
 		}
 
 		for _, te := range tests {
-			tr, ok := cache.cache.Get(te.k)
+			v, ok := cache.cache.Get(te.k)
 			require.True(t, ok, "translation entry not found for key %+v", te.k)
-			require.NotNil(t, tr)
+			require.NotNil(t, v)
+			tr := v.(*translationEntry)
 			require.Equal(t, te.expectedReplSrcIP, tr.IPTranslation.ReplSrcIP.String())
 			require.Equal(t, te.expectedReplSrcPort, tr.IPTranslation.ReplSrcPort)
 			require.NotNil(t, tr.orphan)
@@ -345,8 +346,9 @@ func TestConntrackCacheAdd(t *testing.T) {
 		}
 
 		for _, te := range tests {
-			tr, ok := cache.cache.Get(te.k)
+			v, ok := cache.cache.Get(te.k)
 			require.True(t, ok, "translation entry not found for key %+v", te.k)
+			tr := v.(*translationEntry)
 			require.Equal(t, te.expectedReplSrcIP, tr.IPTranslation.ReplSrcIP.String())
 			require.Equal(t, te.expectedReplSrcPort, tr.IPTranslation.ReplSrcPort)
 			require.NotNil(t, tr.orphan)
@@ -420,7 +422,7 @@ func crossCheckCacheOrphans(t *testing.T, cc *conntrackCache) {
 		o := l.Value.(*orphanEntry)
 		v, ok := cc.cache.Get(o.key)
 		require.True(t, ok)
-		require.Equal(t, l, v.orphan)
+		require.Equal(t, l, v.(*translationEntry).orphan)
 	}
 }
 

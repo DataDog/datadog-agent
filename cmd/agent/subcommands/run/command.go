@@ -44,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -163,7 +162,6 @@ func run(log log.Component,
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
 	forwarder defaultforwarder.Component,
-	rcclient rcclient.Component,
 	cliParams *cliParams,
 ) error {
 	defer func() {
@@ -206,7 +204,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder); err != nil {
+	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug, forwarder); err != nil {
 		return err
 	}
 
@@ -227,12 +225,11 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		server dogstatsdServer.Component,
 		serverDebug dogstatsdDebug.Component,
 		capture replay.Component,
-		rcclient rcclient.Component,
 		forwarder defaultforwarder.Component,
 	) error {
 		dsdServer = server
 
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder)
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug, forwarder)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -271,7 +268,6 @@ func getSharedFxOption() fx.Option {
 			return params
 		}),
 		dogstatsd.Bundle,
-		rcclient.Module,
 	)
 }
 
@@ -283,7 +279,6 @@ func startAgent(
 	server dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
-	rcclient rcclient.Component,
 	sharedForwarder defaultforwarder.Component) error {
 
 	var err error
@@ -398,10 +393,6 @@ func startAgent(
 		} else if err := configService.Start(context.Background()); err != nil {
 			pkglog.Errorf("Failed to start config management service: %s", err)
 		}
-
-		if err := rcclient.Listen(); err != nil {
-			pkglog.Errorf("Failed to start the AGENT_TASK RC client: %s", err)
-		}
 	}
 
 	// create and setup the Autoconfig instance
@@ -442,8 +433,6 @@ func startAgent(
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
-	opts.UseDogstatsdContextLimiter = true
-	opts.DogstatsdMaxMetricsTags = pkgconfig.Datadog.GetInt("dogstatsd_max_metrics_tags")
 	demux = aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, hostnameDetected)
 
 	// Setup stats telemetry handler

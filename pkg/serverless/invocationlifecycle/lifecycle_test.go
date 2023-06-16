@@ -203,7 +203,6 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 
 func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
-	t.Setenv("DD_SERVICE", "mock-lambda-service")
 
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
@@ -255,9 +254,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	httpStatusCode := testProcessor.GetInferredSpan().Span.GetMeta()["http.status_code"]
-	peerService := testProcessor.GetInferredSpan().Span.GetMeta()["peer.service"]
 	assert.NotNil(t, httpStatusCode)
-	assert.Equal(t, peerService, "mock-lambda-service")
 	assert.Equal(t, testProcessor.GetInferredSpan().Span.Start, completedInferredSpan.Start)
 }
 

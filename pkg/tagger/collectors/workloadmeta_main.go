@@ -28,7 +28,6 @@ const (
 	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
 	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
-	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 )
 
 // CollectorPriorities holds collector priorities

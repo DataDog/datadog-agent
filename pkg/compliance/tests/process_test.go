@@ -9,14 +9,10 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
@@ -159,26 +155,19 @@ findings[f] {
 `).
 		AssertNoEvent()
 
-	src := rand.NewSource(time.Now().UnixNano())
-	rnd := rand.New(src)
-	envFoo := rnd.Int()
-
 	b.
 		AddRule("Sleeps").
 		Setup(func(t *testing.T, ctx context.Context) {
 			cmd1 := exec.CommandContext(ctx, "sleep", "10")
 			cmd2 := exec.CommandContext(ctx, "sleep", "10")
-			cmd1.Env = []string{fmt.Sprintf("FOO=%d", envFoo)}
-			cmd2.Env = []string{fmt.Sprintf("FOO=%d", envFoo)}
+			cmd1.Env = []string{"FOO=foo"}
+			cmd2.Env = []string{"FOO=foo"}
 			if err := cmd1.Start(); err != nil {
 				t.Fatal(err)
 			}
 			if err := cmd2.Start(); err != nil {
 				t.Fatal(err)
 			}
-			// without calling Wait(), we may create zombie processes
-			go cmd1.Wait()
-			go cmd2.Wait()
 		}).
 		WithInput(`
 - process:
@@ -200,23 +189,22 @@ valid(p) {
 	p.name == "sleep"
 	p.cmdLine[0] == "sleep"
 	p.cmdLine[1] == "10"
-	p.envs["FOO"] == "%d"
+	p.envs["FOO"] == "foo"
 	not has_key(p.envs, "BAR")
 }
 
 findings[f] {
-	c := count([p | p := input.process[_]; valid(p)])
+	count([p | p := input.process[_]; valid(p)]) == 2
 	f := dd.passed_finding(
 		"sleep",
 		"sleep",
-		{ "c": c },
+		{},
 	)
 }
-`, envFoo).
+`).
 		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "sleep", evt.ResourceID)
 			assert.Equal(t, "sleep", evt.ResourceType)
-			assert.Equal(t, json.Number("2"), evt.Data["c"])
 		})
 }
 

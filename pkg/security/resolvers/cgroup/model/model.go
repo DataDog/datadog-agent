@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -58,46 +59,44 @@ type CacheEntry struct {
 	sync.RWMutex
 	Deleted          *atomic.Bool
 	WorkloadSelector WorkloadSelector
-	PIDs             map[uint32]int8
+	PIDs             *simplelru.LRU[uint32, int8]
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
 func NewCacheEntry(id string, pids ...uint32) (*CacheEntry, error) {
+	pidsLRU, err := simplelru.NewLRU[uint32, int8](1000, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
 		ContainerContext: model.ContainerContext{
 			ID: id,
 		},
-		PIDs: make(map[uint32]int8, 10),
+		PIDs: pidsLRU,
 	}
 
 	for _, pid := range pids {
-		newCGroup.PIDs[pid] = 1
+		newCGroup.PIDs.Add(pid, 0)
 	}
 	return &newCGroup, nil
 }
 
-// GetPIDs returns the list of pids for the current workload
+// GetPIDs returns the list of root pids for the current workload
 func (cgce *CacheEntry) GetPIDs() []uint32 {
 	cgce.RLock()
 	defer cgce.RUnlock()
 
-	pids := make([]uint32, len(cgce.PIDs))
-	i := 0
-	for k := range cgce.PIDs {
-		pids[i] = k
-		i++
-	}
-
-	return pids
+	return cgce.PIDs.Keys()
 }
 
-// RemovePID removes the provided pid from the list of pids
+// RemovePID removes the provided root pid from the list of pids
 func (cgce *CacheEntry) RemovePID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	delete(cgce.PIDs, pid)
+	cgce.PIDs.Remove(pid)
 }
 
 // AddPID adds a pid to the list of pids
@@ -105,7 +104,7 @@ func (cgce *CacheEntry) AddPID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	cgce.PIDs[pid] = 1
+	cgce.PIDs.Add(pid, 0)
 }
 
 // SetTags sets the tags for the provided workload

@@ -19,7 +19,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -1407,12 +1406,9 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	httpStats := make(map[http.Key]*http.RequestStats)
 	httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
 
-	usmStats := make(map[protocols.ProtocolType]interface{})
-	usmStats[protocols.HTTP] = httpStats
-
 	// Register client & pass in HTTP stats
 	state := newDefaultState()
-	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, usmStats, nil, nil)
+	delta := state.GetDelta("client", latestEpochTime(), []ConnectionStats{c}, nil, httpStats, nil, nil)
 
 	// Verify connection has HTTP data embedded in it
 	assert.Len(t, delta.HTTP, 1)
@@ -1473,15 +1469,11 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 		DPort:  80,
 	}
 
-	getStats := func(path string) map[protocols.ProtocolType]interface{} {
+	getStats := func(path string) map[http.Key]*http.RequestStats {
 		httpStats := make(map[http.Key]*http.RequestStats)
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
 		httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
-
-		usmStats := make(map[protocols.ProtocolType]interface{})
-		usmStats[protocols.HTTP] = httpStats
-
-		return usmStats
+		return httpStats
 	}
 
 	client1 := "client1"

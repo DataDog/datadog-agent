@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !race && kubeapiserver
-// +build !race,kubeapiserver
+//go:build kubeapiserver
 
 package apiserver
 
@@ -41,7 +40,6 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,11 +57,8 @@ func init() {
 
 // TestupdateExternalMetrics checks the reconciliation between the local cache and the global store logic
 func TestUpdateWPA(t *testing.T) {
-	mockConfig := config.Mock(t)
-	mockConfig.Set("kube_resources_namespace", "nsfoo")
-
 	name := custommetrics.GetConfigmapName()
-	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
+	store, client := newFakeConfigMapStore(t, "default", name, nil)
 	d := &fakeDatadogClient{}
 
 	p := &fakeProcessor{
@@ -93,13 +88,13 @@ func TestUpdateWPA(t *testing.T) {
 	// Start the DCA with already existing Data
 	// Check if nothing in local store and Global Store is full we update the Global Store metrics correctly
 	metricsToStore := map[string]custommetrics.ExternalMetricValue{
-		"external_metric-watermark-nsfoo-foo-metric1": {
+		"external_metric-watermark-default-foo-metric1": {
 			MetricName: "metric1",
 			Labels:     map[string]string{"foo": "bar"},
 			Ref: custommetrics.ObjectReference{
 				Type:      "watermark",
 				Name:      "foo",
-				Namespace: "nsfoo",
+				Namespace: "default",
 			},
 			Value: 1.3,
 			Valid: true,
@@ -126,13 +121,13 @@ func TestUpdateWPA(t *testing.T) {
 	// Fresh start
 	// Check if local store is not empty
 	hctrl.toStore.m.Lock()
-	hctrl.toStore.data["external_metric-watermark-nsfoo-foo-metric2"] = custommetrics.ExternalMetricValue{
+	hctrl.toStore.data["external_metric-watermark-default-foo-metric2"] = custommetrics.ExternalMetricValue{
 		MetricName: "metric2",
 		Labels:     map[string]string{"foo": "bar"},
 		Ref: custommetrics.ObjectReference{
 			Type:      "watermark",
 			Name:      "foo",
-			Namespace: "nsfoo",
+			Namespace: "default",
 		},
 	}
 	require.Len(t, hctrl.toStore.data, 1)
@@ -147,13 +142,13 @@ func TestUpdateWPA(t *testing.T) {
 	// Check that if there is conflicting info from the local store and the Global Store that we merge correctly
 	// Check conflict on metric name and labels
 	hctrl.toStore.m.Lock()
-	hctrl.toStore.data["external_metric-watermark-nsfoo-foo-metric2"] = custommetrics.ExternalMetricValue{
+	hctrl.toStore.data["external_metric-watermark-default-foo-metric2"] = custommetrics.ExternalMetricValue{
 		MetricName: "metric2",
 		Labels:     map[string]string{"foo": "baz"},
 		Ref: custommetrics.ObjectReference{
 			Type:      "watermark",
 			Name:      "foo",
-			Namespace: "nsfoo",
+			Namespace: "default",
 		},
 	}
 	require.Len(t, hctrl.toStore.data, 1)
@@ -230,11 +225,8 @@ func TestWPAController(t *testing.T) {
 	logFlush := configureLoggerForTest(t)
 	defer logFlush()
 	metricName := "foo"
-	namespace := "nsfoo"
+	namespace := "default"
 	wpaName := "wpa_1"
-
-	mockConfig := config.Mock(t)
-	mockConfig.Set("kube_resources_namespace", "nsfoo")
 
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()

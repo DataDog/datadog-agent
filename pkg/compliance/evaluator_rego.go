@@ -68,10 +68,6 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 	options = append(options,
 		rego.Query("data.datadog.findings"),
 		rego.Metrics(metrics.NewRegoTelemetry()),
-		rego.UnsafeBuiltins(map[string]struct{}{
-			"http.send":   {},
-			"opa.runtime": {},
-		}),
 		rego.Input(resolvedInputs),
 	)
 

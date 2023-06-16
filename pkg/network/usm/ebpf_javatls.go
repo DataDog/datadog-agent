@@ -32,21 +32,8 @@ import (
 )
 
 const (
-	agentUSMJar                 = "agent-usm.jar"
-	javaTLSConnectionsMap       = "java_tls_connections"
-	javaDomainsToConnectionsMap = "java_conn_tuple_by_peer"
-	eRPCHandlersMap             = "java_tls_erpc_handlers"
-)
-
-const (
-	// SyncPayload is the key to the program that handles the SYNCHRONOUS_PAYLOAD eRPC operation
-	SyncPayload uint32 = iota
-	// CloseConnection is the key to the program that handles the CLOSE_CONNECTION eRPC operation
-	CloseConnection
-	// ConnectionByPeer is the key to the program that handles the CONNECTION_BY_PEER eRPC operation
-	ConnectionByPeer
-	// AsyncPayload is the key to the program that handles the ASYNC_PAYLOAD eRPC operation
-	AsyncPayload
+	agentUSMJar           = "agent-usm.jar"
+	javaTLSConnectionsMap = "java_tls_connections"
 )
 
 var (
@@ -81,81 +68,42 @@ type JavaTLSProgram struct {
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &JavaTLSProgram{}
 
-func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
-	return []manager.TailCallRoute{
-		{
-			ProgArrayName: eRPCHandlersMap,
-			Key:           SyncPayload,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_handle_sync_payload",
-			},
-		},
-		{
-			ProgArrayName: eRPCHandlersMap,
-			Key:           CloseConnection,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_handle_close_connection",
-			},
-		},
-		{
-			ProgArrayName: eRPCHandlersMap,
-			Key:           ConnectionByPeer,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_handle_connection_by_peer",
-			},
-		},
-		{
-			ProgArrayName: eRPCHandlersMap,
-			Key:           AsyncPayload,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_handle_async_payload",
-			},
-		},
-	}
-}
-
-func IsJavaSubprogramEnabled(c *config.Config) bool {
-	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
-		return false
-	}
-
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
-	jar, err := os.Open(javaUSMAgentJarPath)
-	if err != nil {
-		log.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
-		return false
-	}
-	jar.Close()
-	return true
-}
-
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	var err error
 
-	if !IsJavaSubprogramEnabled(c) {
+	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
 		log.Info("java tls is not enabled")
 		return nil
 	}
 
 	log.Info("java tls is enabled")
+	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
 	javaUSMAgentDebug = c.JavaAgentDebug
 	javaUSMAgentArgs = c.JavaAgentArgs
+
 	javaAgentAllowRegex = nil
 	javaAgentBlockRegex = nil
 	if c.JavaAgentAllowRegex != "" {
 		javaAgentAllowRegex, err = regexp.Compile(c.JavaAgentAllowRegex)
 		if err != nil {
 			javaAgentAllowRegex = nil
-			log.Errorf("allow regex can't be compiled %s", err)
+			log.Errorf("JavaAgentAllowRegex regex can't be compiled %s", err)
 		}
 	}
 	if c.JavaAgentBlockRegex != "" {
 		javaAgentBlockRegex, err = regexp.Compile(c.JavaAgentBlockRegex)
 		if err != nil {
 			javaAgentBlockRegex = nil
-			log.Errorf("block regex can't be compiled %s", err)
+			log.Errorf("JavaAgentBlockRegex regex can't be compiled %s", err)
 		}
 	}
+
+	jar, err := os.Open(javaUSMAgentJarPath)
+	if err != nil {
+		log.Errorf("java TLS can't access to agent-usm.jar file %s : %s", javaUSMAgentJarPath, err)
+		return nil
+	}
+	jar.Close()
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
@@ -188,12 +136,6 @@ func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
-		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
-		EditorFlag: manager.EditMaxEntries,
-	}
-
 	options.ActivatedProbes = append(options.ActivatedProbes,
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -204,13 +146,7 @@ func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
 }
 
 func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
-	return []manager.ProbeIdentificationPair{
-		{EBPFFuncName: "kprobe__do_vfs_ioctl"},
-		{EBPFFuncName: "kprobe_handle_sync_payload"},
-		{EBPFFuncName: "kprobe_handle_close_connection"},
-		{EBPFFuncName: "kprobe_handle_connection_by_peer"},
-		{EBPFFuncName: "kprobe_handle_async_payload"},
-	}
+	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
 }
 
 // isJavaProcess checks if the given PID comm's name is java.
@@ -246,6 +182,9 @@ func isJavaProcess(pid int) bool {
 // allowRegex only    true  | false
 // blockRegex only    false | true
 func isAttachmentAllowed(pid int) bool {
+	if !isJavaProcess(pid) {
+		return false
+	}
 	allowIsSet := javaAgentAllowRegex != nil
 	blockIsSet := javaAgentBlockRegex != nil
 	// filter is disabled (default configuration)
@@ -279,9 +218,6 @@ func isAttachmentAllowed(pid int) bool {
 }
 
 func newJavaProcess(pid int) {
-	if !isJavaProcess(pid) {
-		return
-	}
 	if !isAttachmentAllowed(pid) {
 		log.Debugf("java pid %d attachment rejected", pid)
 		return
@@ -315,6 +251,11 @@ func (p *JavaTLSProgram) Start() {
 	p.cleanupExec, err = p.processMonitor.SubscribeExec(newJavaProcess)
 	if err != nil {
 		log.Errorf("process monitor Subscribe() error: %s", err)
+		return
+	}
+
+	if err = p.processMonitor.Initialize(); err != nil {
+		log.Errorf("failed to initialize process monitor error: %s", err)
 		return
 	}
 }

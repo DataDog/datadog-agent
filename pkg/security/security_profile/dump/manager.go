@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -43,26 +43,20 @@ type ActivityDumpHandler interface {
 	HandleActivityDump(dump *api.ActivityDumpStreamMessage)
 }
 
-// SecurityProfileManager is a generic interface used to communicate with the Security Profile manager
-type SecurityProfileManager interface {
-	FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry
-}
-
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	config                 *config.Config
-	statsdClient           statsd.ClientInterface
-	emptyDropped           *atomic.Uint64
-	dropMaxDumpReached     *atomic.Uint64
-	newEvent               func() *model.Event
-	processResolver        *process.Resolver
-	timeResolver           *stime.Resolver
-	tagsResolvers          tags.Resolver
-	kernelVersion          *kernel.Version
-	manager                *manager.Manager
-	dumpHandler            ActivityDumpHandler
-	securityProfileManager SecurityProfileManager
+	config             *config.Config
+	statsdClient       statsd.ClientInterface
+	emptyDropped       *atomic.Uint64
+	dropMaxDumpReached *atomic.Uint64
+	newEvent           func() *model.Event
+	processResolver    *process.Resolver
+	timeResolver       *stime.Resolver
+	tagsResolvers      tags.Resolver
+	kernelVersion      *kernel.Version
+	manager            *manager.Manager
+	dumpHandler        ActivityDumpHandler
 
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
@@ -71,15 +65,14 @@ type ActivityDumpManager struct {
 	activityDumpsConfigMap *ebpf.Map
 	ignoreFromSnapshot     map[string]bool
 
-	dumpLimiter *lru.Cache[cgroupModel.WorkloadSelector, *atomic.Uint64]
+	dumpLimiter *simplelru.LRU[cgroupModel.WorkloadSelector, *atomic.Uint64]
 
-	activeDumps         []*ActivityDump
-	snapshotQueue       chan *ActivityDump
-	storage             *ActivityDumpStorageManager
-	loadController      *ActivityDumpLoadController
-	contextTags         []string
-	hostname            string
-	lastStoppedDumpTime time.Time
+	activeDumps    []*ActivityDump
+	snapshotQueue  chan *ActivityDump
+	storage        *ActivityDumpStorageManager
+	loadController *ActivityDumpLoadController
+	contextTags    []string
+	hostname       string
 }
 
 // Start runs the ActivityDumpManager
@@ -98,9 +91,6 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 	loadControlTicker := time.NewTicker(adm.config.RuntimeSecurity.ActivityDumpLoadControlPeriod)
 	defer loadControlTicker.Stop()
 
-	silentWorkloadsTicker := time.NewTicker(adm.config.RuntimeSecurity.ActivityDumpSilentWorkloadsTicker)
-	defer silentWorkloadsTicker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -115,8 +105,6 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 			if err := ad.Snapshot(); err != nil {
 				seclog.Errorf("couldn't snapshot [%s]: %v", ad.GetSelectorStr(), err)
 			}
-		case <-silentWorkloadsTicker.C:
-			adm.handleSilentWorkloads()
 		}
 	}
 }
@@ -197,16 +185,16 @@ func (adm *ActivityDumpManager) resolveTags() {
 
 		if !ad.countedByLimiter {
 			// check if we should discard this dump based on the manager dump limiter
-			selector := ad.GetWorkloadSelector()
-			if selector == nil {
+			selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+			if err != nil {
 				// wait for the tags
 				continue
 			}
 
-			counter, ok := adm.dumpLimiter.Get(*selector)
+			counter, ok := adm.dumpLimiter.Get(selector)
 			if !ok {
 				counter = atomic.NewUint64(0)
-				adm.dumpLimiter.Add(*selector, counter)
+				adm.dumpLimiter.Add(selector, counter)
 			}
 
 			if counter.Load() >= uint64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload) {
@@ -261,7 +249,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		return nil, err
 	}
 
-	limiter, err := lru.NewWithEvict(1024, func(workloadSelector cgroupModel.WorkloadSelector, count *atomic.Uint64) {
+	limiter, err := simplelru.NewLRU(1024, func(workloadSelector cgroupModel.WorkloadSelector, count *atomic.Uint64) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create dump limiter: %w", err)
@@ -375,11 +363,19 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 	return nil
 }
 
-// handleDefaultDumpRequest starts dumping a new workload with the provided load configuration and the default dump configuration
-func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie uint32, loadConfig model.ActivityDumpLoadConfig) {
+// HandleCgroupTracingEvent handles a cgroup tracing event
+func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTracingEvent) {
+	adm.Lock()
+	defer adm.Unlock()
+
+	if len(event.ContainerContext.ID) == 0 {
+		seclog.Errorf("received a cgroup tracing event with an empty container ID")
+		return
+	}
+
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		ad.Metadata.ContainerID = containerID
-		ad.SetLoadConfig(cookie, loadConfig)
+		ad.Metadata.ContainerID = event.ContainerContext.ID
+		ad.SetLoadConfig(event.ConfigCookie, event.Config)
 
 		if adm.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs {
 			ad.Metadata.DifferentiateArgs = true
@@ -407,78 +403,7 @@ func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie u
 
 	if err := adm.insertActivityDump(newDump); err != nil {
 		seclog.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
-	}
-}
-
-// HandleCGroupTracingEvent handles a cgroup tracing event
-func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
-	adm.Lock()
-	defer adm.Unlock()
-
-	if len(event.ContainerContext.ID) == 0 {
-		seclog.Errorf("received a cgroup tracing event with an empty container ID")
 		return
-	}
-
-	adm.startDumpWithConfig(event.ContainerContext.ID, event.ConfigCookie, event.Config)
-}
-
-// SetSecurityProfileManager sets the security profile manager
-func (adm *ActivityDumpManager) SetSecurityProfileManager(manager SecurityProfileManager) {
-	adm.Lock()
-	defer adm.Unlock()
-	adm.securityProfileManager = manager
-}
-
-// handleSilentWorkloads checks if we should start tracing one of the workloads from a profile without an activity tree of the Security Profile manager
-func (adm *ActivityDumpManager) handleSilentWorkloads() {
-	adm.Lock()
-	defer adm.Unlock()
-
-	if adm.securityProfileManager == nil {
-		// the security profile manager hasn't been set yet
-		return
-	}
-
-	// check if it's a good time to look for a silent workload, to do so, check if the last stopped dump was stopped more
-	// than the configured amount of time ago
-	if time.Since(adm.lastStoppedDumpTime) < adm.config.RuntimeSecurity.ActivityDumpSilentWorkloadsDelay {
-		return
-	}
-
-	// if we're already at capacity leave now - this prevents an unnecessary lock on the security profile manager
-	if len(adm.activeDumps) >= adm.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount {
-		return
-	}
-
-	// fetch silent workloads
-workloadLoop:
-	for selector, workloads := range adm.securityProfileManager.FetchSilentWorkloads() {
-		if len(workloads) == 0 {
-			// this profile is on its way out, ignore
-			continue
-		}
-
-		if len(adm.activeDumps) >= adm.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount {
-			// we're at capacity, ignore for now
-			break
-		}
-
-		// check if we already have an activity dump for this selector
-		for _, ad := range adm.activeDumps {
-			// the dump selector is resolved if it has been counted by the limiter
-			if !ad.countedByLimiter {
-				continue
-			}
-
-			if ad.selector.Match(selector) {
-				// we already have an activity dump for this selector, ignore
-				continue workloadLoop
-			}
-		}
-
-		// if we're still here, we can start tracing this workload
-		adm.startDumpWithConfig(workloads[0].ID, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig())
 	}
 }
 
@@ -624,10 +549,10 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 
 		// compute the list of ancestors, we need to start inserting them from the root
 		ancestors := []*model.ProcessCacheEntry{entry}
-		parent := activity_tree.GetNextAncestorBinaryOrArgv0(&entry.ProcessContext)
+		parent := entry.GetNextAncestorBinary()
 		for parent != nil {
 			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
-			parent = activity_tree.GetNextAncestorBinaryOrArgv0(&parent.ProcessContext)
+			parent = parent.GetNextAncestorBinary()
 		}
 
 		for _, parent = range ancestors {
@@ -731,7 +656,7 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 			continue
 		}
 
-		adm.HandleCGroupTracingEvent(&event)
+		adm.HandleCgroupTracingEvent(&event)
 	}
 
 	if err = iterator.Err(); err != nil {
@@ -837,34 +762,4 @@ func (adm *ActivityDumpManager) FakeDumpOverweight(name string) {
 			ad.ActivityTree.Stats.ProcessNodes = int64(99999)
 		}
 	}
-}
-
-// StopDumpsWithSelector stops the active dumps for the given selector and prevent a workload with the provided selector from ever being dumped again
-func (adm *ActivityDumpManager) StopDumpsWithSelector(selector cgroupModel.WorkloadSelector) {
-	counter, ok := adm.dumpLimiter.Get(selector)
-	if !ok {
-		counter = atomic.NewUint64(uint64(adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload))
-		adm.dumpLimiter.Add(selector, counter)
-	} else {
-		if counter.Load() < uint64(adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload) {
-			seclog.Infof("activity dumps will no longer be generated for %s", selector.String())
-			counter.Store(uint64(adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload))
-		}
-	}
-
-	adm.Lock()
-	activeDumps := make([]*ActivityDump, 0, len(adm.activeDumps))
-	copy(activeDumps, adm.activeDumps)
-	adm.Unlock()
-
-	for _, ad := range activeDumps {
-		ad.Lock()
-		if adSelector := ad.GetWorkloadSelector(); adSelector != nil && adSelector.Match(selector) {
-			ad.finalize(true)
-			adm.RemoveDump(ad)
-			adm.dropMaxDumpReached.Inc()
-		}
-		ad.Unlock()
-	}
-	return
 }

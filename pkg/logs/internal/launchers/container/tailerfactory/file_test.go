@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -86,14 +85,11 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
 	}
 	source := sources.NewLogSource("test", &config.LogsConfig{
-		Type:                        "docker",
-		Identifier:                  "abc",
-		Source:                      "src",
-		Service:                     "svc",
-		Tags:                        []string{"tag!"},
-		AutoMultiLine:               pointer.Ptr(true),
-		AutoMultiLineSampleSize:     123,
-		AutoMultiLineMatchThreshold: 0.123,
+		Type:       "docker",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+		Tags:       []string{"tag!"},
 	})
 	child, err := tf.makeFileSource(source)
 	require.NoError(t, err)
@@ -105,9 +101,6 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 	require.Equal(t, source.Config.Service, child.Config.Service)
 	require.Equal(t, source.Config.Tags, child.Config.Tags)
 	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
-	require.Equal(t, *source.Config.AutoMultiLine, true)
-	require.Equal(t, source.Config.AutoMultiLineSampleSize, 123)
-	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.123)
 }
 
 func TestMakeFileSource_docker_no_file(t *testing.T) {
@@ -186,14 +179,11 @@ func TestMakeK8sSource(t *testing.T) {
 	for _, sourceConfigType := range []string{"docker", "containerd"} {
 		t.Run("source.Config.Type="+sourceConfigType, func(t *testing.T) {
 			source := sources.NewLogSource("test", &config.LogsConfig{
-				Type:                        sourceConfigType,
-				Identifier:                  "abc",
-				Source:                      "src",
-				Service:                     "svc",
-				Tags:                        []string{"tag!"},
-				AutoMultiLine:               pointer.Ptr(true),
-				AutoMultiLineSampleSize:     123,
-				AutoMultiLineMatchThreshold: 0.123,
+				Type:       sourceConfigType,
+				Identifier: "abc",
+				Source:     "src",
+				Service:    "svc",
+				Tags:       []string{"tag!"},
 			})
 			child, err := tf.makeK8sFileSource(source)
 			require.NoError(t, err)
@@ -204,9 +194,6 @@ func TestMakeK8sSource(t *testing.T) {
 			require.Equal(t, "src", child.Config.Source)
 			require.Equal(t, "svc", child.Config.Service)
 			require.Equal(t, []string{"tag!"}, child.Config.Tags)
-			require.Equal(t, *child.Config.AutoMultiLine, true)
-			require.Equal(t, child.Config.AutoMultiLineSampleSize, 123)
-			require.Equal(t, child.Config.AutoMultiLineMatchThreshold, 0.123)
 			switch sourceConfigType {
 			case "docker":
 				require.Equal(t, sources.DockerSourceType, child.GetSourceType())

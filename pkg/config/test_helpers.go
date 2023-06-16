@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"log"
 	"strings"
-	"testing"
 )
 
 func SetupConf() Config {
@@ -28,14 +27,4 @@ func SetupConfFromYAML(yamlConfig string) Config {
 		log.Println(e)
 	}
 	return conf
-}
-
-// ResetSystemProbeConfig resets the configuration.
-func ResetSystemProbeConfig(t *testing.T) {
-	originalConfig := SystemProbe
-	t.Cleanup(func() {
-		SystemProbe = originalConfig
-	})
-	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	InitSystemProbeConfig(SystemProbe)
 }

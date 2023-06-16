@@ -211,7 +211,7 @@ bulk_max_repetitions: 20
 		{Symbol: SymbolConfig{OID: "1.2.3.4", Name: "aGlobalMetric"}},
 	}
 	expectedMetrics = append(expectedMetrics, MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}})
-	expectedMetrics = append(expectedMetrics, fixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics...)
+	expectedMetrics = append(expectedMetrics, fixtureProfileDefinitionMap()["f5-big-ip"].Metrics...)
 
 	expectedMetricTags := []MetricTagConfig{
 		{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
@@ -362,7 +362,7 @@ community_string: abc
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
 	assert.Equal(t, 2, len(config.Profiles))
-	assert.Equal(t, fixtureProfileDefinitionMap()["f5-big-ip"].Definition.Metrics, config.Profiles["f5-big-ip"].Definition.Metrics)
+	assert.Equal(t, fixtureProfileDefinitionMap()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
 }
 
 func TestPortConfiguration(t *testing.T) {
@@ -658,81 +658,65 @@ network_address: 10.0.0.0/xx
 }
 
 func Test_getProfileForSysObjectID(t *testing.T) {
-	mockProfiles := profileConfigMap{
-		"profile1": profileConfig{
-			Definition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-				},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+	mockProfiles := profileDefinitionMap{
+		"profile1": profileDefinition{
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 		},
-		"profile2": profileConfig{
-			Definition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-				},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.10"},
+		"profile2": profileDefinition{
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.10"},
 		},
-		"profile3": profileConfig{
-			Definition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-				},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.5.*"},
+		"profile3": profileDefinition{
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.5.*"},
 		},
 	}
-	mockProfilesWithPatternError := profileConfigMap{
-		"profile1": profileConfig{
-			Definition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-				},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.***.*"},
+	mockProfilesWithPatternError := profileDefinitionMap{
+		"profile1": profileDefinition{
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.***.*"},
 		},
 	}
-	mockProfilesWithInvalidPatternError := profileConfigMap{
-		"profile1": profileConfig{
-			Definition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-				},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.[.*"},
+	mockProfilesWithInvalidPatternError := profileDefinitionMap{
+		"profile1": profileDefinition{
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.[.*"},
 		},
 	}
-	mockProfilesWithDuplicateSysobjectid := profileConfigMap{
-		"profile1": profileConfig{
-			Definition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-				},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+	mockProfilesWithDuplicateSysobjectid := profileDefinitionMap{
+		"profile1": profileDefinition{
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 		},
-		"profile2": profileConfig{
-			Definition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-				},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+		"profile2": profileDefinition{
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 		},
-		"profile3": profileConfig{
-			Definition: profileDefinition{
-				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
-				},
-				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.4"},
+		"profile3": profileDefinition{
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 			},
+			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.4"},
 		},
 	}
 	tests := []struct {
 		name            string
-		profiles        profileConfigMap
+		profiles        profileDefinitionMap
 		sysObjectID     string
 		expectedProfile string
 		expectedError   string
@@ -973,10 +957,8 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		},
 		SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
-	mockProfiles := profileConfigMap{
-		"profile1": profileConfig{
-			Definition: profile1,
-		},
+	mockProfiles := profileDefinitionMap{
+		"profile1": profile1,
 	}
 	c := &CheckConfig{
 		IPAddress: "1.2.3.4",
@@ -1857,10 +1839,8 @@ func TestCheckConfig_Copy(t *testing.T) {
 		},
 		OidBatchSize:       10,
 		BulkMaxRepetitions: 10,
-		Profiles: profileConfigMap{"f5-big-ip": profileConfig{
-			Definition: profileDefinition{
-				Device: DeviceMeta{Vendor: "f5"},
-			},
+		Profiles: profileDefinitionMap{"f5-big-ip": profileDefinition{
+			Device: DeviceMeta{Vendor: "f5"},
 		}},
 		ProfileTags: []string{"profile_tag:atag"},
 		Profile:     "f5",

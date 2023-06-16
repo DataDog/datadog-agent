@@ -26,11 +26,10 @@ import (
 )
 
 const (
-	policySource       = "self-test"
-	policyVersion      = "1.0.0"
-	policyName         = "datadog-agent-cws-self-test-policy"
-	ruleIDPrefix       = "datadog_agent_cws_self_test_rule"
-	PolicyProviderType = "selfTesterPolicyProvider"
+	policySource  = "self-test"
+	policyVersion = "1.0.0"
+	policyName    = "datadog-agent-cws-self-test-policy"
+	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"
 )
 
 // EventPredicate defines a self test event validation predicate
@@ -227,8 +226,4 @@ func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) error {
 			return errors.New("failed to receive expected event")
 		}
 	}
-}
-
-func (t *SelfTester) Type() string {
-	return PolicyProviderType
 }

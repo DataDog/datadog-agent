@@ -15,8 +15,6 @@ import (
 	"io"
 	"math"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -184,7 +182,7 @@ func getSymbols(f *elf.File, typ elf.SectionType, wanted map[string]struct{}) ([
 
 func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, symbolSet)
-	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
+	if regularSymbolsErr != nil {
 		log.Tracef("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
 	}
 
@@ -192,7 +190,7 @@ func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[str
 	var dynamicSymbolsErr error
 	if len(regularSymbols) != len(symbolSet) {
 		dynamicSymbols, dynamicSymbolsErr = getSymbols(elfFile, elf.SHT_DYNSYM, symbolSet)
-		if dynamicSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
+		if dynamicSymbolsErr != nil {
 			log.Tracef("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
 		}
 	}

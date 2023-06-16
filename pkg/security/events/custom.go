@@ -30,6 +30,11 @@ const (
 	// RulesetLoadedRuleDesc is the rule description for the ruleset_loaded events
 	RulesetLoadedRuleDesc = "New ruleset loaded"
 
+	// NoisyProcessRuleID is the rule ID for the noisy_process events
+	NoisyProcessRuleID = "noisy_process"
+	// NoisyProcessRuleDesc is the rule description for the noisy_process events
+	NoisyProcessRuleDesc = "Noisy process detected"
+
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
 	// AbnormalPathRuleDesc is the rule description for the abnormal_path events
@@ -79,6 +84,7 @@ func AllCustomRuleIDs() []string {
 	return []string{
 		LostEventsRuleID,
 		RulesetLoadedRuleID,
+		NoisyProcessRuleID,
 		AbnormalPathRuleID,
 		SelfTestRuleID,
 		AnomalyDetectionRuleID,

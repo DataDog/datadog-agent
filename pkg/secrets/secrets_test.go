@@ -139,7 +139,7 @@ func resetPackageVars() {
 	secretCache = map[string]string{}
 	secretOrigin = make(handleToContext)
 	secretFetcher = fetchSecret
-	secretBackendTimeout = 5
+	secretBackendTimeout = 0
 	scrubberAddReplacer = scrubber.AddStrippedKeys
 	removeTrailingLinebreak = false
 }
