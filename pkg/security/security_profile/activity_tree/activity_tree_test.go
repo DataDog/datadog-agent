@@ -56,7 +56,7 @@ func TestInsertFileEvent(t *testing.T) {
 			},
 			FieldHandlers: &model.DefaultFieldHandlers{},
 		}
-		pan.InsertFileEvent(&event.Open.File, event, Unknown, stats, false)
+		pan.InsertFileEvent(&event.Open.File, event, Unknown, stats, false, nil)
 	}
 
 	var builder strings.Builder

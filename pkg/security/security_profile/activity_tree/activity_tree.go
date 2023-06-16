@@ -88,7 +88,8 @@ type ActivityTree struct {
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
 
-	validator ActivityTreeOwner
+	validator    ActivityTreeOwner
+	pathsReducer *PathsReducer
 
 	CookieToProcessNode map[uint32]*ProcessNode `json:"-"`
 	ProcessNodes        []*ProcessNode          `json:"-"`
@@ -99,10 +100,11 @@ type ActivityTree struct {
 }
 
 // NewActivityTree returns a new ActivityTree instance
-func NewActivityTree(validator ActivityTreeOwner, treeType string) *ActivityTree {
+func NewActivityTree(validator ActivityTreeOwner, pathsReducer *PathsReducer, treeType string) *ActivityTree {
 	at := &ActivityTree{
 		treeType:            treeType,
 		validator:           validator,
+		pathsReducer:        pathsReducer,
 		Stats:               NewActivityTreeNodeStats(),
 		CookieToProcessNode: make(map[uint32]*ProcessNode),
 		SyscallsMask:        make(map[int]int),
@@ -273,7 +275,7 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun), nil
+		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun, at.pathsReducer), nil
 	case model.DNSEventType:
 		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
 	case model.BindEventType:
@@ -450,7 +452,7 @@ func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 // Snapshot uses procfs to snapshot the nodes of the tree
 func (at *ActivityTree) Snapshot(newEvent func() *model.Event) {
 	for _, pn := range at.ProcessNodes {
-		pn.snapshot(at.validator, at.Stats, newEvent)
+		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer)
 		// iterate slowly
 		time.Sleep(50 * time.Millisecond)
 	}

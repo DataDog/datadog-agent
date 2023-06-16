@@ -80,6 +80,7 @@ type ActivityDumpManager struct {
 	contextTags         []string
 	hostname            string
 	lastStoppedDumpTime time.Time
+	pathsReducer        *activity_tree.PathsReducer
 }
 
 // Start runs the ActivityDumpManager
@@ -286,6 +287,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		snapshotQueue:          make(chan *ActivityDump, 100),
 		ignoreFromSnapshot:     make(map[string]bool),
 		dumpLimiter:            limiter,
+		pathsReducer:           activity_tree.NewPathsReducer(),
 	}
 
 	adm.storage, err = NewActivityDumpStorageManager(config, statsdClient, adm)
