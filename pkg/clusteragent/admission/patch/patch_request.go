@@ -10,9 +10,9 @@ package patch
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 )
 
 // TargetObjKind represents the supported k8s object kinds
