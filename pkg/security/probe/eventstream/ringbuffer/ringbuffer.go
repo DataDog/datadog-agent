@@ -10,6 +10,7 @@ package ringbuffer
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -17,11 +18,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 )
 
+type RingBufferHandler struct {
+	cb func(int, []byte)
+}
+
 // RingBuffer implements the EventStream interface
 // using an eBPF map of type BPF_MAP_TYPE_RINGBUF
 type RingBuffer struct {
-	ringBuffer *manager.RingBuffer
-	handler    func(int, []byte)
+	ringBuffer     *manager.RingBuffer
+	eventHandler   RingBufferHandler
+	discardHandler RingBufferHandler
+	currentHandler atomic.Pointer[RingBufferHandler]
 }
 
 // Init the ring buffer
@@ -44,6 +51,7 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 
 // Start the event stream.
 func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
+	rb.currentHandler.Store(&rb.eventHandler)
 	return nil
 }
 
@@ -51,22 +59,34 @@ func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
 func (rb *RingBuffer) SetMonitor(counter eventstream.LostEventCounter) {}
 
 func (rb *RingBuffer) handleEvent(CPU int, data []byte, ringBuffer *manager.RingBuffer, manager *manager.Manager) {
-	rb.handler(CPU, data)
+	rb.currentHandler.Load().cb(CPU, data)
 }
 
-// Pause the event stream. Do nothing when using ring buffer
+func (rb *RingBuffer) trashEvent(CPU int, data []byte) {}
+
+// Pause the event stream. New events will be lost.
 func (rb *RingBuffer) Pause() error {
+	rb.currentHandler.Store(&rb.discardHandler)
 	return nil
 }
 
-// Resume the event stream. Do nothing when using ring buffer
+// Resume the event stream.
 func (rb *RingBuffer) Resume() error {
+	rb.currentHandler.Store(&rb.eventHandler)
 	return nil
 }
 
 // New returns a new ring buffer based event stream.
 func New(handler func(int, []byte)) *RingBuffer {
-	return &RingBuffer{
-		handler: handler,
+	rb := &RingBuffer{
+		eventHandler: RingBufferHandler{
+			cb: handler,
+		},
+		discardHandler: RingBufferHandler{
+			cb: func(i int, b []byte) {},
+		},
 	}
+	rb.currentHandler.Store(&rb.discardHandler)
+
+	return rb
 }
