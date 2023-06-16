@@ -233,6 +233,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/params"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -244,21 +245,11 @@ const (
 	deleteTimeout = 30 * time.Minute
 )
 
-type suiteOptions struct {
-	stackName string
-
-	// Setting devMode allows to skip deletion regardless of test results
-	// Unavailable in CI.
-	devMode bool
-
-	skipDeleteOnFailure bool
-}
-
 // Suite manages the environment creation and runs E2E tests.
 type Suite[Env any] struct {
 	suite.Suite
 
-	options         suiteOptions
+	params          params.Params
 	defaultStackDef *StackDefinition[Env]
 	currentStackDef *StackDefinition[Env]
 	firstFailTest   string
@@ -271,7 +262,7 @@ type Suite[Env any] struct {
 
 type suiteConstraint[Env any] interface {
 	suite.TestingSuite
-	initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*suiteOptions))
+	initSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option)
 }
 
 // Run runs the tests defined in e2eSuite
@@ -289,7 +280,7 @@ type suiteConstraint[Env any] interface {
 //	}
 //	// ...
 //	e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
-func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...func(*suiteOptions)) {
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...params.Option) {
 	suiteType := reflect.TypeOf(e2eSuite).Elem()
 	name := suiteType.Name()
 	pkgPaths := suiteType.PkgPath()
@@ -305,35 +296,11 @@ func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *St
 	suite.Run(t, e2eSuite)
 }
 
-func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...func(*suiteOptions)) {
-	suite.options.stackName = stackName
+func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option) {
+	suite.params.StackName = stackName
 	suite.defaultStackDef = stackDef
 	for _, o := range options {
-		o(&suite.options)
-	}
-}
-
-// WithStackName overrides the default stack name.
-// This function is useful only when using [Run].
-func WithStackName(stackName string) func(*suiteOptions) {
-	return func(options *suiteOptions) {
-		options.stackName = stackName
-	}
-}
-
-// WithDevMode enables dev mode.
-// Dev mode doesn't destroy the environment when the test finished which can
-// be useful when writing a new E2E test.
-func WithDevMode() func(*suiteOptions) {
-	return func(options *suiteOptions) {
-		options.devMode = true
-	}
-}
-
-// WithSkipDeleteOnFailure doesn't destroy the environment when a test fail.
-func WithSkipDeleteOnFailure() func(*suiteOptions) {
-	return func(options *suiteOptions) {
-		options.skipDeleteOnFailure = true
+		o(&suite.params)
 	}
 }
 
@@ -387,10 +354,10 @@ func (suite *Suite[Env]) AfterTest(suiteName, testName string) {
 func (suite *Suite[Env]) SetupSuite() {
 	skipDelete, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	if skipDelete {
-		suite.options.skipDeleteOnFailure = true
+		suite.params.SkipDeleteOnFailure = true
 	}
 
-	suite.Require().NotEmptyf(suite.options.stackName, "The stack name is empty. You must define it with WithName")
+	suite.Require().NotEmptyf(suite.params.StackName, "The stack name is empty. You must define it with WithName")
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
 	suite.Require().NoError(err)
@@ -403,11 +370,11 @@ func (suite *Suite[Env]) SetupSuite() {
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (suite *Suite[Env]) TearDownSuite() {
-	if runner.GetProfile().AllowDevMode() && suite.options.devMode {
+	if runner.GetProfile().AllowDevMode() && suite.params.DevMode {
 		return
 	}
 
-	if suite.firstFailTest != "" && suite.options.skipDeleteOnFailure {
+	if suite.firstFailTest != "" && suite.params.SkipDeleteOnFailure {
 		suite.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
 			"The environment of %v was kept.", suite.firstFailTest, suite.firstFailTest, suite.firstFailTest))
 		return
@@ -416,9 +383,9 @@ func (suite *Suite[Env]) TearDownSuite() {
 	// TODO: Implement retry on delete
 	ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
 	defer cancel()
-	err := infra.GetStackManager().DeleteStack(ctx, suite.options.stackName)
+	err := infra.GetStackManager().DeleteStack(ctx, suite.params.StackName)
 	if err != nil {
-		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.options.stackName, err)
+		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.params.StackName, err)
 		suite.T().Fail()
 	}
 }
@@ -429,7 +396,7 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 
 	_, stackOutput, err := infra.GetStackManager().GetStack(
 		ctx,
-		suite.options.stackName,
+		suite.params.StackName,
 		stackDef.configMap,
 		func(ctx *pulumi.Context) error {
 			var err error
@@ -445,7 +412,7 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 // Test functions that don't call UpdateEnv have the environment defined by [e2e.Run].
 func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
 	if stackDef != suite.currentStackDef {
-		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.options.skipDeleteOnFailure {
+		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.params.SkipDeleteOnFailure {
 			// In case of failure, do not override the environment
 			suite.T().SkipNow()
 		}
