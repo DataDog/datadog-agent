@@ -46,7 +46,7 @@ type FakeDCAClient struct {
 	PodMetadataForNode    apiv1.NamespacesPodsStringsSet
 	PodMetadataForNodeErr error
 
-	KubernetesMetadataNames    []stringx
+	KubernetesMetadataNames    []string
 	KubernetesMetadataNamesErr error
 
 	ClusterCheckStatus    types.StatusResponse
