@@ -66,6 +66,12 @@
 //
 // The stack definition defines the components available in your environment.
 //
+//	import (
+//		"testing"
+//
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//	)
+//
 //	type vmSuite struct {
 //		e2e.Suite[e2e.VMEnv]
 //	}
@@ -86,6 +92,16 @@
 //
 // In some special cases, you have to define a custom environment.
 // Here is an example of an environment with Docker installed on a virtual machine.
+//
+//	import (
+//		"testing"
+//
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+//		"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
+//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
+//		"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+//	)
 //
 //	type dockerSuite struct {
 //		e2e.Suite[e2e.VMEnv]
@@ -131,6 +147,12 @@
 //
 // In the simple case, there is a single environment and each test checks one specific thing.
 //
+//	import (
+//		"testing"
+//
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//	)
+//
 //	type singleEnvSuite struct {
 //		e2e.Suite[e2e.AgentEnv]
 //	}
@@ -160,6 +182,14 @@
 //
 // Note: Calling twice [e2e.Suite.UpdateEnv] with the same argument does nothing.
 //
+//	import (
+//		"testing"
+//
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+//		"github.com/stretchr/testify/require"
+//	)
+//
 //	type multipleEnvSuite struct {
 //		e2e.Suite[e2e.AgentEnv]
 //	}
@@ -169,13 +199,13 @@
 //	}
 //
 //	func (suite *multipleEnvSuite) TestLogDebug() {
-//		suite.UpdateEnv(e2e.AgentStackDef(nil, agent.WithAgentConfig("log_level: debug")))
+//		suite.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("log_level: debug")))
 //		config := suite.Env().Agent.Config()
 //		require.Contains(suite.T(), config, "log_level: debug")
 //	}
 //
 //	func (suite *multipleEnvSuite) TestLogInfo() {
-//		suite.UpdateEnv(e2e.AgentStackDef(nil, agent.WithAgentConfig("log_level: info")))
+//		suite.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("log_level: info")))
 //		config := suite.Env().Agent.Config()
 //		require.Contains(suite.T(), config, "log_level: info")
 //	}
@@ -186,6 +216,13 @@
 // You can still use [e2e.Suite.UpdateEnv] as explained in the previous section but using
 // [Subtests] is an alternative solution.
 //
+//	import (
+//		"testing"
+//
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+//	)
+//
 //	type subTestSuite struct {
 //		e2e.Suite[e2e.AgentEnv]
 //	}
@@ -195,7 +232,7 @@
 //	}
 //
 //	func (suite *subTestSuite) TestLogDebug() {
-//		suite.UpdateEnv(e2e.AgentStackDef(nil, agent.WithAgentConfig("log_level: debug")))
+//		suite.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("log_level: debug")))
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})
@@ -205,7 +242,7 @@
 //	}
 //
 //	func (suite *subTestSuite) TestLogInfo() {
-//		suite.UpdateEnv(e2e.AgentStackDef(nil, agent.WithAgentConfig("log_level: info")))
+//		suite.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("log_level: info")))
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})
