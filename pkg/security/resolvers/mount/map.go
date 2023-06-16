@@ -7,7 +7,7 @@ package mount
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 
-const LOWER_SIZE = 512
+const LOWER_SIZE = 1024
 
 type MountMap struct {
 	lower []*model.Mount
