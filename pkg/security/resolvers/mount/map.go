@@ -24,13 +24,20 @@ func NewMountMap() *MountMap {
 	}
 }
 
-func (mm *MountMap) Get(id uint32) *model.Mount {
+func (mm *MountMap) GetChecked(id uint32) (*model.Mount, bool) {
 	if id < LOWER_SIZE {
 		mm.fastPathCounter++
-		return mm.lower[id]
+		ptr := mm.lower[id]
+		return ptr, ptr != nil
 	}
 	mm.slowPathCounter++
-	return mm.upper[id]
+	ptr, exists := mm.upper[id]
+	return ptr, exists
+}
+
+func (mm *MountMap) Get(id uint32) *model.Mount {
+	ptr, _ := mm.GetChecked(id)
+	return ptr
 }
 
 func (mm *MountMap) Delete(id uint32) {
@@ -48,7 +55,11 @@ func (mm *MountMap) Insert(id uint32, mount *model.Mount) {
 		mm.lower[id] = mount
 	}
 	mm.slowPathCounter++
-	mm.upper[id] = mount
+	if mount == nil {
+		delete(mm.upper, id)
+	} else {
+		mm.upper[id] = mount
+	}
 }
 
 func (mm *MountMap) Contains(id uint32) bool {

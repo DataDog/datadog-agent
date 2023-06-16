@@ -178,7 +178,7 @@ func (mr *Resolver) finalize(first *model.Mount) {
 }
 
 func (mr *Resolver) delete(mount *model.Mount) {
-	if m := mr.mounts.Get(mount.MountID); m != nil {
+	if m, exists := mr.mounts.GetChecked(mount.MountID); exists {
 		mr.redemption.Add(mount.MountID, m)
 	}
 }
@@ -188,8 +188,8 @@ func (mr *Resolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount := mr.mounts.Get(mountID)
-	if mount == nil {
+	mount, exists := mr.mounts.GetChecked(mountID)
+	if !exists {
 		return &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -229,7 +229,7 @@ func (mr *Resolver) insert(m *model.Mount) {
 	fmt.Printf("device id: %d; id %d; len %d\n", m.Device, m.MountID, mr.mounts.RealLen())
 
 	// umount the previous one if exists
-	if prev := mr.mounts.Get(m.MountID); prev != nil {
+	if prev, ok := mr.mounts.GetChecked(m.MountID); ok {
 		// if present in the redemption that the evict function that will remove the entry
 		if present := mr.redemption.Remove(prev.MountID); !present {
 			mr.finalize(prev)
@@ -254,8 +254,8 @@ func (mr *Resolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string
 		return "", err
 	}
 
-	mount := mr.mounts.Get(mountID)
-	if mount == nil {
+	mount, exists := mr.mounts.GetChecked(mountID)
+	if !exists {
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -444,8 +444,8 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 		pids = append(pids, 1)
 	}
 
-	mount := mr.mounts.Get(mountID)
-	if mount != nil {
+	mount, exists := mr.mounts.GetChecked(mountID)
+	if exists {
 		mr.cacheHitsStats.Inc()
 
 		// touch the redemption entry to maintain the entry
@@ -468,8 +468,8 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 		return nil, err
 	}
 
-	mount = mr.mounts.Get(mountID)
-	if mount != nil {
+	mount, exists = mr.mounts.GetChecked(mountID)
+	if exists {
 		mr.procMissStats.Inc()
 		return mount, nil
 	}
