@@ -84,9 +84,69 @@
 // The generic type of [e2e.Suite] must match the type of the stack definition.
 // In our example, [e2e.EC2VMStackDef] returns an instance of [*e2e.StackDefinition][[e2e.VMEnv]].
 //
-// The following default stack definitions are provided:
-//   - [e2e.EC2VMStackDef] creates an environment with a virtual machine. See [e2e.EC2VMStackDef] for more information about the supported options.
-//   - [e2e.AgentStackDef] creates an environment with an Agent installed on a virtual machine. See [e2e.AgentStackDef] for more information about the supported options.
+// # e2e.EC2VMStackDef
+//
+// [e2e.EC2VMStackDef] creates an environment with a virtual machine.
+// The available options are located in the [ec2params] package.
+//
+//	import (
+//		"testing"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/test-infra-definitions/components/os"
+//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+//	)
+//
+//	type vmSuite struct {
+//		e2e.Suite[e2e.VMEnv]
+//	}
+//
+//	func TestVMSuite(t *testing.T) {
+//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef(
+//			ec2params.WithImageName("ami-0a0c8eebcdd6dcbd0", os.ARM64Arch, ec2os.UbuntuOS),
+//			ec2params.WithName("My-instance"),
+//		))
+//	}
+//
+//	func (v *vmSuite) TestBasicVM() {
+//		v.Env().VM.Execute("ls")
+//	}
+//
+// # e2e.AgentStackDef
+//
+// [e2e.AgentStackDef] creates an environment with an Agent installed on a virtual machine.
+// The available options are located in the [agentparams] package.
+//
+//	import (
+//		"testing"
+//
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+//		"github.com/DataDog/test-infra-definitions/components/os"
+//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+//		"github.com/stretchr/testify/require"
+//	)
+//
+//	type agentSuite struct {
+//		e2e.Suite[e2e.AgentEnv]
+//	}
+//
+//	func TestVMSuite(t *testing.T) {
+//		e2e.Run[e2e.AgentEnv](t, &agentSuite{}, e2e.AgentStackDef(
+//			[]ec2params.Option{
+//				ec2params.WithImageName("ami-0a0c8eebcdd6dcbd0", os.ARM64Arch, ec2os.UbuntuOS),
+//				ec2params.WithName("My-instance"),
+//			},
+//			agentparams.WithAgentConfig("log_level: debug"),
+//			agentparams.WithTelemetry(),
+//		))
+//	}
+//
+//	func (v *agentSuite) TestBasicAgent() {
+//		config := v.Env().Agent.Config()
+//		require.Contains(v.T(), config, "log_level: debug")
+//	}
 //
 // # Defining your stack definition
 //
@@ -257,6 +317,8 @@
 // [File Manager]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/command#FileManager
 // [EC2 VM]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM
 // [Agent]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
+// [ec2params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2params
+// [agentparams]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agentparams
 package e2e
 
 import (
