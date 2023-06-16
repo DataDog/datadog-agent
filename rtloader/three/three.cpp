@@ -520,7 +520,6 @@ char **Three::getCheckWarnings(RtLoaderPyObject *check)
         if (warn == NULL) {
             setError("there was an error browsing 'warnings' list: " + _fetchPythonError());
 
-            // Is this a bug? ---> if warnings[jdx] != NULL and jdx > idx (uninitialized memory)
             for (int jdx = 0; jdx < numWarnings && warnings[jdx]; jdx++) {
                 _free(warnings[jdx]);
             }

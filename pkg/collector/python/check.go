@@ -365,7 +365,7 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	var diagnosesWrap []diagnosisJSONSerWrap
 	err = json.Unmarshal([]byte(strDiagnoses), &diagnosesWrap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %s", c.id, err, strDiagnoses)
+		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %q", c.id, err, strDiagnoses)
 	}
 
 	if diagnosesWrap == nil || len(diagnosesWrap) == 0 {

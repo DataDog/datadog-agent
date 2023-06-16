@@ -135,6 +135,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeContainerLifecycle,
+		category:                      "Container",
 		contentType:                   http.ProtobufContentType,
 		endpointsConfigPrefix:         "container_lifecycle.",
 		hostnameEndpointPrefix:        "contlcycle-intake.",
@@ -146,6 +147,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeContainerImages,
+		category:                      "Container",
 		contentType:                   http.ProtobufContentType,
 		endpointsConfigPrefix:         "container_image.",
 		hostnameEndpointPrefix:        "contimage-intake.",
@@ -157,6 +159,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 	{
 		eventType:                     EventTypeContainerSBOM,
+		category:                      "SBOM",
 		contentType:                   http.ProtobufContentType,
 		endpointsConfigPrefix:         "sbom.",
 		hostnameEndpointPrefix:        "sbom-intake.",
