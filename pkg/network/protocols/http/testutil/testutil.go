@@ -63,6 +63,12 @@ func setNetIPV4TCPTimestamp(t *testing.T, enable bool) {
 	}
 }
 
+func SetupNetIPV4TCPTimestamp(t *testing.T, enable bool) {
+	oldTCPTS := isNetIPV4TCPTimestampEnabled(t)
+	setNetIPV4TCPTimestamp(t, enable)
+	t.Cleanup(func() { setNetIPV4TCPTimestamp(t, oldTCPTS) })
+}
+
 // HTTPServer spins up a HTTP test server that returns the status code included in the URL
 // Example:
 // * GET /200/foo returns a 200 status code;
@@ -86,9 +92,7 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 	}
 	/* Save and recover TCP timestamp option */
 	if options.EnableTCPTimestamp != nil {
-		oldTCPTS := isNetIPV4TCPTimestampEnabled(t)
-		setNetIPV4TCPTimestamp(t, *options.EnableTCPTimestamp)
-		t.Cleanup(func() { setNetIPV4TCPTimestamp(t, oldTCPTS) })
+		SetupNetIPV4TCPTimestamp(t, *options.EnableTCPTimestamp)
 	}
 
 	srv := &http.Server{

@@ -105,7 +105,9 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 			monitor := newHTTPMonitor(t)
 
 			serverAddr := "localhost:8081"
-			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
+			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+				EnableTCPTimestamp: &TCPTimestamp.value,
+			})
 
 			client := nethttp.Client{}
 
@@ -477,7 +479,8 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 
 			serverAddr := "127.0.0.1:8080"
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-				EnableKeepAlive: true,
+				EnableKeepAlive:    true,
+				EnableTCPTimestamp: &TCPTimestamp.value,
 			})
 			t.Cleanup(srvDoneFn)
 
@@ -518,6 +521,7 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 		{name: "with TCP timestamp option", value: true},
 	} {
 		t.Run(TCPTimestamp.name, func(t *testing.T) {
+			testutil.SetupNetIPV4TCPTimestamp(t, TCPTimestamp.value)
 
 			monitor := newHTTPMonitor(t)
 
