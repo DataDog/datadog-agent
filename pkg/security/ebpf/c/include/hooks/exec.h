@@ -324,17 +324,17 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
 
 SEC("kprobe/prepare_binprm")
 int kprobe_prepare_binprm(struct pt_regs *ctx) {
-    return fill_exec_context(ctx);
+    return fill_exec_context();
 }
 
 SEC("kprobe/bprm_execve")
 int kprobe_bprm_execve(struct pt_regs *ctx) {
-    return fill_exec_context(ctx);
+    return fill_exec_context();
 }
 
 SEC("kprobe/security_bprm_check")
 int kprobe_security_bprm_check(struct pt_regs *ctx) {
-    return fill_exec_context(ctx);
+    return fill_exec_context();
 }
 
 SEC("kprobe/get_envs_offset")

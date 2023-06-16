@@ -34,7 +34,7 @@ func validateResolution(test *testModule, event *model.Event, testFile string, p
 	// there is a potential race here has a lost event can occur between the two resolutions
 
 	// check that the path is now available from the cache
-	res, err = test.probe.GetResolvers().DentryResolver.ResolveFromCache(event.Open.File.MountID, event.Open.File.Inode)
+	res, err = test.probe.GetResolvers().DentryResolver.ResolveFromCache(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
 	assert.Nil(test.t, err)
 	assert.Equal(test.t, basename, path.Base(res))
 
@@ -45,7 +45,7 @@ func validateResolution(test *testModule, event *model.Event, testFile string, p
 	expectedInode := getInode(test.t, path.Dir(testFile))
 
 	// the previous path resolution should habe filled the cache
-	_, cacheInode, err := test.probe.GetResolvers().DentryResolver.ResolveParentFromCache(event.Open.File.MountID, event.Open.File.Inode)
+	_, cacheInode, err := test.probe.GetResolvers().DentryResolver.ResolveParentFromCache(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
 	assert.Nil(test.t, err)
 	assert.NotZero(test.t, cacheInode)
 
@@ -61,7 +61,7 @@ func validateResolution(test *testModule, event *model.Event, testFile string, p
 
 	// Basename
 	// the previous path resolution should have filled the cache
-	expectedName, err := test.probe.GetResolvers().DentryResolver.ResolveNameFromCache(event.Open.File.MountID, event.Open.File.Inode)
+	expectedName, err := test.probe.GetResolvers().DentryResolver.ResolveNameFromCache(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
 	assert.Nil(test.t, err)
 	assert.Equal(test.t, expectedName, basename)
 

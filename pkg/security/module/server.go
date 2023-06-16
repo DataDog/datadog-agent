@@ -171,8 +171,8 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 
 // DumpActivity handle an activity dump request
 func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.DumpActivity(params)
+	if managers := a.probe.GetProfileManagers(); managers != nil {
+		msg, err := managers.DumpActivity(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -184,8 +184,8 @@ func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpPa
 
 // ListActivityDumps returns the list of active dumps
 func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.ListActivityDumps(params)
+	if managers := a.probe.GetProfileManagers(); managers != nil {
+		msg, err := managers.ListActivityDumps(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -197,8 +197,8 @@ func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityD
 
 // StopActivityDump stops an active activity dump if it exists
 func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.StopActivityDump(params)
+	if managers := a.probe.GetProfileManagers(); managers != nil {
+		msg, err := managers.StopActivityDump(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -210,8 +210,8 @@ func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDu
 
 // TranscodingRequest encodes an activity dump following the requested parameters
 func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.GenerateTranscoding(params)
+	if managers := a.probe.GetProfileManagers(); managers != nil {
+		msg, err := managers.GenerateTranscoding(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -223,8 +223,8 @@ func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.Transcod
 
 // ListSecurityProfiles returns the list of security profiles
 func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.ListSecurityProfiles(params)
+	if managers := a.probe.GetProfileManagers(); managers != nil {
+		msg, err := managers.ListSecurityProfiles(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -236,8 +236,8 @@ func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.Securi
 
 // SaveSecurityProfile saves the requested security profile to disk
 func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.SaveSecurityProfile(params)
+	if managers := a.probe.GetProfileManagers(); managers != nil {
+		msg, err := managers.SaveSecurityProfile(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -471,17 +471,19 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 	data = append(data, ruleEventJSON[1:]...)
 	seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", rule.ID, string(data))
 
+	eventTags := event.GetTags()
 	msg := &pendingMsg{
 		ruleID:    rule.Definition.ID,
 		data:      data,
 		extTagsCb: extTagsCb,
 		service:   service,
 		sendAfter: time.Now().Add(a.retention),
+		tags:      make([]string, 0, 1+len(rule.Tags)+len(eventTags)+1),
 	}
 
 	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
 	msg.tags = append(msg.tags, rule.Tags...)
-	msg.tags = append(msg.tags, event.GetTags()...)
+	msg.tags = append(msg.tags, eventTags...)
 	msg.tags = append(msg.tags, common.QueryAccountIdTag())
 
 	a.enqueue(msg)
