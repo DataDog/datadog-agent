@@ -1,2 +1,2 @@
 optimization_goal: ingress_throughput
-erratic: false
+erratic: true # See https://datadoghq.atlassian.net/browse/SMP-606
