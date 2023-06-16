@@ -69,6 +69,7 @@ type ApmRemoteConfigEventError struct {
 type TelemetryCollector interface {
 	SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent)
 	SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent)
+	SetTestHost(testHost string)
 }
 
 type telemetryCollector struct {
@@ -98,6 +99,10 @@ func NewCollector(rcClientId string, kubernetesClusterId string) TelemetryCollec
 		rcClientId:          rcClientId,
 		kubernetesClusterId: kubernetesClusterId,
 	}
+}
+
+func (tc *telemetryCollector) SetTestHost(testHost string) {
+	tc.host = testHost
 }
 
 // NewNoopCollector returns a noop collector
@@ -156,3 +161,5 @@ func (*noopTelemetryCollector) SendRemoteConfigPatchEvent(event ApmRemoteConfigE
 
 func (*noopTelemetryCollector) SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent) {
 }
+
+func (*noopTelemetryCollector) SetTestHost(testHost string) {}

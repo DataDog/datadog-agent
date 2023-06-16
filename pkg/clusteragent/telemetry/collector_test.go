@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -45,6 +46,8 @@ func TestTelemetryPath(t *testing.T) {
 	defer server.Close()
 
 	collector := NewCollector(testRcClientId, testKubernetesClusterId)
+	collector.SetTestHost(server.URL)
+	config.Datadog.Set("api_key", "dummy")
 
 	var reqCount int
 	var path string
