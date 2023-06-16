@@ -165,6 +165,7 @@ func TestCollection(t *testing.T) {
 		NewClient:       NewAgentSecureClient,
 		ResponseHandler: handleWorkloadmetaStreamResponse,
 		Port:            port,
+		OnResync:        resetStore,
 		Insecure:        true,
 	}
 
@@ -203,7 +204,7 @@ func TestCollection(t *testing.T) {
 
 	mockServerStore.Notify(
 		[]workloadmeta.CollectorEvent{
-			workloadmeta.CollectorEvent{
+			{
 				Type:   workloadmeta.EventTypeSet,
 				Source: workloadmeta.SourceAll,
 				Entity: expectedContainer,

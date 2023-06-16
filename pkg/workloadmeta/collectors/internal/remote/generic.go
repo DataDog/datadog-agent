@@ -48,10 +48,13 @@ type Stream interface {
 // ResponseHandler handles a response sent by the remote gRPC endpoint
 type ResponseHandler func(response interface{}) ([]workloadmeta.CollectorEvent, error)
 
+type OnResync func(store workloadmeta.Store, events []workloadmeta.CollectorEvent)
+
 type GenericCollector struct {
 	NewClient       NewClient
 	ResponseHandler ResponseHandler
 	Port            int
+	OnResync        OnResync
 
 	store        workloadmeta.Store
 	resyncNeeded bool
@@ -200,19 +203,7 @@ func (c *GenericCollector) Run() {
 		}
 
 		if c.resyncNeeded {
-			var entities []workloadmeta.Entity
-			for _, event := range collectorEvents {
-				entities = append(entities, event.Entity)
-			}
-
-			// This should be the first response that we got from workloadmeta after
-			// we lost the connection and specified that a re-sync is needed. So, at
-			// this point we know that "entities" contains all the existing entities
-			// in the store, because when a client subscribes to workloadmeta, the
-			// first response is always a bundle of events with all the existing
-			// entities in the store that match the filters specified (see
-			// workloadmeta.Store#Subscribe).
-			c.store.Reset(entities, workloadmeta.SourceRemoteWorkloadmeta)
+			c.OnResync(c.store, collectorEvents)
 			c.resyncNeeded = false
 		}
 

@@ -57,6 +57,7 @@ func init() {
 		return &remote.GenericCollector{
 			NewClient:       NewAgentSecureClient,
 			ResponseHandler: handleWorkloadmetaStreamResponse,
+			OnResync:        resetStore,
 			Port:            config.Datadog.GetInt("cmd_port"),
 		}
 	})
@@ -89,4 +90,19 @@ func handleWorkloadmetaStreamResponse(resp interface{}) ([]workloadmeta.Collecto
 	}
 
 	return collectorEvents, nil
+}
+
+func resetStore(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
+	var entities []workloadmeta.Entity
+	for _, event := range events {
+		entities = append(entities, event.Entity)
+	}
+	// This should be the first response that we got from workloadmeta after
+	// we lost the connection and specified that a re-sync is needed. So, at
+	// this point we know that "entities" contains all the existing entities
+	// in the store, because when a client subscribes to workloadmeta, the
+	// first response is always a bundle of events with all the existing
+	// entities in the store that match the filters specified (see
+	// workloadmeta.Store#Subscribe).
+	store.Reset(entities, workloadmeta.SourceRemoteWorkloadmeta)
 }
