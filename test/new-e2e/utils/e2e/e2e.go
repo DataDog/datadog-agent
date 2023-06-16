@@ -311,6 +311,32 @@
 //		})
 //	}
 //
+// # WithDevMode
+//
+// When writing a new e2e test, it is important to iterate quickly until your test succeeds.
+// You can use [params.WithDevMode] to not destroy the environment when the test finishes.
+// For example it allows you to not create a new virtual machine each time you run a test.
+// Note: [params.WithDevMode] is ignored when the test runs on the CI but it should be removed when you finish the writing of the test.
+//
+//	import (
+//		"testing"
+//
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/params"
+//	)
+//
+//	type vmSuite struct {
+//		e2e.Suite[e2e.VMEnv]
+//	}
+//
+//	func TestVMSuite(t *testing.T) {
+//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef(), params.WithDevMode())
+//	}
+//
+//	func (v *vmSuite) TestBasicVM() {
+//		v.Env().VM.Execute("ls")
+//	}
+//
 // [Subtests]: https://go.dev/blog/subtests
 // [suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
