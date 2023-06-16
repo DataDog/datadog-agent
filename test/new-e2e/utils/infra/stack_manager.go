@@ -119,10 +119,31 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 }
 
 func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
+	var stack *auto.Stack
+	var ok bool
+
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
 
-	return sm.deleteStack(ctx, name, sm.stacks[name])
+	stack, ok = sm.stacks[name]
+	if !ok {
+		// Build configuration from profile
+		profile := runner.GetProfile()
+		stackName := buildStackName(profile.NamePrefix(), name)
+		workspace, err := buildWorkspace(ctx, profile, stackName, func(ctx *pulumi.Context) error { return nil })
+		if err != nil {
+			return err
+		}
+
+		newStack, err := auto.SelectStack(ctx, stackName, workspace)
+		if err != nil {
+			return err
+		}
+
+		stack = &newStack
+	}
+
+	return sm.deleteStack(ctx, name, stack)
 }
 
 func (sm *StackManager) Cleanup(ctx context.Context) []error {
