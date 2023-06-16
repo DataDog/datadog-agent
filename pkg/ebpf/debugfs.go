@@ -16,10 +16,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,8 +31,8 @@ var debugfsStats = struct {
 	hits   telemetry.Gauge
 	misses telemetry.Gauge
 }{
-	telemetry.NewGauge(kProbeTelemetryName, "hits", []string{"name"}, "Gauge tracking number of kprobe hits"),
-	telemetry.NewGauge(kProbeTelemetryName, "misses", []string{"name"}, "Gauge tracking number of kprobe misses"),
+	telemetry.NewGauge(kProbeTelemetryName, "hits", []string{"probe_name"}, "Gauge tracking number of kprobe hits"),
+	telemetry.NewGauge(kProbeTelemetryName, "misses", []string{"probe_name"}, "Gauge tracking number of kprobe misses"),
 }
 
 func init() {
