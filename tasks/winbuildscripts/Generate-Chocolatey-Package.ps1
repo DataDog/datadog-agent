@@ -63,7 +63,7 @@ Write-Host "Generating Chocolatey $installMethod package version $agentVersion i
 
 $statusCode = -1
 try {
-    $statusCode = (iwr $url).StatusCode
+    $statusCode = (iwr $url -UseBasicParsing).StatusCode
 }
 catch [System.Net.WebException] {
     if ($_.Exception.Status -eq "ProtocolError") {
