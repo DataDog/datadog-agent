@@ -462,11 +462,16 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		t.Skip("https not supported for this setup")
 	}
 
-	probe := "do_sys_open"
-	excludeSysOpen := "do_sys_openat2"
-	if sysOpenAt2Supported() {
-		probe = "do_sys_openat2"
-		excludeSysOpen = "do_sys_open"
+	includeOpenat2 := sysOpenAt2Supported()
+	openat2Probes := []manager.ProbeIdentificationPair{
+		{
+			EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_enter_%s", openat2SysCall),
+			UID:          probeUID,
+		},
+		{
+			EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_exit_%s", openat2SysCall),
+			UID:          probeUID,
+		},
 	}
 
 	perfHandler := ddebpf.NewPerfHandler(10)
@@ -486,14 +491,14 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe__" + probe,
+					EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_enter_%s", openatSysCall),
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kretprobe__" + probe,
+					EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_exit_%s", openatSysCall),
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
@@ -552,17 +557,33 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe__" + probe,
+					EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_enter_%s", openatSysCall),
 					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kretprobe__" + probe,
+					EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_exit_%s", openatSysCall),
 					UID:          probeUID,
 				},
 			},
 		},
+	}
+
+	if includeOpenat2 {
+		for _, probe := range openat2Probes {
+			mgr.Probes = append(mgr.Probes, &manager.Probe{
+				ProbeIdentificationPair: probe,
+				KProbeMaxActive:         maxActive,
+			})
+
+			options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probe.EBPFFuncName,
+					UID:          probeUID,
+				},
+			})
+		}
 	}
 
 	exclude := []string{
@@ -574,13 +595,16 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		"kprobe__tcp_sendmsg",
 		"kretprobe__security_sock_rcv_skb",
 		"tracepoint__net__netif_receive_skb",
-		"kprobe__" + excludeSysOpen,
-		"kretprobe__" + excludeSysOpen,
 		"kprobe__do_vfs_ioctl",
 		"kprobe_handle_sync_payload",
 		"kprobe_handle_close_connection",
 		"kprobe_handle_connection_by_peer",
 		"kprobe_handle_async_payload",
+	}
+
+	if !includeOpenat2 {
+		exclude = append(exclude, fmt.Sprintf("tracepoint__syscalls__sys_enter_%s", openat2SysCall),
+			fmt.Sprintf("tracepoint__syscalls__sys_exit_%s", openat2SysCall))
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
