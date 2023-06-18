@@ -229,6 +229,14 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 	}
 }
 
+func (o *sslProgram) Name() string {
+	return "openssl"
+}
+
+func (o *sslProgram) IsBuildModeSupported(_ buildMode) bool {
+	return true
+}
+
 func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 	o.manager = m
 
