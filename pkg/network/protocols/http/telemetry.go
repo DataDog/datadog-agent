@@ -26,7 +26,7 @@ type Telemetry struct {
 	aggregations *libtelemetry.Metric
 }
 
-func NewTelemetry() (*Telemetry, error) {
+func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
@@ -51,7 +51,7 @@ func NewTelemetry() (*Telemetry, error) {
 
 	t.LastCheck.Store(time.Now().Unix())
 
-	return t, nil
+	return t
 }
 
 func (t *Telemetry) Count(tx HttpTX) {

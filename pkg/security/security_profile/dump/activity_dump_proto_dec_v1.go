@@ -15,7 +15,7 @@ import (
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
-func protoToActivityDump(dest *ActivityDump, ad *adproto.SecDump) {
+func protoToActivityDump(dest *ActivityDump, pathsReducer *activity_tree.PathsReducer, ad *adproto.SecDump) {
 	if ad == nil {
 		return
 	}
@@ -29,6 +29,6 @@ func protoToActivityDump(dest *ActivityDump, ad *adproto.SecDump) {
 	copy(dest.Tags, ad.Tags)
 	dest.StorageRequests = make(map[config.StorageFormat][]config.StorageRequest)
 
-	dest.ActivityTree = activity_tree.NewActivityTree(dest, "activity_dump")
+	dest.ActivityTree = activity_tree.NewActivityTree(dest, pathsReducer, "activity_dump")
 	activity_tree.ProtoDecodeActivityTree(dest.ActivityTree, ad.Tree)
 }
