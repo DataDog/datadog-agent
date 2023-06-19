@@ -117,7 +117,7 @@ func TestLoadModule(t *testing.T) {
 	}
 
 	// make sure the xfs module isn't currently loaded
-	err := unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+	err := unix.DeleteModule(testModuleName, 0)
 	if err != nil {
 		t.Skipf("couldn't delete %s module: %v", testModuleName, err)
 	}
@@ -162,7 +162,7 @@ func TestLoadModule(t *testing.T) {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 
-			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_from_memory", r.ID, "invalid rule triggered")
 
@@ -190,7 +190,7 @@ func TestLoadModule(t *testing.T) {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 
-			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module", r.ID, "invalid rule triggered")
 
@@ -199,7 +199,7 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("kworker", func(t *testing.T) {
-		_ = unix.DeleteModule("xt_LED", unix.O_NONBLOCK)
+		_ = unix.DeleteModule("xt_LED", 0)
 
 		cmd := exec.Command("modprobe", "xt_LED")
 		if err := cmd.Run(); err != nil {
@@ -209,11 +209,11 @@ func TestLoadModule(t *testing.T) {
 		defer func() {
 			cmd := exec.Command("iptables", "-D", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
 			_ = cmd.Run()
-			_ = unix.DeleteModule("xt_LED", unix.O_NONBLOCK)
+			_ = unix.DeleteModule("xt_LED", 0)
 		}()
 
 		test.WaitSignal(t, func() error {
-			_ = unix.DeleteModule("xt_LED", unix.O_NONBLOCK)
+			_ = unix.DeleteModule("xt_LED", 0)
 
 			cmd := exec.Command("iptables", "-A", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
 			if err := cmd.Run(); err != nil {
@@ -237,7 +237,7 @@ func TestLoadModule(t *testing.T) {
 			if err = unix.FinitModule(int(f.Fd()), "toto=2 toto=3", 0); err != nil {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
-			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, strings.Contains("test_load_module_with_params, test_load_module_with_specific_param, test_load_module", r.ID), true, "invalid rule triggered")
 			assertFieldEqual(t, event, "load_module.args", "toto=2 toto=3")
@@ -258,7 +258,7 @@ func TestLoadModule(t *testing.T) {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 
-			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, strings.Contains("test_load_module_with_params, test_load_module_with_specific_param, test_load_module_from_memory", r.ID), true, "invalid rule triggered")
 			assertFieldEqual(t, event, "load_module.argv", []string{"toto=1"})
@@ -279,7 +279,7 @@ func TestLoadModule(t *testing.T) {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 
-			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, strings.Contains("test_load_module_with_params, test_load_module_with_specific_param, test_load_module_from_memory", r.ID), true, "invalid rule triggered")
 			assertFieldEqual(t, event, "load_module.argv", []string{"Lorem", "ipsum", "dolor", "sit", "amet,", "consectetur", "adipiscing", "elit.", "Duis", "in", "luctus", "quam.", "Nam", "purus", "risus,", "varius", "non", "massa", "bibendum,"})
@@ -308,7 +308,7 @@ func TestUnloadModule(t *testing.T) {
 	}
 
 	// make sure the xfs module isn't currently loaded
-	err := unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+	err := unix.DeleteModule(testModuleName, 0)
 	if err != nil {
 		t.Skipf("couldn't delete %s module: %v", testModuleName, err)
 	}
@@ -337,7 +337,7 @@ func TestUnloadModule(t *testing.T) {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 
-			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
+			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_unload_module", r.ID, "invalid rule triggered")
 
