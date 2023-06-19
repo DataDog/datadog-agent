@@ -297,6 +297,8 @@ func (p *GoTLSProgram) Start() {
 
 func (p *GoTLSProgram) Stop() {
 	close(p.done)
+	// Waiting for the main event loop to finish.
+	p.wg.Wait()
 	if p.procMonitor.cleanupExec != nil {
 		p.procMonitor.cleanupExec()
 	}
@@ -311,9 +313,6 @@ func (p *GoTLSProgram) Stop() {
 	for pid := range p.processes {
 		p.unregisterProcess(pid)
 	}
-
-	// Waiting for the main event loop to finish.
-	p.wg.Wait()
 }
 
 func (p *GoTLSProgram) handleProcessStart(pid pid) {
