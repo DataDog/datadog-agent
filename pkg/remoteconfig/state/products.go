@@ -6,6 +6,7 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductAgentTask:   {},
 	ProductAPMSampling: {},
 	ProductCWSDD:       {},
 	ProductCWSCustom:   {},
@@ -17,13 +18,15 @@ var validProducts = map[string]struct{}{
 }
 
 const (
+	// ProductAgentTask is to receive agent task instruction, like a flare
+	ProductAgentTask = "AGENT_TASK"
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
 	// ProductCWSDD is the cloud workload security product managed by datadog employees
 	ProductCWSDD = "CWS_DD"
 	// ProductCWSCustom is the cloud workload security product managed by datadog customers
 	ProductCWSCustom = "CWS_CUSTOM"
-	// ProductCWSProfile is the cloud workload security profile product
+	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
 	ProductASMFeatures = "ASM_FEATURES"

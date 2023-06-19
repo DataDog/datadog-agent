@@ -107,7 +107,7 @@ func (tx *EbpfHttp2Tx) RequestStarted() uint64 {
 }
 
 func (tx *EbpfHttp2Tx) SetRequestMethod(m Method) {
-	tx.Request_method = uint8(m)
+	tx.Request_method = uint32(m)
 }
 
 func (tx *EbpfHttp2Tx) StaticTags() uint64 {
