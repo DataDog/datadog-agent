@@ -62,8 +62,6 @@ func (rb *RingBuffer) handleEvent(CPU int, data []byte, ringBuffer *manager.Ring
 	rb.currentHandler.Load().cb(CPU, data)
 }
 
-func (rb *RingBuffer) trashEvent(CPU int, data []byte) {}
-
 // Pause the event stream. New events will be lost.
 func (rb *RingBuffer) Pause() error {
 	rb.currentHandler.Store(&rb.discardHandler)
