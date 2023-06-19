@@ -136,7 +136,7 @@ kernel_matrix_testing_setup_env:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
-    SUBNETS: "subnet-071213aedb0e1ae54,subnet-03061a1647c63c3c3"
+    SUBNETS: "subnet-03061a1647c63c3c3,subnet-071213aedb0e1ae54"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
@@ -185,7 +185,7 @@ kernel_matrix_testing_upload_deps:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
-    SUBNETS: "subnet-071213aedb0e1ae54,subnet-03061a1647c63c3c3"
+    SUBNETS: "subnet-03061a1647c63c3c3,subnet-071213aedb0e1ae54"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
