@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-	ec2vm "github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2VM"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +19,7 @@ type vmSuiteEx1 struct {
 }
 
 func TestVMSuiteEx1(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx1{}, e2e.EC2VMStackDef(ec2vm.WithOS(os.UbuntuOS)))
+	e2e.Run(t, &vmSuiteEx1{}, e2e.EC2VMStackDef(ec2params.WithOS(ec2os.UbuntuOS)))
 }
 
 func (v *vmSuiteEx1) TestItIsUbuntu() {

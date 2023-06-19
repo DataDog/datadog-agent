@@ -9,9 +9,10 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	ec2vm "github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2VM"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/os"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,8 +22,8 @@ type agentSuiteEx3 struct {
 
 func TestVAgentSuiteEx3(t *testing.T) {
 	e2e.Run(t, &agentSuiteEx3{}, e2e.AgentStackDef(
-		[]e2e.Ec2VMOption{ec2vm.WithOS(os.UbuntuOS)},
-		agent.WithAgentConfig("log_level: debug"),
+		[]ec2params.Option{ec2params.WithOS(ec2os.UbuntuOS)},
+		agentparams.WithAgentConfig("log_level: debug"),
 	))
 }
 

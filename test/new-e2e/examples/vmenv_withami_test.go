@@ -10,9 +10,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
-	compos "github.com/DataDog/test-infra-definitions/components/os"
-	ec2vm "github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2VM"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/os"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +22,7 @@ type vmSuiteEx2 struct {
 }
 
 func TestVMSuiteEx2(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx2{}, e2e.EC2VMStackDef(ec2vm.WithImageName("ami-05fab674de2157a80", compos.ARM64Arch, os.AmazonLinuxOS), ec2vm.WithInstanceType("c6g.medium")))
+	e2e.Run(t, &vmSuiteEx2{}, e2e.EC2VMStackDef(ec2params.WithImageName("ami-05fab674de2157a80", os.ARM64Arch, ec2os.AmazonLinuxOS), ec2params.WithInstanceType("c6g.medium")))
 }
 
 func (v *vmSuiteEx2) TestAmiMatch() {
