@@ -2,10 +2,18 @@
 Running E2E Tests with infra based on Pulumi
 """
 
+import getpass
 import json
 import shutil
+import os
+import os.path
+from pathlib import Path
+import subprocess
+import tempfile
+from typing import List
 
-from invoke import task
+from invoke.tasks import task
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from .flavor import AgentFlavor
@@ -95,3 +103,91 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
     if some_test_failed:
         # Exit if any of the modules failed
         raise Exit(code=1)
+
+
+@task
+def clean(_):
+    """
+    Clean any environment created with invoke tasks or e2e tests
+    """
+    if not _is_local_state(_get_pulumi_about()):
+        print("Cleanup supported for local state only, run `pulumi login --local` to switch to local state")
+        return
+
+    print("🧹 Clean up lock files")
+    lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
+
+    for entry in os.listdir(Path(lock_dir)):
+        subdir = os.path.join(lock_dir, entry)
+        for filename in os.listdir(Path(subdir)):
+            file_path = os.path.join(subdir, filename)
+            if os.path.isfile(file_path) and filename.endswith(".json"):
+                os.remove(file_path)
+                print(f"🗑️ Deleted lock: {file_path}")
+
+    print("🧹 Clean up stacks")
+    stacks = _get_existing_stacks()
+
+    for stack in stacks:
+        print(f"🗑️ Cleaning up stack {stack}")
+        _destroy_stack(stack)
+
+
+def _get_existing_stacks() -> List[str]:
+    # ensure we deal with local stacks
+    output = subprocess.check_output(["pulumi", "stack", "ls", "--all"], cwd=tempfile.gettempdir())
+    output = output.decode("utf-8")
+    lines = output.splitlines()
+    lines = lines[1:]  # skip headers
+    e2e_stacks: List[str] = []
+    stack_name_prefix = _get_stack_name_prefix()
+    for line in lines:
+        stack_name = line.split(" ")[0]
+        # skip stacks created out of e2e tests
+        if stack_name.startswith(stack_name_prefix):
+            e2e_stacks.append(stack_name)
+    return e2e_stacks
+
+
+def _get_stack_name_prefix() -> str:
+    user_name = f"{getpass.getuser()}-"
+    return user_name.replace(".", "-")  # EKS doesn't support '.'
+
+
+def _destroy_stack(stack_name: str):
+    subprocess.call(
+        [
+            "aws-vault",
+            "exec",
+            "sso-agent-sandbox-account-admin",
+            "--",
+            "pulumi",
+            "destroy",
+            "--remove",
+            "-s",
+            stack_name,
+        ]
+    )
+
+
+def _get_pulumi_about() -> str:
+    return subprocess.getoutput("pulumi about")
+
+
+def _is_local_state(pulumi_about: str) -> bool:
+    # check output contains
+    # Backend
+    # Name           xxxxxxxxxx
+    # URL            file://xxx
+    # User           xxxxx.xxxxx
+    # Organizations
+    about_groups = pulumi_about.split("\n\n")
+
+    for about_group in about_groups:
+        lines = about_group.splitlines()
+        if not lines[0].startswith("Backend"):
+            continue
+        url_lines = [x for x in lines[1:] if x.startswith("URL")]
+        if len(url_lines) > 0 and "file://" in url_lines[0]:
+            return True
+        return False
