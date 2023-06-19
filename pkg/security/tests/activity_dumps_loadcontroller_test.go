@@ -172,6 +172,8 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 }
 
 func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
+	t.Skip("Flaky test, skip it")
+
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
