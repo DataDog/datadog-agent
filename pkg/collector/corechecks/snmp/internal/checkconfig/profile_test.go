@@ -23,6 +23,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+func getMetricFromProfile(p profileDefinition, metricName string) *MetricsConfig {
+	for _, m := range p.Metrics {
+		if m.Symbol.Name == metricName {
+			return &m
+		}
+	}
+	return nil
+}
+
 func fixtureProfileDefinitionMap() profileConfigMap {
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
@@ -158,6 +167,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 					},
 				},
 			},
+			isUserProfile: true,
 		},
 		"another_profile": profileConfig{
 			Definition: profileDefinition{
@@ -170,6 +180,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 				},
 				Metadata: MetadataConfig{},
 			},
+			isUserProfile: true,
 		},
 	}
 }
@@ -183,9 +194,11 @@ func Test_getDefaultProfilesDefinitionFiles(t *testing.T) {
 	expectedProfileConfig := profileConfigMap{
 		"f5-big-ip": {
 			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "f5-big-ip.yaml"),
+			isUserProfile:  true,
 		},
 		"another_profile": {
 			DefinitionFile: filepath.Join(confdPath, "snmp.d", "profiles", "another_profile.yaml"),
+			isUserProfile:  true,
 		},
 	}
 
@@ -393,7 +406,8 @@ func Test_getMostSpecificOid(t *testing.T) {
 }
 
 func Test_resolveProfileDefinitionPath(t *testing.T) {
-	SetConfdPathAndCleanProfiles()
+	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
+	config.Datadog.Set("confd_path", defaultTestConfdPath)
 
 	absPath, _ := filepath.Abs(filepath.Join("tmp", "myfile.yaml"))
 	tests := []struct {
@@ -407,9 +421,19 @@ func Test_resolveProfileDefinitionPath(t *testing.T) {
 			expectedPath:       absPath,
 		},
 		{
-			name:               "relative path",
-			definitionFilePath: "myfile.yaml",
-			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "profiles", "myfile.yaml"),
+			name:               "relative path with default profile",
+			definitionFilePath: "p2.yaml",
+			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "default_profiles", "p2.yaml"),
+		},
+		{
+			name:               "relative path with user profile",
+			definitionFilePath: "p3.yaml",
+			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "profiles", "p3.yaml"),
+		},
+		{
+			name:               "relative path with user profile precedence",
+			definitionFilePath: "p1.yaml",
+			expectedPath:       filepath.Join(config.Datadog.Get("confd_path").(string), "snmp.d", "profiles", "p1.yaml"),
 		},
 	}
 	for _, tt := range tests {
@@ -431,14 +455,39 @@ func Test_loadDefaultProfiles(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%p", defaultProfiles), fmt.Sprintf("%p", defaultProfiles2))
 }
 
+func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
+	globalProfileConfigMap = nil
+	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
+	config.Datadog.Set("confd_path", defaultTestConfdPath)
+
+	defaultProfiles, err := loadDefaultProfiles()
+	assert.Nil(t, err)
+
+	assert.Len(t, defaultProfiles, 3)
+	assert.NotNil(t, defaultProfiles)
+
+	p1 := defaultProfiles["p1"].Definition // user p1 overrides datadog p1
+	p2 := defaultProfiles["p2"].Definition // datadog p2
+	p3 := defaultProfiles["p3"].Definition // user p3
+
+	assert.Equal(t, "p1_user", p1.Device.Vendor) // overrides datadog p1 profile
+	assert.NotNil(t, getMetricFromProfile(p1, "p1_metric_override"))
+
+	assert.Equal(t, "p2_datadog", p2.Device.Vendor)
+	assert.NotNil(t, getMetricFromProfile(p2, "p2_metric"))
+
+	assert.Equal(t, "p3_user", p3.Device.Vendor)
+	assert.NotNil(t, getMetricFromProfile(p3, "p3_metric"))
+}
+
 func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
 	invalidPath, _ := filepath.Abs(filepath.Join(".", "tmp", "invalidPath"))
 	config.Datadog.Set("confd_path", invalidPath)
 	globalProfileConfigMap = nil
 
 	defaultProfiles, err := loadDefaultProfiles()
-	assert.Contains(t, err.Error(), "failed to get default profile definitions: failed to read dir")
-	assert.Nil(t, defaultProfiles)
+	assert.Nil(t, err)
+	assert.Len(t, defaultProfiles, 0)
 }
 
 func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
