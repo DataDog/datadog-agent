@@ -1201,7 +1201,7 @@ def build_object_files(
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
-        java_dir = os.path.join("pkg", "network", "java")
+        java_dir = os.path.join("pkg", "network", "protocols","tls","java")
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_JAVA_DIR}")
         ctx.run(f"{sudo} install -m644 -oroot -groot {java_dir}/agent-usm.jar {EMBEDDED_SHARE_JAVA_DIR}/agent-usm.jar")
 
