@@ -37,7 +37,6 @@ type Sender interface {
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
-	SetNoIndex(noIndex bool)
 	FinalizeCheckServiceTag()
 	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
 	OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string)
@@ -66,7 +65,6 @@ type checkSender struct {
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	service                 string
-	noIndex                 bool
 }
 
 // senderItem knows how the aggregator should handle it
@@ -202,10 +200,6 @@ func (s *checkSender) FinalizeCheckServiceTag() {
 	}
 }
 
-func (s *checkSender) SetNoIndex(noIndex bool) {
-	s.noIndex = noIndex
-}
-
 // Commit commits the metric samples & histogram buckets that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
@@ -254,7 +248,7 @@ func (s *checkSender) sendMetricSample(
 		SampleRate:      1,
 		Timestamp:       timeNowNano(),
 		FlushFirstValue: flushFirstValue,
-		NoIndex:         s.noIndex || noIndex,
+		NoIndex:         noIndex,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
