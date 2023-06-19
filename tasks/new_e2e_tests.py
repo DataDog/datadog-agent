@@ -139,18 +139,10 @@ def _get_existing_stacks() -> List[str]:
     lines = output.splitlines()
     lines = lines[1:]  # skip headers
     e2e_stacks: List[str] = []
-    stack_name_prefix = _get_stack_name_prefix()
     for line in lines:
         stack_name = line.split(" ")[0]
-        # skip stacks created out of e2e tests
-        if stack_name.startswith(stack_name_prefix):
-            e2e_stacks.append(stack_name)
+        e2e_stacks.append(stack_name)
     return e2e_stacks
-
-
-def _get_stack_name_prefix() -> str:
-    user_name = f"{getpass.getuser()}-"
-    return user_name.replace(".", "-")  # EKS doesn't support '.'
 
 
 def _destroy_stack(stack_name: str):
