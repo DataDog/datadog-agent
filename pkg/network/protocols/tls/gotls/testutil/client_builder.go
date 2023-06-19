@@ -31,7 +31,7 @@ func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) func() {
 }
 
 func buildGoTLSClientBin(t *testing.T) string {
-	const ClientSrcPath = "../testdata"
+	const ClientSrcPath = "gotls_client"
 	const ClientBinaryPath = "gotls_client/gotls_client"
 
 	t.Helper()
