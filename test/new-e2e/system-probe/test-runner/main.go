@@ -7,6 +7,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -25,10 +26,21 @@ func init() {
 	color.NoColor = false
 }
 
+type TestConfig struct {
+	retry           int
+	packages        []string
+	excludePackages []string
+}
+
 const (
 	Testsuite   = "testsuite"
 	TestDirRoot = "/opt/system-probe-tests"
 	GoTestSum   = "/go/bin/gotestsum"
+
+	CIVisibility = "ci-visibility"
+	XMLDir       = "junit-%d"
+	JSONDir      = "pkgjson-%d"
+	JSONOutDir   = "testjson-%d"
 )
 
 var BaseEnv = map[string]interface{}{
@@ -154,32 +166,67 @@ func concatenateJsons(indir, outdir string) error {
 	return nil
 }
 
-func testPass() error {
-	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
-		return true
-	})
-	if err != nil {
-		return fmt.Errorf("test glob: %s", err)
+func getCIVisibilityDir(dir string, attempt int) string {
+	return filepath.Join("/", CIVisibility, fmt.Sprintf(dir, attempt))
+}
+
+func buildCIVisibilityDirs(attempt int) error {
+	dirs := []string{
+		getCIVisibilityDir(XMLDir, attempt),
+		getCIVisibilityDir(JSONDir, attempt),
+		getCIVisibilityDir(JSONOutDir, attempt),
 	}
 
-	xmlPath := "/junit"
-	jsonPath := "/pkgjson"
-	jsonOutPath := "/testjson"
-
-	dirs := []string{xmlPath, jsonPath, jsonOutPath}
 	for _, d := range dirs {
 		if err := os.RemoveAll(d); err != nil {
 			return fmt.Errorf("failed to remove contents of %s: %w", d, err)
 		}
-		if _, err := os.Stat(d); errors.Is(err, os.ErrNotExist) {
-			if err := os.MkdirAll(d, 0777); err != nil {
-				return fmt.Errorf("failed to create directory %s", d)
-			}
+		if err := os.MkdirAll(d, 0777); err != nil {
+			return fmt.Errorf("failed to create directory %s", d)
 		}
 	}
 
+	return nil
+}
+
+func testPass(testConfig *TestConfig, attempt int) (bool, error) {
+	var retry bool
+
+	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
+		dir := filepath.Dir(path)
+		if len(testConfig.excludePackages) != 0 {
+			for _, p := range testConfig.excludePackages {
+				if dir == p {
+					return false
+				}
+			}
+		}
+		if len(testConfig.packages) != 0 {
+			for _, p := range testConfig.packages {
+				if dir == p {
+					return true
+				}
+			}
+
+			return false
+		}
+
+		return true
+	})
+	if err != nil {
+		return false, fmt.Errorf("test glob: %s", err)
+	}
+
+	if err := buildCIVisibilityDirs(attempt); err != nil {
+		return false, err
+	}
+
 	for _, file := range matches {
-		args := buildCommandArgs(xmlPath, jsonPath, file)
+		args := buildCommandArgs(
+			getCIVisibilityDir(XMLDir, attempt),
+			getCIVisibilityDir(JSONDir, attempt),
+			file,
+		)
 		cmd := exec.Command(GoTestSum, args...)
 
 		cmd.Env = append(cmd.Environ(), mergeEnv(BaseEnv)...)
@@ -189,14 +236,18 @@ func testPass() error {
 
 		if err := cmd.Run(); err != nil {
 			// log but do not return error
+			retry = true
 			fmt.Fprintf(os.Stderr, "cmd run %s: %s", file, err)
 		}
 	}
 
-	if err := concatenateJsons(jsonPath, jsonOutPath); err != nil {
-		return fmt.Errorf("concat json: %s", err)
+	if err := concatenateJsons(
+		getCIVisibilityDir(JSONDir, attempt),
+		getCIVisibilityDir(JSONOutDir, attempt),
+	); err != nil {
+		return false, fmt.Errorf("concat json: %s", err)
 	}
-	return nil
+	return retry, nil
 }
 
 func fixAssetPermissions() error {
@@ -223,8 +274,34 @@ func main() {
 	}
 }
 
+func parseTestConfiguration() *TestConfig {
+	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
+	packagesPtr := flag.String("packages", "", "Comma seperated list of packages to test")
+	excludePackagesPtr := flag.String("exclude-packages", "", "Comma seperated list of packages to exclude")
+
+	flag.Parse()
+
+	packagesLs := strings.Split(*packagesPtr, ",")
+	excludeLs := strings.Split(*excludePackagesPtr, ",")
+
+	return &TestConfig{
+		retry:           *retryPtr,
+		packages:        packagesLs,
+		excludePackages: excludeLs,
+	}
+}
+
+func printHeader(str string) {
+	greenString := color.New(FgGreen, color.Bold).Add(color.Underline)
+	greenString.Println(str)
+}
+
 func run() error {
+	var err error
 	var uname unix.Utsname
+
+	testConfig := parseTestConfiguration()
+
 	if err := unix.Uname(&uname); err != nil {
 		return fmt.Errorf("error calling uname: %w", err)
 	}
@@ -232,5 +309,23 @@ func run() error {
 	if err := fixAssetPermissions(); err != nil {
 		return err
 	}
-	return testPass()
+
+	if err := os.RemoveAll(CIVisibility); err != nil {
+		return fmt.Errorf("failed to remove contents of %s: %w", CIVisibility, err)
+	}
+	if _, err := os.Stat(CIVisibility); errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(CIVisibility, 0777); err != nil {
+			return fmt.Errorf("failed to create directory %s", CIVisibility)
+		}
+	}
+
+	for i := 1; i <= testConfig.retry; i++ {
+		printHeader(fmt.Sprintf("Test pass attempt %d", i))
+		retry, err := testPass(testConfig, i)
+		if !retry || err != nil {
+			break
+		}
+	}
+
+	return err
 }
