@@ -234,7 +234,6 @@ func (pbm *EventStreamMonitor) getKernelLostCount(eventType model.EventType, per
 // return the sum of all the lost events of all the cpus.
 func (pbm *EventStreamMonitor) GetKernelLostCount(perfMap string, cpu int, evtTypes ...model.EventType) uint64 {
 	var total uint64
-	var shouldCount bool
 
 	// query the kernel maps
 	_ = pbm.collectAndSendKernelStats(&statsd.NoOpClient{})
@@ -242,14 +241,15 @@ func (pbm *EventStreamMonitor) GetKernelLostCount(perfMap string, cpu int, evtTy
 	for cpuID := range pbm.kernelStats[perfMap] {
 		if cpu == -1 || cpu == cpuID {
 			for kernelEvtType := range pbm.kernelStats[perfMap][cpuID] {
-				shouldCount = len(evtTypes) == 0
-				if !shouldCount {
-					for evtType := range evtTypes {
-						if evtType == kernelEvtType {
-							shouldCount = true
-						}
+				var shouldCount bool
+
+				for evtType := range evtTypes {
+					if evtType == kernelEvtType || evtType == model.MaxAllEventType {
+						shouldCount = true
+						break
 					}
 				}
+
 				if shouldCount {
 					total += pbm.getKernelLostCount(model.EventType(kernelEvtType), perfMap, cpuID)
 				}
