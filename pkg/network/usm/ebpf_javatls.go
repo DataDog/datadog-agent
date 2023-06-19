@@ -10,6 +10,7 @@ package usm
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -23,7 +24,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/java"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"

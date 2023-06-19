@@ -1,6 +1,0 @@
-version: '3'
-services:
-  gohttpbin:
-    image: public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https
-    ports:
-      - ${HTTPS_PORT:-8443}:8080
