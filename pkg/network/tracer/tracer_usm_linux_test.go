@@ -707,7 +707,7 @@ func (s *USMSuite) TestJavaInjection() {
 	defaultCfg := cfg
 
 	dir, _ := testutil.CurDir()
-	testdataDir := filepath.Join(dir, "../java/testdata")
+	testdataDir := filepath.Join(dir, "../protocols/tls/java/testdata")
 	legacyJavaDir := cfg.JavaDir
 	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
 	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
