@@ -41,7 +41,7 @@ func (vmClient *vmClient) ExecuteWithError(command string) (string, error) {
 	return output, nil
 }
 
-// Execute execute a command and asserts there is no error.
+// Execute executes a command and returns its output.
 func (vmClient *vmClient) Execute(command string) string {
 	output, _ := vmClient.ExecuteWithError(command)
 	return output
