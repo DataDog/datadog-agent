@@ -18,8 +18,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	crd "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 )
@@ -50,7 +52,9 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	var wg sync.WaitGroup
 
 	client := fake.NewSimpleClientset()
-	cl := &apiserver.APIClient{Cl: client}
+	vpaClient := vpa.NewSimpleClientset()
+	crdClient := crd.NewSimpleClientset()
+	cl := &apiserver.APIClient{Cl: client, VPAClient: vpaClient, CRDClient: crdClient}
 	orchCheck := OrchestratorFactory().(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
