@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -437,7 +438,7 @@ func (s *HTTPTestSuite) TestUnknownMethodRegression() {
 
 			time.Sleep(10 * time.Millisecond)
 			stats := getHttpStats(t, monitor)
-			hits1XX, dropped, rejected, malformed := monitor.enabledProtocols[protocols.HTTP].InternalCounters()
+			tel := telemetry.ReportPayloadTelemetry("1")
 			requestsSum := 0
 			for key := range stats {
 				if key.Method == http.MethodUnknown {
@@ -451,11 +452,11 @@ func (s *HTTPTestSuite) TestUnknownMethodRegression() {
 				}
 			}
 
-			require.Equal(t, int64(0), dropped)
-			require.Equal(t, int64(0), rejected)
-			require.Equal(t, int64(0), malformed)
+			require.Equal(t, int64(0), tel["usm.http.dropped"])
+			require.Equal(t, int64(0), tel["usm.http.rejected"])
+			require.Equal(t, int64(0), tel["usm.http.malformed"])
 			// requestGenerator() doesn't query 100 responses
-			require.Equal(t, int64(0), hits1XX)
+			require.Equal(t, int64(0), tel["usm.http.hits1XX"])
 
 			require.Equal(t, int(100), requestsSum)
 		})

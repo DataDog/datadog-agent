@@ -188,8 +188,3 @@ func (p *httpProtocol) GetStats() *protocols.ProtocolStats {
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
 }
-
-// InternalCounters for testing purpose only
-func (p *httpProtocol) InternalCounters() (hits1XX int64, dropped int64, rejected int64, malformed int64) {
-	return p.telemetry.internalCounters()
-}
