@@ -33,7 +33,7 @@ pull_test_dockers_arm64:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   rules:
-    !reference [.manual]
+    !reference [ .on_system_probe_changes_or_manual ]
   tags: ["runner:main"]
   script:
     # Build dependencies directory
@@ -114,7 +114,7 @@ kernel_matrix_testing_setup_env:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
   rules:
-    !reference [.manual]
+    !reference [ .on_system_probe_changes_or_manual ]
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
   needs: ["go_deps", "go_tools_deps"]
