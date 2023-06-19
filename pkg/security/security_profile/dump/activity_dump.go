@@ -308,9 +308,11 @@ func (ad *ActivityDump) SetTimeout(timeout time.Duration) {
 func (ad *ActivityDump) updateTracedPid(pid uint32) {
 	// start by looking up any existing entry
 	var cookie uint32
-	_ = ad.adm.tracedPIDsMap.Lookup(pid, &cookie)
-	if cookie != ad.LoadConfigCookie {
-		_ = ad.adm.tracedPIDsMap.Put(pid, ad.LoadConfigCookie)
+	if ad.adm != nil { // it could be nil when running unit tests
+		_ = ad.adm.tracedPIDsMap.Lookup(pid, &cookie)
+		if cookie != ad.LoadConfigCookie {
+			_ = ad.adm.tracedPIDsMap.Put(pid, ad.LoadConfigCookie)
+		}
 	}
 }
 
