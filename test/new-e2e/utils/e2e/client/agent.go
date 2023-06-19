@@ -46,10 +46,7 @@ func (agent *Agent) GetCommand(parameters string) string {
 }
 
 func (agent *Agent) executeCommand(command string, commandArgs ...AgentArgsOption) string {
-	args, err := newAgentArgs(commandArgs...)
-	if err != nil {
-		return ""
-	}
+	args := newAgentArgs(commandArgs...)
 	return agent.vmClient.Execute(agent.GetCommand(command) + " " + args.Args)
 }
 

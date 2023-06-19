@@ -5,25 +5,25 @@
 
 package client
 
-import "github.com/DataDog/test-infra-definitions/common"
-
 // agentArgs contains the arguments for the Agent commands.
 // Its value is populated using the functional options pattern.
 type agentArgs struct {
 	Args string
 }
 
-type AgentArgsOption = func(*agentArgs) error
+type AgentArgsOption = func(*agentArgs)
 
 // WithArgs sets the Agent arguments
 func WithArgs(args string) AgentArgsOption {
-	return func(a *agentArgs) error {
+	return func(a *agentArgs) {
 		a.Args = args
-		return nil
 	}
 }
 
-func newAgentArgs(commandArgs ...AgentArgsOption) (*agentArgs, error) {
+func newAgentArgs(commandArgs ...AgentArgsOption) *agentArgs {
 	args := &agentArgs{}
-	return common.ApplyOption(args, commandArgs)
+	for _, argsFunc := range commandArgs {
+		argsFunc(args)
+	}
+	return args
 }
