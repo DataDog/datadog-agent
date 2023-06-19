@@ -29,6 +29,8 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 		return parseConfigASMDD(raw, metadata)
 	case ProductASMData:
 		return parseConfigASMData(raw, metadata)
+	// case ProductAgentTask:
+	// 	return ParseConfigAgentTask(raw, metadata)
 	// Other products are parsed separately
 	default:
 		return RawConfig{
@@ -44,7 +46,7 @@ type RawConfig struct {
 	Metadata Metadata
 }
 
-// GetRawConfigs returns the current configs of a given product
+// GetConfigs returns the current configs of a given product
 func (r *Repository) GetConfigs(product string) map[string]RawConfig {
 	typedConfigs := make(map[string]RawConfig)
 	configs := r.getConfigs(product)

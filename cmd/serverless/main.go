@@ -134,6 +134,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	// immediately starts the communication server
 	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
+	serverlessDaemon.ExecutionContext.SetInitializationTime(startTime)
 	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
 	if err != nil {
 		log.Debug("Unable to restore the state from file")
@@ -212,12 +213,12 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	logChannel := make(chan *logConfig.ChannelMessage)
 	// Channels for ColdStartCreator
 	lambdaSpanChan := make(chan *pb.Span)
-	initDurationChan := make(chan float64)
+	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
 	coldStartSpanId := random.Random.Uint64()
 	metricAgent := &metrics.ServerlessMetricAgent{}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), initDurationChan)
+	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), lambdaInitMetricChan)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
@@ -296,11 +297,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	wg.Wait()
 
 	coldStartSpanCreator := &trace.ColdStartSpanCreator{
-		LambdaSpanChan:   lambdaSpanChan,
-		InitDurationChan: initDurationChan,
-		TraceAgent:       serverlessDaemon.TraceAgent,
-		StopChan:         make(chan struct{}),
-		ColdStartSpanId:  coldStartSpanId,
+		LambdaSpanChan:       lambdaSpanChan,
+		LambdaInitMetricChan: lambdaInitMetricChan,
+		TraceAgent:           serverlessDaemon.TraceAgent,
+		StopChan:             make(chan struct{}),
+		ColdStartSpanId:      coldStartSpanId,
 	}
 
 	log.Debug("Starting ColdStartSpanCreator")

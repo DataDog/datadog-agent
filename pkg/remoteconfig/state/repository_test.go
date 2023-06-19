@@ -210,6 +210,66 @@ func TestUpdateNewConfig(t *testing.T) {
 	assertHashesEqual(t, hashes, cached.Hashes)
 }
 
+func TestUpdateEmpty(t *testing.T) {
+	ta := newTestArtifacts()
+
+	file := newCWSDDFile()
+	path, _, data := addCWSDDFile("test", 1, file, ta.targets)
+	b := signTargets(ta.key, ta.targets)
+
+	update := Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    b,
+		TargetFiles:   map[string][]byte{path: data},
+		ClientConfigs: []string{path},
+	}
+	_, err := ta.repository.Update(update)
+	assert.Nil(t, err)
+	_, err = ta.unverifiedRepository.Update(update)
+	assert.Nil(t, err)
+
+	// We test this exact update in another test, so we'll just carry on here.
+
+	ta.targets.Version = 2
+	b = signTargets(ta.key, ta.targets)
+	emptyUpdate := Update{
+		TUFRoots:      make([][]byte, 0),
+		TUFTargets:    b,
+		TargetFiles:   make(map[string][]byte),
+		ClientConfigs: []string{path},
+	}
+	r := ta.repository
+	updatedProducts, err := r.Update(emptyUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(updatedProducts))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
+
+	state, err := r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(state.Configs))
+	assert.Equal(t, 1, len(state.CachedFiles))
+	assert.EqualValues(t, 2, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+
+	// Do the same with the unverified repository, it should be functionally identical
+	r = ta.unverifiedRepository
+	updatedProducts, err = r.Update(emptyUpdate)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(updatedProducts))
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
+	assert.Equal(t, 1, len(r.GetConfigs(ProductCWSDD)))
+
+	state, err = r.CurrentState()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(state.Configs))
+	assert.Equal(t, 1, len(state.CachedFiles))
+	assert.EqualValues(t, 2, state.TargetsVersion)
+	assert.EqualValues(t, 1, state.RootsVersion)
+	assert.Equal(t, testOpaqueBackendStateContents, state.OpaqueBackendState)
+}
+
 func TestUpdateNewConfigThenRemove(t *testing.T) {
 	ta := newTestArtifacts()
 
@@ -245,7 +305,7 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 	r := ta.repository
 	updatedProducts, err := r.Update(removalUpdate)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(updatedProducts))
+	assert.Equal(t, 1, len(updatedProducts))
 	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
 	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)))
 
@@ -261,7 +321,7 @@ func TestUpdateNewConfigThenRemove(t *testing.T) {
 	r = ta.unverifiedRepository
 	updatedProducts, err = r.Update(removalUpdate)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(updatedProducts))
+	assert.Equal(t, 1, len(updatedProducts))
 	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)))
 	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)))
 

@@ -14,10 +14,6 @@ unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) 
     return ino;
 }
 
-void __attribute__((always_inline)) write_inode_ino(struct inode *inode, u64 *ino) {
-    bpf_probe_read(ino, sizeof(inode), &inode->i_ino);
-}
-
 dev_t __attribute__((always_inline)) get_inode_dev(struct inode *inode) {
     dev_t dev;
     struct super_block *sb;
@@ -32,6 +28,12 @@ dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
     bpf_probe_read(&sb, sizeof(sb), &dentry->d_sb);
     bpf_probe_read(&dev, sizeof(dev), &sb->s_dev);
     return dev;
+}
+
+u64 __attribute__((always_inline)) security_have_usernamespace_first_arg(void) {
+    u64 flag;
+    LOAD_CONSTANT("has_usernamespace_first_arg", flag);
+    return flag;
 }
 
 u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
@@ -76,14 +78,6 @@ int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
 
     // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id));
     bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id());
-    return mount_id;
-}
-
-int __attribute__((always_inline)) get_mount_peer_group_id(void *mnt) {
-    int mount_id;
-
-    // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_group_id));
-    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id() + 4);
     return mount_id;
 }
 
@@ -156,10 +150,6 @@ unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentr
     return get_inode_ino(get_dentry_inode(dentry));
 }
 
-void __attribute__((always_inline)) write_dentry_inode(struct dentry *dentry, struct inode **d_inode) {
-    bpf_probe_read(d_inode, sizeof(d_inode), &dentry->d_inode);
-}
-
 struct dentry* __attribute__((always_inline)) get_file_dentry(struct file *file) {
     struct dentry *file_dentry;
     bpf_probe_read(&file_dentry, sizeof(file_dentry), &file->f_path.dentry);
@@ -195,6 +185,12 @@ int __attribute__((always_inline)) get_sizeof_inode() {
     return sizeof_inode;
 }
 
+u64 __attribute__((always_inline)) get_ovl_path_in_inode() {
+    u64 ovl_path_in_ovl_inode;
+    LOAD_CONSTANT("ovl_path_in_ovl_inode", ovl_path_in_ovl_inode);
+    return ovl_path_in_ovl_inode;
+}
+
 int __attribute__((always_inline)) get_sb_magic_offset() {
     u64 offset;
     LOAD_CONSTANT("sb_magic_offset", offset);
@@ -220,7 +216,7 @@ static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     return get_sb_magic(sb) == OVERLAYFS_SUPER_MAGIC;
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
+int __attribute__((always_inline)) get_ovl_lower_ino_old(struct dentry *dentry) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
 
@@ -229,6 +225,17 @@ int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
     bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 8);
 
     return get_inode_ino(lower);
+}
+
+int __attribute__((always_inline)) get_ovl_lower_ino_new(struct dentry *dentry) {
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+
+    // escape from the embedded vfs_inode to reach ovl_inode
+    struct dentry *lower;
+    bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 16);
+
+    return get_dentry_ino(lower);
 }
 
 int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
@@ -243,7 +250,7 @@ int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
 }
 
 void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *flags) {
-    u64 lower_inode = get_ovl_lower_ino(dentry);
+    u64 lower_inode = get_ovl_path_in_inode() ? get_ovl_lower_ino_new(dentry) : get_ovl_lower_ino_old(dentry);
     u64 upper_inode = get_ovl_upper_ino(dentry);
 
 #ifdef DEBUG

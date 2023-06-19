@@ -83,8 +83,9 @@ type PerfBufferMonitor struct {
 
 	// lastTimestamp is used to track the timestamp of the last event retrieved from the perf map
 	lastTimestamp uint64
-	// shouldBumpGeneration is used to track if the dentry cache generations should be bumped
-	shouldBumpGeneration *atomic.Bool
+
+	// call that can be used to get notify when events are lost
+	onEventLost func(perfMapName string, perEvent map[string]uint64)
 }
 
 type ringBufferStatMap struct {
@@ -98,7 +99,7 @@ type perfBufferStatMap struct {
 }
 
 // NewPerfBufferMonitor instantiates a new event statistics counter
-func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
+func NewPerfBufferMonitor(p *Probe, onEventLost func(perfMapName string, perEvent map[string]uint64)) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
 		config:              p.Config.Probe,
@@ -114,7 +115,7 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 		readLostEvents:    make(map[string][]*atomic.Uint64),
 		sortingErrorStats: make(map[string][model.MaxKernelEventType]*atomic.Int64),
 
-		shouldBumpGeneration: atomic.NewBool(false),
+		onEventLost: onEventLost,
 	}
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -383,7 +384,6 @@ func (pbm *PerfBufferMonitor) CountEvent(eventType model.EventType, timestamp ui
 	// check event order
 	if timestamp < pbm.lastTimestamp && pbm.lastTimestamp != 0 {
 		pbm.sortingErrorStats[mapName][eventType].Inc()
-		pbm.shouldBumpGeneration.Store(true)
 	} else {
 		pbm.lastTimestamp = timestamp
 	}
@@ -529,11 +529,6 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 				}
 				if tmpCount = pbm.swapKernelLostCount(evtType, perfMapName, cpu, stats.Lost.Load()); tmpCount <= stats.Lost.Load() {
 					stats.Lost.Sub(tmpCount)
-
-					// purge dentry resolver generation if needed
-					if evtType == model.FileRenameEventType || evtType == model.FileUnlinkEventType || evtType == model.FileRmdirEventType {
-						pbm.shouldBumpGeneration.Store(true)
-					}
 				}
 
 				if err := pbm.sendKernelStats(client, stats, tags); err != nil {
@@ -563,13 +558,8 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 
 		// send an alert if events were lost
 		if total > 0 {
-			pbm.probe.DispatchCustomEvent(
-				NewEventLostWriteEvent(perfMapName, perEvent),
-			)
-
-			// snapshot traced cgroups if a CgroupTracing event was lost
-			if pbm.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
-				pbm.probe.monitor.activityDumpManager.SnapshotTracedCgroups()
+			if pbm.onEventLost != nil {
+				pbm.onEventLost(perfMapName, perEvent)
 			}
 		}
 	}
@@ -602,10 +592,6 @@ func (pbm *PerfBufferMonitor) sendKernelStats(client statsd.ClientInterface, sta
 func (pbm *PerfBufferMonitor) SendStats() error {
 	if err := pbm.collectAndSendKernelStats(pbm.statsdClient); err != nil {
 		return err
-	}
-
-	if pbm.shouldBumpGeneration.Swap(false) {
-		pbm.probe.resolvers.DentryResolver.BumpCacheGenerations()
 	}
 
 	if err := pbm.sendEventsAndBytesReadStats(pbm.statsdClient); err != nil {
