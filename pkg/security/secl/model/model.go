@@ -856,13 +856,15 @@ const (
 	ProcessCacheEntryFromEvent
 	ProcessCacheEntryFromKernelMap
 	ProcessCacheEntryFromProcFS
+	ProcessCacheEntryFromSnapshot
 )
 
 var ProcessSources = [...]string{
 	"unknown",
 	"event",
 	"map",
-	"procfs",
+	"procfs_fallback",
+	"procfs_snapshot",
 }
 
 func ProcessSourceToString(source uint64) string {

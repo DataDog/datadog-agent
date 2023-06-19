@@ -311,7 +311,7 @@ func (p *Probe) PlaySnapshot() {
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		if entry.Source != model.ProcessCacheEntryFromProcFS {
+		if entry.Source != model.ProcessCacheEntryFromSnapshot {
 			return
 		}
 		entry.Retain()
