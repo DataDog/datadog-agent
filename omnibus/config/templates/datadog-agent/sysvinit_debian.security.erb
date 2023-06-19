@@ -24,12 +24,12 @@ DESC="Datadog Security Agent"
 
 
 if [ ! -x $AGENTPATH ]; then
-	echo "$AGENTPATH not found. Exiting $NAME"
+	echo "$AGENTPATH not found or not executable. Exiting $NAME"
 	exit 0
 fi
 
-if [ ! -x $SECURITY_AGENT_CONFIG_FILE ]; then
-	echo "$SECURITY_AGENT_CONFIG_FILE not found. Exiting $NAME"
+if [ ! -r $SECURITY_AGENT_CONFIG_FILE ]; then
+	echo "$SECURITY_AGENT_CONFIG_FILE not found or not readable. Exiting $NAME"
 	exit 0
 fi
 
