@@ -63,7 +63,7 @@ def revert_resources(ctx):
 
 @task
 def launch_stack(
-    ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0584a00dd384af6ab", arm_ami="ami-0b7cd13521845570c"
+    ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0cc23e8eda1a8fcfa", arm_ami="ami-0b7cd13521845570c"
 ):
     stacks.launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami)
 
