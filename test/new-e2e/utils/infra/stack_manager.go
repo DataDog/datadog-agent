@@ -119,13 +119,10 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 }
 
 func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
-	var stack *auto.Stack
-	var ok bool
-
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
 
-	stack, ok = sm.stacks[name]
+	stack, ok := sm.stacks[name]
 	if !ok {
 		// Build configuration from profile
 		profile := runner.GetProfile()
