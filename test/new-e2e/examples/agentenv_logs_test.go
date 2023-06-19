@@ -21,7 +21,6 @@ import (
 	ec2vm "github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2VM"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,59 +28,7 @@ type vmFakeintakeSuite struct {
 	e2e.Suite[e2e.AgentEnv]
 }
 
-func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, e2e.AgentStackDef(nil))
-}
-
-func (s *vmFakeintakeSuite) TestVM() {
-	output := s.Env().VM.Execute("ls")
-	require.NotEmpty(s.T(), output)
-}
-
-func (s *vmFakeintakeSuite) TestAgent() {
-	err := s.Env().Agent.WaitForReady()
-	require.NoError(s.T(), err)
-	output := s.Env().Agent.Status()
-	require.Contains(s.T(), output.Content, "Getting the status from the agent")
-	isReady, err := s.Env().Agent.IsReady()
-	require.NoError(s.T(), err)
-	assert.True(s.T(), isReady, "Agent is not ready")
-}
-
-func (s *vmFakeintakeSuite) TestMetrics() {
-	t := s.T()
-	err := backoff.Retry(func() error {
-		metrics, err := s.Env().Fakeintake.Client.FilterMetrics("system.uptime")
-		if err != nil {
-			return err
-		}
-		if len(metrics) == 0 {
-			return errors.New("No metrics yet")
-		}
-		if metrics[len(metrics)-1].Points[len(metrics[len(metrics)-1].Points)-1].Value == 0 {
-			return errors.New("")
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	require.NoError(t, err)
-}
-
-func (s *vmFakeintakeSuite) TestCheckRuns() {
-	t := s.T()
-	err := backoff.Retry(func() error {
-		checkRuns, err := s.Env().Fakeintake.Client.GetCheckRun("datadog.agent.up")
-		if err != nil {
-			return err
-		}
-		if len(checkRuns) == 0 {
-			return errors.New("No check run yet")
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	require.NoError(t, err)
-}
-
-func LogsExampleStackDef(vmParams []e2e.Ec2VMOption, agentParams ...func(*agent.Params) error) *e2e.StackDefinition[e2e.AgentEnv] {
+func logsExampleStackDef(vmParams []e2e.Ec2VMOption, agentParams ...func(*agent.Params) error) *e2e.StackDefinition[e2e.AgentEnv] {
 	return e2e.EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*e2e.AgentEnv, error) {
 			vm, err := ec2vm.NewEc2VM(ctx, vmParams...)
@@ -115,10 +62,14 @@ func LogsExampleStackDef(vmParams []e2e.Ec2VMOption, agentParams ...func(*agent.
 	)
 }
 
+func TestE2EVMFakeintakeSuite(t *testing.T) {
+	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(nil))
+}
+
 func (s *vmFakeintakeSuite) TestLogs() {
-	s.UpdateEnv(LogsExampleStackDef(nil))
 	t := s.T()
 	fakeintake := s.Env().Fakeintake
+	// part 1: no logs
 	err := backoff.Retry(func() error {
 		logs, err := fakeintake.FilterLogs("custom_logs")
 		if err != nil {
@@ -129,9 +80,11 @@ func (s *vmFakeintakeSuite) TestLogs() {
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+	// part 2: generate logs
 	require.NoError(t, err)
 	_, err = s.Env().VM.ExecuteWithError("echo 'totoro' > /tmp/test.log")
 	require.NoError(t, err)
+	// part 3: there should be logs
 	err = backoff.Retry(func() error {
 		names, err := fakeintake.GetLogServiceNames()
 		if err != nil {
