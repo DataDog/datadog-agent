@@ -175,6 +175,7 @@ def should_rerun_failed(_, runlog):
     with open(runlog, 'r', encoding='utf-8') as f:
         text = f.read()
         result = set(test_result_re.findall(text))
+        print("result: ", result)
         if result == {'0'} or result == set():
             print("Seeing no failed tests in log, advising to rerun")
         else:
