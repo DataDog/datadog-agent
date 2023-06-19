@@ -134,7 +134,7 @@ func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 				continue
 			}
 
-			err = recursivelyExpandBaseProfiles(profDefinition, profDefinition.Extends, []string{})
+			err = recursivelyExpandBaseProfiles(profConfig.DefinitionFile, profDefinition, profDefinition.Extends, []string{})
 			if err != nil {
 				log.Warnf("failed to expand profile `%s`: %s", name, err)
 				continue
@@ -184,22 +184,28 @@ func getProfileConfdRoot(profileFolderName string) string {
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []string, extendsHistory []string) error {
-	for _, basePath := range extends {
+func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinition, extends []string, extendsHistory []string) error {
+	parentBasePath := filepath.Base(parentPath)
+	for _, extendEntry := range extends {
+		// User profile can extend default profile by extending the default profile.
+		// If the extend entry has the same name as the profile name, we assume the extend entry is referring to a default profile.
+		if extendEntry == parentBasePath {
+			extendEntry = filepath.Join(getProfileConfdRoot(defaultProfilesFolder), extendEntry)
+		}
 		for _, extend := range extendsHistory {
-			if extend == basePath {
-				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", basePath, extendsHistory)
+			if extend == extendEntry {
+				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", extendEntry, extendsHistory)
 			}
 		}
-		baseDefinition, err := readProfileDefinition(basePath)
+		baseDefinition, err := readProfileDefinition(extendEntry)
 		if err != nil {
 			return err
 		}
 
 		mergeProfileDefinition(definition, baseDefinition)
 
-		newExtendsHistory := append(common.CopyStrings(extendsHistory), basePath)
-		err = recursivelyExpandBaseProfiles(definition, baseDefinition.Extends, newExtendsHistory)
+		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
+		err = recursivelyExpandBaseProfiles(extendEntry, definition, baseDefinition.Extends, newExtendsHistory)
 		if err != nil {
 			return err
 		}
