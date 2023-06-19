@@ -189,6 +189,14 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	return p
 }
 
+func (p *GoTLSProgram) Name() string {
+	return "go-tls"
+}
+
+func (p *GoTLSProgram) IsBuildModeSupported(mode buildMode) bool {
+	return mode == CORE || mode == RuntimeCompiled
+}
+
 func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
@@ -288,6 +296,7 @@ func (p *GoTLSProgram) Start() {
 }
 
 func (p *GoTLSProgram) Stop() {
+	close(p.done)
 	if p.procMonitor.cleanupExec != nil {
 		p.procMonitor.cleanupExec()
 	}
@@ -302,6 +311,9 @@ func (p *GoTLSProgram) Stop() {
 	for pid := range p.processes {
 		p.unregisterProcess(pid)
 	}
+
+	// Waiting for the main event loop to finish.
+	p.wg.Wait()
 }
 
 func (p *GoTLSProgram) handleProcessStart(pid pid) {

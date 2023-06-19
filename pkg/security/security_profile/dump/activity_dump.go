@@ -69,11 +69,11 @@ const (
 // easyjson:json
 type ActivityDump struct {
 	*sync.Mutex
-	state ActivityDumpStatus
-	adm   *ActivityDumpManager
+	state    ActivityDumpStatus
+	adm      *ActivityDumpManager
+	selector *cgroupModel.WorkloadSelector
 
 	countedByLimiter bool
-	selector         cgroupModel.WorkloadSelector
 
 	// standard attributes used by the intake
 	Host    string   `json:"host,omitempty"`
@@ -114,13 +114,13 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, wai
 }
 
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
-func NewEmptyActivityDump() *ActivityDump {
+func NewEmptyActivityDump(pathsReducer *activity_tree.PathsReducer) *ActivityDump {
 	ad := &ActivityDump{
 		Mutex:           &sync.Mutex{},
 		StorageRequests: make(map[config.StorageFormat][]config.StorageRequest),
 		DNSNames:        utils.NewStringKeys(nil),
 	}
-	ad.ActivityTree = activity_tree.NewActivityTree(ad, "activity_dump")
+	ad.ActivityTree = activity_tree.NewActivityTree(ad, pathsReducer, "activity_dump")
 	return ad
 }
 
@@ -129,7 +129,7 @@ type WithDumpOption func(ad *ActivityDump)
 
 // NewActivityDump returns a new instance of an ActivityDump
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
-	ad := NewEmptyActivityDump()
+	ad := NewEmptyActivityDump(adm.pathsReducer)
 	now := time.Now()
 	ad.Metadata = mtdt.Metadata{
 		AgentVersion:      version.AgentVersion,
@@ -179,7 +179,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		return nil, fmt.Errorf("couldn't parse timeout [%s]: %w", metadata.GetTimeout(), err)
 	}
 
-	ad := NewEmptyActivityDump()
+	ad := NewEmptyActivityDump(nil)
 	ad.Host = msg.GetHost()
 	ad.Service = msg.GetService()
 	ad.Source = msg.GetSource()
@@ -229,6 +229,19 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		))
 	}
 	return ad, nil
+}
+
+// GetWorkloadSelector returns the workload selector of the dump
+func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
+	if ad.selector != nil && ad.selector.IsReady() {
+		return ad.selector
+	}
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+	if err != nil {
+		return nil
+	}
+	ad.selector = &selector
+	return ad.selector
 }
 
 // SetState sets the status of the activity dump
@@ -816,7 +829,12 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
 
-	protoToActivityDump(ad, inter)
+	var pathsReducer *activity_tree.PathsReducer
+	if ad.adm != nil {
+		pathsReducer = ad.adm.pathsReducer
+	}
+
+	protoToActivityDump(ad, pathsReducer, inter)
 
 	return nil
 }
@@ -836,7 +854,12 @@ func (ad *ActivityDump) DecodeProfileProtobuf(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
 
-	securityProfileProtoToActivityDump(ad, inter)
+	var reducer *activity_tree.PathsReducer
+	if ad.adm != nil {
+		reducer = ad.adm.pathsReducer
+	}
+
+	securityProfileProtoToActivityDump(ad, reducer, inter)
 
 	return nil
 }
@@ -859,7 +882,7 @@ func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode json file: %w", err)
 	}
 
-	protoToActivityDump(ad, inter)
+	protoToActivityDump(ad, ad.adm.pathsReducer, inter)
 
 	return nil
 }

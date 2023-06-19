@@ -153,11 +153,13 @@ variables:
   DATADOG_AGENT_ARMBUILDIMAGES: v16742019-a2675dc
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v16742019-a2675dc
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v14597610-8d767dd
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v16742019-a2675dc
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v16742019-a2675dc
-  DATADOG_AGENT_BUILDERS: v9930706-ef9d493
+  DATADOG_AGENT_BUILDERS: v16852259-65c480c
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -180,6 +182,8 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-095b84c0ed1194f14"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0763e167a20ae71c8"
 
 #
 # Condition mixins for simplification of rules
@@ -851,6 +855,7 @@ workflow:
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*
       - .gitlab/functional_test/system_probe.yml
+      - .gitlab/kernel_version_testing/system_probe.yml
       - test/new-e2e/system-probe/**/*
       - test/new-e2e/scenarios/system-probe/**/*
     when: on_success

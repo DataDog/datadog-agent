@@ -103,7 +103,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/evanphx/json-patch v5.6.0+incompatible
-	github.com/fatih/color v1.13.0
+	github.com/fatih/color v1.15.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/go-delve/delve v1.20.1
@@ -134,7 +134,6 @@ require (
 	github.com/iceber/iouring-go v0.0.0-20220609112130-b1dc8dd9fbfd
 	github.com/imdario/mergo v0.3.15
 	github.com/invopop/jsonschema v0.7.0
-	github.com/iovisor/gobpf v0.2.0
 	github.com/itchyny/gojq v0.12.13
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
@@ -587,6 +586,7 @@ require (
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	gotest.tools/v3 v3.3.0 // indirect
 	inet.af/netaddr v0.0.0-20220617031823-097006376321 // indirect
 )
 
