@@ -1049,7 +1049,7 @@ func Test_getSubnetFromTags(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.0/30", subnet)
 
-	// make sure we don't panic if the subnet if empty
+	// make sure we don't panic if the subnet is empty
 	subnet, err = getSubnetFromTags([]string{"aa", "autodiscovery_subnet:", "bb"})
 	assert.NoError(t, err)
 	assert.Equal(t, "", subnet)
@@ -2018,4 +2018,49 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedTags, tt.config.GetStaticTags())
 		})
 	}
+}
+
+func TestDefaultProtocolConfigurations(t *testing.T) {
+	SetConfdPathAndCleanProfiles()
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+user: my-user
+ip_address: 1.2.3.4
+community_string: abc
+authKey: my-authKey
+privKey: my-privKey
+`)
+
+	config, err := NewCheckConfig(rawInstanceConfig, []byte(``))
+
+	assert.Nil(t, err)
+	assert.Equal(t, "md5", config.AuthProtocol)
+	assert.Equal(t, "des", config.PrivProtocol)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+user: my-user
+ip_address: 1.2.3.4
+community_string: abc
+authKey: my-authKey
+`)
+
+	config, err = NewCheckConfig(rawInstanceConfig, []byte(``))
+
+	assert.Nil(t, err)
+	assert.Equal(t, "md5", config.AuthProtocol)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+user: my-user
+ip_address: 1.2.3.4
+community_string: abc
+privKey: my-privKey
+`)
+
+	config, err = NewCheckConfig(rawInstanceConfig, []byte(``))
+
+	assert.Nil(t, err)
+	assert.Equal(t, "des", config.PrivProtocol)
 }
