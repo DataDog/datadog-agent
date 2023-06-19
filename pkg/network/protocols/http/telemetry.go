@@ -100,8 +100,8 @@ func (t *Telemetry) Log() {
 	)
 }
 
-// InternalCounters for testing purpose only
-func (t *Telemetry) InternalCounters() (hits1XX int64, dropped int64, rejected int64, malformed int64) {
+// internalCounters for testing purpose only
+func (t *Telemetry) internalCounters() (hits1XX int64, dropped int64, rejected int64, malformed int64) {
 	hits1XX = t.hits1XX.Get()
 	dropped = t.dropped.Get()
 	rejected = t.rejected.Get()

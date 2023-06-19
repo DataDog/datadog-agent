@@ -437,8 +437,7 @@ func (s *HTTPTestSuite) TestUnknownMethodRegression() {
 
 			time.Sleep(10 * time.Millisecond)
 			stats := getHttpStats(t, monitor)
-			hits1XX, dropped, rejected, malformed := monitor.httpTelemetry.InternalCounters()
-
+			hits1XX, dropped, rejected, malformed := stats.InternalCounters()
 			requestsSum := 0
 			for key := range stats {
 				if key.Method == http.MethodUnknown {
