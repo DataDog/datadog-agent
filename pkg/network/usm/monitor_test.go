@@ -436,7 +436,7 @@ func (s *HTTPTestSuite) TestUnknownMethodRegression() {
 				requestFn()
 			}
 
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(5 * time.Second)
 			stats := getHttpStats(t, monitor)
 			tel := telemetry.ReportPayloadTelemetry("1")
 			requestsSum := 0
