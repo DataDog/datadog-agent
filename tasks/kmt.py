@@ -10,6 +10,7 @@ from .kernel_matrix_testing.init_kmt import (
 )
 from .kernel_matrix_testing import vmconfig
 from .kernel_matrix_testing import stacks
+from .kernel_matrix_testing.tool import info, error, warn
 
 
 @task
@@ -32,9 +33,9 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
 
 @task
 def update_resources(ctx):
-    print("Updating resource dependencies will delete all running stacks.")
-    if input("are you sure you want to continue? (y/n)") != "y":
-        print("[-] Update aborted")
+    warn("Updating resource dependencies will delete all running stacks.")
+    if ask("are you sure you want to continue? (y/n)") != "y":
+        info("[-] Update aborted")
         return
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
@@ -46,9 +47,9 @@ def update_resources(ctx):
 
 @task
 def revert_resources(ctx):
-    print("Reverting resource dependencies will delete all running stacks.")
-    if input("are you sure you want to revert to backups? (y/n)") != "y":
-        print("[-] Revert aborted")
+    warn("Reverting resource dependencies will delete all running stacks.")
+    if ask("are you sure you want to revert to backups? (y/n)") != "y":
+        info("[-] Revert aborted")
         return
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
@@ -57,7 +58,7 @@ def revert_resources(ctx):
     revert_kernel_packages(ctx)
     revert_rootfs(ctx)
 
-    print("[+] Reverted successfully")
+    info("[+] Reverted successfully")
 
 
 @task

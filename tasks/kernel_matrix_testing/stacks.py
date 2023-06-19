@@ -1,7 +1,7 @@
 from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
 import json
 import os
-from invoke.exceptions import Exit
+from .tool import Exit, info, ask, warn, error
 import getpass
 import libvirt
 
@@ -102,13 +102,13 @@ def get_resources_in_stack(stack, list_fn):
 
 def delete_domains(conn, stack):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
-    print(f"[*] {len(domains)} VMs running in stack {stack}")
+    info(f"[*] {len(domains)} VMs running in stack {stack}")
 
     for domain in domains:
         name = domain.name()
         domain.destroy()
         domain.undefine()
-        print(f"[+] VM {name} deleted")
+        info(f"[+] VM {name} deleted")
 
 
 def getAllStackVolumesFn(conn, stack):
@@ -126,35 +126,35 @@ def getAllStackVolumesFn(conn, stack):
 
 def delete_volumes(conn, stack):
     volumes = get_resources_in_stack(stack, getAllStackVolumesFn(conn, stack))
-    print(f"[*] {len(volumes)} storage volumes running in stack {stack}")
+    info(f"[*] {len(volumes)} storage volumes running in stack {stack}")
 
     for volume in volumes:
         name = volume.name()
         volume.delete()
         #        volume.undefine()
-        print(f"[+] Storage volume {name} deleted")
+        info(f"[+] Storage volume {name} deleted")
 
 
 def delete_pools(conn, stack):
     pools = get_resources_in_stack(stack, conn.listAllStoragePools)
-    print(f"[*] {len(pools)} storage pools running in stack {stack}")
+    info(f"[*] {len(pools)} storage pools running in stack {stack}")
 
     for pool in pools:
         name = pool.name()
         pool.destroy()
         pool.undefine()
-        print(f"[+] Storage pool {name} deleted")
+        info(f"[+] Storage pool {name} deleted")
 
 
 def delete_networks(conn, stack):
     networks = get_resources_in_stack(stack, conn.listAllNetworks)
-    print(f"[*] {len(networks)} networks running in stack {stack}")
+    info(f"[*] {len(networks)} networks running in stack {stack}")
 
     for network in networks:
         name = network.name()
         network.destroy()
         network.undefine()
-        print(f"[+] Network {name} deleted")
+        info(f"[+] Network {name} deleted")
 
 
 def destroy_stack_pulumi(ctx, stack, ssh_key):
@@ -197,7 +197,7 @@ def ec2_instance_ids(ctx, ip_list):
 
     res = ctx.run(list_instances_cmd, warn=True)
     if not res.ok:
-        print("[-] Failed to get instance ids. Instances not destroyed. Used console to delete ec2 instances")
+        error("[-] Failed to get instance ids. Instances not destroyed. Used console to delete ec2 instances")
         return
 
     return res.stdout.splitlines()
@@ -224,9 +224,9 @@ def destroy_ec2_instances(ctx, stack):
         f"aws-vault exec sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
     )
     if not res.ok:
-        print(f"[-] Failed to terminate instances {ids}. Use console to terminate instances")
+        error(f"[-] Failed to terminate instances {ids}. Use console to terminate instances")
     else:
-        print(f"[+] Instances {ids} terminated.")
+        info(f"[+] Instances {ids} terminated.")
 
     return
 
@@ -249,7 +249,7 @@ def destroy_stack(ctx, stack, branch, force, ssh_key):
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    print(f"[*] Destroying stack {stack}")
+    info(f"[*] Destroying stack {stack}")
     if force:
         destroy_stack_force(ctx, stack)
     else:

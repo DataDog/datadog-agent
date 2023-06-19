@@ -1,0 +1,22 @@
+from termcolor import colored
+import invoke.exceptions as ie
+
+def ask(question: str) -> str:
+    return input(colored(question, "blue"))
+
+def debug(msg: str):
+    print(colored(msg, "white"))
+
+def info(msg: str):
+    print(colored(msg, "green"))
+
+
+def warn(msg: str):
+    print(colored(msg, "yellow"))
+
+
+def error(msg: str):
+    print(colored(msg, "red"))
+
+def Exit(msg: str):
+    return ie.Exit(colored(msg, "red"))

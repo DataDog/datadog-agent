@@ -7,7 +7,7 @@ import itertools
 from thefuzz import process
 from thefuzz import fuzz
 import os
-from invoke.exceptions import Exit
+from .tool import Exit, ask, warn, error, info
 
 kernels = [
     "5.0",
@@ -100,7 +100,7 @@ def mem_to_pow_of_2(memory):
     for i in range(len(memory)):
         new = power_log_str(memory[i])
         if new != memory[i]:
-            print(f"rounding up memory: {memory[i]} -> {new}")
+            info(f"rounding up memory: {memory[i]} -> {new}")
             memory[i] = new
 
 
@@ -140,7 +140,6 @@ def list_possible():
 # Each normalized_vm_def output corresponds to each VM
 # requested by the user
 def normalize_vm_def(vm_def):
-    print(vm_def)
     recipe, version, arch = vm_def.split('-')
 
     arch = archs_mapping[arch]
@@ -161,7 +160,7 @@ def vmset_name_from_id(set_id):
 # Each set id will contain 1 or more of the VMs requested
 # by the user.
 def vmset_id(recipe, version, arch):
-    print(f"[+] recipe {recipe}, version {version}, arch {arch}")
+    info(f"[+] recipe {recipe}, version {version}, arch {arch}")
     if recipe == "custom":
         if lte_414(version):
             return (recipe, arch, "lte_414")
@@ -349,7 +348,7 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
     if init_stack:
         create_stack(ctx, stack)
 
-    print(f"[+] Select stack {stack}")
+    info(f"[+] Select stack {stack}")
 
     vm_types = vms.split(',')
     if len(vm_types) == 0:
@@ -380,11 +379,11 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
 
     ctx.run(f"git diff {vmconfig_file} {tmpfile}", warn=True)
 
-    if input("are you sure you want to apply the diff? (y/n)") != "y":
-        print("[-] diff not applied")
+    if ask("are you sure you want to apply the diff? (y/n)") != "y":
+        warn("[-] diff not applied")
         return
 
     with open(vmconfig_file, "w") as f:
         f.write(vm_config_str)
 
-    print(f"[+] vmconfig @ {vmconfig_file}")
+    info(f"[+] vmconfig @ {vmconfig_file}")

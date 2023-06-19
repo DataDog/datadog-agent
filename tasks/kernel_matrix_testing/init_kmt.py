@@ -1,7 +1,7 @@
 import os
 import filecmp
 from pathlib import Path
-from invoke.exceptions import Exit
+from .tool import Exit, ask, warn, info, error
 import platform
 from glob import glob
 import getpass
@@ -265,7 +265,7 @@ def update_kernel_packages(ctx):
 
     current_sum_file = f"{KMT_PACKAGES_DIR}/{kernel_packages_sum}"
     if filecmp.cmp(current_sum_file, f"/tmp/{kernel_packages_sum}"):
-        print("[-] No update required for custom kernel packages")
+        warn("[-] No update required for custom kernel packages")
 
     # backup kernel-packges
     karch = karch_mapping[archs_mapping[platform.machine()]]
@@ -275,14 +275,14 @@ def update_kernel_packages(ctx):
     ctx.run(f"cd {KMT_PACKAGES_DIR} && tar -cf {kernel_packages_tar} -T /tmp/package.ls")
     ctx.run(f"cp {KMT_PACKAGES_DIR}/{kernel_packages_tar} {KMT_BACKUP_DIR}")
     ctx.run(f"cp {current_sum_file} {KMT_BACKUP_DIR}")
-    print("[+] Backed up current packages")
+    info("[+] Backed up current packages")
 
     # clean kernel packages directory
     ctx.run(f"rm -f {KMT_PACKAGES_DIR}/*")
 
     download_kernel_packages(ctx, revert=True)
 
-    print("[+] Kernel packages successfully updated")
+    info("[+] Kernel packages successfully updated")
 
 
 def update_rootfs(ctx):
@@ -300,16 +300,16 @@ def update_rootfs(ctx):
 
     current_sum_file = f"{KMT_ROOTFS_DIR}/{rootfs}.sum"
     if filecmp.cmp(current_sum_file, "/tmp/{rootfs}.sum"):
-        print("[-] No update required for root filesystems and bootable images")
+        warn("[-] No update required for root filesystems and bootable images")
 
     # backup rootfs
     ctx.run("cp {KMT_ROOTFS_DIR}/{rootfs}.tar.gz {KMT_BACKUP_DIR}")
     ctx.run("cp {KMT_ROOTFS_DIR}/{rootfs}.sum {KMT_BACKUP_DIR}")
-    print("[+] Backed up rootfs")
+    warn("[+] Backed up rootfs")
 
     # clean rootfs directory
     ctx.run(f"rm -f {KMT_ROOTFS_DIR}/*")
 
     download_rootfs(ctx, revert=True)
 
-    print("[+] Root filesystem and bootables images updated")
+    info("[+] Root filesystem and bootables images updated")
