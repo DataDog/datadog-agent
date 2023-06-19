@@ -244,6 +244,10 @@ func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Sou
 	panic("not implemented")
 }
 
+func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
+	panic("not implemented")
+}
+
 func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta.Entity, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
