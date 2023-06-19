@@ -129,7 +129,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 				stats := getHttpStats(t, monitor)
 				occurrences += countRequestOccurrences(stats, req)
 				return occurrences == expectedOccurrences
-			}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", expected)
+			}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", occurrences, expectedOccurrences)
 		})
 	}
 }
