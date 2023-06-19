@@ -30,7 +30,7 @@
     },
     "release-a6": {
         "INTEGRATIONS_CORE_VERSION": "7.45.0",
-        "OMNIBUS_SOFTWARE_VERSION": "7.45.1-rc.2",
+        "OMNIBUS_SOFTWARE_VERSION": "7.45.1-rc.3",
         "OMNIBUS_RUBY_VERSION": "7.45.0",
         "JMXFETCH_VERSION": "0.47.8",
         "JMXFETCH_HASH": "aff48a7589b507fd41367686f15307005d498d94a260efbc771963cedd52f16f",
@@ -42,7 +42,7 @@
     },
     "release-a7": {
         "INTEGRATIONS_CORE_VERSION": "7.45.0",
-        "OMNIBUS_SOFTWARE_VERSION": "7.45.1-rc.2",
+        "OMNIBUS_SOFTWARE_VERSION": "7.45.1-rc.3",
         "OMNIBUS_RUBY_VERSION": "7.45.0",
         "JMXFETCH_VERSION": "0.47.8",
         "JMXFETCH_HASH": "aff48a7589b507fd41367686f15307005d498d94a260efbc771963cedd52f16f",
