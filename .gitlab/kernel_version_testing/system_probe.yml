@@ -136,6 +136,8 @@ kernel_matrix_testing_setup_env:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
+    # We have user provided AZ here because the default AZ was experiencing
+    # capacity issues for m6g.metal machines
     SUBNETS: "subnet-03061a1647c63c3c3,subnet-071213aedb0e1ae54"
   before_script:
     - !reference [.retrieve_linux_go_deps]
@@ -185,6 +187,8 @@ kernel_matrix_testing_upload_deps:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
+    # We have user provided AZ here because the default AZ was experiencing
+    # capacity issues for m6g.metal machines
     SUBNETS: "subnet-03061a1647c63c3c3,subnet-071213aedb0e1ae54"
   before_script:
     - !reference [.retrieve_linux_go_deps]
