@@ -13,7 +13,6 @@ import tempfile
 from typing import List
 
 from invoke.tasks import task
-from invoke.context import Context
 from invoke.exceptions import Exit
 
 from .flavor import AgentFlavor
