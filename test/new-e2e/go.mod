@@ -12,8 +12,10 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.46.0-rc.2
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
 	// You should bump the image version at the `image` field in `.new_e2e_template` job
-	// in .gitlab/e2e.yml. You can find the image name a the end of the `build-runner-image`
-	// job in `test-infra-definitions` pipeline on `main` branch
+	// in .gitlab/e2e.yml to 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:<commit_sha>
+	// Commit sha matches the first 8 digits of the commit sha in the module version
+	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
+	// => image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:01234567
 	github.com/DataDog/test-infra-definitions v0.0.0-20230613085340-ae907a97ca4f
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
