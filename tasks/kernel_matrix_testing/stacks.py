@@ -1,15 +1,17 @@
-from .init_kmt import KMT_DIR, KMT_STACKS_DIR, VMCONFIG, check_and_get_stack, get_active_branch_name
+from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
 import json
 import os
 from invoke.exceptions import Exit
 import getpass
 import libvirt
 
-X86_INSTANCE_TYPE="m5.metal"
-ARM_INSTANCE_TYPE="m6g.metal"
+X86_INSTANCE_TYPE = "m5.metal"
+ARM_INSTANCE_TYPE = "m6g.metal"
+
 
 def stack_exists(stack):
     return os.path.exists(f"{KMT_STACKS_DIR}/{stack}")
+
 
 def vm_config_exists(stack):
     return os.path.exists(f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}")
@@ -19,13 +21,14 @@ def create_stack(ctx, stack=None, branch=False):
     if not os.path.exists(f"{KMT_STACKS_DIR}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
-    stack = check_and_get_stack(stack, branch) 
+    stack = check_and_get_stack(stack, branch)
 
     stack_dir = f"{KMT_STACKS_DIR}/{stack}"
     if os.path.exists(stack_dir):
         raise Exit(f"Stack {stack} already exists")
 
     ctx.run(f"mkdir {stack_dir}")
+
 
 def find_ssh_key(ssh_key):
     user = getpass.getuser()
@@ -34,6 +37,7 @@ def find_ssh_key(ssh_key):
         raise Exit(f"Could not find file for ssh key {ssh_key}. Looked for {ssh_key_file}")
 
     return ssh_key_file
+
 
 def remote_vms_in_config(vmconfig):
     with open(vmconfig, 'r') as f:
@@ -45,9 +49,8 @@ def remote_vms_in_config(vmconfig):
 
     return False
 
-def launch_stack(
-    ctx, stack, branch, ssh_key, x86_ami, arm_ami
-):
+
+def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -66,22 +69,26 @@ def launch_stack(
 
     ctx.run(ssh_add_cmd)
 
-    env = ["PULUMI_CONFIG_PASSPHRASE=1234",
-            f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
-            f"LibvirtSSHKeyARM={stack_dir}/libvirt_rsa-arm64",
-            f"CI_PROJECT_DIR={stack_dir}",
-            ]
+    env = [
+        "PULUMI_CONFIG_PASSPHRASE=1234",
+        f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
+        f"LibvirtSSHKeyARM={stack_dir}/libvirt_rsa-arm64",
+        f"CI_PROJECT_DIR={stack_dir}",
+    ]
 
     prefix = ""
     if remote_vms_in_config(vm_config):
         prefix = "aws-vault exec sandbox-account-admin --"
 
     env_vars = ' '.join(env)
-    ctx.run(f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack}")
+    ctx.run(
+        f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack}"
+    )
 
 
 def resource_in_stack(stack, resource):
     return stack in resource
+
 
 def get_resources_in_stack(stack, list_fn):
     resources = list_fn()
@@ -91,6 +98,7 @@ def get_resources_in_stack(stack, list_fn):
             stack_resources.append(resource)
 
     return stack_resources
+
 
 def delete_domains(conn, stack):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
@@ -159,12 +167,12 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
     ctx.run(ssh_add_cmd)
 
     stack_dir = f"{KMT_STACKS_DIR}/{stack}"
-    env = ["PULUMI_CONFIG_PASSPHRASE=1234",
-            f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
-            f"LibvirtSSHKeyARM={stack_dir}/libvirt_rsa-arm64",
-            f"CI_PROJECT_DIR={stack_dir}",
-            ]
-
+    env = [
+        "PULUMI_CONFIG_PASSPHRASE=1234",
+        f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
+        f"LibvirtSSHKeyARM={stack_dir}/libvirt_rsa-arm64",
+        f"CI_PROJECT_DIR={stack_dir}",
+    ]
 
     vm_config = f"{stack_dir}/{VMCONFIG}"
     prefix = ""
@@ -172,8 +180,11 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
         prefix = "aws-vault exec sandbox-account-admin --"
 
     env_vars = ' '.join(env)
-    ctx.run(f"{env_vars} {prefix} inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy")
-    
+    ctx.run(
+        f"{env_vars} {prefix} inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy"
+    )
+
+
 def is_ec2_ip_entry(entry):
     return entry.startswith("arm64-instance-ip") or entry.startswith("x86_64-instance-ip")
 
@@ -230,9 +241,8 @@ def destroy_stack_force(ctx, stack):
 
     destroy_ec2_instances(ctx, stack)
     # Find a better solution for this
-    ctx.run(
-            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {stack}"
-        )
+    ctx.run(f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {stack}")
+
 
 def destroy_stack(ctx, stack, branch, force, ssh_key):
     stack = check_and_get_stack(stack, branch)

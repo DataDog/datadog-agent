@@ -1552,7 +1552,7 @@ def start_microvms(
     shutdown_period=320,
     subnets=None,
     stack_name="kernel-matrix-testing-system",
-    vmconfig=None
+    vmconfig=None,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",

@@ -1,4 +1,5 @@
 import os
+import filecmp
 from pathlib import Path
 from invoke.exceptions import Exit
 import platform
@@ -25,6 +26,7 @@ archs_mapping = {
     "arm": "arm64",
     "local": "local",
 }
+karch_mapping = {"x86_64": "x86", "arm64": "arm64"}
 
 priv_key = """-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAACFwAAAAdzc2gtcn
@@ -77,6 +79,7 @@ a1eAv3AZrgqk0eQl1XapooMMSY5mKjxJKscqthce9uvVnWPWVSI9moPKH6gaZ6336UhFzz
 -----END OPENSSH PRIVATE KEY-----
 """
 
+
 def is_root():
     return os.getuid() == 0
 
@@ -105,6 +108,7 @@ def check_and_get_stack(stack, branch):
         return f"{stack}-ddvm"
     else:
         return stack
+
 
 def revert_kernel_packages(ctx):
     arch = archs_mapping[platform.machine()]
@@ -224,7 +228,6 @@ def gen_ssh_key(ctx):
     ctx.run(f"chmod 400 {KMT_DIR}/ddvm_rsa")
 
 
-
 def init_kernel_matrix_testing_system(ctx):
     sudo = "sudo" if not is_root() else ""
     ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_DIR}")
@@ -249,3 +252,64 @@ def init_kernel_matrix_testing_system(ctx):
     download_kernel_packages(ctx)
     download_rootfs(ctx)
     gen_ssh_key(ctx)
+
+
+def update_kernel_packages(ctx):
+    arch = archs_mapping[platform.machine()]
+    kernel_packages_sum = f"kernel-packages-{arch}.sum"
+    kernel_packages_tar = f"kernel-packages-{arch}.tar"
+
+    ctx.run(
+        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O /tmp/{kernel_packages_sum}"
+    )
+
+    current_sum_file = f"{KMT_PACKAGES_DIR}/{kernel_packages_sum}"
+    if filecmp.cmp(current_sum_file, f"/tmp/{kernel_packages_sum}"):
+        print("[-] No update required for custom kernel packages")
+
+    # backup kernel-packges
+    karch = karch_mapping[archs_mapping[platform.machine()]]
+    ctx.run(
+        f"find {KMT_PACKAGES_DIR} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls"
+    )
+    ctx.run(f"cd {KMT_PACKAGES_DIR} && tar -cf {kernel_packages_tar} -T /tmp/package.ls")
+    ctx.run(f"cp {KMT_PACKAGES_DIR}/{kernel_packages_tar} {KMT_BACKUP_DIR}")
+    ctx.run(f"cp {current_sum_file} {KMT_BACKUP_DIR}")
+    print("[+] Backed up current packages")
+
+    # clean kernel packages directory
+    ctx.run(f"rm -f {KMT_PACKAGES_DIR}/*")
+
+    download_kernel_packages(ctx, revert=True)
+
+    print("[+] Kernel packages successfully updated")
+
+
+def update_rootfs(ctx):
+    arch = archs_mapping[platform.machine()]
+    if arch == "x86_64":
+        rootfs = "rootfs-amd64"
+    elif arch == "arm64":
+        rootfs = "rootfs-arm64"
+    else:
+        Exit(f"Unsupported arch detected {arch}")
+
+    ctx.run(
+        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O /tmp/{rootfs}.sum"
+    )
+
+    current_sum_file = f"{KMT_ROOTFS_DIR}/{rootfs}.sum"
+    if filecmp.cmp(current_sum_file, "/tmp/{rootfs}.sum"):
+        print("[-] No update required for root filesystems and bootable images")
+
+    # backup rootfs
+    ctx.run("cp {KMT_ROOTFS_DIR}/{rootfs}.tar.gz {KMT_BACKUP_DIR}")
+    ctx.run("cp {KMT_ROOTFS_DIR}/{rootfs}.sum {KMT_BACKUP_DIR}")
+    print("[+] Backed up rootfs")
+
+    # clean rootfs directory
+    ctx.run(f"rm -f {KMT_ROOTFS_DIR}/*")
+
+    download_rootfs(ctx, revert=True)
+
+    print("[+] Root filesystem and bootables images updated")

@@ -1,5 +1,5 @@
-from .init_kmt import KMT_STACKS_DIR, VMCONFIG, archs_mapping, check_and_get_stack
-from .stacks import stack_exists, create_stack, vm_config_exists
+from .init_kmt import KMT_STACKS_DIR, VMCONFIG, archs_mapping, check_and_get_stack, karch_mapping
+from .stacks import stack_exists, create_stack
 import platform
 import math
 import json
@@ -56,11 +56,11 @@ distributions = {
     "focal": "focal",
     "bionic": "bionic",
     "amazon_4.14": "amzn_4.14",
-    "amazon_5.4" : "amzn_5.4",
+    "amazon_5.4": "amzn_5.4",
     "amazon_5.10": "amzn_5.10",
     "amazon_5.15": "amzn_5.15",
     "amzn_4.14": "amzn_4.14",
-    "amzn_5.4" : "amzn_5.4" ,
+    "amzn_5.4": "amzn_5.4",
     "amzn_5.10": "amzn_5.10",
     "amzn_5.15": "amzn_5.15",
 }
@@ -88,9 +88,7 @@ images_name = {
     "amzn_5.15": "amzn2-kvm-2.0-{arch}-5.15.qcow2",
 }
 
-karch_mapping = {"x86_64": "x86", "arm64": "arm64"}
 consoles = {"x86_64": "ttyS0", "arm64": "ttyAMA0"}
-
 
 
 def power_log_str(x):
@@ -104,7 +102,6 @@ def mem_to_pow_of_2(memory):
         if new != memory[i]:
             print(f"rounding up memory: {memory[i]} -> {new}")
             memory[i] = new
-
 
 
 def check_memory_and_vcpus(memory, vcpus):
@@ -122,6 +119,7 @@ def empty_config(file_path):
     with open(file_path, 'w') as f:
         f.write(j)
 
+
 def list_possible():
     distros = list(distributions.keys())
     archs = list(archs_mapping.keys())
@@ -132,6 +130,7 @@ def list_possible():
         result.append(f"{p[0]}-{p[1]}-{p[2]}")
 
     return result
+
 
 # normalize_vm_def converts the detected user provider vm-def
 # to a standard form with consisten values for
@@ -156,6 +155,7 @@ def vmset_name_from_id(set_id):
 
     return f"{recipe}_{id_tag}_{arch}"
 
+
 # Set id uniquely categorizes each requested
 # VM into particular sets.
 # Each set id will contain 1 or more of the VMs requested
@@ -170,6 +170,7 @@ def vmset_id(recipe, version, arch):
     else:
         return recipe, arch, "distro"
 
+
 # This function derives the configuration for each
 # unique kernel or distribution from the normalized vm-def.
 # For more details on the generated configuration element, refer
@@ -181,6 +182,7 @@ def get_kernel_config(recipe, version, arch):
         return get_distro_image_config(version, arch)
 
     raise Exit(f"Invalid recipe {recipe}")
+
 
 def lte_414(version):
     major, minor = version.split('.')
@@ -212,7 +214,6 @@ def get_distro_image_config(version, arch):
         "tag": version,
         "image_source": images_path[version].format(arch=distro_arch_mapping[arch]),
     }
-
 
 
 # This function generates new VMSets. Refer to the documentation
@@ -259,6 +260,7 @@ def vmset_exists(vm_config, set_name):
 
     return False
 
+
 def kernel_in_vmset(vmset, kernel):
     vmset_kernels = vmset["kernels"]
     for k in vmset_kernels:
@@ -291,8 +293,6 @@ def modify_existing_vmsets(vm_config, set_id, kernels):
         add_kernels_to_vmset(vmset, set_name, kernels)
 
     return True
-
-
 
 
 def generate_vm_config(vm_config, vms, vcpu, memory):
@@ -329,6 +329,7 @@ def generate_vm_config(vm_config, vms, vcpu, memory):
     for vmset in vm_config["vmsets"]:
         vmset["vcpu"] = vcpu
         vmset["memory"] = memory
+
 
 def ls_to_int(ls):
     int_ls = list()
