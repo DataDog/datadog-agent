@@ -12,6 +12,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
+	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	"io"
 	"math/rand"
 	"net"
@@ -35,13 +37,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
@@ -1065,7 +1064,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 
 	tr := setupTracer(t, cfg)
 
-	require.NoError(t, gotls.RunServer(t, serverPort))
+	require.NoError(t, _go.RunServer(t, serverPort))
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
@@ -1084,7 +1083,7 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 		expectedOccurrences = 10
 	)
 
-	require.NoError(t, gotls.RunServer(t, serverPort))
+	require.NoError(t, _go.RunServer(t, serverPort))
 
 	client := &nethttp.Client{
 		Transport: &nethttp.Transport{
