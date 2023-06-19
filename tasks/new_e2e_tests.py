@@ -4,16 +4,16 @@ Running E2E Tests with infra based on Pulumi
 
 import getpass
 import json
-import shutil
 import os
 import os.path
-from pathlib import Path
+import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 from typing import List
 
-from invoke.tasks import task
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from .flavor import AgentFlavor
 from .libs.junit_upload import produce_junit_tar
