@@ -91,12 +91,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/pulumi-aws/sdk/v5 v5.41.0 // indirect
 	github.com/pulumi/pulumi-awsx/sdk v1.0.2 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk v1.103.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute v1.103.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice v1.103.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network v1.103.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
-	github.com/pulumi/pulumi-eks/sdk v1.0.2 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.29.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.2 // indirect
