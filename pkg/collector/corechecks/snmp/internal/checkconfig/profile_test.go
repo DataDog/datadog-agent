@@ -241,6 +241,7 @@ func Test_loadProfiles(t *testing.T) {
 			inputProfileConfigMap: profileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: filepath.Join(string(filepath.Separator), "does", "not", "exist"),
+					isUserProfile:  true,
 				},
 			},
 			expectedProfileDefMap: profileConfigMap{},
@@ -253,6 +254,7 @@ func Test_loadProfiles(t *testing.T) {
 			inputProfileConfigMap: profileConfigMap{
 				"f5-big-ip": {
 					DefinitionFile: profileWithInvalidExtends,
+					isUserProfile:  true,
 				},
 			},
 			expectedProfileDefMap: profileConfigMap{},
@@ -463,12 +465,13 @@ func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 	defaultProfiles, err := loadDefaultProfiles()
 	assert.Nil(t, err)
 
-	assert.Len(t, defaultProfiles, 3)
+	assert.Len(t, defaultProfiles, 4)
 	assert.NotNil(t, defaultProfiles)
 
 	p1 := defaultProfiles["p1"].Definition // user p1 overrides datadog p1
 	p2 := defaultProfiles["p2"].Definition // datadog p2
 	p3 := defaultProfiles["p3"].Definition // user p3
+	p4 := defaultProfiles["p4"].Definition // user p3
 
 	assert.Equal(t, "p1_user", p1.Device.Vendor) // overrides datadog p1 profile
 	assert.NotNil(t, getMetricFromProfile(p1, "p1_metric_override"))
@@ -478,6 +481,10 @@ func Test_loadDefaultProfiles_withUserProfiles(t *testing.T) {
 
 	assert.Equal(t, "p3_user", p3.Device.Vendor)
 	assert.NotNil(t, getMetricFromProfile(p3, "p3_metric"))
+
+	assert.Equal(t, "p4_user", p4.Device.Vendor)
+	assert.NotNil(t, getMetricFromProfile(p4, "p4_user_metric"))
+	assert.NotNil(t, getMetricFromProfile(p4, "p4_default_metric"))
 }
 
 func Test_loadDefaultProfiles_invalidDir(t *testing.T) {
