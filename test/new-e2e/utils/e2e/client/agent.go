@@ -98,13 +98,19 @@ func (a *Agent) WaitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
-		isReady, err := a.IsReady()
+		statusOutput, err := a.vmClient.ExecuteWithError(a.GetCommand("status"))
+		if err != nil {
+			return err
+		}
+
+		isReady, err := newStatus(statusOutput).isReady()
 		if err != nil {
 			return err
 		}
 		if !isReady {
 			return errors.New("agent not ready")
 		}
+
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
 	return err
