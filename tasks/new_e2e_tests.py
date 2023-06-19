@@ -2,7 +2,6 @@
 Running E2E Tests with infra based on Pulumi
 """
 
-import getpass
 import json
 import os
 import os.path
