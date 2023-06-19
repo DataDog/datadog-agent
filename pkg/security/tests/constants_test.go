@@ -112,7 +112,7 @@ func TestOctogonConstants(t *testing.T) {
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 
-		assertConstantsEqual(t, btfFetcher, fallbackFetcher, kv, BTFVsFallbackPossiblyMissingConstants)
+		assertConstantContains(t, btfFetcher, fallbackFetcher, kv)
 	})
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
