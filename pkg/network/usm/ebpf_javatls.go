@@ -164,6 +164,14 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	}
 }
 
+func (p *JavaTLSProgram) Name() string {
+	return "java-tls"
+}
+
+func (p *JavaTLSProgram) IsBuildModeSupported(buildMode) bool {
+	return true
+}
+
 func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
