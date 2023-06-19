@@ -51,6 +51,14 @@ func (agent *Agent) GetCommand(parameters string) string {
 
 func (agent *Agent) Config() string {
 	return agent.vmClient.Execute(agent.GetCommand("config"))
+ }
+
+func (agent *Agent) executeCommand(command string, commandArgs ...AgentArgsOption) string {
+	args, err := newAgentArgs(commandArgs...)
+	if err != nil {
+		return ""
+	}
+	return agent.vmClient.Execute(agent.GetCommand(command) + " " + args.Args)
 }
 
 type Status struct {
