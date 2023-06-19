@@ -44,6 +44,7 @@ type SystemProbeEnvOpts struct {
 	FailOnMissing         bool
 	UploadDependencies    bool
 	DependenciesDirectory string
+	Subnets               string
 }
 
 type TestEnv struct {
@@ -123,6 +124,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		config["ddinfra:aws/defaultPrivateKeyPath"] = auto.ConfigValue{Value: opts.SSHKeyPath}
 	} else {
 		config["ddinfra:aws/defaultPrivateKeyPath"] = auto.ConfigValue{Value: ""}
+	}
+
+	// Specify the subnets to use instead of default ones
+	if opts.Subnets != "" {
+		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: opts.Subnets}
 	}
 
 	var upResult auto.UpResult
