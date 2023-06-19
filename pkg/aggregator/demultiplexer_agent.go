@@ -197,6 +197,7 @@ func initAgentDemultiplexer(sharedForwarder forwarder.Forwarder, options AgentDe
 		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
 		noAggWorker = newNoAggregationStreamWorker(
 			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
+			metricSamplePool,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
 		)
