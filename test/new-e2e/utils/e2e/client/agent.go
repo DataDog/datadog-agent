@@ -41,17 +41,9 @@ func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 	return err
 }
 
-func (agent *Agent) Version() string {
-	return agent.vmClient.Execute(agent.GetCommand("version"))
-}
-
 func (agent *Agent) GetCommand(parameters string) string {
 	return agent.os.GetRunAgentCmd(parameters)
 }
-
-func (agent *Agent) Config() string {
-	return agent.vmClient.Execute(agent.GetCommand("config"))
- }
 
 func (agent *Agent) executeCommand(command string, commandArgs ...AgentArgsOption) string {
 	args, err := newAgentArgs(commandArgs...)
@@ -59,6 +51,14 @@ func (agent *Agent) executeCommand(command string, commandArgs ...AgentArgsOptio
 		return ""
 	}
 	return agent.vmClient.Execute(agent.GetCommand(command) + " " + args.Args)
+}
+
+func (agent *Agent) Version(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("version", commandArgs...)
+}
+
+func (agent *Agent) Config(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("config", commandArgs...)
 }
 
 type Status struct {
@@ -74,8 +74,8 @@ func (s *Status) isReady() (bool, error) {
 	return regexp.MatchString("={15}\nAgent \\(v7\\.\\d{2}\\..*\n={15}", s.Content)
 }
 
-func (agent *Agent) Status() *Status {
-	return newStatus(agent.vmClient.Execute(agent.GetCommand("status")))
+func (agent *Agent) Status(commandArgs ...AgentArgsOption) *Status {
+	return newStatus(agent.executeCommand("status", commandArgs...))
 }
 
 // IsReady runs status command and returns true if the agent is ready.
