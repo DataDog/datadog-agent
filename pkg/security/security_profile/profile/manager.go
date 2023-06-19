@@ -138,6 +138,7 @@ type SecurityProfileManager struct {
 	cacheMiss        *atomic.Uint64
 
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
+	pathsReducer   *activity_tree.PathsReducer
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
@@ -191,6 +192,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		cacheHit:                   atomic.NewUint64(0),
 		cacheMiss:                  atomic.NewUint64(0),
 		eventFiltering:             make(map[eventFilteringEntry]*atomic.Uint64),
+		pathsReducer:               activity_tree.NewPathsReducer(),
 	}
 	m.initMetricsMap()
 
@@ -467,7 +469,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile.loadedInKernel = false
 
 	// decode the content of the profile
-	ProtoToSecurityProfile(profile, newProfile)
+	ProtoToSecurityProfile(profile, m.pathsReducer, newProfile)
 	profile.ActivityTree.DNSMatchMaxDepth = m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth
 
 	// compute activity tree initial stats

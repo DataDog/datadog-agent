@@ -16,6 +16,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -34,7 +35,6 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -47,6 +47,7 @@ type Submitter interface {
 var _ Submitter = &CheckSubmitter{}
 
 type CheckSubmitter struct {
+	log log.Component
 	// Per-check Weighted Queues
 	processResults     *api.WeightedQueue
 	rtProcessResults   *api.WeightedQueue
@@ -79,7 +80,7 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 }
 
-func NewSubmitter(config config.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
+func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
@@ -128,18 +129,19 @@ func NewSubmitter(config config.Component, forwarders forwarders.Component, host
 		return nil, err
 	}
 
-	podForwarderOpts := forwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
+	podForwarderOpts := forwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	podForwarder := forwarder.NewDefaultForwarder(config, podForwarderOpts)
+	podForwarder := forwarder.NewDefaultForwarder(config, log, podForwarderOpts)
 
 	processEventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
 
-	printStartMessage(hostname, processAPIEndpoints, processEventsAPIEndpoints, orchestrator.OrchestratorEndpoints)
+	printStartMessage(log, hostname, processAPIEndpoints, processEventsAPIEndpoints, orchestrator.OrchestratorEndpoints)
 	return &CheckSubmitter{
+		log:                log,
 		processResults:     processResults,
 		rtProcessResults:   rtProcessResults,
 		eventResults:       eventResults,
@@ -166,7 +168,7 @@ func NewSubmitter(config config.Component, forwarders forwarders.Component, host
 	}, nil
 }
 
-func printStartMessage(hostname string, processAPIEndpoints, processEventsAPIEndpoints, orchestratorEndpoints []apicfg.Endpoint) {
+func printStartMessage(log log.Component, hostname string, processAPIEndpoints, processEventsAPIEndpoints, orchestratorEndpoints []apicfg.Endpoint) {
 	eps := make([]string, 0, len(processAPIEndpoints))
 	for _, e := range processAPIEndpoints {
 		eps = append(eps, e.Endpoint.String())
@@ -368,7 +370,7 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 			}
 
 			if err != nil {
-				log.Errorf("Unable to submit payload: %s", err)
+				s.log.Errorf("Unable to submit payload: %s", err)
 				continue
 			}
 
@@ -412,7 +414,7 @@ func (s *CheckSubmitter) logQueuesSize() {
 		return
 	}
 
-	log.Infof(
+	s.log.Infof(
 		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
 		processSize, s.processResults.Weight(),
 		rtProcessSize, s.rtProcessResults.Weight(),
@@ -443,7 +445,7 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 	for messageIndex, m := range messages {
 		body, err := api.EncodePayload(m)
 		if err != nil {
-			log.Errorf("Unable to encode message: %s", err)
+			s.log.Errorf("Unable to encode message: %s", err)
 			continue
 		}
 
@@ -469,7 +471,7 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		case checks.ConnectionsCheckName, checks.ProcessCheckName:
 			requestID := s.getRequestID(start, messageIndex)
-			log.Debugf("the request id of the current message: %s", requestID)
+			s.log.Debugf("the request id of the current message: %s", requestID)
 			extraHeaders.Set(headers.RequestIDHeader, requestID)
 		}
 

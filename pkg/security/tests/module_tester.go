@@ -1834,7 +1834,7 @@ func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
 	if newProfile == nil {
 		return nil, errors.New("Profile creation")
 	}
-	profile.ProtoToSecurityProfile(newProfile, protoProfile)
+	profile.ProtoToSecurityProfile(newProfile, nil, protoProfile)
 	return newProfile, nil
 }
 
