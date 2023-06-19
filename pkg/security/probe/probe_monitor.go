@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -21,11 +22,11 @@ import (
 type Monitor struct {
 	probe *Probe
 
-	perfBufferMonitor *PerfBufferMonitor
-	runtimeMonitor    *RuntimeMonitor
-	discarderMonitor  *DiscarderMonitor
-	cgroupsMonitor    *CgroupsMonitor
-	approverMonitor   *ApproverMonitor
+	eventStreamMonitor *eventstream.EventStreamMonitor
+	runtimeMonitor     *RuntimeMonitor
+	discarderMonitor   *DiscarderMonitor
+	cgroupsMonitor     *CgroupsMonitor
+	approverMonitor    *ApproverMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -41,7 +42,7 @@ func (m *Monitor) Init() error {
 	p := m.probe
 
 	// instantiate a new event statistics monitor
-	m.perfBufferMonitor, err = NewPerfBufferMonitor(p, p.onEventLost)
+	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.Config.Probe, p.Erpc, p.Manager, p.StatsdClient, p.onEventLost, p.UseRingBuffers())
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
@@ -65,8 +66,8 @@ func (m *Monitor) Init() error {
 }
 
 // GetPerfBufferMonitor returns the perf buffer monitor
-func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
-	return m.perfBufferMonitor
+func (m *Monitor) GetEventStreamMonitor() *eventstream.EventStreamMonitor {
+	return m.eventStreamMonitor
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -97,7 +98,7 @@ func (m *Monitor) SendStats() error {
 		}
 	}
 
-	if err := m.perfBufferMonitor.SendStats(); err != nil {
+	if err := m.eventStreamMonitor.SendStats(); err != nil {
 		return fmt.Errorf("failed to send events stats: %w", err)
 	}
 	time.Sleep(delay)
