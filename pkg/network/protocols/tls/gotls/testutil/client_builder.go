@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package testutil
+package gotls
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) func() {
 }
 
 func buildGoTLSClientBin(t *testing.T) string {
-	const ClientSrcPath = "gotls_client"
+	const ClientSrcPath = "../testdata"
 	const ClientBinaryPath = "gotls_client/gotls_client"
 
 	t.Helper()
