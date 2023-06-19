@@ -249,5 +249,3 @@ def init_kernel_matrix_testing_system(ctx):
     download_kernel_packages(ctx)
     download_rootfs(ctx)
     gen_ssh_key(ctx)
-
-

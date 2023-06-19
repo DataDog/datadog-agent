@@ -132,4 +132,6 @@ def launch_stack(
 def destroy_stack(ctx, stack=None, branch=False, force=False, ssh_key=""):
     stacks.destroy_stack(ctx, stack, branch, force, ssh_key)
 
-
+@task
+def init_stack(ctx):
+    init_kmt.init_kernel_matrix_testing_system(ctx)

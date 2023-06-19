@@ -5,6 +5,9 @@ from invoke.exceptions import Exit
 import getpass
 import libvirt
 
+X86_INSTANCE_TYPE="m5.metal"
+ARM_INSTANCE_TYPE="m6g.metal"
+
 def stack_exists(stack):
     return os.path.exists(f"{KMT_STACKS_DIR}/{stack}")
 
@@ -17,8 +20,6 @@ def create_stack(ctx, stack=None, branch=False):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
     stack = check_and_get_stack(stack, branch) 
-    if branch:
-        stack = get_active_branch_name()
 
     stack_dir = f"{KMT_STACKS_DIR}/{stack}"
     if os.path.exists(stack_dir):
@@ -76,11 +77,11 @@ def launch_stack(
         prefix = "aws-vault exec sandbox-account-admin --"
 
     env_vars = ' '.join(env)
-    ctx.run(f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86=m5.metal --instance-type-arm=m6g.metal --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack}")
+    ctx.run(f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack}")
 
 
 def resource_in_stack(stack, resource):
-    return resource.startswith(stack)
+    return stack in resource
 
 def get_resources_in_stack(stack, list_fn):
     resources = list_fn()
@@ -191,7 +192,7 @@ def ec2_instance_ids(ctx, ip_list):
     return res.stdout.splitlines()
 
 
-def destroy_ec2_instance(ctx, stack):
+def destroy_ec2_instances(ctx, stack):
     stack_output = os.path.join(KMT_STACKS_DIR, stack, "stack.output")
     with open(stack_output, 'r') as f:
         output = f.read().split('\n')
@@ -227,6 +228,11 @@ def destroy_stack_force(ctx, stack):
     delete_networks(conn, stack)
     conn.close()
 
+    destroy_ec2_instances(ctx, stack)
+    # Find a better solution for this
+    ctx.run(
+            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {stack}"
+        )
 
 def destroy_stack(ctx, stack, branch, force, ssh_key):
     stack = check_and_get_stack(stack, branch)
@@ -236,9 +242,6 @@ def destroy_stack(ctx, stack, branch, force, ssh_key):
     print(f"[*] Destroying stack {stack}")
     if force:
         destroy_stack_force(ctx, stack)
-        ctx.run(
-            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions/scenarios/aws/microVMs -s {stack}"
-        )
     else:
         destroy_stack_pulumi(ctx, stack, ssh_key)
 
