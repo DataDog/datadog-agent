@@ -196,6 +196,11 @@ namespace WixSetup.Datadog
             project.Codepage = "1252";
             project.InstallPrivileges = InstallPrivileges.elevated;
             project.LocalizationFile = "localization-en-us.wxl";
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR")))
+            {
+                // Set custom output directory (WixSharp defaults to current directory)
+                project.OutDir = Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR");
+            }
             project.OutFileName = $"datadog-agent-ng-{_agentVersion.PackageVersion}-1-x86_64";
             project.Package.AttributesDefinition = $"Comments={ProductComment}";
 

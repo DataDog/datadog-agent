@@ -59,7 +59,7 @@ def _build(
     ctx,
     project='',
     vstudio_root=None,
-    arch="x65",
+    arch="x64",
     major_version='7',
     python_runtimes='3',
     release_version='nightly',
@@ -114,6 +114,13 @@ def _build(
         raise Exit("Failed to build the installer builder.", code=1)
 
 
+def build_out_dir(arch, configuration):
+    """
+    Return the build output directory specific to this @arch and @configuration
+    """
+    return os.path.join(BUILD_OUTPUT_DIR, 'bin', arch, configuration)
+
+
 @task
 def build(
     ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
@@ -134,23 +141,29 @@ def build(
     configuration = "Release"
     if debug:
         configuration = "Debug"
-    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    build_outdir = build_out_dir(arch, configuration)
+
     # Run the builder to produce the MSI
+    env = _get_env(ctx, major_version, python_runtimes, release_version)
+    # Set an env var to tell WixSetup.exe where to put the output MSI
+    env['AGENT_MSI_OUTDIR'] = build_outdir
     succeeded = ctx.run(
-        f'cd {BUILD_SOURCE_DIR}\\WixSetup && {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\WixSetup.exe',
+        f'cd {BUILD_SOURCE_DIR}\\WixSetup && {build_outdir}\\WixSetup.exe',
         warn=True,
         env=env,
     )
     if not succeeded:
         raise Exit("Failed to build the MSI installer.", code=1)
+
+    out_file = os.path.join(build_outdir, f"datadog-agent-ng-{env['PACKAGE_VERSION']}-1-x86_64.msi")
+
     # And copy it to the output path as a build artifact
-    for artefact in glob.glob(f'{BUILD_SOURCE_DIR}\\WixSetup\\*.msi'):
-        # Temporary solution.  Sign the MSI here prior to moving using the new signing
-        # method as the old signature method is going away
-        dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
-        if dd_wcs_enabled:
-            ctx.run(f'dd-wcs sign {artefact}')
-        shutil.copy2(artefact, OUTPUT_PATH)
+    shutil.copy2(out_file, OUTPUT_PATH)
+
+    # if the optional upgrade test helper exists then copy that too
+    optional_output = os.path.join(build_outdir, "datadog-agent-ng-7.43.0~rc.3+git.485.14b9337-1-x86_64.msi")
+    if os.path.exists(optional_output):
+        shutil.copy2(optional_output, OUTPUT_PATH)
 
 
 @task
@@ -175,8 +188,9 @@ def test(
     env = _get_env(ctx, major_version, python_runtimes, release_version)
 
     # Generate the config file
+    build_outdir = build_out_dir(arch, configuration)
     if not ctx.run(
-        f'inv -e generate-config --build-type="agent-py2py3" --output-file="{BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\datadog.yaml"',
+        f'inv -e generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):
@@ -184,11 +198,11 @@ def test(
 
     # Run the tests
     if not ctx.run(
-        f'dotnet test {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\CustomActions.Tests.dll', warn=True, env=env
+        f'dotnet test {build_outdir}\\CustomActions.Tests.dll', warn=True, env=env
     ):
         raise Exit(code=1)
 
     if not ctx.run(
-        f'dotnet test {BUILD_OUTPUT_DIR}\\bin\\{arch}\\{configuration}\\WixSetup.Tests.dll', warn=True, env=env
+        f'dotnet test {build_outdir}\\WixSetup.Tests.dll', warn=True, env=env
     ):
         raise Exit(code=1)
