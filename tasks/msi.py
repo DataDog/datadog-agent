@@ -50,13 +50,6 @@ def _get_env(ctx, major_version='7', python_runtimes='3', release_version='night
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
     env['PY_RUNTIMES'] = python_runtimes
-    if os.environ.get('SIGN_WINDOWS'):
-        # get certificate and password from ssm
-        pfxfile = get_signing_cert(ctx)
-        pfxpass = get_pfx_pass(ctx)
-        env['SIGN_PFX'] = str(pfxfile)
-        env['SIGN_PFX_PW'] = str(pfxpass)
-
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
     return env
