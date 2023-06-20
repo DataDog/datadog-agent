@@ -285,10 +285,10 @@ func parseTestConfiguration() *TestConfig {
 	excludeLs := []string{}
 
 	if *packagesPtr != "" {
-		packagesLs := strings.Split(*packagesPtr, ",")
+		packagesLs = strings.Split(*packagesPtr, ",")
 	}
 	if *excludePackagesPtr != "" {
-		excludeLs := strings.Split(*excludePackagesPtr, ",")
+		excludeLs = strings.Split(*excludePackagesPtr, ",")
 	}
 
 	return &TestConfig{
