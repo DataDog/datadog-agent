@@ -136,8 +136,6 @@ type TailerOptions struct {
 // The Tailer must poll for content in the file.  The `sleepDuration` parameter
 // specifies how long the tailer should wait between polls.
 func NewTailer(opts *TailerOptions) *Tailer {
-	// func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
-
 	var tagProvider tag.Provider
 	if opts.File.Source.Config().Identifier != "" {
 		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier))
@@ -174,17 +172,16 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	}
 
 	if fileRotated {
-		addToTailerInfo("File Rotated", strconv.FormatBool(fileRotated), t.info)
-		addToTailerInfo("Last Rotation Date", log.GetFormattedTime(), t.info)
+		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
 	}
 
 	return t
 }
 
-// addToTailerInfo add NewMappedInfo with a key value pair into the tailer info for displaying
+// addToTailerInfo add a NewMappedInfo with a key value(message) pair into the tailer-info for displaying
 func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 	newInfo := status.NewMappedInfo(k)
-	newInfo.SetMessage(k+":", m)
+	newInfo.SetMessage(k, m)
 	tailerInfo.Register(newInfo)
 }
 
@@ -351,6 +348,15 @@ func (t *Tailer) forwardMessages() {
 		case <-t.forwardContext.Done():
 		}
 	}
+}
+
+// getFormattedTime return readable timestamp
+func getFormattedTime() string {
+	now := time.Now()
+	local := now.Format("2006-01-02 15:04:05 MST")
+	utc := now.UTC().Format("2006-01-02 15:04:05 UTC")
+	milliseconds := now.UnixNano() / 1e6
+	return fmt.Sprintf("%s / %s (%d)", local, utc, milliseconds)
 }
 
 // GetDetectedPattern returns the decoder's detected pattern.
