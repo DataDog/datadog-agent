@@ -53,16 +53,14 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
 SEC("kprobe/parse_args")
 int kprobe_parse_args(struct pt_regs *ctx){
     char *args = (char *) PT_REGS_PARM2(ctx);
-    u32 is_truncated = 0;
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
-    int len = bpf_probe_read_str(&syscall->init_module.args, sizeof(syscall->init_module.args)+1, args);
-    if (len==129) {
-        is_truncated = 1;
+    int len = bpf_probe_read_str(&syscall->init_module.args, sizeof(syscall->init_module.args), args);
+    if (len == sizeof(syscall->init_module.args)) {
+        syscall->init_module.args_truncated = 1;
     }
-    syscall->init_module.args_truncated = is_truncated;
     return 0;
 }
 
