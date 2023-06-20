@@ -15,11 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/command"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
-	pulumiCommand "github.com/pulumi/pulumi-command/sdk/go/command"
-	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/sethvargo/go-retry"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
@@ -42,7 +38,6 @@ type SystemProbeEnvOpts struct {
 	Provision             bool
 	ShutdownPeriod        int
 	FailOnMissing         bool
-	UploadDependencies    bool
 	DependenciesDirectory string
 }
 
@@ -131,45 +126,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	b = retry.WithMaxRetries(3, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-			awsEnvironment, err := aws.NewEnvironment(ctx)
-			if err != nil {
-				return fmt.Errorf("aws new environment: %w", err)
-			}
-
-			scenarioDone, err := microvms.RunAndReturnInstances(awsEnvironment)
-			if err != nil {
+			if err := microvms.RunAndReturnInstances(awsEnvironment); err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
-			}
-
-			osCommand := command.NewUnixOSCommand()
-			commandProvider, err := pulumiCommand.NewProvider(ctx, "test-env-command-provider", &pulumiCommand.ProviderArgs{})
-			if err != nil {
-				return fmt.Errorf("failed to get command provider: %w", err)
-			}
-			for _, instance := range scenarioDone.Instances {
-				remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, command.RunnerArgs{
-					ConnectionName: "remote-runner-" + instance.Arch,
-					Connection:     instance.Connection,
-					ReadyFunc: func(r *command.Runner) (*remote.Command, error) {
-						return command.WaitForCloudInit(r)
-					},
-					OSCommand: osCommand,
-				})
-
-				if opts.UploadDependencies {
-					// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
-					// is mounted to all micro-vms. Each micro-vm extract the context on boot.
-					filemanager := command.NewFileManager(remoteRunner)
-					_, err = filemanager.CopyFile(
-						filepath.Join(opts.DependenciesDirectory, fmt.Sprintf(DependenciesPackage, instance.Arch)),
-						fmt.Sprintf(MicroVMsDependenciesPath, instance.Arch),
-						pulumi.DependsOn(scenarioDone.Dependencies),
-						pulumi.Provider(commandProvider),
-					)
-					if err != nil {
-						return fmt.Errorf("copy file: %w", err)
-					}
-				}
 			}
 
 			return nil
