@@ -200,7 +200,6 @@ func (r *soRegistration) unregisterPath(pathID pathIdentifier, soreg *soRegistry
 			// We cannot handle the failure, and thus we should continue.
 			log.Warnf("error while unregistering %s : %s", pathID.String(), err)
 			soreg.libUnregisterErrors.Add(1)
-			return true
 		}
 	} else {
 		soreg.libUnregisterNoCB.Add(1)
