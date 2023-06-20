@@ -1068,11 +1068,11 @@ func TestLoadEnv(t *testing.T) {
 		assert.NoError(err)
 		expected := map[string]interface{}{
 			"enabled":     true,
-			"keep_values": []string{"document_id", "template_id"},
+			"keep_values": []interface{}{"document_id", "template_id"},
 		}
-		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.obfuscation.mongodb"))
+		actual := coreconfig.Datadog.GetStringMap(("apm_config.obfuscation.mongodb"))
 		if !reflect.DeepEqual(actual, expected) {
-			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
 		}
 	})
 
@@ -1085,11 +1085,11 @@ func TestLoadEnv(t *testing.T) {
 		assert.NoError(err)
 		expected := map[string]interface{}{
 			"enabled":     true,
-			"keep_values": []string{"client_id", "product_id"},
+			"keep_values": []interface{}{"client_id", "product_id"},
 		}
-		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.obfuscation.elasticsearch"))
+		actual := coreconfig.Datadog.GetStringMap(("apm_config.obfuscation.elasticsearch"))
 		if !reflect.DeepEqual(actual, expected) {
-			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
 		}
 	})
 
@@ -1120,13 +1120,13 @@ func TestLoadEnv(t *testing.T) {
 		t.Setenv(env, `{"remove_query_string": true, "remove_paths_with_digits": true}`)
 		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
-		expected := map[string]bool{
+		expected := map[string]interface{}{
 			"remove_query_string":      true,
 			"remove_paths_with_digits": true,
 		}
-		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.obfuscation.http"))
+		actual := coreconfig.Datadog.GetStringMap(("apm_config.obfuscation.http"))
 		if !reflect.DeepEqual(actual, expected) {
-			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
 		}
 	})
 
