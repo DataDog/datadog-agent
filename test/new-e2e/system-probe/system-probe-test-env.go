@@ -126,7 +126,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	b = retry.WithMaxRetries(3, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-			if err := microvms.RunAndReturnInstances(awsEnvironment); err != nil {
+			if err := microvms.Run(ctx); err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
 
