@@ -1,0 +1,47 @@
+variables:
+  BENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:trace-agent
+
+.benchmarks:
+  stage: benchmarks
+  tags: ["runner:apm-k8s-same-cpu"]
+  timeout: 1h
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+    - when: manual
+  # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
+  image: $BENCHMARKS_CI_IMAGE
+  script:
+    - export ARTIFACTS_DIR="$(pwd)/reports" && (mkdir "${ARTIFACTS_DIR}" || :)
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.dd_api_key --with-decryption --query "Parameter.Value" --out text)
+    - git clone --branch trace-agent https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform /platform && cd /platform
+    - ./steps/capture-hardware-software-info.sh
+    - ./steps/run-benchmarks.sh
+    - "./steps/upload-results-to-s3.sh || :"
+  artifacts:
+    name: "reports"
+    paths:
+      - reports/
+    expire_in: 3 months
+  variables:
+    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true" # Important tweak for stability of benchmarks
+    K6_RUN_ID_PREFIX: ci
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: datadog-agent
+  # Workaround: Currently we're not running the benchmarks on every PR, but GitHub still shows them as pending.
+  # By marking the benchmarks as allow_failure, this should go away. (This workaround should be removed once the
+  # benchmarks get changed to run on every PR)
+  allow_failure: true
+
+trace-agent-endpoint-v04-macrobenchmarks:
+  extends: .benchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-endpoint-v04
+    DD_RELENV_CONFIGURATION: $DD_BENCHMARKS_CONFIGURATION
+    TRACE_AGENT_ENDPOINT: v04
+
+trace-agent-endpoint-v05-macrobenchmarks:
+  extends: .benchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-endpoint-v05
+    DD_RELENV_CONFIGURATION: $DD_BENCHMARKS_CONFIGURATION
+    TRACE_AGENT_ENDPOINT: v05
