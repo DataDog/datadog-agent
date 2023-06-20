@@ -23,6 +23,7 @@ const (
 	PrometheusPods     = "prometheus-pods"
 	PrometheusServices = "prometheus-services"
 	SNMP               = "snmp"
+	Telemetry          = "telemetry"
 	Zookeeper          = "zookeeper"
 )
 
