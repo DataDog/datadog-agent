@@ -167,11 +167,15 @@ def genconfig(
 
 
 @task
-def should_rerun_failed(_, runlog):
+def should_rerun_failed(_, runlog, test=""):
     """
     Parse a log from kitchen run and see if we should rerun it (e.g. because of a network issue).
     """
-    test_result_re = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+    if test == "gotest":
+        test_result_re = re.compile(r'--- FAIL: (?P<failures>[A-Z].*) \(.*\)')
+    else:
+        test_result_re = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+
     with open(runlog, 'r', encoding='utf-8') as f:
         text = f.read()
         result = set(test_result_re.findall(text))
