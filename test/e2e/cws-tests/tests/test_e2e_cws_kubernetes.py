@@ -14,7 +14,7 @@ from lib.cws.policy import PolicyLoader
 from lib.kubernetes import KubernetesHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
-
+from lib.cws.schemas import JsonSchemaValidator
 
 class TestE2EKubernetes(unittest.TestCase):
     namespace = "default"
@@ -68,7 +68,9 @@ class TestE2EKubernetes(unittest.TestCase):
             )
 
         with Step(msg="select pod", emoji=":man_running:"):
-            self.kubernetes_helper.select_pod_name("app=datadog-agent")
+            #self.kubernetes_helper.select_pod_name("app=datadog-agent")
+            self.kubernetes_helper.select_pod_name("app.kubernetes.io/component=agent")
+
 
         with Step(msg="check security-agent start", emoji=":customs:"):
             wait_agent_log("security-agent", self.kubernetes_helper, SECURITY_START_LOG)
@@ -100,8 +102,8 @@ class TestE2EKubernetes(unittest.TestCase):
             prev_load_date = attributes["date"]
             self.app.check_for_ignored_policies(self, attributes)
 
-        with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
-            time.sleep(3 * 60)
+        # with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
+        #     time.sleep(3 * 60)
 
         with Step(msg="check policies download", emoji=":file_folder:"):
             self.policies = self.kubernetes_helper.download_policies()
@@ -132,6 +134,18 @@ class TestE2EKubernetes(unittest.TestCase):
             else:
                 self.fail("check ruleset_loaded timeouted")
             self.app.check_for_ignored_policies(self, attributes)
+
+        with Step(msg="check self_tests", emoji=":test_tube:"):
+            rule_id = "self_test"
+            event = self.app.wait_app_log(f"rule_id:{rule_id}")
+            attributes = event["data"][0]["attributes"]["attributes"]
+            self.assertEqual(rule_id, attributes["agent"]["rule_id"], "unable to find rule_id tag attribute")
+            self.assertTrue(
+                "failed_tests" not in attributes,
+                f"failed tests: {attributes['failed_tests']}" if "failed_tests" in attributes else "success",
+            )
+            jsonSchemaValidator = JsonSchemaValidator("../../../../pkg/security/tests/schemas")
+            print(jsonSchemaValidator.validate("self_test_schema",attributes))
 
         with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
             self.app.wait_for_metric("datadog.security_agent.runtime.running", host=TestE2EKubernetes.hostname)

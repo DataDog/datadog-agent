@@ -127,9 +127,9 @@ func (t *SelfTester) createTargetFile() error {
 }
 
 // RunSelfTest runs the self test and return the result
-func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
+func (t *SelfTester) RunSelfTest() ([]string, []string, map[string]*serializers.EventSerializer, error) {
 	if err := t.BeginWaitingForEvent(); err != nil {
-		return nil, nil, fmt.Errorf("failed to run self test: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to run self test: %w", err)
 	}
 	defer t.EndWaitingForEvent()
 
@@ -138,6 +138,8 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	// launch the self tests
 	var success []string
 	var fails []string
+	testEvents := make(map[string]*serializers.EventSerializer)
+
 	for _, selftest := range FileSelfTests {
 		def := selftest.GetRuleDefinition(t.targetFilePath)
 
@@ -147,8 +149,9 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 			log.Errorf("Self test failed: %s", def.ID)
 			continue
 		}
-
-		if err = t.expectEvent(predicate); err != nil {
+		event, err2 := t.expectEvent(predicate)
+		testEvents[def.ID] = event
+		if err2 != nil {
 			fails = append(fails, def.ID)
 			log.Errorf("Self test failed: %s", def.ID)
 		} else {
@@ -160,7 +163,7 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, error) {
 	t.success = success
 	t.fails = fails
 
-	return success, fails, nil
+	return success, fails, testEvents, nil
 }
 
 // Start starts the self tester policy provider
@@ -192,6 +195,7 @@ func (t *SelfTester) EndWaitingForEvent() {
 type selfTestEvent struct {
 	Type     string
 	Filepath string
+	Event    *serializers.EventSerializer
 }
 
 // IsExpectedEvent sends an event to the tester
@@ -210,6 +214,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *prob
 		selfTestEvent := selfTestEvent{
 			Type:     event.GetType(),
 			Filepath: s.FileEventSerializer.Path,
+			Event:    s,
 		}
 		t.eventChan <- selfTestEvent
 		return true
@@ -217,16 +222,16 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *prob
 	return false
 }
 
-func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) error {
+func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) (*serializers.EventSerializer, error) {
 	timer := time.After(3 * time.Second)
 	for {
 		select {
 		case event := <-t.eventChan:
 			if predicate(event) {
-				return nil
+				return event.Event, nil
 			}
 		case <-timer:
-			return errors.New("failed to receive expected event")
+			return nil, errors.New("failed to receive expected event")
 		}
 	}
 }
