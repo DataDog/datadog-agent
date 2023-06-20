@@ -68,9 +68,7 @@ class TestE2EKubernetes(unittest.TestCase):
             )
 
         with Step(msg="select pod", emoji=":man_running:"):
-            #self.kubernetes_helper.select_pod_name("app=datadog-agent")
-            self.kubernetes_helper.select_pod_name("app.kubernetes.io/component=agent")
-
+            self.kubernetes_helper.select_pod_name("app=datadog-agent")
 
         with Step(msg="check security-agent start", emoji=":customs:"):
             wait_agent_log("security-agent", self.kubernetes_helper, SECURITY_START_LOG)
@@ -102,8 +100,8 @@ class TestE2EKubernetes(unittest.TestCase):
             prev_load_date = attributes["date"]
             self.app.check_for_ignored_policies(self, attributes)
 
-        # with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
-        #     time.sleep(3 * 60)
+        with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
+            time.sleep(3 * 60)
 
         with Step(msg="check policies download", emoji=":file_folder:"):
             self.policies = self.kubernetes_helper.download_policies()
