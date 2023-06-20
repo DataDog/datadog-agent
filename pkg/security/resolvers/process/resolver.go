@@ -358,16 +358,18 @@ func (p *Resolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc *pro
 	}
 
 	entry.FileEvent.FileFields = *info
-	entry.FileEvent.SetPathnameStr(pathnameStr)
-	entry.FileEvent.SetBasenameStr(path.Base(pathnameStr))
+	setPathname(&entry.FileEvent, pathnameStr)
 
 	entry.Process.ContainerID = string(containerID)
 
-	// resolve container path with the MountResolver
-	entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
-	if err != nil {
-		entry.FileEvent.Filesystem = model.UnknownFS
-		seclog.Debugf("snapshot failed for %d: couldn't get the filesystem: %s", proc.Pid, err)
+	if entry.FileEvent.IsFileless() {
+		entry.FileEvent.Filesystem = model.TmpFS
+	} else {
+		// resolve container path with the MountResolver
+		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
+		if err != nil {
+			seclog.Debugf("snapshot failed for mount %d with pid %d : couldn't get the filesystem: %s", entry.Process.FileEvent.MountID, proc.Pid, err)
+		}
 	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
@@ -608,6 +610,15 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *model
 	return nil
 }
 
+func setPathname(fileEvent *model.FileEvent, pathnameStr string) {
+	if fileEvent.FileFields.IsFileless() {
+		fileEvent.SetPathnameStr("")
+	} else {
+		fileEvent.SetPathnameStr(pathnameStr)
+	}
+	fileEvent.SetBasenameStr(path.Base(pathnameStr))
+}
+
 // SetProcessPath resolves process file path
 func (p *Resolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	onError := func(pathnameStr string, err error) (string, error) {
@@ -627,13 +638,7 @@ func (p *Resolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDC
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
-
-	if fileEvent.FileFields.IsFileless() {
-		fileEvent.SetPathnameStr("")
-	} else {
-		fileEvent.SetPathnameStr(pathnameStr)
-	}
-	fileEvent.SetBasenameStr(path.Base(pathnameStr))
+	setPathname(fileEvent, pathnameStr)
 
 	return fileEvent.PathnameStr, nil
 }

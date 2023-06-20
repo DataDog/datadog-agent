@@ -28,6 +28,9 @@ import (
 const (
 	// OverlayFS overlay filesystem
 	OverlayFS = "overlay"
+	// TmpFS tmpfs
+	TmpFS = "tmpfs"
+	// UnknownFS unknow filesystem
 	UnknownFS = "unknown"
 )
 
