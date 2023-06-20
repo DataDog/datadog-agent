@@ -300,6 +300,7 @@ func parseTestConfiguration() *TestConfig {
 
 func printHeader(str string) {
 	greenString := color.New(color.FgGreen, color.Bold).Add(color.Underline)
+	fmt.Println()
 	greenString.Println(str)
 }
 
