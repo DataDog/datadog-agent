@@ -112,6 +112,7 @@ type soWatcher struct {
 	processMonitor *monitor.ProcessMonitor
 	registry       *soRegistry
 
+	// numbers of library events from the kernel filter (Hits) and matching (Matches) the registered rules
 	libHits    *telemetry.Metric
 	libMatches *telemetry.Metric
 }
@@ -126,6 +127,14 @@ type soRegistry struct {
 	// if we can't register a uprobe we don't try more than once
 	blocklistByID pathIdentifierSet
 
+	// a library can be :
+	//  o Registered : it's a new library
+	//  o AlreadyRegistered : we have already hooked (uprobe) this library (unique by pathID)
+	//  o Blocked : previous uprobe registration failed, so we block further call
+	//  o Unregistered : a library hook is unregister meaning there are no more refcount to the corresponding pathID
+	//  o UnregisterNoCB : unregister event has been done but rule doesn't had unregister callback
+	//  o UnregisterErrors : we encounter an error during the unregistration, looks at the logs for further details
+	//  o UnregisterPathIDNotFound : we can't find the pathID registration, it's a bug, this value should be always 0
 	libRegistered               *telemetry.Metric
 	libAlreadyRegistered        *telemetry.Metric
 	libBlocked                  *telemetry.Metric
@@ -161,7 +170,7 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 			libUnregistered:             metricGroup.NewMetric("unregistered"),
 			libUnregisterNoCB:           metricGroup.NewMetric("unregister_no_callback"),
 			libUnregisterErrors:         metricGroup.NewMetric("unregister_errors"),
-			libUnregisterPathIDNotFound: metricGroup.NewMetric("unregister_pathid_not_found"),
+			libUnregisterPathIDNotFound: metricGroup.NewMetric("unregister_path_id_not_found"),
 		},
 
 		libHits:    metricGroup.NewMetric("hits"),
@@ -193,6 +202,7 @@ func (r *soRegistration) unregisterPath(pathID pathIdentifier, soreg *soRegistry
 			// We cannot handle the failure, and thus we should continue.
 			log.Warnf("error while unregistering %s : %s", pathID.String(), err)
 			soreg.libUnregisterErrors.Add(1)
+			return true
 		}
 	} else {
 		soreg.libUnregisterNoCB.Add(1)
