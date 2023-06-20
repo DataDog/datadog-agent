@@ -33,8 +33,8 @@ func newProfiler(deps dependencies) Component {
 	p := &profiler{}
 
 	settings := getProfilingSettings(deps.Config)
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(context.Context) error {
+	deps.Lc.Append(fx.StartStopHook(
+		func(context.Context) error {
 			if deps.Config.GetBool("process_config.internal_profiling.enabled") {
 				err := profiling.Start(settings)
 				if err != nil {
@@ -48,11 +48,8 @@ func newProfiler(deps dependencies) Component {
 			// starting the process-agent.
 			return nil
 		},
-		OnStop: func(context.Context) error {
-			profiling.Stop()
-			return nil
-		},
-	})
+		profiling.Stop,
+	))
 	return p
 }
 
