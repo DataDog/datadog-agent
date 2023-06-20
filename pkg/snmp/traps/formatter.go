@@ -6,9 +6,12 @@
 package traps
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"strings"
 	"unicode"
 
@@ -348,6 +351,8 @@ func formatType(variable gosnmp.SnmpPDU) string {
 		return "counter64"
 	case gosnmp.Gauge32:
 		return "gauge32"
+	case gosnmp.IPAddress:
+		return "ip-address"
 	default:
 		return "other"
 	}
@@ -356,6 +361,20 @@ func formatType(variable gosnmp.SnmpPDU) string {
 func formatValue(variable gosnmp.SnmpPDU) interface{} {
 	switch variable.Value.(type) {
 	case []byte:
+		if variable.Type == gosnmp.IPAddress {
+			return common.IPBytesToString(variable.Value.([]byte))
+		} else if variable.Type == gosnmp.OctetString {
+			b := variable.Value.([]byte)
+			if !utilFunc.IsStringPrintable(b) {
+				var strBytes []string
+				for _, bt := range b {
+					strBytes = append(strBytes, hex.EncodeToString([]byte{bt}))
+				}
+				return strings.Join(strBytes, "")
+			} else {
+				return string(b)
+			}
+		}
 		return string(variable.Value.([]byte))
 	case string:
 		if variable.Type == gosnmp.ObjectIdentifier {
