@@ -86,7 +86,9 @@ func FormatConnection(
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
 	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
-	c.HttpAggregations = httpStats
+	if httpStats != nil {
+		c.HttpAggregations, _ = proto.Marshal(httpStats)
+	}
 
 	httpStats2, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
 	if httpStats2 != nil {
