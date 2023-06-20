@@ -147,8 +147,6 @@ type soRegistry struct {
 func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.shared_libraries",
-		telemetry.OptStatsd,
-		telemetry.OptExpvar,
 		telemetry.OptMonotonic,
 		telemetry.OptPayloadTelemetry,
 	)
