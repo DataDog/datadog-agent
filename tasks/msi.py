@@ -143,6 +143,12 @@ def build(
         configuration = "Debug"
     build_outdir = build_out_dir(arch, configuration)
 
+    # sign build output that will be included in the installer MSI
+    dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
+    if dd_wcs_enabled:
+        for f in [os.path.join(build_outdir, 'CustomActions.dll')]:
+            ctx.run(f'dd-wcs sign {f}')
+
     # Run the builder to produce the MSI
     env = _get_env(ctx, major_version, python_runtimes, release_version)
     # Set an env var to tell WixSetup.exe where to put the output MSI
@@ -156,6 +162,11 @@ def build(
         raise Exit("Failed to build the MSI installer.", code=1)
 
     out_file = os.path.join(build_outdir, f"datadog-agent-ng-{env['PACKAGE_VERSION']}-1-x86_64.msi")
+
+    # sign the MSI
+    dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
+    if dd_wcs_enabled:
+        ctx.run(f'dd-wcs sign {out_file}')
 
     # And copy it to the output path as a build artifact
     shutil.copy2(out_file, OUTPUT_PATH)
