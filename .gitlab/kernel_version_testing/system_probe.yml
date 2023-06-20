@@ -32,8 +32,6 @@ pull_test_dockers_arm64:
 .package_dependencies:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  rules:
-    !reference [.manual]
   tags: ["runner:main"]
   script:
     # Build dependencies directory
@@ -44,9 +42,6 @@ pull_test_dockers_arm64:
     - cp $CLANG_BPF $EMBEDDED_BIN
     - cp $LLC_BPF $EMBEDDED_BIN
     - mkdir -p $EMBEDDED_INC
-    # download and copy btf files
-    - mkdir -p $BTF_DIR
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz $BTF_DIR/minimized-btfs.tar.xz
     # copy gotestsum and test2json
     - mkdir -p $GO_BIN
     - cp $GOTESTSUM $GO_BIN
@@ -54,24 +49,18 @@ pull_test_dockers_arm64:
     - mkdir junit
     - mkdir testjson
     - mkdir pkgjson
+    # copy micro-vm-init.sh
+    - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
     # copy over docker images
     - cp -R $KITCHEN_DOCKERS $DEPENDENCIES/kitchen-docker
-    # copy system probe tests
-    - mkdir -p $SYSTEM_PROBE_TESTS
-    - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
-    - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
-    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-runner $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/main.go
-    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-json-review $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review/main.go
-    - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
     - tar czvf ../$ARCHIVE_NAME dependencies
     - popd
-  artifacts:
-    when: always
-    paths:
-      - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
+    # upload tests
+    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $INSTANCE_ARCH-instance-ip | cut -d ' ' -f 2)
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing 
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
     CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
@@ -81,26 +70,116 @@ pull_test_dockers_arm64:
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
     EMBEDDED_BIN: opt/datadog-agent/embedded/bin
     EMBEDDED_INC: opt/datadog-agent/embedded/include
-    BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-    SYSTEM_PROBE_TESTS: opt/system-probe-tests
-    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
 package_dependencies_x64:
   extends:
     - .package_dependencies
-  needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64", "pull_test_dockers_x64", "generate_minimized_btfs_x64"]
+  needs: ["kernel_matrix_testing_setup_env", "pull_test_dockers_x64"]
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
+    INSTANCE_ARCH: x86_64
 
 package_dependencies_arm64:
   extends:
     - .package_dependencies
-  needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64", "pull_test_dockers_arm64", "generate_minimized_btfs_arm64"]
+  needs: ["kernel_matrix_testing_setup_env", "pull_test_dockers_arm64"]
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
+    INSTANCE_ARCH: arm64
+
+.upload_system_probe_tests:
+  stage: kernel_matrix_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    # Build dependencies directory
+    - mkdir -p $DEPENDENCIES
+    - pushd $DEPENDENCIES
+    # copy system probe tests
+    - mkdir -p $SYSTEM_PROBE_TESTS
+    - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
+    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-runner $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/main.go
+    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-json-review $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review/main.go
+    - popd
+    # package all the dependencies
+    - ls -la $DEPENDENCIES
+    - pushd $DD_AGENT_TESTING_DIR/$ARCH
+    - tar czvf ../$ARCHIVE_NAME tests
+    - popd
+    # upload tests
+    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing 
+  variables:
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/tests
+    SYSTEM_PROBE_TESTS: opt/system-probe-tests
+    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+  artifacts:
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
+
+upload_system_probe_tests_x64:
+  extends:
+    - .upload_system_probe_tests
+  needs: ["kernel_matrix_testing_setup_env", "prepare_ebpf_functional_tests_x64", "tests_ebpf_x64"]
+  variables:
+    ARCHIVE_NAME: tests-x86_64.tar.gz
+    ARCH: x86_64
+
+upload_system_probe_tests_arm64:
+  extends:
+    - .upload_system_probe_tests
+  needs: ["kernel_matrix_testing_setup_env", "prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
+  variables:
+    ARCHIVE_NAME: tests-arm64.tar.gz
+    ARCH: arm64
+
+.upload_minimized_btfs:
+  stage: kernel_matrix_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    # Build dependencies directory
+    - mkdir -p $DEPENDENCIES
+    - pushd $DEPENDENCIES
+    # download and copy btf files
+    - mkdir -p $BTF_DIR
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz $BTF_DIR/minimized-btfs.tar.xz
+    # package all the dependencies
+    - ls -la $DEPENDENCIES
+    - pushd $DD_AGENT_TESTING_DIR/$ARCH
+    - tar czvf ../$ARCHIVE_NAME btfs
+    - popd
+    # upload tests
+    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing 
+  variables:
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
+    BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+
+upload_minimized_btfs_x64:
+  extends:
+    - .upload_minimized_btfs
+  needs: ["kernel_matrix_testing_setup_env", "generate_minimized_btfs_x64"]
+  variables:
+    ARCHIVE_NAME: btfs-x86_64.tar.gz
+    ARCH: x86_64
+
+
+upload_minimized_btfs_arm64:
+  extends:
+    - .upload_minimized_btfs
+  needs: ["kernel_matrix_testing_setup_env", "generate_minimized_btfs_arm64"]
+  variables:
+    ARCHIVE_NAME: btfs-arm64.tar.gz
+    ARCH: arm64
+
 
 .kernel_matrix_testing_new_profile:
   - mkdir -p ~/.aws
@@ -162,49 +241,10 @@ kernel_matrix_testing_setup_env:
       - $CI_PROJECT_DIR/stack.outputs
       - $AWS_EC2_SSH_KEY_FILE
 
-kernel_matrix_testing_upload_deps:
-  extends:
-    - .kitchen_ec2_location_us_east_1
-  stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
-  needs: ["go_deps", "kernel_matrix_testing_setup_env", "package_dependencies_x64", "package_dependencies_arm64"]
-  tags: ["arch:amd64"]
-  allow_failure: true
-  variables:
-    EC2_X86_INSTANCE_TYPE: "m5.metal"
-    EC2_ARM_INSTANCE_TYPE: "m6g.metal"
-    X86_AMI_ID: $KERNEL_MATRIX_TESTING_X86_AMI_ID
-    ARM_AMI_ID: $KERNEL_MATRIX_TESTING_ARM_AMI_ID
-    AWS_REGION: us-east-1
-    LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
-    LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
-    STACK_DIR: $CI_PROJECT_DIR/stack.dir
-    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
-    AWS_EC2_SSH_KEY_NAME: datadog-agent-ci
-    INFRA_ENV: "aws/agent-qa"
-    PIPELINE_ID: $CI_PIPELINE_ID
-    TEAM: "ebpf-platform"
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.kernel_matrix_testing_new_profile]
-  script:
-    - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --upload-dependencies
-    - pulumi logout
-  artifacts:
-    when: always
-    paths:
-      - $LibvirtSSHKeyX86
-      - $LibvirtSSHKeyX86.pub
-      - $LibvirtSSHKeyARM
-      - $LibvirtSSHKeyARM.pub
-      - $STACK_DIR
-
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
-  needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
   tags: ["arch:amd64"]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -222,7 +262,7 @@ kernel_matrix_testing_upload_deps:
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
     - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH.$TAG | cut -d ' ' -f 1)
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION}'"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION} ${ARCH}'"
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/junit-${MICRO_VM_IP}.tar.gz /home/ubuntu/junit-${MICRO_VM_IP}.tar.gz"
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/testjson-${MICRO_VM_IP}.tar.gz /home/ubuntu/testjson-${MICRO_VM_IP}.tar.gz"
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-testjson-$MICRO_VM_NAME.tar.gz
@@ -232,6 +272,7 @@ kernel_matrix_testing_upload_deps:
 kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
+  needs: ["upload_system_probe_tests_x64", "upload_minimized_btfs_x64", "package_dependencies_x64", "kernel_matrix_testing_setup_env"]
   variables:
     ARCH: "x86_64"
   parallel:
@@ -241,6 +282,7 @@ kernel_matrix_testing_run_tests_x64:
 kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
+  needs: ["upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64", "package_dependencies_arm64", "kernel_matrix_testing_setup_env"]
   variables:
     ARCH: "arm64"
   parallel:
