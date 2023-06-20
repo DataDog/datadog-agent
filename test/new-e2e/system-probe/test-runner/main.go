@@ -328,7 +328,7 @@ func run() error {
 	}
 
 	for i := 1; i <= testConfig.retry; i++ {
-		printHeader(fmt.Sprintf("Test pass attempt %d", i))
+		printHeader(fmt.Sprintf("Test attempt %d", i))
 		retry, err := testPass(testConfig, i)
 		if !retry || err != nil {
 			break
