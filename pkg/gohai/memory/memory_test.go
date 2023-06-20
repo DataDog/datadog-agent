@@ -6,6 +6,7 @@ package memory
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
@@ -52,12 +53,16 @@ func TestMemoryAsJSON(t *testing.T) {
 	// check that we read the full json
 	require.False(t, decoder.More())
 
-	if _, err = memInfo.TotalBytes.Value(); err == nil {
-		// the total field is just a number of bytes, without explicit units
-		require.Regexp(t, `^\d+$`, decodedMem.Total)
+	if totalBytes, err := memInfo.TotalBytes.Value(); err == nil {
+		require.Equal(t, fmt.Sprintf("%d", totalBytes), decodedMem.Total)
+	} else {
+		require.Empty(t, decodedMem.Total)
 	}
-	if _, err = memInfo.SwapTotalKb.Value(); err == nil {
+
+	if swapTotalKb, err := memInfo.SwapTotalKb.Value(); err == nil {
 		// the swap total field is a number with unit kb
-		require.Regexp(t, `^\d+kb$`, decodedMem.SwapTotal)
+		require.Equal(t, fmt.Sprintf("%dkb", swapTotalKb), decodedMem.SwapTotal)
+	} else {
+		require.Empty(t, decodedMem.Total)
 	}
 }
