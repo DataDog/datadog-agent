@@ -115,9 +115,18 @@ const maxTagLength = 200
 
 // NormalizeTag applies some normalization to ensure the tags match the backend requirements.
 func NormalizeTag(v string) string {
+	return normalizeTagOrValue(v, true)
+}
+
+// NormalizeTagValue applies some normalization to ensure the tags match the backend requirements.
+func NormalizeTagValue(v string) string {
+	return normalizeTagOrValue(v, false)
+}
+
+func normalizeTagOrValue(v string, checkValidStartChar bool) string {
 	// Fast path: Check if the tag is valid and only contains ASCII characters,
 	// if yes return it as-is right away. For most use-cases this reduces CPU usage.
-	if isNormalizedASCIITag(v) {
+	if isNormalizedASCIITag(v, checkValidStartChar) {
 		return v
 	}
 	// the algorithm works by creating a set of cuts marking start and end offsets in v
@@ -169,7 +178,7 @@ func NormalizeTag(v string) string {
 		switch {
 		case unicode.IsLetter(r):
 			chars++
-		case chars == 0:
+		case checkValidStartChar && chars == 0:
 			// this character can not start the string, trim
 			trim = i + jump
 			goto end
@@ -297,17 +306,21 @@ func normMetricNameParse(name string) (string, bool) {
 	return string(res), true
 }
 
-func isNormalizedASCIITag(tag string) bool {
+func isNormalizedASCIITag(tag string, checkValidStartChar bool) bool {
 	if len(tag) == 0 {
 		return true
 	}
 	if len(tag) > maxTagLength {
 		return false
 	}
-	if !isValidASCIIStartChar(tag[0]) {
-		return false
+	i := 0
+	if checkValidStartChar {
+		if !isValidASCIIStartChar(tag[0]) {
+			return false
+		}
+		i++
 	}
-	for i := 1; i < len(tag); i++ {
+	for ; i < len(tag); i++ {
 		b := tag[i]
 		// TODO: Attempt to optimize this check using SIMD/vectorization.
 		if isValidASCIITagChar(b) {
