@@ -193,7 +193,7 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 	var retry bool
 
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
-		dir := filepath.Dir(path)
+		dir := strings.TrimLeft(strings.TrimPrefix(filepath.Dir(path), TestDirRoot), "/")
 		if len(testConfig.excludePackages) != 0 {
 			for _, p := range testConfig.excludePackages {
 				if dir == p {
@@ -281,8 +281,15 @@ func parseTestConfiguration() *TestConfig {
 
 	flag.Parse()
 
-	packagesLs := strings.Split(*packagesPtr, ",")
-	excludeLs := strings.Split(*excludePackagesPtr, ",")
+	packagesLs := []string{}
+	excludeLs := []string{}
+
+	if *packagesPtr != "" {
+		packagesLs := strings.Split(*packagesPtr, ",")
+	}
+	if *excludePackagesPtr != "" {
+		excludeLs := strings.Split(*excludePackagesPtr, ",")
+	}
 
 	return &TestConfig{
 		retry:           *retryPtr,
@@ -292,7 +299,7 @@ func parseTestConfiguration() *TestConfig {
 }
 
 func printHeader(str string) {
-	greenString := color.New(FgGreen, color.Bold).Add(color.Underline)
+	greenString := color.New(color.FgGreen, color.Bold).Add(color.Underline)
 	greenString.Println(str)
 }
 
