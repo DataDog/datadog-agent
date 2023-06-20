@@ -14,6 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/approver"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -23,10 +27,10 @@ type Monitor struct {
 	probe *Probe
 
 	eventStreamMonitor *eventstream.EventStreamMonitor
-	runtimeMonitor     *RuntimeMonitor
-	discarderMonitor   *DiscarderMonitor
-	cgroupsMonitor     *CgroupsMonitor
-	approverMonitor    *ApproverMonitor
+	runtimeMonitor     *runtime.RuntimeMonitor
+	discarderMonitor   *discarder.DiscarderMonitor
+	cgroupsMonitor     *cgroups.CgroupsMonitor
+	approverMonitor    *approver.ApproverMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -48,19 +52,19 @@ func (m *Monitor) Init() error {
 	}
 
 	if p.Config.Probe.RuntimeMonitor {
-		m.runtimeMonitor = NewRuntimeMonitor(p.StatsdClient)
+		m.runtimeMonitor = runtime.NewRuntimeMonitor(p.StatsdClient)
 	}
 
-	m.discarderMonitor, err = NewDiscarderMonitor(p.Manager, p.StatsdClient)
+	m.discarderMonitor, err = discarder.NewDiscarderMonitor(p.Manager, p.StatsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
-	m.approverMonitor, err = NewApproverMonitor(p.Manager, p.StatsdClient)
+	m.approverMonitor, err = approver.NewApproverMonitor(p.Manager, p.StatsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the approver monitor: %w", err)
 	}
 
-	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
+	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
 
 	return nil
 }

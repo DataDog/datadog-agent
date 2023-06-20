@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -60,12 +61,6 @@ var (
 // that the value will be always rejected by the rules
 type Discarder struct {
 	Field eval.Field
-}
-
-// DiscarderStats is used to collect kernel space metrics about discarders
-type DiscarderStats struct {
-	DiscarderAdded uint64 `yaml:"discarder_added"`
-	EventDiscarded uint64 `yaml:"event_discarded"`
 }
 
 // ErrDiscarderNotSupported is returned when trying to discover a discarder on a field that doesn't support them
@@ -567,10 +562,10 @@ type InodeDiscarderDump struct {
 
 // DiscardersDump describes a dump of discarders
 type DiscardersDump struct {
-	Date   time.Time                 `yaml:"date"`
-	Inodes []InodeDiscarderDump      `yaml:"inodes"`
-	Pids   []PidDiscarderDump        `yaml:"pids"`
-	Stats  map[string]DiscarderStats `yaml:"stats"`
+	Date   time.Time                           `yaml:"date"`
+	Inodes []InodeDiscarderDump                `yaml:"inodes"`
+	Pids   []PidDiscarderDump                  `yaml:"pids"`
+	Stats  map[string]discarder.DiscarderStats `yaml:"stats"`
 }
 
 func dumpPidDiscarders(resolver *dentry.Resolver, pidMap *ebpf.Map) ([]PidDiscarderDump, error) {
@@ -642,14 +637,14 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 	return dumps, nil
 }
 
-func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]DiscarderStats, error) {
+func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.DiscarderStats, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	stats := make(map[string]DiscarderStats)
-	perCpu := make([]DiscarderStats, numCPU)
+	stats := make(map[string]discarder.DiscarderStats)
+	perCpu := make([]discarder.DiscarderStats, numCPU)
 
 	var eventType uint32
 	for _, buffer := range buffers {
@@ -661,7 +656,7 @@ func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]DiscarderStats, error)
 
 				entry, exists := stats[key]
 				if !exists {
-					stats[key] = DiscarderStats{
+					stats[key] = discarder.DiscarderStats{
 						DiscarderAdded: stat.DiscarderAdded,
 						EventDiscarded: stat.EventDiscarded,
 					}
