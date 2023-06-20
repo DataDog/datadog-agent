@@ -3,7 +3,7 @@ variables:
 
 .benchmarks:
   stage: benchmarks
-  tags: ["runner:apm-k8s-same-cpu"]
+  tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   timeout: 1h
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
