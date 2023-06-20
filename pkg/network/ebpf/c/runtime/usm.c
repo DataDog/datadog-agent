@@ -456,6 +456,8 @@ cleanup:
 }
 
 // size_t gnutls_record_discard_queued(gnutls_session_t session)
+// when DTLS (UDP) gnutls_record_discard_queued() could be used to discard the previously enqueued data
+// gnutls doc : https://www.gnutls.org/manual/gnutls.html#Asynchronous-operation 6.5.1
 SEC("uprobe/gnutls_record_discard_queued")
 int uprobe__gnutls_record_discard_queued(struct pt_regs *ctx) {
     // userspace call can discard the queue after gnutls_record_send has been interrupted
