@@ -127,6 +127,7 @@ func getHostMetadata() *HostMetadata {
 	} else {
 		logWarnings(warnings)
 
+		// Value() returns the default value of the type in case of error so we can use it directly
 		memoryTotalKb, _ := memoryInfo.TotalBytes.Value()
 		metadata.MemoryTotalKb = memoryTotalKb / 1024
 		metadata.MemorySwapTotalKb, _ = memoryInfo.SwapTotalKb.Value()
