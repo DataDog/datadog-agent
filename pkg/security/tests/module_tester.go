@@ -1508,6 +1508,13 @@ func (tm *testModule) validateAbnormalPaths() {
 	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
 }
 
+func (tm *testModule) validateSyscallsInFlight() {
+	inflight := tm.statsdClient.GetByPrefix("datadog.runtime_security.syscalls_map.event_inflight:event_type:")
+	for key, value := range inflight {
+		assert.Greater(tm.t, int64(1024), value, "event type: %s leaked: %d", key, value)
+	}
+}
+
 func (tm *testModule) Close() {
 	if !tm.opts.disableRuntimeSecurity {
 		tm.eventMonitor.SendStats()
@@ -1516,6 +1523,9 @@ func (tm *testModule) Close() {
 	if !tm.opts.disableAbnormalPathCheck {
 		tm.validateAbnormalPaths()
 	}
+
+	// make sure we don't leak syscalls
+	tm.validateSyscallsInFlight()
 
 	tm.statsdClient.Flush()
 

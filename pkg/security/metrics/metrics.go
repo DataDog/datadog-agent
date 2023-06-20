@@ -77,6 +77,12 @@ var (
 	// Tags: approver_type, event_type
 	MetricEventApproved = newRuntimeMetric(".approvers.event_approved")
 
+	// syscalls metrics
+
+	// MetricSyscallsMap is the number of inflight events
+	// Tags: event_type
+	MetricSyscallsInFlight = newRuntimeMetric(".syscalls_map.event_inflight")
+
 	// Perf buffer metrics
 
 	// MetricPerfBufferLostWrite is the name of the metric used to count the number of lost events, as reported by a
