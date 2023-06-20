@@ -2,6 +2,7 @@ package Clients;
 
 import okhttp3.Call;
 import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -13,7 +14,6 @@ import org.apache.http.impl.client.HttpClients;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import java.io.Closeable;
 import java.io.IOException;
@@ -27,6 +27,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 
 public class JavaClients implements Closeable {
 
@@ -80,13 +81,16 @@ public class JavaClients implements Closeable {
         okHttpClient = new OkHttpClient.Builder()
                 .hostnameVerifier(NoopHostnameVerifier.INSTANCE)
                 .sslSocketFactory(sslContext.getSocketFactory(),(X509TrustManager) trustAllCerts[0])
+                //by default okhttp is using http2.0
+                .protocols(Arrays.asList(Protocol.HTTP_1_1))
                 .build();
     }
 
     public void HttpsURLConnection(String url) throws IOException {
         HttpsURLConnection urlConnection =(HttpsURLConnection) new URL(URL_SCHEME+url).openConnection();
-        int res = urlConnection.getResponseCode();
-        System.out.println("Response: " + res);
+        String response = urlConnection.getResponseMessage();
+        int  code = urlConnection.getResponseCode();
+        System.out.println("Response code:  " + code + " ; Message: " + response);
     }
 
     public void OkHttpClient(String url) throws IOException {
@@ -99,12 +103,19 @@ public class JavaClients implements Closeable {
     }
 
     public void HttpApacheClient(String url) throws IOException {
+        HttpGet request = new HttpGet("https://"+url);
         try {
-            HttpGet request = new HttpGet("https://"+url);
             CloseableHttpResponse response = apacheClient.execute(request);
             System.out.println("Response: " + response);
         } catch (IOException e) {
             e.printStackTrace();
+        }
+        finally {
+            // TODO: in the future we should support re-using the same connection for apache client,
+            // currently we are hitting the internal connection pool limit of the apacheclient,
+            // since we create a new request object for the same route, which in turn tries to use a new connection
+            // (the default connection limit of the apacheclient for the same route is 2
+            request.releaseConnection();
         }
     }
 
@@ -112,6 +123,7 @@ public class JavaClients implements Closeable {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(URL_SCHEME+url))
+                    //by default HttpCLient is using http 2.0
                     .version(HttpClient.Version.HTTP_1_1)
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
