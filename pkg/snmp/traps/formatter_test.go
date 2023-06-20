@@ -1146,6 +1146,55 @@ func TestVariableValueFormat(t *testing.T) {
 	}
 }
 
+func TestVariableValueFormatForIPAndOctetString(t *testing.T) {
+	data := []struct {
+		description string
+		variable    gosnmp.SnmpPDU
+		expected    interface{}
+	}{
+
+		{
+			description: "type IPv4 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.IPAddress, Value: "127.0.0.1"},
+			expected:    "127.0.0.1",
+		},
+		{
+			description: "type IPv6 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.IPAddress, Value: "2001:db8:3333:4444:5555:6666:7777:8888"},
+			expected:    "2001:db8:3333:4444:5555:6666:7777:8888",
+		},
+		{
+			description: "type IPv6 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.IPAddress, Value: "::"},
+			expected:    "::",
+		},
+		{
+			description: "type IPv6 is correctly formatted",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.IPAddress, Value: "2001:db8::"},
+			expected:    "2001:db8::",
+		},
+		{
+			description: "[]byte values with \n and \r are converted to string",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.OctetString, Value: []byte{0x0D, 0x0a, 0x74, 0x65, 0x73, 0x74, 0x0a, 0x0D}},
+			expected:    "\r\ntest\n\r",
+		},
+		{
+			description: "[]byte values with extended ASCII characters are converted to string",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.OctetString, Value: []byte{0xB0, 0xB3, 0xEA, 0x93, 0x84, 0x87, 0xAD, 0xC1}},
+			expected:    "b0b3ea938487adc1",
+		},
+		{
+			description: "mac address (hex format) is converted to string",
+			variable:    gosnmp.SnmpPDU{Name: "1.3.6.1.2.1.200.1.3.1.7", Type: gosnmp.OctetString, Value: []byte{0x30, 0x30, 0x3a, 0x31, 0x62, 0x3a, 0x36, 0x33, 0x3a, 0x38, 0x34, 0x3a, 0x34, 0x35, 0x3a, 0x65, 0x36}},
+			expected:    "00:1b:63:84:45:e6",
+		},
+	}
+
+	for _, d := range data {
+		require.Equal(t, d.expected, formatValue(d.variable), d.description)
+	}
+}
+
 func TestFormatterTelemetry(t *testing.T) {
 	data := []struct {
 		description    string
