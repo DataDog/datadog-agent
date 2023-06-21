@@ -247,7 +247,7 @@ kernel_matrix_testing_run_tests_arm64:
     matrix:
       - TAG: ["focal", "jammy"]
 
-kernel_matrix_testing_cleanup:
+.kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
   needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
@@ -259,3 +259,13 @@ kernel_matrix_testing_cleanup:
     - INSTANCE_IDS=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi" "Name=private-ip-address,Values=$INSTANCE_IPS" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
     - echo $INSTANCE_IDS
     - aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
+
+kernel_matrix_testing_cleanup_on_failure:
+  extends:
+    - .kernel_matrix_testing_cleanup
+  when: on_failure
+
+kernel_matrix_testing_cleanup_on_success:
+  extends:
+    - .kernel_matrix_testing_cleanup
+  when: on_success
