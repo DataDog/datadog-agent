@@ -1,0 +1,18 @@
+syntax = "proto3";
+package datadog.test.v1;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "pkg/proto/test2"; // golang
+
+message Connection {
+    bytes data = 1;
+}
+
+message GetConnectionsRequest {
+    string clientID = 1;
+}
+
+service SystemProbe {
+    rpc GetConnections(GetConnectionsRequest) returns (stream Connection);
+}

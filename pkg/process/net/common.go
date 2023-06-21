@@ -12,6 +12,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/proto/test2"
+	"google.golang.org/grpc"
 	"io"
 	"net"
 	"net/http"
@@ -128,30 +130,48 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 
 // GetConnections returns a set of active network connections, retrieved from the system probe service
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
+	conn, err := grpc.Dial("unix:///tmp/my_grpc.sock", grpc.WithInsecure())
 	if err != nil {
-		return nil, err
+		log.Errorf("Failed to connect: %v", err)
 	}
 
-	req.Header.Set("Accept", contentTypeProtobuf)
-	resp, err := r.httpClient.Do(req)
+	client := test2.NewSystemProbeClient(conn)
+
+	response, err := client.GetConnections(context.Background(), &test2.GetConnectionsRequest{ClientID: clientID})
 	if err != nil {
-		return nil, err
+		log.Errorf("Failed to call get connections: %v", err)
 	}
 
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.path, connectionsURL, resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
+	res, err := response.Recv()
 	if err != nil {
-		return nil, err
+		log.Errorf("Failed to get response: %v", err)
 	}
+	fmt.Printf("bla %d\n", res.Data)
 
-	contentType := resp.Header.Get("Content-type")
-	conns, err := netEncoding.GetUnmarshaler(contentType).Unmarshal(body)
+	//req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	//req.Header.Set("Accept", contentTypeProtobuf)
+	//resp, err := r.httpClient.Do(req)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//defer resp.Body.Close()
+
+	//if resp.StatusCode != http.StatusOK {
+	//	return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.path, connectionsURL, resp.StatusCode)
+	//}
+	//
+	//body, err := io.ReadAll(resp.Body)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//contentType := resp.Header.Get("Content-type")
+	conns, err := netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
 	if err != nil {
 		return nil, err
 	}

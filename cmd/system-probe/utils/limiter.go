@@ -17,7 +17,7 @@ import (
 // We choose 2 because one is for regular agent checks and another one is for manual troubleshooting
 const DefaultMaxConcurrentRequests = 2
 
-// WithConcurrencyLimit enforces a maximum number of concurrent requests over
+// WithConcurrencyLimit enforces a maximum number of concurrent requests
 // over a certain HTTP handler function
 func WithConcurrencyLimit(limit int, original func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
 	inFlight := atomic.NewInt64(0)

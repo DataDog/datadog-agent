@@ -68,6 +68,10 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
+		netwo := &networkTracer{tracer: t, done: done}
+
+		networkTracerReference = netwo
+
 		return &networkTracer{tracer: t, done: done}, err
 	},
 }
@@ -137,7 +141,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
 		stats, err := nt.tracer.DebugNetworkState(getClientID(req))
 		if err != nil {
-			log.Errorf("unable to retrieve tracer stats: %s", err)
+			log.Errorf("unable to retrieve Tracer stats: %s", err)
 			w.WriteHeader(500)
 			return
 		}
@@ -230,7 +234,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		defer cancelFunc()
 		cache, err := nt.tracer.DebugDumpProcessCache(ctx)
 		if err != nil {
-			log.Errorf("unable to dump tracer process cache: %s", err)
+			log.Errorf("unable to dump Tracer process cache: %s", err)
 			w.WriteHeader(500)
 			return
 		}
@@ -318,4 +322,10 @@ func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {
 			}
 		}
 	}()
+}
+
+var networkTracerReference *networkTracer
+
+func GetNetworkTracerTracerAndRestartTimer() (*tracer.Tracer, *time.Timer) {
+	return networkTracerReference.tracer, networkTracerReference.restartTimer
 }
