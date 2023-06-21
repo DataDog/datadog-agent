@@ -25,7 +25,7 @@ namespace WixSetup
 #endif
 
             project
-                .BuildMsi();
+                .BuildMsiCmd();
         }
 
         private static void Main()
