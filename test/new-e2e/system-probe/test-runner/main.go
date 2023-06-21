@@ -28,7 +28,7 @@ func init() {
 
 type TestConfig struct {
 	retry           int
-	packages        []string
+	includePackages []string
 	excludePackages []string
 }
 
@@ -203,8 +203,8 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 				}
 			}
 		}
-		if len(testConfig.packages) != 0 {
-			for _, p := range testConfig.packages {
+		if len(testConfig.includePackages) != 0 {
+			for _, p := range testConfig.includePackages {
 				if dir == p {
 					return true
 				}
@@ -278,7 +278,7 @@ func main() {
 
 func parseTestConfiguration() *TestConfig {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
-	packagesPtr := flag.String("packages", "", "Comma seperated list of packages to test")
+	packagesPtr := flag.String("include-packages", "", "Comma seperated list of packages to test")
 	excludePackagesPtr := flag.String("exclude-packages", "", "Comma seperated list of packages to exclude")
 
 	flag.Parse()
@@ -295,7 +295,7 @@ func parseTestConfiguration() *TestConfig {
 
 	return &TestConfig{
 		retry:           *retryPtr,
-		packages:        packagesLs,
+		includePackages: packagesLs,
 		excludePackages: excludeLs,
 	}
 }
