@@ -318,7 +318,7 @@ func isNormalizedASCIITag(tag string, checkValidStartChar bool) bool {
 	}
 	i := 0
 	if checkValidStartChar {
-		if !isValidASCIITagStartChar(tag[0]) {
+		if !isValidASCIIStartChar(tag[0]) {
 			return false
 		}
 		i++
@@ -342,10 +342,10 @@ func isNormalizedASCIITag(tag string, checkValidStartChar bool) bool {
 	return true
 }
 
-func isValidASCIITagStartChar(c byte) bool {
+func isValidASCIIStartChar(c byte) bool {
 	return ('a' <= c && c <= 'z') || c == ':'
 }
 
 func isValidASCIITagChar(c byte) bool {
-	return isValidASCIITagStartChar(c) || ('0' <= c && c <= '9') || c == '.' || c == '/' || c == '-'
+	return isValidASCIIStartChar(c) || ('0' <= c && c <= '9') || c == '.' || c == '/' || c == '-'
 }
