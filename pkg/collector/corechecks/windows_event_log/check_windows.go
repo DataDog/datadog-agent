@@ -77,6 +77,19 @@ func (c *Check) fetchEvents(sender aggregator.Sender) error {
 	var lastEvent *evtapi.EventRecord
 	eventsSinceLastBookmark := 0
 
+	// Update the bookmark at the end of the check, regardless of the bookmark_frequency
+	defer func() {
+		if lastEvent != nil {
+			if eventsSinceLastBookmark > 0 {
+				err := c.updateBookmark(lastEvent)
+				if err != nil {
+					c.Warnf("failed to save bookmark: %v", err)
+				}
+			}
+			evtapi.EvtCloseRecord(c.evtapi, lastEvent.EventRecordHandle)
+		}
+	}()
+
 	// Fetch new events
 	for {
 		events, err := c.sub.GetEvents()
@@ -113,17 +126,6 @@ func (c *Check) fetchEvents(sender aggregator.Sender) error {
 				evtapi.EvtCloseRecord(c.evtapi, event.EventRecordHandle)
 			}
 		}
-	}
-
-	if lastEvent != nil {
-		// Also update the bookmark at the end of the check, regardless of the bookmark_frequency
-		if eventsSinceLastBookmark > 0 {
-			err := c.updateBookmark(lastEvent)
-			if err != nil {
-				c.Warnf("failed to save bookmark: %v", err)
-			}
-		}
-		evtapi.EvtCloseRecord(c.evtapi, lastEvent.EventRecordHandle)
 	}
 
 	return nil
@@ -191,7 +193,7 @@ func alertTypeFromLevel(level uint64) (metrics.EventAlertType, error) {
 	case 5:
 		alertType = "info"
 	default:
-		return metrics.EventAlertTypeInfo, fmt.Errorf("Invalid event level: '%d'", level)
+		return metrics.EventAlertTypeInfo, fmt.Errorf("invalid event level: '%d'", level)
 	}
 
 	return metrics.GetAlertTypeFromString(alertType)
@@ -340,7 +342,7 @@ func (c *Check) initSubscription() error {
 	// Start the subscription
 	err = c.sub.Start()
 	if err != nil {
-		return fmt.Errorf("Failed to subscribe to events: %v", err)
+		return fmt.Errorf("failed to subscribe to events: %v", err)
 	}
 
 	// Create a render context for System event values
