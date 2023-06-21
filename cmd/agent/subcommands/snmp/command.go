@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/snmp"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -223,13 +225,7 @@ func snmpwalk(config config.Component, cliParams *cliParams) error {
 	}
 
 	// Set the snmp version
-	if cliParams.snmpVersion == "1" {
-		setVersion = gosnmp.Version1
-	} else if cliParams.snmpVersion == "2c" || (cliParams.snmpVersion == "" && cliParams.communityString != "") {
-		setVersion = gosnmp.Version2c
-	} else if cliParams.snmpVersion == "3" || (cliParams.snmpVersion == "" && cliParams.user != "") {
-		setVersion = gosnmp.Version3
-	} else {
+	if !snmp.CheckAndSetVersion(cliParams.snmpVersion, &setVersion, cliParams.communityString, cliParams.user) {
 		fmt.Printf("SNMP version not supported: %s, using default version 2c. \n", cliParams.snmpVersion) // match default version of the core check
 		setVersion = gosnmp.Version2c
 	}
@@ -237,22 +233,7 @@ func snmpwalk(config config.Component, cliParams *cliParams) error {
 	// Set v3 security parameters
 	if setVersion == gosnmp.Version3 {
 		// Authentication Protocol
-		switch strings.ToLower(cliParams.authProt) {
-		case "":
-			authProtocol = gosnmp.NoAuth
-		case "md5":
-			authProtocol = gosnmp.MD5
-		case "sha":
-			authProtocol = gosnmp.SHA
-		case "sha224", "sha-224":
-			authProtocol = gosnmp.SHA224
-		case "sha256", "sha-256":
-			authProtocol = gosnmp.SHA256
-		case "sha384", "sha-384":
-			authProtocol = gosnmp.SHA384
-		case "sha512", "sha-512":
-			authProtocol = gosnmp.SHA512
-		default:
+		if !gosnmplib.SwitchAuthProtocol(cliParams.authProt, &authProtocol) {
 			fmt.Printf("Unsupported authentication protocol: %s \n", cliParams.authProt)
 			cliParams.cmd.Help() //nolint:errcheck
 			os.Exit(1)
@@ -260,22 +241,7 @@ func snmpwalk(config config.Component, cliParams *cliParams) error {
 		}
 
 		// Privacy Protocol
-		switch strings.ToLower(cliParams.privProt) {
-		case "":
-			privProtocol = gosnmp.NoPriv
-		case "des":
-			privProtocol = gosnmp.DES
-		case "aes":
-			privProtocol = gosnmp.AES
-		case "aes192":
-			privProtocol = gosnmp.AES192
-		case "aes192c":
-			privProtocol = gosnmp.AES192C
-		case "aes256":
-			privProtocol = gosnmp.AES256
-		case "aes256c":
-			privProtocol = gosnmp.AES256C
-		default:
+		if !gosnmplib.SwitchPrivProtocol(cliParams.privProt, &privProtocol) {
 			fmt.Printf("Unsupported privacy protocol: %s \n", cliParams.privProt)
 			cliParams.cmd.Help() //nolint:errcheck
 			os.Exit(1)
@@ -286,12 +252,7 @@ func snmpwalk(config config.Component, cliParams *cliParams) error {
 		switch strings.ToLower(cliParams.securityLevel) {
 		case "":
 			msgFlags = gosnmp.NoAuthNoPriv
-			if cliParams.privKey != "" {
-				msgFlags = gosnmp.AuthPriv
-			} else if cliParams.authKey != "" {
-				msgFlags = gosnmp.AuthNoPriv
-			}
-
+			snmp.SetMsgFlags(cliParams.privKey, cliParams.authKey, &msgFlags)
 		case "noauthnopriv":
 			msgFlags = gosnmp.NoAuthNoPriv
 		case "authpriv":
@@ -305,6 +266,7 @@ func snmpwalk(config config.Component, cliParams *cliParams) error {
 			return nil
 		}
 	}
+
 	// Set SNMP parameters
 	snmp := gosnmp.GoSNMP{
 		Target:    deviceIP,
@@ -326,6 +288,7 @@ func snmpwalk(config config.Component, cliParams *cliParams) error {
 			PrivacyPassphrase:        cliParams.privKey,
 		},
 	}
+
 	// Establish connection
 	err := snmp.Connect()
 	if err != nil {
