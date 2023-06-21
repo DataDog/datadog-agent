@@ -14,6 +14,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -86,12 +87,7 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 		}
 		s.gosnmpInst.Community = config.CommunityString
 	} else if config.User != "" {
-		if config.AuthKey != "" && config.AuthProtocol == "" {
-			config.AuthProtocol = "md5"
-		}
-		if config.PrivKey != "" && config.PrivProtocol == "" {
-			config.PrivProtocol = "des"
-		}
+		snmp.CheckAndSetDefaultProtocols(config.AuthKey, &config.AuthProtocol, config.PrivKey, &config.PrivProtocol)
 
 		authProtocol, err := gosnmplib.GetAuthProtocol(config.AuthProtocol)
 		if err != nil {

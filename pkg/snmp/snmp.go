@@ -212,6 +212,8 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 		return nil, fmt.Errorf("SNMP version not supported: %s", c.Version)
 	}
 
+	CheckAndSetDefaultProtocols(c.AuthKey, &c.AuthProtocol, c.PrivKey, &c.PrivProtocol)
+
 	authProtocol, err := gosnmplib.GetAuthProtocol(c.AuthProtocol)
 	if err != nil {
 		return nil, err
@@ -245,6 +247,15 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 			PrivacyPassphrase:        c.PrivKey,
 		},
 	}, nil
+}
+
+func CheckAndSetDefaultProtocols(authKey string, authProtocol *string, privKey string, privProtocol *string) {
+	if authKey != "" && *authProtocol == "" {
+		*authProtocol = "md5"
+	}
+	if privKey != "" && *privProtocol == "" {
+		*privProtocol = "des"
+	}
 }
 
 func SetMsgFlags(privKey string, authKey string, finalMsgFlags *gosnmp.SnmpV3MsgFlags) {
