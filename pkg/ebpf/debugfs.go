@@ -12,7 +12,6 @@ import (
 	"fmt"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
-	"github.com/prometheus/client_golang/prometheus"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,17 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const kProbeTelemetryName = "ebpf__kprobes"
-
 var myPid int
-
-var debugfsStats = struct {
-	hits   *prometheus.Desc
-	misses *prometheus.Desc
-}{
-	prometheus.NewDesc(kProbeTelemetryName+"hits", "Gauge tracking number of kprobe hits", []string{"probe_name"}, nil),
-	prometheus.NewDesc(kProbeTelemetryName+"misses", "Gauge tracking number of kprobe misses", []string{"probe_name"}, nil),
-}
 
 func init() {
 	myPid = manager.Getpid()

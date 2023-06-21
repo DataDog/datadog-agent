@@ -32,8 +32,8 @@ type DebugFsStatCollector struct {
 
 func NewDebugFsStatCollector() *DebugFsStatCollector {
 	return &DebugFsStatCollector{
-		hits:   prometheus.NewDesc(kProbeTelemetryName+"hits", "Gauge tracking number of kprobe hits", nil, nil),
-		misses: prometheus.NewDesc(kProbeTelemetryName+"misses", "Gauge tracking number of kprobe misses", nil, nil),
+		hits:   prometheus.NewDesc(kProbeTelemetryName+"__hits", "Gauge tracking number of kprobe hits", nil, nil),
+		misses: prometheus.NewDesc(kProbeTelemetryName+"__misses", "Gauge tracking number of kprobe misses", nil, nil),
 	}
 }
 

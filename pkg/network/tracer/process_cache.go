@@ -39,7 +39,7 @@ var processCacheTelemetry = struct {
 	eventsSkipped telemetry.Counter
 }{
 	telemetry.NewCounter(processCacheModuleName, "cache_evicts", []string{}, "Counter measuring the number of evictions in the process cache"),
-	prometheus.NewDesc(processCacheModuleName+"cache_length", "Gauge measuring the current size of the process cache", nil, nil),
+	prometheus.NewDesc(processCacheModuleName+"__cache_length", "Gauge measuring the current size of the process cache", nil, nil),
 	telemetry.NewCounter(processCacheModuleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
 	telemetry.NewCounter(processCacheModuleName, "events_skipped", []string{}, "Counter measuring the number of skipped process events"),
 }
