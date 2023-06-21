@@ -80,9 +80,9 @@ func parseConfigAgentConfigOrder(data []byte, metadata state.Metadata) (AgentCon
 // RCTE2 configuration applied state to RC backend.
 func MergeRCAgentConfig(client *Client, updates map[string]state.RawConfig) (ConfigContent, error) {
 	var orderFile AgentConfigOrder
-	parsedLayers := map[string]AgentConfig{}
-	hasError := false
+	var hasError bool
 	var fullErr error
+	parsedLayers := map[string]AgentConfig{}
 
 	for configPath, c := range updates {
 		parsedConfigPath, err := data.ParseConfigPath(configPath)
