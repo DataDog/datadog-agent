@@ -9,6 +9,7 @@ package patch
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -34,8 +35,9 @@ func TestPatchDeployment(t *testing.T) {
 
 	// Create patcher
 	p := patcher{
-		k8sClient: client,
-		isLeader:  func() bool { return true },
+		k8sClient:          client,
+		isLeader:           func() bool { return true },
+		telemetryCollector: telemetry.NewNoopCollector(),
 	}
 
 	// Create request skeleton
