@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package probe
+package runtime
 
 import (
 	"fmt"
