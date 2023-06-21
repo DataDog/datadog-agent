@@ -9,10 +9,10 @@ package patch
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
