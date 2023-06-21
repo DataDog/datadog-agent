@@ -27,13 +27,14 @@ func init() {
 	color.NoColor = false
 }
 
+func printHeader(str string) {
+	greenString := color.New(color.FgGreen, color.Bold).Add(color.Underline)
+	fmt.Println()
+	greenString.Println(str)
+}
+
 func main() {
 	var matches []string
-
-	if len(os.Args) < 2 {
-		log.Fatal("json file path required")
-	}
-
 	err := filepath.WalkDir(CIVisibility, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -56,18 +57,26 @@ func main() {
 
 		return nil
 	})
-	fmt.Println(matches)
-	sort.Strings(matches)
-	fmt.Printf("sorted: %v\n", matches)
-
-	failedTests, err := reviewTests(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
 	}
-	if len(failedTests) > 0 {
-		fmt.Fprintf(os.Stderr, color.RedString(failedTests))
-		os.Exit(1)
+	sort.Strings(matches)
+
+	for i, testjson := range matches {
+		printHeader(fmt.Sprintf("Reviewing attempt %d", i+1))
+		failedTests, err := reviewTests(filepath.Join(testjson, "out.json"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		if len(failedTests) > 0 {
+			fmt.Fprintf(os.Stderr, color.RedString(failedTests))
+		} else {
+			fmt.Fprintf(os.Stderr, color.GreenString(fmt.Sprintf("All tests cleared in attempt %d", i+1)))
+			return
+		}
 	}
+
+	os.Exit(1)
 }
 
 type testEvent struct {
