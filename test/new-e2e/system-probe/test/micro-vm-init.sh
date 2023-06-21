@@ -3,6 +3,7 @@
 set -eo xtrace
 
 GOVERSION=$1
+RETRY_COUNT=$2
 KITCHEN_DOCKERS=/kitchen-docker
 
 # Add provisioning steps here !
@@ -20,7 +21,7 @@ IP=$(ip route get 8.8.8.8 | grep -Po '(?<=(src ))(\S+)')
 rm -rf ci-visibility
 
 CODE=0
-/test-runner -retry 2 || CODE=$?
+/test-runner -retry $RETRY_COUNT || CODE=$?
 
 find /ci-visibility -maxdepth 1 -type d -name testjson-* -exec tar czvf {}-$IP.tar.gz {} \;
 find /ci-visibility -maxdepth 1 -type d -name junit-* -exec tar czvf {}-$IP.tar.gz {} \;
