@@ -276,7 +276,7 @@ func main() {
 	}
 }
 
-func parseTestConfiguration() *TestConfig {
+func buildTestConfiguration() *TestConfig {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
 	packagesPtr := flag.String("include-packages", "", "Comma seperated list of packages to test")
 	excludePackagesPtr := flag.String("exclude-packages", "", "Comma seperated list of packages to exclude")
@@ -310,7 +310,7 @@ func run() error {
 	var err error
 	var uname unix.Utsname
 
-	testConfig := parseTestConfiguration()
+	testConfig := buildTestConfiguration()
 
 	if err := unix.Uname(&uname); err != nil {
 		return fmt.Errorf("error calling uname: %w", err)
