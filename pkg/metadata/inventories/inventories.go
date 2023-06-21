@@ -103,6 +103,17 @@ const (
 	AgentAPMEnabled                     AgentMetadataName = "feature_apm_enabled"
 	AgentIMDSv2Enabled                  AgentMetadataName = "feature_imdsv2_enabled"
 
+	// System Probe general config values
+	AgentSPOOMKillEnabled               AgentMetadataName = "feature_oom_kill_enabled"
+	AgentSPTCPQueueLengthEnabled        AgentMetadataName = "feature_tcp_queue_length_enabled"
+	AgentSPTelemetryEnabled             AgentMetadataName = "system_probe_telemetry_enabled"
+	AgentSPCOREEnabled                  AgentMetadataName = "system_probe_core_enabled"
+	AgentSPRuntimeCompilationEnabled    AgentMetadataName = "system_probe_runtime_compilation_enabled"
+	AgentSPKernelHeadersDownloadEnabled AgentMetadataName = "system_probe_kernel_headers_download_enabled"
+	AgentSPPrebuiltFallbackEnabled      AgentMetadataName = "system_probe_prebuilt_fallback_enabled"
+	AgentSPBPFDebugEnabled              AgentMetadataName = "system_probe_bpf_debug_enabled"
+	AgentSPMaxConnectionPerMessage      AgentMetadataName = "system_probe_max_connections_per_message"
+
 	// Those are reserved fields for the agentMetadata payload.
 	agentProvidedConf AgentMetadataName = "provided_configuration"
 	agentFullConf     AgentMetadataName = "full_configuration"
@@ -442,4 +453,16 @@ func initializeConfig(cfg config.Config) {
 	// NOTE: until otlp config stabilizes, we set AgentOTLPEnabled in cmd/agent/app/run.go
 	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
 	// case like that, we should move otlp.IsEnabled to pkg/config/otlp
+
+	// SystemProbe module level configuration,
+	// doesn't include configuration for specific products running in SystemProbe (USM, NPM, CWS, etc...)
+	SetAgentMetadata(AgentSPTCPQueueLengthEnabled, config.SystemProbe.GetBool("system_probe_config.enable_tcp_queue_length"))
+	SetAgentMetadata(AgentSPOOMKillEnabled, config.SystemProbe.GetBool("system_probe_config.enable_oom_kill"))
+	SetAgentMetadata(AgentSPBPFDebugEnabled, config.SystemProbe.GetBool("system_probe_config.bpf_debug"))
+	SetAgentMetadata(AgentSPCOREEnabled, config.SystemProbe.GetBool("system_probe_config.enable_co_re"))
+	SetAgentMetadata(AgentSPRuntimeCompilationEnabled, config.SystemProbe.GetBool("system_probe_config.enable_runtime_compiler"))
+	SetAgentMetadata(AgentSPKernelHeadersDownloadEnabled, config.SystemProbe.GetBool("system_probe_config.enable_kernel_header_download"))
+	SetAgentMetadata(AgentSPPrebuiltFallbackEnabled, config.SystemProbe.GetBool("system_probe_config.allow_precompiled_fallback"))
+	SetAgentMetadata(AgentSPTelemetryEnabled, config.SystemProbe.GetBool("system_probe_config.telemetry_enabled"))
+	SetAgentMetadata(AgentSPMaxConnectionPerMessage, config.SystemProbe.GetInt("system_probe_config.max_conns_per_message"))
 }
