@@ -76,6 +76,8 @@ func main() {
 		}
 	}
 
+	// We want to make sure the exit code is correctly set to
+	// failed here, so that the CI job also fails.
 	os.Exit(1)
 }
 

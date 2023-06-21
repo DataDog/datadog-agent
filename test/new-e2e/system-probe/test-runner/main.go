@@ -37,11 +37,13 @@ const (
 	TestDirRoot = "/opt/system-probe-tests"
 	GoTestSum   = "/go/bin/gotestsum"
 
-	CIVisibility = "ci-visibility"
-	XMLDir       = "junit-%d"
-	JSONDir      = "pkgjson-%d"
-	JSONOutDir   = "testjson-%d"
+	// The directroy format is <name>-<attempt>*
+	XMLDir     = "junit-%d"
+	JSONDir    = "pkgjson-%d"
+	JSONOutDir = "testjson-%d"
 )
+
+var CIVisibility = filepath.Join("/", "ci-visibility")
 
 var BaseEnv = map[string]interface{}{
 	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join(TestDirRoot, "pkg/ebpf/bytecode/build"),
@@ -167,7 +169,7 @@ func concatenateJsons(indir, outdir string) error {
 }
 
 func getCIVisibilityDir(dir string, attempt int) string {
-	return filepath.Join("/", CIVisibility, fmt.Sprintf(dir, attempt))
+	return filepath.Join(CIVisibility, fmt.Sprintf(dir, attempt))
 }
 
 func buildCIVisibilityDirs(attempt int) error {
