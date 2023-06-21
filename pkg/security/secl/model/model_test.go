@@ -11,6 +11,7 @@ import (
 	"errors"
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -18,6 +19,7 @@ import (
 
 func TestPathValidation(t *testing.T) {
 	mod := &Model{}
+
 	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: "/var/log/*"}); err != nil {
 		t.Errorf("shouldn't return an error: %s", err)
 	}
@@ -46,6 +48,9 @@ func TestPathValidation(t *testing.T) {
 	}
 
 	val = ""
+	if err := mod.ValidateField("open.file.path", eval.FieldValue{Value: val}); err == nil || !strings.Contains(err.Error(), ErrPathCannotBeEmpty) {
+		t.Errorf("Error message is `%s`, wanted it to contain `%s`", err.Error(), ErrPathCannotBeEmpty)
+	}
 	for i := 0; i <= MaxSegmentLength; i++ {
 		val += "a"
 	}
