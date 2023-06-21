@@ -36,6 +36,7 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 }
 
 var BTFVsFallbackPossiblyMissingConstants = []string{
+	constantfetch.OffsetNameIoKiocbStructCtx,
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 }
