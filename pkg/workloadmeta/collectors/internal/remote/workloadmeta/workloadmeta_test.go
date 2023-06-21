@@ -118,7 +118,8 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 		Events: []*pbgo.WorkloadmetaEvent{protoWorkloadmetaEvent},
 	}
 
-	collectorEvents, err := handleWorkloadmetaStreamResponse(mockResponse)
+	streamhandler := &remoteWorkloadMetaStreamHandler{}
+	collectorEvents, err := streamhandler.HandleResponse(mockResponse)
 
 	require.NoError(t, err)
 	assert.Len(t, collectorEvents, 1)
@@ -162,11 +163,9 @@ func TestCollection(t *testing.T) {
 
 	// gRPC client
 	collector := &remote.GenericCollector{
-		NewClient:       NewAgentSecureClient,
-		ResponseHandler: handleWorkloadmetaStreamResponse,
-		Port:            port,
-		OnResync:        resetStore,
-		Insecure:        true,
+		StreamHandler: &remoteWorkloadMetaStreamHandler{},
+		Port:          port,
+		Insecure:      true,
 	}
 
 	mockClientStore := workloadmeta.NewMockStore()

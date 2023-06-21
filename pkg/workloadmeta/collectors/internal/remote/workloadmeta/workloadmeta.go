@@ -29,14 +29,6 @@ type client struct {
 	cl pb.AgentSecureClient
 }
 
-type stream struct {
-	cl pbgo.AgentSecure_WorkloadmetaStreamEntitiesClient
-}
-
-func (s *stream) Recv() (interface{}, error) {
-	return s.cl.Recv()
-}
-
 func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) {
 	streamcl, err := c.cl.WorkloadmetaStreamEntities(
 		ctx,
@@ -50,24 +42,32 @@ func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (r
 	return &stream{cl: streamcl}, nil
 }
 
+type stream struct {
+	cl pbgo.AgentSecure_WorkloadmetaStreamEntitiesClient
+}
+
+func (s *stream) Recv() (interface{}, error) {
+	return s.cl.Recv()
+}
+
+type remoteWorkloadMetaStreamHandler struct{}
+
 func init() {
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
 
 	workloadmeta.RegisterRemoteCollector(collectorID, func() workloadmeta.Collector {
 		return &remote.GenericCollector{
-			NewClient:       NewAgentSecureClient,
-			ResponseHandler: handleWorkloadmetaStreamResponse,
-			OnResync:        resetStore,
-			Port:            config.Datadog.GetInt("cmd_port"),
+			StreamHandler: &remoteWorkloadMetaStreamHandler{},
+			Port:          config.Datadog.GetInt("cmd_port"),
 		}
 	})
 }
 
-func NewAgentSecureClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
+func (s *remoteWorkloadMetaStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
 	return &client{cl: pb.NewAgentSecureClient(cc)}
 }
 
-func handleWorkloadmetaStreamResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+func (s *remoteWorkloadMetaStreamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	response, ok := resp.(*pb.WorkloadmetaStreamResponse)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
@@ -92,7 +92,7 @@ func handleWorkloadmetaStreamResponse(resp interface{}) ([]workloadmeta.Collecto
 	return collectorEvents, nil
 }
 
-func resetStore(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
+func (s *remoteWorkloadMetaStreamHandler) HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
 	var entities []workloadmeta.Entity
 	for _, event := range events {
 		entities = append(entities, event.Entity)

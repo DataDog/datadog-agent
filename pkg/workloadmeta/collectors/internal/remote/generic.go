@@ -32,29 +32,30 @@ const (
 
 var errWorkloadmetaStreamNotStarted = errors.New("workloadmeta stream not started")
 
-// NewClient returns a remote grpc client
-type NewClient func(cc grpc.ClientConnInterface) RemoteGrpcClient
-
 type RemoteGrpcClient interface {
-	// StreamEntites establishes the stream between the client and the remote gRPC endpoint
+	// StreamEntites establishes the stream between the client and the remote gRPC server.
 	StreamEntities(ctx context.Context, opts ...grpc.CallOption) (Stream, error)
 }
 
 type Stream interface {
-	// Recv returns an object sent by the remote gRPC endpoint
+	// Recv returns a response of the gRPC server
 	Recv() (interface{}, error)
 }
 
-// ResponseHandler handles a response sent by the remote gRPC endpoint
-type ResponseHandler func(response interface{}) ([]workloadmeta.CollectorEvent, error)
+type StreamHandler interface {
+	// NewClient returns a client to connect to a remote gRPC server.
+	NewClient(cc grpc.ClientConnInterface) RemoteGrpcClient
+	// HandleResponse handles a response from the remote gRPC server.
+	HandleResponse(response interface{}) ([]workloadmeta.CollectorEvent, error)
+	// HandleResync is called on resynchronization.
+	HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent)
+}
 
-type OnResync func(store workloadmeta.Store, events []workloadmeta.CollectorEvent)
-
+// GenericCollector is a generic remote workloadmeta collector with resync mechanisms.
 type GenericCollector struct {
-	NewClient       NewClient
-	ResponseHandler ResponseHandler
-	Port            int
-	OnResync        OnResync
+	StreamHandler StreamHandler
+
+	Port int // Currently, only TCP + TLS is supported
 
 	store        workloadmeta.Store
 	resyncNeeded bool
@@ -104,7 +105,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) 
 		return err
 	}
 
-	c.client = c.NewClient(conn)
+	c.client = c.StreamHandler.NewClient(conn)
 
 	log.Info("remote workloadmeta initialized successfully")
 	go c.Run()
@@ -196,14 +197,14 @@ func (c *GenericCollector) Run() {
 			continue
 		}
 
-		collectorEvents, err := c.ResponseHandler(response)
+		collectorEvents, err := c.StreamHandler.HandleResponse(response)
 		if err != nil {
 			log.Warnf("error processing event received from remote workloadmeta: %s", err)
 			continue
 		}
 
 		if c.resyncNeeded {
-			c.OnResync(c.store, collectorEvents)
+			c.StreamHandler.HandleResync(c.store, collectorEvents)
 			c.resyncNeeded = false
 		}
 
