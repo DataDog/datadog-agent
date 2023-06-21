@@ -9,6 +9,7 @@ package telemetry
 
 import (
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"hash/fnv"
 	"syscall"
 	"unsafe"
@@ -16,7 +17,6 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
@@ -35,9 +35,8 @@ const (
 	perfEventOutput
 )
 
-// TODO: convert to collector
-var ebpfMapOpsErrorsGauge = telemetry.NewGauge("ebpf_map_ops", "errors", []string{"map_name", "error"}, "Failures of map operations for a specific ebpf map reported per error.")
-var ebpfHelperErrorsGauge = telemetry.NewGauge("ebpf_helpers", "errors", []string{"helper", "probe_name", "error"}, "Failures of bpf helper operations reported per helper per error for each probe.")
+var ebpfMapOpsErrorsGauge = prometheus.NewDesc("ebpf_map_ops__errors", "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil)
+var ebpfHelperErrorsGauge = prometheus.NewDesc("ebpf_helpers_errors", "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil)
 
 var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
 
@@ -74,8 +73,18 @@ func (b *EBPFTelemetry) RegisterEBPFTelemetry(m *manager.Manager) error {
 	return nil
 }
 
+func (b *EBPFTelemetry) Describe(ch chan<- *prometheus.Desc) {
+	ch <- ebpfMapOpsErrorsGauge
+	ch <- ebpfHelperErrorsGauge
+}
+
+func (b *EBPFTelemetry) Collect(ch chan<- prometheus.Metric) {
+	b.GetHelperTelemetry(ch)
+	b.GetMapsTelemetry(ch)
+}
+
 // GetMapsTelemetry returns a map of error telemetry for each ebpf map
-func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
+func (b *EBPFTelemetry) GetMapsTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
 	if b == nil {
 		return nil
 	}
@@ -92,7 +101,7 @@ func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 		if count := getMapErrCount(&val); len(count) > 0 {
 			t[m] = count
 			for errStr, errCount := range count {
-				ebpfMapOpsErrorsGauge.Set(float64(errCount), m, errStr)
+				ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr)
 			}
 		}
 	}
@@ -101,7 +110,7 @@ func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 }
 
 // GetHelperTelemetry returns a map of error telemetry for each ebpf program
-func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
+func (b *EBPFTelemetry) GetHelperTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
 	if b == nil {
 		return nil
 	}
@@ -116,7 +125,7 @@ func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 			continue
 		}
 
-		if t := getHelperTelemetry(&val, probeName, ebpfHelperErrorsGauge); len(t) > 0 {
+		if t := getHelperTelemetry(&val, probeName, ebpfHelperErrorsGauge, ch); len(t) > 0 {
 			helperTelemMap[probeName] = t
 		}
 	}
@@ -124,7 +133,7 @@ func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 	return helperTelemMap
 }
 
-func getHelperTelemetry(v *HelperErrTelemetry, probeName string, gauge telemetry.Gauge) map[string]interface{} {
+func getHelperTelemetry(v *HelperErrTelemetry, probeName string, desc *prometheus.Desc, ch chan<- prometheus.Metric) map[string]interface{} {
 	helper := make(map[string]interface{})
 
 	for indx, helperName := range helperNames {
@@ -132,7 +141,7 @@ func getHelperTelemetry(v *HelperErrTelemetry, probeName string, gauge telemetry
 			helper[helperName] = count
 
 			for errStr, errCount := range count {
-				gauge.Set(float64(errCount), helperName, probeName, errStr)
+				ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
 			}
 		}
 	}
