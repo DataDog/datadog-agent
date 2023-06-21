@@ -157,6 +157,10 @@ type MapSpecEditorOpts struct {
 // AllMapSpecEditors returns the list of map editors
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
+		"syscalls": {
+			MaxEntries: getMaxEntries(numCPU, 2048, 8192),
+			EditorFlag: manager.EditMaxEntries,
+		},
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,

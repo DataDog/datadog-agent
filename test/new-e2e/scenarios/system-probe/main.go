@@ -17,6 +17,10 @@ import (
 var DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
 
 func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.SystemProbeEnvOpts) error {
+	if destroy {
+		return systemProbe.Destroy(envName)
+	}
+
 	systemProbeEnv, err := systemProbe.NewTestEnv(envName, x86InstanceType, armInstanceType, opts)
 	if err != nil {
 		return err
@@ -24,10 +28,6 @@ func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *s
 
 	fmt.Println(systemProbeEnv.ARM64InstanceIP)
 	fmt.Println(systemProbeEnv.X86_64InstanceIP)
-
-	if destroy {
-		return systemProbeEnv.Destroy()
-	}
 
 	return nil
 }

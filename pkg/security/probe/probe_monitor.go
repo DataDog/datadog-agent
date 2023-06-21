@@ -13,6 +13,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/approver"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -21,11 +26,11 @@ import (
 type Monitor struct {
 	probe *Probe
 
-	perfBufferMonitor *PerfBufferMonitor
-	runtimeMonitor    *RuntimeMonitor
-	discarderMonitor  *DiscarderMonitor
-	cgroupsMonitor    *CgroupsMonitor
-	approverMonitor   *ApproverMonitor
+	eventStreamMonitor *eventstream.EventStreamMonitor
+	runtimeMonitor     *runtime.RuntimeMonitor
+	discarderMonitor   *discarder.DiscarderMonitor
+	cgroupsMonitor     *cgroups.CgroupsMonitor
+	approverMonitor    *approver.ApproverMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -41,32 +46,32 @@ func (m *Monitor) Init() error {
 	p := m.probe
 
 	// instantiate a new event statistics monitor
-	m.perfBufferMonitor, err = NewPerfBufferMonitor(p, p.onEventLost)
+	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.Config.Probe, p.Erpc, p.Manager, p.StatsdClient, p.onEventLost, p.UseRingBuffers())
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
 	if p.Config.Probe.RuntimeMonitor {
-		m.runtimeMonitor = NewRuntimeMonitor(p.StatsdClient)
+		m.runtimeMonitor = runtime.NewRuntimeMonitor(p.StatsdClient)
 	}
 
-	m.discarderMonitor, err = NewDiscarderMonitor(p.Manager, p.StatsdClient)
+	m.discarderMonitor, err = discarder.NewDiscarderMonitor(p.Manager, p.StatsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
-	m.approverMonitor, err = NewApproverMonitor(p.Manager, p.StatsdClient)
+	m.approverMonitor, err = approver.NewApproverMonitor(p.Manager, p.StatsdClient)
 	if err != nil {
 		return fmt.Errorf("couldn't create the approver monitor: %w", err)
 	}
 
-	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
+	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
 
 	return nil
 }
 
 // GetPerfBufferMonitor returns the perf buffer monitor
-func (m *Monitor) GetPerfBufferMonitor() *PerfBufferMonitor {
-	return m.perfBufferMonitor
+func (m *Monitor) GetEventStreamMonitor() *eventstream.EventStreamMonitor {
+	return m.eventStreamMonitor
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -97,7 +102,7 @@ func (m *Monitor) SendStats() error {
 		}
 	}
 
-	if err := m.perfBufferMonitor.SendStats(); err != nil {
+	if err := m.eventStreamMonitor.SendStats(); err != nil {
 		return fmt.Errorf("failed to send events stats: %w", err)
 	}
 	time.Sleep(delay)

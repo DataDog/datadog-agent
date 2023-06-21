@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package probe
+package cgroups
 
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"

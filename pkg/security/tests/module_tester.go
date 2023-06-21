@@ -1138,23 +1138,33 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	if monitor == nil {
 		return ""
 	}
-	perfBufferMonitor := monitor.GetPerfBufferMonitor()
-	if perfBufferMonitor == nil {
+	eventStreamMonitor := monitor.GetEventStreamMonitor()
+	if eventStreamMonitor == nil {
 		return ""
 	}
 
-	var status strings.Builder
-	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
+	status := map[string]interface{}{
+		"kernel-lost": eventStreamMonitor.GetKernelLostCount("events", model.MaxAllEventType),
+		"per-events":  map[string]interface{}{},
+	}
 
 	for i := model.UnknownEventType + 1; i < model.MaxKernelEventType; i++ {
-		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
+		stats, kernelStats := eventStreamMonitor.GetEventStats(i, "events", -1)
 		if stats.Count.Load() == 0 && kernelStats.Count.Load() == 0 && kernelStats.Lost.Load() == 0 {
 			continue
 		}
-		status.WriteString(fmt.Sprintf(", %s user:%d kernel:%d lost:%d", i, stats.Count.Load(), kernelStats.Count.Load(), kernelStats.Lost.Load()))
+		status["per-events"].(map[string]interface{})[i.String()] = map[string]uint64{
+			"user":        stats.Count.Load(),
+			"kernel":      kernelStats.Count.Load(),
+			"kernel-lost": kernelStats.Lost.Load(),
+		}
 	}
+	data, _ := json.Marshal(status)
 
-	return status.String()
+	var out bytes.Buffer
+	_ = json.Indent(&out, data, "", "\t")
+
+	return out.String()
 }
 
 // ErrTimeout is used to indicate that a test timed out
@@ -1169,7 +1179,7 @@ func (et ErrTimeout) Error() string {
 // NewTimeoutError returns a new timeout error with the metrics collected during the test
 func NewTimeoutError(probe *sprobe.Probe) ErrTimeout {
 	err := ErrTimeout{
-		"timeout, ",
+		"timeout, details: ",
 	}
 
 	err.msg += GetStatusMetrics(probe)

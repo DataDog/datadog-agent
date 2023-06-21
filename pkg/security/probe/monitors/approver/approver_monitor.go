@@ -5,10 +5,11 @@
 
 //go:build linux
 
-package probe
+package approver
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
@@ -19,6 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
+
+// ApproverStats is used to collect kernel space metrics about approvers. Stats about added approvers are sent from userspace.
+type ApproverStats struct {
+	EventApprovedByBasename uint64 `yaml:"event_approved_by_basename"`
+	EventApprovedByFlag     uint64 `yaml:"event_approved_by_flag"`
+}
 
 // ApproverMonitor defines an approver monitor
 type ApproverMonitor struct {

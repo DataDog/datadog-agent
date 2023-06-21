@@ -52,12 +52,16 @@ func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (fh *FieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEvent) string {
-	if f.Filesystem == "" && !f.IsFileless() {
-		fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
-		if err != nil {
-			ev.SetPathResolutionError(f, err)
+	if f.Filesystem == "" {
+		if f.IsFileless() {
+			f.Filesystem = model.TmpFS
+		} else {
+			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+			if err != nil {
+				ev.SetPathResolutionError(f, err)
+			}
+			f.Filesystem = fs
 		}
-		f.Filesystem = fs
 	}
 	return f.Filesystem
 }

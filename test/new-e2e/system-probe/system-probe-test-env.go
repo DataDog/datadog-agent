@@ -202,6 +202,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	return systemProbeTestEnv, nil
 }
 
-func (testEnv *TestEnv) Destroy() error {
-	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.name)
+func Destroy(name string) error {
+	return infra.GetStackManager().DeleteStack(context.Background(), name)
 }

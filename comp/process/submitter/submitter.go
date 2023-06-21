@@ -6,7 +6,6 @@
 package submitter
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -50,15 +49,8 @@ func newSubmitter(deps dependencies) (result, error) {
 		return result{}, err
 	}
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(context.Context) error {
-			return s.Start()
-		},
-		OnStop: func(context.Context) error {
-			s.Stop()
-			return nil
-		},
-	})
+	deps.Lc.Append(fx.StartStopHook(s.Start, s.Stop))
+
 	return result{
 		Submitter: &submitter{
 			s: s,
