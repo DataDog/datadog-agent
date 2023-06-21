@@ -176,7 +176,7 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
       echo "Kitchen test succeeded exiting 0"
       exit 0
   else
-    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}" "$3" ; then
+    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}" ; then
       # if kitchen test failed and shouldn't be rerun, exit with 1
       echo "Kitchen tests failed but it should not be an infrastructure problem"
       exit 1

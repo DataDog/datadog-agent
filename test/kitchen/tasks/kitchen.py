@@ -167,18 +167,18 @@ def genconfig(
 
 
 @task
-def should_rerun_failed(_, runlog, test=""):
+def should_rerun_failed(_, runlog):
     """
     Parse a log from kitchen run and see if we should rerun it (e.g. because of a network issue).
     """
-    if test == "gotest":
-        test_result_re = re.compile(r'--- FAIL: (?P<failures>[A-Z].*) \(.*\)')
-    else:
-        test_result_re = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
+    test_result_re_gotest = re.compile(r'--- FAIL: (?P<failures>[A-Z].*) \(.*\)')
+    test_result_re_rspec = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
 
     with open(runlog, 'r', encoding='utf-8') as f:
         text = f.read()
-        result = set(test_result_re.findall(text))
+        result_rspec = set(test_result_re_rspec.findall(text))
+        result_gotest = set(test_result_re_gotest.findall(text))
+        result = result_rspec.union(result_gotest)
         print("result: ", result)
         if result == {'0'} or result == set():
             print("Seeing no failed tests in log, advising to rerun")
