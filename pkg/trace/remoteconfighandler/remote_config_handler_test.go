@@ -27,7 +27,7 @@ func TestStart(t *testing.T) {
 
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
-	remoteClient.EXPECT().RegisterAPMUpdate(gomock.Any()).Times(1)
+	remoteClient.EXPECT().Subscribe(state.ProductAPMSampling, gomock.Any()).Times(1)
 	remoteClient.EXPECT().Start().Times(1)
 
 	h.Start()
@@ -57,7 +57,7 @@ func TestPrioritySampler(t *testing.T) {
 	}
 
 	raw, _ := json.Marshal(payload)
-	config := state.APMSamplingConfig{
+	config := state.RawConfig{
 		Config: raw,
 	}
 
@@ -65,7 +65,7 @@ func TestPrioritySampler(t *testing.T) {
 	errorsSampler.EXPECT().UpdateTargetTPS(float64(41)).Times(1)
 	rareSampler.EXPECT().SetEnabled(true).Times(1)
 
-	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 
 	ctrl.Finish()
 }
@@ -87,7 +87,7 @@ func TestErrorsSampler(t *testing.T) {
 	}
 
 	raw, _ := json.Marshal(payload)
-	config := state.APMSamplingConfig{
+	config := state.RawConfig{
 		Config: raw,
 	}
 
@@ -95,7 +95,7 @@ func TestErrorsSampler(t *testing.T) {
 	errorsSampler.EXPECT().UpdateTargetTPS(float64(42)).Times(1)
 	rareSampler.EXPECT().SetEnabled(true).Times(1)
 
-	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 
 	ctrl.Finish()
 }
@@ -117,7 +117,7 @@ func TestRareSampler(t *testing.T) {
 	}
 
 	raw, _ := json.Marshal(payload)
-	config := state.APMSamplingConfig{
+	config := state.RawConfig{
 		Config: raw,
 	}
 
@@ -125,7 +125,7 @@ func TestRareSampler(t *testing.T) {
 	errorsSampler.EXPECT().UpdateTargetTPS(float64(41)).Times(1)
 	rareSampler.EXPECT().SetEnabled(false).Times(1)
 
-	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 
 	ctrl.Finish()
 }
@@ -157,7 +157,7 @@ func TestEnvPrecedence(t *testing.T) {
 	}
 
 	raw, _ := json.Marshal(payload)
-	config := state.APMSamplingConfig{
+	config := state.RawConfig{
 		Config: raw,
 	}
 
@@ -165,7 +165,7 @@ func TestEnvPrecedence(t *testing.T) {
 	errorsSampler.EXPECT().UpdateTargetTPS(float64(43)).Times(1)
 	rareSampler.EXPECT().SetEnabled(false).Times(1)
 
-	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 
 	ctrl.Finish()
 }

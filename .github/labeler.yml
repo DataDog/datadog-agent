@@ -1,0 +1,13 @@
+# add system-probe label to any changes done in network, security, eventmonitor or ebpf packages
+component/system-probe:
+  - pkg/collector/corechecks/ebpf/** #ebpf-platform (oomkill and tcp_queue_length)
+  - pkg/ebpf/** # ebpf-platform (ebpf_manager)
+  - pkg/eventmonitor/** # cws (new event monitor component)
+  - pkg/network/** # npm and usm
+  - pkg/process/monitor/** # usm (process monitor)
+  - pkg/security/** # cws
+  - pkg/util/kernel/** # ebpf-platform
+  - cmd/system-probe/** # ebpf_platform (system-probe executable)
+  - tasks/system_probe.py # invoke tasks
+
+

@@ -18,6 +18,8 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -38,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -366,7 +367,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
 	t.activeBuffer.Reset()
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
@@ -787,6 +788,16 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *net
 		}
 	}
 
+	if c.EnableHTTP2Monitoring {
+		log.Info("http2 monitoring enabled")
+	}
+	if c.EnableKafkaMonitoring {
+		log.Info("kafka monitoring enabled")
+	}
+	if c.EnableGoTLSSupport {
+		log.Info("goTLS monitoring enabled")
+	}
+
 	monitor, err := usm.NewMonitor(c, connectionProtocolMap, sockFDMap, bpfTelemetry)
 	if err != nil {
 		log.Error(err)
@@ -796,17 +807,6 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *net
 	if err := monitor.Start(); err != nil {
 		log.Error(err)
 		return nil
-	}
-
-	log.Info("http monitoring enabled")
-	if c.EnableHTTP2Monitoring {
-		log.Info("http2 monitoring enabled")
-	}
-	if c.EnableKafkaMonitoring {
-		log.Info("kafka monitoring enabled")
-	}
-	if c.EnableGoTLSSupport {
-		log.Info("goTLS monitoring enabled")
 	}
 
 	return monitor

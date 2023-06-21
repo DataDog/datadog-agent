@@ -28,6 +28,9 @@ import (
 const (
 	// OverlayFS overlay filesystem
 	OverlayFS = "overlay"
+	// TmpFS tmpfs
+	TmpFS = "tmpfs"
+	// UnknownFS unknow filesystem
 	UnknownFS = "unknown"
 )
 
@@ -248,7 +251,6 @@ type Event struct {
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	ProcessCacheEntry      *ProcessCacheEntry     `field:"-" json:"-" platform:"linux"`
 	PIDContext             PIDContext             `field:"-" json:"-" platform:"linux"`
 	SpanContext            SpanContext            `field:"-" json:"-" platform:"linux"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*" platform:"linux"`
@@ -297,14 +299,15 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind" platform:"linux"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount           UmountEvent           `field:"-" json:"-" platform:"linux"`
-	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
-	MountReleased    MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
-	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
-	NetDevice        NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
-	VethPair         VethPairEvent         `field:"-" json:"-" platform:"linux"`
-	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
+	ProcessCacheEntry *ProcessCacheEntry    `field:"-" json:"-" platform:"linux"`
+	Umount            UmountEvent           `field:"-" json:"-" platform:"linux"`
+	InvalidateDentry  InvalidateDentryEvent `field:"-" json:"-" platform:"linux"`
+	ArgsEnvs          ArgsEnvsEvent         `field:"-" json:"-" platform:"linux"`
+	MountReleased     MountReleasedEvent    `field:"-" json:"-" platform:"linux"`
+	CgroupTracing     CgroupTracingEvent    `field:"-" json:"-" platform:"linux"`
+	NetDevice         NetDeviceEvent        `field:"-" json:"-" platform:"linux"`
+	VethPair          VethPairEvent         `field:"-" json:"-" platform:"linux"`
+	UnshareMountNS    UnshareMountNSEvent   `field:"-" json:"-" platform:"linux"`
 
 	// mark event with having error
 	Error error `field:"-" json:"-"`
@@ -771,7 +774,6 @@ type ArgsEnvsEvent struct {
 // Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32 `field:"-"`
-	GroupID        uint32 `field:"-"`
 	Device         uint32 `field:"-"`
 	ParentMountID  uint32 `field:"-"`
 	ParentInode    uint64 `field:"-"`
@@ -853,15 +855,19 @@ type ProcessCacheEntry struct {
 }
 
 const (
-	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromUnknown = iota
+	ProcessCacheEntryFromEvent
 	ProcessCacheEntryFromKernelMap
 	ProcessCacheEntryFromProcFS
+	ProcessCacheEntryFromSnapshot
 )
 
 var ProcessSources = [...]string{
-	"Event",
-	"KernelMap",
-	"ProcFS",
+	"unknown",
+	"event",
+	"map",
+	"procfs_fallback",
+	"procfs_snapshot",
 }
 
 func ProcessSourceToString(source uint64) string {

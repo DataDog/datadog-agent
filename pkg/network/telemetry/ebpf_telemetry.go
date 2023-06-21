@@ -35,6 +35,7 @@ const (
 	perfEventOutput
 )
 
+// TODO: convert to collector
 var ebpfMapOpsErrorsGauge = telemetry.NewGauge("ebpf_map_ops", "errors", []string{"map_name", "error"}, "Failures of map operations for a specific ebpf map reported per error.")
 var ebpfHelperErrorsGauge = telemetry.NewGauge("ebpf_helpers", "errors", []string{"helper", "probe_name", "error"}, "Failures of bpf helper operations reported per helper per error for each probe.")
 

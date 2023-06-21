@@ -30,8 +30,8 @@ var debugfsStats = struct {
 	hits   *prometheus.Desc
 	misses *prometheus.Desc
 }{
-	prometheus.NewDesc(kProbeTelemetryName+"hits", "Gauge tracking number of kprobe hits", nil, nil),
-	prometheus.NewDesc(kProbeTelemetryName+"misses", "Gauge tracking number of kprobe misses", nil, nil),
+	prometheus.NewDesc(kProbeTelemetryName+"hits", "Gauge tracking number of kprobe hits", []string{"probe_name"}, nil),
+	prometheus.NewDesc(kProbeTelemetryName+"misses", "Gauge tracking number of kprobe misses", []string{"probe_name"}, nil),
 }
 
 func init() {
@@ -84,12 +84,8 @@ func getProbeStats(pid int, profile string) map[string]uint64 {
 			event = parts[1]
 		}
 		event = strings.ToLower(event)
-		hitsKey := fmt.Sprintf("%s_hits", event)
-		missesKey := fmt.Sprintf("%s_misses", event)
-		//debugfsStats.hits.Add(float64(st.Hits), event)
-		//debugfsStats.misses.Add(float64(st.Misses), event)
-		res[hitsKey] = st.Hits
-		res[missesKey] = st.Misses
+		res[fmt.Sprintf("%s_hits", event)] = st.Hits
+		res[fmt.Sprintf("%s_misses", event)] = st.Misses
 	}
 
 	return res

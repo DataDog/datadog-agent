@@ -65,13 +65,13 @@ System Probe
     {{- end }}
   {{- end }}
 {{- end }}
-{{- if .security_runtime }}
+{{- if .event_monitor }}
 
-  Runtime Security
+  Event Monitor
   ================
-  {{- if .security_runtime.Error }}
+  {{- if .event_monitor.Error }}
     Status: Not running
-    Error: {{ .security_runtime.Error }}
+    Error: {{ .event_monitor.Error }}
   {{- else }}
     Status: Running
   {{- end }}

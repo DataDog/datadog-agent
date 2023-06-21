@@ -67,17 +67,7 @@ func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 
 // ReadConntrackBPFModule from the asset file
 func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "conntrack.o"
-	if debug {
-		file = "conntrack-debug.o"
-	}
-
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readModule(bpfDir, "conntrack", debug)
 }
 
 func GetModulesInUse() []string {

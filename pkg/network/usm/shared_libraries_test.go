@@ -577,6 +577,10 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		"kprobe__" + excludeSysOpen,
 		"kretprobe__" + excludeSysOpen,
 		"kprobe__do_vfs_ioctl",
+		"kprobe_handle_sync_payload",
+		"kprobe_handle_close_connection",
+		"kprobe_handle_connection_by_peer",
+		"kprobe_handle_async_payload",
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {

@@ -325,7 +325,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 
 	} else {
 		// encoding request will be handled locally
-		ad := dump.NewEmptyActivityDump()
+		ad := dump.NewEmptyActivityDump(nil)
 
 		// open and parse input file
 		if err := ad.Decode(activityDumpArgs.file); err != nil {

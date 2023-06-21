@@ -584,6 +584,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
+	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
+
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
@@ -1194,6 +1196,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
+	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")

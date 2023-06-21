@@ -16,7 +16,7 @@ import (
 )
 
 // RunJavaVersion run class under java version
-func RunJavaVersion(t testing.TB, version string, class string, waitForParam ...*regexp.Regexp) error {
+func RunJavaVersion(t testing.TB, version, class string, waitForParam ...*regexp.Regexp) error {
 	t.Helper()
 	var waitFor *regexp.Regexp
 	if len(waitForParam) == 0 {
@@ -27,9 +27,12 @@ func RunJavaVersion(t testing.TB, version string, class string, waitForParam ...
 	}
 
 	dir, _ := testutil.CurDir()
+	addr := "172.17.0.1" // for some reason docker network inspect bridge --format='{{(index .IPAM.Config 0).Gateway}}'   is not reliable and doesn't report Gateway ip sometime
 	env := []string{
 		"IMAGE_VERSION=" + version,
 		"ENTRYCLASS=" + class,
+		"EXTRA_HOSTS=host.docker.internal:" + addr,
 	}
+
 	return protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, protocolsUtils.DefaultTimeout)
 }

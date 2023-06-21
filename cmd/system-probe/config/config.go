@@ -31,7 +31,6 @@ const (
 	NetworkTracerModule          ModuleName = "network_tracer"
 	OOMKillProbeModule           ModuleName = "oom_kill_probe"
 	TCPQueueLengthTracerModule   ModuleName = "tcp_queue_length_tracer"
-	SecurityRuntimeModule        ModuleName = "security_runtime"
 	ProcessModule                ModuleName = "process"
 	EventMonitorModule           ModuleName = "event_monitor"
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
