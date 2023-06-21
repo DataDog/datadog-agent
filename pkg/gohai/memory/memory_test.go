@@ -63,6 +63,6 @@ func TestMemoryAsJSON(t *testing.T) {
 		// the swap total field is a number with unit kb
 		require.Equal(t, fmt.Sprintf("%dkb", swapTotalKb), decodedMem.SwapTotal)
 	} else {
-		require.Empty(t, decodedMem.Total)
+		require.Empty(t, decodedMem.SwapTotal)
 	}
 }
