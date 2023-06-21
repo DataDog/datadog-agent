@@ -9,22 +9,57 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
 )
 
+var CIVisibility = filepath.Join("/", "ci-visibility")
+
 func init() {
 	color.NoColor = false
 }
 
 func main() {
+	var matches []string
+
 	if len(os.Args) < 2 {
 		log.Fatal("json file path required")
 	}
+
+	err := filepath.WalkDir(CIVisibility, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !d.IsDir() {
+			return nil
+		}
+
+		present, err := regexp.Match("testjson-*", []byte(d.Name()))
+		if err != nil {
+			return fmt.Errorf("directory regex match: %s", err)
+		}
+
+		if !present {
+			return nil
+		}
+
+		matches = append(matches, path)
+
+		return nil
+	})
+	fmt.Println(matches)
+	sort.Strings(matches)
+	fmt.Printf("sorted: %v\n", matches)
+
 	failedTests, err := reviewTests(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
