@@ -1138,16 +1138,16 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	if monitor == nil {
 		return ""
 	}
-	perfBufferMonitor := monitor.GetPerfBufferMonitor()
-	if perfBufferMonitor == nil {
+	eventStreamMonitor := monitor.GetEventStreamMonitor()
+	if eventStreamMonitor == nil {
 		return ""
 	}
 
 	var status strings.Builder
-	status.WriteString(fmt.Sprintf("%d lost", perfBufferMonitor.GetKernelLostCount("events", -1)))
+	status.WriteString(fmt.Sprintf("%d lost", eventStreamMonitor.GetKernelLostCount("events", -1)))
 
 	for i := model.UnknownEventType + 1; i < model.MaxKernelEventType; i++ {
-		stats, kernelStats := perfBufferMonitor.GetEventStats(i, "events", -1)
+		stats, kernelStats := eventStreamMonitor.GetEventStats(i, "events", -1)
 		if stats.Count.Load() == 0 && kernelStats.Count.Load() == 0 && kernelStats.Lost.Load() == 0 {
 			continue
 		}
@@ -1728,7 +1728,7 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 	}
 	mess, err := managers.DumpActivity(p)
 	if err != nil || mess == nil || len(mess.Storage) < 1 {
-		return nil, errors.New("failed to start activity dump")
+		return nil, fmt.Errorf("failed to start activity dump: err:%v message:%v len:%v", err, mess, len(mess.Storage))
 	}
 
 	var files []string
@@ -1834,7 +1834,7 @@ func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
 	if newProfile == nil {
 		return nil, errors.New("Profile creation")
 	}
-	profile.ProtoToSecurityProfile(newProfile, protoProfile)
+	profile.ProtoToSecurityProfile(newProfile, nil, protoProfile)
 	return newProfile, nil
 }
 

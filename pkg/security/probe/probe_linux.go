@@ -31,6 +31,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -42,10 +43,11 @@ import (
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/reorderer"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -65,7 +67,7 @@ import (
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
 	Init(*manager.Manager, *pconfig.Config) error
-	SetMonitor(reorderer.LostEventCounter)
+	SetMonitor(eventstream.LostEventCounter)
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
@@ -269,7 +271,7 @@ func (p *Probe) Init() error {
 	}
 	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
-	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
+	p.eventStream.SetMonitor(p.monitor.eventStreamMonitor)
 
 	return nil
 }
@@ -310,7 +312,7 @@ func (p *Probe) PlaySnapshot() {
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		if entry.Source != model.ProcessCacheEntryFromProcFS {
+		if entry.Source != model.ProcessCacheEntryFromSnapshot {
 			return
 		}
 		entry.Retain()
@@ -321,6 +323,11 @@ func (p *Probe) PlaySnapshot() {
 		event.ProcessContext = &entry.ProcessContext
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
+
+		if !entry.HasCompleteLineage() {
+			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+		}
+
 		events = append(events, event)
 	}
 	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
@@ -469,17 +476,6 @@ func (p *Probe) unmarshalContexts(data []byte, event *model.Event) (int, error) 
 	return read, nil
 }
 
-func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
-	// sanity check
-	if mountID == 0 || inode == 0 {
-		seclog.Tracef("invalid mount_id/inode tuple %d:%d", mountID, inode)
-		return
-	}
-
-	seclog.Tracef("remove dentry cache entry for inode %d", inode)
-	p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
-}
-
 func eventWithNoProcessContext(eventType model.EventType) bool {
 	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
@@ -523,7 +519,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
-	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, reorderer.EventStreamMap, CPU)
+	p.monitor.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -540,15 +536,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
 			seclog.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
-		return
-	case model.InvalidateDentryEventType:
-		if _, err = event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-
-		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
-
 		return
 	case model.ArgsEnvsEventType:
 		if _, err = event.ArgsEnvs.UnmarshalBinary(data[offset:]); err != nil {
@@ -570,7 +557,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		p.profileManagers.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
+		p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
@@ -654,30 +641,15 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-
-		if event.Rmdir.Retval >= 0 {
-			// defer it do ensure that it will be done after the dispatch that could re-add it
-			defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode)
-		}
 	case model.FileUnlinkEventType:
 		if _, err = event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-
-		if event.Unlink.Retval >= 0 {
-			// defer it do ensure that it will be done after the dispatch that could re-add it
-			defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode)
-		}
 	case model.FileRenameEventType:
 		if _, err = event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
-		}
-
-		if event.Rename.Retval >= 0 {
-			// defer it do ensure that it will be done after the dispatch that could re-add it
-			defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode)
 		}
 	case model.FileChmodEventType:
 		if _, err = event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
@@ -698,12 +670,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if _, err = event.Link.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
-		}
-
-		// need to invalidate as now nlink > 1
-		if event.Link.Retval >= 0 {
-			// defer it do ensure that it will be done after the dispatch that could re-add it
-			defer p.invalidateDentry(event.Link.Source.MountID, event.Link.Source.Inode)
 		}
 	case model.FileSetXAttrEventType:
 		if _, err = event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
@@ -1540,6 +1506,14 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Value: getDoForkInput(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "has_usernamespace_first_arg",
+			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "ovl_path_in_ovl_inode",
+			Value: getOvlPathInOvlInode(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "mount_id_offset",
 			Value: mount.GetMountIDOffset(p.kernelVersion),
 		},
@@ -1725,6 +1699,37 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 	return doForkListInput
 }
 
+func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0 {
+		return 1
+	}
+	return 0
+}
+
+func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
+	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
+	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
+	// are in this configuration we first probe the kernel version, then we check for the
+	// presence of the function introduced in the same patch.
+	const patchSentinel = "ovl_i_path_real"
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_19 {
+		return 1
+	}
+
+	check, err := commonebpf.VerifyKernelFuncs(patchSentinel)
+	if err != nil {
+		return 0
+	}
+
+	// VerifyKernelFuncs returns the missing functions
+	if _, ok := check[patchSentinel]; !ok {
+		return 1
+	}
+
+	return 0
+}
+
 // isBPFSendSignalHelperAvailable returns true if the bpf_send_signal helper is available in the current kernel
 func isBPFSendSignalHelperAvailable(kernelVersion *kernel.Version) uint64 {
 	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_3 {
@@ -1783,6 +1788,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVmAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {

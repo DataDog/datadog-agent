@@ -7,10 +7,11 @@ package checkconfig
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/stretchr/testify/assert"
 
@@ -704,7 +705,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			},
 		},
 	}
-	mockProfilesWithDuplicateSysobjectid := profileConfigMap{
+	mockProfilesWithDefaultDuplicateSysobjectid := profileConfigMap{
 		"profile1": profileConfig{
 			Definition: profileDefinition{
 				Metrics: []MetricsConfig{
@@ -728,6 +729,83 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				},
 				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.4"},
 			},
+		},
+	}
+	mockProfilesWithUserProfilePrecedenceWithUserProfileFirstInList := profileConfigMap{
+		"user-profile": profileConfig{
+			Definition: profileDefinition{
+				Metrics: []MetricsConfig{
+					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
+				},
+				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+			},
+			isUserProfile: true,
+		},
+		"default-profile": profileConfig{
+			Definition: profileDefinition{
+				Metrics: []MetricsConfig{
+					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
+				},
+				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+			},
+		},
+	}
+	mockProfilesWithUserProfilePrecedenceWithDefaultProfileFirstInList := profileConfigMap{
+		"default-profile": profileConfig{
+			Definition: profileDefinition{
+				Metrics: []MetricsConfig{
+					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
+				},
+				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+			},
+		},
+		"user-profile": profileConfig{
+			Definition: profileDefinition{
+				Metrics: []MetricsConfig{
+					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
+				},
+				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+			},
+			isUserProfile: true,
+		},
+	}
+	mockProfilesWithUserProfileMatchAllAndMorePreciseDefaultProfile := profileConfigMap{
+		"default-profile": profileConfig{
+			Definition: profileDefinition{
+				Metrics: []MetricsConfig{
+					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
+				},
+				SysObjectIds: StringArray{"1.3.*"},
+			},
+		},
+		"user-profile": profileConfig{
+			Definition: profileDefinition{
+				Metrics: []MetricsConfig{
+					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
+				},
+				SysObjectIds: StringArray{"1.*"},
+			},
+			isUserProfile: true,
+		},
+	}
+	mockProfilesWithUserDuplicateSysobjectid := profileConfigMap{
+		"profile1": profileConfig{
+			Definition: profileDefinition{
+				Metrics: []MetricsConfig{
+					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+				},
+				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+			},
+			isUserProfile: true,
+		},
+		"profile2": profileConfig{
+			Definition: profileDefinition{
+				Metrics: []MetricsConfig{
+					{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+				},
+				SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+			},
+			isUserProfile: true,
 		},
 	}
 	tests := []struct {
@@ -759,6 +837,27 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			expectedError:   "",
 		},
 		{
+			name:            "user profile have precedence with user first in list",
+			profiles:        mockProfilesWithUserProfilePrecedenceWithUserProfileFirstInList,
+			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
+			expectedProfile: "user-profile",
+			expectedError:   "",
+		},
+		{
+			name:            "user profile have precedence with default first in list",
+			profiles:        mockProfilesWithUserProfilePrecedenceWithDefaultProfileFirstInList,
+			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
+			expectedProfile: "user-profile",
+			expectedError:   "",
+		},
+		{
+			name:            "user profile with less specific sysobjectid does not have precedence over a default profiel with more precise sysobjectid",
+			profiles:        mockProfilesWithUserProfileMatchAllAndMorePreciseDefaultProfile,
+			sysObjectID:     "1.3.999",
+			expectedProfile: "default-profile",
+			expectedError:   "",
+		},
+		{
 			name:            "failed to get most specific profile for sysObjectID",
 			profiles:        mockProfilesWithPatternError,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
@@ -774,17 +873,24 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 		},
 		{
 			name:            "duplicate sysobjectid",
-			profiles:        mockProfilesWithDuplicateSysobjectid,
+			profiles:        mockProfilesWithDefaultDuplicateSysobjectid,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
 			expectedProfile: "",
 			expectedError:   "has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as",
 		},
 		{
 			name:            "unrelated duplicate sysobjectid should not raise error",
-			profiles:        mockProfilesWithDuplicateSysobjectid,
+			profiles:        mockProfilesWithDefaultDuplicateSysobjectid,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.4",
 			expectedProfile: "profile3",
 			expectedError:   "",
+		},
+		{
+			name:            "duplicate sysobjectid",
+			profiles:        mockProfilesWithUserDuplicateSysobjectid,
+			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3",
+			expectedProfile: "",
+			expectedError:   "has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as",
 		},
 	}
 	for _, tt := range tests {
@@ -1565,6 +1671,9 @@ interface_configs:
     match_value: "eth0"
     in_speed: 25
     out_speed: 10
+    tags:
+      - "muted"
+      - "test1:value1"
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1574,6 +1683,10 @@ interface_configs:
 					MatchValue: "eth0",
 					InSpeed:    25,
 					OutSpeed:   10,
+					Tags: []string{
+						"muted",
+						"test1:value1",
+					},
 				},
 			},
 		},
@@ -1582,7 +1695,7 @@ interface_configs:
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
-interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]'
+interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10, "tags":["test2:value2", "aTag"]}]'
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1592,6 +1705,10 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 					MatchValue: "eth0",
 					InSpeed:    25,
 					OutSpeed:   10,
+					Tags: []string{
+						"test2:value2",
+						"aTag",
+					},
 				},
 			},
 		},

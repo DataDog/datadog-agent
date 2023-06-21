@@ -8,5 +8,6 @@
 package rconfig
 
 const (
-	agentName = "security-agent"
+	agentName          = "security-agent"
+	PolicyProviderType = "remoteConfigPolicyProvider"
 )

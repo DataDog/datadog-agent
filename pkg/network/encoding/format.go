@@ -93,10 +93,7 @@ func FormatConnection(
 		c.Http2Aggregations, _ = proto.Marshal(httpStats2)
 	}
 
-	kafkaStats := kafkaEncoder.GetKafkaAggregations(conn)
-	if kafkaStats != nil {
-		c.DataStreamsAggregations, _ = proto.Marshal(kafkaStats)
-	}
+	c.DataStreamsAggregations = kafkaEncoder.GetKafkaAggregations(conn)
 
 	conn.StaticTags |= staticTags
 	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)

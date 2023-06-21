@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -68,8 +69,9 @@ const (
 // easyjson:json
 type ActivityDump struct {
 	*sync.Mutex
-	state ActivityDumpStatus
-	adm   *ActivityDumpManager
+	state    ActivityDumpStatus
+	adm      *ActivityDumpManager
+	selector *cgroupModel.WorkloadSelector
 
 	countedByLimiter bool
 
@@ -112,13 +114,13 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, wai
 }
 
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
-func NewEmptyActivityDump() *ActivityDump {
+func NewEmptyActivityDump(pathsReducer *activity_tree.PathsReducer) *ActivityDump {
 	ad := &ActivityDump{
 		Mutex:           &sync.Mutex{},
 		StorageRequests: make(map[config.StorageFormat][]config.StorageRequest),
 		DNSNames:        utils.NewStringKeys(nil),
 	}
-	ad.ActivityTree = activity_tree.NewActivityTree(ad, "activity_dump")
+	ad.ActivityTree = activity_tree.NewActivityTree(ad, pathsReducer, "activity_dump")
 	return ad
 }
 
@@ -127,7 +129,7 @@ type WithDumpOption func(ad *ActivityDump)
 
 // NewActivityDump returns a new instance of an ActivityDump
 func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *ActivityDump {
-	ad := NewEmptyActivityDump()
+	ad := NewEmptyActivityDump(adm.pathsReducer)
 	now := time.Now()
 	ad.Metadata = mtdt.Metadata{
 		AgentVersion:      version.AgentVersion,
@@ -177,7 +179,7 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		return nil, fmt.Errorf("couldn't parse timeout [%s]: %w", metadata.GetTimeout(), err)
 	}
 
-	ad := NewEmptyActivityDump()
+	ad := NewEmptyActivityDump(nil)
 	ad.Host = msg.GetHost()
 	ad.Service = msg.GetService()
 	ad.Source = msg.GetSource()
@@ -227,6 +229,19 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		))
 	}
 	return ad, nil
+}
+
+// GetWorkloadSelector returns the workload selector of the dump
+func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
+	if ad.selector != nil && ad.selector.IsReady() {
+		return ad.selector
+	}
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+	if err != nil {
+		return nil
+	}
+	ad.selector = &selector
+	return ad.selector
 }
 
 // SetState sets the status of the activity dump
@@ -351,8 +366,21 @@ func (ad *ActivityDump) NewProcessNodeCallback(p *activity_tree.ProcessNode) {
 // flowing in from kernel space
 func (ad *ActivityDump) enable() error {
 	// insert load config now (it might already exist, do not update in that case)
-	if err := ad.adm.activityDumpsConfigMap.Put(ad.LoadConfigCookie, ad.LoadConfig); err != nil {
-		return fmt.Errorf("couldn't push activity dump load config: %w", err)
+	if err := ad.adm.activityDumpsConfigMap.Update(ad.LoadConfigCookie, ad.LoadConfig, ebpf.UpdateNoExist); err != nil {
+		if !errors.Is(err, ebpf.ErrKeyExist) {
+			return fmt.Errorf("couldn't push activity dump load config: %w", err)
+		}
+	}
+
+	if len(ad.Metadata.ContainerID) > 0 {
+		// insert container ID in traced_cgroups map (it might already exist, do not update in that case)
+		if err := ad.adm.tracedCgroupsMap.Update(ad.Metadata.ContainerID, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
+			if !errors.Is(err, ebpf.ErrKeyExist) {
+				// delete activity dump load config
+				_ = ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie)
+				return fmt.Errorf("couldn't push activity dump container ID %s: %w", ad.Metadata.ContainerID, err)
+			}
+		}
 	}
 
 	if len(ad.Metadata.Comm) > 0 {
@@ -439,6 +467,7 @@ func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 // spot can be released, the dump will be fully stopped.
 func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	ad.Metadata.End = time.Now()
+	ad.adm.lastStoppedDumpTime = ad.Metadata.End
 
 	if releaseTracedCgroupSpot || len(ad.Metadata.Comm) > 0 {
 		if err := ad.disable(); err != nil {
@@ -800,7 +829,12 @@ func (ad *ActivityDump) DecodeProtobuf(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
 
-	protoToActivityDump(ad, inter)
+	var pathsReducer *activity_tree.PathsReducer
+	if ad.adm != nil {
+		pathsReducer = ad.adm.pathsReducer
+	}
+
+	protoToActivityDump(ad, pathsReducer, inter)
 
 	return nil
 }
@@ -820,7 +854,12 @@ func (ad *ActivityDump) DecodeProfileProtobuf(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode protobuf activity dump file: %w", err)
 	}
 
-	securityProfileProtoToActivityDump(ad, inter)
+	var reducer *activity_tree.PathsReducer
+	if ad.adm != nil {
+		reducer = ad.adm.pathsReducer
+	}
+
+	securityProfileProtoToActivityDump(ad, reducer, inter)
 
 	return nil
 }
@@ -843,7 +882,7 @@ func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode json file: %w", err)
 	}
 
-	protoToActivityDump(ad, inter)
+	protoToActivityDump(ad, ad.adm.pathsReducer, inter)
 
 	return nil
 }

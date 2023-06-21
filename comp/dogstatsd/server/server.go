@@ -212,7 +212,10 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, captur
 	}
 
 	metricPrefixBlacklist := cfg.GetStringSlice("statsd_metric_namespace_blacklist")
-	metricBlocklist := cfg.GetStringSlice("statsd_metric_blocklist")
+	metricBlocklist := newBlocklist(
+		cfg.GetStringSlice("statsd_metric_blocklist"),
+		cfg.GetBool("statsd_metric_blocklist_match_prefix"),
+	)
 
 	defaultHostname, err := hostname.Get(context.TODO())
 	if err != nil {

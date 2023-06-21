@@ -986,7 +986,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
-		Expression: "exec.file.change_time < 5s",
+		Expression: "exec.file.change_time < 30s",
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})

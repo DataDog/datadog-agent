@@ -14,12 +14,13 @@ import (
 	"time"
 	"unsafe"
 
+	"go.uber.org/atomic"
+	"gotest.tools/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"go.uber.org/atomic"
-	"gotest.tools/assert"
 )
 
 type testIteration struct {
@@ -64,8 +65,8 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	}
 
 	// setting process ancestor
-	event.ProcessCacheEntry.Ancestor = model.NewEmptyProcessCacheEntry(41, 41, false)
-	event.ProcessCacheEntry.Ancestor.FileEvent.PathnameStr = "runc"
+	event.ProcessCacheEntry.Ancestor = model.NewEmptyProcessCacheEntry(1, 1, false)
+	event.ProcessCacheEntry.Ancestor.FileEvent.PathnameStr = "systemd"
 	event.ProcessCacheEntry.Ancestor.FileEvent.Inode = 41
 	event.ProcessCacheEntry.Ancestor.Args = "foo"
 	return event
@@ -591,7 +592,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		t.Run(ti.name, func(t *testing.T) {
 			if ti.newProfile || profile == nil {
 				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType})
-				profile.ActivityTree = activity_tree.NewActivityTree(profile, "security_profile")
+				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
 				profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
 					ContainerContext: model.ContainerContext{
 						ID: defaultContainerID,
@@ -622,7 +623,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 				assert.Equal(t, ti.result, spm.tryAutolearn(profile, event))
 			}
 
-			//TODO: also check profile stats and global metrics
+			// TODO: also check profile stats and global metrics
 		})
 	}
 }

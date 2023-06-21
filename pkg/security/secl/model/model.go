@@ -28,6 +28,9 @@ import (
 const (
 	// OverlayFS overlay filesystem
 	OverlayFS = "overlay"
+	// TmpFS tmpfs
+	TmpFS = "tmpfs"
+	// UnknownFS unknow filesystem
 	UnknownFS = "unknown"
 )
 
@@ -852,15 +855,19 @@ type ProcessCacheEntry struct {
 }
 
 const (
-	ProcessCacheEntryFromEvent = iota
+	ProcessCacheEntryFromUnknown = iota
+	ProcessCacheEntryFromEvent
 	ProcessCacheEntryFromKernelMap
 	ProcessCacheEntryFromProcFS
+	ProcessCacheEntryFromSnapshot
 )
 
 var ProcessSources = [...]string{
-	"Event",
-	"KernelMap",
-	"ProcFS",
+	"unknown",
+	"event",
+	"map",
+	"procfs_fallback",
+	"procfs_snapshot",
 }
 
 func ProcessSourceToString(source uint64) string {

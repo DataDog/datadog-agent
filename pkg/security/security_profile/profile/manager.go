@@ -111,13 +111,19 @@ type eventFilteringEntry struct {
 	result    EventFilteringResult
 }
 
+// ActivityDumpManager is a generic interface to reach the Activity Dump manager
+type ActivityDumpManager interface {
+	StopDumpsWithSelector(selector cgroupModel.WorkloadSelector)
+}
+
 // SecurityProfileManager is used to manage Security Profiles
 type SecurityProfileManager struct {
-	config         *config.Config
-	statsdClient   statsd.ClientInterface
-	cgroupResolver *cgroup.Resolver
-	timeResolver   *timeResolver.Resolver
-	providers      []Provider
+	config              *config.Config
+	statsdClient        statsd.ClientInterface
+	cgroupResolver      *cgroup.Resolver
+	timeResolver        *timeResolver.Resolver
+	providers           []Provider
+	activityDumpManager ActivityDumpManager
 
 	manager                    *manager.Manager
 	securityProfileMap         *ebpf.Map
@@ -132,6 +138,7 @@ type SecurityProfileManager struct {
 	cacheMiss        *atomic.Uint64
 
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
+	pathsReducer   *activity_tree.PathsReducer
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
@@ -185,6 +192,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		cacheHit:                   atomic.NewUint64(0),
 		cacheMiss:                  atomic.NewUint64(0),
 		eventFiltering:             make(map[eventFilteringEntry]*atomic.Uint64),
+		pathsReducer:               activity_tree.NewPathsReducer(),
 	}
 	m.initMetricsMap()
 
@@ -207,6 +215,11 @@ func (m *SecurityProfileManager) initMetricsMap() {
 			}
 		}
 	}
+}
+
+// SetActivityDumpManager sets the stopDumpsWithSelectorCallback function
+func (m *SecurityProfileManager) SetActivityDumpManager(manager ActivityDumpManager) {
+	m.activityDumpManager = manager
 }
 
 // Start runs the manager of Security Profiles
@@ -456,7 +469,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	profile.loadedInKernel = false
 
 	// decode the content of the profile
-	ProtoToSecurityProfile(profile, newProfile)
+	ProtoToSecurityProfile(profile, m.pathsReducer, newProfile)
 	profile.ActivityTree.DNSMatchMaxDepth = m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth
 
 	// compute activity tree initial stats
@@ -715,6 +728,10 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 		// did we reached the stable state time limit ?
 		if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
 			eventState.state = StableEventType
+			// call the activity dump manager to stop dumping workloads from the current profile selector
+			if m.activityDumpManager != nil {
+				m.activityDumpManager.StopDumpsWithSelector(profile.selector)
+			}
 			return StableEventType
 		}
 
@@ -832,4 +849,22 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	return &api.SecurityProfileSaveMessage{
 		File: f.Name(),
 	}, nil
+}
+
+// FetchSilentWorkloads returns the list of workloads for which we haven't received any profile
+func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry {
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	out := make(map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry)
+
+	for selector, profile := range m.profiles {
+		profile.Lock()
+		if profile.loadedInKernel == false {
+			out[selector] = profile.Instances
+		}
+		profile.Unlock()
+	}
+
+	return out
 }

@@ -51,8 +51,8 @@ func newExpvarServer(deps dependencies) (Component, error) {
 	expvarPort := getExpvarPort(deps)
 	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+	deps.Lc.Append(fx.StartStopHook(
+		func(ctx context.Context) error {
 			go func() {
 				err := expvarServer.ListenAndServe()
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -61,14 +61,14 @@ func newExpvarServer(deps dependencies) (Component, error) {
 			}()
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
+		func(ctx context.Context) error {
 			err := expvarServer.Shutdown(ctx)
 			if err != nil {
 				_ = deps.Log.Error("Failed to properly shutdown expvar server:", err)
 			}
 			return nil
 		},
-	})
+	))
 	return expvarServer, nil
 }
 
