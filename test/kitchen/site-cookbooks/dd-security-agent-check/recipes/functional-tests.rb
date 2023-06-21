@@ -119,8 +119,10 @@ end
 
 # Some functional tests, TestProcessIdentifyInterpreter for example, require python and perl
 # Re: the container tests: Python comes with the Dockerfile, Perl needs to be installed manually
-package 'python3'
-package 'perl'
+if (not ['redhat', 'oracle'].include?(node[:platform])) or node[:platform_version].start_with?("7")
+  package 'python3'
+  package 'perl'
+end
 
 if not ['redhat', 'suse', 'opensuseleap'].include?(node[:platform])
   if ['ubuntu', 'debian'].include?(node[:platform])
