@@ -2031,7 +2031,3 @@ func getIPProtocol(nt ConnectionType) uint8 {
 		panic("unknown connection type")
 	}
 }
-
-func TestMustFail(t *testing.T) {
-	assert.True(t, false)
-}

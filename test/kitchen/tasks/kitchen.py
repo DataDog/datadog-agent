@@ -179,7 +179,6 @@ def should_rerun_failed(_, runlog):
         result_rspec = set(test_result_re_rspec.findall(text))
         result_gotest = set(test_result_re_gotest.findall(text))
         result = result_rspec.union(result_gotest)
-        print("result: ", result)
         if result == {'0'} or result == set():
             print("Seeing no failed tests in log, advising to rerun")
         else:
