@@ -23,7 +23,6 @@ type remoteConfigProvider struct {
 	client             *remote.Client
 	isLeaderNotif      <-chan struct{}
 	subscribers        map[TargetObjKind]chan PatchRequest
-	clusterId          string
 	clusterName        string
 	telemetryCollector telemetry.TelemetryCollector
 }
