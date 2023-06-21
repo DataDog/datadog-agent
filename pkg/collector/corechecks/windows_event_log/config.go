@@ -42,6 +42,8 @@ type instanceConfig struct {
 	Tag_event_id       *bool          `yaml:"tag_event_id"`
 	Tag_sid            *bool          `yaml:"tag_sid"`
 	Filters            *filtersConfig `yaml:"filters"`
+	Included_messages  []string       `yaml:"included_messages"`
+	Excluded_messages  []string       `yaml:"excluded_messages"`
 }
 
 type filtersConfig struct {

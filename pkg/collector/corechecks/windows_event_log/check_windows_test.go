@@ -416,8 +416,10 @@ query: |
 
 	// Generate an event the query should match on (EventID=1000)
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
+	s.Require().NoError(err)
 	// Generate an event the query should not match on (EventID!=1000)
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
+	s.Require().NoError(err)
 
 	check.Run()
 
@@ -456,8 +458,145 @@ filters:
 
 	// Generate an event the query should match on (EventID=1000)
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
+	s.Require().NoError(err)
 	// Generate an event the query should not match on (EventID!=1000)
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
+	s.Require().NoError(err)
+
+	check.Run()
+
+	s.sender.AssertExpectations(s.T())
+}
+
+func (s *GetEventsTestSuite) TestCatchInvalidRegex() {
+	tcs := []struct {
+		name       string
+		option     string
+		regex      string
+		errorMatch string
+	}{
+		{"InvalidInclude", "included_messages", "'*'", "missing argument to repetition operator"},
+		{"InvalidExclude", "excluded_messages", "'*'", "missing argument to repetition operator"},
+	}
+
+	for _, tc := range tcs {
+		s.Run(tc.name, func() {
+			instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: oldest
+%s:
+ - %s`, s.channelPath, tc.option, tc.regex))
+
+			check := new(Check)
+			check.evtapi = s.ti.API()
+			err := check.Configure(integration.FakeConfigHash, instanceConfig, nil, "test")
+			require.ErrorContains(s.T(), err, tc.errorMatch)
+		})
+	}
+}
+
+// Tests that only events that match included_messages are reported
+func (s *GetEventsTestSuite) TestGetEventsWithIncludeMessage() {
+	reporter, err := evtreporter.New(s.eventSource, s.ti.API())
+	require.NoError(s.T(), err)
+	defer reporter.Close()
+
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: now
+included_messages:
+  - match this string
+`, s.channelPath))
+
+	check, err := s.newCheck(instanceConfig, nil)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	matchstring := "match this string"
+	nomatchstring := "should not match"
+	s.sender.On("Commit").Return().Once()
+	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+		return assert.Contains(s.T(), e.Text, matchstring, "should only report match string")
+	})).Once()
+
+	// Generate an event that matches included_messages
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
+	s.Require().NoError(err)
+	// Geneate an event that does not match included_messages
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
+	s.Require().NoError(err)
+
+	check.Run()
+
+	s.sender.AssertExpectations(s.T())
+}
+
+// Tests that events that match excluded_messages are not reported
+func (s *GetEventsTestSuite) TestGetEventsWithExcludeMessage() {
+	reporter, err := evtreporter.New(s.eventSource, s.ti.API())
+	require.NoError(s.T(), err)
+	defer reporter.Close()
+
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: now
+excluded_messages:
+  - match this string
+`, s.channelPath))
+
+	check, err := s.newCheck(instanceConfig, nil)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	matchstring := "match this string"
+	nomatchstring := "should not match"
+	s.sender.On("Commit").Return().Once()
+	s.sender.On("Event", mock.MatchedBy(func(e metrics.Event) bool {
+		return assert.NotContains(s.T(), e.Text, matchstring, "should not report match string")
+	})).Once()
+
+	// Generate an event that matches excluded_messages
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
+	s.Require().NoError(err)
+	// Geneate an event that does not match excluded_messages
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
+	s.Require().NoError(err)
+
+	check.Run()
+
+	s.sender.AssertExpectations(s.T())
+}
+
+// Tests that events that match excluded_messages are not reported even if they also match included_messages
+func (s *GetEventsTestSuite) TestGetEventsWithExcludeMessagePrecedence() {
+	reporter, err := evtreporter.New(s.eventSource, s.ti.API())
+	require.NoError(s.T(), err)
+	defer reporter.Close()
+
+	instanceConfig := []byte(fmt.Sprintf(`
+path: %s
+start: now
+included_messages:
+  - match this string
+excluded_messages:
+  - match this string
+`, s.channelPath))
+
+	check, err := s.newCheck(instanceConfig, nil)
+	require.NoError(s.T(), err)
+	defer check.Cancel()
+
+	matchstring := "match this string"
+	nomatchstring := "should not match"
+	s.sender.On("Commit").Return().Once()
+	// no events should be reported
+
+	// Generate an event that matches [in|ex]cluded_messages
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
+	s.Require().NoError(err)
+	// Geneate an event that does not match [in|ex]cluded_messages
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
+	s.Require().NoError(err)
 
 	check.Run()
 
@@ -508,6 +647,7 @@ tag_event_id: %t
 			})).Once()
 
 			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, tc.event_id, nil, []string{"teststring"}, nil)
+			s.Require().NoError(err)
 
 			check.Run()
 
@@ -567,6 +707,7 @@ tag_sid: %t
 			})).Once()
 
 			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, tc.sid, []string{"teststring"}, nil)
+			s.Require().NoError(err)
 			check.Run()
 
 			s.sender.AssertExpectations(s.T())

@@ -10,6 +10,7 @@ package evtlog
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -37,6 +38,9 @@ type Check struct {
 	// check
 	core.CheckBase
 	config *Config
+
+	included_messages []*regexp.Regexp
+	excluded_messages []*regexp.Regexp
 
 	// event metrics
 	event_priority metrics.EventPriority
@@ -141,6 +145,14 @@ func (c *Check) submitEvent(sender aggregator.Sender, event *evtapi.EventRecord)
 
 	// Render Windows event values into the DD event
 	_ = c.renderEventValues(event, &ddevent)
+
+	// If the event has rendered text, check it against the regexp patterns to see if
+	// we should send the event or not
+	if len(ddevent.Text) > 0 {
+		if !c.includeMessage(ddevent.Text) {
+			return nil
+		}
+	}
 
 	// submit
 	sender.Event(ddevent)
@@ -291,6 +303,30 @@ func (c *Check) renderEventMessage(providerName string, winevent *evtapi.EventRe
 	return nil
 }
 
+func (c *Check) includeMessage(message string) bool {
+	if len(c.excluded_messages) > 0 {
+		for _, re := range c.excluded_messages {
+			if re.MatchString(message) {
+				// exclude takes precedence over include, so we can stop early
+				return false
+			}
+		}
+	}
+
+	if len(c.included_messages) > 0 {
+		// include patterns given, message must match a pattern to be included
+		for _, re := range c.included_messages {
+			if re.MatchString(message) {
+				return true
+			}
+		}
+		// message did not match any patterns
+		return false
+	}
+
+	return true
+}
+
 func (c *Check) initSubscription() error {
 	var err error
 
@@ -382,6 +418,18 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	return nil
 }
 
+func compileRegexPatterns(patterns []string) ([]*regexp.Regexp, error) {
+	var err error
+	res := make([]*regexp.Regexp, len(patterns))
+	for i, pattern := range patterns {
+		res[i], err = regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("error compiling regex pattern '%s': %v", pattern, err)
+		}
+	}
+	return res, nil
+}
+
 func (c *Check) validateConfig() error {
 	var err error
 	c.event_priority, err = metrics.GetEventPriorityFromString(*c.config.instance.Event_priority)
@@ -400,6 +448,21 @@ func (c *Check) validateConfig() error {
 	if *c.config.instance.Start != "now" && *c.config.instance.Start != "oldest" {
 		return fmt.Errorf("invalid instance config `start`: '%s'", *c.config.instance.Start)
 	}
+
+	if c.config.instance.Included_messages != nil {
+		c.included_messages, err = compileRegexPatterns(c.config.instance.Included_messages)
+		if err != nil {
+			return fmt.Errorf("invalid instance config `included_messages`: %v", err)
+		}
+	}
+
+	if c.config.instance.Excluded_messages != nil {
+		c.excluded_messages, err = compileRegexPatterns(c.config.instance.Excluded_messages)
+		if err != nil {
+			return fmt.Errorf("invalid instance config `excluded_messages`: %v", err)
+		}
+	}
+
 	return nil
 }
 
