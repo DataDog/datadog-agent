@@ -60,14 +60,6 @@ var uptimeMetricConfig = MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.
 // DeviceDigest is the digest of a minimal config used for autodiscovery
 type DeviceDigest string
 
-var authProtocolMapping = map[string]string{
-	"usmHMACMD5AuthProtocol": "md5",
-}
-
-var privProtocolMapping = map[string]string{
-	"usmDESPrivProtocol": "des",
-}
-
 // InterfaceConfig interface related configs (e.g. interface speed override)
 type InterfaceConfig struct {
 	MatchField string `yaml:"match_field"` // e.g. name, index
@@ -439,33 +431,14 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	// SNMP connection configs
-	if instance.CommunityString != "" {
-		c.CommunityString = instance.CommunityString
-	}
-
-	if instance.User != "" {
-		c.User = instance.User
-
-		if instance.AuthKey != "" {
-			c.AuthKey = instance.AuthKey
-			if instance.AuthProtocol == "" {
-				c.AuthProtocol = authProtocolMapping["usmHMACMD5AuthProtocol"]
-			} else {
-				c.AuthProtocol = instance.AuthProtocol
-			}
-		}
-
-		if instance.PrivKey != "" {
-			c.PrivKey = instance.PrivKey
-			if instance.PrivProtocol == "" {
-				c.PrivProtocol = privProtocolMapping["usmDESPrivProtocol"]
-			} else {
-				c.PrivProtocol = instance.PrivProtocol
-			}
-		}
-	}
-
+	c.CommunityString = instance.CommunityString
+	c.User = instance.User
+	c.AuthProtocol = instance.AuthProtocol
+	c.AuthKey = instance.AuthKey
+	c.PrivProtocol = instance.PrivProtocol
+	c.PrivKey = instance.PrivKey
 	c.ContextName = instance.ContextName
+
 	c.Metrics = instance.Metrics
 
 	if instance.OidBatchSize != 0 {
