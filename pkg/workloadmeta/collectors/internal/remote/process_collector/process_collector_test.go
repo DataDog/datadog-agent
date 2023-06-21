@@ -99,7 +99,8 @@ func TestHandleProcessStreamResponse(t *testing.T) {
 		UnsetEvents: unsetEvents,
 	}
 
-	collectorEvents, err := handleProcessStreamResponse(mockResponse)
+	streamhandler := &remoteProcessCollectorStreamHandler{}
+	collectorEvents, err := streamhandler.HandleResponse(mockResponse)
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedEvents, collectorEvents)
@@ -179,11 +180,9 @@ func TestCollection(t *testing.T) {
 
 			// gRPC client (core agent)
 			collector := &remote.GenericCollector{
-				NewClient:       newProcessEntityStreamClient,
-				ResponseHandler: handleProcessStreamResponse,
-				Port:            port,
-				OnResync:        resetStore,
-				Insecure:        true,
+				StreamHandler: &remoteProcessCollectorStreamHandler{},
+				Port:          port,
+				Insecure:      true,
 			}
 
 			mockStore := workloadmeta.NewMockStore()

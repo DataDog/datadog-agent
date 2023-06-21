@@ -29,14 +29,6 @@ type client struct {
 	cl pb.ProcessEntityStreamClient
 }
 
-type stream struct {
-	cl pbgo.ProcessEntityStream_StreamEntitiesClient
-}
-
-func (s *stream) Recv() (interface{}, error) {
-	return s.cl.Recv()
-}
-
 func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) {
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
@@ -48,25 +40,33 @@ func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (r
 	return &stream{cl: streamcl}, nil
 }
 
+type stream struct {
+	cl pbgo.ProcessEntityStream_StreamEntitiesClient
+}
+
+func (s *stream) Recv() (interface{}, error) {
+	return s.cl.Recv()
+}
+
+type remoteProcessCollectorStreamHandler struct{}
+
 func init() {
 	if config.Datadog.GetBool("process_config.language_detection.enabled") { // todo check if process check is enabled
 		grpclog.SetLoggerV2(grpcutil.NewLogger())
 		workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 			return &remote.GenericCollector{
-				NewClient:       newProcessEntityStreamClient,
-				ResponseHandler: handleProcessStreamResponse,
-				OnResync:        resetStore,
-				Port:            config.Datadog.GetInt("process_config.workloadmeta_extractor.port"),
+				StreamHandler: &remoteProcessCollectorStreamHandler{},
+				Port:          config.Datadog.GetInt("process_config.workloadmeta_extractor.port"),
 			}
 		})
 	}
 }
 
-func newProcessEntityStreamClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
+func (s *remoteProcessCollectorStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
 	return &client{cl: pb.NewProcessEntityStreamClient(cc)}
 }
 
-func handleProcessStreamResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+func (s *remoteProcessCollectorStreamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	response, ok := resp.(*pb.ProcessStreamResponse)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
@@ -97,7 +97,7 @@ func handleEvents[T any](collectorEvents []workloadmeta.CollectorEvent, setEvent
 	return collectorEvents
 }
 
-func resetStore(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
+func (s *remoteProcessCollectorStreamHandler) HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
 	var processes []workloadmeta.Entity
 	for _, event := range events {
 		processes = append(processes, event.Entity)
