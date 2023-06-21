@@ -3,6 +3,7 @@ msi namespaced tasks
 """
 
 
+import mmap
 import os
 import shutil
 import sys
@@ -58,6 +59,73 @@ def _get_env(ctx, major_version='7', python_runtimes='3', release_version='night
 
 def _msbuild_configuration(debug=False):
     return "Debug" if debug else "Release"
+
+
+def _fix_makesfxca_dll(path):
+    """
+    Zero out the certificate data directory table entry on the PE file at @path
+
+    MakeSfxCA.exe packages managed custom actions by bundling them into the sfxca.dll
+    that ships with the WiX toolset. In WiX 11.2 sfxca.dll was shipping with a digital
+    signature. When MakeSfxCA.exe copies the VERSION_INFO resource from the embedded
+    CA DLL into sfxca.dll it does not properly update the certificate data directory
+    offset, resulting in it pointing to garbage data. Since the certificate table looks
+    corrupted tools like signtool/jsign will throw an error when trying to sign the output file.
+    https://github.com/wixtoolset/issues/issues/6089
+
+    Zero-ing out the certificate data directory table entry allows signtool/jsign to create a new
+    certificate table in the PE file.
+
+    This may be able to be removed if we upgrade to a later version of the WiX toolset.
+    """
+
+    def intval(data, offset, size):
+        return int.from_bytes(data[offset : offset + size], 'little')
+
+    def word(data, offset):
+        return intval(data, offset, 2)
+
+    def dword(data, offset):
+        return intval(data, offset, 4)
+
+    # offsets and magic numbers from
+    # https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
+    with open(path, 'r+b') as fd, mmap.mmap(fd.fileno(), 0) as pe_data:
+        # verify DOS magic
+        if pe_data[0:3] != b'MZ\x90':
+            raise Exit("Invalid DOS magic")
+        # get offset to PE/NT header
+        e_lfanew = dword(pe_data, 0x3C)
+        # verify PE magic
+        if dword(pe_data, e_lfanew) != dword(b'PE\x00\x00', 0):
+            raise Exit("Invalid PE magic")
+        # Check OptionalHeader magic (it affects the data directory base offset)
+        OptionalHeader = e_lfanew + 0x18
+        magic = word(pe_data, OptionalHeader)
+        if magic == 0x010B:
+            # PE32
+            DataDirectory = OptionalHeader + 96
+        elif magic == 0x20B:
+            # PE32+
+            DataDirectory = OptionalHeader + 112
+        else:
+            raise Exit("Invalid magic: {}".format(hex(magic)))
+        # calculate offset to the certificate table data directory entry
+        ddentry_size = 8
+        certificatetable_index = 4
+        certificatetable = DataDirectory + certificatetable_index * ddentry_size
+        ct_offset = dword(pe_data, certificatetable)
+        ct_size = dword(pe_data, certificatetable+4)
+        if ct_offset == 0 and ct_size == 0:
+            # no change necessary
+            return
+        print(
+            "{}: zeroing out certificate table directory entry {:x},{:x} at offset {:x}".format(
+                path, ct_offset, ct_size, certificatetable
+            )
+        )
+        # zero out the certificate table data directory entry
+        pe_data[certificatetable : certificatetable + ddentry_size] = b'\x00' * ddentry_size
 
 
 def sign_file(ctx, path, force=False):
@@ -144,6 +212,7 @@ def _build_wxs(ctx, env, outdir):
         raise Exit("Failed to build the MSI WXS.", code=1)
 
     # sign the MakeSfxCA output files
+    _fix_makesfxca_dll(os.path.join(outdir, 'CustomActions.CA.dll'))
     sign_file(ctx, os.path.join(outdir, 'CustomActions.CA.dll'))
 
 
