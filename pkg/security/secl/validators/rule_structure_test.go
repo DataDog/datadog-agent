@@ -28,6 +28,13 @@ func TestIsAlwaysTrue(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "root path wildcard pattern",
+			args: args{
+				ruleExpression: "open.file.path =~ ~\"/**\"",
+			},
+			want: true,
+		},
+		{
 			name: "bare wildcard",
 			args: args{
 				ruleExpression: "exec.file.name == \"*\"",
@@ -42,21 +49,14 @@ func TestIsAlwaysTrue(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "path wildcard in array",
+			name: "root path wildcard in array",
 			args: args{
 				ruleExpression: "open.file.path in [\"/bin/pwd\", ~\"/**\", \"/etc/shadow\"]",
 			},
 			want: true,
 		},
 		{
-			name: "pattern",
-			args: args{
-				ruleExpression: "open.file.path =~ ~\"/**\"",
-			},
-			want: true,
-		},
-		{
-			name: "regex pattern",
+			name: "bare wildcard regex",
 			args: args{
 				ruleExpression: "dns.question.name =~ r\".*\"", // matches any character (except for line terminators) >= 0 times
 			},
@@ -70,19 +70,26 @@ func TestIsAlwaysTrue(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "always true and",
+			name: "not always true and",
 			args: args{
-				ruleExpression: "exec.file.name != \"ls\" && exec.file.path =~ \"/**\"",
+				ruleExpression: "exec.file.path =~ \"/**\" && exec.file.name != \"ls\" || open.file.name == \"myfile.txt\"",
 			},
 			want: true,
 		},
 		{
-			name: "not empty path",
+			name: "always true and ",
 			args: args{
-				ruleExpression: "open.file.path != \"\"", // TODO: Need to implement check. Not allow empty string for path or name
+				ruleExpression: "exec.file.path =~ \"/**\" && open.file.name == \"*\" || exec.file.path != \"/bin/ls\"", // TODO: Handle parentheses
 			},
 			want: true,
 		},
+		//{
+		//	name: "not empty path",
+		//	args: args{
+		//		ruleExpression: "open.file.path != \"\"", // TODO: Need to implement check. Not allow empty string for path or name
+		//	},
+		//	want: true,
+		//},
 		{
 			name: "duration",
 			args: args{

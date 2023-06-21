@@ -24,24 +24,81 @@ func IsAlwaysTrue(rule *eval.Rule) (bool, error) {
 		return false, fmt.Errorf("%w\n", err)
 	}
 
+	operatorsOnSubexpressions := GetOperatorsOnSubexpressions(rule.GetAst())
+	fmt.Println("printing ops")
+	for _, op := range operatorsOnSubexpressions {
+		fmt.Println(*op)
+	}
+
+	var subexpressionTruthValues []bool
+
 	for _, fieldKey := range rule.GetFields() {
 		fmt.Println("field:", fieldKey)
 		for _, fieldValue := range rule.GetFieldValues(fieldKey) {
+			fmt.Println("fieldValue:", fieldValue)
+
 			if fieldValue.Type == eval.GlobValueType && fieldValue.Value == "/**" {
-				return true, nil
+				// chunks are at rule.GetAst().BooleanExpression.Expression.Op, rule.GetAst().BooleanExpression.Expression.Next.Expression.Op
+				subexpressionTruthValues = append(subexpressionTruthValues, true)
+			} else if fieldValue.Type == eval.RegexpValueType && fieldValue.Value == ".*" {
+				subexpressionTruthValues = append(subexpressionTruthValues, true)
+			} else if fieldValue.Type == eval.ScalarValueType && fieldValue.Value == "*" {
+				// exec.file.name == \"*\"
+				subexpressionTruthValues = append(subexpressionTruthValues, true)
+			} else {
+				subexpressionTruthValues = append(subexpressionTruthValues, false)
 			}
 
-			// TODO: If regex, disallow .*
-			if fieldValue.Type == eval.RegexpValueType && fieldValue.Value == ".*" {
-				return true, nil
-			}
+			//if strings.Contains(fieldKey, ".file.") && (fieldValue.Value == "/" || fieldValue.Value == "/*") {
+			//	return true, nil
+			//}
 
-			// exec.file.name == \"*\"
-			if fieldValue.Type == eval.ScalarValueType && fieldValue.Value == "*" {
+			// TODO: Macros and Variables
+		}
+	}
+
+	//&& rule.GetAst().BooleanExpression.Expression.Comparison.ArrayComparison != nil
+	if len(operatorsOnSubexpressions) == 0 {
+		for _, truthValue := range subexpressionTruthValues {
+			if truthValue == true {
 				return true, nil
 			}
 		}
 	}
 
-	return false, nil
+	var firstOperand bool
+
+	for _, operator := range operatorsOnSubexpressions {
+		for idx, truthValue := range subexpressionTruthValues {
+			if idx == 0 {
+				firstOperand = truthValue
+			} else {
+				if *operator == "&&" {
+					firstOperand = firstOperand && truthValue
+				} else if *operator == "||" {
+					firstOperand = firstOperand || truthValue
+				}
+			}
+		}
+	}
+
+	return firstOperand, nil
+}
+
+func GetOperatorsOnSubexpressions(st *ast.Rule) []*string {
+	operators := []*string{}
+
+	expression := st.BooleanExpression.Expression
+	if expression.Op != nil {
+		operators = append(operators, expression.Op)
+	}
+
+	for expression.Next != nil {
+		expression = expression.Next.Expression
+		if expression.Op != nil {
+			operators = append(operators, expression.Op)
+		}
+	}
+
+	return operators
 }
