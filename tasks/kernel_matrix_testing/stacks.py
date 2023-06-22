@@ -65,6 +65,10 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
     if ssh_key != "":
         ssh_key_file = find_ssh_key(ssh_key)
         ssh_add_cmd = f"ssh-add -l | grep {ssh_key} || ssh-add {ssh_key_file}"
+    elif remote_vms_in_config(vm_config):
+        if ask("You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]") != "Y":
+            raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>'")
+        ssh_add_cmd = ""
     else:
         ssh_add_cmd = ""
 
