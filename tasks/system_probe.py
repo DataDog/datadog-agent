@@ -710,11 +710,11 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
 
         for gobin in ["gotls_client", "sowatcher_client", "prefetch_file"]:
             client_dir = os.path.join("testutil", gobin)
-            extra_path = os.path.join(pkg, client_dir)
-            if not windows and os.path.isdir(extra_path):
+            src_file_path = os.path.join(pkg, f"{gobin}.go")
+            if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 client_binary = os.path.join(client_dir, gobin)
                 binary_path = os.path.join(target_path, client_binary)
-                with chdir(extra_path):
+                with chdir(pkg):
                     ctx.run(f"go build -o {binary_path} -ldflags=\"-extldflags '-static'\" {gobin}.go")
 
     gopath = os.getenv("GOPATH")
