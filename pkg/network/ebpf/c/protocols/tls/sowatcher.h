@@ -3,7 +3,7 @@
 
 #include "protocols/tls/sowatcher-types.h"
 
-static __always_inline void fill_path_safe(lib_path_t *path, char *path_argument) {
+static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
         bpf_probe_read_user(&path->buf[i], 1, &path_argument[i]);
@@ -14,9 +14,9 @@ static __always_inline void fill_path_safe(lib_path_t *path, char *path_argument
     }
 }
 
-static __always_inline void do_sys_open_helper_enter(enter_sys_openat_ctx* args) {
+static __always_inline void do_sys_open_helper_enter(const char *filename) {
     lib_path_t path = {0};
-    if (bpf_probe_read_user_with_telemetry(path.buf, sizeof(path.buf), args->filename) >= 0) {
+    if (bpf_probe_read_user_with_telemetry(path.buf, sizeof(path.buf), filename) >= 0) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
@@ -27,7 +27,7 @@ static __always_inline void do_sys_open_helper_enter(enter_sys_openat_ctx* args)
             }
         }
     } else {
-        fill_path_safe(&path, args->filename);
+        fill_path_safe(&path, filename);
     }
 
     // Bail out if the path size is larger than our buffer
@@ -77,7 +77,7 @@ cleanup:
 
 SEC("tracepoint/syscalls/sys_enter_openat")
 int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx* args) {
-    do_sys_open_helper_enter(args);
+    do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
@@ -88,8 +88,8 @@ int tracepoint__syscalls__sys_exit_openat(exit_sys_openat_ctx *args) {
 }
 
 SEC("tracepoint/syscalls/sys_enter_openat2")
-int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat_ctx* args) {
-    do_sys_open_helper_enter(args);
+int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx* args) {
+    do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
