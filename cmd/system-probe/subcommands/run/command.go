@@ -227,7 +227,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 	if err = api.StartServer(cfg); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
-
 	return nil
 }
 
