@@ -132,7 +132,7 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 // GetConnections returns a set of active network connections, retrieved from the system probe service
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
 	var conns *model.Connections
-	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.useGRPC")
+	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
 	fmt.Printf("dazik maspik: %t and the client id is %d\n", useGRPCServer, clientID)
 	if useGRPCServer {
 		conn, err := grpc.Dial("unix:///tmp/my_grpc.sock", grpc.WithInsecure())
