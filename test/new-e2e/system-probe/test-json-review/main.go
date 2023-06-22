@@ -21,7 +21,7 @@ import (
 	"github.com/fatih/color"
 )
 
-var CIVisibility = filepath.Join("/", "ci-visibility")
+const CIVisibility = "/ci-visibility"
 
 func init() {
 	color.NoColor = false
@@ -71,7 +71,7 @@ func main() {
 		if len(failedTests) > 0 {
 			fmt.Fprintf(os.Stderr, color.RedString(failedTests))
 		} else {
-			fmt.Fprintf(os.Stderr, color.GreenString(fmt.Sprintf("All tests cleared in attempt %d", i+1)))
+			fmt.Println(color.GreenString(fmt.Sprintf("All tests cleared in attempt %d", i+1)))
 			return
 		}
 	}

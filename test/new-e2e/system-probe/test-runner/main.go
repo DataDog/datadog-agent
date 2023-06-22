@@ -38,12 +38,11 @@ const (
 	GoTestSum   = "/go/bin/gotestsum"
 
 	// The directroy format is <name>-<attempt>*
-	XMLDir     = "junit-%d"
-	JSONDir    = "pkgjson-%d"
-	JSONOutDir = "testjson-%d"
+	XMLDir       = "junit-%d"
+	JSONDir      = "pkgjson-%d"
+	JSONOutDir   = "testjson-%d"
+	CIVisibility = "/ci-visibility"
 )
-
-var CIVisibility = filepath.Join("/", "ci-visibility")
 
 var BaseEnv = map[string]interface{}{
 	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join(TestDirRoot, "pkg/ebpf/bytecode/build"),
@@ -195,12 +194,12 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 	var retry bool
 
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
-		dir := strings.TrimLeft(strings.TrimPrefix(filepath.Dir(path), TestDirRoot), "/")
-		if len(testConfig.excludePackages) != 0 {
-			for _, p := range testConfig.excludePackages {
-				if dir == p {
-					return false
-				}
+		dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
+		fmt.Printf("dir: %s\n", dir)
+
+		for _, p := range testConfig.excludePackages {
+			if dir == p {
+				return false
 			}
 		}
 		if len(testConfig.includePackages) != 0 {
@@ -323,7 +322,7 @@ func run() error {
 	if err := os.RemoveAll(CIVisibility); err != nil {
 		return fmt.Errorf("failed to remove contents of %s: %w", CIVisibility, err)
 	}
-	if _, err := os.Stat(CIVisibility); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(CIVisibility); errors.Is(err, fs.ErrNotExist) {
 		if err := os.MkdirAll(CIVisibility, 0777); err != nil {
 			return fmt.Errorf("failed to create directory %s", CIVisibility)
 		}

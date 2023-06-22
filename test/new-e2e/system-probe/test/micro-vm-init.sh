@@ -18,7 +18,7 @@ find $KITCHEN_DOCKERS -maxdepth 1 -type f -exec docker load -i {} \;
 
 # Start tests
 IP=$(ip route get 8.8.8.8 | grep -Po '(?<=(src ))(\S+)')
-rm -rf ci-visibility
+rm -rf /ci-visibility
 
 CODE=0
 /test-runner -retry $RETRY_COUNT || CODE=$?
