@@ -9,20 +9,53 @@
 enhancements:
   - |
     APM: Bind ``apm_config.obfuscation`` parameter to new obfuscation environment variables. In particular, bind:
-    ``apm_config.obfuscation.mongodb`` to ``DD_APM_OBFUSCATION_MONGODB``:
-    It accepts a JSON formatted string of the form ``[{"enabled":true,"keep_values":["id1", "id2"]}]``.
+    ``apm_config.obfuscation.elasticsearch.enabled`` to ``DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED``:
+    It accepts a boolean value with default value false.
 
-    ``apm_config.obfuscation.elasticsearch`` to ``DD_APM_OBFUSCATION_ELASTICSEARCH``:
-    It accepts a JSON formatted string of the form ``[{"enabled":true,"keep_values":["id1", "id2"]}]``.
+    ``apm_config.obfuscation.elasticsearch.keep_values`` to ``DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES``
+    It accepts a list of strings of the form ``["id1", "id2"]``.
 
-    ``apm_config.obfuscation.redis.enabled`` to ``DD_APM_OBFUSCATION_REDIS_ENABLED``:
+    ``apm_config.obfuscation.elasticsearch.obfuscate_sql_values`` to ``DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES``
+    It accepts a list of strings of the form ``["key1", "key2"]``.
+
+    ``apm_config.obfuscation.http.remove_paths_with_digits`` to ``DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS``,
+    It accepts a boolean value.
+
+    ``apm_config.obfuscation.http.remove_query_string`` to ``DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING``,
     It accepts a boolean value.
 
     ``apm_config.obfuscation.memcached.enabled`` to ``DD_APM_OBFUSCATION_MEMCACHED_ENABLED``:
     It accepts a boolean value.
 
-    ``apm_config.obfuscation.http`` to ``DD_APM_OBFUSCATION_HTTP``,
-    It accepts a JSON formatted string of the form ``[{"remove_query_string":true,"remove_paths_with_digits":true}]``.
+    ``apm_config.obfuscation.mongodb.enabled`` to ``DD_APM_OBFUSCATION_MONGODB_ENABLED``:
+    It accepts a boolean value with default value false.
+
+    ``apm_config.obfuscation.mongodb.keep_values`` to ``DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES``
+    It accepts a list of strings of the form ``["id1", "id2"]``.
+
+    ``apm_config.obfuscation.mongodb.obfuscate_sql_values`` to ``DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES``
+    It accepts a list of strings of the form ``["key1", "key2"]``.
+
+    ``apm_config.obfuscation.redis.enabled`` to ``DD_APM_OBFUSCATION_REDIS_ENABLED``:
+    It accepts a boolean value.
 
     ``apm_config.obfuscation.remove_stack_traces`` to ``DD_APM_OBFUSCATION_REMOVE_STACK_TRACES``:
     It accepts a boolean value.
+
+    ``apm_config.obfuscation.sql_exec_plan.enabled`` to ``DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED``:
+    It accepts a boolean value with default value false.
+
+    ``apm_config.obfuscation.sql_exec_plan.keep_values`` to ``DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES``
+    It accepts a list of strings of the form ``["id1", "id2"]``.
+
+    ``apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values`` to ``DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES``
+    It accepts a list of strings of the form ``["key1", "key2"]``.
+
+    ``apm_config.obfuscation.sql_exec_plan_normalize.enabled`` to ``DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED``:
+    It accepts a boolean value with default value false.
+
+    ``apm_config.obfuscation.sql_exec_plan_normalize.keep_values`` to ``DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES``
+    It accepts a list of strings of the form ``["id1", "id2"]``.
+
+    ``apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values`` to ``DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES``
+    It accepts a list of strings of the form ``["key1", "key2"]``.
