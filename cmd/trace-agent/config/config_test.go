@@ -1049,6 +1049,15 @@ func TestLoadEnv(t *testing.T) {
 		assert.False(coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled"))
 	})
 
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.CreditCards.Enabled)
+	})
+
 	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
@@ -1059,35 +1068,209 @@ func TestLoadEnv(t *testing.T) {
 		assert.False(coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	})
 
-	env = "DD_APM_OBFUSCATION_MONGODB"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		t.Setenv(env, `{"enabled": true, "keep_values": ["document_id", "template_id"]}`)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.CreditCards.Luhn)
+	})
+
+	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
 		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
-		expected := map[string]interface{}{
-			"enabled":     true,
-			"keep_values": []interface{}{"document_id", "template_id"},
-		}
-		actual := coreconfig.Datadog.GetStringMap(("apm_config.obfuscation.mongodb"))
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.ES.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["client_id", "product_id"]`)
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"client_id", "product_id"}
+		actual := coreconfig.Datadog.GetStringSlice(("apm_config.obfuscation.elasticsearch.keep_values"))
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
 		}
 	})
 
-	env = "DD_APM_OBFUSCATION_ELASTICSEARCH"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		t.Setenv(env, `{"enabled": true, "keep_values": ["client_id", "product_id"]}`)
+		t.Setenv(env, `["client_id", "product_id"]`)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"client_id", "product_id"}
+		actual := cfg.Obfuscation.ES.KeepValues
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["key1", "key2"]`)
 		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
-		expected := map[string]interface{}{
-			"enabled":     true,
-			"keep_values": []interface{}{"client_id", "product_id"},
+		expected := []string{"key1", "key2"}
+		actual := coreconfig.Datadog.GetStringSlice(("apm_config.obfuscation.elasticsearch.obfuscate_sql_values"))
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
 		}
-		actual := coreconfig.Datadog.GetStringMap(("apm_config.obfuscation.elasticsearch"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["key1", "key2"]`)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"key1", "key2"}
+		actual := cfg.Obfuscation.ES.ObfuscateSQLValues
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_query_string"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.HTTP.RemoveQueryString)
+	})
+
+	env = "DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_paths_with_digits"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.HTTP.RemovePathDigits)
+	})
+
+	env = "DD_APM_OBFUSCATION_MEMCACHED_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.Memcached.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_MONGODB_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.enabled"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.Mongo.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["document_id", "template_id"]`)
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"document_id", "template_id"}
+		actual := coreconfig.Datadog.GetStringSlice(("apm_config.obfuscation.mongodb.keep_values"))
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["document_id", "template_id"]`)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"document_id", "template_id"}
+		actual := cfg.Obfuscation.Mongo.KeepValues
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.obfuscate_sql_values"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["key1", "key2"]`)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"key1", "key2"}
+		actual := cfg.Obfuscation.Mongo.ObfuscateSQLValues
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
 		}
@@ -1103,31 +1286,13 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.enabled"))
 	})
 
-	env = "DD_APM_OBFUSCATION_MEMCACHED_ENABLED"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()
 		assert := assert.New(t)
-		t.Setenv(env, "true")
-		_, err := LoadConfigFile("./testdata/full.yaml")
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
-		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
-	})
-
-	env = "DD_APM_OBFUSCATION_HTTP"
-	t.Run(env, func(t *testing.T) {
-		defer cleanConfig()()
-		assert := assert.New(t)
-		t.Setenv(env, `{"remove_query_string": true, "remove_paths_with_digits": true}`)
-		_, err := LoadConfigFile("./testdata/full.yaml")
-		assert.NoError(err)
-		expected := map[string]interface{}{
-			"remove_query_string":      true,
-			"remove_paths_with_digits": true,
-		}
-		actual := coreconfig.Datadog.GetStringMap(("apm_config.obfuscation.http"))
-		if !reflect.DeepEqual(actual, expected) {
-			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
-		}
+		assert.False(cfg.Obfuscation.Redis.Enabled)
 	})
 
 	env = "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES"
@@ -1138,6 +1303,153 @@ func TestLoadEnv(t *testing.T) {
 		_, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.remove_stack_traces"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.RemoveStackTraces)
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.SQLExecPlan.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["id1", "id2"]`)
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"id1", "id2"}
+		actual := coreconfig.Datadog.GetStringSlice(("apm_config.obfuscation.sql_exec_plan.keep_values"))
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["key1", "key2"]`)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"key1", "key2"}
+		actual := cfg.Obfuscation.SQLExecPlan.KeepValues
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["key1", "key2"]`)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"key1", "key2"}
+		actual := cfg.Obfuscation.SQLExecPlan.ObfuscateSQLValues
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "false")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.False(cfg.Obfuscation.SQLExecPlanNormalize.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["id1", "id2"]`)
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"id1", "id2"}
+		actual := coreconfig.Datadog.GetStringSlice(("apm_config.obfuscation.sql_exec_plan_normalize.keep_values"))
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["key1", "key2"]`)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"key1", "key2"}
+		actual := cfg.Obfuscation.SQLExecPlanNormalize.KeepValues
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		_, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values"))
+	})
+
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, `["key1", "key2"]`)
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		expected := []string{"key1", "key2"}
+		actual := cfg.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %#v and got %#v", env, expected, actual)
+		}
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"
