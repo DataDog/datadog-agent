@@ -16,7 +16,7 @@ require (
 	// Commit sha matches the first 8 digits of the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:01234567
-	github.com/DataDog/test-infra-definitions v0.0.0-20230619131020-fb813362e3e0
+	github.com/DataDog/test-infra-definitions v0.0.0-20230622123358-60eb38e90955
 	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.27
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
@@ -26,7 +26,7 @@ require (
 	github.com/pulumi/pulumi-command/sdk v0.7.2
 	github.com/pulumi/pulumi/sdk/v3 v3.72.2
 	github.com/sethvargo/go-retry v0.2.4
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.8.4
 	golang.org/x/crypto v0.10.0
 	golang.org/x/sys v0.9.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -48,7 +48,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.28 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.35 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.28 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.12 // indirect
@@ -92,6 +92,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v5 v5.41.0 // indirect
 	github.com/pulumi/pulumi-awsx/sdk v1.0.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
+	github.com/pulumi/pulumi-eks/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.29.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.2 // indirect
