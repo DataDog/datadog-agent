@@ -19,13 +19,13 @@ enhancements:
     It accepts a list of strings of the form ``["key1", "key2"]``.
 
     ``apm_config.obfuscation.http.remove_paths_with_digits`` to ``DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS``,
-    It accepts a boolean value.
+    It accepts a boolean value with default value false.
 
     ``apm_config.obfuscation.http.remove_query_string`` to ``DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING``,
-    It accepts a boolean value.
+    It accepts a boolean value with default value false.
 
     ``apm_config.obfuscation.memcached.enabled`` to ``DD_APM_OBFUSCATION_MEMCACHED_ENABLED``:
-    It accepts a boolean value.
+    It accepts a boolean value with default value false.
 
     ``apm_config.obfuscation.mongodb.enabled`` to ``DD_APM_OBFUSCATION_MONGODB_ENABLED``:
     It accepts a boolean value with default value false.
@@ -37,10 +37,10 @@ enhancements:
     It accepts a list of strings of the form ``["key1", "key2"]``.
 
     ``apm_config.obfuscation.redis.enabled`` to ``DD_APM_OBFUSCATION_REDIS_ENABLED``:
-    It accepts a boolean value.
+    It accepts a boolean value with default value false.
 
     ``apm_config.obfuscation.remove_stack_traces`` to ``DD_APM_OBFUSCATION_REMOVE_STACK_TRACES``:
-    It accepts a boolean value.
+    It accepts a boolean value with default value false.
 
     ``apm_config.obfuscation.sql_exec_plan.enabled`` to ``DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED``:
     It accepts a boolean value with default value false.
