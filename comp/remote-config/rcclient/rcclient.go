@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
@@ -36,7 +37,8 @@ type rcClient struct {
 	client           *remote.Client
 	m                *sync.Mutex
 	taskProcessed    map[string]bool
-	fallbackLogLevel string
+	fallbackLogLevel *string
+	latestLogLevel   *string
 
 	listeners []RCAgentTaskListener
 }
@@ -56,11 +58,16 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 	}
 
 	rc := rcClient{
-		listeners:        deps.Listeners,
-		m:                &sync.Mutex{},
-		fallbackLogLevel: level.String(),
+		listeners: deps.Listeners,
+		m:         &sync.Mutex{},
+		// The string values can't be updated inside the component methods,
+		// so we need to use pointers
+		fallbackLogLevel: new(string),
+		latestLogLevel:   new(string),
 		client:           nil,
 	}
+
+	*rc.fallbackLogLevel = level.String()
 
 	return rc, nil
 }
@@ -94,18 +101,30 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		return
 	}
 
+	// TODO RCM-1064: implement priority between CLI and remote-config
 	// If there is no error, override the configs
 	if len(mergedConfig.LogLevel) > 0 {
 		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
-		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
+		// Get the current log level
+		var newFallback seelog.LogLevel
+		newFallback, err = pkglog.GetLogLevel()
+		if err == nil {
+			*rc.fallbackLogLevel = newFallback.String()
+			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
+			*rc.latestLogLevel = mergedConfig.LogLevel
+		}
 	} else {
-		pkglog.Infof("Removing remote-config log level override, falling back to %s", rc.fallbackLogLevel)
-		err = settings.SetRuntimeSetting("log_level", rc.fallbackLogLevel)
+		var currentLogLevel seelog.LogLevel
+		currentLogLevel, err = pkglog.GetLogLevel()
+		if err == nil && currentLogLevel.String() == *rc.latestLogLevel {
+			pkglog.Infof("Removing remote-config log level override, falling back to %s", *rc.fallbackLogLevel)
+			err = settings.SetRuntimeSetting("log_level", *rc.fallbackLogLevel)
+		}
 	}
 
 	// Apply the new status to all configs
 	for cfgPath := range updates {
-		if err != nil {
+		if err == nil {
 			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		} else {
 			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{
