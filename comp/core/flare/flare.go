@@ -48,9 +48,7 @@ func newFlare(deps dependencies) (Component, rcclient.ListenerProvider, error) {
 		providers: deps.Providers,
 	}
 
-	rcListener := rcclient.ListenerProvider{
-		Listener: f.onAgentTaskEvent,
-	}
+	rcListener := rcclient.NewProvider(Listener: f.onAgentTaskEvent)
 
 	return f, rcListener, nil
 }
