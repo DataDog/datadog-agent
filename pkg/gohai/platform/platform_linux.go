@@ -62,7 +62,7 @@ func getUnameProcessor(machine string) string {
 	return machine
 }
 
-// getUnameProcessor returns the same value as `uname -i`
+// getUnameHardwarePlatform returns the same value as `uname -i`
 //
 // note that each OS applies a set of patches on the base coreutils source, in particular the 80_fedora_sysinfo.patch
 // which makes uname work on Linux, so you have to look at the patched code, eg. for ubuntu jammy:
