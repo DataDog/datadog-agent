@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/grpcserver"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -227,10 +226,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 
 	if err = api.StartServer(cfg); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
-	}
-
-	if err = grpcserver.StartgRPCServer(); err != nil {
-		return log.Criticalf("error while starting grpc server, exiting: %v", err)
 	}
 
 	return nil

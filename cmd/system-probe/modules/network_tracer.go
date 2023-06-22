@@ -11,10 +11,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/proto/test2"
+	"google.golang.org/grpc"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"go.uber.org/atomic"
@@ -68,15 +73,26 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
-		netwo := &networkTracer{tracer: t, done: done}
+		nt := networkTracer{
+			tracer: t,
+		}
 
-		networkTracerReference = netwo
+		go func() {
+			err := startRPCServer(nt)
+			if err != nil {
+				log.Errorf("Failed to start gRPC server: %v", err)
+			}
+		}()
 
-		return &networkTracer{tracer: t, done: done}, err
+		nt.done = done
+
+		return &nt, err
 	},
 }
 
 var _ module.Module = &networkTracer{}
+
+type SystemProbeServer struct{}
 
 type networkTracer struct {
 	tracer       *tracer.Tracer
@@ -84,9 +100,83 @@ type networkTracer struct {
 	restartTimer *time.Timer
 }
 
+func startRPCServer(tracer networkTracer) error {
+	socketFile := "/tmp/my_grpc.sock"
+
+	// Remove existing socket file if it exists
+	os.Remove(socketFile)
+
+	listener, err := net.Listen("unix", socketFile)
+	if err != nil {
+		return err
+	}
+
+	server := grpc.NewServer()
+	test2.RegisterSystemProbeServer(server, &tracer)
+
+	go func() {
+		log.Info("gRPC server listening on Unix domain socket...")
+
+		err = server.Serve(listener)
+		if err != nil {
+			return
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully stop the server
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	<-sigCh
+
+	// Gracefully stop the server
+	server.GracefulStop()
+	return nil
+}
+
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
+}
+
+func writeConnectionsTogRPC(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
+	defer network.Reclaim(cs)
+
+	buf, err := marshaler.Marshal(cs)
+	if err != nil {
+		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
+		return nil, err
+	}
+
+	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	return buf, nil
+}
+
+func (nt *networkTracer) GetConnections(req *test2.GetConnectionsRequest, s2 test2.SystemProbe_GetConnectionsServer) error {
+	start := time.Now()
+	var runCounter = atomic.NewUint64(0)
+	id := req.GetClientID()
+	cs, err := nt.tracer.GetActiveConnections(id)
+	if err != nil {
+		log.Errorf("unable to retrieve connections: %s", err)
+		return err
+	}
+
+	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
+	finalConn, err := writeConnectionsTogRPC(marshaler, cs)
+	if err != nil {
+		log.Errorf("unable to writeConnectionsTogRPC: %s", err)
+		return err
+	}
+
+	if nt.restartTimer != nil {
+		nt.restartTimer.Reset(inactivityRestartDuration)
+	}
+	count := runCounter.Inc()
+	logRequests(id, count, len(cs.Conns), start)
+
+	//	iterate over all the connections
+	s2.Send(&test2.Connection{Data: finalConn})
+	return nil
 }
 
 // Register all networkTracer endpoints
