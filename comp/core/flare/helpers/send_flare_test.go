@@ -60,7 +60,7 @@ func TestFlareHasRightForm(t *testing.T) {
 	caseID := "12345"
 	email := "dev@datadoghq.com"
 
-	_, err := SendTo(archivePath, caseID, email, "abcdef", ddURL)
+	_, err := SendTo(archivePath, caseID, email, "abcdef", ddURL, "")
 
 	assert.Nil(t, err)
 
