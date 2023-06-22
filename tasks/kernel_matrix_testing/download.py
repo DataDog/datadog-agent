@@ -1,33 +1,34 @@
-from .tool import Exit, ask, warn, info, error, debug
+from .tool import Exit, info, debug, warn
 import tempfile
 from glob import glob
 import filecmp
 import platform
 import os
+import requests
 
 url_base = "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/"
 rootfs_amd64 = {
-        "bullseye.qcow2.amd64-DEV.qcow2",
-        "buster.qcow2.amd64-DEV.qcow2",
-        "jammy-server-cloudimg-amd64.qcow2",
-        "focal-server-cloudimg-amd64.qcow2",
-        "bionic-server-cloudimg-amd64.qcow2",
-        "amzn2-kvm-2.0-amd64-4.14.qcow2",
-        "amzn2-kvm-2.0-amd64-5.4.qcow2",
-        "amzn2-kvm-2.0-amd64-5.10.qcow2",
-        "amzn2-kvm-2.0-amd64-5.15.qcow2",
-        }
+    "bullseye.qcow2.amd64-DEV.qcow2",
+    "buster.qcow2.amd64-DEV.qcow2",
+    "jammy-server-cloudimg-amd64.qcow2",
+    "focal-server-cloudimg-amd64.qcow2",
+    "bionic-server-cloudimg-amd64.qcow2",
+    "amzn2-kvm-2.0-amd64-4.14.qcow2",
+    "amzn2-kvm-2.0-amd64-5.4.qcow2",
+    "amzn2-kvm-2.0-amd64-5.10.qcow2",
+    "amzn2-kvm-2.0-amd64-5.15.qcow2",
+}
 
 rootfs_arm64 = {
-        "bullseye.qcow2.arm64-DEV.qcow2",
-        "jammy-server-cloudimg-arm64.qcow2",
-        "focal-server-cloudimg-arm64.qcow2",
-        "bionic-server-cloudimg-arm64.qcow2",
-        "amzn2-kvm-2.0-arm64-4.14.qcow2",
-        "amzn2-kvm-2.0-arm64-5.4.qcow2",
-        "amzn2-kvm-2.0-arm64-5.10.qcow2",
-        "amzn2-kvm-2.0-arm64-5.15.qcow2",
-        }
+    "bullseye.qcow2.arm64-DEV.qcow2",
+    "jammy-server-cloudimg-arm64.qcow2",
+    "focal-server-cloudimg-arm64.qcow2",
+    "bionic-server-cloudimg-arm64.qcow2",
+    "amzn2-kvm-2.0-arm64-4.14.qcow2",
+    "amzn2-kvm-2.0-arm64-5.4.qcow2",
+    "amzn2-kvm-2.0-arm64-5.10.qcow2",
+    "amzn2-kvm-2.0-arm64-5.15.qcow2",
+}
 
 archs_mapping = {
     "amd64": "x86_64",
@@ -43,7 +44,7 @@ karch_mapping = {"x86_64": "x86", "arm64": "arm64"}
 
 def requires_update(rootfs_dir, image):
     sum_url = url_base + image + ".sum"
-    r = requests.get(url)
+    r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
     with open(os.path.join(rootfs_dir, f"{image}.sum")) as f:
         original_sum = f.read().rstrip().split(' ')[0]
@@ -51,6 +52,7 @@ def requires_update(rootfs_dir, image):
     if new_sum != original_sum:
         return True
     return False
+
 
 def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
     to_download = list()
@@ -66,7 +68,7 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             to_download.append(f)
 
     # download and compare hash sums
-    present_files = list(set(file_ls) - set(to_download)) 
+    present_files = list(set(file_ls) - set(to_download))
     for f in present_files:
         if requires_update(rootfs_dir, f):
             debug(f"[debug] updating {f} from S3.")
@@ -79,11 +81,11 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             for f in to_download:
                 info(f"[+] {f} needs to be downloaded")
                 # download package entry
-                tmp.write(url_base+f"{f}.tar.gz"+"\n")
+                tmp.write(url_base + f"{f}.tar.gz" + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
                 tmp.write(f" out={f}.tar.gz\n")
                 # download sum entry
-                tmp.write(url_base+f"{f}.sum\n")
+                tmp.write(url_base + f"{f}.sum\n")
                 tmp.write(f" dir={rootfs_dir}\n")
                 tmp.write(f" out={f}.sum\n")
             tmp.write("\n")
@@ -175,6 +177,7 @@ def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backu
             revert_kernel_packages(ctx)
         raise Exit(f"failed to copy kernel headers to shared dir {kernel_headers_dir}")
 
+
 def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir):
     arch = archs_mapping[platform.machine()]
     kernel_packages_sum = f"kernel-packages-{arch}.sum"
@@ -205,10 +208,12 @@ def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_
 
     info("[+] Kernel packages successfully updated")
 
+
 def revert_rootfs(ctx, rootfs_dir, backup_dir):
     ctx.run(f"rm -f {rootfs_dir}/*")
     ctx.run(f"mv {backup_dir}/rootfs.tar.gz {rootfs_dir}")
     ctx.run(f"tar xzvf {rootfs_dir}/rootfs.tar.gz")
+
 
 def update_rootfs(ctx, rootfs_dir, backup_dir):
     arch = archs_mapping[platform.machine()]
@@ -229,9 +234,8 @@ def update_rootfs(ctx, rootfs_dir, backup_dir):
     warn("[+] Backed up rootfs")
 
     # clean rootfs directory
-    #ctx.run(f"rm -f {KMT_ROOTFS_DIR}/*")
+    # ctx.run(f"rm -f {KMT_ROOTFS_DIR}/*")
 
     download_rootfs(ctx, rootfs_dir, backup_dir, revert=True)
 
     info("[+] Root filesystem and bootables images updated")
-

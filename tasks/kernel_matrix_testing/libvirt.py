@@ -1,4 +1,4 @@
-import libvirt
+from .tool import info
 
 def resource_in_stack(stack, resource):
     return stack in resource
@@ -69,5 +69,3 @@ def delete_networks(conn, stack):
         network.destroy()
         network.undefine()
         info(f"[+] Network {name} deleted")
-
-

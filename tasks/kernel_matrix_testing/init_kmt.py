@@ -1,10 +1,7 @@
-import filecmp
 from pathlib import Path
-from .tool import Exit, ask, warn, info, error
-from .download import download_rootfs, download_kernel_packages, archs_mapping
+from .tool import Exit
+from .download import download_rootfs, download_kernel_packages
 import os
-
-import platform
 import getpass
 
 KMT_DIR = os.path.join("/", "home", "kernel-version-testing")
@@ -99,6 +96,7 @@ def check_and_get_stack(stack, branch):
     else:
         return stack
 
+
 def gen_ssh_key(ctx):
     with open(f"{KMT_DIR}/ddvm_rsa", "w") as f:
         f.write(priv_key)
@@ -130,5 +128,3 @@ def init_kernel_matrix_testing_system(ctx):
     download_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
     download_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR)
     gen_ssh_key(ctx)
-
-

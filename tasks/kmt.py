@@ -10,8 +10,8 @@ from .kernel_matrix_testing.init_kmt import (
 )
 from .kernel_matrix_testing import vmconfig
 from .kernel_matrix_testing import stacks
-from .kernel_matrix_testing.tool import info, error, warn
-from .kernel_matrix_testing.download import update_kernel_packages, update_rootfs
+from .kernel_matrix_testing.tool import info, warn, ask, Exit
+from .kernel_matrix_testing.download import update_kernel_packages, update_rootfs, revert_kernel_packages, revert_rootfs
 
 
 @task
@@ -23,43 +23,15 @@ def create_stack(ctx, stack=None, branch=False):
     help={
         "vms": "Comma seperated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",
         "stack": "Name of the stack within which to generate the configuration file",
+        "branch": "Generate stack name from the current branch",
         "vcpu": "Comma seperated list of CPUs, to launch each VM with",
         "memory": "Comma seperated list of memory to launch each VM with. Automatically rounded up to power of 2",
         "new": "Generate new configuration file instead of appending to existing one within the provided stack",
+        "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>|--branch]'",
     }
 )
 def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
     vmconfig.gen_config(ctx, stack, branch, vms, init_stack, vcpu, memory, new)
-
-
-@task
-def update_resources(ctx):
-    warn("Updating resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to continue? (y/n)") != "y":
-        info("[-] Update aborted")
-        return
-
-    for stack in glob(f"{KMT_STACKS_DIR}/*"):
-        destroy_stack(ctx, stack=stack, force=True)
-
-    update_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR)
-    update_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
-
-
-@task
-def revert_resources(ctx):
-    warn("Reverting resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to revert to backups? (y/n)") != "y":
-        info("[-] Revert aborted")
-        return
-
-    for stack in glob(f"{KMT_STACKS_DIR}/*"):
-        destroy_stack(ctx, stack=stack, force=True)
-
-    revert_kernel_packages(ctx)
-    revert_rootfs(ctx)
-
-    info("[+] Reverted successfully")
 
 
 @task
@@ -77,3 +49,36 @@ def destroy_stack(ctx, stack=None, branch=False, force=False, ssh_key=""):
 @task
 def init(ctx):
     init_kernel_matrix_testing_system(ctx)
+
+
+@task
+def update_resources(ctx):
+    warn("Updating resource dependencies will delete all running stacks.")
+    if ask("are you sure you want to continue? (Y/n)") != "Y":
+        raise Exit("[-] Update aborted")
+
+    for stack in glob(f"{KMT_STACKS_DIR}/*"):
+        destroy_stack(ctx, stack=stack, force=True)
+
+    update_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR)
+    update_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
+
+
+@task
+def revert_resources(ctx):
+    warn("Reverting resource dependencies will delete all running stacks.")
+    if ask("are you sure you want to revert to backups? (y/n)") != "y":
+        raise Exit("[-] Revert aborted")
+
+    for stack in glob(f"{KMT_STACKS_DIR}/*"):
+        destroy_stack(ctx, stack=stack, force=True)
+
+    revert_kernel_packages(ctx)
+    revert_rootfs(ctx)
+
+    info("[+] Reverted successfully")
+
+
+@task
+def sync(ctx, vms=""):
+    pass

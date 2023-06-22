@@ -8,7 +8,7 @@ import itertools
 from thefuzz import process
 from thefuzz import fuzz
 import os
-from .tool import Exit, ask, warn, error, info
+from .tool import Exit, ask, warn, info
 
 kernels = [
     "5.0",
@@ -364,7 +364,7 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
     vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
     # vmconfig_file = "/tmp/vm-config.json"
     if new or not os.path.exists(vmconfig_file):
-        vm_config = {"vmsets":[]}
+        vm_config = {"vmsets": []}
     else:
         with open(vmconfig_file) as f:
             orig_vm_config = f.read()

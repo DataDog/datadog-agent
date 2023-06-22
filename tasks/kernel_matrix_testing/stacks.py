@@ -2,7 +2,7 @@ from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
 from .libvirt import delete_domains, delete_volumes, delete_pools, delete_networks
 import json
 import os
-from .tool import Exit, info, ask, warn, error
+from .tool import Exit, info, ask, error
 import getpass
 import libvirt
 
@@ -66,7 +66,12 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
         ssh_key_file = find_ssh_key(ssh_key)
         ssh_add_cmd = f"ssh-add -l | grep {ssh_key} || ssh-add {ssh_key_file}"
     elif remote_vms_in_config(vm_config):
-        if ask("You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]") != "Y":
+        if (
+            ask(
+                "You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]"
+            )
+            != "Y"
+        ):
             raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>'")
         ssh_add_cmd = ""
     else:
@@ -82,8 +87,8 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
         f"CI_PROJECT_DIR={stack_dir}",
     ]
 
-    #prefix = ""
-    #if remote_vms_in_config(vm_config):
+    # prefix = ""
+    # if remote_vms_in_config(vm_config):
     prefix = "aws-vault exec sandbox-account-admin --"
     env_vars = ' '.join(env)
     ctx.run(
