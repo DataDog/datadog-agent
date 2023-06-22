@@ -108,7 +108,7 @@ func newSystray(deps dependencies) (Component, error) {
 	}
 
 	// fx lifecycle hooks
-	deps.Lc.Append(fx.StartStopHook(s.start, s.stop))
+	deps.Lc.Append(fx.Hook{OnStart: s.start, OnStop: s.stop})
 
 	return s, nil
 }
