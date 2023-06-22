@@ -48,7 +48,7 @@ func getGohaiInfo() *gohai {
 		log.Errorf("Failed to retrieve filesystem metadata: %s", err)
 	}
 
-	memoryPayload, err := new(memory.Memory).Collect()
+	memoryPayload, _, err := memory.CollectInfo().AsJSON()
 	if err == nil {
 		res.Memory = memoryPayload
 	} else {
