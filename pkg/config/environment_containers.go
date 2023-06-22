@@ -43,6 +43,7 @@ func init() {
 	registerFeature(KubeOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
+	registerFeature(RemoteProcessCollector)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
@@ -65,7 +66,6 @@ func detectContainerFeatures(features FeatureMap) {
 	detectAWSEnvironments(features)
 	detectCloudFoundry(features)
 	detectPodman(features)
-	detectRemoteProcessCollector(features)
 }
 
 func detectKubernetes(features FeatureMap) {
