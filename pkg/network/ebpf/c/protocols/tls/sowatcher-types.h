@@ -21,13 +21,23 @@ typedef struct {
 } trace_common;
 
 typedef struct {
-    trace_common unsued;
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+    int __syscall_nr;
+
     int dfd;
     char* filename;
 } enter_sys_openat_ctx;
 
 typedef struct {
-    trace_common unsued;
+    unsigned short common_type;
+    unsigned char common_flags;
+    unsigned char common_preempt_count;
+    int common_pid;
+    int __syscall_nr;
+
     long ret;
 } exit_sys_openat_ctx;
 

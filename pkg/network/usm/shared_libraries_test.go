@@ -456,6 +456,15 @@ func checkWatcherStateIsClean(t *testing.T, watcher *soWatcher) {
 	require.True(t, len(watcher.registry.byPID) == 0 && len(watcher.registry.byID) == 0, "watcher state is not clean")
 }
 
+func getTracepointFuncName(tracepointType, name string) string {
+	return fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", tracepointType, name)
+}
+
+const (
+	enterTracepoint = "enter"
+	exitTracepoint  = "exit"
+)
+
 func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 	c := config.New()
 	if !http.HTTPSSupported(c) {
@@ -465,11 +474,11 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 	includeOpenat2 := sysOpenAt2Supported()
 	openat2Probes := []manager.ProbeIdentificationPair{
 		{
-			EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_enter_%s", openat2SysCall),
+			EBPFFuncName: getTracepointFuncName(enterTracepoint, openat2SysCall),
 			UID:          probeUID,
 		},
 		{
-			EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_exit_%s", openat2SysCall),
+			EBPFFuncName: getTracepointFuncName(exitTracepoint, openat2SysCall),
 			UID:          probeUID,
 		},
 	}
@@ -491,14 +500,14 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_enter_%s", openatSysCall),
+					EBPFFuncName: getTracepointFuncName(enterTracepoint, openatSysCall),
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_exit_%s", openatSysCall),
+					EBPFFuncName: getTracepointFuncName(exitTracepoint, openatSysCall),
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
@@ -557,13 +566,13 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_enter_%s", openatSysCall),
+					EBPFFuncName: getTracepointFuncName(enterTracepoint, openatSysCall),
 					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_exit_%s", openatSysCall),
+					EBPFFuncName: getTracepointFuncName(exitTracepoint, openatSysCall),
 					UID:          probeUID,
 				},
 			},
@@ -603,8 +612,8 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 	}
 
 	if !includeOpenat2 {
-		exclude = append(exclude, fmt.Sprintf("tracepoint__syscalls__sys_enter_%s", openat2SysCall),
-			fmt.Sprintf("tracepoint__syscalls__sys_exit_%s", openat2SysCall))
+		exclude = append(exclude, getTracepointFuncName(enterTracepoint, openat2SysCall),
+			getTracepointFuncName(exitTracepoint, openat2SysCall),
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
