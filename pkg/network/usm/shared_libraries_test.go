@@ -613,7 +613,7 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 
 	if !includeOpenat2 {
 		exclude = append(exclude, getTracepointFuncName(enterTracepoint, openat2SysCall),
-			getTracepointFuncName(exitTracepoint, openat2SysCall),
+			getTracepointFuncName(exitTracepoint, openat2SysCall))
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
