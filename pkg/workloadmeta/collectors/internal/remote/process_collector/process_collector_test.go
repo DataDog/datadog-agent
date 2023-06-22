@@ -187,7 +187,7 @@ func TestCollection(t *testing.T) {
 
 			mockStore := workloadmeta.NewMockStore()
 			mockStore.Notify(test.preEvents)
-			err = collector.Start(context.TODO(), mockStore)
+			err = collector.Collect(context.TODO(), mockStore)
 			require.NoError(t, err)
 
 			time.Sleep(2 * time.Second)

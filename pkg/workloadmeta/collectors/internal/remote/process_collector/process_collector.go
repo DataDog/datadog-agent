@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -51,15 +52,21 @@ func (s *stream) Recv() (interface{}, error) {
 type remoteProcessCollectorStreamHandler struct{}
 
 func init() {
-	if config.Datadog.GetBool("process_config.language_detection.enabled") { // todo check if process check is enabled
-		grpclog.SetLoggerV2(grpcutil.NewLogger())
-		workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
-			return &remote.GenericCollector{
-				StreamHandler: &remoteProcessCollectorStreamHandler{},
-				Port:          config.Datadog.GetInt("process_config.workloadmeta_extractor.port"),
-			}
-		})
+	grpclog.SetLoggerV2(grpcutil.NewLogger())
+	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
+		return &remote.GenericCollector{
+			StreamHandler: &remoteProcessCollectorStreamHandler{},
+			Port:          config.Datadog.GetInt("process_config.workloadmeta_extractor.port"),
+		}
+	})
+}
+
+// For now, we do not use detectFeature to enable or disable the remote workloadmeta
+func (s *remoteProcessCollectorStreamHandler) IsEnabled() error {
+	if !config.IsFeaturePresent(config.RemoteProcessCollector) {
+		return dderrors.NewDisabled(collectorID, "remote process collector not detected")
 	}
+	return nil
 }
 
 func (s *remoteProcessCollectorStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {

@@ -63,6 +63,11 @@ func init() {
 	})
 }
 
+// For now, we do not use detectFeature to enable or disable the remote workloadmeta
+func (s *remoteWorkloadMetaStreamHandler) IsEnabled() error {
+	return nil
+}
+
 func (s *remoteWorkloadMetaStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
 	return &client{cl: pb.NewAgentSecureClient(cc)}
 }
