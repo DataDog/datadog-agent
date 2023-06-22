@@ -1,9 +1,10 @@
-import os
 import filecmp
 from pathlib import Path
 from .tool import Exit, ask, warn, info, error
+from .download import download_rootfs, download_kernel_packages, archs_mapping
+import os
+
 import platform
-from glob import glob
 import getpass
 
 KMT_DIR = os.path.join("/", "home", "kernel-version-testing")
@@ -16,17 +17,6 @@ KMT_SHARED_DIR = os.path.join("/", "opt", "kernel-version-testing")
 KMT_KHEADERS_DIR = os.path.join("/", "opt", "kernel-version-testing", "kernel-headers")
 
 VMCONFIG = "vm-config.json"
-
-archs_mapping = {
-    "amd64": "x86_64",
-    "x86": "x86_64",
-    "x86_64": "x86_64",
-    "arm64": "arm64",
-    "aarch64": "arm64",
-    "arm": "arm64",
-    "local": "local",
-}
-karch_mapping = {"x86_64": "x86", "arm64": "arm64"}
 
 priv_key = """-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAACFwAAAAdzc2gtcn
@@ -109,118 +99,6 @@ def check_and_get_stack(stack, branch):
     else:
         return stack
 
-
-def revert_kernel_packages(ctx):
-    arch = archs_mapping[platform.machine()]
-    kernel_packages_sum = f"kernel-packages-{arch}.sum"
-    kernel_packages_tar = f"kernel-packages-{arch}.tar"
-    ctx.run(f"rm -f {KMT_PACKAGES_DIR}/*")
-    ctx.run(f"mv {KMT_BACKUP_DIR}/{kernel_packages_sum} {KMT_PACKAGES_DIR}")
-    ctx.run(f"mv {KMT_BACKUP_DIR}/{kernel_packages_tar} {KMT_PACKAGES_DIR}")
-    ctx.run(f"tar xvf {KMT_PACKAGES_DIR}/{kernel_packages_tar} | xargs -i tar xzf {{}}")
-
-
-def revert_rootfs(ctx, rootfs):
-    ctx.run(f"rm -f {KMT_ROOTFS_DIR}/*")
-    ctx.run(f"mv {KMT_ROOTFS_DIR}/{rootfs}.sum {KMT_ROOTFS_DIR}")
-    ctx.run(f"mv {KMT_ROOTFS_DIR}/{rootfs}.tar.gz {KMT_ROOTFS_DIR}")
-
-
-def download_rootfs(ctx, revert=False):
-    arch = archs_mapping[platform.machine()]
-    if arch == "x86_64":
-        rootfs = "rootfs-amd64"
-    elif arch == "arm64":
-        rootfs = "rootfs-arm64"
-    else:
-        Exit(f"Unsupported arch detected {arch}")
-
-    # download rootfs
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O {KMT_ROOTFS_DIR}/{rootfs}.sum"
-    )
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx)
-        raise Exit("Failed to download rootfs check sum file")
-
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.tar.gz -O {KMT_ROOTFS_DIR}/{rootfs}.tar.gz"
-    )
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx)
-        raise Exit("Failed to download rootfs")
-
-    # extract rootfs
-    res = ctx.run(f"cd {KMT_ROOTFS_DIR} && tar xzvf {rootfs}.tar.gz")
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx)
-        raise Exit("Failed to extract rootfs")
-
-    # set permissions
-    res = ctx.run(f"find {KMT_ROOTFS_DIR} -name \"*qcow*\" -type f -exec chmod 0766 {{}} \\;")
-    if not res.ok:
-        if revert:
-            revert_rootfs(ctx)
-        raise Exit("Failed to set permissions 0766 to rootfs")
-
-
-def download_kernel_packages(ctx, revert=False):
-    arch = archs_mapping[platform.machine()]
-    kernel_packages_sum = f"kernel-packages-{arch}.sum"
-    kernel_packages_tar = f"kernel-packages-{arch}.tar"
-
-    # download kernel packages
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {KMT_PACKAGES_DIR}/{kernel_packages_tar}",
-        warn=True,
-    )
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx)
-        raise Exit("Failed to download kernel pacakges")
-
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {KMT_PACKAGES_DIR}/{kernel_packages_sum}",
-        warn=True,
-    )
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx)
-        raise Exit("Failed to download kernel pacakges checksum")
-
-    # extract pacakges
-    res = ctx.run(f"cd {KMT_PACKAGES_DIR} && tar xvf {kernel_packages_tar} | xargs -i tar xzf {{}}")
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx)
-        raise Exit("Failed to extract kernel packages")
-
-    # set permissions
-    packages = glob(f"{KMT_PACKAGES_DIR}/kernel-v*")
-    for pkg in packages:
-        if not os.path.isdir(pkg):
-            continue
-        # set package dir as rwx for all
-        os.chmod(pkg, 0o766)
-        files = glob(f"{pkg}/*")
-        for f in files:
-            if not os.path.isdir(f):
-                # set all files to rw for all
-                os.chmod(f, 0o666)
-
-    # copy headers
-    res = ctx.run(
-        f"find {KMT_PACKAGES_DIR} -name 'linux-image-*' -type f | xargs -i cp {{}} {KMT_KHEADERS_DIR} && find {KMT_PACKAGES_DIR} -name 'linux-headers-*' -type f | xargs -i cp {{}} {KMT_KHEADERS_DIR}"
-    )
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx)
-        raise Exit(f"failed to copy kernel headers to shared dir {KMT_KHEADERS_DIR}")
-
-
 def gen_ssh_key(ctx):
     with open(f"{KMT_DIR}/ddvm_rsa", "w") as f:
         f.write(priv_key)
@@ -249,67 +127,8 @@ def init_kernel_matrix_testing_system(ctx):
     ctx.run(f"{sudo} systemctl restart libvirtd.service")
 
     # download dependencies
-    download_kernel_packages(ctx)
-    download_rootfs(ctx)
+    download_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
+    download_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR)
     gen_ssh_key(ctx)
 
 
-def update_kernel_packages(ctx):
-    arch = archs_mapping[platform.machine()]
-    kernel_packages_sum = f"kernel-packages-{arch}.sum"
-    kernel_packages_tar = f"kernel-packages-{arch}.tar"
-
-    ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O /tmp/{kernel_packages_sum}"
-    )
-
-    current_sum_file = f"{KMT_PACKAGES_DIR}/{kernel_packages_sum}"
-    if filecmp.cmp(current_sum_file, f"/tmp/{kernel_packages_sum}"):
-        warn("[-] No update required for custom kernel packages")
-
-    # backup kernel-packges
-    karch = karch_mapping[archs_mapping[platform.machine()]]
-    ctx.run(
-        f"find {KMT_PACKAGES_DIR} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls"
-    )
-    ctx.run(f"cd {KMT_PACKAGES_DIR} && tar -cf {kernel_packages_tar} -T /tmp/package.ls")
-    ctx.run(f"cp {KMT_PACKAGES_DIR}/{kernel_packages_tar} {KMT_BACKUP_DIR}")
-    ctx.run(f"cp {current_sum_file} {KMT_BACKUP_DIR}")
-    info("[+] Backed up current packages")
-
-    # clean kernel packages directory
-    ctx.run(f"rm -f {KMT_PACKAGES_DIR}/*")
-
-    download_kernel_packages(ctx, revert=True)
-
-    info("[+] Kernel packages successfully updated")
-
-
-def update_rootfs(ctx):
-    arch = archs_mapping[platform.machine()]
-    if arch == "x86_64":
-        rootfs = "rootfs-amd64"
-    elif arch == "arm64":
-        rootfs = "rootfs-arm64"
-    else:
-        Exit(f"Unsupported arch detected {arch}")
-
-    ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O /tmp/{rootfs}.sum"
-    )
-
-    current_sum_file = f"{KMT_ROOTFS_DIR}/{rootfs}.sum"
-    if filecmp.cmp(current_sum_file, "/tmp/{rootfs}.sum"):
-        warn("[-] No update required for root filesystems and bootable images")
-
-    # backup rootfs
-    ctx.run("cp {KMT_ROOTFS_DIR}/{rootfs}.tar.gz {KMT_BACKUP_DIR}")
-    ctx.run("cp {KMT_ROOTFS_DIR}/{rootfs}.sum {KMT_BACKUP_DIR}")
-    warn("[+] Backed up rootfs")
-
-    # clean rootfs directory
-    ctx.run(f"rm -f {KMT_ROOTFS_DIR}/*")
-
-    download_rootfs(ctx, revert=True)
-
-    info("[+] Root filesystem and bootables images updated")

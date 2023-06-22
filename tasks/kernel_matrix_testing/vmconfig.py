@@ -1,4 +1,5 @@
-from .init_kmt import KMT_STACKS_DIR, VMCONFIG, archs_mapping, check_and_get_stack, karch_mapping
+from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
+from .download import archs_mapping, karch_mapping
 from .stacks import stack_exists, create_stack
 import platform
 import math
@@ -363,13 +364,12 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
     vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
     # vmconfig_file = "/tmp/vm-config.json"
     if new or not os.path.exists(vmconfig_file):
-        ctx.run(f"rm -f {vmconfig_file}")
-        empty_config(vmconfig_file)
+        vm_config = {"vmsets":[]}
+    else:
+        with open(vmconfig_file) as f:
+            orig_vm_config = f.read()
+        vm_config = json.loads(orig_vm_config)
 
-    with open(vmconfig_file) as f:
-        orig_vm_config = f.read()
-
-    vm_config = json.loads(orig_vm_config)
     generate_vm_config(vm_config, vm_types, ls_to_int(vcpu_ls), ls_to_int(memory_ls))
     vm_config_str = json.dumps(vm_config, indent=4)
 
@@ -377,7 +377,11 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
     with open(tmpfile, "w") as f:
         f.write(vm_config_str)
 
-    ctx.run(f"git diff {vmconfig_file} {tmpfile}", warn=True)
+    if new:
+        empty_config("/tmp/empty.json")
+        ctx.run(f"git diff /tmp/empty.json {tmpfile}", warn=True)
+    else:
+        ctx.run(f"git diff {vmconfig_file} {tmpfile}", warn=True)
 
     if ask("are you sure you want to apply the diff? (y/n)") != "y":
         warn("[-] diff not applied")
