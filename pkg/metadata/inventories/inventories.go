@@ -111,7 +111,6 @@ const (
 	AgentSPRuntimeCompilationEnabled    AgentMetadataName = "system_probe_runtime_compilation_enabled"
 	AgentSPKernelHeadersDownloadEnabled AgentMetadataName = "system_probe_kernel_headers_download_enabled"
 	AgentSPPrebuiltFallbackEnabled      AgentMetadataName = "system_probe_prebuilt_fallback_enabled"
-	AgentSPBPFDebugEnabled              AgentMetadataName = "system_probe_bpf_debug_enabled"
 	AgentSPMaxConnectionPerMessage      AgentMetadataName = "system_probe_max_connections_per_message"
 
 	// Those are reserved fields for the agentMetadata payload.
@@ -455,10 +454,9 @@ func initializeConfig(cfg config.Config) {
 	// case like that, we should move otlp.IsEnabled to pkg/config/otlp
 
 	// SystemProbe module level configuration,
-	// doesn't include configuration for specific products running in SystemProbe (USM, NPM, CWS, etc...)
+	// configuration knobs for specific products running in SystemProbe (USM, NPM, CWS, etc...) are NOT included
 	SetAgentMetadata(AgentSPTCPQueueLengthEnabled, config.SystemProbe.GetBool("system_probe_config.enable_tcp_queue_length"))
 	SetAgentMetadata(AgentSPOOMKillEnabled, config.SystemProbe.GetBool("system_probe_config.enable_oom_kill"))
-	SetAgentMetadata(AgentSPBPFDebugEnabled, config.SystemProbe.GetBool("system_probe_config.bpf_debug"))
 	SetAgentMetadata(AgentSPCOREEnabled, config.SystemProbe.GetBool("system_probe_config.enable_co_re"))
 	SetAgentMetadata(AgentSPRuntimeCompilationEnabled, config.SystemProbe.GetBool("system_probe_config.enable_runtime_compiler"))
 	SetAgentMetadata(AgentSPKernelHeadersDownloadEnabled, config.SystemProbe.GetBool("system_probe_config.enable_kernel_header_download"))
