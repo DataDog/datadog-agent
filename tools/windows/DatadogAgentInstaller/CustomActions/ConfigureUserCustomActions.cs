@@ -1,24 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
-using System.Linq;
-using System.Runtime.Remoting.Messaging;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using Newtonsoft.Json;
-using System.Windows.Forms;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
+using Datadog.CustomActions.RollbackData;
 
 namespace Datadog.CustomActions
 {
-    public class UserCustomActions
+    public class ConfigureUserCustomActions
     {
         private readonly ISession _session;
         private readonly INativeMethods _nativeMethods;
@@ -26,14 +23,14 @@ namespace Datadog.CustomActions
         private readonly IFileSystemServices _fileSystemServices;
         private readonly IServiceController _serviceController;
 
-        // Created as needed on a per-customaction basis
-        private RollbackDataStore rollbackDataStore;
+        private RollbackDataStore _rollbackDataStore;
 
-        private SecurityIdentifier ddAgentUserSID;
-        private SecurityIdentifier previousDdAgentUserSID;
+        private SecurityIdentifier _ddAgentUserSID;
+        private SecurityIdentifier _previousDdAgentUserSID;
 
-        public UserCustomActions(
+        public ConfigureUserCustomActions(
             ISession session,
+            string rollbackdataname,
             INativeMethods nativeMethods,
             IRegistryServices registryServices,
             IFileSystemServices fileSystemServices,
@@ -44,11 +41,14 @@ namespace Datadog.CustomActions
             _registryServices = registryServices;
             _fileSystemServices = fileSystemServices;
             _serviceController = serviceController;
+
+            _rollbackDataStore = new RollbackDataStore(_session, rollbackdataname, _fileSystemServices);
         }
 
-        public UserCustomActions(ISession session)
+        public ConfigureUserCustomActions(ISession session, string rollbackdataname)
             : this(
                 session,
+                rollbackdataname
                 new Win32NativeMethods(),
                 new RegistryServices(),
                 new FileSystemServices(),
@@ -227,247 +227,6 @@ namespace Datadog.CustomActions
             return userFound;
         }
 
-        /// <summary>
-        /// Processes the DDAGENTUSER_NAME and DDAGENTUSER_PASSWORD properties into formats that can be
-        /// consumed by other custom actions. Also does some basic error handling/checking on the property values.
-        /// </summary>
-        /// <param name="calledFromUIControl"></param>
-        /// <returns></returns>
-        /// <remarks>
-        /// This function must support being called multiple times during the install, as the user can back/next the
-        /// UI multiple times.
-        ///
-        /// When calledFromUIControl is true: sets property DDAgentUser_Valid="True" on success, on error, stores error information in the ErrorModal_ErrorMessage property.
-        ///
-        /// When calledFromUIControl is false (during InstallExecuteSequence), sends an InstallMessage.Error message.
-        /// The installer may display an error popup depending on the UILevel.
-        /// https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
-        /// </remarks>
-        public ActionResult ProcessDdAgentUserCredentials(bool calledFromUIControl = false)
-        {
-            // This message is displayed to the customer in a dialog box. Ensure the text is well formatted.
-            string errorDialogMessage = null;
-
-            try
-            {
-                if (calledFromUIControl)
-                {
-                    // reset output properties
-                    _session["ErrorModal_ErrorMessage"] = "";
-                    _session["DDAgentUser_Valid"] = "False";
-                }
-
-                var ddAgentUserName = _session.Property("DDAGENTUSER_NAME");
-                var ddAgentUserPassword = _session.Property("DDAGENTUSER_PASSWORD");
-                var isDomainController = _nativeMethods.IsDomainController();
-                var datadogAgentServiceExists = _serviceController.ServiceExists("datadogagent");
-
-                // LocalSystem is not supported by LookupAccountName as it is a pseudo account,
-                // do the conversion here for user's convenience.
-                if (ddAgentUserName == "LocalSystem")
-                {
-                    ddAgentUserName = "NT AUTHORITY\\SYSTEM";
-                }
-                else if (ddAgentUserName == "LocalService")
-                {
-                    ddAgentUserName = "NT AUTHORITY\\LOCAL SERVICE";
-                }
-                else if (ddAgentUserName == "NetworkService")
-                {
-                    ddAgentUserName = "NT AUTHORITY\\NETWORK SERVICE";
-                }
-
-                if (string.IsNullOrEmpty(ddAgentUserName))
-                {
-                    if (isDomainController)
-                    {
-                        // require user to provide a username on domain controllers so that the customer is explicit
-                        // about the username/password that will be created on their domain if it does not exist.
-                        errorDialogMessage =
-                            "A username was not provided. A username is a required when installing on Domain Controllers.";
-                        throw new InvalidOperationException(errorDialogMessage);
-                    }
-
-                    // Creds are not in registry and user did not pass a value, use default account name
-                    ddAgentUserName = $"{GetDefaultDomainPart()}\\ddagentuser";
-                    _session.Log($"No creds provided, using default {ddAgentUserName}");
-                }
-
-                // Check if user exists, and parse the full account name
-                var userFound = LookupAccountWithExtendedDomainSyntax(
-                    ddAgentUserName,
-                    out var userName,
-                    out var domain,
-                    out var securityIdentifier,
-                    out var nameUse);
-                var isServiceAccount = false;
-                var isDomainAccount = false;
-                if (userFound)
-                {
-                    _session.Log($"Found {userName} in {domain} as {nameUse}");
-                    // Ensure name belongs to a user account or special accounts like SYSTEM, and not to a domain, computer or group.
-                    if (nameUse != SID_NAME_USE.SidTypeUser && nameUse != SID_NAME_USE.SidTypeWellKnownGroup)
-                    {
-                        errorDialogMessage =
-                            "The name provided is not a user account. Please supply a user account name in the format domain\\username.";
-                        throw new InvalidOperationException(errorDialogMessage);
-                    }
-
-                    _session["DDAGENTUSER_FOUND"] = "true";
-                    _session["DDAGENTUSER_SID"] = securityIdentifier.ToString();
-                    isServiceAccount = _nativeMethods.IsServiceAccount(securityIdentifier);
-                    isDomainAccount = _nativeMethods.IsDomainAccount(securityIdentifier);
-                    _session.Log(
-                        $"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
-
-                    if (string.IsNullOrEmpty(ddAgentUserPassword) &&
-                        !isServiceAccount)
-                    {
-                        if (isDomainController &&
-                            !datadogAgentServiceExists)
-                        {
-                            errorDialogMessage =
-                                "A password was not provided. Passwords are required for non-service accounts on Domain Controllers.";
-                            throw new InvalidOperationException(errorDialogMessage);
-                        }
-
-                        if (isDomainAccount &&
-                            !datadogAgentServiceExists)
-                        {
-                            errorDialogMessage =
-                                "A password was not provided. Passwords are required for domain accounts.";
-                            throw new InvalidOperationException(errorDialogMessage);
-                        }
-                    }
-                }
-                else
-                {
-                    _session["DDAGENTUSER_FOUND"] = "false";
-                    _session["DDAGENTUSER_SID"] = null;
-                    _session.Log($"User {ddAgentUserName} doesn't exist.");
-
-                    ParseUserName(ddAgentUserName, out userName, out domain);
-                }
-
-                if (string.IsNullOrEmpty(userName))
-                {
-                    // If userName is empty at this point, then it is likely that the input is malformed
-                    errorDialogMessage =
-                        $"Unable to parse account name from {ddAgentUserName}. Please ensure the account name follows the format domain\\username.";
-                    throw new Exception(errorDialogMessage);
-                }
-
-                if (string.IsNullOrEmpty(domain))
-                {
-                    // This case is hit if user specifies a username without a domain part and it does not exist
-                    _session.Log("domain part is empty, using default");
-                    domain = GetDefaultDomainPart();
-                }
-
-                // We are trying to create a user in a domain on a non-domain controller.
-                // This must run *after* checking that the domain is not empty.
-                if (!userFound &&
-                    !isDomainController &&
-                    domain != Environment.MachineName)
-                {
-                    errorDialogMessage =
-                        "The account does not exist. Domain accounts must already exist when installing on Domain Clients.";
-                    throw new InvalidOperationException(errorDialogMessage);
-                }
-
-                _session.Log(
-                    $"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
-                // Create new DDAGENTUSER_PROCESSED_NAME property so we don't modify the property containing
-                // the user provided value DDAGENTUSER_NAME
-                _session["DDAGENTUSER_PROCESSED_NAME"] = userName;
-                _session["DDAGENTUSER_PROCESSED_DOMAIN"] = domain;
-                _session["DDAGENTUSER_PROCESSED_FQ_NAME"] = $"{domain}\\{userName}";
-
-                _session["DDAGENTUSER_RESET_PASSWORD"] = null;
-                if (!userFound &&
-                    isDomainController &&
-                    string.IsNullOrEmpty(ddAgentUserPassword))
-                {
-                    // require user to provide a password on domain controllers so that the customer is explicit
-                    // about the username/password that will be created on their domain if it does not exist.
-                    errorDialogMessage =
-                        "A password was not provided. A password is a required when installing on Domain Controllers.";
-                    throw new InvalidOperationException(errorDialogMessage);
-                }
-
-                if (!isServiceAccount &&
-                    !isDomainAccount &&
-                    string.IsNullOrEmpty(ddAgentUserPassword))
-                {
-                    _session.Log("Generating a random password");
-                    _session["DDAGENTUSER_RESET_PASSWORD"] = "yes";
-                    ddAgentUserPassword = GetRandomPassword(128);
-                }
-                else if (isServiceAccount && !string.IsNullOrEmpty(ddAgentUserPassword))
-                {
-                    _session.Log("Ignoring provided password because account is a service account");
-                    ddAgentUserPassword = null;
-                }
-
-                _session["DDAGENTUSER_PROCESSED_PASSWORD"] = ddAgentUserPassword;
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Error processing ddAgentUser credentials: {e}");
-                if (string.IsNullOrEmpty(errorDialogMessage))
-                {
-                    errorDialogMessage = $"An unexpected error occurred while parsing the account name: {e.Message}";
-                }
-
-                if (calledFromUIControl)
-                {
-                    // When called from InstallUISequence we must return success for the modal dialog to show,
-                    // otherwise the installer exits. The control that called this action should check the
-                    // DDAgentUser_Valid property to determine if this function succeeded or failed.
-                    // Error information is contained in the ErrorModal_ErrorMessage property.
-                    // MsiProcessMessage doesn't work here so we must use our own custom error popup.
-                    _session["ErrorModal_ErrorMessage"] = errorDialogMessage;
-                    _session["DDAgentUser_Valid"] = "False";
-                    return ActionResult.Success;
-                }
-
-                // Send an error message, the installer may display an error popup depending on the UILevel.
-                // https://learn.microsoft.com/en-us/windows/win32/msi/user-interface-levels
-                {
-                    using var actionRecord = new Record
-                    {
-                        FormatString = errorDialogMessage
-                    };
-                    _session.Message(InstallMessage.Error
-                                     | (InstallMessage)((int)MessageBoxButtons.OK | (int)MessageBoxIcon.Warning),
-                        actionRecord);
-                }
-                // When called from InstallExecuteSequence we want to fail on error
-                return ActionResult.Failure;
-            }
-
-            if (calledFromUIControl)
-            {
-                _session["DDAgentUser_Valid"] = "True";
-            }
-
-            return ActionResult.Success;
-        }
-
-        [CustomAction]
-        public static ActionResult ProcessDdAgentUserCredentials(Session session)
-        {
-            return new UserCustomActions(new SessionWrapper(session)).ProcessDdAgentUserCredentials(
-                calledFromUIControl: false);
-        }
-
-        [CustomAction]
-        public static ActionResult ProcessDdAgentUserCredentialsUI(Session session)
-        {
-            return new UserCustomActions(new SessionWrapper(session)).ProcessDdAgentUserCredentials(
-                calledFromUIControl: true);
-        }
-
         private ActionResult AddUser()
         {
             try
@@ -504,9 +263,9 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ConfigureUserGroups()
         {
-            _nativeMethods.AddToGroup(ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
+            _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
             // Builtin\Event Log Readers
-            _nativeMethods.AddToGroup(ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
+            _nativeMethods.AddToGroup(_ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
         }
 
         /// <summary>
@@ -515,10 +274,10 @@ namespace Datadog.CustomActions
         /// </summary>
         private void ConfigureUserAccountRights()
         {
-            _nativeMethods.AddPrivilege(ddAgentUserSID, AccountRightsConstants.SeDenyInteractiveLogonRight);
-            _nativeMethods.AddPrivilege(ddAgentUserSID, AccountRightsConstants.SeDenyNetworkLogonRight);
-            _nativeMethods.AddPrivilege(ddAgentUserSID, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
-            _nativeMethods.AddPrivilege(ddAgentUserSID, AccountRightsConstants.SeServiceLogonRight);
+            _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyInteractiveLogonRight);
+            _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyNetworkLogonRight);
+            _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
+            _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeServiceLogonRight);
         }
 
         private void ConfigureRegistryPermissions()
@@ -541,7 +300,7 @@ namespace Datadog.CustomActions
                 // Give ddagentuser full access, important so it can read settings
                 // TODO: Switch to readonly
                 registrySecurity.AddAccessRule(new RegistryAccessRule(
-                    ddAgentUserSID,
+                    _ddAgentUserSID,
                     RegistryRights.FullControl,
                     AccessControlType.Allow));
                 registrySecurity.SetAccessRuleProtection(false, true);
@@ -582,29 +341,38 @@ namespace Datadog.CustomActions
 
         private SecurityIdentifier GetPreviousAgentUser()
         {
-            using var subkey =
-                _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
-            var domain = subkey.GetValue("installedDomain")?.ToString();
-            var user = subkey.GetValue("installedUser")?.ToString();
-            if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
+            try
             {
-                throw new Exception("Agent user information is not in registry");
+                using var subkey =
+                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+                var domain = subkey.GetValue("installedDomain")?.ToString();
+                var user = subkey.GetValue("installedUser")?.ToString();
+                if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
+                {
+                    throw new Exception("Agent user information is not in registry");
+                }
+
+                var name = $"{domain}\\{user}";
+                _session.Log($"Found agent user information in registry {name}");
+                var userFound = _nativeMethods.LookupAccountName(name,
+                    out _,
+                    out _,
+                    out var securityIdentifier,
+                    out _);
+                if (!userFound || securityIdentifier == null)
+                {
+                    throw new Exception($"Could not find account for user {name}.");
+                }
+
+                _session.Log($"Found previous agent user {name} ({securityIdentifier})");
+                return securityIdentifier;
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Could not find previous agent user: {e}");
             }
 
-            var name = $"{domain}\\{user}";
-            _session.Log($"Found agent user information in registry {name}");
-            var userFound = _nativeMethods.LookupAccountName(name,
-                out _,
-                out _,
-                out var securityIdentifier,
-                out _);
-            if (!userFound || securityIdentifier == null)
-            {
-                throw new Exception($"Could not find account for user {name}.");
-            }
-
-            _session.Log($"Found previous agent user {name} ({securityIdentifier})");
-            return securityIdentifier;
+            return null;
         }
 
         /// <summary>
@@ -627,9 +395,9 @@ namespace Datadog.CustomActions
                 bool changed = false;
 
                 // If changing agent user, remove old user as owner/group from all files/folders
-                if (previousDdAgentUserSID != null && previousDdAgentUserSID != ddAgentUserSID)
+                if (_previousDdAgentUserSID != null && _previousDdAgentUserSID != _ddAgentUserSID)
                 {
-                    changed |= RemoveOwnerGroup(filePath, fileSystemSecurity, previousDdAgentUserSID);
+                    changed |= RemoveOwnerGroup(filePath, fileSystemSecurity, _previousDdAgentUserSID);
                 }
 
                 // Ensure that inheritance is enabled on all files/folders in the config directory
@@ -656,7 +424,7 @@ namespace Datadog.CustomActions
             _session.Log(
                 $"{filePath} current ACLs: {oldfs.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
 
-            rollbackDataStore.Add(new FilePermissionRollbackInfo(filePath, _fileSystemServices));
+            _rollbackDataStore.Add(new FilePermissionRollbackData(filePath, _fileSystemServices));
             _fileSystemServices.SetAccessControl(filePath, fileSystemSecurity);
 
             var newfs = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
@@ -697,8 +465,8 @@ namespace Datadog.CustomActions
                      {
                          new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
                          new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                         ddAgentUserSID,
-                         previousDdAgentUserSID
+                         _ddAgentUserSID,
+                         _previousDdAgentUserSID
                      })
             {
                 if (sid == null)
@@ -743,7 +511,7 @@ namespace Datadog.CustomActions
         private void GrantAgentAccessPermissions()
         {
             // add ddagentuser FullControl to select places
-            foreach (var filePath in pathsWithAgentAccess())
+            foreach (var filePath in PathsWithAgentAccess())
             {
                 if (!_fileSystemServices.Exists(filePath))
                 {
@@ -769,17 +537,17 @@ namespace Datadog.CustomActions
 
                 // if changing user during change/repair make sure to remove the rule for the old user
                 // if this is an upgrade assume the removing installer properly removes its permissions.
-                if (previousDdAgentUserSID != null && previousDdAgentUserSID != ddAgentUserSID &&
+                if (_previousDdAgentUserSID != null && _previousDdAgentUserSID != _ddAgentUserSID &&
                     string.IsNullOrEmpty(_session.Property("WIX_UPGRADE_DETECTED")))
                 {
                     if (fileSystemSecurity.RemoveAccessRule(new FileSystemAccessRule(
-                            previousDdAgentUserSID,
+                            _previousDdAgentUserSID,
                             FileSystemRights.FullControl,
                             InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                             PropagationFlags.None,
                             AccessControlType.Allow)))
                     {
-                        _session.Log($"{filePath} removing explicit access rule for {previousDdAgentUserSID}");
+                        _session.Log($"{filePath} removing explicit access rule for {_previousDdAgentUserSID}");
                     }
                 }
 
@@ -787,7 +555,7 @@ namespace Datadog.CustomActions
                 {
                     // ddagentuser FullControl, enable child inheritance of this ACE
                     fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                        ddAgentUserSID,
+                        _ddAgentUserSID,
                         FileSystemRights.FullControl,
                         InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                         PropagationFlags.None,
@@ -797,7 +565,7 @@ namespace Datadog.CustomActions
                 {
                     // ddagentuser FullControl
                     fileSystemSecurity.AddAccessRule(new FileSystemAccessRule(
-                        ddAgentUserSID,
+                        _ddAgentUserSID,
                         FileSystemRights.FullControl,
                         AccessControlType.Allow));
                 }
@@ -833,7 +601,7 @@ namespace Datadog.CustomActions
 
                 EnablePermissionInheritance();
 
-                if (ddAgentUserSID != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
+                if (_ddAgentUserSID != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
                     GrantAgentAccessPermissions();
                 }
@@ -849,8 +617,6 @@ namespace Datadog.CustomActions
         {
             try
             {
-                rollbackDataStore = new RollbackDataStore(_session, "ConfigureUser", _fileSystemServices);
-
                 if (AddUser() != ActionResult.Success)
                 {
                     return ActionResult.Failure;
@@ -860,22 +626,14 @@ namespace Datadog.CustomActions
                 var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
                     out _,
                     out _,
-                    out ddAgentUserSID,
+                    out _ddAgentUserSID,
                     out _);
-                if (!userFound || ddAgentUserSID == null)
+                if (!userFound || _ddAgentUserSID == null)
                 {
                     throw new Exception($"Could not find user {ddAgentUserName}.");
                 }
 
-                try
-                {
-                    previousDdAgentUserSID = GetPreviousAgentUser();
-                }
-                catch (Exception e)
-                {
-                    _session.Log($"Could not find previous agent user: {e}");
-                    previousDdAgentUserSID = null;
-                }
+                _previousDdAgentUserSID = GetPreviousAgentUser();
 
                 var resetPassword = _session.Property("DDAGENTUSER_RESET_PASSWORD");
                 var ddagentuserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
@@ -931,14 +689,14 @@ namespace Datadog.CustomActions
             }
             finally
             {
-                rollbackDataStore.Store();
+                _rollbackDataStore.Store();
             }
         }
 
         [CustomAction]
         public static ActionResult ConfigureUser(Session session)
         {
-            return new UserCustomActions(new SessionWrapper(session)).ConfigureUser();
+            return new ConfigureUserCustomActions(new SessionWrapper(session), "ConfigureUser").ConfigureUser();
         }
 
         public ActionResult ConfigureUserRollback()
@@ -956,9 +714,7 @@ namespace Datadog.CustomActions
                         $"Failed to enable SeRestorePrivilege. Some file permissions may not be able to be set/rolled back: {e}");
                 }
 
-                rollbackDataStore = new RollbackDataStore(_session, "ConfigureUser", _fileSystemServices);
-                rollbackDataStore.Load();
-                rollbackDataStore.Restore();
+                _rollbackDataStore.Restore();
             }
             catch (Exception e)
             {
@@ -972,10 +728,10 @@ namespace Datadog.CustomActions
         [CustomAction]
         public static ActionResult ConfigureUserRollback(Session session)
         {
-            return new UserCustomActions(new SessionWrapper(session)).ConfigureUserRollback();
+            return new ConfigureUserCustomActions(new SessionWrapper(session), "ConfigureUser").ConfigureUserRollback();
         }
 
-        private List<string> pathsWithAgentAccess()
+        private List<string> PathsWithAgentAccess()
         {
             return new List<string>
             {
@@ -1043,7 +799,7 @@ namespace Datadog.CustomActions
                 if (securityIdentifier != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
                     _session.Log($"Removing file access for {ddAgentUserName} ({securityIdentifier})");
-                    foreach (var filePath in pathsWithAgentAccess())
+                    foreach (var filePath in PathsWithAgentAccess())
                     {
                         try
                         {
@@ -1076,7 +832,7 @@ namespace Datadog.CustomActions
         [CustomAction]
         public static ActionResult UninstallUser(Session session)
         {
-            return new UserCustomActions(new SessionWrapper(session)).UninstallUser();
+            return new ConfigureUserCustomActions(new SessionWrapper(session), "UninstallUser").UninstallUser();
         }
     }
 }

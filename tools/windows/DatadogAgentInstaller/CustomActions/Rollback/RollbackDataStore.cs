@@ -6,13 +6,10 @@ using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.Win32;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
-namespace Datadog.CustomActions
+namespace Datadog.CustomActions.RollbackData
 {
     internal class RollbackDataStore
     {
@@ -21,9 +18,28 @@ namespace Datadog.CustomActions
         private readonly string _storageName;
         private readonly string _dataPath;
 
-        private List<IRollbackAction> RollbackActions;
+        private List<IRollbackAction> RollbackActions { get; set; }
 
         static string StorageRootPath() => Path.Combine(Path.GetTempPath(), "datadog-installer", "rollback");
+
+        // Used to safely bind serialized JSON to a .NET type
+        // TypeNameHandling.Auto/All is unsafe by itself
+        // https://www.newtonsoft.com/json/help/html/SerializeSerializationBinder.htm
+        private class KnownTypesBinder : ISerializationBinder
+        {
+            public IList<Type> KnownTypes { get; set; }
+
+            public Type BindToType(string assemblyName, string typeName)
+            {
+                return KnownTypes.SingleOrDefault(t => t.Name == typeName);
+            }
+
+            public void BindToName(Type serializedType, out string assemblyName, out string typeName)
+            {
+                assemblyName = null;
+                typeName = serializedType.Name;
+            }
+        }
 
         public RollbackDataStore(ISession session, string name, IFileSystemServices fileSystemServices)
         {
@@ -95,7 +111,7 @@ namespace Datadog.CustomActions
             {
                 KnownTypes = new List<Type>
                 {
-                    typeof(FilePermissionRollbackInfo)
+                    typeof(FilePermissionRollbackData)
                 }
             }
         };
@@ -115,6 +131,7 @@ namespace Datadog.CustomActions
         /// </summary>
         public void Restore()
         {
+            Load();
             for (int i = RollbackActions.Count - 1; i >= 0; i--)
             {
                 RollbackActions[i].Restore(_session, _fileSystemServices);
@@ -139,81 +156,6 @@ namespace Datadog.CustomActions
             var jsonString = JsonConvert.SerializeObject(RollbackActions, Formatting.Indented, GetSerializerSettings());
             _session.Log($"Saving rollback info: {jsonString}");
             File.WriteAllText(_dataPath, jsonString);
-        }
-    }
-
-    // Used to safely bind serialized JSON to a .NET type
-    // TypeNameHandling.Auto/All is unsafe by itself
-    // https://www.newtonsoft.com/json/help/html/SerializeSerializationBinder.htm
-    public class KnownTypesBinder : ISerializationBinder
-    {
-        public IList<Type> KnownTypes { get; set; }
-
-        public Type BindToType(string assemblyName, string typeName)
-        {
-            return KnownTypes.SingleOrDefault(t => t.Name == typeName);
-        }
-
-        public void BindToName(Type serializedType, out string assemblyName, out string typeName)
-        {
-            assemblyName = null;
-            typeName = serializedType.Name;
-        }
-    }
-
-    interface IRollbackAction
-    {
-        public void Restore(ISession session, IFileSystemServices fileSystemServices);
-    }
-
-    class FilePermissionRollbackInfo : IRollbackAction
-    {
-        [JsonProperty("FilePath")] private string FilePath;
-        [JsonProperty("SDDL")] private string SDDL;
-
-        [JsonConstructor]
-        public FilePermissionRollbackInfo()
-        {
-        }
-
-        public FilePermissionRollbackInfo(string filePath, IFileSystemServices fileSystemServices)
-        {
-            var fileSystemSecurity = fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-            SDDL = fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All);
-            FilePath = filePath;
-        }
-
-        /// <summary>
-        /// Write the full @SDDL (Owner, Group, DACL) to @FilePath
-        /// If the new Owner/Group are different from the current Owner/Group this operation requires SeRestorePrivilege.
-        /// </summary>
-        /// <remarks>
-        /// If setting the SDDL on a container with an inheritable ACE Windows propagates/updates the inherited ACE on children.
-        /// During this, if the SDDL contains owner/group for some reason Windows will also update the owner/group of the children.
-        /// The owner/group on children is not changed, but Windows includes the parameter to set access control call. If the owner/group
-        /// of that child is different than the current user then inherited ACE propagation for that file will fail unless this function
-        /// is called with SeRestorePrivilege enabled. The error is NOT returned by the .NET API, so there's no way to tell that this occurred
-        /// until looking at the DACL of the child.
-        /// </remarks>
-        public void Restore(ISession session, IFileSystemServices fileSystemServices)
-        {
-            FileSystemSecurity fileSystemSecurity = fileSystemServices.GetAccessControl(FilePath);
-            session.Log(
-                $"{FilePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-            fileSystemSecurity.SetSecurityDescriptorSddlForm(SDDL);
-            session.Log($"{FilePath} rollback SDDL {SDDL}");
-            try
-            {
-                fileSystemServices.SetAccessControl(FilePath, fileSystemSecurity);
-            }
-            catch (Exception e)
-            {
-                session.Log($"Error writing ACL: {e}");
-            }
-
-            fileSystemSecurity = fileSystemServices.GetAccessControl(FilePath);
-            session.Log(
-                $"{FilePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
         }
     }
 }

@@ -6,18 +6,16 @@ using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Moq;
 
-namespace CustomActions.Tests.UserCustomActions
+namespace CustomActions.Tests.ProcessUserCustomActions
 {
-    public class UserCustomActionsTestSetup : SessionTestBaseSetup
+    public class ProcessUserCustomActionsTestSetup : SessionTestBaseSetup
     {
         private readonly Fixture _fixture = new();
 
         public Mock<INativeMethods> NativeMethods { get; } = new();
-        public Mock<IRegistryServices> RegistryServices { get; } = new();
-        public Mock<IFileSystemServices> FileSystemServices { get; } = new();
         public Mock<IServiceController> ServiceController { get; } = new();
 
-        public UserCustomActionsTestSetup()
+        public ProcessUserCustomActionsTestSetup()
         {
             WithLocalSystem();
             
@@ -27,18 +25,16 @@ namespace CustomActions.Tests.UserCustomActions
             ServiceController.SetupGet(s => s.Services).Returns(new WindowsService[] { });
         }
 
-        public Datadog.CustomActions.UserCustomActions Create()
+        public Datadog.CustomActions.ProcessUserCustomActions Create()
         {
-            return new Datadog.CustomActions.UserCustomActions(
+            return new Datadog.CustomActions.ProcessUserCustomActions(
                 Session.Object,
                 NativeMethods.Object,
-                RegistryServices.Object,
-                FileSystemServices.Object,
                 ServiceController.Object
             );
         }
 
-        public UserCustomActionsTestSetup WithLocalSystem()
+        public ProcessUserCustomActionsTestSetup WithLocalSystem()
         {
             var userSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
             NativeMethods.Setup(n => n.LookupAccountName(
@@ -67,7 +63,7 @@ namespace CustomActions.Tests.UserCustomActions
             return this;
         }
 
-        public UserCustomActionsTestSetup WithDatadogAgentService()
+        public ProcessUserCustomActionsTestSetup WithDatadogAgentService()
         {
             var service = new Mock<IWindowsService>();
             service.SetupGet(s => s.DisplayName).Returns("Datadog Agent");
@@ -80,7 +76,7 @@ namespace CustomActions.Tests.UserCustomActions
             return this;
         }
 
-        public UserCustomActionsTestSetup WithDomainController(string domain = null)
+        public ProcessUserCustomActionsTestSetup WithDomainController(string domain = null)
         {
             domain ??= _fixture.Create<string>();
 
@@ -90,7 +86,7 @@ namespace CustomActions.Tests.UserCustomActions
             return this;
         }
 
-        public UserCustomActionsTestSetup WithDomainClient(string domain = null)
+        public ProcessUserCustomActionsTestSetup WithDomainClient(string domain = null)
         {
             domain ??= _fixture.Create<string>();
 
@@ -100,7 +96,7 @@ namespace CustomActions.Tests.UserCustomActions
             return this;
         }
 
-        public UserCustomActionsTestSetup WithLocalUser(
+        public ProcessUserCustomActionsTestSetup WithLocalUser(
             string userDomain,
             string userName,
             SID_NAME_USE userType = SID_NAME_USE.SidTypeUser)
@@ -134,7 +130,7 @@ namespace CustomActions.Tests.UserCustomActions
             return this;
         }
 
-        public UserCustomActionsTestSetup WithDomainUser(
+        public ProcessUserCustomActionsTestSetup WithDomainUser(
             string userName = null,
             SID_NAME_USE userType = SID_NAME_USE.SidTypeUser)
         {
@@ -169,7 +165,7 @@ namespace CustomActions.Tests.UserCustomActions
             return this;
         }
 
-        public UserCustomActionsTestSetup WithManagedServiceAccount(
+        public ProcessUserCustomActionsTestSetup WithManagedServiceAccount(
             string userName,
             SID_NAME_USE userType = SID_NAME_USE.SidTypeUser)
         {

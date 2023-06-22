@@ -254,9 +254,9 @@ namespace WixSetup.Datadog
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            ConfigureUser = new CustomAction<UserCustomActions>(
+            ConfigureUser = new CustomAction<ConfigureUserCustomActions>(
                     new Id(nameof(ConfigureUser)),
-                    UserCustomActions.ConfigureUser,
+                    ConfigureUserCustomActions.ConfigureUser,
                     Return.check,
                     When.After,
                     new Step(DecompressPythonDistributions.Id),
@@ -277,9 +277,9 @@ namespace WixSetup.Datadog
                                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]")
                 .HideTarget(true);
 
-            ConfigureUserRollback = new CustomAction<UserCustomActions>(
+            ConfigureUserRollback = new CustomAction<ConfigureUserCustomActions>(
                     new Id(nameof(ConfigureUserRollback)),
-                    UserCustomActions.ConfigureUserRollback,
+                    ConfigureUserCustomActions.ConfigureUserRollback,
                     Return.check,
                     When.Before,
                     new Step(ConfigureUser.Id),
@@ -290,9 +290,9 @@ namespace WixSetup.Datadog
                     Impersonate = false,
                 };
 
-            UninstallUser = new CustomAction<UserCustomActions>(
+            UninstallUser = new CustomAction<ConfigureUserCustomActions>(
                     new Id(nameof(UninstallUser)),
-                    UserCustomActions.UninstallUser,
+                    ConfigureUserCustomActions.UninstallUser,
                     Return.check,
                     When.After,
                     Step.StopServices,
@@ -306,9 +306,9 @@ namespace WixSetup.Datadog
                                "PROJECTLOCATION=[PROJECTLOCATION], " +
                                "DDAGENTUSER_NAME=[DDAGENTUSER_NAME]");
 
-            ProcessDdAgentUserCredentials = new CustomAction<UserCustomActions>(
+            ProcessDdAgentUserCredentials = new CustomAction<ProcessUserCustomActions>(
                     new Id(nameof(ProcessDdAgentUserCredentials)),
-                    UserCustomActions.ProcessDdAgentUserCredentials,
+                    ProcessUserCustomActions.ProcessDdAgentUserCredentials,
                     Return.check,
                     // Run at end of "config phase", right before the "make changes" phase.
                     // Ensure no actions that modify the input properties are run after this action.
@@ -323,9 +323,9 @@ namespace WixSetup.Datadog
                                "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
                 .HideTarget(true);
 
-            ProcessDdAgentUserCredentialsUI = new CustomAction<UserCustomActions>(
+            ProcessDdAgentUserCredentialsUI = new CustomAction<ProcessUserCustomActions>(
                 new Id(nameof(ProcessDdAgentUserCredentialsUI)),
-                UserCustomActions.ProcessDdAgentUserCredentialsUI
+                ProcessUserCustomActions.ProcessDdAgentUserCredentialsUI
             )
             {
                 // Not run in a sequence, run when Next is clicked on ddagentuserdlg

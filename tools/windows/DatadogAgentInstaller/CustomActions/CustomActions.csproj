@@ -58,6 +58,7 @@
     <Compile Include="CiInfo.cs" />
     <Compile Include="CleanUpFilesCustomAction.cs" />
     <Compile Include="ConfigCustomActions.cs" />
+    <Compile Include="ConfigureUserCustomActions.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Flare.cs" />
     <Compile Include="Interfaces\IFeatureInfo.cs" />
@@ -65,6 +66,7 @@
     <Compile Include="Interfaces\IInstallerHttpClient.cs" />
     <Compile Include="Interfaces\InstallerWebClient.cs" />
     <Compile Include="Interfaces\InstallInfoCustomActions.cs" />
+    <Compile Include="Interfaces\IRollbackAction.cs" />
     <Compile Include="MsiLogCustomActions.cs" />
     <Compile Include="Native\DirectoryServices.cs" />
     <Compile Include="Native\FeatureInfoAdapter.cs" />
@@ -83,7 +85,8 @@
     <Compile Include="Native\ServiceController.cs" />
     <Compile Include="Native\ServiceControllerExtensions.cs" />
     <Compile Include="Native\WindowsService.cs" />
-    <Compile Include="RollbackDataStore.cs" />
+    <Compile Include="Rollback\FilePermissionRollbackData.cs" />
+    <Compile Include="Rollback\RollbackDataStore.cs" />
     <Compile Include="ServiceCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
@@ -92,7 +95,7 @@
     <Compile Include="InstallStateCustomActions.cs" />
     <Compile Include="SessionWrapper.cs" />
     <Compile Include="Telemetry.cs" />
-    <Compile Include="UserCustomActions.cs" />
+    <Compile Include="ProcessUserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
