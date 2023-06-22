@@ -138,7 +138,7 @@ func disableConfig(deploy *corev1.Deployment, req PatchRequest) {
 	}
 	deploy.Spec.Template.Labels[common.EnabledLabelKey] = "false"
 	if deploy.Spec.Template.Annotations == nil {
-		return
+		deploy.Spec.Template.Annotations = make(map[string]string)
 	}
 
 	versionAnnotKey := fmt.Sprintf(common.LibVersionAnnotKeyFormat, req.LibConfig.Language)
