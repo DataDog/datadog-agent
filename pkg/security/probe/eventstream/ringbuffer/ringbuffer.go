@@ -14,7 +14,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 )
 
 // RingBuffer implements the EventStream interface
@@ -48,7 +48,7 @@ func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
 }
 
 // SetMonitor set the monitor
-func (rb *RingBuffer) SetMonitor(counter reorderer.LostEventCounter) {}
+func (rb *RingBuffer) SetMonitor(counter eventstream.LostEventCounter) {}
 
 func (rb *RingBuffer) handleEvent(CPU int, data []byte, ringBuffer *manager.RingBuffer, manager *manager.Manager) {
 	rb.handler(CPU, data)

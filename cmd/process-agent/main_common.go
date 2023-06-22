@@ -247,8 +247,8 @@ func initMisc(deps miscDeps) error {
 	}
 	tagger.SetDefaultTagger(t)
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+	deps.Lc.Append(fx.StartStopHook(
+		func(ctx context.Context) error {
 			store.Start(ctx)
 
 			err := tagger.Init(ctx)
@@ -264,7 +264,7 @@ func initMisc(deps miscDeps) error {
 
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
+		func(ctx context.Context) error {
 			// Stop the remote tagger
 			err := tagger.Stop()
 			if err != nil {
@@ -273,7 +273,7 @@ func initMisc(deps miscDeps) error {
 
 			return nil
 		},
-	})
+	))
 
 	return nil
 }

@@ -1370,6 +1370,18 @@ api_key:
   #
   # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
 
+  ## @param additional_endpoints - object - optional
+  ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
+  ## Enables sending data to multiple endpoints and/or with multiple API keys via dual shipping.
+  ## See https://docs.datadoghq.com/agent/guide/dual-shipping
+  #
+  # additional_endpoints:
+  #   "https://trace.agent.datadoghq.com":
+  #   - apikey2
+  #   - apikey3
+  #   "https://trace.agent.datadoghq.eu":
+  #   - apikey4
+
   ## @param debug - custom object - optional
   ## Specifies settings for the debug server of the trace agent.
   #

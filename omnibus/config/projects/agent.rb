@@ -277,7 +277,7 @@ end
 dependency 'datadog-agent'
 
 # System-probe
-if linux?
+if linux? && !heroku?
   dependency 'system-probe'
 end
 

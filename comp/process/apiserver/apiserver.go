@@ -59,8 +59,8 @@ func newApiServer(deps dependencies) Component {
 		},
 	}
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+	deps.Lc.Append(fx.StartStopHook(
+		func(ctx context.Context) error {
 			go func() {
 				err := apiserver.server.ListenAndServe()
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -70,7 +70,7 @@ func newApiServer(deps dependencies) Component {
 
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
+		func(ctx context.Context) error {
 			err := apiserver.server.Shutdown(ctx)
 			if err != nil {
 				_ = deps.Log.Error("Failed to properly shutdown api server:", err)
@@ -78,7 +78,7 @@ func newApiServer(deps dependencies) Component {
 
 			return nil
 		},
-	})
+	))
 
 	return apiserver
 }

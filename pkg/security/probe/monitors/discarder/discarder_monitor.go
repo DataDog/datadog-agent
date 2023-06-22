@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package probe
+package discarder
 
 import (
 	"fmt"
@@ -21,6 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+// DiscarderStats is used to collect kernel space metrics about discarders
+type DiscarderStats struct {
+	DiscarderAdded uint64 `yaml:"discarder_added"`
+	EventDiscarded uint64 `yaml:"event_discarded"`
+}
 
 // DiscarderMonitor defines a discarder monitor
 type DiscarderMonitor struct {
