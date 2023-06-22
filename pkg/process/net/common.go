@@ -133,7 +133,6 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
 	var conns *model.Connections
 	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
-	fmt.Printf("dazik maspik: %t and the client id is %d\n", useGRPCServer, clientID)
 	if useGRPCServer {
 		conn, err := grpc.Dial("unix:///tmp/my_grpc.sock", grpc.WithInsecure())
 		if err != nil {
@@ -151,11 +150,11 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 		if err != nil {
 			log.Errorf("Failed to get response: %v", err)
 		}
-		fmt.Printf("bla %d\n", res.Data)
 		conns, err = netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
 		if err != nil {
 			return nil, err
 		}
+		fmt.Printf("[grpc] found %d conns with the grpc server\n", len(conns.Conns))
 
 	} else {
 		req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
