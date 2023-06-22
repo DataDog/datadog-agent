@@ -195,8 +195,6 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
 		dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
-		fmt.Printf("dir: %s\n", dir)
-
 		for _, p := range testConfig.excludePackages {
 			if dir == p {
 				return false
