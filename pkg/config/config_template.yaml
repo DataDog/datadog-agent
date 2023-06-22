@@ -1283,14 +1283,6 @@ api_key:
   # max_cpu_percent: 50
 
   ## @param obfuscation - object - optional
-  ## @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional
-  ## @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional.
-  ## @param DD_APM_OBFUSCATION_MONGODB - object - optional
-  ## @param DD_APM_OBFUSCATION_ELASTICSEARCH - object - optional
-  ## @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
-  ## @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
-  ## @param DD_APM_OBFUSCATION_HTTP - object - optional
-  ## @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
   ## Defines obfuscation rules for sensitive data. Disabled by default.
   ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
   #
