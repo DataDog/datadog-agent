@@ -65,6 +65,7 @@ func detectContainerFeatures(features FeatureMap) {
 	detectAWSEnvironments(features)
 	detectCloudFoundry(features)
 	detectPodman(features)
+	detectRemoteProcessCollector(features)
 }
 
 func detectKubernetes(features FeatureMap) {
