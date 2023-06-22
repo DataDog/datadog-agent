@@ -9,7 +9,7 @@ import (
 // Too many fields
 
 func TestIsAlwaysTrue(t *testing.T) {
-	// if there is a wildcard, check if there is a && that's not a wildcard
+	// TODO: Handle macros and variables and parentheses in chained boolean expressions
 
 	type args struct {
 		ruleExpression string
@@ -70,37 +70,16 @@ func TestIsAlwaysTrue(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "not always true and",
+			name: "not always true chained",
 			args: args{
 				ruleExpression: "exec.file.path =~ \"/**\" && exec.file.name != \"ls\" || open.file.name == \"myfile.txt\"",
 			},
-			want: true,
+			want: false,
 		},
 		{
-			name: "always true and ",
+			name: "always true chained",
 			args: args{
-				ruleExpression: "exec.file.path =~ \"/**\" && open.file.name == \"*\" || exec.file.path != \"/bin/ls\"", // TODO: Handle parentheses
-			},
-			want: true,
-		},
-		//{
-		//	name: "not empty path",
-		//	args: args{
-		//		ruleExpression: "open.file.path != \"\"", // TODO: Need to implement check. Not allow empty string for path or name
-		//	},
-		//	want: true,
-		//},
-		{
-			name: "duration",
-			args: args{
-				ruleExpression: "process.created_at >= 0s", // Do not have event type, so not valid
-			},
-			want: true,
-		},
-		{
-			name: "file path length",
-			args: args{
-				ruleExpression: "process.file.path.length >= 0s", // Do not have event type, so not valid
+				ruleExpression: "exec.file.path =~ \"/**\" && open.file.name == \"*\" || exec.file.path != \"/bin/ls\"",
 			},
 			want: true,
 		},

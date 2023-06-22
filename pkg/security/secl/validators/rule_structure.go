@@ -14,50 +14,32 @@ import (
 
 // IsAlwaysTrue checks whether a rule always returns true
 func IsAlwaysTrue(rule *eval.Rule) (bool, error) {
-	// 1. Operand is * or /*, for comparison operators
-	// 2. >0 for time comparison operators
-	// Non sensical: process.open.name < "myfile.txt"
-
 	parsingContext := ast.NewParsingContext()
 	localModel := &model.Model{}
 	if err := rule.GenEvaluator(localModel, parsingContext); err != nil {
 		return false, fmt.Errorf("%w\n", err)
 	}
 
-	operatorsOnSubexpressions := GetOperatorsOnSubexpressions(rule.GetAst())
-	fmt.Println("printing ops")
-	for _, op := range operatorsOnSubexpressions {
-		fmt.Println(*op)
-	}
+	operatorsOnSubexpressions := getOperatorsOnSubexpressions(rule.GetAst())
 
 	var subexpressionTruthValues []bool
 
 	for _, fieldKey := range rule.GetFields() {
-		fmt.Println("field:", fieldKey)
 		for _, fieldValue := range rule.GetFieldValues(fieldKey) {
-			fmt.Println("fieldValue:", fieldValue)
-
 			if fieldValue.Type == eval.GlobValueType && fieldValue.Value == "/**" {
-				// chunks are at rule.GetAst().BooleanExpression.Expression.Op, rule.GetAst().BooleanExpression.Expression.Next.Expression.Op
 				subexpressionTruthValues = append(subexpressionTruthValues, true)
 			} else if fieldValue.Type == eval.RegexpValueType && fieldValue.Value == ".*" {
+				// Example: dns.question.name =~ r".*"
+				// matches any character (except for line terminators) >= 0 times
 				subexpressionTruthValues = append(subexpressionTruthValues, true)
 			} else if fieldValue.Type == eval.ScalarValueType && fieldValue.Value == "*" {
-				// exec.file.name == \"*\"
 				subexpressionTruthValues = append(subexpressionTruthValues, true)
 			} else {
 				subexpressionTruthValues = append(subexpressionTruthValues, false)
 			}
-
-			//if strings.Contains(fieldKey, ".file.") && (fieldValue.Value == "/" || fieldValue.Value == "/*") {
-			//	return true, nil
-			//}
-
-			// TODO: Macros and Variables
 		}
 	}
 
-	//&& rule.GetAst().BooleanExpression.Expression.Comparison.ArrayComparison != nil
 	if len(operatorsOnSubexpressions) == 0 {
 		for _, truthValue := range subexpressionTruthValues {
 			if truthValue == true {
@@ -66,37 +48,35 @@ func IsAlwaysTrue(rule *eval.Rule) (bool, error) {
 		}
 	}
 
-	var firstOperand bool
+	var totalTruthValue bool
 
-	for _, operator := range operatorsOnSubexpressions {
-		for idx, truthValue := range subexpressionTruthValues {
-			if idx == 0 {
-				firstOperand = truthValue
-			} else {
-				if *operator == "&&" {
-					firstOperand = firstOperand && truthValue
-				} else if *operator == "||" {
-					firstOperand = firstOperand || truthValue
-				}
+	for idx, truthValue := range subexpressionTruthValues {
+		if idx == 0 {
+			totalTruthValue = truthValue
+		} else {
+			if operatorsOnSubexpressions[idx-1] == "&&" {
+				totalTruthValue = totalTruthValue && truthValue
+			} else if operatorsOnSubexpressions[idx-1] == "||" {
+				totalTruthValue = totalTruthValue || truthValue
 			}
 		}
 	}
 
-	return firstOperand, nil
+	return totalTruthValue, nil
 }
 
-func GetOperatorsOnSubexpressions(st *ast.Rule) []*string {
-	operators := []*string{}
+func getOperatorsOnSubexpressions(st *ast.Rule) []string {
+	var operators []string
 
 	expression := st.BooleanExpression.Expression
 	if expression.Op != nil {
-		operators = append(operators, expression.Op)
+		operators = append(operators, *expression.Op)
 	}
 
 	for expression.Next != nil {
 		expression = expression.Next.Expression
 		if expression.Op != nil {
-			operators = append(operators, expression.Op)
+			operators = append(operators, *expression.Op)
 		}
 	}
 
