@@ -12,6 +12,7 @@ from .flavor import AgentFlavor
 from .libs.junit_upload import produce_junit_tar
 from .modules import DEFAULT_MODULES
 from .test import test_flavor
+from .utils import REPO_PATH, get_git_commit
 
 
 @task(
@@ -52,12 +53,14 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
     if parsedParams:
         envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
 
-    cmd = 'gotestsum --format pkgname --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache}'
+    cmd = 'gotestsum --format pkgname --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache}'
     args = {
         "go_mod": "mod",
         "timeout": "4h",
         "verbose": '-v' if verbose else '',
         "nocache": '-count=1' if not cache else '',
+        "REPO_PATH": REPO_PATH,
+        "commit": get_git_commit(),
     }
 
     test_res = test_flavor(
