@@ -177,10 +177,9 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	ret := d.stats // No deep copy needed since `d.stats` gets reset
 	d.stats = make(StatsByKeyByNameByType)
 	droppedStats := statsTelemetry.droppedStats.Load()
-	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.processedStats-d.lastProcessedStats, droppedStats-d.lastDroppedStats)
-	d.lastProcessedStats = d.processedStats
-	d.lastDroppedStats = droppedStats
+	log.Debugf("[DNS Stats] Number of processed stats: %d, Number of dropped stats: %d", d.processedStats, droppedStats-d.lastDroppedStats)
 	d.processedStats = 0
+	d.lastDroppedStats = droppedStats
 	return ret
 }
 
