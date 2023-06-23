@@ -44,6 +44,7 @@ type CaptureBuffer struct {
 }
 
 // for testing purposes
+//
 //nolint:unused
 type backendFs struct {
 	fs afero.Fs
@@ -52,6 +53,7 @@ type backendFs struct {
 }
 
 // captureFs, used exclusively for testing purposes
+//
 //nolint:unused
 var captureFs = backendFs{
 	fs: afero.NewOsFs(),
