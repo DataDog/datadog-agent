@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build kubeapiserver
+
 package telemetry
 
 import (
@@ -20,10 +22,15 @@ import (
 )
 
 const (
-	mainEndpointPrefix      = "https://instrumentation-telemetry-intake."
-	mainEndpointUrlKey      = "apm_config.telemetry.dd_url"
+	mainEndpointPrefix = "https://instrumentation-telemetry-intake."
+	mainEndpointUrlKey = "apm_config.telemetry.dd_url"
+
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
+	Success                 = 0
+	ConfigParseFailure      = 1
+	InvalidPatchRequest     = 2
+	FailedToMutateConfig    = 3
 )
 
 // ApmRemoteConfigEvent is used to report remote config updates to the Datadog backend
@@ -62,13 +69,17 @@ type ApmRemoteConfigEventError struct {
 
 // TelemetryCollector is the interface used to send reports about startup to the instrumentation telemetry intake
 type TelemetryCollector interface {
-	SendEvent(event *ApmRemoteConfigEvent)
+	SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent)
+	SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent)
+	SetTestHost(testHost string)
 }
 
 type telemetryCollector struct {
-	client    *httputils.ResetClient
-	host      string
-	userAgent string
+	client              *httputils.ResetClient
+	host                string
+	userAgent           string
+	rcClientId          string
+	kubernetesClusterId string
 }
 
 func httpClientFactory(timeout time.Duration) func() *http.Client {
@@ -82,12 +93,18 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
-func NewCollector() TelemetryCollector {
+func NewCollector(rcClientId string, kubernetesClusterId string) TelemetryCollector {
 	return &telemetryCollector{
-		client:    httputils.NewResetClient(httpClientResetInterval, httpClientFactory(httpClientTimeout)),
-		host:      utils.GetMainEndpoint(config.Datadog, mainEndpointPrefix, mainEndpointUrlKey),
-		userAgent: "Datadog Cluster Agent",
+		client:              httputils.NewResetClient(httpClientResetInterval, httpClientFactory(httpClientTimeout)),
+		host:                utils.GetMainEndpoint(config.Datadog, mainEndpointPrefix, mainEndpointUrlKey),
+		userAgent:           "Datadog Cluster Agent",
+		rcClientId:          rcClientId,
+		kubernetesClusterId: kubernetesClusterId,
 	}
+}
+
+func (tc *telemetryCollector) SetTestHost(testHost string) {
+	tc.host = testHost
 }
 
 // NewNoopCollector returns a noop collector
@@ -95,7 +112,20 @@ func NewNoopCollector() TelemetryCollector {
 	return &noopTelemetryCollector{}
 }
 
-func (collector *telemetryCollector) SendEvent(event *ApmRemoteConfigEvent) {
+func (tc *telemetryCollector) SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent) {
+	tc.sendRemoteConfigEvent("agent.k8s.patch", event)
+}
+
+func (tc *telemetryCollector) SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent) {
+	tc.sendRemoteConfigEvent("agent.k8s.mutate", event)
+}
+
+// getRemoteConfigPatchEvent fills out and sends a telemetry event to the Datadog backend
+// to indicate that a remote config has been successfully patched
+func (tc *telemetryCollector) sendRemoteConfigEvent(eventName string, event ApmRemoteConfigEvent) {
+	event.Payload.Tags.RcClientId = tc.rcClientId
+	event.Payload.Tags.KubernetesClusterId = tc.kubernetesClusterId
+	event.Payload.EventName = eventName
 	body, err := json.Marshal(event)
 	if err != nil {
 		log.Errorf("Error while trying to marshal a remote config event to JSON: %v", err)
@@ -103,7 +133,7 @@ func (collector *telemetryCollector) SendEvent(event *ApmRemoteConfigEvent) {
 	}
 	bodyLen := strconv.Itoa(len(body))
 
-	req, err := http.NewRequest("POST", collector.host+"/api/v2/apmtelemetry", bytes.NewReader(body))
+	req, err := http.NewRequest("POST", tc.host+"/api/v2/apmtelemetry", bytes.NewReader(body))
 	if err != nil {
 		log.Errorf("Error while trying to create a web request for a remote config event: %v", err)
 		return
@@ -112,11 +142,11 @@ func (collector *telemetryCollector) SendEvent(event *ApmRemoteConfigEvent) {
 		return
 	}
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("User-Agent", collector.userAgent)
+	req.Header.Add("User-Agent", tc.userAgent)
 	req.Header.Add("DD-API-KEY", config.Datadog.GetString("api_key"))
 	req.Header.Add("Content-Length", bodyLen)
 
-	resp, err := collector.client.Do(req)
+	resp, err := tc.client.Do(req)
 	if err != nil {
 		log.Errorf("Failed to transmit remote config event to Datadog: %v", err)
 		return
@@ -128,4 +158,10 @@ func (collector *telemetryCollector) SendEvent(event *ApmRemoteConfigEvent) {
 
 type noopTelemetryCollector struct{}
 
-func (*noopTelemetryCollector) SendEvent(event *ApmRemoteConfigEvent) {}
+func (*noopTelemetryCollector) SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent) {
+}
+
+func (*noopTelemetryCollector) SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent) {
+}
+
+func (*noopTelemetryCollector) SetTestHost(testHost string) {}
