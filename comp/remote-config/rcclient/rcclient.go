@@ -103,7 +103,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 
 	// TODO RCM-1064: implement priority between CLI and remote-config
 	// If there is no error, override the configs
-	if len(mergedConfig.LogLevel) > 0 {
+	if len(mergedConfig.LogLevel) > 0 && mergedConfig.LogLevel != *rc.latestLogLevel {
 		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
 		// Get the current log level
 		var newFallback seelog.LogLevel
