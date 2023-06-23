@@ -243,8 +243,8 @@ func (pbm *EventStreamMonitor) GetKernelLostCount(perfMap string, cpu int, evtTy
 			for kernelEvtType := range pbm.kernelStats[perfMap][cpuID] {
 				var shouldCount bool
 
-				for evtType := range evtTypes {
-					if evtType == kernelEvtType || evtType == model.MaxAllEventType {
+				for _, evtType := range evtTypes {
+					if evtType == model.EventType(kernelEvtType) || evtType == model.MaxKernelEventType {
 						shouldCount = true
 						break
 					}
