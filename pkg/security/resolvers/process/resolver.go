@@ -280,7 +280,9 @@ func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
 	values, err := model.UnmarshalStringArray(data)
 	if err != nil || len(data) == model.MaxArgEnvSize {
-		values[len(values)-1] += "..."
+		if len(values) > 0 {
+			values[len(values)-1] += "..."
+		}
 		truncated = true
 	}
 	return values, truncated
