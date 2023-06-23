@@ -44,6 +44,18 @@ const (
 
 	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
 	MaxTracedCgroupsCount = 128
+
+	// EventFlagsAsync async event
+	EventFlagsAsync = 1 << iota
+
+	// EventFlagsSavedByAD saved by ad
+	EventFlagsSavedByAD
+
+	// EventFlagsActivityDumpSample an AD sample
+	EventFlagsActivityDumpSample
+
+	// InProfile true if the event was found in a profile
+	EventFlagsSecurityProfileInProfile
 )
 
 var (

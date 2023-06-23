@@ -7,7 +7,6 @@ package model
 
 import (
 	"strings"
-	"time"
 
 	"golang.org/x/exp/slices"
 )
@@ -16,120 +15,6 @@ const (
 	// MaxArgEnvSize maximum size of one argument or environment variable
 	MaxArgEnvSize = 256
 )
-
-// SetSpan sets the span
-func (pc *ProcessCacheEntry) SetSpan(spanID uint64, traceID uint64) {
-	pc.SpanID = spanID
-	pc.TraceID = traceID
-}
-
-// SetAncestor sets the ancestor
-func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
-	if pc.Ancestor == parent {
-		return
-	}
-
-	if pc.Ancestor != nil {
-		pc.Ancestor.Release()
-	}
-
-	pc.Ancestor = parent
-	pc.Parent = &parent.Process
-	parent.Retain()
-}
-
-// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
-func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
-	for pc != nil {
-		if pc.Pid == 1 {
-			return true
-		}
-		pc = pc.Ancestor
-	}
-	return false
-}
-
-// Exit a process
-func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
-	pc.ExitTime = exitTime
-}
-
-func copyProcessContext(parent, child *ProcessCacheEntry) {
-	// inherit the container ID from the parent if necessary. If a container is already running when system-probe
-	// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
-	// container (the snapshot doesn't update the in-kernel cache with the container IDs). This can also happen if
-	// the proc_cache LRU ejects an entry.
-	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
-	// in-kernel probes will need to be added.
-	if len(parent.ContainerID) > 0 && len(child.ContainerID) == 0 {
-		child.ContainerID = parent.ContainerID
-	}
-}
-
-// Replace previous entry values by the given one
-func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
-	pc.ExecTime = entry.ExecTime
-}
-
-// Exec replace a process
-func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
-	entry.SetAncestor(pc)
-
-	// use exec time as exit time
-	pc.Exit(entry.ExecTime)
-	entry.Process.IsExecChild = !pc.IsThread
-
-	// keep some context
-	copyProcessContext(pc, entry)
-}
-
-// SetParentOfForkChild set the parent of a fork child
-func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
-	pc.SetAncestor(parent)
-	if parent != nil {
-		pc.ArgsEntry = parent.ArgsEntry
-		pc.EnvsEntry = parent.EnvsEntry
-	}
-	pc.IsThread = true
-}
-
-// Fork returns a copy of the current ProcessCacheEntry
-func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
-	childEntry.PPid = pc.Pid
-	childEntry.TTYName = pc.TTYName
-	childEntry.Comm = pc.Comm
-	childEntry.FileEvent = pc.FileEvent
-	childEntry.ContainerID = pc.ContainerID
-	childEntry.ExecTime = pc.ExecTime
-	childEntry.Credentials = pc.Credentials
-	childEntry.LinuxBinprm = pc.LinuxBinprm
-	childEntry.Cookie = pc.Cookie
-
-	childEntry.SetParentOfForkChild(pc)
-}
-
-// Equals returns whether process cache entries share the same values for file and args/envs
-func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
-	return (pc.FileEvent.Equals(&entry.FileEvent) &&
-		pc.Credentials.Equals(&entry.Credentials) &&
-		pc.ArgsEntry.Equals(entry.ArgsEntry) &&
-		pc.EnvsEntry.Equals(entry.EnvsEntry))
-}
-
-// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events or failed process resolutions
-func NewEmptyProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	entry := &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
-
-	// mark file path as resolved
-	entry.FileEvent.SetPathnameStr("")
-	entry.FileEvent.SetBasenameStr("")
-
-	// mark interpreter as resolved too
-	entry.LinuxBinprm.FileEvent.SetPathnameStr("")
-	entry.LinuxBinprm.FileEvent.SetBasenameStr("")
-
-	return entry
-}
 
 // ArgsEnvs raw value for args and envs
 type ArgsEnvs struct {

@@ -45,7 +45,7 @@ func NewResolverOpts() ProcessResolverOpts {
 }
 
 func (p *ProcessResolver) AddNewProcessEntry(pid Pid, file string, commandLine string) (*model.ProcessCacheEntry, error) {
-	e := model.NewEmptyProcessCacheEntry(uint32(pid), 0, false)
+	e := model.NewProcessCacheEntry(nil)
 
 	e.Process.PIDContext.Pid = uint32(e.Pid)
 	e.Process.Argv0 = file
@@ -73,4 +73,9 @@ func (p *ProcessResolver) DeleteProcessEntry(pid Pid) {
 	if _, ok := p.processes[pid]; ok {
 		delete(p.processes, pid)
 	}
+}
+
+// Resolve returns the cache entry for the given pid
+func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry {
+	return GetProcessEntry(pid)
 }

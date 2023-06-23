@@ -2,7 +2,7 @@
   "event_types": [
     {
       "name": "*",
-      "definition": "",
+      "definition": "SECLDoc[event.async] Definition:`True if the syscall was asynchronous`",
       "type": "",
       "from_agent_version": "",
       "experimental": false,

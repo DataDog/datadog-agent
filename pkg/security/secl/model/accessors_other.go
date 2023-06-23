@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build !unix && !windows
-// +build !unix,!windows
+//go:build !linux && !windows
+// +build !linux,!windows
 
 package model
 

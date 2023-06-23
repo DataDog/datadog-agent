@@ -1248,10 +1248,7 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 		}
 
 		eventCtor := func() eval.Event {
-			return &model.Event{
-				FieldHandlers:    p.fieldHandlers,
-				ContainerContext: &model.ContainerContext{},
-			}
+			return NewEvent(p.fieldHandlers)
 		}
 
 		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
