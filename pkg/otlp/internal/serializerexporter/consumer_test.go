@@ -26,7 +26,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
-var statsPayloads = []pb.ClientStatsPayload{
+var statsPayloads = []*pb.ClientStatsPayload{
 	{
 		Hostname:         "host",
 		Env:              "prod",
@@ -39,11 +39,11 @@ var statsPayloads = []pb.ClientStatsPayload{
 		Service:          "mysql",
 		ContainerID:      "abcdef123456",
 		Tags:             []string{"a:b", "c:d"},
-		Stats: []pb.ClientStatsBucket{
+		Stats: []*pb.ClientStatsBucket{
 			{
 				Start:    10,
 				Duration: 1,
-				Stats: []pb.ClientGroupedStats{
+				Stats: []*pb.ClientGroupedStats{
 					{
 						Service:        "kafka",
 						Name:           "queue.add",
@@ -73,11 +73,11 @@ var statsPayloads = []pb.ClientStatsPayload{
 		Service:          "mysql2",
 		ContainerID:      "abcdef1234562",
 		Tags:             []string{"a:b2", "c:d2"},
-		Stats: []pb.ClientStatsBucket{
+		Stats: []*pb.ClientStatsBucket{
 			{
 				Start:    102,
 				Duration: 12,
-				Stats: []pb.ClientGroupedStats{
+				Stats: []*pb.ClientGroupedStats{
 					{
 						Service:        "kafka2",
 						Name:           "queue.add2",
@@ -104,10 +104,10 @@ func TestConsumeAPMStats(t *testing.T) {
 	sc.ConsumeAPMStats(statsPayloads[1])
 	require.Len(t, sc.apmstats, 2)
 
-	var one, two pb.ClientStatsPayload
-	err := msgp.Decode(sc.apmstats[0], &one)
+	var one, two *pb.ClientStatsPayload
+	err := msgp.Decode(sc.apmstats[0], one)
 	require.NoError(t, err)
-	err = msgp.Decode(sc.apmstats[1], &two)
+	err = msgp.Decode(sc.apmstats[1], two)
 	require.NoError(t, err)
 	// We add back the tags to the originally added statsPayloads because that's
 	// what we need to compare against: ConsumeAPMStats adds the extraTags
@@ -132,8 +132,8 @@ func TestSendAPMStats(t *testing.T) {
 		var called int
 		srv := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			require.Equal(t, req.URL.Path, "/v0.6/stats")
-			var in pb.ClientStatsPayload
-			err := msgp.Decode(req.Body, &in)
+			var in *pb.ClientStatsPayload
+			err := msgp.Decode(req.Body, in)
 			defer req.Body.Close()
 			require.NoError(t, err)
 			require.Equal(t, statsPayloads[called], in)

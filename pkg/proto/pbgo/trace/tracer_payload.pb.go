@@ -28,19 +28,19 @@ type TraceChunk struct {
 
 	// priority specifies sampling priority of the trace.
 	// @gotags: json:"priority" msg:"priority"
-	Priority int32 `protobuf:"varint,1,opt,name=priority,proto3" json:"priority,omitempty"`
+	Priority int32 `protobuf:"varint,1,opt,name=priority,proto3" json:"priority" msg:"priority"`
 	// origin specifies origin product ("lambda", "rum", etc.) of the trace.
 	// @gotags: json:"origin" msg:"origin"
-	Origin string `protobuf:"bytes,2,opt,name=origin,proto3" json:"origin,omitempty"`
+	Origin string `protobuf:"bytes,2,opt,name=origin,proto3" json:"origin" msg:"origin"`
 	// spans specifies list of containing spans.
 	// @gotags: json:"spans" msg:"spans"
-	Spans []*Span `protobuf:"bytes,3,rep,name=spans,proto3" json:"spans,omitempty"`
+	Spans []*Span `protobuf:"bytes,3,rep,name=spans,proto3" json:"spans" msg:"spans"`
 	// tags specifies tags common in all `spans`.
 	// @gotags: json:"tags" msg:"tags"
-	Tags map[string]string `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Tags map[string]string `protobuf:"bytes,4,rep,name=tags,proto3" json:"tags" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" msg:"tags"`
 	// droppedTrace specifies whether the trace was dropped by samplers or not.
 	// @gotags: json:"dropped_trace" msg:"dropped_trace"
-	DroppedTrace bool `protobuf:"varint,5,opt,name=droppedTrace,proto3" json:"droppedTrace,omitempty"`
+	DroppedTrace bool `protobuf:"varint,5,opt,name=droppedTrace,proto3" json:"dropped_trace" msg:"dropped_trace"`
 }
 
 func (x *TraceChunk) Reset() {
@@ -118,34 +118,34 @@ type TracerPayload struct {
 
 	// containerID specifies the ID of the container where the tracer is running on.
 	// @gotags: json:"container_id" msg:"container_id"
-	ContainerID string `protobuf:"bytes,1,opt,name=containerID,proto3" json:"containerID,omitempty"`
+	ContainerID string `protobuf:"bytes,1,opt,name=containerID,proto3" json:"container_id" msg:"container_id"`
 	// languageName specifies language of the tracer.
 	// @gotags: json:"language_name" msg:"language_name"
-	LanguageName string `protobuf:"bytes,2,opt,name=languageName,proto3" json:"languageName,omitempty"`
+	LanguageName string `protobuf:"bytes,2,opt,name=languageName,proto3" json:"language_name" msg:"language_name"`
 	// languageVersion specifies language version of the tracer.
 	// @gotags: json:"language_version" msg:"language_version"
-	LanguageVersion string `protobuf:"bytes,3,opt,name=languageVersion,proto3" json:"languageVersion,omitempty"`
+	LanguageVersion string `protobuf:"bytes,3,opt,name=languageVersion,proto3" json:"language_version" msg:"language_version"`
 	// tracerVersion specifies version of the tracer.
 	// @gotags: json:"tracer_version" msg:"tracer_version"
-	TracerVersion string `protobuf:"bytes,4,opt,name=tracerVersion,proto3" json:"tracerVersion,omitempty"`
+	TracerVersion string `protobuf:"bytes,4,opt,name=tracerVersion,proto3" json:"tracer_version" msg:"tracer_version"`
 	// runtimeID specifies V4 UUID representation of a tracer session.
 	// @gotags: json:"runtime_id" msg:"runtime_id"
-	RuntimeID string `protobuf:"bytes,5,opt,name=runtimeID,proto3" json:"runtimeID,omitempty"`
+	RuntimeID string `protobuf:"bytes,5,opt,name=runtimeID,proto3" json:"runtime_id" msg:"runtime_id"`
 	// chunks specifies list of containing trace chunks.
 	// @gotags: json:"chunks" msg:"chunks"
-	Chunks []*TraceChunk `protobuf:"bytes,6,rep,name=chunks,proto3" json:"chunks,omitempty"`
+	Chunks []*TraceChunk `protobuf:"bytes,6,rep,name=chunks,proto3" json:"chunks" msg:"chunks"`
 	// tags specifies tags common in all `chunks`.
 	// @gotags: json:"tags" msg:"tags"
-	Tags map[string]string `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Tags map[string]string `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" msg:"tags"`
 	// env specifies `env` tag that set with the tracer.
 	// @gotags: json:"env" msg:"env"
-	Env string `protobuf:"bytes,8,opt,name=env,proto3" json:"env,omitempty"`
+	Env string `protobuf:"bytes,8,opt,name=env,proto3" json:"env" msg:"env"`
 	// hostname specifies hostname of where the tracer is running.
 	// @gotags: json:"hostname" msg:"hostname"
-	Hostname string `protobuf:"bytes,9,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Hostname string `protobuf:"bytes,9,opt,name=hostname,proto3" json:"hostname" msg:"hostname"`
 	// version specifies `version` tag that set with the tracer.
 	// @gotags: json:"app_version" msg:"app_version"
-	AppVersion string `protobuf:"bytes,10,opt,name=appVersion,proto3" json:"appVersion,omitempty"`
+	AppVersion string `protobuf:"bytes,10,opt,name=appVersion,proto3" json:"app_version" msg:"app_version"`
 }
 
 func (x *TracerPayload) Reset() {

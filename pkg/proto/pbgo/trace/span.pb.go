@@ -27,43 +27,43 @@ type Span struct {
 
 	// service is the name of the service with which this span is associated.
 	// @gotags: json:"service" msg:"service"
-	Service string `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	Service string `protobuf:"bytes,1,opt,name=service,proto3" json:"service" msg:"service"`
 	// name is the operation name of this span.
 	// @gotags: json:"name" msg:"name"
-	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name" msg:"name"`
 	// resource is the resource name of this span, also sometimes called the endpoint (for web spans).
 	// @gotags: json:"resource" msg:"resource"
-	Resource string `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource,omitempty"`
+	Resource string `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource" msg:"resource"`
 	// traceID is the ID of the trace to which this span belongs.
 	// @gotags: json:"trace_id" msg:"trace_id"
-	TraceID uint64 `protobuf:"varint,4,opt,name=traceID,proto3" json:"traceID,omitempty"`
+	TraceID uint64 `protobuf:"varint,4,opt,name=traceID,proto3" json:"trace_id" msg:"trace_id"`
 	// spanID is the ID of this span.
 	// @gotags: json:"span_id" msg:"span_id"
-	SpanID uint64 `protobuf:"varint,5,opt,name=spanID,proto3" json:"spanID,omitempty"`
+	SpanID uint64 `protobuf:"varint,5,opt,name=spanID,proto3" json:"span_id" msg:"span_id"`
 	// parentID is the ID of this span's parent, or zero if this span has no parent.
 	// @gotags: json:"parent_id" msg:"parent_id"
-	ParentID uint64 `protobuf:"varint,6,opt,name=parentID,proto3" json:"parentID,omitempty"`
+	ParentID uint64 `protobuf:"varint,6,opt,name=parentID,proto3" json:"parent_id" msg:"parent_id"`
 	// start is the number of nanoseconds between the Unix epoch and the beginning of this span.
 	// @gotags: json:"start" msg:"start"
-	Start int64 `protobuf:"varint,7,opt,name=start,proto3" json:"start,omitempty"`
+	Start int64 `protobuf:"varint,7,opt,name=start,proto3" json:"start" msg:"start"`
 	// duration is the time length of this span in nanoseconds.
 	// @gotags: json:"duration" msg:"duration"
-	Duration int64 `protobuf:"varint,8,opt,name=duration,proto3" json:"duration,omitempty"`
+	Duration int64 `protobuf:"varint,8,opt,name=duration,proto3" json:"duration" msg:"duration"`
 	// error is 1 if there is an error associated with this span, or 0 if there is not.
 	// @gotags: json:"error" msg:"error"
-	Error int32 `protobuf:"varint,9,opt,name=error,proto3" json:"error,omitempty"`
+	Error int32 `protobuf:"varint,9,opt,name=error,proto3" json:"error" msg:"error"`
 	// meta is a mapping from tag name to tag value for string-valued tags.
-	// @gotags: json:"meta" msg:"meta"
-	Meta map[string]string `protobuf:"bytes,10,rep,name=meta,proto3" json:"meta,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// @gotags: json:"meta,omitempty" msg:"meta,omitempty"
+	Meta map[string]string `protobuf:"bytes,10,rep,name=meta,proto3" json:"meta,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" msg:"meta,omitempty"`
 	// metrics is a mapping from tag name to tag value for numeric-valued tags.
-	// @gotags: json:"metrics" msg:"metrics"
-	Metrics map[string]float64 `protobuf:"bytes,11,rep,name=metrics,proto3" json:"metrics,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3"`
+	// @gotags: json:"metrics,omitempty" msg:"metrics,omitempty"
+	Metrics map[string]float64 `protobuf:"bytes,11,rep,name=metrics,proto3" json:"metrics,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"fixed64,2,opt,name=value,proto3" msg:"metrics,omitempty"`
 	// type is the type of the service with which this span is associated.  Example values: web, db, lambda.
 	// @gotags: json:"type" msg:"type"
-	Type string `protobuf:"bytes,12,opt,name=type,proto3" json:"type,omitempty"`
+	Type string `protobuf:"bytes,12,opt,name=type,proto3" json:"type" msg:"type"`
 	// meta_struct is a registry of structured "other" data used by, e.g., AppSec.
-	// @gotags: json:"meta_struct,omitempty" msg:"meta_struct"
-	MetaStruct map[string][]byte `protobuf:"bytes,13,rep,name=meta_struct,json=metaStruct,proto3" json:"meta_struct,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// @gotags: json:"meta_struct,omitempty" msg:"meta_struct,omitempty"
+	MetaStruct map[string][]byte `protobuf:"bytes,13,rep,name=meta_struct,json=metaStruct,proto3" json:"meta_struct,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3" msg:"meta_struct,omitempty"`
 }
 
 func (x *Span) Reset() {

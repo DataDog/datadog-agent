@@ -1079,7 +1079,7 @@ func TestSample(t *testing.T) {
 
 func TestPartialSamplingFree(t *testing.T) {
 	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
-	statsChan := make(chan pb.StatsPayload, 100)
+	statsChan := make(chan *pb.StatsPayload, 100)
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
@@ -1517,21 +1517,21 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 
 func TestConvertStats(t *testing.T) {
 	testCases := []struct {
-		in            pb.ClientStatsPayload
+		in            *pb.ClientStatsPayload
 		lang          string
 		tracerVersion string
-		out           pb.ClientStatsPayload
+		out           *pb.ClientStatsPayload
 	}{
 		{
-			in: pb.ClientStatsPayload{
+			in: &pb.ClientStatsPayload{
 				Hostname: "tracer_hots",
 				Env:      "tracer_env",
 				Version:  "code_version",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
 						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "service",
 								Name:           "name------",
@@ -1559,17 +1559,17 @@ func TestConvertStats(t *testing.T) {
 			},
 			lang:          "java",
 			tracerVersion: "v1",
-			out: pb.ClientStatsPayload{
+			out: &pb.ClientStatsPayload{
 				Hostname:      "tracer_hots",
 				Env:           "tracer_env",
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
 						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "service",
 								Name:           "name",
@@ -1603,8 +1603,8 @@ func TestConvertStats(t *testing.T) {
 }
 
 func TestMergeDuplicates(t *testing.T) {
-	in := pb.ClientStatsBucket{
-		Stats: []pb.ClientGroupedStats{
+	in := &pb.ClientStatsBucket{
+		Stats: []*pb.ClientGroupedStats{
 			{
 				Service:      "s1",
 				Resource:     "r1",
@@ -1643,8 +1643,8 @@ func TestMergeDuplicates(t *testing.T) {
 			},
 		},
 	}
-	expected := pb.ClientStatsBucket{
-		Stats: []pb.ClientGroupedStats{
+	expected := &pb.ClientStatsBucket{
+		Stats: []*pb.ClientGroupedStats{
 			{
 				Service:      "s1",
 				Resource:     "r1",

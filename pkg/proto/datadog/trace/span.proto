@@ -33,15 +33,15 @@ message Span {
     // @gotags: json:"error" msg:"error"
     int32 error = 9;
     // meta is a mapping from tag name to tag value for string-valued tags.
-    // @gotags: json:"meta" msg:"meta"
+    // @gotags: json:"meta,omitempty" msg:"meta,omitempty"
     map<string, string> meta = 10;
     // metrics is a mapping from tag name to tag value for numeric-valued tags.
-    // @gotags: json:"metrics" msg:"metrics"
+    // @gotags: json:"metrics,omitempty" msg:"metrics,omitempty"
     map<string, double> metrics = 11;
     // type is the type of the service with which this span is associated.  Example values: web, db, lambda.
     // @gotags: json:"type" msg:"type"
     string type = 12;
     // meta_struct is a registry of structured "other" data used by, e.g., AppSec.
-    // @gotags: json:"meta_struct,omitempty" msg:"meta_struct"
+    // @gotags: json:"meta_struct,omitempty" msg:"meta_struct,omitempty"
     map<string, bytes> meta_struct = 13;
 }

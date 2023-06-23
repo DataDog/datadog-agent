@@ -202,7 +202,7 @@ def generate_protobuf(ctx):
         'model/v1': (False, False),
         'remoteconfig': (False, False),
         'api/v1': (True, False),
-        'trace': (False, False),
+        'trace': (False, True),
         'process': (False, False),
         'workloadmeta': (False, False),
     }
@@ -225,6 +225,12 @@ def generate_protobuf(ctx):
     msgp_targets = {
         'trace': ['trace.go', 'span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
         'core': ['remoteconfig.pb.go'],
+    }
+
+    # msgp patches key is `pkg` : (patch, destination)
+    #     if `destination` is `None` diff will target inherent patch files
+    msgp_patches = {
+        'trace': [('0001-Customize-msgpack-parsing.patch', 'span_gen.go'), ('0001-Make-nil-map-deserialization-retrocompatible.patch', 'span_gen.go')],
     }
 
     base = os.path.dirname(os.path.abspath(__file__))
@@ -281,10 +287,11 @@ def generate_protobuf(ctx):
                 )
 
             if inject_tags:
+                inject_path = os.path.join(proto_root, "pbgo", pkg)
                 # inject_tags logic
-                for target in targets:
+                for target in inject_tag_targets[pkg]:
                     ctx.run(
-                        f"protoc-go-inject-tag -input={target}"
+                        f"protoc-go-inject-tag -input={os.path.join(inject_path, target)}"
                     )
 
             if grpc_gateway:
@@ -312,8 +319,18 @@ def generate_protobuf(ctx):
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
             ctx.run(
-                f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go"
+                f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io=false"
             )
+
+    # apply msgp patches
+    for pkg, patches in msgp_patches.items():
+        for patch in patches:
+            patch_file = os.path.join(proto_root, "patches", patch[0])
+            dst = patch[1]
+            if dst:
+                ctx.run(f"patch {pbgo_dir}/{pkg}/{dst} {patch_file}")
+            else:
+                ctx.run(f"git apply {patch_file}")
 
 
 @task

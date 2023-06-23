@@ -6,6 +6,7 @@
 package trace
 
 import (
+	fmt "fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,9 @@ import (
 func decodeBytes(bts []byte) (*Span, error) {
 	var s Span
 	_, err := s.UnmarshalMsg(bts)
+	if err != nil {
+		fmt.Printf("cause: %v\n", msgp.Cause(err))
+	}
 	return &s, err
 }
 
@@ -207,7 +211,8 @@ func TestMetaMapDeserialization(t *testing.T) {
 		b = msgp.AppendString(b, "meta")
 		b = msgp.AppendMapHeader(b, 1)
 		b = msgp.AppendString(b, "key")
-		b = msgp.AppendString(b, "op\x99\xbf")
+		// b = msgp.AppendString(b, "op\x99\xbf")
+		b = msgp.AppendString(b, "op��")
 		s, err := decodeBytes(b)
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"key": "op��"}, s.Meta)

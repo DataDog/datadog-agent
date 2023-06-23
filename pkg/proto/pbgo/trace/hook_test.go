@@ -39,6 +39,6 @@ func TestMetaHook(t *testing.T) {
 
 		assert := assert.New(t)
 		assert.Nil(err)
-		assert.Equal(map[string]string{"card.number": "test"}, s.Meta, "Warning! pkg/trace/pb: MetaHook was not applied. One possible cause is regenerating the code in this folder without porting custom modifications of it.")
+		assert.Equal(map[string]string{"card.number": "test"}, s.Meta, "Warning! pkg/proto/pbgo/trace: MetaHook was not applied. One possible cause is regenerating the code in this folder without porting custom modifications of it.")
 	})
 }

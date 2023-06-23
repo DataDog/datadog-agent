@@ -260,38 +260,38 @@ func TestCountAggregation(t *testing.T) {
 	assert := assert.New(t)
 	type tt struct {
 		k    BucketsAggregationKey
-		res  pb.ClientGroupedStats
+		res  *pb.ClientGroupedStats
 		name string
 	}
 	tts := []tt{
 		{
 			BucketsAggregationKey{Service: "s"},
-			pb.ClientGroupedStats{Service: "s"},
+			&pb.ClientGroupedStats{Service: "s"},
 			"service",
 		},
 		{
 			BucketsAggregationKey{Name: "n"},
-			pb.ClientGroupedStats{Name: "n"},
+			&pb.ClientGroupedStats{Name: "n"},
 			"name",
 		},
 		{
 			BucketsAggregationKey{Resource: "r"},
-			pb.ClientGroupedStats{Resource: "r"},
+			&pb.ClientGroupedStats{Resource: "r"},
 			"resource",
 		},
 		{
 			BucketsAggregationKey{Type: "t"},
-			pb.ClientGroupedStats{Type: "t"},
+			&pb.ClientGroupedStats{Type: "t"},
 			"resource",
 		},
 		{
 			BucketsAggregationKey{Synthetics: true},
-			pb.ClientGroupedStats{Synthetics: true},
+			&pb.ClientGroupedStats{Synthetics: true},
 			"synthetics",
 		},
 		{
 			BucketsAggregationKey{StatusCode: 10},
-			pb.ClientGroupedStats{HTTPStatusCode: 10},
+			&pb.ClientGroupedStats{HTTPStatusCode: 10},
 			"status",
 		},
 	}
@@ -325,7 +325,7 @@ func TestCountAggregation(t *testing.T) {
 			tc.res.Errors = 19
 			tc.res.Duration = 403
 			assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []*pb.ClientGroupedStats{
-				&tc.res,
+				tc.res,
 				// Additional grouped stat object that corresponds to the keyDefault/cDefault.
 				// We do not expect this to be aggregated with the non-default key in the test.
 				{
@@ -343,7 +343,7 @@ func TestCountAggregationPeerService(t *testing.T) {
 	assert := assert.New(t)
 	type tt struct {
 		k                BucketsAggregationKey
-		res              pb.ClientGroupedStats
+		res              *pb.ClientGroupedStats
 		name             string
 		enablePeerSvcAgg bool
 	}
@@ -434,7 +434,7 @@ func TestCountAggregationPeerService(t *testing.T) {
 			tc.res.Errors = 19
 			tc.res.Duration = 403
 			assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []*pb.ClientGroupedStats{
-				&tc.res,
+				tc.res,
 				// Additional grouped stat object that corresponds to the keyDefault/cDefault.
 				// We do not expect this to be aggregated with the non-default key in the test.
 				{

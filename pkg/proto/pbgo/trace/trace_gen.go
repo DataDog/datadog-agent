@@ -6,76 +6,17 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
-// DecodeMsg implements msgp.Decodable
-func (z *Trace) DecodeMsg(dc *msgp.Reader) (err error) {
-	var zb0002 uint32
-	zb0002, err = dc.ReadArrayHeader()
-	if err != nil {
-		err = msgp.WrapError(err)
-		return
-	}
-	if cap((*z)) >= int(zb0002) {
-		(*z) = (*z)[:zb0002]
-	} else {
-		(*z) = make(Trace, zb0002)
-	}
-	for zb0001 := range *z {
-		if dc.IsNil() {
-			err = dc.ReadNil()
-			if err != nil {
-				err = msgp.WrapError(err, zb0001)
-				return
-			}
-			(*z)[zb0001] = nil
-		} else {
-			if (*z)[zb0001] == nil {
-				(*z)[zb0001] = new(Span)
-			}
-			err = (*z)[zb0001].DecodeMsg(dc)
-			if err != nil {
-				err = msgp.WrapError(err, zb0001)
-				return
-			}
-		}
-	}
-	return
-}
-
-// EncodeMsg implements msgp.Encodable
-func (z Trace) EncodeMsg(en *msgp.Writer) (err error) {
-	err = en.WriteArrayHeader(uint32(len(z)))
-	if err != nil {
-		err = msgp.WrapError(err)
-		return
-	}
-	for zb0003 := range z {
-		if z[zb0003] == nil {
-			err = en.WriteNil()
-			if err != nil {
-				return
-			}
-		} else {
-			err = z[zb0003].EncodeMsg(en)
-			if err != nil {
-				err = msgp.WrapError(err, zb0003)
-				return
-			}
-		}
-	}
-	return
-}
-
 // MarshalMsg implements msgp.Marshaler
 func (z Trace) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	o = msgp.AppendArrayHeader(o, uint32(len(z)))
-	for zb0003 := range z {
-		if z[zb0003] == nil {
+	for za0001 := range z {
+		if z[za0001] == nil {
 			o = msgp.AppendNil(o)
 		} else {
-			o, err = z[zb0003].MarshalMsg(o)
+			o, err = z[za0001].MarshalMsg(o)
 			if err != nil {
-				err = msgp.WrapError(err, zb0003)
+				err = msgp.WrapError(err, za0001)
 				return
 			}
 		}
@@ -131,98 +72,19 @@ func (z Trace) Msgsize() (s int) {
 	return
 }
 
-// DecodeMsg implements msgp.Decodable
-func (z *Traces) DecodeMsg(dc *msgp.Reader) (err error) {
-	var zb0003 uint32
-	zb0003, err = dc.ReadArrayHeader()
-	if err != nil {
-		err = msgp.WrapError(err)
-		return
-	}
-	if cap((*z)) >= int(zb0003) {
-		(*z) = (*z)[:zb0003]
-	} else {
-		(*z) = make(Traces, zb0003)
-	}
-	for zb0001 := range *z {
-		var zb0004 uint32
-		zb0004, err = dc.ReadArrayHeader()
-		if err != nil {
-			err = msgp.WrapError(err, zb0001)
-			return
-		}
-		if cap((*z)[zb0001]) >= int(zb0004) {
-			(*z)[zb0001] = ((*z)[zb0001])[:zb0004]
-		} else {
-			(*z)[zb0001] = make(Trace, zb0004)
-		}
-		for zb0002 := range (*z)[zb0001] {
-			if dc.IsNil() {
-				err = dc.ReadNil()
-				if err != nil {
-					err = msgp.WrapError(err, zb0001, zb0002)
-					return
-				}
-				(*z)[zb0001][zb0002] = nil
-			} else {
-				if (*z)[zb0001][zb0002] == nil {
-					(*z)[zb0001][zb0002] = new(Span)
-				}
-				err = (*z)[zb0001][zb0002].DecodeMsg(dc)
-				if err != nil {
-					err = msgp.WrapError(err, zb0001, zb0002)
-					return
-				}
-			}
-		}
-	}
-	return
-}
-
-// EncodeMsg implements msgp.Encodable
-func (z Traces) EncodeMsg(en *msgp.Writer) (err error) {
-	err = en.WriteArrayHeader(uint32(len(z)))
-	if err != nil {
-		err = msgp.WrapError(err)
-		return
-	}
-	for zb0005 := range z {
-		err = en.WriteArrayHeader(uint32(len(z[zb0005])))
-		if err != nil {
-			err = msgp.WrapError(err, zb0005)
-			return
-		}
-		for zb0006 := range z[zb0005] {
-			if z[zb0005][zb0006] == nil {
-				err = en.WriteNil()
-				if err != nil {
-					return
-				}
-			} else {
-				err = z[zb0005][zb0006].EncodeMsg(en)
-				if err != nil {
-					err = msgp.WrapError(err, zb0005, zb0006)
-					return
-				}
-			}
-		}
-	}
-	return
-}
-
 // MarshalMsg implements msgp.Marshaler
 func (z Traces) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	o = msgp.AppendArrayHeader(o, uint32(len(z)))
-	for zb0005 := range z {
-		o = msgp.AppendArrayHeader(o, uint32(len(z[zb0005])))
-		for zb0006 := range z[zb0005] {
-			if z[zb0005][zb0006] == nil {
+	for za0001 := range z {
+		o = msgp.AppendArrayHeader(o, uint32(len(z[za0001])))
+		for za0002 := range z[za0001] {
+			if z[za0001][za0002] == nil {
 				o = msgp.AppendNil(o)
 			} else {
-				o, err = z[zb0005][zb0006].MarshalMsg(o)
+				o, err = z[za0001][za0002].MarshalMsg(o)
 				if err != nil {
-					err = msgp.WrapError(err, zb0005, zb0006)
+					err = msgp.WrapError(err, za0001, za0002)
 					return
 				}
 			}

@@ -18,12 +18,12 @@ import (
 func FuzzProcessStats(f *testing.F) {
 	agent, cancel := agentWithDefaults()
 	defer cancel()
-	encode := func(pbStats pb.ClientStatsPayload) ([]byte, error) {
-		return pbStats.Marshal()
+	encode := func(pbStats *pb.ClientStatsPayload) ([]byte, error) {
+		return pbStats.MarshalVT()
 	}
-	decode := func(stats []byte) (pb.ClientStatsPayload, error) {
-		var payload pb.ClientStatsPayload
-		err := payload.Unmarshal(stats)
+	decode := func(stats []byte) (*pb.ClientStatsPayload, error) {
+		var payload *pb.ClientStatsPayload
+		err := payload.UnmarshalVT(stats)
 		return payload, err
 	}
 	pbStats := testutil.StatsPayloadSample()

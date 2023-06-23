@@ -53,7 +53,7 @@ func RandomBucket(n int) *pb.ClientStatsBucket {
 }
 
 // StatsPayloadSample returns a populated client stats payload
-func StatsPayloadSample() pb.ClientStatsPayload {
+func StatsPayloadSample() *pb.ClientStatsPayload {
 	bucket := func(start, duration uint64) *pb.ClientStatsBucket {
 		return &pb.ClientStatsBucket{
 			Start:    start,
@@ -70,7 +70,7 @@ func StatsPayloadSample() pb.ClientStatsPayload {
 			},
 		}
 	}
-	return pb.ClientStatsPayload{
+	return &pb.ClientStatsPayload{
 		Hostname: "h",
 		Env:      "env",
 		Version:  "1.2",

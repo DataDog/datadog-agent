@@ -6,6 +6,7 @@
 package trace
 
 import (
+	fmt "fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,6 +51,7 @@ func TestDecodeBytes(t *testing.T) {
 		{{Service: "B"}},
 		{{Service: "C"}},
 	}
+
 	var (
 		bts []byte
 		err error
@@ -61,19 +63,20 @@ func TestDecodeBytes(t *testing.T) {
 	if _, err = got.UnmarshalMsg(bts); err != nil {
 		t.Fatal(err)
 	}
+	fmt.Printf("want: %v\ngot: %v\n", want, got)
 	assert.ElementsMatch(t, want, got)
 }
 
 func TestDecodeInvalidUTF8Bytes(t *testing.T) {
 	provide := Traces{
-		{{Service: "A", Name: "op\x99\xbf"}},
-		{{Service: "B"}},
-		{{Service: "C"}},
+		{&Span{Service: "A", Name: "op\x99\xbf"}},
+		{&Span{Service: "B"}},
+		{&Span{Service: "C"}},
 	}
 	accept := Traces{
-		{{Service: "A", Name: "op��"}},
-		{{Service: "B"}},
-		{{Service: "C"}},
+		{&Span{Service: "A", Name: "op��"}},
+		{&Span{Service: "B"}},
+		{&Span{Service: "C"}},
 	}
 	var (
 		bts []byte
@@ -86,5 +89,6 @@ func TestDecodeInvalidUTF8Bytes(t *testing.T) {
 	if _, err = got.UnmarshalMsg(bts); err != nil {
 		t.Fatal(err)
 	}
+	fmt.Printf("accept: %v\ngot: %v\n", accept, got)
 	assert.ElementsMatch(t, accept, got)
 }
