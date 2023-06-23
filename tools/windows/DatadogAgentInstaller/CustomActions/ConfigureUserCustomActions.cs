@@ -711,6 +711,10 @@ namespace Datadog.CustomActions
                 _session.Log($"Failed to uninstall user: {e}");
                 return ActionResult.Failure;
             }
+            finally
+            {
+                _rollbackDataStore.Store();
+            }
 
             return ActionResult.Success;
         }
