@@ -103,15 +103,29 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
         raise Exit(code=1)
 
 
-@task
-def clean(_):
+@task(
+    help={
+        'locks': 'Cleans up lock files, default True',
+        'stacks': 'Cleans up local stack state, default False',
+    },
+)
+def clean(_, locks=True, stacks=False):
     """
     Clean any environment created with invoke tasks or e2e tests
+    By default removes only lock files.
     """
     if not _is_local_state(_get_pulumi_about()):
         print("Cleanup supported for local state only, run `pulumi login --local` to switch to local state")
         return
 
+    if locks:
+        _clean_locks()
+
+    if stacks:
+        _clean_stacks()
+
+
+def _clean_locks():
     print("🧹 Clean up lock files")
     lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
 
@@ -123,6 +137,8 @@ def clean(_):
                 os.remove(file_path)
                 print(f"🗑️ Deleted lock: {file_path}")
 
+
+def _clean_stacks():
     print("🧹 Clean up stacks")
     stacks = _get_existing_stacks()
 
