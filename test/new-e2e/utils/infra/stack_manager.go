@@ -184,7 +184,7 @@ func buildWorkspace(ctx context.Context, profile runner.Profile, stackName strin
 		Description:    pulumi.StringRef("E2E Test inline project"),
 		StackConfigDir: stackName,
 		Config: map[string]workspace.ProjectConfigType{
-			// We should always disbale default providers
+			// We should always disable default providers
 			// Disabling all known except AWS due to https://github.com/pulumi/pulumi-eks/pull/886
 			"pulumi:disable-default-providers": {
 				Value: []string{"kubernetes", "azure-native", "awsx", "eks"},
