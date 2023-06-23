@@ -9,12 +9,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -30,9 +34,11 @@ const (
 type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, error)
 
 type rcClient struct {
-	client        *remote.Client
-	m             *sync.Mutex
-	taskProcessed map[string]bool
+	client           *remote.Client
+	m                *sync.Mutex
+	taskProcessed    map[string]bool
+	fallbackLogLevel *string
+	latestLogLevel   *string
 
 	listeners []RCAgentTaskListener
 }
@@ -40,15 +46,28 @@ type rcClient struct {
 type dependencies struct {
 	fx.In
 
+	Log log.Component
+
 	Listeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
 func newRemoteConfigClient(deps dependencies) (Component, error) {
+	level, err := pkglog.GetLogLevel()
+	if err != nil {
+		return nil, err
+	}
+
 	rc := rcClient{
 		listeners: deps.Listeners,
 		m:         &sync.Mutex{},
-		client:    nil,
+		// The string values can't be updated inside the component methods,
+		// so we need to use pointers
+		fallbackLogLevel: new(string),
+		latestLogLevel:   new(string),
+		client:           nil,
 	}
+
+	*rc.fallbackLogLevel = level.String()
 
 	return rc, nil
 }
@@ -56,7 +75,10 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 // Listen start the remote config client to listen to AGENT_TASK configurations
 func (rc rcClient) Listen() error {
 	c, err := remote.NewUnverifiedGRPCClient(
-		"core-agent", version.AgentVersion, []data.Product{data.ProductAgentTask}, 1*time.Second,
+		"core-agent", version.AgentVersion, []data.Product{
+			data.ProductAgentTask,
+			data.ProductAgentConfig,
+		}, 1*time.Second,
 	)
 	if err != nil {
 		return err
@@ -66,10 +88,51 @@ func (rc rcClient) Listen() error {
 	rc.taskProcessed = map[string]bool{}
 
 	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
+	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	rc.client.Start()
 
 	return nil
+}
+
+func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig) {
+	mergedConfig, err := remote.MergeRCAgentConfig(rc.client, updates)
+	if err != nil {
+		return
+	}
+
+	// TODO RCM-1064: implement priority between CLI and remote-config
+	// If there is no error, override the configs
+	if len(mergedConfig.LogLevel) > 0 && mergedConfig.LogLevel != *rc.latestLogLevel {
+		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
+		// Get the current log level
+		var newFallback seelog.LogLevel
+		newFallback, err = pkglog.GetLogLevel()
+		if err == nil {
+			*rc.fallbackLogLevel = newFallback.String()
+			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
+			*rc.latestLogLevel = mergedConfig.LogLevel
+		}
+	} else {
+		var currentLogLevel seelog.LogLevel
+		currentLogLevel, err = pkglog.GetLogLevel()
+		if err == nil && currentLogLevel.String() == *rc.latestLogLevel {
+			pkglog.Infof("Removing remote-config log level override, falling back to %s", *rc.fallbackLogLevel)
+			err = settings.SetRuntimeSetting("log_level", *rc.fallbackLogLevel)
+		}
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if err == nil {
+			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
+	}
 }
 
 // agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
