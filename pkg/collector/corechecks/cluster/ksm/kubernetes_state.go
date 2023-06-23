@@ -787,6 +787,8 @@ func (k *KSMCheck) initTags() {
 	}
 
 	if !k.instance.DisableGlobalTags {
+		log.Debugf("AKI config.GetConfiguredTags(k.agentConfig, false): %q", config.GetConfiguredTags(k.agentConfig, false))
+		log.Debugf("AKI common.GetTags(): %q", common.GetTags())
 		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(k.agentConfig, false)...)
 	}
 }

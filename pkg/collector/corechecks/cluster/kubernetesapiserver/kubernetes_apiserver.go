@@ -334,6 +334,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			}
 
 			tags := []string{fmt.Sprintf("component:%s", component.Name)}
+			log.Debugf("AKI tags: %q", tags)
 			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tags, message)
 		}
 	}
