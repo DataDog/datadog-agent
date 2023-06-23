@@ -144,7 +144,7 @@ def _clean_stacks():
 
     for stack in stacks:
         print(f"🗑️ Cleaning up stack {stack}")
-        _destroy_stack(stack)
+        _remove_stack(stack)
 
 
 def _get_existing_stacks() -> List[str]:
@@ -160,17 +160,13 @@ def _get_existing_stacks() -> List[str]:
     return e2e_stacks
 
 
-def _destroy_stack(stack_name: str):
+def _remove_stack(stack_name: str):
     subprocess.call(
         [
-            "aws-vault",
-            "exec",
-            "sso-agent-sandbox-account-admin",
-            "--",
             "pulumi",
-            "destroy",
-            "--remove",
-            "-s",
+            "stack",
+            "rm",
+            "--force",
             stack_name,
         ]
     )
