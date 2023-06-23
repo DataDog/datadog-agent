@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
@@ -376,20 +377,75 @@ namespace Datadog.CustomActions
         }
 
         /// <summary>
-        /// Recursively enables inheritance on files in APPLICATIONDATADIRECTORY
-        /// Removes any redundant explicit ACEs for the agent user
-        /// If changing the agent user, removes the previous agent user as owner of any files in APPLICATIONDATADIRECTORY
+        /// Make an iterator that returns elements from each IEnumerable in order.
+        /// Example: Chain("ABC", "DEF") -> A B C D E F
         /// </summary>
-        private void EnablePermissionInheritance()
+        private static IEnumerable<T> Chain<T>(IEnumerable<IEnumerable<T>> collection)
         {
-            // Ensure that inheritance is enabled on all files/folders in the config directory.
-            // This is important so that @SetBaseInheritablePermissions are applied and the agent
-            // user has access where it needs it.
-            // If changing agent user, remove old user as owner/group from all files/folders
-            foreach (var filePath in Directory.EnumerateFileSystemEntries(
-                         _session.Property("APPLICATIONDATADIRECTORY"),
-                         "*.*", SearchOption.AllDirectories))
+            foreach (var inner in collection)
             {
+                foreach (var item in inner)
+                {
+                    yield return item;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reset the permissions for select files and directories in the agent configuration directory APPLICATIONDATADIRECTORY.
+        /// - Enable ACE inheritance
+        /// - Remove redundant explicit ACEs for the agent user that may have been left by previous installer versions
+        /// - If changing the agent user, remove the previous agent user as owner/group of any files and directories
+        /// </summary>
+        /// <remarks>
+        /// This mirrors the file/directories that previous versions of the installer would directly apply an ACE
+        /// for the ddagentuser to. Now that ddagentuser ACE is inherited from the configuration directory, we just need
+        /// to ensure that inheritance is enabled (previous versions of the installer marked the DACLs protected).
+        ///
+        /// We select specific subdirs/files instead of enumerating the entire configuration directory so that
+        /// we don't trample over any subdirs/files that a customer may have added. In particular, in case a
+        /// customer stores the secret_backend_command in the configuration directory, we don't want to enable
+        /// inheritance on this file and cause it to inherit ACEs that will cause the agent to refuse to execute it.
+        /// </remarks>
+        private void ResetConfigurationPermissions()
+        {
+            var configRoot = _session.Property("APPLICATIONDATADIRECTORY");
+            var fsEnum = new List<IEnumerable<string>>();
+
+            // directories to process recursively
+            var dirs = new List<string> {
+                Path.Combine(configRoot, "conf.d"),
+                Path.Combine(configRoot, "checks.d"),
+                Path.Combine(configRoot, "run"),
+                Path.Combine(configRoot, "logs"),
+            };
+            // Add the directories themselves
+            fsEnum.Add(dirs);
+            // add their subdirs/files (recursively)
+            foreach (var dir in dirs)
+            {
+                // add dirs only if they exist (EnumerateFileSystemEntries throws an exception if they don't)
+                if (_fileSystemServices.Exists(dir))
+                {
+                    fsEnum.Add(Directory.EnumerateFileSystemEntries(dir, "*.*", SearchOption.AllDirectories));
+                }
+            }
+            // add specific files
+            fsEnum.Add( new List<string>
+                {
+                    Path.Combine(configRoot, "datadog.yaml"),
+                    Path.Combine(configRoot, "system-probe.yaml"),
+                    Path.Combine(configRoot, "auth_token"),
+                    Path.Combine(configRoot, "install_info"),
+                }
+             );
+
+            foreach (var filePath in Chain(fsEnum))
+            {
+                if (!_fileSystemServices.Exists(filePath))
+                {
+                    continue;
+                }
                 FileSystemSecurity fileSystemSecurity =
                     _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
                 bool changed = false;
@@ -599,7 +655,7 @@ namespace Datadog.CustomActions
 
                 SetBaseInheritablePermissions();
 
-                EnablePermissionInheritance();
+                ResetConfigurationPermissions();
 
                 if (_ddAgentUserSID != new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null))
                 {
