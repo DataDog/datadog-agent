@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
-package module
+package events
 
 import (
 	"fmt"
@@ -17,7 +15,6 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -32,10 +29,10 @@ var (
 	defaultBurst int = 40
 
 	defaultPerRuleLimiters = map[eval.RuleID]Limiter{
-		events.RulesetLoadedRuleID:             NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
-		events.AbnormalPathRuleID:              NewStdLimiter(rate.Every(30*time.Second), 1),
-		events.NoProcessContextErrorRuleID:     NewStdLimiter(rate.Every(30*time.Second), 1),
-		events.BrokenProcessLineageErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),
+		RulesetLoadedRuleID:             NewStdLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		AbnormalPathRuleID:              NewStdLimiter(rate.Every(30*time.Second), 1),
+		NoProcessContextErrorRuleID:     NewStdLimiter(rate.Every(30*time.Second), 1),
+		BrokenProcessLineageErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),
 	}
 )
 
@@ -169,7 +166,7 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 	for id, limiter := range defaultPerRuleLimiters {
 		limiters[id] = limiter
 	}
-	limiters[events.AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiter), 1)
+	limiters[AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiter), 1)
 }
 
 // Apply a set of rules

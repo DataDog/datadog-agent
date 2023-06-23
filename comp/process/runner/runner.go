@@ -50,7 +50,11 @@ func newRunner(deps dependencies) (Component, error) {
 		providedChecks: deps.Checks,
 	}
 
-	deps.Lc.Append(fx.StartStopHook(runner.Run, runner.Stop))
+	deps.Lc.Append(fx.Hook{
+		OnStart: runner.Run,
+		OnStop:  runner.Stop,
+	})
+
 	return runner, nil
 }
 

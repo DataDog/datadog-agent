@@ -6,6 +6,7 @@
 package log
 
 import (
+	"context"
 	"errors"
 
 	"go.uber.org/fx"
@@ -59,7 +60,10 @@ func NewLogger(lc fx.Lifecycle, params Params, config config.LogConfig) (Compone
 	}
 
 	logger := &logger{}
-	lc.Append(fx.StopHook(logger.Flush))
+	lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		logger.Flush()
+		return nil
+	}})
 
 	return logger, nil
 }
