@@ -17,7 +17,7 @@ $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Py
 
 & inv -e invoke-unit-tests
 
-& cd "test\kitchen"
+& pushd "test\kitchen"
 
 & inv -e kitchen.invoke-unit-tests
 
