@@ -109,10 +109,10 @@ namespace Datadog.CustomActions.RollbackData
             TypeNameHandling = TypeNameHandling.Objects,
             SerializationBinder = new KnownTypesBinder
             {
-                KnownTypes = new List<Type>
-                {
-                    typeof(FilePermissionRollbackData)
-                }
+                // KnownTypes are any IRollbackAction types
+                KnownTypes = System.Reflection.Assembly.GetExecutingAssembly().GetTypes()
+                    .Where(p => p.GetInterfaces().Contains(typeof(IRollbackAction)) && typeof(IRollbackAction).IsAssignableFrom(p))
+                    .ToList()
             }
         };
 
