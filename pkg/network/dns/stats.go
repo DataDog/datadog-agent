@@ -63,16 +63,15 @@ type stateValue struct {
 type dnsStatKeeper struct {
 	mux sync.Mutex
 	// map a DNS key to a map of domain strings to a map of query types to a map of  DNS stats
-	stats              StatsByKeyByNameByType
-	state              map[stateKey]stateValue
-	expirationPeriod   time.Duration
-	exit               chan struct{}
-	maxSize            int // maximum size of the state map
-	deleteCount        int
-	processedStats     int64
-	lastProcessedStats int64
-	lastDroppedStats   int64
-	maxStats           int64
+	stats            StatsByKeyByNameByType
+	state            map[stateKey]stateValue
+	expirationPeriod time.Duration
+	exit             chan struct{}
+	maxSize          int // maximum size of the state map
+	deleteCount      int
+	processedStats   int64
+	lastDroppedStats int64
+	maxStats         int64
 }
 
 func newDNSStatkeeper(timeout time.Duration, maxStats int64) *dnsStatKeeper {
