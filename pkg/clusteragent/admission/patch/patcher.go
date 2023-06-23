@@ -141,6 +141,10 @@ func disableConfig(deploy *corev1.Deployment, req PatchRequest) {
 		log.Debugf("Found pod label %q=%q in target %s. Setting it to false", common.EnabledLabelKey, val, req.K8sTarget)
 	}
 	deploy.Spec.Template.Labels[common.EnabledLabelKey] = "false"
+	if deploy.Spec.Template.Annotations == nil {
+		deploy.Spec.Template.Annotations = make(map[string]string)
+	}
+
 	versionAnnotKey := fmt.Sprintf(common.LibVersionAnnotKeyFormat, req.LibConfig.Language)
 	delete(deploy.Spec.Template.Annotations, versionAnnotKey)
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)

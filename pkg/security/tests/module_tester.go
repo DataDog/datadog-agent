@@ -1149,7 +1149,7 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	}
 
 	status := map[string]interface{}{
-		"kernel-lost": eventStreamMonitor.GetKernelLostCount("events", model.MaxAllEventType),
+		"kernel-lost": eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType),
 		"per-events":  map[string]interface{}{},
 	}
 

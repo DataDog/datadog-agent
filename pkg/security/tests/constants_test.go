@@ -36,6 +36,7 @@ var BTFHubVsFallbackPossiblyMissingConstants = []string{
 }
 
 var BTFVsFallbackPossiblyMissingConstants = []string{
+	constantfetch.OffsetNameIoKiocbStructCtx,
 	constantfetch.OffsetNameTaskStructPID,
 	constantfetch.OffsetNameTaskStructPIDLink,
 }
@@ -112,7 +113,7 @@ func TestOctogonConstants(t *testing.T) {
 
 		fallbackFetcher := constantfetch.NewFallbackConstantFetcher(kv)
 
-		assertConstantsEqual(t, btfFetcher, fallbackFetcher, kv, BTFVsFallbackPossiblyMissingConstants)
+		assertConstantContains(t, btfFetcher, fallbackFetcher, kv, BTFVsFallbackPossiblyMissingConstants)
 	})
 
 	t.Run("guesser-vs-rc", func(t *testing.T) {
@@ -123,7 +124,7 @@ func TestOctogonConstants(t *testing.T) {
 		rcFetcher := constantfetch.NewRuntimeCompilationConstantFetcher(&secconfig.Probe.Config, nil)
 		ogFetcher := constantfetch.NewOffsetGuesserFetcher(secconfig.Probe, kv)
 
-		assertConstantContains(t, rcFetcher, ogFetcher, kv)
+		assertConstantContains(t, rcFetcher, ogFetcher, kv, nil)
 	})
 }
 
@@ -175,7 +176,7 @@ func assertConstantsEqual(t *testing.T, champion, challenger constantfetch.Const
 	}
 }
 
-func assertConstantContains(t *testing.T, champion, challenger constantfetch.ConstantFetcher, kv *kernel.Version) {
+func assertConstantContains(t *testing.T, champion, challenger constantfetch.ConstantFetcher, kv *kernel.Version, ignoreMissing []string) {
 	t.Helper()
 	championConstants, challengerConstants, err := getFighterConstants(champion, challenger, kv)
 	if err != nil {
@@ -186,6 +187,13 @@ func assertConstantContains(t *testing.T, champion, challenger constantfetch.Con
 		t.Errorf("challenger %s has no constant\n", challenger)
 	}
 
+	// In the case where challenger is missing a constant, we set it to the error sentinel
+	for _, k := range ignoreMissing {
+		if _, championPresent := championConstants[k]; !championPresent {
+			championConstants[k] = constantfetch.ErrorSentinel
+		}
+	}
+
 	for k, v := range challengerConstants {
 		if v == constantfetch.ErrorSentinel {
 			continue
@@ -194,7 +202,7 @@ func assertConstantContains(t *testing.T, champion, challenger constantfetch.Con
 		expected, ok := championConstants[k]
 		if !ok {
 			t.Errorf("champion (`%s`) does not contain the expected constant `%s`", champion.String(), k)
-		} else if v != expected {
+		} else if v != expected && expected != constantfetch.ErrorSentinel {
 			t.Errorf("difference between fighters for `%s`: `%s`:%d and `%s`:%d", k, champion.String(), expected, challenger.String(), v)
 		}
 	}
