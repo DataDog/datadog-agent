@@ -19,9 +19,9 @@ case "$(uname)" in
     Darwin) butane="butane-$arch-apple-darwin";;
 esac
 
-curl -O     "https://fedoraproject.org/fedora.gpg"
-curl -LOC - "https://github.com/coreos/butane/releases/download/v0.16.0/${butane}"
-curl -LO    "https://github.com/coreos/butane/releases/download/v0.16.0/${butane}.asc"
+curl -O "https://fedoraproject.org/fedora.gpg"
+curl -O "https://github.com/coreos/butane/releases/download/v0.16.0/${butane}"
+curl -O "https://github.com/coreos/butane/releases/download/v0.16.0/${butane}.asc"
 
 gpgv --keyring ./fedora.gpg "${butane}.asc" "$butane"
 chmod +x "$butane"

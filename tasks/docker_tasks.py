@@ -107,7 +107,7 @@ COPY test.bin /test.bin
 def delete(ctx, org, image, tag, token):
     print(f"Deleting {org}/{image}:{tag}")
     ctx.run(
-        f"curl 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT {token}' &>/dev/null"
+        f"curl --config ./.curlrc 'https://hub.docker.com/v2/repositories/{org}/{image}/tags/{tag}/' -X DELETE -H 'Authorization: JWT {token}' &>/dev/null"
     )
 
 

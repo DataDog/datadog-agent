@@ -18,7 +18,10 @@ fi
 
 set -e
 
-cd "$(dirname "$0")"
+dir_path=$(cd "$(dirname "$0")" && pwd)
+# Configuration file for curl is at root of the git repository
+export CURL_HOME="$(dirname $(dirname $(dirname $(dirname "$dir_path"))))"
+cd "$dir_path"
 
 git clean -fdx .
 

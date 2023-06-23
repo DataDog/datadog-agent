@@ -49,7 +49,7 @@ if [[ $EXIT_CODE != 0 ]]; then
 fi
 
 TIME_LEFT=$(systemctl status terminate.timer | awk '$1 == "Trigger:" {print gensub(/ *Trigger: (.*)/, "\\1", 1)}')
-LOCAL_IP=$(curl -s http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
+LOCAL_IP=$(curl http://169.254.169.254/2020-10-27/meta-data/local-ipv4)
 BEGIN_TS=$(./argo list -o json | jq -r '.[] | .metadata.creationTimestamp' | while read -r ts; do date -d "$ts" +%s; done | sort -n | head -n 1)
 
 printf "\033[1mThe Argo UI will remain available at \033[1;34mhttps://%s\033[0m until \033[1;33m%s\033[0m.\n" "$LOCAL_IP" "$TIME_LEFT"

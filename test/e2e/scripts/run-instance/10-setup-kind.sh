@@ -13,7 +13,7 @@ case $(uname -m) in
 esac
 
 download_and_install_kubectl() {
-    curl --retry 5 --fail --retry-all-errors -LO "https://dl.k8s.io/release/$(curl --retry 5 --fail --retry-all-errors -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$arch/kubectl"
+    curl --fail --retry-all-errors -O "https://dl.k8s.io/release/$(curl --fail --retry-all-errors https://dl.k8s.io/release/stable.txt)/bin/linux/$arch/kubectl"
     sudo install kubectl /usr/local/bin/kubectl
 }
 
@@ -32,7 +32,7 @@ if [[ ! -f ./kubectl ]]; then
     download_and_install_kubectl
 else
     # else, download the SHA256 of the wanted version
-    curl --retry 5 --fail --retry-all-errors -LO "https://dl.k8s.io/release/$(curl --retry 5 --fail --retry-all-errors -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$arch/kubectl.sha256"
+    curl --fail --retry-all-errors -O "https://dl.k8s.io/release/$(curl --fail --retry-all-errors https://dl.k8s.io/release/stable.txt)/bin/linux/$arch/kubectl.sha256"
     # And if it differs, force the download again
     if ! echo "$(<kubectl.sha256)  kubectl" | sha256sum --check ; then
         echo "SHA256 of kubectl differs, downloading it again"
@@ -40,7 +40,7 @@ else
     fi
 fi
 
-curl -Lo ./kind "https://kind.sigs.k8s.io/dl/$(curl -s -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/kubernetes-sigs/kind/releases | jq -r '.[0].tag_name')/kind-linux-$arch"
+curl -o ./kind "https://kind.sigs.k8s.io/dl/$(curl -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/kubernetes-sigs/kind/releases | jq -r '.[0].tag_name')/kind-linux-$arch"
 sudo install kind /usr/local/bin/kind
 
 

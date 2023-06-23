@@ -20,7 +20,7 @@ esac
 
 # if argo is not here, or if the SHA doesnt match, (re)download it
 if [[ ! -f ./argo.gz ]] || ! sha256sum -c "argo.$arch.sha256sum" ; then
-    curl -Lf "https://github.com/argoproj/argo-workflows/releases/download/v3.4.3/argo-linux-$arch.gz" -o argo.gz
+    curl -f "https://github.com/argoproj/argo-workflows/releases/download/v3.4.3/argo-linux-$arch.gz" -o argo.gz
     # before gunziping it, check its SHA
     if ! sha256sum -c "argo.$arch.sha256sum"; then
         echo "SHA256 of argo.gz differs, exiting."

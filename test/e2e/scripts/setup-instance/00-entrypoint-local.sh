@@ -2,7 +2,10 @@
 
 printf '=%.0s' {0..79} ; echo
 set -ex
-cd "$(dirname "$0")"
+dir_path=$(cd "$(dirname "$0")" && pwd)
+# Configuration file for curl is at root of the git repository
+export CURL_HOME="$(dirname $(dirname $(dirname $(dirname "$dir_path"))))"
+cd "$dir_path"
 
 ../run-instance/10-setup-kind.sh
 ../run-instance/11-setup-kind-cluster.sh

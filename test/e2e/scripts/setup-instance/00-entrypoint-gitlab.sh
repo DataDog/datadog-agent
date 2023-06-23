@@ -4,7 +4,10 @@ set -euo pipefail
 printf '=%.0s' {0..79} ; echo
 set -x
 
-cd "$(dirname "$0")"
+dir_path=$(cd "$(dirname "$0")" && pwd)
+# Configuration file for curl is at root of the git repository
+export CURL_HOME="$(dirname $(dirname $(dirname $(dirname "$dir_path"))))"
+cd "$dir_path"
 
 git clean -fdx .
 
@@ -54,7 +57,7 @@ echo "using ARGO_WORKFLOW=${ARGO_WORKFLOW}"
 echo "${DATADOG_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
 IMAGE_REPOSITORY=${DATADOG_AGENT_IMAGE%:*}
 IMAGE_TAG=${DATADOG_AGENT_IMAGE#*:}
-if ! curl -Lfs --head "https://hub.docker.com/v2/repositories/${IMAGE_REPOSITORY}/tags/${IMAGE_TAG}" > /dev/null ; then
+if ! curl -f --head "https://hub.docker.com/v2/repositories/${IMAGE_REPOSITORY}/tags/${IMAGE_TAG}" > /dev/null ; then
         echo "The DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE} is not available on DockerHub"
         exit 2
 fi
@@ -62,7 +65,7 @@ fi
 echo "${DATADOG_CLUSTER_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
 IMAGE_REPOSITORY=${DATADOG_CLUSTER_AGENT_IMAGE%:*}
 IMAGE_TAG=${DATADOG_CLUSTER_AGENT_IMAGE#*:}
-if ! curl -Lfs --head "https://hub.docker.com/v2/repositories/${IMAGE_REPOSITORY}/tags/${IMAGE_TAG}" > /dev/null ; then
+if ! curl -f --head "https://hub.docker.com/v2/repositories/${IMAGE_REPOSITORY}/tags/${IMAGE_TAG}" > /dev/null ; then
         echo "The DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE} is not available on DockerHub"
         exit 2
 fi

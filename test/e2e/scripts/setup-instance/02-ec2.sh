@@ -4,7 +4,10 @@ set -euo pipefail
 printf '=%.0s' {0..79} ; echo
 set -x
 
-cd "$(dirname "$0")"
+dir_path=$(cd "$(dirname "$0")" && pwd)
+# Configuration file for curl is at root of the git repository
+export CURL_HOME="$(dirname $(dirname $(dirname $(dirname "$dir_path"))))"
+cd "$dir_path"
 
 COMMIT_ID=$(git rev-parse --verify HEAD)
 export COMMIT_ID
