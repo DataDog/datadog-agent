@@ -217,6 +217,26 @@ func (j *JMXFetch) Start(manage bool) error {
 		return fmt.Errorf("incompatible options %q and %q", jvmContainerSupport, jvmCgroupMemoryAwareness)
 	} else if useContainerSupport {
 		javaOptions += jvmContainerSupport
+		maxHeapSizeAsPercentRAM := config.Datadog.GetFloat64("jmx_max_ram_percentage")
+		initialHeapSizeAsPercentRAM := config.Datadog.GetFloat64("jmx_initial_ram_percentage")
+		passOption := true
+		//These options overwrite the -XX:MaxRAMPercentage option, log a warning if they are found in the javaOptions
+		if strings.Contains(javaOptions, "Xmx") || strings.Contains(javaOptions, "XX:MaxHeapSize") {
+			log.Warnf("Java option Xmx and/or XX:MaxHeapSize overrides -XX:MaxRAMPercentage, remove if you want to scale by percent instead of a set memory limit")
+			passOption = false
+		}
+		//These options overwrite the -XX:InitialRAMPercentage option, log a warning if they are found in the javaOptions
+		if strings.Contains(javaOptions, "Xms") || strings.Contains(javaOptions, "XX:InitialHeapSize") {
+			log.Warnf("Java option Xms and/or XX:InitialHeapSize overrides -XX:InitialRAMPercentage, remove if you want to initially allocate by percent instead of a set memory amount")
+			passOption = false
+		}
+
+		if passOption {
+			maxRAMPercentOption := fmt.Sprintf(" -XX:MaxRAMPercentage=%.4f", maxHeapSizeAsPercentRAM)
+			initialRAMPercentOption := fmt.Sprintf(" -XX:InitialRAMPercentage=%.4f", initialHeapSizeAsPercentRAM)
+			javaOptions += maxRAMPercentOption + initialRAMPercentOption
+		}
+
 	} else if useCgroupMemoryLimit {
 		passOption := true
 		// This option is incompatible with the Xmx and Xms options, log a warning if there are found in the javaOptions
