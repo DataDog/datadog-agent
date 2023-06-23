@@ -996,7 +996,7 @@ func TestLoadEnv(t *testing.T) {
 			"url1": {"key1", "key2"},
 			"url2": {"key3"},
 		}
-		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.debugger_additional_endpoints"))
+		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.debugger_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1033,7 +1033,7 @@ func TestLoadEnv(t *testing.T) {
 			"url1": {"key1", "key2"},
 			"url2": {"key3"},
 		}
-		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.symdb_additional_endpoints"))
+		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.symdb_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1080,7 +1080,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		expected := []string{"client_id", "product_id"}
-		actualConfig := coreconfig.Datadog.GetStringSlice(("apm_config.obfuscation.elasticsearch.keep_values"))
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
 		actualParsed := cfg.Obfuscation.ES.KeepValues
 		assert.Equal(expected, actualConfig)
 		assert.Equal(expected, actualParsed)
@@ -1094,7 +1094,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		expected := []string{"key1", "key2"}
-		actualConfig := coreconfig.Datadog.GetStringSlice(("apm_config.obfuscation.elasticsearch.obfuscate_sql_values"))
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.ES.ObfuscateSQLValues
 		assert.Equal(expected, actualConfig)
 		assert.Equal(expected, actualParsed)
@@ -1252,7 +1252,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg, err := LoadConfigFile("./testdata/full.yaml")
 		assert.NoError(err)
 		expected := []string{"id1", "id2"}
-		actualConfig := coreconfig.Datadog.GetStringSlice(("apm_config.obfuscation.sql_exec_plan_normalize.keep_values"))
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.KeepValues
 		assert.Equal(expected, actualConfig)
 		assert.Equal(expected, actualParsed)
@@ -1283,7 +1283,7 @@ func TestLoadEnv(t *testing.T) {
 			"url1": {"key1", "key2"},
 			"url2": {"key3"},
 		}
-		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.profiling_additional_endpoints"))
+		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
