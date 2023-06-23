@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    APM: Bind ``apm_config.obfuscation`` parameter to new obfuscation environment variables. In particular, bind:
+    APM: Bind ``apm_config.obfuscation.*`` parameters to new obfuscation environment variables. In particular, bind:
     ``apm_config.obfuscation.elasticsearch.enabled`` to ``DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED``:
     It accepts a boolean value with default value false.
 
