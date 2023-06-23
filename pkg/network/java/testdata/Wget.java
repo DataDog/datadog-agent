@@ -8,15 +8,17 @@ import javax.net.ssl.HttpsURLConnection;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.security.cert.X509Certificate;
+import java.security.cert.CertificateException;
+import java.security.NoSuchAlgorithmException;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
 
 public class Wget  {
-
-    class InvalidCertificateHostVerifier implements HostnameVerifier {
-        @Override
-        public boolean verify(String host, SSLSession session) {
-            return true;
-        }
-    }
 
     public static void main(String[] args) {
         URL url;
@@ -34,16 +36,54 @@ public class Wget  {
             intException.printStackTrace();
             System.exit(1);
         }
+        System.out.println("finished waiting");
 
         try {
+            TrustManager[] trustAllCerts = new TrustManager[] {
+                new X509TrustManager() {
+                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                        return null;
+                    }
+                    @Override
+                    public void checkClientTrusted(X509Certificate[] arg0, String arg1)
+                        throws CertificateException {}
+
+                    @Override
+                    public void checkServerTrusted(X509Certificate[] arg0, String arg1)
+                        throws CertificateException {}
+                }
+            };
+
+            KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            trustStore.load(null, null);
+
+            SSLContext sc=null;
+            try {
+                sc = SSLContext.getInstance("TLSv1.3");
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            }
+            try {
+                sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            } catch (KeyManagementException e) {
+                e.printStackTrace();
+            }
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+
             url = new URL(args[0]);
+
             HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(15 * 1000);
+            connection.setReadTimeout(15 * 1000);
+
             // skip certificate validation
             connection.setHostnameVerifier(new HostnameVerifier() {
-            public boolean verify(String s, SSLSession sslSession) {
-                return true;
-            }
-                });//(new InvalidCertificateHostVerifier());
+                public boolean verify(String s, SSLSession sslSession) {
+                    return true;
+                }
+            });
             System.out.println("Response code = " + connection.getResponseCode());
 
             BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
@@ -54,12 +94,9 @@ public class Wget  {
                 }
             }
             connection.disconnect();
-
-        } catch (IOException urlException) {
-            urlException.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
             System.exit(1);
         }
     }
-
-    
 }

@@ -34,7 +34,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
+
+func launchProcessMonitor(t *testing.T) {
+	pm := monitor.GetProcessMonitor()
+	t.Cleanup(pm.Stop)
+	require.NoError(t, pm.Initialize())
+}
 
 func registerProcessTerminationUponCleanup(t *testing.T, cmd *exec.Cmd) {
 	t.Cleanup(func() {
@@ -80,6 +87,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		},
 	)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	// create files
 	clientBin := buildSOWatcherClientBin(t)
@@ -145,6 +153,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 		},
 	)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	time.Sleep(10 * time.Millisecond)
 	// simulate a slow (1 second) : open, write, close of the file
@@ -190,6 +199,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 		},
 	)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	clientBin := buildSOWatcherClientBin(t)
 	command1 := exec.Command(clientBin, fooPath1, fooPath2)
@@ -241,6 +251,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 		},
 	)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	// create files
 	clientBin := buildSOWatcherClientBin(t)
@@ -333,6 +344,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	registerProcessTerminationUponCleanup(t, command1)
 	time.Sleep(time.Second)
 	watcher.Start()
+	launchProcessMonitor(t)
 
 	require.Eventuallyf(t, func() bool {
 		// Checking both paths exist.
@@ -565,6 +577,10 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		"kprobe__" + excludeSysOpen,
 		"kretprobe__" + excludeSysOpen,
 		"kprobe__do_vfs_ioctl",
+		"kprobe_handle_sync_payload",
+		"kprobe_handle_close_connection",
+		"kprobe_handle_connection_by_peer",
+		"kprobe_handle_async_payload",
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {

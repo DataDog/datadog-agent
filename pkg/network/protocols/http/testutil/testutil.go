@@ -45,7 +45,11 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 			time.Sleep(options.SlowResponse)
 		}
 		statusCode := StatusFromPath(req.URL.Path)
-		w.WriteHeader(int(statusCode))
+		if statusCode == 0 {
+			t.Logf("wrong request format %s", req.URL.Path)
+		} else {
+			w.WriteHeader(int(statusCode))
+		}
 
 		defer req.Body.Close()
 		io.Copy(w, req.Body)

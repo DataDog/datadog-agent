@@ -256,9 +256,7 @@ func join(pieces ...string) string {
 // New creates a config for the network tracer
 func New() *Config {
 	cfg := ddconfig.SystemProbe
-	if !sysconfig.IsAdjusted(cfg) {
-		sysconfig.Adjust(cfg)
-	}
+	sysconfig.Adjust(cfg)
 
 	c := &Config{
 		Config: *ebpf.NewConfig(),
@@ -301,12 +299,12 @@ func New() *Config {
 		EnableHTTPMonitoring:  cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		MaxHTTPStatsBuffered:  cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
-		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
-		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
-		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
+		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
+		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(join(smNS, "http_max_request_fragment")),
 
 		EnableConntrack:                 cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:           cfg.GetInt(join(spNS, "conntrack_max_state_size")),
@@ -329,8 +327,8 @@ func New() *Config {
 
 		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
 
-		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(spNS, "http_map_cleaner_interval_in_s"))) * time.Second,
-		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(spNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
+		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
@@ -342,7 +340,7 @@ func New() *Config {
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 	}
 
-	httpRRKey := join(netNS, "http_replace_rules")
+	httpRRKey := join(smNS, "http_replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {
 		log.Errorf("error parsing %q: %v", httpRRKey, err)

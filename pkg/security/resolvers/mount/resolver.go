@@ -10,7 +10,6 @@ package mount
 import (
 	"context"
 	"path"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,32 +34,11 @@ const (
 	fallbackLimiterPeriod = 5 * time.Second
 )
 
-func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
-	// Has optional fields, which is a space separated list of values.
-	// Example: shared:2 master:7
-	if len(mnt.Optional) > 0 {
-		for _, field := range strings.Split(mnt.Optional, " ") {
-			target, value, found := strings.Cut(field, ":")
-			if found {
-				if target == "shared" || target == "master" {
-					groupID, err := strconv.ParseUint(value, 10, 32)
-					return uint32(groupID), err
-				}
-			}
-		}
-	}
-	return 0, nil
-}
-
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
-	// groupID is not use for the path resolution, don't make it critical
-	groupID, _ := parseGroupID(mnt)
-
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
 		MountID:       uint32(mnt.ID),
-		GroupID:       groupID,
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
 		ParentMountID: uint32(mnt.Parent),
 		FSType:        mnt.FSType,
@@ -132,28 +110,32 @@ func (mr *Resolver) SyncCache(pid uint32) error {
 	return err
 }
 
-// syncCache update cache with the first working pid
-func (mr *Resolver) syncCache(pids ...uint32) error {
-	var err error
-	var mnts []*mountinfo.Info
+func (mr *Resolver) syncPid(pid uint32) error {
+	mnts, err := kernel.ParseMountInfoFile(int32(pid))
+	if err != nil {
+		return err
+	}
 
-	for _, pid := range pids {
-		mnts, err = kernel.ParseMountInfoFile(int32(pid))
-		if err != nil {
-			mr.cgroupsResolver.DelPID(pid)
+	for _, mnt := range mnts {
+		if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
 			continue
 		}
 
-		for _, mnt := range mnts {
-			if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
-				continue
-			}
+		m := newMountFromMountInfo(mnt)
+		mr.insert(m)
+	}
 
-			m := newMountFromMountInfo(mnt)
-			mr.insert(m)
+	return nil
+}
+
+// syncCache update cache with the first working pid
+func (mr *Resolver) syncCache(pids ...uint32) error {
+	var err error
+
+	for _, pid := range pids {
+		if err = mr.syncPid(pid); err == nil {
+			return nil
 		}
-
-		return nil
 	}
 
 	return err
@@ -224,7 +206,7 @@ func (mr *Resolver) ResolveFilesystem(mountID, pid uint32, containerID string) (
 
 	mount, err := mr.resolveMount(mountID, containerID, pid)
 	if err != nil {
-		return "", err
+		return model.UnknownFS, err
 	}
 
 	return mount.GetFSType(), nil
@@ -397,16 +379,18 @@ func (mr *Resolver) syncCacheMiss(mountID uint32) {
 	mr.fallbackLimiter.Count(mountID)
 }
 
-func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ...uint32) (string, error) {
+func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uint32) (string, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", err
 	}
+
+	pids := []uint32{pid}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
 	if exists {
 		pids = append(pids, workload.GetPIDs()...)
-	} else if len(containerID) == 0 {
+	} else if len(containerID) == 0 && pid != 1 {
 		pids = append(pids, 1)
 	}
 

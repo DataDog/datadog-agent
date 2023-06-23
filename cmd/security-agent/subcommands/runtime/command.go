@@ -21,6 +21,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -42,7 +44,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -410,6 +411,7 @@ func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessag
 		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
 	}
 	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
+	printActivityTreeStats(prefix, msg.GetStats())
 	if len(msg.GetStorage()) > 0 {
 		fmt.Printf("%s  storage:\n", prefix)
 		for _, storage := range msg.GetStorage() {

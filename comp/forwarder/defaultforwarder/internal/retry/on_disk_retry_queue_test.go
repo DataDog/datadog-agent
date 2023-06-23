@@ -13,9 +13,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const domainName = "domain"
@@ -25,7 +27,7 @@ func TestOnDiskRetryQueue(t *testing.T) {
 	path := t.TempDir()
 
 	pointDropped := fileStoragePointDroppedCountTelemetry.expvar.Value()
-	q := newTestOnDiskRetryQueue(a, path, 1000)
+	q := newTestOnDiskRetryQueue(t, a, path, 1000)
 	err := q.Store(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
 	a.NoError(err)
 	err = q.Store(createHTTPTransactionCollectionTests("endpoint3", "endpoint4"))
@@ -51,7 +53,7 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 
 	maxSizeInBytes := int64(100)
 	pointDropped := fileStoragePointDroppedCountTelemetry.expvar.Value()
-	q := newTestOnDiskRetryQueue(a, path, maxSizeInBytes)
+	q := newTestOnDiskRetryQueue(t, a, path, maxSizeInBytes)
 
 	i := 0
 	err := q.Store(createHTTPTransactionCollectionTests(strconv.Itoa(i)))
@@ -89,11 +91,11 @@ func TestOnDiskRetryQueueReloadExistingRetryFiles(t *testing.T) {
 	a := assert.New(t)
 	path := t.TempDir()
 
-	retryQueue := newTestOnDiskRetryQueue(a, path, 1000)
+	retryQueue := newTestOnDiskRetryQueue(t, a, path, 1000)
 	err := retryQueue.Store(createHTTPTransactionCollectionTests("endpoint1", "endpoint2"))
 	a.NoError(err)
 
-	newRetryQueue := newTestOnDiskRetryQueue(a, path, 1000)
+	newRetryQueue := newTestOnDiskRetryQueue(t, a, path, 1000)
 	a.Equal(retryQueue.GetDiskSpaceUsed(), newRetryQueue.GetDiskSpaceUsed())
 	a.Equal(retryQueue.getFilesCount(), newRetryQueue.getFilesCount())
 	transactions, err := newRetryQueue.ExtractLast()
@@ -124,7 +126,7 @@ func getEndpointsFromTransactions(transactions []transaction.Transaction) []stri
 	return endpoints
 }
 
-func newTestOnDiskRetryQueue(a *assert.Assertions, path string, maxSizeInBytes int64) *onDiskRetryQueue {
+func newTestOnDiskRetryQueue(t *testing.T, a *assert.Assertions, path string, maxSizeInBytes int64) *onDiskRetryQueue {
 	telemetry := newOnDiskRetryQueueTelemetry("domain")
 	disk := diskUsageRetrieverMock{
 		diskUsage: &filesystem.DiskUsage{
@@ -132,7 +134,8 @@ func newTestOnDiskRetryQueue(a *assert.Assertions, path string, maxSizeInBytes i
 			Total:     10000,
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, maxSizeInBytes, 1)
-	storage, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry, NewPointCountTelemetryMock())
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	storage, err := newOnDiskRetryQueue(log, NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry, NewPointCountTelemetryMock())
 	a.NoError(err)
 	return storage
 }

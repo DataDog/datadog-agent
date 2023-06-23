@@ -114,7 +114,21 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.obfuscation.credit_cards.luhn", "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
-	config.SetEnvKeyTransformer("apm_config.features", parseKVList("apm_config.features"))
+	config.SetEnvKeyTransformer("apm_config.features", func(s string) interface{} {
+		// Either commas or spaces can be used as separators.
+		// Comma takes precedence as it was the only supported separator in the past.
+		// Mixing separators is not supported.
+		var res []string
+		if strings.ContainsRune(s, ',') {
+			res = strings.Split(s, ",")
+		} else {
+			res = strings.Split(s, " ")
+		}
+		for i, v := range res {
+			res[i] = strings.TrimSpace(v)
+		}
+		return res
+	})
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')

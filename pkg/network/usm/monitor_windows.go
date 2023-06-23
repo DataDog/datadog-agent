@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,7 +20,7 @@ import (
 // Monitor is the interface to HTTP monitoring
 type Monitor interface {
 	Start()
-	GetHTTPStats() map[http.Key]*http.RequestStats
+	GetHTTPStats() map[protocols.ProtocolType]interface{}
 	Stop() error
 }
 
@@ -47,10 +48,7 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 	hei.SetMaxRequestBytes(uint64(c.HTTPMaxRequestFragment))
 	hei.SetCapturedProtocols(c.EnableHTTPMonitoring, c.EnableHTTPSMonitoring)
 
-	telemetry, err := http.NewTelemetry()
-	if err != nil {
-		return nil, err
-	}
+	telemetry := http.NewTelemetry()
 
 	return &WindowsMonitor{
 		di:         di,
@@ -111,7 +109,7 @@ func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *WindowsMonitor) GetHTTPStats() map[http.Key]*http.RequestStats {
+func (m *WindowsMonitor) GetHTTPStats() map[protocols.ProtocolType]interface{} {
 	// dbtodo  This is now going to cause any pending transactions
 	// to be read and then stuffed into the channel.  Which then I think
 	// creates a race condition that there still could be some mid-
@@ -126,7 +124,10 @@ func (m *WindowsMonitor) GetHTTPStats() map[http.Key]*http.RequestStats {
 
 	m.telemetry.Log()
 
-	return stats
+	ret := make(map[protocols.ProtocolType]interface{})
+	ret[protocols.HTTP] = stats
+
+	return ret
 }
 
 // Stop HTTP monitoring

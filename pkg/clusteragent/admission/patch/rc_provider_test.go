@@ -42,7 +42,7 @@ func TestProcess(t *testing.T) {
 	rcp, err := newRemoteConfigProvider(&remote.Client{}, make(chan struct{}), telemetry.NewNoopCollector(), "dev")
 	require.NoError(t, err)
 	notifs := rcp.subscribe(KindDeployment)
-	in := map[string]state.APMTracingConfig{
+	in := map[string]state.RawConfig{
 		"path1": {Config: genConfig("dev", "deployment")},   // valid config
 		"path2": {Config: []byte("invalid")},                // invalid json
 		"path3": {Config: genConfig("dev", "wrong")},        // kind mismatch

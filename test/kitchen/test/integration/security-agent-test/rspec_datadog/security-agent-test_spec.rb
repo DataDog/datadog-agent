@@ -42,6 +42,7 @@ shared_examples "passes" do |bundle, env|
   end
 
   base_env = {
+    "CI"=>"true",
     "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode",
     "GOVERSION"=>"unknown"
   }

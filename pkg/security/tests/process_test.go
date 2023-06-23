@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
@@ -233,8 +232,7 @@ func TestProcessContext(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
-			entry, _ := event.ResolveProcessCacheEntry()
-			assert.Equal(t, getInode(t, executable), entry.FileEvent.Inode, "wrong inode")
+			assert.Equal(t, getInode(t, executable), event.ProcessContext.FileEvent.Inode, "wrong inode")
 		})
 	})
 
@@ -695,10 +693,8 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			entry, _ := event.ResolveProcessCacheEntry()
-
-			if inode := getInode(t, executable); inode != entry.FileEvent.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", entry.FileEvent.Inode, inode, event)
+			if inode := getInode(t, executable); inode != event.ProcessContext.FileEvent.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", event.ProcessContext.FileEvent.Inode, inode, event)
 			}
 
 			str, err := test.marshalEvent(event)
@@ -852,19 +848,19 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].args"); err == nil {
-				t.Errorf("shouldn't have args, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("shouldn't have args, got %+v %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].envs"); err == nil {
-				t.Errorf("shouldn't have envs, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("shouldn't have envs, got %+v : %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].args"); err != nil {
-				t.Errorf("should have args, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("should have args, got %+v %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
-				t.Errorf("should have envs, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("should have envs, got %+v %s", json, serialized)
 			}
 		}))
 	})
@@ -915,9 +911,9 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, "test_rule_container", rule.ID, "wrong rule triggered")
 
 			if kind == dockerWrapperType {
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.Ancestor.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.Parent.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Ancestor.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Parent.ContainerID)
 			}
 		}))
 	})
@@ -989,7 +985,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
-		Expression: "exec.file.change_time < 5s",
+		Expression: "exec.file.change_time < 30s",
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -1349,7 +1345,7 @@ func TestProcessExecExit(t *testing.T) {
 
 		case model.ExitEventType:
 			// assert that exit time >= exec time
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 			if execPid != 0 && event.ProcessContext.Pid == execPid {
 				return true
 			}
@@ -1663,7 +1659,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1682,7 +1678,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(1), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1701,7 +1697,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1720,7 +1716,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1738,7 +1734,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1756,7 +1752,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 }

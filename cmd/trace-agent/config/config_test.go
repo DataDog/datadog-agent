@@ -1075,6 +1075,29 @@ func TestLoadEnv(t *testing.T) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
 	})
+
+	env = "DD_APM_FEATURES"
+	t.Run(env, func(t *testing.T) {
+		assert := func(in string, expected []string) {
+			defer cleanConfig()()
+			t.Setenv(env, in)
+			_, err := LoadConfigFile("./testdata/full.yaml")
+			assert.NoError(t, err)
+			assert.Equal(t, expected, coreconfig.Datadog.GetStringSlice("apm_config.features"))
+		}
+		cases := map[string][]string{
+			"":                      nil,
+			"feat1":                 {"feat1"},
+			"feat1,feat2,feat3":     {"feat1", "feat2", "feat3"},
+			"feat1 feat2 feat3":     {"feat1", "feat2", "feat3"},
+			"feat1,feat2 feat3":     {"feat1", "feat2 feat3"},    // mixing separators is not supported, comma wins
+			"feat1, feat2, feat3":   {"feat1", "feat2", "feat3"}, // trim whitespaces
+			"feat1 , feat2 , feat3": {"feat1", "feat2", "feat3"}, // trim whitespaces
+		}
+		for in, expected := range cases {
+			assert(in, expected)
+		}
+	})
 }
 
 func TestFargateConfig(t *testing.T) {
