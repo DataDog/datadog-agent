@@ -30,7 +30,7 @@ namespace Datadog.CustomActions
 
         public ConfigureUserCustomActions(
             ISession session,
-            string rollbackdataname,
+            string rollbackDataName,
             INativeMethods nativeMethods,
             IRegistryServices registryServices,
             IFileSystemServices fileSystemServices,
@@ -42,13 +42,13 @@ namespace Datadog.CustomActions
             _fileSystemServices = fileSystemServices;
             _serviceController = serviceController;
 
-            _rollbackDataStore = new RollbackDataStore(_session, rollbackdataname, _fileSystemServices);
+            _rollbackDataStore = new RollbackDataStore(_session, rollbackDataName, _fileSystemServices);
         }
 
-        public ConfigureUserCustomActions(ISession session, string rollbackdataname)
+        public ConfigureUserCustomActions(ISession session, string rollbackDataName)
             : this(
                 session,
-                rollbackdataname
+                rollbackDataName,
                 new Win32NativeMethods(),
                 new RegistryServices(),
                 new FileSystemServices(),
@@ -701,27 +701,7 @@ namespace Datadog.CustomActions
 
         public ActionResult ConfigureUserRollback()
         {
-            try
-            {
-                try
-                {
-                    // SeRestorePrivilege is required to set file owner to a different user
-                    _nativeMethods.EnablePrivilege("SeRestorePrivilege");
-                }
-                catch (Exception e)
-                {
-                    _session.Log(
-                        $"Failed to enable SeRestorePrivilege. Some file permissions may not be able to be set/rolled back: {e}");
-                }
-
-                _rollbackDataStore.Restore();
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Failed to rollback user configuration: {e}");
-                return ActionResult.Failure;
-            }
-
+            RunRollbackDataRestore();
             return ActionResult.Success;
         }
 
@@ -768,6 +748,29 @@ namespace Datadog.CustomActions
             }
 
             UpdateAndLogAccessControl(filePath, fileSystemSecurity);
+        }
+
+        private void RunRollbackDataRestore()
+        {
+            try
+            {
+                try
+                {
+                    // SeRestorePrivilege is required to set file owner to a different user
+                    _nativeMethods.EnablePrivilege("SeRestorePrivilege");
+                }
+                catch (Exception e)
+                {
+                    _session.Log(
+                        $"Failed to enable SeRestorePrivilege. Some file permissions may not be able to be set/rolled back: {e}");
+                }
+
+                _rollbackDataStore.Restore();
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to rollback user configuration: {e}");
+            }
         }
 
         public ActionResult UninstallUser()
@@ -833,6 +836,18 @@ namespace Datadog.CustomActions
         public static ActionResult UninstallUser(Session session)
         {
             return new ConfigureUserCustomActions(new SessionWrapper(session), "UninstallUser").UninstallUser();
+        }
+
+        public ActionResult UninstallUserRollback()
+        {
+            RunRollbackDataRestore();
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult UninstallUserRollback(Session session)
+        {
+            return new ConfigureUserCustomActions(new SessionWrapper(session), "UninstallUser").UninstallUserRollback();
         }
     }
 }

@@ -42,6 +42,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction UninstallUser { get; }
 
+        public ManagedAction UninstallUserRollback { get; }
+
         public ManagedAction OpenMsiLog { get; }
 
         public ManagedAction SendFlare { get; }
@@ -296,7 +298,7 @@ namespace WixSetup.Datadog
                     Return.check,
                     When.After,
                     Step.StopServices,
-                    Conditions.Uninstalling
+                    Conditions.Uninstalling | Conditions.RemovingForUpgrade
                 )
                 {
                     Execute = Execute.deferred,
@@ -305,6 +307,19 @@ namespace WixSetup.Datadog
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "PROJECTLOCATION=[PROJECTLOCATION], " +
                                "DDAGENTUSER_NAME=[DDAGENTUSER_NAME]");
+
+            UninstallUserRollback = new CustomAction<ConfigureUserCustomActions>(
+                    new Id(nameof(UninstallUserRollback)),
+                    ConfigureUserCustomActions.UninstallUserRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(UninstallUser.Id),
+                    Conditions.Uninstalling | Conditions.RemovingForUpgrade
+                )
+                {
+                    Execute = Execute.rollback,
+                    Impersonate = false,
+                };
 
             ProcessDdAgentUserCredentials = new CustomAction<ProcessUserCustomActions>(
                     new Id(nameof(ProcessDdAgentUserCredentials)),
