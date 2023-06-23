@@ -343,6 +343,7 @@ func (s *Service) refresh() error {
 		log.Infof("Could not refresh Remote Config: %v", err)
 		return nil
 	}
+	s.unauthorizedErrorCount = 0
 	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
