@@ -1,5 +1,3 @@
-//go:build linux_bpf
-
 package telemetry
 
 import (
