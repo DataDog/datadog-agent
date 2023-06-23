@@ -200,12 +200,14 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 	}
 
 	program := &ebpfProgram{
-		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
-		cfg:                   c,
-		subprograms:           subprograms,
-		probesResolvers:       subprogramProbesResolvers,
-		tailCallRouter:        tailCalls,
-		connectionProtocolMap: connectionProtocolMap,
+		Manager:         errtelemetry.NewManager(mgr, bpfTelemetry),
+		cfg:             c,
+		subprograms:     subprograms,
+		probesResolvers: subprogramProbesResolvers,
+		tailCallRouter:  tailCalls,
+		// Hot-Fix for 7.46:
+		// Don't share connectionProtocolMap with the tracer program due to a leak
+		// connectionProtocolMap: connectionProtocolMap,
 	}
 
 	return program, nil

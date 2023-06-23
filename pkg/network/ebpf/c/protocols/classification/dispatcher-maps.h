@@ -4,7 +4,17 @@
 #include "map-defs.h"
 
 #include "protocols/classification/defs.h"
-#include "protocols/classification/shared-tracer-maps.h"
+
+// Hot Fix for 7.46:
+//
+// Instead of relying on the `connection_protocol` map shared with the tracer
+// program we're temporarily replacing it by a a separete LRU version used
+// exclusively by the USM program.
+//
+// This is because we have identified a leak in the aforementioned map that at
+// the very least goes back to 7.45.
+BPF_LRU_MAP(connection_protocol, conn_tuple_t, protocol_stack_t, 0)
+
 
 // Maps a connection tuple to latest tcp segment we've processed. Helps to detect same packets that travels multiple
 // interfaces or retransmissions.

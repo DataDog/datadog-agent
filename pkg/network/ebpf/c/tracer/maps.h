@@ -5,6 +5,7 @@
 #include "bpf_helpers.h"
 
 #include "conn_tuple.h"
+#include "protocols/classification/defs.h"
 
 /* This is a key/value store with the keys being a conn_tuple_t for send & recv calls
  * and the values being conn_stats_ts_t *.
@@ -124,5 +125,9 @@ BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
 // as we dispatching more protocols, we reached that limit, thus we workaround it
 // by using tail call.
 BPF_PROG_ARRAY(tcp_close_progs, 1)
+
+// TODO: This map is currently leaking and is no longer being shared with USM
+// Once the underlying root cause is identified and addressed, integrate it again with the USM code.
+BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_stack_t, 0)
 
 #endif

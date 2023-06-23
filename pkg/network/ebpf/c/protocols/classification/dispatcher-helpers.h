@@ -9,6 +9,7 @@
 #include "protocols/classification/maps.h"
 #include "protocols/classification/structs.h"
 #include "protocols/classification/dispatcher-maps.h"
+#include "protocols/classification/map-operations.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http/usm-events.h"
 #include "protocols/http2/helpers.h"
