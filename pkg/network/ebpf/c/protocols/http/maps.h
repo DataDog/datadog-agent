@@ -6,6 +6,7 @@
 
 #include "protocols/http/types.h"
 #include "protocols/tls/go-tls-types.h"
+#include "protocols/tls/sowatcher-types.h"
 
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
 BPF_LRU_MAP(http_in_flight, conn_tuple_t, http_transaction_t, 0)
