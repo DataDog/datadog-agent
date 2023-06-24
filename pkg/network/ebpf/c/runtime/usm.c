@@ -27,6 +27,7 @@
 #include "protocols/kafka/kafka-parsing.h"
 
 #define SO_SUFFIX_SIZE 3
+#define GNUTLS_E_AGAIN -28
 
 // The entrypoint for all packets classification & decoding in universal service monitoring.
 SEC("socket/protocol_dispatcher")
@@ -454,6 +455,24 @@ cleanup:
     return 0;
 }
 
+// size_t gnutls_record_discard_queued(gnutls_session_t session)
+// when DTLS (UDP) gnutls_record_discard_queued() could be used to discard the previously enqueued data
+// gnutls doc : https://www.gnutls.org/manual/gnutls.html#Asynchronous-operation 6.5.1
+SEC("uprobe/gnutls_record_discard_queued")
+int uprobe__gnutls_record_discard_queued(struct pt_regs *ctx) {
+    // userspace call can discard the queue after gnutls_record_send has been interrupted
+    // gnutls doc : https://www.gnutls.org/manual/gnutls.html#Asynchronous-operation 6.5.1
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    ssl_write_args_t *args = bpf_map_lookup_elem(&ssl_write_args, &pid_tgid);
+    if (args == NULL) {
+        return 0;
+    }
+    if (args->ctx == (void *)PT_REGS_PARM1(ctx)) {
+        bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
+    }
+    return 0;
+}
+
 // ssize_t gnutls_record_send (gnutls_session_t session, const void * data, size_t data_size)
 SEC("uprobe/gnutls_record_send")
 int uprobe__gnutls_record_send(struct pt_regs *ctx) {
@@ -462,7 +481,11 @@ int uprobe__gnutls_record_send(struct pt_regs *ctx) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/gnutls_record_send: pid=%llu ctx=%llx\n", pid_tgid, args.ctx);
-    bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    // buffer could be NULL for the non-blocking asynchronous socket mode used by GnuTLS
+    // buffer pointer from the previous call should be used
+    if (args.buf != NULL) {
+        bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
+    }
     return 0;
 }
 
@@ -472,6 +495,12 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
     ssize_t write_len = (ssize_t)PT_REGS_RC(ctx);
     log_debug("uretprobe/gnutls_record_send: pid=%llu len=%d\n", pid_tgid, write_len);
     if (write_len <= 0) {
+        if (write_len == GNUTLS_E_AGAIN) {
+            // don't cleanup if non-blocking socket mode enabled
+            // we need to use buffer from the previous call
+            // gnutls doc : https://www.gnutls.org/manual/gnutls.html#Asynchronous-operation 6.5.1
+            return 0;
+        }
         goto cleanup;
     }
 

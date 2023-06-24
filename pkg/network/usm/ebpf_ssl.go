@@ -131,6 +131,15 @@ var cryptoProbes = []manager.ProbesSelector{
 }
 
 var gnuTLSProbes = []manager.ProbesSelector{
+	&manager.BestEffort{
+		Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "uprobe__gnutls_record_discard_queued",
+				},
+			},
+		},
+	},
 	&manager.AllOf{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
