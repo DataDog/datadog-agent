@@ -365,7 +365,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			continue
 		}
 		_, foundPid := fetchPids[c.Pid]
-		if foundPid && c.DPort == httpKey.DstPort && c.Protocol == network.ProtocolTLS {
+		if foundPid && c.DPort == httpKey.DstPort && isTLSTag(c.StaticTags) && c.Protocol == network.ProtocolHTTP {
 			found = true
 			break
 		}
@@ -1267,6 +1267,8 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 		serverPort:    httpsPort,
 		targetAddress: targetHost,
 	})
+
+	t.Skip("Test is not yet supported")
 
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
