@@ -129,7 +129,8 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 	return results, nil
 }
 
-// GetConnections returns a set of active network connections, retrieved from the system probe service
+// GetConnections returns a set of active network connections, retrieved from the system probe service, supports the
+// grpc server as well as the http server.
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
 	var conns *model.Connections
 	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
