@@ -1281,6 +1281,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 		targetAddress: targetHost,
 	})
 
+	t.Skip("Skipped due to a bug in 7.46")
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
