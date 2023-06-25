@@ -208,6 +208,7 @@ const (
 	KafkaClientIDBufMap               BPFMapName = "kafka_client_id"
 	KafkaTopicNameBufMap              BPFMapName = "kafka_topic_name"
 	ConnectionProtocolMap             BPFMapName = "connection_protocol"
+	TLSConnectionMap                  BPFMapName = "tls_connection"
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 	ClassificationProgsMap            BPFMapName = "classification_progs"
 	TCPCloseProgsMap                  BPFMapName = "tcp_close_progs"
