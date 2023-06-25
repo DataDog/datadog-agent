@@ -709,11 +709,9 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
         for gobin in ["gotls_client", "sowatcher_client", "prefetch_file"]:
-            client_dir = os.path.join("testutil", gobin)
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
-                client_binary = os.path.join(client_dir, gobin)
-                binary_path = os.path.join(target_path, client_binary)
+                binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
                     ctx.run(f"go build -o {binary_path} -ldflags=\"-extldflags '-static'\" {gobin}.go")
 
