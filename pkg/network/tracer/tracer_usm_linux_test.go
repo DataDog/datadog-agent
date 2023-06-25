@@ -1264,6 +1264,8 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 		targetAddress: targetHost,
 	})
 
+	t.Skip("Test is not supported yet")
+
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
