@@ -90,7 +90,7 @@ require (
 	github.com/cilium/ebpf v0.10.1-0.20230607155358-5bc4c7c1cbff
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/cgroups v1.0.4
-	github.com/containerd/containerd v1.6.19
+	github.com/containerd/containerd v1.6.20
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.2
 	github.com/coreos/go-semver v0.3.0
@@ -149,10 +149,10 @@ require (
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v0.47.4
+	github.com/open-policy-agent/opa v0.53.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.75.0
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/opencontainers/image-spec v1.1.0-rc2
+	github.com/opencontainers/image-spec v1.1.0-rc3
 	github.com/opencontainers/runtime-spec v1.1.0-rc.2
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
