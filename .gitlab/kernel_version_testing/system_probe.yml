@@ -261,6 +261,7 @@ kernel_matrix_testing_cleanup:
         INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
         IP_FILTER="Name=private-ip-address,Values=$INSTANCE_IPS"
       else
+        echo "No ${CI_PROJECT_DIR}/stack.outputs file found"
         IP_FILTER=""
       fi
     - INSTANCE_IDS=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi"  $IP_FILTER --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
