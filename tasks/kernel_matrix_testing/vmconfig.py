@@ -364,11 +364,11 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
     vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
     # vmconfig_file = "/tmp/vm-config.json"
     if new or not os.path.exists(vmconfig_file):
-        vm_config = {"vmsets": []}
-    else:
-        with open(vmconfig_file) as f:
-            orig_vm_config = f.read()
-        vm_config = json.loads(orig_vm_config)
+        empty_config(vmconfig_file)
+
+    with open(vmconfig_file) as f:
+        orig_vm_config = f.read()
+    vm_config = json.loads(orig_vm_config)
 
     generate_vm_config(vm_config, vm_types, ls_to_int(vcpu_ls), ls_to_int(memory_ls))
     vm_config_str = json.dumps(vm_config, indent=4)
