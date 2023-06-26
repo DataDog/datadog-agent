@@ -847,8 +847,97 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 
 	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
 	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	// These IDs are B64 decoded from the snssqs.json event sample's _datadog MessageAttribute
+	expectedTraceID := uint64(1728904347387697031)
+	expectedParentID := uint64(353722510835624345)
 
+	assert.Equal(t, expectedTraceID, snsSpan.TraceID)
+	assert.Equal(t, expectedParentID, snsSpan.ParentID)
 	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
+}
+
+func TestTriggerTypesLifecycleEventForSNSSQSNoDdContext(t *testing.T) {
+
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+
+	var tracePayload *api.Payload
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("snssqs_no_dd_context.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				TraceID:          123,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+		IsError:   false,
+	})
+
+	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
+	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectedTraceID := uint64(0)
+	expectedParentID := uint64(0)
+
+	assert.Equal(t, expectedTraceID, snsSpan.TraceID)
+	assert.Equal(t, expectedParentID, snsSpan.ParentID)
+	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
+}
+
+func TestTriggerTypesLifecycleEventForSQSNoDdContext(t *testing.T) {
+
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+
+	var tracePayload *api.Payload
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("sqs_no_dd_context.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				TraceID:          123,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+		IsError:   false,
+	})
+
+	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectedTraceID := uint64(0)
+	expectedParentID := uint64(0)
+
+	assert.Equal(t, expectedTraceID, sqsSpan.TraceID)
+	assert.Equal(t, expectedParentID, sqsSpan.ParentID)
 }
 
 func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
