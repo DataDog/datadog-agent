@@ -27,7 +27,7 @@ var (
 type enrichConfig struct {
 	metricPrefix              string
 	metricPrefixBlacklist     []string
-	metricBlocklist           []string
+	metricBlocklist           blocklist
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
@@ -141,15 +141,7 @@ func isExcluded(metricName, namespace string, excludedNamespaces []string) bool 
 			}
 		}
 	}
-	return false
-}
 
-func isMetricBlocklisted(metricName string, metricBlocklist []string) bool {
-	for _, item := range metricBlocklist {
-		if metricName == item {
-			return true
-		}
-	}
 	return false
 }
 
@@ -169,7 +161,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if len(conf.metricBlocklist) > 0 && isMetricBlocklisted(metricName, conf.metricBlocklist) {
+	if conf.metricBlocklist.test(metricName) {
 		return []metrics.MetricSample{}
 	}
 

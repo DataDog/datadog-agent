@@ -31,6 +31,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -42,10 +43,11 @@ import (
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/reorderer"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -65,7 +67,7 @@ import (
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
 	Init(*manager.Manager, *pconfig.Config) error
-	SetMonitor(reorderer.LostEventCounter)
+	SetMonitor(eventstream.LostEventCounter)
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
@@ -87,8 +89,9 @@ type PlatformProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	monitor  *Monitor
-	scrubber *procutil.DataScrubber
+	monitor         *Monitor
+	profileManagers *SecurityProfileManagers
+	scrubber        *procutil.DataScrubber
 
 	// Ring
 	eventStream EventStream
@@ -262,11 +265,13 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	if p.monitor.activityDumpManager != nil {
-		p.monitor.activityDumpManager.AddActivityDumpHandler(p.activityDumpHandler)
+	p.profileManagers, err = NewSecurityProfileManagers(p)
+	if err != nil {
+		return err
 	}
+	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
-	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
+	p.eventStream.SetMonitor(p.monitor.eventStreamMonitor)
 
 	return nil
 }
@@ -284,7 +289,9 @@ func (p *Probe) Setup() error {
 
 	p.applyDefaultFilterPolicies()
 
-	return p.monitor.Start(p.ctx, &p.wg)
+	p.profileManagers.Start(p.ctx, &p.wg)
+
+	return nil
 }
 
 // Start processing events
@@ -305,7 +312,7 @@ func (p *Probe) PlaySnapshot() {
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		if entry.Source != model.ProcessCacheEntryFromProcFS {
+		if entry.Source != model.ProcessCacheEntryFromSnapshot {
 			return
 		}
 		entry.Retain()
@@ -316,6 +323,11 @@ func (p *Probe) PlaySnapshot() {
 		event.ProcessContext = &entry.ProcessContext
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
+
+		if !entry.HasCompleteLineage() {
+			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+		}
+
 		events = append(events, event)
 	}
 	p.GetResolvers().ProcessResolver.Walk(entryToEvent)
@@ -345,7 +357,7 @@ func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
 
 	// first, check if the current event is a kernel generated anomaly detection event
 	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
-		p.monitor.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
+		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
 		// check if the profile can generate anomalies for the current event type
 	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
 		return false
@@ -371,7 +383,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// filter out event if already present on a profile
 	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
-		p.monitor.securityProfileManager.LookupEventInProfiles(event)
+		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
 	// send wildcard first
@@ -386,8 +398,8 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
 	if !p.handleAnomalyDetection(event) && event.Error == nil {
 		// Process after evaluation because some monitors need the DentryResolver to have been called first.
-		if p.monitor.activityDumpManager != nil {
-			p.monitor.activityDumpManager.ProcessEvent(event)
+		if p.profileManagers.activityDumpManager != nil {
+			p.profileManagers.activityDumpManager.ProcessEvent(event)
 		}
 
 	}
@@ -464,17 +476,6 @@ func (p *Probe) unmarshalContexts(data []byte, event *model.Event) (int, error) 
 	return read, nil
 }
 
-func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
-	// sanity check
-	if mountID == 0 || inode == 0 {
-		seclog.Tracef("invalid mount_id/inode tuple %d:%d", mountID, inode)
-		return
-	}
-
-	seclog.Tracef("remove dentry cache entry for inode %d", inode)
-	p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
-}
-
 func eventWithNoProcessContext(eventType model.EventType) bool {
 	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
@@ -493,6 +494,17 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 	return n, nil
 }
 
+func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
+	p.DispatchCustomEvent(
+		NewEventLostWriteEvent(perfMapName, perEvent),
+	)
+
+	// snapshot traced cgroups if a CgroupTracing event was lost
+	if p.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
+		p.profileManagers.SnapshotTracedCgroups()
+	}
+}
+
 func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset := 0
 	event := p.zeroEvent()
@@ -507,7 +519,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
-	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, reorderer.EventStreamMap, CPU)
+	p.monitor.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -524,15 +536,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if err = p.resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
 			seclog.Debugf("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
-		return
-	case model.InvalidateDentryEventType:
-		if _, err = event.InvalidateDentry.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode invalidate dentry event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-
-		p.invalidateDentry(event.InvalidateDentry.MountID, event.InvalidateDentry.Inode)
-
 		return
 	case model.ArgsEnvsEventType:
 		if _, err = event.ArgsEnvs.UnmarshalBinary(data[offset:]); err != nil {
@@ -554,7 +557,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
+		p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
@@ -638,30 +641,15 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode rmdir event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-
-		if event.Rmdir.Retval >= 0 {
-			// defer it do ensure that it will be done after the dispatch that could re-add it
-			defer p.invalidateDentry(event.Rmdir.File.MountID, event.Rmdir.File.Inode)
-		}
 	case model.FileUnlinkEventType:
 		if _, err = event.Unlink.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unlink event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-
-		if event.Unlink.Retval >= 0 {
-			// defer it do ensure that it will be done after the dispatch that could re-add it
-			defer p.invalidateDentry(event.Unlink.File.MountID, event.Unlink.File.Inode)
-		}
 	case model.FileRenameEventType:
 		if _, err = event.Rename.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode rename event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
-		}
-
-		if event.Rename.Retval >= 0 {
-			// defer it do ensure that it will be done after the dispatch that could re-add it
-			defer p.invalidateDentry(event.Rename.New.MountID, event.Rename.New.Inode)
 		}
 	case model.FileChmodEventType:
 		if _, err = event.Chmod.UnmarshalBinary(data[offset:]); err != nil {
@@ -682,12 +670,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if _, err = event.Link.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode link event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
-		}
-
-		// need to invalidate as now nlink > 1
-		if event.Link.Retval >= 0 {
-			// defer it do ensure that it will be done after the dispatch that could re-add it
-			defer p.invalidateDentry(event.Link.Source.MountID, event.Link.Source.Inode)
 		}
 	case model.FileSetXAttrEventType:
 		if _, err = event.SetXAttr.UnmarshalBinary(data[offset:]); err != nil {
@@ -895,19 +877,25 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 	}
 	event.ProcessCacheEntry = entry
+	if event.ProcessCacheEntry == nil {
+		panic("should always return a process cache entry")
+	}
 
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	if event.ProcessContext == nil {
+		panic("should always return a process context")
+	}
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return
 	}
 
 	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTime(event))
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, p.fieldHandlers.ResolveEventTime(event))
 	}
 
 	p.DispatchEvent(event)
@@ -1047,7 +1035,7 @@ func getApproverType(approverTableName string) string {
 
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
+		for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
 			if e.String() == eventType {
 				return true
 			}
@@ -1094,7 +1082,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 
 	// ActivityDumps
 	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.monitor.GetActivityDumpTracedEventTypes() {
+		for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
 			if e == model.SyscallsEventType {
 				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 				break
@@ -1518,6 +1506,14 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Value: getDoForkInput(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "has_usernamespace_first_arg",
+			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "ovl_path_in_ovl_inode",
+			Value: getOvlPathInOvlInode(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "mount_id_offset",
 			Value: mount.GetMountIDOffset(p.kernelVersion),
 		},
@@ -1658,6 +1654,11 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	return p, nil
 }
 
+// GetProfileManagers returns the security profile managers
+func (p *Probe) GetProfileManagers() *SecurityProfileManagers {
+	return p.profileManagers
+}
+
 func (p *Probe) ensureConfigDefaults() {
 	// enable runtime compiled constants on COS by default
 	if !p.Config.Probe.RuntimeCompiledConstantsIsSet && p.kernelVersion.IsCOSKernel() {
@@ -1696,6 +1697,37 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 		return doForkStructInput
 	}
 	return doForkListInput
+}
+
+func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_0 {
+		return 1
+	}
+	return 0
+}
+
+func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
+	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
+	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
+	// are in this configuration we first probe the kernel version, then we check for the
+	// presence of the function introduced in the same patch.
+	const patchSentinel = "ovl_i_path_real"
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_19 {
+		return 1
+	}
+
+	check, err := commonebpf.VerifyKernelFuncs(patchSentinel)
+	if err != nil {
+		return 0
+	}
+
+	// VerifyKernelFuncs returns the missing functions
+	if _, ok := check[patchSentinel]; !ok {
+		return 1
+	}
+
+	return 0
 }
 
 // isBPFSendSignalHelperAvailable returns true if the bpf_send_signal helper is available in the current kernel
@@ -1756,6 +1788,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVmAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {

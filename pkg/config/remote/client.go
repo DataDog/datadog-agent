@@ -215,6 +215,11 @@ func (c *Client) Close() {
 	c.close()
 }
 
+// UpdateApplyStatus updates the config's metadata to reflect its applied status
+func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
+	c.state.UpdateApplyStatus(cfgPath, status)
+}
+
 // Subscribe subscribes to config updates of a product.
 func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig)) {
 	c.m.Lock()
@@ -358,9 +363,10 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 	pbConfigState := make([]*pbgo.ConfigState, 0, len(state.Configs))
 	for _, f := range state.Configs {
 		pbConfigState = append(pbConfigState, &pbgo.ConfigState{
-			Id:      f.ID,
-			Version: f.Version,
-			Product: f.Product,
+			Id:         f.ID,
+			Version:    f.Version,
+			Product:    f.Product,
+			ApplyState: uint64(f.ApplyStatus.State),
 		})
 	}
 

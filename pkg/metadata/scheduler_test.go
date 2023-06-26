@@ -13,10 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -74,8 +73,9 @@ func TestNewScheduler(t *testing.T) {
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
+	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
+
 	c := NewScheduler(demux)
 
 	assert.Equal(t, demux, c.demux)
@@ -84,8 +84,8 @@ func TestNewScheduler(t *testing.T) {
 func TestStopScheduler(t *testing.T) {
 	enableFirstRunCollection = false
 	defer func() { enableFirstRunCollection = true }()
-
-	demux := buildDemultiplexer()
+	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := buildDemultiplexer(deps)
 	c := NewScheduler(demux)
 
 	mockCollector := MockCollector{}
@@ -109,8 +109,8 @@ func TestAddCollector(t *testing.T) {
 	mockCollector := &MockCollector{
 		SendCalledC: make(chan bool),
 	}
-
-	demux := buildDemultiplexer()
+	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := buildDemultiplexer(deps)
 	c := NewScheduler(demux)
 
 	RegisterCollector("testCollector", mockCollector)
@@ -144,7 +144,8 @@ func TestAddCollectorWithInit(t *testing.T) {
 		InitCalledC: make(chan bool, 1),
 	}
 
-	demux := buildDemultiplexer()
+	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := buildDemultiplexer(deps)
 	c := NewScheduler(demux)
 
 	RegisterCollector("testCollectorWithInit", mockCollectorWithInit)
@@ -178,7 +179,8 @@ func TestAddCollectorWithFirstRun(t *testing.T) {
 		sendCalledC: make(chan bool, 1),
 	}
 
-	demux := buildDemultiplexer()
+	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := buildDemultiplexer(deps)
 	c := NewScheduler(demux)
 
 	RegisterCollector("testCollectorWithFirstRun", mockCollector)
@@ -209,7 +211,8 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 		SendCalledC: make(chan bool),
 	}
 
-	demux := buildDemultiplexer()
+	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	demux := buildDemultiplexer(deps)
 	defer demux.Stop(false)
 	c := NewScheduler(demux)
 
@@ -239,10 +242,10 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 
 }
 
-func buildDemultiplexer() aggregator.Demultiplexer {
+func buildDemultiplexer(deps aggregator.AggregatorTestDeps) aggregator.Demultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	forwarder := forwarder.NewDefaultForwarder(pkgconfig.Datadog, forwarder.NewOptions(pkgconfig.Datadog, nil))
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, "hostname")
+	demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
+
 	return demux
 }

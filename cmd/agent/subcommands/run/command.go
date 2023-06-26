@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -162,6 +163,7 @@ func run(log log.Component,
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
 	forwarder defaultforwarder.Component,
+	rcclient rcclient.Component,
 	cliParams *cliParams,
 ) error {
 	defer func() {
@@ -204,7 +206,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, flare, sysprobeconfig, server, capture, serverDebug, forwarder); err != nil {
+	if err := startAgent(cliParams, log, flare, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder); err != nil {
 		return err
 	}
 
@@ -225,11 +227,12 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		server dogstatsdServer.Component,
 		serverDebug dogstatsdDebug.Component,
 		capture replay.Component,
+		rcclient rcclient.Component,
 		forwarder defaultforwarder.Component,
 	) error {
 		dsdServer = server
 
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, flare, sysprobeconfig, server, capture, serverDebug, forwarder)
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -268,17 +271,20 @@ func getSharedFxOption() fx.Option {
 			return params
 		}),
 		dogstatsd.Bundle,
+		rcclient.Module,
 	)
 }
 
 // startAgent Initializes the agent process
 func startAgent(
 	cliParams *cliParams,
+	log log.Component,
 	flare flare.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
+	rcclient rcclient.Component,
 	sharedForwarder defaultforwarder.Component) error {
 
 	var err error
@@ -312,23 +318,23 @@ func startAgent(
 	}
 
 	if flavor.GetFlavor() == flavor.IotAgent {
-		pkglog.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
+		log.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
 	} else {
-		pkglog.Infof("Starting Datadog Agent v%v", version.AgentVersion)
+		log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
 
 	if err := util.SetupCoreDump(pkgconfig.Datadog); err != nil {
-		pkglog.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	if v := pkgconfig.Datadog.GetBool("internal_profiling.capture_all_allocations"); v {
 		runtime.MemProfileRate = 1
-		pkglog.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
+		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
 	}
 
 	// init settings that can be changed at runtime
 	if err := initRuntimeSettings(serverDebug); err != nil {
-		pkglog.Warnf("Can't initiliaze the runtime settings: %v", err)
+		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
 	// Setup Internal Profiling
@@ -344,7 +350,7 @@ func startAgent(
 			Handler: http.DefaultServeMux,
 		}
 		if err := common.ExpvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			pkglog.Errorf("Error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
+			log.Errorf("Error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
 		}
 	}()
 
@@ -353,35 +359,35 @@ func startAgent(
 	if healthPort > 0 {
 		err := healthprobe.Serve(common.MainCtx, healthPort)
 		if err != nil {
-			return pkglog.Errorf("Error starting health port, exiting: %v", err)
+			return log.Errorf("Error starting health port, exiting: %v", err)
 		}
-		pkglog.Debugf("Health check listening on port %d", healthPort)
+		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
 	if cliParams.pidfilePath != "" {
 		err = pidfile.WritePID(cliParams.pidfilePath)
 		if err != nil {
-			return pkglog.Errorf("Error while writing PID file, exiting: %v", err)
+			return log.Errorf("Error while writing PID file, exiting: %v", err)
 		}
-		pkglog.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
 	}
 
 	err = manager.ConfigureAutoExit(common.MainCtx, pkgconfig.Datadog)
 	if err != nil {
-		return pkglog.Errorf("Unable to configure auto-exit, err: %v", err)
+		return log.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
-		return pkglog.Errorf("Error while getting hostname, exiting: %v", err)
+		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-	pkglog.Infof("Hostname is: %s", hostnameDetected)
+	log.Infof("Hostname is: %s", hostnameDetected)
 
 	// HACK: init host metadata module (CPU) early to avoid any
 	//       COM threading model conflict with the python checks
 	err = host.InitHostMetadata()
 	if err != nil {
-		pkglog.Errorf("Unable to initialize host metadata: %v", err)
+		log.Errorf("Unable to initialize host metadata: %v", err)
 	}
 
 	// start remote configuration management
@@ -389,9 +395,13 @@ func startAgent(
 	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
 		configService, err = remoteconfig.NewService()
 		if err != nil {
-			pkglog.Errorf("Failed to initialize config management service: %s", err)
+			log.Errorf("Failed to initialize config management service: %s", err)
 		} else if err := configService.Start(context.Background()); err != nil {
-			pkglog.Errorf("Failed to start config management service: %s", err)
+			log.Errorf("Failed to start config management service: %s", err)
+		}
+
+		if err := rcclient.Listen(); err != nil {
+			pkglog.Errorf("Failed to start the AGENT_TASK RC client: %s", err)
 		}
 	}
 
@@ -402,7 +412,7 @@ func startAgent(
 	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {
 		containerTagger, err := containertagger.NewContainerTagger()
 		if err != nil {
-			pkglog.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
+			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
 		} else {
 			containerTagger.Start(common.MainCtx)
 		}
@@ -410,7 +420,7 @@ func startAgent(
 
 	// start the cmd HTTP server
 	if err = api.StartServer(configService, flare, server, capture, serverDebug); err != nil {
-		return pkglog.Errorf("Error while starting api server, exiting: %v", err)
+		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
 	// start clc runner server
@@ -419,23 +429,23 @@ func startAgent(
 		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
 		}); err != nil {
-			return pkglog.Errorf("Error while starting clc runner api server, exiting: %v", err)
+			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
 		}
 	}
 
 	// start the GUI server
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
-		pkglog.Infof("GUI server port -1 specified: not starting the GUI.")
+		log.Infof("GUI server port -1 specified: not starting the GUI.")
 	} else if err = gui.StartGUIServer(guiPort, flare); err != nil {
-		pkglog.Errorf("Error while starting GUI: %v", err)
+		log.Errorf("Error while starting GUI: %v", err)
 	}
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
 	opts.UseDogstatsdContextLimiter = true
 	opts.DogstatsdMaxMetricsTags = pkgconfig.Datadog.GetInt("dogstatsd_max_metrics_tags")
-	demux = aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, hostnameDetected)
+	demux = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hostnameDetected)
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
@@ -449,9 +459,9 @@ func startAgent(
 		var err error
 		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, demux.Serializer())
 		if err != nil {
-			pkglog.Errorf("Could not start OTLP: %s", err)
+			log.Errorf("Could not start OTLP: %s", err)
 		} else {
-			pkglog.Debug("OTLP pipeline started")
+			log.Debug("OTLP pipeline started")
 		}
 	}
 
@@ -459,7 +469,7 @@ func startAgent(
 	if traps.IsEnabled() {
 		err = traps.StartServer(hostnameDetected, demux)
 		if err != nil {
-			pkglog.Errorf("Failed to start snmp-traps server: %s", err)
+			log.Errorf("Failed to start snmp-traps server: %s", err)
 		}
 	}
 
@@ -480,22 +490,22 @@ func startAgent(
 		global.DSD = server
 		err := server.Start(demux)
 		if err != nil {
-			pkglog.Errorf("Could not start dogstatsd: %s", err)
+			log.Errorf("Could not start dogstatsd: %s", err)
 		} else {
-			pkglog.Debugf("dogstatsd started")
+			log.Debugf("dogstatsd started")
 		}
 	}
 
 	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents)
 	if pkgconfig.Datadog.GetBool("logs_enabled") || pkgconfig.Datadog.GetBool("log_enabled") {
 		if pkgconfig.Datadog.GetBool("log_enabled") {
-			pkglog.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
+			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 		if _, err := logs.Start(common.AC); err != nil {
-			pkglog.Error("Could not start logs-agent: ", err)
+			log.Error("Could not start logs-agent: ", err)
 		}
 	} else {
-		pkglog.Info("logs-agent disabled")
+		log.Info("logs-agent disabled")
 	}
 
 	// Start NetFlow server
@@ -503,7 +513,7 @@ func startAgent(
 	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
 	if netflow.IsEnabled() {
 		if err = netflow.StartServer(demux); err != nil {
-			pkglog.Errorf("Failed to start NetFlow server: %s", err)
+			log.Errorf("Failed to start NetFlow server: %s", err)
 		}
 	}
 

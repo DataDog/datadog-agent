@@ -7,6 +7,7 @@ package containers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -41,9 +42,6 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
-const retryPeriod = 1 * time.Second
-const maxRetries = 1
-
 var GitCommit string
 
 type eksSuite struct {
@@ -75,7 +73,8 @@ func TestEKSSuite(t *testing.T) {
 	})
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
-	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.([]byte)
+	kubeconfig, err := json.Marshal(stackOutput.Outputs["kubeconfig"].Value.(map[string]interface{}))
+	require.NoError(t, err)
 
 	kubeconfigFile := path.Join(t.TempDir(), "kubeconfig")
 	require.NoError(t, os.WriteFile(kubeconfigFile, kubeconfig, 0600))
@@ -408,7 +407,7 @@ func (suite *eksSuite) testMetric(metricName string, filterTags []string, expect
 			}
 
 			return nil
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(retryPeriod), maxRetries)))
+		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 7)))
 	})
 }
 
@@ -461,7 +460,7 @@ func (suite *eksSuite) testHPA(namespace, deployment string) {
 			}
 
 			return nil
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(retryPeriod), maxRetries)))
+		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 120)))
 	})
 }
 
