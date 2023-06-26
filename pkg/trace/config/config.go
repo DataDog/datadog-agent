@@ -444,6 +444,7 @@ type RemoteClient interface {
 	Close()
 	Start()
 	Subscribe(string, func(update map[string]state.RawConfig))
+	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 
 // Tag represents a key/value pair.

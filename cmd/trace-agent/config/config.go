@@ -88,7 +88,12 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	}
 	cfg.ConfigPath = path
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewGRPCClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+		client, err := remote.NewGRPCClient(
+			rcClientName,
+			version.AgentVersion,
+			[]data.Product{data.ProductAPMSampling, data.ProductAgentConfig},
+			rcClientPollInterval,
+		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {

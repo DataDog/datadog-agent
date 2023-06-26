@@ -8,10 +8,14 @@ package remoteconfighandler
 import (
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 )
 
@@ -34,10 +38,16 @@ type RemoteConfigHandler struct {
 	errorsSampler   errorsSampler
 	rareSampler     rareSampler
 	agentConfig     *config.AgentConfig
+	configState     *remote.AgentConfigState
 }
 
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
 	if conf.RemoteSamplingClient == nil {
+		return nil
+	}
+
+	level, err := pkglog.GetLogLevel()
+	if err != nil {
 		return nil
 	}
 
@@ -47,6 +57,9 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		rareSampler:     rareSampler,
 		errorsSampler:   errorsSampler,
 		agentConfig:     conf,
+		configState: &remote.AgentConfigState{
+			FallbackLogLevel: level.String(),
+		},
 	}
 }
 
@@ -57,6 +70,45 @@ func (h *RemoteConfigHandler) Start() {
 
 	h.remoteClient.Start()
 	h.remoteClient.Subscribe(state.ProductAPMSampling, h.onUpdate)
+	h.remoteClient.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+}
+
+func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig) {
+	mergedConfig, err := remote.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
+	if err != nil {
+		return
+	}
+
+	if len(mergedConfig.LogLevel) > 0 {
+		pkglog.Infof("Changing log level of the trace-agent to %s through remote config", mergedConfig.LogLevel)
+		// Get the current log level
+		var newFallback seelog.LogLevel
+		newFallback, err = pkglog.GetLogLevel()
+		if err == nil {
+			h.configState.FallbackLogLevel = newFallback.String()
+			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
+			h.configState.LatestLogLevel = mergedConfig.LogLevel
+		}
+	} else {
+		var currentLogLevel seelog.LogLevel
+		currentLogLevel, err = pkglog.GetLogLevel()
+		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
+			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
+			err = settings.SetRuntimeSetting("log_level", h.configState.FallbackLogLevel)
+		}
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if err == nil {
+			h.remoteClient.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			h.remoteClient.UpdateApplyStatus(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
+	}
 }
 
 func (h *RemoteConfigHandler) onUpdate(update map[string]state.RawConfig) {

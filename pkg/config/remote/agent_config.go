@@ -45,6 +45,12 @@ type agentConfigOrderData struct {
 	InternalOrder []string `json:"internal_order"`
 }
 
+// AgentConfigState contains the state of the config in case of fallback or override
+type AgentConfigState struct {
+	FallbackLogLevel string
+	LatestLogLevel   string
+}
+
 // parseConfigAgentConfig parses an agent task config
 func parseConfigAgentConfig(data []byte, metadata state.Metadata) (AgentConfig, error) {
 	var d agentConfigData
@@ -78,7 +84,7 @@ func parseConfigAgentConfigOrder(data []byte, metadata state.Metadata) (AgentCon
 // MergeRCAgentConfig is the callback function called when there is an AGENT_CONFIG config update
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
-func MergeRCAgentConfig(client *Client, updates map[string]state.RawConfig) (ConfigContent, error) {
+func MergeRCAgentConfig(applyStatus func(cfgPath string, status state.ApplyStatus), updates map[string]state.RawConfig) (ConfigContent, error) {
 	var orderFile AgentConfigOrder
 	var hasError bool
 	var fullErr error
@@ -89,7 +95,7 @@ func MergeRCAgentConfig(client *Client, updates map[string]state.RawConfig) (Con
 		if err != nil {
 			hasError = true
 			fullErr = errors.Wrap(fullErr, err.Error())
-			client.UpdateApplyStatus(configPath, state.ApplyStatus{
+			applyStatus(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
@@ -103,7 +109,7 @@ func MergeRCAgentConfig(client *Client, updates map[string]state.RawConfig) (Con
 			if err != nil {
 				hasError = true
 				fullErr = errors.Wrap(fullErr, err.Error())
-				client.UpdateApplyStatus(configPath, state.ApplyStatus{
+				applyStatus(configPath, state.ApplyStatus{
 					State: state.ApplyStateError,
 					Error: err.Error(),
 				})
@@ -114,7 +120,7 @@ func MergeRCAgentConfig(client *Client, updates map[string]state.RawConfig) (Con
 			cfg, err := parseConfigAgentConfig(c.Config, c.Metadata)
 			if err != nil {
 				hasError = true
-				client.UpdateApplyStatus(configPath, state.ApplyStatus{
+				applyStatus(configPath, state.ApplyStatus{
 					State: state.ApplyStateError,
 					Error: err.Error(),
 				})
