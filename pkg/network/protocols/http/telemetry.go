@@ -54,7 +54,7 @@ func NewTelemetry() *Telemetry {
 	return t
 }
 
-func (t *Telemetry) Count(tx HttpTX) {
+func (t *Telemetry) Count(tx Transaction) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
 	case 100:

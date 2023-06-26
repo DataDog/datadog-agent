@@ -24,7 +24,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
 	tel := NewTelemetry()
-	sk := NewHTTPStatkeeper(cfg, tel)
+	sk := NewStatkeeper(cfg, tel)
 
 	srcString := "1.1.1.1"
 	dstString := "2.2.2.2"
@@ -70,7 +70,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
 	tel := NewTelemetry()
-	sk := NewHTTPStatkeeper(cfg, tel)
+	sk := NewStatkeeper(cfg, tel)
 	tx := generateIPv4HTTPTransaction(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
@@ -104,7 +104,7 @@ func TestPathProcessing(t *testing.T) {
 		c.HTTPReplaceRules = rules
 
 		tel := NewTelemetry()
-		return NewHTTPStatkeeper(c, tel)
+		return NewStatkeeper(c, tel)
 	}
 
 	t.Run("reject rule", func(t *testing.T) {
@@ -196,7 +196,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry()
-		sk := NewHTTPStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -220,7 +220,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry()
-		sk := NewHTTPStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -245,7 +245,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry()
-		sk := NewHTTPStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),

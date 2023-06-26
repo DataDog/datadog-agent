@@ -336,14 +336,14 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
-            "pkg/network/protocols/http/http_types.go": [
+            "pkg/network/protocols/http/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",
                 "pkg/network/ebpf/c/protocols/tls/sowatcher-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
-            "pkg/network/protocols/http/http2_types.go": [
+            "pkg/network/protocols/http2/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],

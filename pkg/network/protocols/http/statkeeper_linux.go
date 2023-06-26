@@ -12,5 +12,5 @@ import (
 )
 
 func getPathBufferSize(c *config.Config) int {
-	return int(HTTPBufferSize)
+	return int(BufferSize)
 }
