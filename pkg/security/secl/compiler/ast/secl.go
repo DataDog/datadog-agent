@@ -7,50 +7,74 @@ package ast
 
 import (
 	"bytes"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/alecthomas/participle"
-	"github.com/alecthomas/participle/lexer"
-	"github.com/alecthomas/participle/lexer/ebnf"
+	"github.com/alecthomas/participle/v2"
+	"github.com/alecthomas/participle/v2/lexer"
 )
 
 type ParsingContext struct {
-	ruleParser  *participle.Parser
-	macroParser *participle.Parser
+	ruleParser  *participle.Parser[Rule]
+	macroParser *participle.Parser[Macro]
 }
 
 func NewParsingContext() *ParsingContext {
-	seclLexer := lexer.Must(ebnf.New(`
-Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
-CIDR = IP "/" digit { digit } .
-IP = (ipv4 | ipv6) .
-Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
-Duration = digit { digit } ("m" | "s" | "m" | "h") { "s" } .
-Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
-String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
-Int = [ "-" | "+" ] digit { digit } .
-Punct = "!"…"/" | ":"…"@" | "["…` + "\"`\"" + ` | "{"…"~" .
-Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
-ipv4 = (digit { digit } "." digit { digit } "." digit { digit } "." digit { digit }) .
-ipv6 = ( [hex { hex }] ":" [hex { hex }] ":" [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }]) .
-hex = "a"…"f" | "A"…"F" | "0"…"9" .
-alpha = "a"…"z" | "A"…"Z" .
-digit = "0"…"9" .
-any = "\u0000"…"\uffff" .
-`))
+	/*seclLexer := lexer.Must(ebnf.New(`
+	Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
+	CIDR = IP "/" digit { digit } .
+	IP = (ipv4 | ipv6) .
+	Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
+	Duration = digit { digit } ("m" | "s" | "m" | "h") { "s" } .
+	Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
+	Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
+	String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
+	Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
+	Int = [ "-" | "+" ] digit { digit } .
+	Punct = "!"…"/" | ":"…"@" | "["…` + "\"`\"" + ` | "{"…"~" .
+	Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
+	ipv4 = (digit { digit } "." digit { digit } "." digit { digit } "." digit { digit }) .
+	ipv6 = ( [hex { hex }] ":" [hex { hex }] ":" [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }]) .
+	hex = "a"…"f" | "A"…"F" | "0"…"9" .
+	alpha = "a"…"z" | "A"…"Z" .
+	digit = "0"…"9" .
+	any = "\u0000"…"\uffff" .
+	`))*/
+
+	ipv4 := `([[:digit:]]+\.){3}[[:digit:]]+`
+	ipv6 := `([[:xdigit:]]*(:|\.)){2,7}[[:xdigit:]]*`
+	ip := fmt.Sprintf("(%s)|(%s)", ipv4, ipv6)
+
+	seclLexer := lexer.MustSimple([]lexer.SimpleRule{
+		{Name: "Comment", Pattern: `(#|//)[^\n]*`},
+		{Name: "Whitespace", Pattern: `\s+`},
+
+		{Name: "CIDR", Pattern: fmt.Sprintf(`(%s)/[[:digit:]]+`, ip)},
+		{Name: "IP", Pattern: ip},
+
+		{Name: "Variable", Pattern: `\${([[:alpha:]]|_)([[:alnum:]]|[_\.])*}`},
+		{Name: "Duration", Pattern: `[[:digit:]]+(ms|s|m|h|d)`},
+
+		{Name: "Pattern", Pattern: `~"([^\\"]|\\.)*"`},
+		{Name: "Regexp", Pattern: `r"([^\\"]|\\.)*"`},
+		{Name: "String", Pattern: `"([^\\"]|\\.)*"`},
+
+		{Name: "Ident", Pattern: `([[:alpha:]]|_)([[:alnum:]]|[_\.\[\]])*`},
+		{Name: "Int", Pattern: `[+-]?[[:digit:]]+`},
+
+		{Name: "Punct", Pattern: `[[:punct:]]`},
+	})
 
 	return &ParsingContext{
-		ruleParser:  buildParser(&Rule{}, seclLexer),
-		macroParser: buildParser(&Macro{}, seclLexer),
+		ruleParser:  buildParser[Rule](seclLexer),
+		macroParser: buildParser[Macro](seclLexer),
 	}
 }
 
-func buildParser(obj interface{}, lexer lexer.Definition) *participle.Parser {
-	parser, err := participle.Build(obj,
+func buildParser[T any](lexer lexer.Definition) *participle.Parser[T] {
+	parser, err := participle.Build[T](
 		participle.Lexer(lexer),
 		participle.Elide("Whitespace", "Comment"),
 		participle.Unquote("String"),
@@ -83,13 +107,11 @@ func parseDuration(t lexer.Token) (lexer.Token, error) {
 
 // ParseRule parses a SECL rule.
 func (pc *ParsingContext) ParseRule(expr string) (*Rule, error) {
-	rule := &Rule{}
-	err := pc.ruleParser.Parse(bytes.NewBufferString(expr), rule)
+	rule, err := pc.ruleParser.Parse("", bytes.NewBufferString(expr))
 	if err != nil {
 		return nil, err
 	}
 	rule.Expr = expr
-
 	return rule, nil
 }
 
@@ -103,13 +125,7 @@ type Rule struct {
 
 // ParseMacro parses a SECL macro
 func (pc *ParsingContext) ParseMacro(expr string) (*Macro, error) {
-	macro := &Macro{}
-	err := pc.macroParser.Parse(bytes.NewBufferString(expr), macro)
-	if err != nil {
-		return nil, err
-	}
-
-	return macro, nil
+	return pc.macroParser.Parse("", bytes.NewBufferString(expr))
 }
 
 // Macro describes a SECL macro
