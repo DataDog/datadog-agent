@@ -190,6 +190,7 @@ type soRegistration struct {
 	uniqueProcessesCount atomic.Int32
 	unregisterCB         func(pathIdentifier) error
 
+	// we sharing the telemetry from soRegistry
 	telemetry *soRegistryTelemetry
 }
 
