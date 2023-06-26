@@ -121,7 +121,7 @@ require (
 	github.com/google/go-containerregistry v0.14.0
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
-	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1
+	github.com/google/pprof v0.0.0-20230602150820-91b7bce49751
 	github.com/gorilla/mux v1.8.0
 	github.com/gosnmp/gosnmp v1.34.1-0.20220306115220-ca8397b73095
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
@@ -131,7 +131,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.4
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
-	github.com/iceber/iouring-go v0.0.0-20220609112130-b1dc8dd9fbfd
+	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.7.0
 	github.com/itchyny/gojq v0.12.13
@@ -389,7 +389,7 @@ require (
 	github.com/huandu/xstrings v1.3.3 // indirect
 	github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0 // indirect
 	github.com/ianlancetaylor/cgosymbolizer v0.0.0-20221208003206-eaf69f594683
-	github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639 // indirect
+	github.com/ianlancetaylor/demangle v0.0.0-20230524184225-eabc099b10ab // indirect
 	github.com/in-toto/in-toto-golang v0.8.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
