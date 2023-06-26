@@ -104,7 +104,7 @@ def gen_ssh_key(ctx):
     ctx.run(f"chmod 400 {KMT_DIR}/ddvm_rsa")
 
 
-def init_kernel_matrix_testing_system(ctx):
+def init_kernel_matrix_testing_system(ctx, lite):
     sudo = "sudo" if not is_root() else ""
     ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_DIR}")
     ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_PACKAGES_DIR}")
@@ -125,6 +125,7 @@ def init_kernel_matrix_testing_system(ctx):
     ctx.run(f"{sudo} systemctl restart libvirtd.service")
 
     # download dependencies
-    download_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
-    download_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR)
-    gen_ssh_key(ctx)
+    if not lite:
+        download_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
+        download_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR)
+        gen_ssh_key(ctx)

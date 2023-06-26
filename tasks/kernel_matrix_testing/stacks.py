@@ -212,10 +212,11 @@ def resume_stack(ctx, stack=None, branch=False):
     resume_domains(conn, stack)
     conn.close()
 
-def info(ctx, stack=None, branch=False)
+def info(ctx, stack=None, branch=False):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-    conn = libvirt.open("qemu:///system")
-    list_domains(conn, stack)
-    conn.close()
+#    conn = libvirt.open("qemu:///system")
+#    list_domains(conn, stack)
+#    conn.close()
+    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.output")

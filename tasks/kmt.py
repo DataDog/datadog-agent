@@ -56,8 +56,8 @@ def info(ctx, stack=None, branch=False):
     stacks.info(ctx, stacks, branch)
 
 @task
-def init(ctx):
-    init_kernel_matrix_testing_system(ctx)
+def init(ctx, lite=False):
+    init_kernel_matrix_testing_system(ctx, lite)
 
 
 @task

@@ -79,7 +79,7 @@ def pause_domains(conn, stack):
         domain.destroy()
         info(f"[+] VM {name} is paused")
 
-def resume_domains(conn, stack)
+def resume_domains(conn, stack):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
     info (f"[*] {len(domains)} VMs running in stack {stack}")
 

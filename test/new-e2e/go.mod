@@ -23,7 +23,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/fatih/color v1.13.0
-	github.com/pulumi/pulumi-command/sdk v0.7.2
+	github.com/pulumi/pulumi-command/sdk v0.7.2 // indirect
 	github.com/pulumi/pulumi/sdk/v3 v3.72.2
 	github.com/samber/lo v1.38.1
 	github.com/sethvargo/go-retry v0.2.4
@@ -44,7 +44,7 @@ require (
 require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
-	github.com/ProtonMail/go-crypto v0.0.0-20230528122434-6f98819771a1 // indirect
+	github.com/ProtonMail/go-crypto v0.0.0-20230626094100-7e9e0395ebec // indirect
 	github.com/acomagu/bufpipe v1.0.4 // indirect
 	github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
