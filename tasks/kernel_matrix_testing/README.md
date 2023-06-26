@@ -1,0 +1,159 @@
+# Kernel Matrix Testing system
+
+## Overview
+The Kernel Matrix Testing system is a new approach for testing system-probe. It uses libvirt and qemu to launch pre-provisioned VMs over a range of distributions and kernel versions. These VMs are used for running the test suite of system-probe.  
+
+Developers can check out this confluence page for more details about the system.   
+
+This file will document invoke tasks provided to easily interact with this system for launching VMs remotely, or locally. Tasks for managing the lifecycle of the VMs are also provided.
+
+The system works on the concept of `stacks`. A `stack` is a collection of VMs, both local and remote. A `stack` is given a unique name by the user. Convenience options for generating the name of the `stack` from the current branch is also provided. This allows the developers to couple `stacks` with their git workflow.
+A `stack` may be:
+- Created
+- Configured
+- Launched
+- Paused
+- Resumed
+- Destroyed
+
+All subsequenct command are assumed to be executed from the root of the datadog-agent repository.
+
+## Getting started
+A straightforward flow to setup a collections of VMs is as follows:
+
+### Initializing the environment
+This will download all the resources required to launch the VMs. This will not download the dependencies. See [above](#Dependencies) for that.   
+
+> This step should be done only once.
+
+```bash
+inv -e kmt.init
+```
+
+> You may skip the downloading part if you are not setting up VMs locally. This is true for mac users for now! Linux users should not skip the download.
+```bash
+inv -e kmt.init --lite
+```
+
+### Create stack
+```bash
+inv -e kmt.create-stack --stack=demo-stack
+```
+
+### Configure stack
+We will configure the stack to launch 
+- Remote x86_64 machine with ubuntu-jammy, ubuntu-focal VMs.
+- Remote arm64 machine with amazon linux 2 kernel 4.14, amazon linux 2 kernel 5.10 VMs.
+- Amazon linux 2 kernel 5.15, amazon linux 2 kernel 5.4 VMs on local machine.
+```bash
+inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro,local-amazon5.15-distro,local-amazon5.4-distro --stack=demo-stack
+```
+
+### Launch stack
+This will bring up all the VMs previously configured.
+```bash
+# SSH key name for the key to use for launchine remote machine in sandbox
+# The tasks will automatically look for the key in ~/.ssh
+inv -e kmt.launch-stack --stack=demo-stack --ssh-key=<ssh-key>
+```
+
+### Destroy stack
+Tear down the stack
+```bash
+inv -e kmt.destroy-stack --stack=demo-stack
+```
+
+## Tasks
+
+### Creating a stack
+A stack can be created as follows:
+```bash
+inv -e kmt.create-stack [--stack=<name>|--branch]
+```
+The developer needs to provide a name to associate with the `stack`, or specify the `--branch` argument to generate the name from the current branch.
+
+### Configuring the stack
+Configuring the stack involves generating a configuration file which specifies the the VMs to launch. Henceforth, this file will be referred to as the `vmsets` file.
+
+The `vmsets` file contains the list of one or more sets of VMs to launch. A set of VMs refers to a collection of VMs sharing some characteristic. The following is an exhaustive list of possible sets:
+
+- Custom x86_64 kernels on remote x86_64 machine.
+- Custom arm64 kernels on remote arm64 machine.
+- Custom kernels on local machine with corresponding architecture.
+- x86_64 distribution on remote x86_64 machine.
+- arm64 distribution on remote arm64 machine.
+- local distribution with architecutre corresponding to the local machine.
+
+Sample VMSet file can be found [here](https://github.com/DataDog/test-infra-definitions/blob/f85e7eb2f003b6f9693c851549fbb7f3969b8ade/scenarios/aws/microVMs/sample-vm-config.json).
+
+
+The file can be generated for a particular stack with the `gen-config` task.   
+This task takes as parameters
+- The stack to target specified with [--stack=<name>|--branch] 
+- The list of VMS to generate specified by --vms=<list>. See [VMs list](#vms-list) for details on how to specify the list.
+- Optional paramenter `--init-stack` to automatically initialize the stack. This can be specified to automatically run the creating stack step.
+- Optional parameter `--new` to generate a fresh configuration file.
+
+The file can be incrementally generated. This means a user may generate a vmset file. Launch it. Add more VMs. Launch them in the same stack.
+
+#### Example 1
+```bash
+# Setup configuration file to launch jammy and focal locally. Initialize a new stack corresponding to the current branch
+inv -e kmt.gen-config --branch --vms=jammy-local-distro,focal-local-distro --init-stack
+# Launch this stack. Since we are launching local VMs, there is no need to specify ssh key.
+inv -e kmt.launch-stack --branch
+# Add amazon linux VMs to be launched locally
+inv -e kmt.gen-config --branch --vms=amazon4.14-local-distro,distro-local-amazon5.15,distro-local-amazon5.10
+# Launch the new VMs added. The previous VMs will keep running
+inv -e kmt.launch-stack --branch
+# Remove all VMs except amazon linux 2 4.14 locally
+inv -e kmt.gen-config --branch --new --vms=amazon4.14-local-distro
+# Apply this configuration
+inv -e kmt.launch-stack --branch
+```
+
+#### Example 2
+```bash
+# Setup configuration file to launch ubuntu VMs on remote x86_64 and arm64 machines
+inv -e kmt.gen-config --branch --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
+# Name of the ssh key to use 
+inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
+# Add amazon linux
+inv -e kmt.gen-config --branch --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
+# Name of the ssh key to use 
+inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
+```
+
+#### Example 3
+```bash
+# Configure custom kernels
+inv -e kmt.gen-config --branch --vms=custom-5.4-local,custom-4.14-local,custom-5.7-arm64
+# Launch stack
+inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
+```
+
+### VMs List
+The vms list is a comma separated list of vm entries. These are the VMs launch in the stack.   
+Each entry comprises of three elemets seperate by `-` (dash).
+1. Recipe. This is either `custom` or `distro`. `distro` is to be specified for distribution images and `custom` for custom kernels.
+2. Arch. Architecture is either `x86_64` or `arm64`
+3. Version. This is either the distribution version for recipe `distro` or kernel version for recipe `custom`.
+
+The vm entry is parsed by in a fuzzy manner. Therefore each element can be inexact. Furthermore the order of the elements is not important either. The entry is only required to consist of `<recipe>-<arch|local>-<version>` in some order.
+
+#### Example 1
+ > jammy-local-distro distro-local-jammy local-ubuntu22-distro
+
+ All of the above resolve to the entry [ubuntu-22, local, dist
+
+
+#### Example 2
+> amazon4.14-x86-distro distro-x86_64-amazon4.14 amzn_4.14-amd64-distro 4.14amazon-distro-x86
+
+All of the above resolve to [amazon linux 2 4.14, x86_64, distro]
+
+
+#### Example 3
+> custom-arm-5.4 5.4-arm64-custom custom-5.4-aarch64`
+
+All of the above resolve to [kernel 5.4, arm64, custom]
