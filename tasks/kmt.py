@@ -33,6 +33,7 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
     vmconfig.gen_config(ctx, stack, branch, vms, init_stack, vcpu, memory, new)
 
 
+@task
 def launch_stack(
     ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0ea4588b47bb10aac", arm_ami="ami-0f7cd5e8852bde813"
 ):
