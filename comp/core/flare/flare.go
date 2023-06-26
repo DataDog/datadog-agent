@@ -82,6 +82,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task rcclient.Agent
 // Send sends a flare archive to Datadog
 func (f *flare) Send(flarePath string, caseID string, email string, source string) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
+	// The `source` is the reason why the flare was created, for now it's either local or remote-config
 	return helpers.SendTo(flarePath, caseID, email, source, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config))
 }
 
