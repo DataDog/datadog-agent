@@ -208,6 +208,7 @@ kernel_matrix_testing_upload_deps:
   tags: ["arch:amd64"]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    RETRY: 2
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
@@ -222,12 +223,12 @@ kernel_matrix_testing_upload_deps:
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
     - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH.$TAG | cut -d ' ' -f 1)
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION}'"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/junit-${MICRO_VM_IP}.tar.gz /home/ubuntu/junit-${MICRO_VM_IP}.tar.gz"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/testjson-${MICRO_VM_IP}.tar.gz /home/ubuntu/testjson-${MICRO_VM_IP}.tar.gz"
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-testjson-$MICRO_VM_NAME.tar.gz
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-junit-$MICRO_VM_NAME.tar.gz
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} '/test-json-review /testjson/out.json'"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION} ${RETRY}'"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/junit-*.tar.gz /home/ubuntu/"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/testjson-*.tar.gz /home/ubuntu/"
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson-*.tar.gz $DD_AGENT_TESTING_DIR/
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit-*.tar.gz $DD_AGENT_TESTING_DIR/
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} '/test-json-review'"
 
 kernel_matrix_testing_run_tests_x64:
   extends:
@@ -259,3 +260,4 @@ kernel_matrix_testing_cleanup:
     - INSTANCE_IDS=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi" "Name=private-ip-address,Values=$INSTANCE_IPS" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
     - echo $INSTANCE_IDS
     - aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
+  when: always
