@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/traceinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -43,6 +44,10 @@ func Run(cloudService cloudservice.CloudService, logConfig *serverlessLog.Config
 
 func execute(cloudService cloudservice.CloudService, config *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) error {
 	commandName, commandArgs := buildCommandParam(args)
+
+	// Add our tracer settings
+	traceinstrumentation.AutoInstrumentTracer()
+
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &serverlessLog.CustomWriter{
 		LogConfig: config,
