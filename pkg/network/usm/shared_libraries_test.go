@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -118,15 +119,16 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	telEqual := func(t *testing.T, expected int64, m string) {
 		require.Equal(t, expected, tel[m], m)
 	}
-	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
-	telEqual(t, 0, "usm.shared_libraries.already_registered")
-	telEqual(t, 0, "usm.shared_libraries.blocked")
-	telEqual(t, 1, "usm.shared_libraries.matches")
-	telEqual(t, 1, "usm.shared_libraries.registered")
-	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
-	telEqual(t, 1, "usm.shared_libraries.unregister_no_callback")
-	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
-	telEqual(t, 1, "usm.shared_libraries.unregistered")
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 0, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 1, "usm.so_watcher.matches")
+	telEqual(t, 1, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace() {
@@ -194,15 +196,16 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	telEqual := func(t *testing.T, expected int64, m string) {
 		require.Equal(t, expected, tel[m], m)
 	}
-	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
-	telEqual(t, 0, "usm.shared_libraries.already_registered")
-	telEqual(t, 0, "usm.shared_libraries.blocked")
-	telEqual(t, 1, "usm.shared_libraries.matches")
-	telEqual(t, 1, "usm.shared_libraries.registered")
-	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
-	telEqual(t, 1, "usm.shared_libraries.unregister_no_callback")
-	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
-	telEqual(t, 1, "usm.shared_libraries.unregistered")
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 0, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 1, "usm.so_watcher.matches")
+	telEqual(t, 1, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSameInodeRegression() {
@@ -263,15 +266,16 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	telEqual := func(t *testing.T, expected int64, m string) {
 		require.Equal(t, expected, tel[m], m)
 	}
-	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
-	telEqual(t, 1, "usm.shared_libraries.already_registered")
-	telEqual(t, 0, "usm.shared_libraries.blocked")
-	telEqual(t, 2, "usm.shared_libraries.matches") // command1 access to 2 files
-	telEqual(t, 1, "usm.shared_libraries.registered")
-	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
-	telEqual(t, 1, "usm.shared_libraries.unregister_no_callback")
-	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
-	telEqual(t, 1, "usm.shared_libraries.unregistered")
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 1, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 2, "usm.so_watcher.matches") // command1 access to 2 files
+	telEqual(t, 1, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
+	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
@@ -282,7 +286,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2.so")
 
 	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
-	unregisterCB := func(id pathIdentifier) error { return nil }
+	unregisterCB := func(id pathIdentifier) error { return errors.New("fake unregisterCB error") }
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
@@ -360,15 +364,16 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	telEqual := func(t *testing.T, expected int64, m string) {
 		require.Equal(t, expected, tel[m], m)
 	}
-	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
-	telEqual(t, 1, "usm.shared_libraries.already_registered")
-	telEqual(t, 0, "usm.shared_libraries.blocked")
-	telEqual(t, 3, "usm.shared_libraries.matches") // command1 access to 2 files, command2 access to 1 file
-	telEqual(t, 2, "usm.shared_libraries.registered")
-	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
-	telEqual(t, 0, "usm.shared_libraries.unregister_no_callback")
-	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
-	telEqual(t, 2, "usm.shared_libraries.unregistered")
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 1, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 3, "usm.so_watcher.matches") // command1 access to 2 files, command2 access to 1 file
+	telEqual(t, 2, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 2, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
+	telEqual(t, 2, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
@@ -445,15 +450,16 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	telEqual := func(t *testing.T, expected int64, m string) {
 		require.Equal(t, expected, tel[m], m)
 	}
-	require.GreaterOrEqual(t, tel["usm.shared_libraries.hits"], tel["usm.shared_libraries.matches"], "usm.shared_libraries.hits")
-	telEqual(t, 1, "usm.shared_libraries.already_registered")
-	telEqual(t, 0, "usm.shared_libraries.blocked")
-	telEqual(t, 3, "usm.shared_libraries.matches") // command1 access to 2 files, command2 access to 1 file
-	telEqual(t, 2, "usm.shared_libraries.registered")
-	telEqual(t, 0, "usm.shared_libraries.unregister_errors")
-	telEqual(t, 0, "usm.shared_libraries.unregister_no_callback")
-	telEqual(t, 0, "usm.shared_libraries.unregister_pathid_not_found")
-	telEqual(t, 2, "usm.shared_libraries.unregistered")
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 1, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 3, "usm.so_watcher.matches") // command1 access to 2 files, command2 access to 1 file
+	telEqual(t, 2, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
+	telEqual(t, 2, "usm.so_watcher.unregistered")
 }
 
 func buildSOWatcherClientBin(t *testing.T) string {
