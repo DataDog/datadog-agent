@@ -20,11 +20,11 @@ def create_stack(ctx, stack=None, branch=False):
 
 @task(
     help={
-        "vms": "Comma seperated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",
+        "vms": "Comma separated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",
         "stack": "Name of the stack within which to generate the configuration file",
         "branch": "Generate stack name from the current branch",
-        "vcpu": "Comma seperated list of CPUs, to launch each VM with",
-        "memory": "Comma seperated list of memory to launch each VM with. Automatically rounded up to power of 2",
+        "vcpu": "Comma separated list of CPUs, to launch each VM with",
+        "memory": "Comma separated list of memory to launch each VM with. Automatically rounded up to power of 2",
         "new": "Generate new configuration file instead of appending to existing one within the provided stack",
         "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>|--branch]'",
     }
