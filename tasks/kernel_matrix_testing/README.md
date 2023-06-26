@@ -18,6 +18,31 @@ A `stack` may be:
 
 > All subsequenct command are assumed to be executed from the root of the datadog-agent repository.
 
+## Dependencies
+```bash
+apt update
+apt install -y \
+    fio \
+    socat \
+    qemu-kvm \
+    libvirt-daemon-system \
+    curl \
+    debootstrap \
+    libguestfs-tools \
+    libvirt-dev \
+    python3-pip \
+    nfs-kernel-server \
+    rpcbind
+
+if [ "$(uname -m )" == "aarch64" ]; then
+    apt install -y qemu-efi-aarch64
+fi
+
+pip install -r tasks/kernel_matrix_testing/requirements.txt
+```
+
+systemctl start nfs-kernel-server.service
+
 ## Getting started
 A straightforward flow to setup a collections of VMs is as follows:
 
@@ -172,5 +197,5 @@ All of the below resolve to [amazon linux 2 4.14, x86_64, distro]
 All of the below resolve to [kernel 5.4, arm64, custom]
 - custom-arm-5.4
 - 5.4-arm64-custom
-- custom-5.4-aarch64`
+- custom-5.4-aarch64
 
