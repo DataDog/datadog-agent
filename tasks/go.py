@@ -230,7 +230,7 @@ def generate_protobuf(ctx):
     # msgp patches key is `pkg` : (patch, destination)
     #     if `destination` is `None` diff will target inherent patch files
     msgp_patches = {
-        'trace': [('0001-Customize-msgpack-parsing.patch', 'span_gen.go'), ('0001-Make-nil-map-deserialization-retrocompatible.patch', 'span_gen.go')],
+        'trace': [('0001-Customize-msgpack-parsing.patch', 'span_gen.go'), ('0002-Make-nil-map-deserialization-retrocompatible.patch', 'span_gen.go'), ('0003-pkg-trace-traceutil-credit-card-obfuscation-9213.patch', 'span_gen.go')],
     }
 
     base = os.path.dirname(os.path.abspath(__file__))
