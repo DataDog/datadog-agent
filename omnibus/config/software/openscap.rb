@@ -46,6 +46,7 @@ build do
   patch source: "dpkginfo-init.patch", env: env # fix memory leak of pkgcache in dpkginfo probe
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
+  patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
