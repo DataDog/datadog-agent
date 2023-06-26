@@ -22,6 +22,7 @@ A `stack` may be:
 ```bash
 apt update
 apt install -y \
+    aria2 \
     fio \
     socat \
     qemu-kvm \
