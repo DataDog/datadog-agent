@@ -6,6 +6,8 @@
 package inferredspan
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -216,6 +218,16 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload eve
 		objectETag:    eventRecord.S3.Object.ETag,
 	}
 }
+type BodyStruct struct {
+    MessageAttributes map[string]struct {
+        Type  string `json:"Type"`
+        Value string `json:"Value"`
+    } `json:"MessageAttributes"`
+}
+
+type DatadogAttribute struct {
+    XDatadogTraceID string `json:"x-datadog-trace-id"`
+}
 
 // EnrichInferredSpanWithSQSEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
@@ -226,12 +238,43 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	parsedQueueName := splitArn[len(splitArn)-1]
 	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
 	serviceName := DetermineServiceName(serviceMapping, parsedQueueName, "lambda_sqs", "sqs")
+	
+	body := eventRecord.Body
+    bodyStruct := new(BodyStruct)
+    err := json.Unmarshal([]byte(body), bodyStruct)
+    if err != nil {
+        log.Error("Error parsing body: %v", err)
+    }
 
+    // Get the _datadog attribute value
+    datadogAttrStr := bodyStruct.MessageAttributes["_datadog"].Value
+
+    // Base64 decode the _datadog attribute (if needed)
+    datadogAttrData, err := base64.StdEncoding.DecodeString(datadogAttrStr)
+    if err != nil {
+        log.Error("Error decoding _datadog attribute: %v", err)
+    }
+
+    // Parse _datadog attribute from JSON
+    datadogAttr := new(DatadogAttribute)
+    err = json.Unmarshal(datadogAttrData, datadogAttr)
+    if err != nil {
+        log.Error("Error parsing _datadog attribute: %v", err)
+    }
+
+    // Get the x-datadog-trace-id
+    xDatadogTraceID := datadogAttr.XDatadogTraceID
+    fmt.Printf("x-datadog-trace-id: %s\n", xDatadogTraceID)
+	uint64TraceID, err := strconv.ParseUint(xDatadogTraceID, 10, 64)
+	if err != nil {
+		fmt.Println(err)
+	}
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sqs"
 	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Resource = parsedQueueName
+	inferredSpan.Span.TraceID = uint64TraceID
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName:  "aws.sqs",
