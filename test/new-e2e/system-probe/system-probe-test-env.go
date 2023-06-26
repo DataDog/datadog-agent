@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
+	commonConfig "github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/command"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
 	pulumiCommand "github.com/pulumi/pulumi-command/sdk/go/command"
 	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
@@ -44,6 +44,7 @@ type SystemProbeEnvOpts struct {
 	FailOnMissing         bool
 	UploadDependencies    bool
 	DependenciesDirectory string
+	Subnets               string
 }
 
 type TestEnv struct {
@@ -100,11 +101,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
-		runner.AwsKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
+		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
 		// Its fine to hardcode the password here, since the remote ec2 instances do not have
 		// any password on sudo. This secret configuration was introduced in the test-infra-definitions
 		// scenario for dev environments: https://github.com/DataDog/test-infra-definitions/pull/159
-		"sudo-password":                          auto.ConfigValue{Value: "", Secret: true},
+		"sudo-password-remote":                   auto.ConfigValue{Value: "", Secret: true},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
 		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
@@ -125,18 +126,23 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		config["ddinfra:aws/defaultPrivateKeyPath"] = auto.ConfigValue{Value: ""}
 	}
 
+	// Specify the subnets to use instead of default ones
+	if opts.Subnets != "" {
+		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: opts.Subnets}
+	}
+
 	var upResult auto.UpResult
 	ctx := context.Background()
 	b := retry.NewConstant(3 * time.Second)
 	b = retry.WithMaxRetries(3, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-			awsEnvironment, err := aws.NewEnvironment(ctx)
+			commonEnv, err := commonConfig.NewCommonEnvironment(ctx)
 			if err != nil {
-				return fmt.Errorf("aws new environment: %w", err)
+				return fmt.Errorf("common environment: %w", err)
 			}
 
-			scenarioDone, err := microvms.RunAndReturnInstances(awsEnvironment)
+			scenarioDone, err := microvms.RunAndReturnInstances(commonEnv)
 			if err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
@@ -147,7 +153,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				return fmt.Errorf("failed to get command provider: %w", err)
 			}
 			for _, instance := range scenarioDone.Instances {
-				remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, command.RunnerArgs{
+				remoteRunner, err := command.NewRunner(commonEnv, command.RunnerArgs{
 					ConnectionName: "remote-runner-" + instance.Arch,
 					Connection:     instance.Connection,
 					ReadyFunc: func(r *command.Runner) (*remote.Command, error) {
@@ -155,6 +161,9 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 					},
 					OSCommand: osCommand,
 				})
+				if err != nil {
+					return fmt.Errorf("new runner: %w", err)
+				}
 
 				if opts.UploadDependencies {
 					// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'

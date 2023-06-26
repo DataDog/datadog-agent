@@ -46,6 +46,7 @@ func main() {
 	sshKeyName := flag.String("ssh-key-name", "", "name of ssh key pair to use for ec2 instances")
 	infraEnv := flag.String("infra-env", "", "name of infra env to use")
 	dependenciesDirectoryPtr := flag.String("dependencies-dir", DD_AGENT_TESTING_DIR, "directory where dependencies package is present")
+	subnetsPtr := flag.String("subnets", "", "list of subnets to use")
 
 	flag.Parse()
 
@@ -65,6 +66,7 @@ func main() {
 		SSHKeyName:            *sshKeyName,
 		InfraEnv:              *infraEnv,
 		DependenciesDirectory: *dependenciesDirectoryPtr,
+		Subnets:               *subnetsPtr,
 	}
 
 	fmt.Printf("shutdown period: %d\n", opts.ShutdownPeriod)

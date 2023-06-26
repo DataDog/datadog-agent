@@ -33,7 +33,7 @@ namespace Datadog.CustomActions
             public const int ProgressAddition = 1;
         }
 
-        static void Decompress(string compressedFileName)
+        static void Decompress(ISession session, string compressedFileName)
         {
             var decoder = new SevenZip.Compression.LZMA.Decoder();
             using (var inStream = File.OpenRead(compressedFileName))
@@ -61,6 +61,7 @@ namespace Datadog.CustomActions
 
         private static ActionResult DecompressPythonDistribution(
             ISession session,
+            string outputDirectoryName,
             string compressedDistributionFile,
             string pythonDistributionName,
             int pythonDistributionSize)
@@ -70,6 +71,20 @@ namespace Datadog.CustomActions
             try
             {
                 var embedded = Path.Combine(projectLocation, compressedDistributionFile);
+                var outputPath = Path.Combine(projectLocation, outputDirectoryName);
+
+                // ensure extract result directory is empty so that we don't merge the directories
+                // for different installs. The uninstaller should have already removed/backed up its
+                // embedded directories, so this is just in case the uninstaller failed to do so.
+                if (Directory.Exists(outputPath))
+                {
+                    session.Log($"Deleting directory \"{outputPath}\"");
+                    Directory.Delete(outputPath, true);
+                }
+                else
+                {
+                    session.Log($"{outputPath} not found, skip deletion.");
+                }
 
                 if (File.Exists(embedded))
                 {
@@ -87,7 +102,7 @@ namespace Datadog.CustomActions
                             );
                         session.Message(InstallMessage.Progress, record);
                     }
-                    Decompress(embedded);
+                    Decompress(session, embedded);
                     {
                         using var record = new Record(MessageRecordFields.ProgressReport, pythonDistributionSize);
                         session.Message(InstallMessage.Progress, record);
@@ -120,7 +135,7 @@ namespace Datadog.CustomActions
             {
                 size = int.Parse(embedded2Size);
             }
-            var actionResult = DecompressPythonDistribution(session, "embedded2.COMPRESSED", "Python 2", size);
+            var actionResult = DecompressPythonDistribution(session, "embedded2", "embedded2.COMPRESSED", "Python 2", size);
             if (actionResult != ActionResult.Success)
             {
                 return actionResult;
@@ -130,7 +145,7 @@ namespace Datadog.CustomActions
             {
                 size  = int.Parse(embedded3Size);
             }
-            return DecompressPythonDistribution(session, "embedded3.COMPRESSED", "Python 3", size);
+            return DecompressPythonDistribution(session, "embedded3", "embedded3.COMPRESSED", "Python 3", size);
         }
 
         [CustomAction]

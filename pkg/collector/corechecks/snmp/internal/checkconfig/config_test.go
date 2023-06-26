@@ -49,7 +49,7 @@ metrics:
     OID: 1.3.6.1.4.1.318.1.1.1.11.1.1.0
     name: upsBasicStateOutputState
     scale_factor: 10
-  forced_type: flag_stream
+  metric_type: flag_stream
   options:
     placement: 5
     metric_suffix: ReplaceBattery
@@ -157,7 +157,7 @@ bulk_max_repetitions: 20
 			{symbolTag: "mytag1"},
 			{symbolTag: "mytag2"},
 		}},
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState", ScaleFactor: 10}, ForcedType: "flag_stream", Options: MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}},
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState", ScaleFactor: 10}, MetricType: ProfileMetricTypeFlagStream, Options: MetricsConfigOption{Placement: 5, MetricSuffix: "ReplaceBattery"}},
 		{
 			Symbols: []SymbolConfig{
 				// ifInErrors defined in instance config with a different set of metric tags from the one defined
@@ -307,7 +307,7 @@ profiles:
           tag: snmp_host
       metrics:
         - MIB: MY-PROFILE-MIB
-          forced_type: gauge
+          metric_type: gauge
           symbol:
             OID: 1.4.5
             name: myMetric
@@ -318,7 +318,7 @@ profiles:
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.GetStaticTags())
 	metrics := []MetricsConfig{
 		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{Symbol: SymbolConfig{OID: "1.4.5", Name: "myMetric"}, ForcedType: "gauge"},
+		{Symbol: SymbolConfig{OID: "1.4.5", Name: "myMetric"}, MetricType: ProfileMetricTypeGauge},
 	}
 
 	metricsTags := []MetricTagConfig{
@@ -1155,7 +1155,7 @@ func Test_getSubnetFromTags(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.0/30", subnet)
 
-	// make sure we don't panic if the subnet if empty
+	// make sure we don't panic if the subnet is empty
 	subnet, err = getSubnetFromTags([]string{"aa", "autodiscovery_subnet:", "bb"})
 	assert.NoError(t, err)
 	assert.Equal(t, "", subnet)

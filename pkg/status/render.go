@@ -14,7 +14,7 @@ import (
 	"path"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -41,7 +41,7 @@ func FormatStatus(data []byte) (string, error) {
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	aggregatorStats := stats["aggregatorStats"]
-	s, err := check.TranslateEventPlatformEventTypes(aggregatorStats)
+	s, err := checkstats.TranslateEventPlatformEventTypes(aggregatorStats)
 	if err != nil {
 		log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
 	} else {

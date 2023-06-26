@@ -692,8 +692,8 @@ def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
     Use --no-test-version to commit without the _test_only suffixes
     """
     branch_name = verify_workspace(ctx, branch_name=branch_name)
-    update_gitlab_ci(image_tag, test_version=test_version)
-    update_circle_ci(image_tag, test_version=test_version)
+    update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
+    update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
     commit_and_push(ctx, branch_name=branch_name)
     # Trigger a build on the pipeline
     run(ctx, here=True)
@@ -711,16 +711,16 @@ def verify_workspace(ctx, branch_name):
     return branch_name
 
 
-def update_gitlab_ci(image_tag, test_version):
+def update_gitlab_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
     """
-    with open(".gitlab-ci.yml", "r") as gl:
+    with open(file_path, "r") as gl:
         file_content = gl.readlines()
     gitlab_ci = yaml.safe_load("".join(file_content))
     suffixes = [name for name in gitlab_ci["variables"].keys() if name.endswith("SUFFIX")]
     images = [name.replace("_SUFFIX", "") for name in suffixes]
-    with open(".gitlab-ci.yml", "w") as gl:
+    with open(file_path, "w") as gl:
         for line in file_content:
             if test_version and any(re.search(fr"{suffix}:", line) for suffix in suffixes):
                 gl.write(line.replace('""', '"_test_only"'))
@@ -736,19 +736,19 @@ def update_gitlab_ci(image_tag, test_version):
                 gl.write(line)
 
 
-def update_circle_ci(image_tag, test_version):
+def update_circleci_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
     """
     image_name = "datadog/datadog-agent-runner-circle"
-    with open(".circleci/config.yml", "r") as circle:
+    with open(file_path, "r") as circle:
         circle_ci = circle.read()
     if test_version:
         image_tag += "_test_only"
     match = re.search(rf"{image_name}:(\w+)\n", circle_ci)
     if not match:
         raise RuntimeError(f"Impossible to find the version of image {image_name} in circleci configuration file")
-    with open(".circleci/config.yml", "w") as circle:
+    with open(file_path, "w") as circle:
         circle.write(circle_ci.replace(match.group(1), image_tag))
 
 

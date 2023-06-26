@@ -154,12 +154,30 @@ type RuntimeSecurityConfig struct {
 	AnomalyDetectionWorkloadWarmupPeriod time.Duration
 	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
 	AnomalyDetectionRateLimiter time.Duration
+	// AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the
+	// rules they might have matched.
+	AnomalyDetectionTagRulesEnabled bool
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
 	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
 	// the SBOMs of short-lived and periodical workloads
 	SBOMResolverWorkloadsCacheSize int
+
+	// HashResolverEnabled defines if the hash resolver should be enabled
+	HashResolverEnabled bool
+	// HashResolverMaxFileSize defines the maximum size of the files that the hash resolver is allowed to hash
+	HashResolverMaxFileSize int64
+	// HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes
+	HashResolverMaxHashRate int
+	// HashResolverMaxHashBurst defines the burst of files for which the hash resolver may compute a hash
+	HashResolverMaxHashBurst int
+	// HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute
+	HashResolverHashAlgorithms []model.HashAlgorithm
+	// HashResolverEventTypes defines the list of event which files may be hashed
+	HashResolverEventTypes []model.EventType
+	// HashResolverCacheSize defines the number of hashes to keep in cache
+	HashResolverCacheSize int
 }
 
 // Config defines a security config
@@ -249,6 +267,15 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SBOMResolverEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
 
+		// Hash resolver
+		HashResolverEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.hash_resolver.enabled"),
+		HashResolverEventTypes:     model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.event_types")),
+		HashResolverMaxFileSize:    coreconfig.SystemProbe.GetInt64("runtime_security_config.hash_resolver.max_file_size"),
+		HashResolverHashAlgorithms: model.ParseHashAlgorithmStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
+		HashResolverMaxHashBurst:   coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
+		HashResolverMaxHashRate:    coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
+		HashResolverCacheSize:      coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.cache_size"),
+
 		// security profiles
 		SecurityProfileEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
 		SecurityProfileDir:              coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
@@ -265,6 +292,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
 		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
+		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

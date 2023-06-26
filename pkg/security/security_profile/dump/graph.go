@@ -47,7 +47,7 @@ func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
 	title := fmt.Sprintf("%s: %s", ad.Metadata.Name, ad.getSelectorStr())
 	var resolver *process.Resolver
 	if ad.adm != nil {
-		resolver = ad.adm.processResolver
+		resolver = ad.adm.resolvers.ProcessResolver
 	}
 	data := ad.ActivityTree.PrepareGraphData(title, resolver)
 	t := template.Must(template.New("tmpl").Parse(ActivityDumpGraphTemplate))

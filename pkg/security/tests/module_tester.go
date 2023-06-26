@@ -60,6 +60,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -304,7 +305,7 @@ type testModule struct {
 	probe         *sprobe.Probe
 	eventHandlers eventHandlers
 	cmdWrapper    cmdWrapper
-	statsdClient  *StatsdClient
+	statsdClient  *statsdclient.StatsdClient
 	proFile       *os.File
 	ruleEngine    *rulesmodule.RuleEngine
 }
@@ -864,11 +865,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	emconfig, secconfig, err := genTestConfigs(st.root, opts, st.root)
-	if err != nil {
-		return nil, err
-	}
-
 	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
@@ -903,9 +899,14 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
+	emconfig, secconfig, err := genTestConfigs(st.root, opts, st.root)
+	if err != nil {
+		return nil, err
+	}
+
 	t.Log("Instantiating a new security module")
 
-	statsdClient := NewStatsdClient()
+	statsdClient := statsdclient.NewStatsdClient()
 
 	testMod = &testModule{
 		secconfig:     secconfig,
@@ -921,9 +922,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: probe.Opts{
-			StatsdClient:          statsdClient,
-			DontDiscardRuntime:    true,
-			PathResolutionEnabled: true,
+			StatsdClient:              statsdClient,
+			DontDiscardRuntime:        true,
+			PathResolutionEnabled:     true,
+			SyscallsMapMonitorEnabled: true,
 		},
 	}
 	if opts.tagsResolver != nil {
@@ -1508,6 +1510,13 @@ func (tm *testModule) validateAbnormalPaths() {
 	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
 }
 
+func (tm *testModule) validateSyscallsInFlight() {
+	inflight := tm.statsdClient.GetByPrefix("datadog.runtime_security.syscalls_map.event_inflight:event_type:")
+	for key, value := range inflight {
+		assert.Greater(tm.t, int64(1024), value, "event type: %s leaked: %d", key, value)
+	}
+}
+
 func (tm *testModule) Close() {
 	if !tm.opts.disableRuntimeSecurity {
 		tm.eventMonitor.SendStats()
@@ -1516,6 +1525,9 @@ func (tm *testModule) Close() {
 	if !tm.opts.disableAbnormalPathCheck {
 		tm.validateAbnormalPaths()
 	}
+
+	// make sure we don't leak syscalls
+	tm.validateSyscallsInFlight()
 
 	tm.statsdClient.Flush()
 

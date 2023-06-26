@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -33,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
@@ -66,7 +68,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
-	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 
 	var (
 		mux          sync.Mutex
@@ -82,11 +84,12 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:         regexp.MustCompile(`foo.so`),
+			re:         regexp.MustCompile(`foo-libssl.so`),
 			registerCB: callback,
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	// create files
@@ -111,6 +114,21 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		// Checking path1 still exists, and path2 not.
 		return checkPathIDDoesNotExist(watcher, fooPathID1) && checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid))
 	}, time.Second*10, time.Second, "")
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 0, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 1, "usm.so_watcher.matches")
+	telEqual(t, 1, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace() {
@@ -125,7 +143,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	err = os.MkdirAll(root, 0755)
 	require.NoError(t, err)
 
-	libpath := "/fooroot.so"
+	libpath := "/fooroot-crypto.so"
 
 	err = exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
 	require.NoError(t, err)
@@ -148,11 +166,12 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:         regexp.MustCompile(`fooroot.so`),
+			re:         regexp.MustCompile(`fooroot-crypto.so`),
 			registerCB: callback,
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	time.Sleep(10 * time.Millisecond)
@@ -166,22 +185,37 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 
 	time.Sleep(10 * time.Millisecond)
 
-	// assert that soWatcher detected foo.so being opened and triggered the callback
+	// assert that soWatcher detected foo-libssl.so being opened and triggered the callback
 	require.Equal(t, libpath, pathDetected)
 
 	// must fail on the host
 	_, err = os.Stat(libpath)
 	require.Error(t, err)
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 0, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 1, "usm.so_watcher.matches")
+	telEqual(t, 1, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
-	fooPath1, fooPathID1 := createTempTestFile(t, "a-foo.so")
-	fooPath2 := filepath.Join(t.TempDir(), "b-foo.so")
+	fooPath1, fooPathID1 := createTempTestFile(t, "a-foo-libssl.so")
+	fooPath2 := filepath.Join(t.TempDir(), "b-foo-libssl.so")
 
-	// create a hard-link (a-foo.so and b-foo.so will share the same inode)
+	// create a hard-link (a-foo-libssl.so and b-foo-libssl.so will share the same inode)
 	require.NoError(t, os.Link(fooPath1, fooPath2))
 	fooPathID2, err := newPathIdentifier(fooPath2)
 	require.NoError(t, err)
@@ -194,11 +228,12 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:         regexp.MustCompile(`foo.so`),
+			re:         regexp.MustCompile(`foo-libssl.so`),
 			registerCB: callback,
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	clientBin := buildSOWatcherClientBin(t)
@@ -226,31 +261,47 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 			checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) &&
 			checkPIDNotAssociatedWithPathID(watcher, fooPathID2, uint32(command1.Process.Pid))
 	}, time.Second*10, time.Second, "")
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 1, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 2, "usm.so_watcher.matches") // command1 access to 2 files
+	telEqual(t, 1, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
+	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
-	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
-	fooPath2, fooPathID2 := createTempTestFile(t, "foo2.so")
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
+	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
 
 	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
-	unregisterCB := func(id pathIdentifier) error { return nil }
+	unregisterCB := func(id pathIdentifier) error { return errors.New("fake unregisterCB error") }
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:           regexp.MustCompile(`foo.so`),
+			re:           regexp.MustCompile(`foo-libssl.so`),
 			registerCB:   registerCB,
 			unregisterCB: unregisterCB,
 		},
 		soRule{
-			re:           regexp.MustCompile(`foo2.so`),
+			re:           regexp.MustCompile(`foo2-gnutls.so`),
 			registerCB:   registerCB,
 			unregisterCB: unregisterCB,
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	// create files
@@ -308,26 +359,41 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	}, time.Second*10, time.Second, "")
 
 	checkWatcherStateIsClean(t, watcher)
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 1, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 3, "usm.so_watcher.matches") // command1 access to 2 files, command2 access to 1 file
+	telEqual(t, 2, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 2, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
+	telEqual(t, 2, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	t := s.T()
 	perfHandler := initEBPFProgram(t)
 
-	fooPath1, fooPathID1 := createTempTestFile(t, "foo.so")
-	fooPath2, fooPathID2 := createTempTestFile(t, "foo2.so")
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
+	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
 
 	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
 	unregisterCB := func(id pathIdentifier) error { return nil }
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
-			re:           regexp.MustCompile(`foo.so`),
+			re:           regexp.MustCompile(`foo-libssl.so`),
 			registerCB:   registerCB,
 			unregisterCB: unregisterCB,
 		},
 		soRule{
-			re:           regexp.MustCompile(`foo2.so`),
+			re:           regexp.MustCompile(`foo2-gnutls.so`),
 			registerCB:   registerCB,
 			unregisterCB: unregisterCB,
 		},
@@ -344,6 +410,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	registerProcessTerminationUponCleanup(t, command1)
 	time.Sleep(time.Second)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	require.Eventuallyf(t, func() bool {
@@ -378,6 +445,21 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	}, time.Second*10, time.Second, "")
 
 	checkWatcherStateIsClean(t, watcher)
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 1, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 3, "usm.so_watcher.matches") // command1 access to 2 files, command2 access to 1 file
+	telEqual(t, 2, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
+	telEqual(t, 2, "usm.so_watcher.unregistered")
 }
 
 func buildSOWatcherClientBin(t *testing.T) string {
@@ -456,17 +538,31 @@ func checkWatcherStateIsClean(t *testing.T, watcher *soWatcher) {
 	require.True(t, len(watcher.registry.byPID) == 0 && len(watcher.registry.byID) == 0, "watcher state is not clean")
 }
 
+func getTracepointFuncName(tracepointType, name string) string {
+	return fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", tracepointType, name)
+}
+
+const (
+	enterTracepoint = "enter"
+	exitTracepoint  = "exit"
+)
+
 func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 	c := config.New()
 	if !http.HTTPSSupported(c) {
 		t.Skip("https not supported for this setup")
 	}
 
-	probe := "do_sys_open"
-	excludeSysOpen := "do_sys_openat2"
-	if sysOpenAt2Supported() {
-		probe = "do_sys_openat2"
-		excludeSysOpen = "do_sys_open"
+	includeOpenat2 := sysOpenAt2Supported()
+	openat2Probes := []manager.ProbeIdentificationPair{
+		{
+			EBPFFuncName: getTracepointFuncName(enterTracepoint, openat2SysCall),
+			UID:          probeUID,
+		},
+		{
+			EBPFFuncName: getTracepointFuncName(exitTracepoint, openat2SysCall),
+			UID:          probeUID,
+		},
 	}
 
 	perfHandler := ddebpf.NewPerfHandler(10)
@@ -486,14 +582,14 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe__" + probe,
+					EBPFFuncName: getTracepointFuncName(enterTracepoint, openatSysCall),
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kretprobe__" + probe,
+					EBPFFuncName: getTracepointFuncName(exitTracepoint, openatSysCall),
 					UID:          probeUID,
 				},
 				KProbeMaxActive: maxActive,
@@ -552,17 +648,33 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe__" + probe,
+					EBPFFuncName: getTracepointFuncName(enterTracepoint, openatSysCall),
 					UID:          probeUID,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kretprobe__" + probe,
+					EBPFFuncName: getTracepointFuncName(exitTracepoint, openatSysCall),
 					UID:          probeUID,
 				},
 			},
 		},
+	}
+
+	if includeOpenat2 {
+		for _, probe := range openat2Probes {
+			mgr.Probes = append(mgr.Probes, &manager.Probe{
+				ProbeIdentificationPair: probe,
+				KProbeMaxActive:         maxActive,
+			})
+
+			options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: probe.EBPFFuncName,
+					UID:          probeUID,
+				},
+			})
+		}
 	}
 
 	exclude := []string{
@@ -574,13 +686,16 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 		"kprobe__tcp_sendmsg",
 		"kretprobe__security_sock_rcv_skb",
 		"tracepoint__net__netif_receive_skb",
-		"kprobe__" + excludeSysOpen,
-		"kretprobe__" + excludeSysOpen,
 		"kprobe__do_vfs_ioctl",
 		"kprobe_handle_sync_payload",
 		"kprobe_handle_close_connection",
 		"kprobe_handle_connection_by_peer",
 		"kprobe_handle_async_payload",
+	}
+
+	if !includeOpenat2 {
+		exclude = append(exclude, getTracepointFuncName(enterTracepoint, openat2SysCall),
+			getTracepointFuncName(exitTracepoint, openat2SysCall))
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {

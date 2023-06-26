@@ -20,7 +20,7 @@ var renameProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_do_renameat2",
+			EBPFFuncName: "hook_do_renameat2",
 		},
 	},
 	{

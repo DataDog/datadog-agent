@@ -33,8 +33,8 @@ pull_test_dockers_arm64:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   rules:
-    !reference [.manual]
-  tags: ["runner:main"]
+    !reference [ .on_system_probe_changes_or_manual ]
+  tags: ["arch:amd64"]
   script:
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
@@ -114,9 +114,8 @@ kernel_matrix_testing_setup_env:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
   rules:
-    !reference [.manual]
-  allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
+    !reference [ .on_system_probe_changes_or_manual ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
   variables:
@@ -136,6 +135,9 @@ kernel_matrix_testing_setup_env:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
+    # We have user provided AZ here because the default AZ was experiencing
+    # capacity issues for m6g.metal machines
+    SUBNETS: "subnet-03061a1647c63c3c3,subnet-071213aedb0e1ae54"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
@@ -148,7 +150,7 @@ kernel_matrix_testing_setup_env:
     # Without the newline ssh silently fails and moves on to try other auth methods
     - echo "" >> $AWS_EC2_SSH_KEY_FILE
     - chmod 600 $AWS_EC2_SSH_KEY_FILE
-    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV
+    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --subnets=$SUBNETS
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
   artifacts:
@@ -166,7 +168,7 @@ kernel_matrix_testing_upload_deps:
   extends:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "kernel_matrix_testing_setup_env", "package_dependencies_x64", "package_dependencies_arm64"]
   tags: ["arch:amd64"]
   allow_failure: true
@@ -184,12 +186,15 @@ kernel_matrix_testing_upload_deps:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
+    # We have user provided AZ here because the default AZ was experiencing
+    # capacity issues for m6g.metal machines
+    SUBNETS: "subnet-03061a1647c63c3c3,subnet-071213aedb0e1ae54"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
   script:
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --upload-dependencies
+    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --upload-dependencies --subnets=$SUBNETS
     - pulumi logout
   artifacts:
     when: always
@@ -203,11 +208,12 @@ kernel_matrix_testing_upload_deps:
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
   tags: ["arch:amd64"]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    RETRY: 2
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
@@ -220,14 +226,14 @@ kernel_matrix_testing_upload_deps:
       fi
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
-    - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH.$TAG | cut -d ' ' -f 1)
+    - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 1)
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION}'"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/junit-${MICRO_VM_IP}.tar.gz /home/ubuntu/junit-${MICRO_VM_IP}.tar.gz"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/testjson-${MICRO_VM_IP}.tar.gz /home/ubuntu/testjson-${MICRO_VM_IP}.tar.gz"
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-testjson-$MICRO_VM_NAME.tar.gz
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit-$MICRO_VM_IP.tar.gz $DD_AGENT_TESTING_DIR/kernel-matrix-testing-junit-$MICRO_VM_NAME.tar.gz
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} '/test-json-review /testjson/out.json'"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION} ${RETRY}'"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/ci-visibility/junit-*.tar.gz /home/ubuntu/"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/ci-visibility/testjson-*.tar.gz /home/ubuntu/"
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson-*.tar.gz $DD_AGENT_TESTING_DIR/
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit-*.tar.gz $DD_AGENT_TESTING_DIR/
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} '/test-json-review'"
 
 kernel_matrix_testing_run_tests_x64:
   extends:
@@ -247,15 +253,36 @@ kernel_matrix_testing_run_tests_arm64:
     matrix:
       - TAG: ["focal", "jammy"]
 
-kernel_matrix_testing_cleanup:
+.kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
   tags: ["arch:amd64"]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
-    - INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
-    - INSTANCE_IDS=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi" "Name=private-ip-address,Values=$INSTANCE_IPS" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
+    - |
+      if [ -f $CI_PROJECT_DIR/stack.outputs ]; then
+        INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
+        IP_FILTER="Name=private-ip-address,Values=$INSTANCE_IPS"
+      else
+        echo "No ${CI_PROJECT_DIR}/stack.outputs file found"
+        IP_FILTER=""
+      fi
+    - INSTANCE_IDS=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi"  $IP_FILTER --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
     - echo $INSTANCE_IDS
-    - aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
+    - |
+      if [ $(echo $INSTANCE_IDS | wc -w) != "0" ]; then
+        aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
+      fi
+
+kernel_matrix_testing_cleanup_success:
+  extends:
+    - .kernel_matrix_testing_cleanup
+  when: on_success
+
+
+kernel_matrix_testing_cleanup_failure:
+  extends:
+    - .kernel_matrix_testing_cleanup
+  when: on_failure

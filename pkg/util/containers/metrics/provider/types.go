@@ -37,10 +37,11 @@ type ContainerMemStats struct {
 // ContainerCPUStats stores CPU stats.
 type ContainerCPUStats struct {
 	// Common fields
-	Total  *float64
-	System *float64
-	User   *float64
-	Limit  *float64 // Percentage 0-100*numCPU
+	Total          *float64
+	System         *float64
+	User           *float64
+	Limit          *float64 // Percentage 0-100*numCPU
+	DefaultedLimit bool     // If Limit != nil, indicated if limit was explicit from container or defaulted to # of host CPUs
 
 	// Linux-only fields
 	Shares           *float64

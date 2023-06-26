@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"runtime"
 	"strings"
 	"sync"
@@ -35,7 +34,6 @@ const (
 )
 
 var (
-	workspaceFolder  = path.Join(os.TempDir(), e2eWorkspaceDirectory)
 	stackManager     *StackManager
 	initStackManager sync.Once
 )

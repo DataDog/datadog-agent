@@ -75,14 +75,15 @@ func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task rcclient.Agent
 
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
-	_, err = f.Send(filePath, caseID, userHandle)
+	_, err = f.Send(filePath, caseID, userHandle, "remote-config")
 	return true, err
 }
 
 // Send sends a flare archive to Datadog
-func (f *flare) Send(flarePath string, caseID string, email string) (string, error) {
+func (f *flare) Send(flarePath string, caseID string, email string, source string) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
-	return helpers.SendTo(flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config))
+	// The `source` is the reason why the flare was created, for now it's either local or remote-config
+	return helpers.SendTo(flarePath, caseID, email, source, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config))
 }
 
 // Create creates a new flare and returns the path to the final archive file.

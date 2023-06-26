@@ -30,7 +30,7 @@ func init() {
 // * 2.2.2.2 to 1.1.1.1 (OUTPUT Chain)
 // * 3.3.3.3 to 1.1.1.1 (PREROUTING Chain)
 func SetupDNAT(t *testing.T) {
-	linkName := "dummy" + strconv.Itoa(rand.Intn(98)+1)
+	linkName := "dummy" + strconv.Itoa(rand.Intn(9999)+1)
 	nettestutil.IptablesSave(t)
 	t.Cleanup(func() {
 		teardownDNAT(t, linkName)
@@ -49,7 +49,7 @@ func SetupDNAT(t *testing.T) {
 // SetupSNAT sets up a NAT translation from:
 // * 6.6.6.6 to 7.7.7.7 (POSTROUTING Chain)
 func SetupSNAT(t *testing.T) string {
-	linkName := "dummy-2-" + strconv.Itoa(rand.Intn(98)+1)
+	linkName := "dummy-2-" + strconv.Itoa(rand.Intn(9999)+1)
 	nettestutil.IptablesSave(t)
 	t.Cleanup(func() {
 		teardownDNAT(t, linkName)
@@ -91,7 +91,7 @@ func getDefaultInterfaceName(t *testing.T) string {
 
 // SetupDNAT6 sets up a NAT translation from fd00::2 to fd00::1
 func SetupDNAT6(t *testing.T) {
-	linkName := "dummy" + strconv.Itoa(rand.Intn(98)+1)
+	linkName := "dummy" + strconv.Itoa(rand.Intn(9999)+1)
 	ifName := getDefaultInterfaceName(t)
 	t.Cleanup(func() {
 		teardownDNAT6(t, ifName, linkName)

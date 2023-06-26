@@ -54,21 +54,21 @@ func computeDefaultEventsRingBufferSize() uint32 {
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
-func AllProbes() []*manager.Probe {
+func AllProbes(fentry bool) []*manager.Probe {
 	if len(allProbes) > 0 {
 		return allProbes
 	}
 
 	allProbes = append(allProbes, getAttrProbes()...)
-	allProbes = append(allProbes, getExecProbes()...)
+	allProbes = append(allProbes, getExecProbes(fentry)...)
 	allProbes = append(allProbes, getLinkProbe()...)
 	allProbes = append(allProbes, getMkdirProbes()...)
 	allProbes = append(allProbes, getMountProbes()...)
 	allProbes = append(allProbes, getOpenProbes()...)
 	allProbes = append(allProbes, getRenameProbes()...)
 	allProbes = append(allProbes, getRmdirProbe()...)
-	allProbes = append(allProbes, sharedProbes...)
-	allProbes = append(allProbes, iouringProbes...)
+	allProbes = append(allProbes, getSharedProbes(fentry)...)
+	allProbes = append(allProbes, getIouringProbes(fentry)...)
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
 	allProbes = append(allProbes, getIoctlProbes()...)
@@ -98,7 +98,7 @@ func AllProbes() []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_security_inode_getattr",
+				EBPFFuncName: "hook_security_inode_getattr",
 			},
 		},
 	)
@@ -158,7 +158,7 @@ type MapSpecEditorOpts struct {
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
 		"syscalls": {
-			MaxEntries: getMaxEntries(numCPU, 2048, 8192),
+			MaxEntries: 1024,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"proc_cache": {

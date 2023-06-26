@@ -15,6 +15,7 @@
   stage: source_test
   variables:
     FLAVORS: '--flavors base'
+    KUBERNETES_MEMORY_LIMIT: 10Gi
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
@@ -31,6 +32,7 @@
   stage: source_test
   variables:
     FLAVORS: '--flavors base'
+    KUBERNETES_MEMORY_LIMIT: 10Gi
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]

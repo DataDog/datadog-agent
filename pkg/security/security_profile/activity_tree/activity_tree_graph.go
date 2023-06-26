@@ -51,13 +51,17 @@ func (at *ActivityTree) PrepareGraphData(title string, resolver *process.Resolve
 
 func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, resolver *process.Resolver) utils.GraphID {
 	var args string
+	var argv []string
 	if resolver != nil {
-		if argv, _ := resolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
-			args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
-			args = strings.ReplaceAll(args, "\n", " ")
-			args = strings.ReplaceAll(args, ">", "\\>")
-			args = strings.ReplaceAll(args, "|", "\\|")
-		}
+		argv, _ = resolver.GetProcessScrubbedArgv(&p.Process)
+	} else {
+		argv, _ = process.GetProcessArgv(&p.Process)
+	}
+	if len(argv) > 0 {
+		args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
+		args = strings.ReplaceAll(args, "\n", " ")
+		args = strings.ReplaceAll(args, ">", "\\>")
+		args = strings.ReplaceAll(args, "|", "\\|")
 	}
 	panGraphID := utils.NewGraphID(utils.NewNodeIDFromPtr(p))
 	pan := utils.Node{

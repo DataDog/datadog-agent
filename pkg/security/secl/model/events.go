@@ -247,12 +247,26 @@ func init() {
 	}
 }
 
-// ParseEventTypeStringSlice converts a list
+// ParseEventTypeStringSlice converts a string list to a list of event types
 func ParseEventTypeStringSlice(eventTypes []string) []EventType {
 	var output []EventType
 	for _, eventTypeStr := range eventTypes {
 		if eventType := eventTypeStrings[eventTypeStr]; eventType != UnknownEventType {
 			output = append(output, eventType)
+		}
+	}
+	return output
+}
+
+// ParseHashAlgorithmStringSlice converts a string list to a list of hash algorithms
+func ParseHashAlgorithmStringSlice(algorithms []string) []HashAlgorithm {
+	var output []HashAlgorithm
+	for _, hashAlgorithm := range algorithms {
+		for i := HashAlgorithm(0); i < MaxHashAlgorithm; i++ {
+			if i.String() == hashAlgorithm {
+				output = append(output, i)
+				break
+			}
 		}
 	}
 	return output

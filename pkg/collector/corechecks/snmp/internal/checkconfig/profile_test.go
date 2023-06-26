@@ -34,10 +34,10 @@ func getMetricFromProfile(p profileDefinition, metricName string) *MetricsConfig
 
 func fixtureProfileDefinitionMap() profileConfigMap {
 	metrics := []MetricsConfig{
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: ProfileMetricTypeGauge},
 		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
 		{
-			ForcedType: "monotonic_count",
+			MetricType: ProfileMetricTypeMonotonicCount,
 			Symbols: []SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
@@ -172,7 +172,7 @@ func fixtureProfileDefinitionMap() profileConfigMap {
 		"another_profile": profileConfig{
 			Definition: profileDefinition{
 				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "someMetric"}, ForcedType: ""},
+					{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "someMetric"}, MetricType: ""},
 				},
 				MetricTags: []MetricTagConfig{
 					{Tag: "snmp_host2", Column: SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
@@ -548,7 +548,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 func Test_mergeProfileDefinition(t *testing.T) {
 	okBaseDefinition := profileDefinition{
 		Metrics: []MetricsConfig{
-			{Symbol: SymbolConfig{OID: "1.1", Name: "metric1"}, ForcedType: "gauge"},
+			{Symbol: SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: ProfileMetricTypeGauge},
 		},
 		MetricTags: []MetricTagConfig{
 			{
@@ -596,7 +596,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 	emptyBaseDefinition := profileDefinition{}
 	okTargetDefinition := profileDefinition{
 		Metrics: []MetricsConfig{
-			{Symbol: SymbolConfig{OID: "1.2", Name: "metric2"}, ForcedType: "gauge"},
+			{Symbol: SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: ProfileMetricTypeGauge},
 		},
 		MetricTags: []MetricTagConfig{
 			{
@@ -649,8 +649,8 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
 			expectedDefinition: profileDefinition{
 				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2", Name: "metric2"}, ForcedType: "gauge"},
-					{Symbol: SymbolConfig{OID: "1.1", Name: "metric1"}, ForcedType: "gauge"},
+					{Symbol: SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: ProfileMetricTypeGauge},
+					{Symbol: SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: ProfileMetricTypeGauge},
 				},
 				MetricTags: []MetricTagConfig{
 					{
@@ -726,7 +726,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			targetDefinition: copyProfileDefinition(okTargetDefinition),
 			expectedDefinition: profileDefinition{
 				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.2", Name: "metric2"}, ForcedType: "gauge"},
+					{Symbol: SymbolConfig{OID: "1.2", Name: "metric2"}, MetricType: ProfileMetricTypeGauge},
 				},
 				MetricTags: []MetricTagConfig{
 					{
@@ -774,7 +774,7 @@ func Test_mergeProfileDefinition(t *testing.T) {
 			targetDefinition: copyProfileDefinition(emptyBaseDefinition),
 			expectedDefinition: profileDefinition{
 				Metrics: []MetricsConfig{
-					{Symbol: SymbolConfig{OID: "1.1", Name: "metric1"}, ForcedType: "gauge"},
+					{Symbol: SymbolConfig{OID: "1.1", Name: "metric1"}, MetricType: ProfileMetricTypeGauge},
 				},
 				MetricTags: []MetricTagConfig{
 					{

@@ -68,7 +68,7 @@ describe "system-probe" do
     pkg = f.delete_prefix("#{tests_dir}/").delete_suffix('/testsuite')
     final_env = {
       "DD_SYSTEM_PROBE_BPF_DIR"=>"#{tests_dir}/pkg/ebpf/bytecode/build",
-      "DD_SYSTEM_PROBE_JAVA_DIR"=>"#{tests_dir}/pkg/network/java",
+      "DD_SYSTEM_PROBE_JAVA_DIR"=>"#{tests_dir}/pkg/network/protocols/tls/java",
       "GOVERSION"=>"unknown"
     }
     junitfile = pkg.gsub("/","-") + ".xml"
