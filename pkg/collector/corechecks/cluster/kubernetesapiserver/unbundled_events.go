@@ -12,6 +12,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -78,6 +79,13 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, [
 		tagsAccumulator.SortUniq()
 
 		emittedEvents.Inc(involvedObject.Kind, ev.Type)
+
+		log.Debugf("AKI tagsAccumulator.Get(): %q", tagsAccumulator.Get())
+		// TEST
+		for _, t := range cluster.GetTags() {
+			tagsAccumulator.Append(t)
+		}
+		log.Debugf("AKI 2nd tagsAccumulator.Get(): %q", tagsAccumulator.Get())
 
 		datadogEvs = append(datadogEvs, metrics.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),

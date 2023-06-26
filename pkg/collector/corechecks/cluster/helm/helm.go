@@ -250,6 +250,10 @@ func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision b
 		tags = append(tags, fmt.Sprintf("%s:%s", tagName, value))
 	}
 
+	// TEST
+	log.Debugf("AKI tags: %q", tags)
+	// tags = append(tags, cluster.GetTags()...)
+	// log.Debugf("AKI tags: %q", tags)
 	return tags
 }
 

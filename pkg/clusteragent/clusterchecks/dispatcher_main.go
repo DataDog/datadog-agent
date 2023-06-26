@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -42,9 +43,12 @@ func newDispatcher() *dispatcher {
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
-	log.Debugf("AKI common.GetTags(): %q", common.GetTags())
+	// Tags configured in DD_TAGS
+	var ddtags = cluster.GetTags()
+	log.Debugf("AKI cluster.GetTags(): %q", ddtags)
 	d.extraTags = append(config.Datadog.GetStringSlice("cluster_checks.extra_tags"))
-
+	d.extraTags = append(d.extraTags, ddtags...)
+	log.Debugf("AKI d.extraTags: %q", d.extraTags)
 	excludedChecks := config.Datadog.GetStringSlice("cluster_checks.exclude_checks")
 	// This option will almost always be empty
 	if len(excludedChecks) > 0 {

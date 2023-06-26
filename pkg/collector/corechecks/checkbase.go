@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -92,6 +93,8 @@ func (c *CheckBase) Configure(integrationConfigDigest uint64, data integration.D
 // in order to setup common options (run interval, empty hostname)
 func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, instanceConfig integration.Data, source string) error {
 	handleConf := func(conf integration.Data, c *CheckBase) error {
+		log.Debugf("AKI check name: %q", c.checkName)
+
 		commonOptions := integration.CommonInstanceConfig{}
 		err := yaml.Unmarshal(conf, &commonOptions)
 		if err != nil {
@@ -114,14 +117,31 @@ func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, 
 			s.DisableDefaultHostname(true)
 		}
 
+		// TODO TEST
+		var customTags []string
+
+		// Set tags configured in DD_TAGS
+		if len(cluster.GetTags()) > 0 {
+			customTags = cluster.GetTags()
+			log.Debugf("AKI customTags 1: %q", customTags)
+		}
+
 		// Set custom tags configured for this check
 		if len(commonOptions.Tags) > 0 {
+			log.Debugf("AKI commonOptions.Tags 2: %q", commonOptions.Tags)
+			customTags = append(customTags, commonOptions.Tags...)
+		}
+
+		log.Debugf("AKI custom Tags: %q", customTags)
+
+		// Set custom tags to sender
+		if len(customTags) > 0 {
 			s, err := c.GetSender()
 			if err != nil {
 				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
 				return err
 			}
-			s.SetCheckCustomTags(commonOptions.Tags)
+			s.SetCheckCustomTags(customTags)
 		}
 
 		// Set configured service for this check, overriding the one possibly defined globally

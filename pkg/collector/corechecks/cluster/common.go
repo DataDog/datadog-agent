@@ -8,9 +8,9 @@
 package cluster
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,19 +35,13 @@ func RunLeaderElection() (string, error) {
 	return leaderEngine.GetLeader(), nil
 }
 
-
 // TODO add getDDTag() function ?
 // then import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 // call cluster.RunLeaderElection()
 
 // GetTags returns the []string of tags configured in DD_TAGS
 func GetTags() []string {
-	tags = config.GetConfiguredTags(config.Datadog, false)
+	var tags = config.GetConfiguredTags(config.Datadog, false)
 	log.Debug(tags)
 	return tags
 }
-
-// log.Debugf("AKI common.GetTags(): %q", common.GetTags())
-	
-
-

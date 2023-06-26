@@ -155,7 +155,7 @@ func (k *KubeASCheck) Configure(integrationConfigDigest uint64, config, initConf
 
 	hostnameDetected, _ := hostname.Get(context.TODO())
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
-
+	// TODO switching bundling mode here, so we want to add tags before/after this.
 	if k.instance.UnbundleEvents {
 		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetDefaultTagger(), k.instance.CollectedEventTypes)
 	} else {
@@ -334,7 +334,9 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			}
 
 			tags := []string{fmt.Sprintf("component:%s", component.Name)}
-			log.Debugf("AKI tags: %q", tags)
+			log.Debugf("AKI apiserver ServiceCheck tags: %q", tags)
+			// tags = append(tags, cluster.GetTags()...)
+			// log.Debugf("AKI apiserver ServiceCheck tags: %q", tags)
 			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tags, message)
 		}
 	}
