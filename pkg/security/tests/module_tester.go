@@ -864,11 +864,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	emconfig, secconfig, err := genTestConfigs(st.root, opts, st.root)
-	if err != nil {
-		return nil, err
-	}
-
 	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
@@ -901,6 +896,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return testMod, nil
 	} else if testMod != nil {
 		testMod.cleanup()
+	}
+
+	emconfig, secconfig, err := genTestConfigs(st.root, opts, st.root)
+	if err != nil {
+		return nil, err
 	}
 
 	t.Log("Instantiating a new security module")
