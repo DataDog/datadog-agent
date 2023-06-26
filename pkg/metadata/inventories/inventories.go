@@ -85,6 +85,9 @@ const (
 	AgentInstallMethodToolVersion        AgentMetadataName = "install_method_tool_version"
 	AgentLogsTransport                   AgentMetadataName = "logs_transport"
 	AgentCWSEnabled                      AgentMetadataName = "feature_cws_enabled"
+	AgentCWSNetworkEnabled               AgentMetadataName = "feature_cws_network_enabled"
+	AgentCWSSecurityProfilesEnabled      AgentMetadataName = "feature_cws_security_profiles_enabled"
+	AgentCWSRemoteConfigEnabled          AgentMetadataName = "feature_cws_remote_config_enabled"
 	AgentOTLPEnabled                     AgentMetadataName = "feature_otlp_enabled"
 	AgentProcessEnabled                  AgentMetadataName = "feature_process_enabled"
 	AgentProcessesContainerEnabled       AgentMetadataName = "feature_processes_container_enabled"
@@ -423,6 +426,9 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
 	SetAgentMetadata(AgentCWSEnabled, config.SystemProbe.GetBool("runtime_security_config.enabled"))
+	SetAgentMetadata(AgentCWSNetworkEnabled, config.SystemProbe.GetBool("event_monitoring_config.network.enabled"))
+	SetAgentMetadata(AgentCWSSecurityProfilesEnabled, config.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"))
+	SetAgentMetadata(AgentCWSRemoteConfigEnabled, config.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"))
 	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
 	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
