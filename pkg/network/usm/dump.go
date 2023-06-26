@@ -15,7 +15,6 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
@@ -28,15 +27,6 @@ func (e *ebpfProgram) dumpMapsHandler(manager *manager.Manager, mapName string, 
 		iter := currentMap.Iterate()
 		var key uintptr // C.void *
 		var value http.SslSock
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
-		}
-
-	case protocols.ProtocolDispatcherProgramsMap: // maps/protocols_progs (BPF_MAP_TYPE_PROG_ARRAY), key C.__u32, value C.__u32
-		output.WriteString("Map: '" + mapName + "', key: 'C.__u32', value: 'C.__u32'\n")
-		iter := currentMap.Iterate()
-		var key uint32
-		var value uint32
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -81,15 +71,6 @@ func (e *ebpfProgram) dumpMapsHandler(manager *manager.Manager, mapName string, 
 		output.WriteString("Map: '" + mapName + "', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
 		iter := currentMap.Iterate()
 		var key http.HttpConnTuple
-		var value uint32
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
-		}
-
-	case protocolDispatcherClassificationPrograms: // maps/dispatcher_classification_progs (BPF_MAP_TYPE_PROG_ARRAY), key C.__u32, value C.__u32
-		output.WriteString("Map: '" + mapName + "', key: 'C.__u32', value: 'C.__u32'\n")
-		iter := currentMap.Iterate()
-		var key uint32
 		var value uint32
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
