@@ -44,11 +44,11 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 		defer rc.Close()
 
 		written, err := io.Copy(f, rc)
-
 		if err != nil {
 			return nil, xerrors.Errorf("failed to copy the image: %w", err)
 		}
 		defer f.Close()
+
 		telemetry.SBOMExportSize.Observe(float64(written), collector, ref)
 
 		img, err := tarball.ImageFromPath(f.Name(), nil)
