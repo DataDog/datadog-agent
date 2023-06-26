@@ -1110,17 +1110,6 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 		}
 	}
 
-	// We might end up missing events during the snapshot. Ultimately we might want to stop the rules evaluation but
-	// not the perf map entirely. For now this will do though :)
-	if err := p.eventStream.Pause(); err != nil {
-		return err
-	}
-	defer func() {
-		if err := p.eventStream.Resume(); err != nil {
-			seclog.Errorf("failed to resume event stream: %s", err)
-		}
-	}()
-
 	if err := enabledEventsMap.Put(ebpf.ZeroUint32MapItem, enabledEvents); err != nil {
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
@@ -1644,10 +1633,16 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
+		p.managerOptions.SkipRingbufferReaderStartup = map[string]bool{
+			eventstream.EventStreamMap: true,
+		}
 	} else {
 		p.eventStream, err = reorderer.NewOrderedPerfMap(p.ctx, p.handleEvent, p.StatsdClient)
 		if err != nil {
 			return nil, err
+		}
+		p.managerOptions.SkipPerfMapReaderStartup = map[string]bool{
+			eventstream.EventStreamMap: true,
 		}
 	}
 
