@@ -59,7 +59,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	}
 
 	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
+
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
 	test, err := newTestModule(t, nil, rules, testOpts{
