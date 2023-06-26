@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/net/http2/hpack"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
@@ -43,7 +44,7 @@ func (tx *EbpfTx) RequestLatency() float64 {
 	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
 		return 0
 	}
-	return http.NSTimestampToFloat(tx.Response_last_seen - tx.Request_started)
+	return protocols.NSTimestampToFloat(tx.Response_last_seen - tx.Request_started)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information

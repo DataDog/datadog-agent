@@ -10,6 +10,7 @@ package http
 import (
 	"bytes"
 	"encoding/hex"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"strconv"
 	"strings"
 
@@ -51,7 +52,7 @@ func (tx *EbpfTx) RequestLatency() float64 {
 	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
 		return 0
 	}
-	return NSTimestampToFloat(tx.Response_last_seen - tx.Request_started)
+	return protocols.NSTimestampToFloat(tx.Response_last_seen - tx.Request_started)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
@@ -117,20 +118,6 @@ func (tx *EbpfTx) String() string {
 	output.WriteString("Fragment: '" + hex.EncodeToString(tx.Request_fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
-}
-
-// below is copied from pkg/trace/stats/statsraw.go
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask uint64 = 1 << 10
-
-// NSTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
-func NSTimestampToFloat(ns uint64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
-	}
-	return float64(ns << shift)
 }
 
 func requestFragment(fragment []byte) [BufferSize]byte {
