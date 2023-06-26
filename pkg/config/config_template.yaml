@@ -1339,7 +1339,7 @@ api_key:
   ##        Enables obfuscation rules for spans of type "redis". Disabled by default.
   #         enabled: false
   ##        @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
-  ##        When true, replaces all arguments to a redis command with a single "?". Disabled by default.
+  ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
   #         remove_all_args: false
   #
   ##    @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
