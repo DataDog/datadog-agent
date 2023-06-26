@@ -36,7 +36,8 @@ type ProfileConfig struct {
 type RCProfileProvider struct {
 	sync.RWMutex
 
-	client *remote.Client
+	client      *remote.Client
+	configState *remote.AgentConfigState
 
 	onNewProfileCallback func(selector cgroupModel.WorkloadSelector, profile *proto.SecurityProfile)
 }
@@ -86,12 +87,51 @@ func (r *RCProfileProvider) rcProfilesUpdateCallback(configs map[string]state.Ra
 	}
 }
 
+func (r *RCProfileProvider) rcAgentConfigCallback(update map[string]state.RawConfig) {
+	mergedConfig, err := remote.MergeRCAgentConfig(r.client, updates)
+	if err != nil {
+		return
+	}
+
+	if len(mergedConfig.LogLevel) > 0 {
+		pkglog.Infof("Changing log level of the trace-agent to %s through remote config", mergedConfig.LogLevel)
+		// Get the current log level
+		var newFallback seelog.LogLevel
+		newFallback, err = pkglog.GetLogLevel()
+		if err == nil {
+			r.configState.FallbackLogLevel = newFallback.String()
+			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
+			r.configState.LatestLogLevel = mergedConfig.LogLevel
+		}
+	} else {
+		var currentLogLevel seelog.LogLevel
+		currentLogLevel, err = pkglog.GetLogLevel()
+		if err == nil && currentLogLevel.String() == r.configState.LatestLogLevel {
+			pkglog.Infof("Removing remote-config log level override, falling back to %s", r.configState.FallbackLogLevel)
+			err = settings.SetRuntimeSetting("log_level", r.configState.FallbackLogLevel)
+		}
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if err == nil {
+			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
+	}
+}
+
 // Start starts the Remote Config profile provider and subscribes to updates
 func (r *RCProfileProvider) Start(ctx context.Context) error {
 	log.Info("remote-config profile provider started")
 
 	r.client.Start()
 	r.client.Subscribe(state.ProductCWSProfiles, r.rcProfilesUpdateCallback)
+	r.client.Subscribe(state.ProductAgentConfig, r.rcAgentConfigCallback)
 
 	go func() {
 		<-ctx.Done()
@@ -133,13 +173,26 @@ func NewRCProfileProvider() (*RCProfileProvider, error) {
 		return nil, fmt.Errorf("failed to parse agent version: %v", err)
 	}
 
-	c, err := remote.NewUnverifiedGRPCClient(agentName, agentVersion.String(), []data.Product{data.ProductCWSProfile}, securityAgentRCPollInterval)
+	c, err := remote.NewUnverifiedGRPCClient(
+		agentName,
+		agentVersion.String(),
+		[]data.Product{data.ProductCWSProfile, data.ProductAgentConfig},
+		securityAgentRCPollInterval,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	level, err := pkglog.GetLogLevel()
 	if err != nil {
 		return nil, err
 	}
 
 	r := &RCProfileProvider{
 		client: c,
+		configState: &remote.AgentConfigState{
+			level.String(),
+		},
 	}
 
 	return r, nil

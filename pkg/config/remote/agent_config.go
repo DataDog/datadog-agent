@@ -45,6 +45,12 @@ type agentConfigOrderData struct {
 	InternalOrder []string `json:"internal_order"`
 }
 
+// AgentConfigState contains the state of the config in case of fallback or override
+type AgentConfigState struct {
+	FallbackLogLevel string
+	LatestLogLevel   string
+}
+
 // parseConfigAgentConfig parses an agent task config
 func parseConfigAgentConfig(data []byte, metadata state.Metadata) (AgentConfig, error) {
 	var d agentConfigData
