@@ -515,37 +515,44 @@ func (at *ActivityTree) findProcessCacheEntryInChildrenNodes(tree *[]*ProcessNod
 		}
 
 		// has root exec into one of its own children ?
-		if execChild := at.recursiveFindEntryInChildNode(child, entry); execChild != nil {
+		if execChild := at.findProcessCacheEntryInChildExecedNodes(child, entry); execChild != nil {
 			return execChild, i
 		}
 	}
 	return nil, -1
 }
 
-func (at *ActivityTree) recursiveFindEntryInChildNode(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
-	// execedChild will be used if we don't find the node we're looking for and we detected that the parent process
-	// execed into one of its child without forking
-	var execedChild *ProcessNode
+// findProcessCacheEntryInChildExecedNodes look for entry in the execed nodes of child
+func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
+	// children is used to iterate over the tree below child
+	cursor := child
 
-	// look for an execed child
-	for _, node := range child.Children {
-		if !node.Process.ExecTime.IsZero() && node.Process.ExecTime.Equal(child.Process.ExitTime) {
-			// there should always be only one
-			execedChild = node
-			break
+	for cursor != nil {
+		// execedChild will be used if we didn't find the node we're looking for and we detected that the parent process
+		// execed into one of its child without forking
+		var execedChild *ProcessNode
+
+		// look for an execed child
+		for _, node := range cursor.Children {
+			if !node.Process.ExecTime.IsZero() && node.Process.ExecTime.Equal(cursor.Process.ExitTime) {
+				// there should always be only one
+				execedChild = node
+				break
+			}
 		}
-	}
-	if execedChild == nil {
-		return nil
+		if execedChild == nil {
+			return nil
+		}
+
+		// does this execed child match the entry ?
+		if execedChild.Matches(&entry.Process, at.differentiateArgs) {
+			return execedChild
+		}
+		cursor = execedChild
 	}
 
-	// does this execed child match the entry ?
-	if execedChild.Matches(&entry.Process, at.differentiateArgs) {
-		return execedChild
-	}
-
-	// look recursively for its children
-	return at.recursiveFindEntryInChildNode(execedChild, entry)
+	// not found
+	return nil
 }
 
 func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {

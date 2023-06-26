@@ -69,10 +69,10 @@ func TestInsertFileEvent(t *testing.T) {
 	assert.Equal(t, expectedDebugOuput, debugOutput)
 }
 
-func TestActivityTree_Insert(t *testing.T) {
-	for _, tt := range activityTreeInsertTestCases {
+func TestActivityTree_InsertExecEvent(t *testing.T) {
+	for _, tt := range activityTreeInsertExecEventTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			newEntry, err := tt.tree.Insert(tt.inputEvent, Runtime)
+			node, newEntry, err := tt.tree.CreateProcessNode(tt.inputEvent.ProcessCacheEntry, nil, Runtime, false)
 			if tt.wantErr != nil {
 				if !tt.wantErr(t, err, fmt.Sprintf("unexpected error: %v", err)) {
 					return
@@ -92,6 +92,7 @@ func TestActivityTree_Insert(t *testing.T) {
 
 			assert.Equalf(t, wantedResult, inputResult, "the generated tree didn't match the expected output")
 			assert.Equalf(t, tt.wantNewEntry, newEntry, "invalid newEntry output")
+			assert.Equalf(t, tt.wantNode.Process.FileEvent.PathnameStr, node.Process.FileEvent.PathnameStr, "the returned ProcessNode is invalid")
 		})
 	}
 }
@@ -162,13 +163,14 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 	return evt
 }
 
-var activityTreeInsertTestCases = []struct {
+var activityTreeInsertExecEventTestCases = []struct {
 	name         string
 	tree         *ActivityTree
 	inputEvent   *model.Event
 	wantNewEntry bool
 	wantErr      assert.ErrorAssertionFunc
 	wantTree     *ActivityTree
+	wantNode     *ProcessNode
 }{
 	// exec/1
 	// ---------------
@@ -206,6 +208,13 @@ var activityTreeInsertTestCases = []struct {
 				},
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -274,6 +283,13 @@ var activityTreeInsertTestCases = []struct {
 				},
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -365,6 +381,13 @@ var activityTreeInsertTestCases = []struct {
 				},
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -476,6 +499,13 @@ var activityTreeInsertTestCases = []struct {
 				},
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: false,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -558,6 +588,13 @@ var activityTreeInsertTestCases = []struct {
 				},
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: false,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -717,6 +754,13 @@ var activityTreeInsertTestCases = []struct {
 				},
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: false,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -919,6 +963,13 @@ var activityTreeInsertTestCases = []struct {
 				},
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: false,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -1073,6 +1124,13 @@ var activityTreeInsertTestCases = []struct {
 				ExecTime: time.Date(2023, 06, 22, 1, 2, 3, 4, time.UTC),
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -1182,6 +1240,13 @@ var activityTreeInsertTestCases = []struct {
 				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -1306,6 +1371,13 @@ var activityTreeInsertTestCases = []struct {
 				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -1449,6 +1521,13 @@ var activityTreeInsertTestCases = []struct {
 				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -1692,6 +1771,13 @@ var activityTreeInsertTestCases = []struct {
 				ExecTime: time.Date(2023, 06, 30, 1, 2, 3, 4, time.UTC),
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/du",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -1889,6 +1975,13 @@ var activityTreeInsertTestCases = []struct {
 				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -2022,6 +2115,13 @@ var activityTreeInsertTestCases = []struct {
 				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -2191,6 +2291,13 @@ var activityTreeInsertTestCases = []struct {
 				ExecTime: time.Date(2023, 06, 24, 1, 2, 3, 4, time.UTC),
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/ls",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
@@ -2422,6 +2529,13 @@ var activityTreeInsertTestCases = []struct {
 				},
 			},
 		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/date",
+				},
+			},
+		},
 		wantNewEntry: true,
 		wantTree: &ActivityTree{
 			ProcessNodes: []*ProcessNode{
