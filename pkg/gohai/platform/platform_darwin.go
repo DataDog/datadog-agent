@@ -13,7 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// getUnameProcessor returns the same value as `uname -p`
+// getUnameProcessor is similar to `uname -p`
 //
 // for Apple devices, uname does as follow to determine the value:
 // - if the architecture is arm or arm64, return "arm"

@@ -15,21 +15,22 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// getUnameOS returns the same value as `uname -o`
+// getUnameOS is similar to `uname -o`
 //
 // uname uses preprocessor macros to determine the printable name of the operating system,
 // cf https://github.com/coreutils/gnulib/blob/master/m4/host-os.m4
 //
-// on every linux device it prints "GNU/Linux", probably because uname is from GNU coreutils,
+// on every Linux device it prints "GNU/Linux", probably because uname is from GNU coreutils,
 // so if you are using it your OS is considered to be GNU
 func getUnameOS() string {
-	// we might want to return different values depending on the actual OS (not all Linux are GNU)
-	// but for now it's good enough
+	// eventually we might want to return different values depending on the actual OS
+	// (not all Linux are GNU)
 	return "GNU/Linux"
 }
 
-// from the 80_fedora_sysinfo.patch uname patch
-func procIsAthlon(reader io.Reader) bool {
+// check if the vendor is AMD
+// reader should be an io.Reader over /proc/cpuinfo
+func isVendorAMD(reader io.Reader) bool {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		text := scanner.Text()
@@ -43,18 +44,17 @@ func procIsAthlon(reader io.Reader) bool {
 	return false
 }
 
-// getUnameProcessor returns the same value as `uname -p`
+// getUnameProcessor is similar to `uname -p`
 //
-// note that each OS applies a set of patches on the base coreutils source, in particular the 80_fedora_sysinfo.patch
-// which makes uname work on Linux, so you have to look at the patched code, eg. for ubuntu jammy:
-// https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/coreutils/8.32-4.1ubuntu1/coreutils_8.32-4.1ubuntu1.debian.tar.xz
+// the version of uname commonly used on Linux handles specifically the edge case of athlon processors
+// on i686 devices
 func getUnameProcessor(machine string) string {
 	if machine == "i686" {
 		file, err := os.Open("/proc/cpuinfo")
 		if err == nil {
 			defer file.Close()
-			if procIsAthlon(file) {
-				machine = "athlon"
+			if isVendorAMD(file) {
+				return "athlon"
 			}
 		}
 	}
@@ -62,14 +62,12 @@ func getUnameProcessor(machine string) string {
 	return machine
 }
 
-// getUnameHardwarePlatform returns the same value as `uname -i`
+// getUnameHardwarePlatform is similar to `uname -i`
 //
-// note that each OS applies a set of patches on the base coreutils source, in particular the 80_fedora_sysinfo.patch
-// which makes uname work on Linux, so you have to look at the patched code, eg. for ubuntu jammy:
-// https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/coreutils/8.32-4.1ubuntu1/coreutils_8.32-4.1ubuntu1.debian.tar.xz
+// the version of uname commonly used on Linux returns 'i386' for all 'i*86' devices
 func getUnameHardwarePlatform(machine string) string {
 	if len(machine) == 4 && machine[0] == 'i' && machine[2] == '8' && machine[3] == '6' {
-		machine = "i386"
+		return "i386"
 	}
 	return machine
 }
