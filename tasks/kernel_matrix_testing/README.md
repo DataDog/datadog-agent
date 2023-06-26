@@ -5,7 +5,7 @@ The Kernel Matrix Testing system is a new approach for testing system-probe. It 
 
 Developers can check out this confluence page for more details about the system.   
 
-This file will document invoke tasks provided to easily interact with this system for launching VMs remotely, or locally. Tasks for managing the lifecycle of the VMs are also provided.
+This file will document the invoke tasks provided to easily manage the lifecycle of the VMs launched using this system.
 
 The system works on the concept of `stacks`. A `stack` is a collection of VMs, both local and remote. A `stack` is given a unique name by the user. Convenience options for generating the name of the `stack` from the current branch is also provided. This allows the developers to couple `stacks` with their git workflow.
 A `stack` may be:
@@ -16,7 +16,7 @@ A `stack` may be:
 - Resumed
 - Destroyed
 
-All subsequenct command are assumed to be executed from the root of the datadog-agent repository.
+> All subsequenct command are assumed to be executed from the root of the datadog-agent repository.
 
 ## Getting started
 A straightforward flow to setup a collections of VMs is as follows:
@@ -57,11 +57,25 @@ This will bring up all the VMs previously configured.
 inv -e kmt.launch-stack --stack=demo-stack --ssh-key=<ssh-key>
 ```
 
+### Connecting to VMs
+```bash
+inv -e kmt.info --stack=demo-stack
+```
+This will print the ips of all the VMs and the remote machines if any
+
+To connect to the VM first ssh to the remote machine, if required.
+
+Then connect to the VM as follows
+```bash
+ssh -i /home/kernel-version-testing/ddvm_rsa -o StrictHostKeyChecking=no root@<ip>
+```
+
 ### Destroy stack
 Tear down the stack
 ```bash
 inv -e kmt.destroy-stack --stack=demo-stack
 ```
+
 
 ## Tasks
 
@@ -87,7 +101,7 @@ The `vmsets` file contains the list of one or more sets of VMs to launch. A set 
 Sample VMSet file can be found [here](https://github.com/DataDog/test-infra-definitions/blob/f85e7eb2f003b6f9693c851549fbb7f3969b8ade/scenarios/aws/microVMs/sample-vm-config.json).
 
 
-The file can be generated for a particular stack with the `gen-config` task.   
+The file can be generated for a particular `stack` with the `gen-config` task.   
 This task takes as parameters
 - The stack to target specified with [--stack=<name>|--branch] 
 - The list of VMS to generate specified by --vms=<list>. See [VMs list](#vms-list) for details on how to specify the list.
@@ -133,27 +147,30 @@ inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
 ```
 
 ### VMs List
-The vms list is a comma separated list of vm entries. These are the VMs launch in the stack.   
-Each entry comprises of three elemets seperate by `-` (dash).
+The vms list is a comma separated list of vm entries. These are the VMs to launch in the stack.   
+Each entry comprises of three elemets seperate by a `-` (dash).
 1. Recipe. This is either `custom` or `distro`. `distro` is to be specified for distribution images and `custom` for custom kernels.
 2. Arch. Architecture is either `x86_64` or `arm64`
 3. Version. This is either the distribution version for recipe `distro` or kernel version for recipe `custom`.
 
-The vm entry is parsed by in a fuzzy manner. Therefore each element can be inexact. Furthermore the order of the elements is not important either. The entry is only required to consist of `<recipe>-<arch|local>-<version>` in some order.
+The vm entry is parsed in a fuzzy manner. Therefore each element can be inexact. Furthermore the order of the elements is not important either. The entry is only required to consist of `<recipe>-<arch|local>-<version>` in some order.
 
 #### Example 1
- > jammy-local-distro distro-local-jammy local-ubuntu22-distro
-
- All of the above resolve to the entry [ubuntu-22, local, dist
-
+ All of the below resolve to the entry [ubuntu-22, local, distro]
+ - jammy-local-distro
+ - distro-local-jammy
+ - local-ubuntu22-distro
 
 #### Example 2
-> amazon4.14-x86-distro distro-x86_64-amazon4.14 amzn_4.14-amd64-distro 4.14amazon-distro-x86
-
-All of the above resolve to [amazon linux 2 4.14, x86_64, distro]
-
+All of the below resolve to [amazon linux 2 4.14, x86_64, distro]
+- amazon4.14-x86-distro
+- distro-x86_64-amazon4.14
+- amzn_4.14-amd64-distro
+- 4.14amazon-distro-x86
 
 #### Example 3
-> custom-arm-5.4 5.4-arm64-custom custom-5.4-aarch64`
+All of the below resolve to [kernel 5.4, arm64, custom]
+- custom-arm-5.4
+- 5.4-arm64-custom
+- custom-5.4-aarch64`
 
-All of the above resolve to [kernel 5.4, arm64, custom]
