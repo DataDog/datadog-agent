@@ -453,6 +453,11 @@ func (p *Probe) SendStats() error {
 			}
 		}
 	}
+
+	if err := p.profileManagers.SendStats(); err != nil {
+		return err
+	}
+
 	return p.monitor.SendStats()
 }
 
