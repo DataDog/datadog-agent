@@ -126,6 +126,16 @@ type TailerOptions struct {
 	Rotated       bool                  // Optional
 }
 
+type DataPoint struct {
+	Timestamp time.Time
+	Value     float64
+}
+
+type MovingSum struct {
+	DataPoints []DataPoint
+	Sum        float64
+}
+
 // NewTailer returns an initialized Tailer, read to be started.
 //
 // The resulting Tailer will read from the given `file`, decode the content
@@ -277,12 +287,17 @@ func (t *Tailer) readForever() {
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
 
+	ms := MovingSum{DataPoints: make([]DataPoint, 0)}
+
 	for {
 		n, err := t.read()
 		if err != nil {
 			return
 		}
 		t.recordBytes(int64(n))
+		ms.AddDataPoint(float64(t.bytesRead.Get()))
+		sum := int(ms.Sum)
+		addToTailerInfo("Moving Sum", strconv.Itoa(sum), t.info)
 
 		select {
 		case <-t.stop:
@@ -357,6 +372,26 @@ func getFormattedTime() string {
 	utc := now.UTC().Format("2006-01-02 15:04:05 UTC")
 	milliseconds := now.UnixNano() / 1e6
 	return fmt.Sprintf("%s / %s (%d)", local, utc, milliseconds)
+}
+
+func (ms *MovingSum) AddDataPoint(value float64) {
+	now := time.Now()
+	newDataPoint := DataPoint{Timestamp: now, Value: value}
+
+	// Add the new value to the sum and append it to the slice
+	ms.Sum += value
+	ms.DataPoints = append(ms.DataPoints, newDataPoint)
+
+	// Remove any values that are more than 24 hours old
+	for len(ms.DataPoints) > 0 {
+		firstDataPoint := ms.DataPoints[0]
+		if now.Sub(firstDataPoint.Timestamp) > 24*time.Hour {
+			ms.Sum -= firstDataPoint.Value
+			ms.DataPoints = ms.DataPoints[1:]
+		} else {
+			break
+		}
+	}
 }
 
 // GetDetectedPattern returns the decoder's detected pattern.
