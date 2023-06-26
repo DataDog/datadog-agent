@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
