@@ -11,6 +11,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
@@ -82,7 +83,8 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	writeNode(t, client, "1")
 	writeNode(t, client, "2")
 
-	wg.Wait()
+	assert.True(t, waitTimeout(&wg, 2*time.Second))
+
 }
 
 func writeNode(t *testing.T, client *fake.Clientset, version string) {
@@ -95,4 +97,19 @@ func writeNode(t *testing.T, client *fake.Clientset, version string) {
 	}
 	_, err := client.CoreV1().Nodes().Create(context.TODO(), &kubeN, metav1.CreateOptions{})
 	assert.NoError(t, err)
+}
+
+// waitTimeout returns true if wg is completed and false if time is up
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
 }
