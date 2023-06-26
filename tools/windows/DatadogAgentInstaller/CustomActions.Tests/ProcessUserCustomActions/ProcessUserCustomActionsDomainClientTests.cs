@@ -4,11 +4,11 @@ using FluentAssertions;
 using Microsoft.Deployment.WindowsInstaller;
 using Xunit;
 
-namespace CustomActions.Tests.UserCustomActions
+namespace CustomActions.Tests.ProcessUserCustomActions
 {
-    public class UserCustomActionsDomainClientTests : BaseUserCustomActionsDomainTests
+    public class ProcessUserCustomActionsDomainClientTests : BaseProcessUserCustomActionsDomainTests
     {
-        public UserCustomActionsDomainClientTests()
+        public ProcessUserCustomActionsDomainClientTests()
         {
             Test.WithDomainClient();
         }

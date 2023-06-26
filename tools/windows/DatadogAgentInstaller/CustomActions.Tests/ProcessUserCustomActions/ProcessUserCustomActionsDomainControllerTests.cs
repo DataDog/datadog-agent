@@ -3,11 +3,11 @@ using FluentAssertions;
 using Microsoft.Deployment.WindowsInstaller;
 using Xunit;
 
-namespace CustomActions.Tests.UserCustomActions
+namespace CustomActions.Tests.ProcessUserCustomActions
 {
-    public class UserCustomActionsDomainControllerTests : BaseUserCustomActionsDomainTests
+    public class ProcessUserCustomActionsDomainControllerTests : BaseProcessUserCustomActionsDomainTests
     {
-        public UserCustomActionsDomainControllerTests()
+        public ProcessUserCustomActionsDomainControllerTests()
         {
             Test.WithDomainController();
         }

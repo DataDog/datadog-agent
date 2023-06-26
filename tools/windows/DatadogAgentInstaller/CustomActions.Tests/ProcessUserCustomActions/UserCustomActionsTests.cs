@@ -7,11 +7,11 @@ using Microsoft.Deployment.WindowsInstaller;
 using Moq;
 using Xunit;
 
-namespace CustomActions.Tests.UserCustomActions
+namespace CustomActions.Tests.ProcessUserCustomActions
 {
     public class UserCustomActionsTests
     {
-        public UserCustomActionsTestSetup Test { get; } = new();
+        public ProcessUserCustomActionsTestSetup Test { get; } = new();
 
         /// <summary>
         /// Base case, installing with default credentials
