@@ -13,11 +13,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
@@ -293,8 +295,13 @@ func (p *GoTLSProgram) Stop() {
 	}
 }
 
+var (
+	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
+)
+
 func (p *GoTLSProgram) handleProcessStart(pid pid) {
-	exePath := filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "exe")
+	pidAsStr := strconv.FormatUint(uint64(pid), 10)
+	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
 
 	binPath, err := os.Readlink(exePath)
 	if err != nil {
@@ -313,8 +320,17 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		// there are not much we can do, and we don't want to flood the logs
 		return
 	}
+
+	// Check if the process is datadog's internal process, if so, we don't want to hook the process.
+	if internalProcessRegex.MatchString(binPath) {
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
+		}
+		return
+	}
+
 	// Getting the full path in the process' namespace.
-	binPath = filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "root", binPath)
+	binPath = filepath.Join(p.procRoot, pidAsStr, "root", binPath)
 
 	var stat syscall.Stat_t
 	if err = syscall.Stat(binPath, &stat); err != nil {
