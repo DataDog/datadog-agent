@@ -190,10 +190,8 @@ core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
 core,github.com/acomagu/bufpipe,MIT,Copyright (c) 2019 acomagu
 core,github.com/agext/levenshtein,Apache-2.0,Copyright 2016 ALRUX Inc
 core,github.com/agnivade/levenshtein,MIT,Copyright (c) 2015 Agniva De Sarker
-core,github.com/alecthomas/participle,MIT,Copyright (C) 2017 Alec Thomas
-core,github.com/alecthomas/participle/lexer,MIT,Copyright (C) 2017 Alec Thomas
-core,github.com/alecthomas/participle/lexer/ebnf,MIT,Copyright (C) 2017 Alec Thomas
-core,github.com/alecthomas/participle/lexer/ebnf/internal,MIT,Copyright (C) 2017 Alec Thomas
+core,github.com/alecthomas/participle/v2,MIT,Copyright (C) 2017-2022 Alec Thomas
+core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017-2022 Alec Thomas
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/andybalholm/brotli,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
 core,github.com/aquasecurity/go-dep-parser/pkg/c/conan,MIT,Copyright (c) 2019 Teppei Fukuda
