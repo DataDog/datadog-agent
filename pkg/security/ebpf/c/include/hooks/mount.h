@@ -143,6 +143,11 @@ SYSCALL_KPROBE1(unshare, unsigned long, flags) {
     return 0;
 }
 
+SYSCALL_KRETPROBE(unshare) {
+    pop_syscall(EVENT_UNSHARE_MNTNS);
+    return 0;
+}
+
 // fentry blocked by: tail call
 SEC("kprobe/attach_mnt")
 int kprobe_attach_mnt(struct pt_regs *ctx) {
@@ -238,7 +243,7 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(st
 // fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_two_callback")
 int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_UNSHARE_MNTNS);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
     if (!syscall) {
         return 0;
     }
