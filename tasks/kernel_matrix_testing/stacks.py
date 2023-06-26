@@ -1,5 +1,5 @@
 from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
-from .libvirt import delete_domains, delete_volumes, delete_pools, delete_networks
+from .libvirt import delete_domains, delete_volumes, delete_pools, delete_networks, pause_domains, resume_domains
 import json
 import os
 from .tool import Exit, info, ask, error
@@ -195,3 +195,27 @@ def destroy_stack(ctx, stack, branch, force, ssh_key):
         destroy_stack_pulumi(ctx, stack, ssh_key)
 
     ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
+
+def pause_stack(ctx, stack=None, branch=False):
+    stack = check_and_get_stack(stack, branch)
+    if not stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+    conn = libvirt.open("qemu:///system")
+    pause_domains(conn, stack)
+    conn.close()
+
+def resume_stack(ctx, stack=None, branch=False):
+    stack = check_and_get_stack(stack, branch)
+    if not stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+    conn = libvirt.open("qemu:///system")
+    resume_domains(conn, stack)
+    conn.close()
+
+def info(ctx, stack=None, branch=False)
+    stack = check_and_get_stack(stack, branch)
+    if not stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+    conn = libvirt.open("qemu:///system")
+    list_domains(conn, stack)
+    conn.close()

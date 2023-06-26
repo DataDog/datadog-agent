@@ -13,7 +13,6 @@ from .kernel_matrix_testing import stacks
 from .kernel_matrix_testing.tool import info, warn, ask, Exit
 from .kernel_matrix_testing.download import update_kernel_packages, update_rootfs, revert_kernel_packages, revert_rootfs
 
-
 @task
 def create_stack(ctx, stack=None, branch=False):
     stacks.create_stack(ctx, stack, branch)
@@ -34,7 +33,6 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
     vmconfig.gen_config(ctx, stack, branch, vms, init_stack, vcpu, memory, new)
 
 
-@task
 def launch_stack(
     ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0ea4588b47bb10aac", arm_ami="ami-0f7cd5e8852bde813"
 ):
@@ -45,6 +43,17 @@ def launch_stack(
 def destroy_stack(ctx, stack=None, branch=False, force=False, ssh_key=""):
     stacks.destroy_stack(ctx, stack, branch, force, ssh_key)
 
+@task
+def pause_stack(ctx, stack=None, branch=False):
+    stacks.pause_stack(ctx, stack, branch)
+
+@task
+def resume_stack(ctx, stack=None, branch=False):
+    stacks.resume_stack(ctx, stack, branch)
+    
+@task
+def info(ctx, stack=None, branch=False):
+    stacks.info(ctx, stacks, branch)
 
 @task
 def init(ctx):
