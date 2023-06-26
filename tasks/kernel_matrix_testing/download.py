@@ -99,8 +99,16 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
     finally:
         os.remove(path)
 
+    # extract tar.gz files
+    res = ctx.run(f"find {rootfs_dir} -name \"*.tar.gz\" -type f -exec tar xzvf $(basename {{}}) -C {rootfs_dir} \;")
+    if not res.ok:
+        if revert:
+            revert_rootfs(ctx, rootfs_dir, backup_dir)
+        raise Exit("Failed to remove uncompress archives")
+
+
     # remove tar.gz
-    res = ctx.run(f"find {rootfs_dir} -name *.tar.gz -type f -exec rm -f {{}} \\;")
+    res = ctx.run(f"find {rootfs_dir} -name \"*.tar.gz\" -type f -exec rm -f {{}} \\;")
     if not res.ok:
         if revert:
             revert_rootfs(ctx, rootfs_dir, backup_dir)
