@@ -519,26 +519,22 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 
 // isInvalidDiscarder returns whether the given value is a valid discarder for the given field
 func isInvalidDiscarder(field eval.Field, value string) bool {
-	values, exists := invalidDiscarders[field]
-	if !exists {
-		return false
-	}
-
-	return values[value]
+	return invalidDiscarders[invalidDiscarderEntry{
+		field: field,
+		value: value,
+	}]
 }
 
 // rearrange invalid discarders for fast lookup
-func createInvalidDiscardersCache() map[eval.Field]map[string]bool {
-	invalidDiscarders := make(map[eval.Field]map[string]bool)
+func createInvalidDiscardersCache() map[invalidDiscarderEntry]bool {
+	invalidDiscarders := make(map[invalidDiscarderEntry]bool)
 
 	for field, values := range InvalidDiscarders {
-		ivalues := invalidDiscarders[field]
-		if ivalues == nil {
-			ivalues = make(map[string]bool)
-			invalidDiscarders[field] = ivalues
-		}
 		for _, value := range values {
-			ivalues[value] = true
+			invalidDiscarders[invalidDiscarderEntry{
+				field: field,
+				value: value,
+			}] = true
 		}
 	}
 
@@ -700,7 +696,12 @@ func dumpDiscarders(resolver *dentry.Resolver, pidMap, inodeMap, statsFB, statsB
 	return dump, nil
 }
 
-var invalidDiscarders map[eval.Field]map[string]bool
+type invalidDiscarderEntry struct {
+	field eval.Field
+	value string
+}
+
+var invalidDiscarders map[invalidDiscarderEntry]bool
 
 func init() {
 	invalidDiscarders = createInvalidDiscardersCache()
