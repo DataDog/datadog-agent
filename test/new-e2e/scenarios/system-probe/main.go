@@ -50,6 +50,7 @@ func main() {
 	dependenciesDirectoryPtr := flag.String("dependencies-dir", DD_AGENT_TESTING_DIR, "directory where dependencies package is present")
 	subnetsPtr := flag.String("subnets", "", "list of subnets to use")
 	vmconfigPathPtr := flag.String("vmconfig", defaultVMConfigPath, "vmconfig path")
+	local := flag.Bool("local", false, "is scenario running locally")
 
 	flag.Parse()
 
@@ -71,6 +72,7 @@ func main() {
 		DependenciesDirectory: *dependenciesDirectoryPtr,
 		Subnets:               *subnetsPtr,
 		VMConfigPath:          *vmconfigPathPtr,
+		Local:                 *local,
 	}
 
 	fmt.Printf("shutdown period: %d\n", opts.ShutdownPeriod)

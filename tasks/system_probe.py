@@ -1553,6 +1553,7 @@ def start_microvms(
     subnets=None,
     stack_name="kernel-matrix-testing-system",
     vmconfig=None,
+    local=False,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1569,6 +1570,7 @@ def start_microvms(
         f"--subnets {subnets}" if subnets else "",
         f"--name {stack_name}",
         f"--vmconfig {vmconfig}" if vmconfig else "",
+        f"--local" if local else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))

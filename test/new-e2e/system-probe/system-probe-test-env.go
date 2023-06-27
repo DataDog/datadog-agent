@@ -13,10 +13,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
 	"github.com/sethvargo/go-retry"
+	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
@@ -42,6 +45,7 @@ type SystemProbeEnvOpts struct {
 	DependenciesDirectory string
 	Subnets               string
 	VMConfigPath          string
+	Local                 bool
 }
 
 type TestEnv struct {
@@ -86,14 +90,47 @@ func GetEnv(key, fallback string) string {
 	return fallback
 }
 
+func credentials() (string, error) {
+	var fd int
+	if terminal.IsTerminal(syscall.Stdin) {
+		fd = syscall.Stdin
+	} else {
+		tty, err := os.Open("/dev/tty")
+		if err != nil {
+			return "", fmt.Errorf("error allocating terminal: %w", err)
+		}
+		defer tty.Close()
+		fd = int(tty.Fd())
+	}
+	fmt.Print("Enter Password: ")
+	bytePassword, err := term.ReadPassword(fd)
+	if err != nil {
+		return "", err
+	}
+
+	password := string(bytePassword)
+	return password, nil
+}
+
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	var err error
+	var sudoPassword string
+
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
 		name:    name,
 	}
 
 	stackManager := infra.GetStackManager()
+
+	if opts.Local {
+		sudoPassword, err = credentials()
+		if err != nil {
+			return nil, fmt.Errorf("Unable to get password: %w", err)
+		}
+	} else {
+		sudoPassword = ""
+	}
 
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
@@ -102,6 +139,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		// any password on sudo. This secret configuration was introduced in the test-infra-definitions
 		// scenario for dev environments: https://github.com/DataDog/test-infra-definitions/pull/159
 		"sudo-password-remote":                   auto.ConfigValue{Value: "", Secret: true},
+		"sudo-password-local":                    auto.ConfigValue{Value: sudoPassword, Secret: true},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
 		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
