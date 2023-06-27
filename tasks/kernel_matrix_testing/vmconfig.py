@@ -140,7 +140,9 @@ def list_possible():
 # arch: [x86_64, amd64]
 # Each normalized_vm_def output corresponds to each VM
 # requested by the user
-def normalize_vm_def(vm_def):
+def normalize_vm_def(possible, vm):
+    # attempt to fuzzy match user provided vm-def with the possible list.
+    vm_def, _ = process.extractOne(vm, possible, scorer=fuzz.token_sort_ratio)
     recipe, version, arch = vm_def.split('-')
 
     arch = archs_mapping[arch]
@@ -294,16 +296,13 @@ def modify_existing_vmsets(vm_config, set_id, kernels):
 
     return True
 
-
 def generate_vm_config(vm_config, vms, vcpu, memory):
     # get all possible (recipe, version, arch) combinations we can support.
     possible = list_possible()
 
     kernels = dict()
     for vm in vms:
-        # attempt to fuzzy match user provided vm-def with the possible list.
-        vm_def, _ = process.extractOne(vm, possible, scorer=fuzz.token_sort_ratio)
-        normalized_vm_def = normalize_vm_def(vm_def)
+        normalized_vm_def = normalize_vm_def(possible, vm)
         set_id = vmset_id(*normalized_vm_def)
         # generate kernel configuration for each vm-def
         if set_id not in kernels:

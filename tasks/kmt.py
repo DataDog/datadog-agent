@@ -1,6 +1,8 @@
 from invoke import task
+import re 
 from glob import glob
 from .kernel_matrix_testing.init_kmt import (
+    KMT_DIR,
     KMT_STACKS_DIR,
     KMT_PACKAGES_DIR,
     KMT_KHEADERS_DIR,
@@ -12,6 +14,8 @@ from .kernel_matrix_testing import vmconfig
 from .kernel_matrix_testing import stacks
 from .kernel_matrix_testing.tool import info, warn, ask, Exit
 from .kernel_matrix_testing.download import update_kernel_packages, update_rootfs, revert_kernel_packages, revert_rootfs
+from .kernel_matrix_testing.init_kmt import check_and_get_stack
+from .kernel_matrix_testing.vmconfig import list_possible, normalize_vm_def
 
 @task
 def create_stack(ctx, stack=None, branch=False):
@@ -88,6 +92,40 @@ def revert_resources(ctx):
     info("[+] Reverted successfully")
 
 
+def get_vm_ip(stack, version, arch):
+    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
+        entries = f.readlines()
+        for entry in entries:
+            match = re.search(f"^.+{arch}-{version}.+\s+.+$", entry.strip('\n'))
+            if match is None:
+                continue
+
+            return match.group(0).split(' ')[0], match.group(0).split(' ')[1]
+
 @task
-def sync(ctx, vms=""):
-    pass
+def sync(ctx, stack=None, branch=False, vms=""):
+    stack = check_and_get_stack(stack, branch)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    vm_types = vms.split(',')
+    if len(vm_types) == 0:
+        raise Exit("No VMs to lookup")
+
+    possible = vmconfig.list_possible()
+    ip_vm_pairs = list()
+    for vm in vm_types:
+        _, version, arch = vmconfig.normalize_vm_def(possible, vm)
+        pair = get_vm_ip(stack, version, arch)
+        ip_vm_pairs.append(pair) 
+
+    info("[+] VMs to sync")
+    for vm, ip in ip_vm_pairs:
+        info(f"    Syncing VM {vm} with ip {ip}")
+
+    if ask("Do you want to sync? (y/n)") != "y":
+        warn("[-] Sync aborted !")
+
+    info("[+] Beginning sync...")
+    for _, ip in ip_vm_pairs:
+        ctx.run(f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:/root/datadog-agent")
