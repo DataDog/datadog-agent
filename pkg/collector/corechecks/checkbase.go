@@ -132,6 +132,7 @@ func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, 
 			customTags = append(customTags, commonOptions.Tags...)
 		}
 
+		// TEST code
 		log.Debugf("AKI custom Tags: %q", customTags)
 
 		// Set custom tags to sender
