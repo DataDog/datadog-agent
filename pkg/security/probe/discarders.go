@@ -518,7 +518,7 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 }
 
 // isInvalidDiscarder returns whether the given value is a valid discarder for the given field
-func isInvalidDiscarder(field eval.Field, value interface{}) bool {
+func isInvalidDiscarder(field eval.Field, value string) bool {
 	values, exists := invalidDiscarders[field]
 	if !exists {
 		return false
