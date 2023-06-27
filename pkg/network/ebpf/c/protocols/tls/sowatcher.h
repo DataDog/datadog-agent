@@ -54,29 +54,19 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_openat_ctx *args) {
         return;
     }
 
-// Check the last 6 characters of the following libraries to ensure the file is a relevant `.so`.
+// Check the last 9 characters of the following libraries to ensure the file is a relevant `.so`.
 // Libraries:
-//    libssl.so -> ssl.so
-// libcrypto.so -> pto.so
-// libgnutls.so -> tls.so
-
-
-    // TESTING
+//    libssl.so -> libssl.so
+// libcrypto.so -> crypto.so
+// libgnutls.so -> gnutls.so
     bool is_shared_library = false;
-#define match2chars(_base, _a,_b) (path->buf[_base+i] == _a && path->buf[_base+i+1] == _b)
 #define match3chars(_base, _a,_b,_c) (path->buf[_base+i] == _a && path->buf[_base+i+1] == _b && path->buf[_base+i+2] == _c)
-#define match4chars(_base, _a,_b,_c,_d) (path->buf[_base+i] == _a && path->buf[_base+i+1] == _b && path->buf[_base+i+2] == _c && path->buf[_base+i+3] == _d)
-    // this would match regex [spt][stl][los]\.so
+#define match6chars(_base, _a,_b,_c,_d,_e,_f) (match3chars(_base,_a,_b,_c) && match3chars(_base+3,_d,_e,_f))
     int i = 0;
 #pragma unroll
     for (i = 0; i < LIB_PATH_MAX_SIZE - (LIB_SO_SUFFIX_SIZE); i++) {
         if(
-            /*
-            ((path->buf[i] == 's') || (path->buf[i] == 'p') || (path->buf[i] == 't')) &&
-            ((path->buf[i+1] == 's') || (path->buf[i+1] == 't') || (path->buf[i+1] == 'l')) &&
-            ((path->buf[i+2] == 'l') || (path->buf[i+2] == 'o') || (path->buf[i+2] == 's')) &&
-            */
-            match3chars(3, '.','s','o')) {
+            match3chars(6, '.','s','o')) {
             is_shared_library = true;
             break;
         }
@@ -85,7 +75,7 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_openat_ctx *args) {
         goto cleanup;
     }
 
-    if (!match3chars(0, 's','s','l') && !match3chars(0, 'p','t','o') && !match3chars(0, 't','l','s')) {
+    if (!match6chars(0, 'l','i','b','s','s','l') && !match6chars(0, 'c','r','y','p','t','o') && !match6chars(0, 'g','n','u','t','l','s')) {
         goto cleanup;
     }
 
