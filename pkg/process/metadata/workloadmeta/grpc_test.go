@@ -17,6 +17,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
+func assertSetEvent(t *testing.T, expected, actual *pbgo.ProcessEventSet) {
+	t.Helper()
+
+	assert.Equal(t, expected.Pid, actual.Pid)
+	assert.Equal(t, expected.Nspid, actual.Nspid)
+	assert.Equal(t, expected.ContainerId, actual.ContainerId)
+	assert.Equal(t, expected.CreationTime, actual.CreationTime)
+	if expected.Language != nil {
+		assert.Equal(t, expected.Language.Name, actual.Language.Name)
+	}
+}
+
+func assertUnsetEvent(t *testing.T, expected, actual *pbgo.ProcessEventUnset) {
+	t.Helper()
+
+	assert.Equal(t, expected.Pid, actual.Pid)
+}
+
 func toEventSet(proc *procutil.Process) *pbgo.ProcessEventSet {
 	return &pbgo.ProcessEventSet{Pid: proc.Pid}
 }
@@ -174,10 +192,10 @@ func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.Proc
 
 	for i, expectedSet := range expected.SetEvents {
 		actualSet := expected.SetEvents[i]
-		assert.EqualExportedValues(t, *expectedSet, *actualSet) //nolint:copylocks
+		assertSetEvent(t, expectedSet, actualSet)
 	}
 	for i, expectedUnset := range expected.UnsetEvents {
 		actualSet := expected.UnsetEvents[i]
-		assert.EqualExportedValues(t, *expectedUnset, *actualSet) //nolint:copylocks
+		assertUnsetEvent(t, expectedUnset, actualSet)
 	}
 }
