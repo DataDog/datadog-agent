@@ -62,7 +62,7 @@ func (c *CRDCollector) Informer() cache.SharedInformer {
 func (c *CRDCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	groupVersionResource := v1.SchemeGroupVersion.WithResource("customresourcedefinitions")
 	var err error
-	c.informer, err = rcfg.APIClient.CRDInformerFactory.ForResource(groupVersionResource)
+	c.informer, err = rcfg.OrchestratorInformerFactory.CRDInformerFactory.ForResource(groupVersionResource)
 	if err != nil {
 		log.Error(err)
 	}
