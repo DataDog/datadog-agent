@@ -46,7 +46,7 @@ const (
 
 var BaseEnv = map[string]interface{}{
 	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join(TestDirRoot, "pkg/ebpf/bytecode/build"),
-	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join(TestDirRoot, "pkg/network/java"),
+	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join(TestDirRoot, "pkg/network/protocols/tls/java"),
 }
 
 var timeouts = map[*regexp.Regexp]time.Duration{
