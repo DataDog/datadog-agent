@@ -15,14 +15,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// getUnameOS is similar to `uname -o`
+// getOperatingSystem returns the name of the operating system.
 //
-// uname uses preprocessor macros to determine the printable name of the operating system,
-// cf https://github.com/coreutils/gnulib/blob/master/m4/host-os.m4
-//
-// on every Linux device it prints "GNU/Linux", probably because uname is from GNU coreutils,
-// so if you are using it your OS is considered to be GNU
-func getUnameOS() string {
+// The implementation always returns "GNU/Linux" on Linux, similarly to what `uname -o` does.
+func getOperatingSystem() string {
 	// eventually we might want to return different values depending on the actual OS
 	// (not all Linux are GNU)
 	return "GNU/Linux"
@@ -34,21 +30,23 @@ func isVendorAMD(reader io.Reader) bool {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		text := scanner.Text()
-		if strings.HasPrefix(text, "vendor_id") {
-			if strings.Contains(text, "AuthenticAMD") {
-				return true
-			}
-			break
+		key, value, found := strings.Cut(text, ":")
+		if !found {
+			continue
+		}
+
+		if strings.TrimSpace(key) == "vendor_id" {
+			return strings.TrimSpace(value) == "AuthenticAMD"
 		}
 	}
 	return false
 }
 
-// getUnameProcessor is similar to `uname -p`
+// getProcessorType returns the processor type, eg. 'x86_64', 'amd64', 'arm', 'i386'.
 //
-// the version of uname commonly used on Linux handles specifically the edge case of athlon processors
-// on i686 devices
-func getUnameProcessor(machine string) string {
+// The implementation is similar to `uname -p`, it uses the machine value but handles specifically
+// the edge case of athlon processors on i686 devices
+func getProcessorType(machine string) string {
 	if machine == "i686" {
 		file, err := os.Open("/proc/cpuinfo")
 		if err == nil {
@@ -62,10 +60,11 @@ func getUnameProcessor(machine string) string {
 	return machine
 }
 
-// getUnameHardwarePlatform is similar to `uname -i`
+// getHardwarePlatform returns the hardware platform, eg. 'i86pc', 'x86_64', 'aarch64'.
 //
-// the version of uname commonly used on Linux returns 'i386' for all 'i*86' devices
-func getUnameHardwarePlatform(machine string) string {
+// The implementation is similar to `uname -i`, it uses the machine value but returns 'i386' for
+// all 'i*86' devices
+func getHardwarePlatform(machine string) string {
 	if len(machine) == 4 && machine[0] == 'i' && machine[2] == '8' && machine[3] == '6' {
 		return "i386"
 	}
@@ -78,8 +77,8 @@ func updateArchInfo(archInfo map[string]string, uname *unix.Utsname) {
 	archInfo["kernel_release"] = utils.StringFromBytes(uname.Release[:])
 	machine := utils.StringFromBytes(uname.Machine[:])
 	archInfo["machine"] = machine
-	archInfo["processor"] = getUnameProcessor(machine)
-	archInfo["hardware_platform"] = getUnameHardwarePlatform(machine)
-	archInfo["os"] = getUnameOS()
+	archInfo["processor"] = getProcessorType(machine)
+	archInfo["hardware_platform"] = getHardwarePlatform(machine)
+	archInfo["os"] = getOperatingSystem()
 	archInfo["kernel_version"] = utils.StringFromBytes(uname.Version[:])
 }
