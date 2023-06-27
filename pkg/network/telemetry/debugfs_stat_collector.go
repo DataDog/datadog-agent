@@ -1,3 +1,5 @@
+//go:build windows || linux_bpf
+
 package telemetry
 
 import (
