@@ -781,3 +781,11 @@ def print_failed_tests(_, output_dir):
 
     if fail_count > 0:
         raise Exit(code=1)
+
+
+@task
+def print_fentry_stats(ctx):
+    fentry_o_path = "pkg/ebpf/bytecode/build/runtime-security-fentry.o"
+
+    for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
+        ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")
