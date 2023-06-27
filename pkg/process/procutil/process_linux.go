@@ -705,6 +705,8 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
+const PROC_SUPER_MAGIC = 0x9fa0
+
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
 func (p *probe) getFDCount(pidPath string) int32 {
@@ -722,7 +724,11 @@ func (p *probe) getFDCount(pidPath string) int32 {
 	// Starting with kernel 6.2, we can use a simpler fast path
 	// see https://github.com/torvalds/linux/commit/f1f1f2569901ec5b9d425f2e91c09a0e320768f3
 	if count := fi.Size(); count > 0 {
-		return int32(count)
+		// ensure the FS type is `procfs`
+		buf := new(syscall.Statfs_t)
+		if err := syscall.Statfs(path, buf); err == nil && buf.Type == PROC_SUPER_MAGIC {
+			return int32(count)
+		}
 	}
 
 	d, err := os.Open(path)
