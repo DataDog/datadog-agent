@@ -862,10 +862,10 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	// These IDs are B64 decoded from the snssqs.json event sample's _datadog MessageAttribute
 	expectedTraceID := uint64(1728904347387697031)
-    expectedParentID := uint64(353722510835624345)
+	expectedParentID := uint64(353722510835624345)
 
-    assert.Equal(t, expectedTraceID, snsSpan.TraceID)
-    assert.Equal(t, expectedParentID, snsSpan.ParentID)
+	assert.Equal(t, expectedTraceID, snsSpan.TraceID)
+	assert.Equal(t, expectedParentID, snsSpan.ParentID)
 	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
 }
 
