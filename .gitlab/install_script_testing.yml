@@ -1,0 +1,15 @@
+---
+test_install_script:
+  stage: install_script_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  script:
+    - export APT_URL=$DEB_TESTING_S3_BUCKET
+    - export YUM_URL=$YUM_TESTING_S3_BUCKET
+    - export APT_REPO_VERSION_AGENT6="pipeline-$CI_PIPELINE_ID-a6 6"
+    - export YUM_VERSION_PATH_AGENT6="testing/pipeline-$CI_PIPELINE_ID-a6/6"
+    - export APT_REPO_VERSION_AGENT7="pipeline-$CI_PIPELINE_ID-a7 7"
+    - export YUM_VERSION_PATH_AGENT7="testing/pipeline-$CI_PIPELINE_ID-a7/6"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-linux-install-script" --git-ref "feat/install-script-test-on-release" --variables "APT_URL,YUM_URL,APT_REPO_VERSION_AGENT6,APT_REPO_VERSION_AGENT7,YUM_VERSION_PATH_AGENT6,YUM_VERSION_PATH_AGENT7"
+  # rules:
+  #   !reference [.on_deploy]
