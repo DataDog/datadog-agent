@@ -3,7 +3,7 @@
 
 #include "ktypes.h"
 
-#define LIB_SO_SUFFIX_SIZE 5
+#define LIB_SO_SUFFIX_SIZE 6
 #define LIB_PATH_MAX_SIZE 120
 
 typedef struct {

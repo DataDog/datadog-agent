@@ -59,21 +59,33 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_openat_ctx *args) {
 //    libssl.so -> ssl.so
 // libcrypto.so -> pto.so
 // libgnutls.so -> tls.so
+
+
+    // TESTING
     bool is_shared_library = false;
 #define match2chars(_base, _a,_b) (path->buf[_base+i] == _a && path->buf[_base+i+1] == _b)
 #define match3chars(_base, _a,_b,_c) (path->buf[_base+i] == _a && path->buf[_base+i+1] == _b && path->buf[_base+i+2] == _c)
+#define match4chars(_base, _a,_b,_c,_d) (path->buf[_base+i] == _a && path->buf[_base+i+1] == _b && path->buf[_base+i+2] == _c && path->buf[_base+i+3] == _d)
+    // this would match regex [spt][stl][los]\.so
+    int i = 0;
 #pragma unroll
-    for (int i = 0; i < LIB_PATH_MAX_SIZE - (LIB_SO_SUFFIX_SIZE); i++) {
-        if ((match2chars(0, 's','l') ||
-                match2chars(0, 't','o') ||
-                match2chars(0, 'l','s')) &&
+    for (i = 0; i < LIB_PATH_MAX_SIZE - (LIB_SO_SUFFIX_SIZE); i++) {
+        if(
+            /*
+            ((path->buf[i] == 's') || (path->buf[i] == 'p') || (path->buf[i] == 't')) &&
+            ((path->buf[i+1] == 's') || (path->buf[i+1] == 't') || (path->buf[i+1] == 'l')) &&
+            ((path->buf[i+2] == 'l') || (path->buf[i+2] == 'o') || (path->buf[i+2] == 's')) &&
+            */
             match3chars(3, '.','s','o')) {
             is_shared_library = true;
             break;
         }
     }
-
     if (!is_shared_library) {
+        goto cleanup;
+    }
+
+    if (!match3chars(0, 's','s','l') && !match3chars(0, 'p','t','o') && !match3chars(0, 't','l','s')) {
         goto cleanup;
     }
 
