@@ -34,6 +34,8 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 )
 
+require golang.org/x/term v0.9.0
+
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.73
 	k8s.io/api v0.27.3
@@ -140,7 +142,6 @@ require (
 	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/net v0.11.0 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
-	golang.org/x/term v0.9.0 // indirect
 	golang.org/x/text v0.10.0 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	golang.org/x/tools v0.10.0 // indirect
