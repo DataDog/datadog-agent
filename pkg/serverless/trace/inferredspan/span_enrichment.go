@@ -227,6 +227,7 @@ type BodyStruct struct {
 
 type DatadogAttribute struct {
     XDatadogTraceID string `json:"x-datadog-trace-id"`
+	XDatadogParentID string `json:"x-datadog-parent-id"` 
 }
 
 // EnrichInferredSpanWithSQSEvent uses the parsed event
@@ -262,19 +263,27 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
         log.Error("Error parsing _datadog attribute: %v", err)
     }
 
-    // Get the x-datadog-trace-id
+    // Get the x-datadog-trace-id and x-datadog-parent-id
     xDatadogTraceID := datadogAttr.XDatadogTraceID
-    fmt.Printf("x-datadog-trace-id: %s\n", xDatadogTraceID)
+	xDatadogParentID := datadogAttr.XDatadogParentID
+
 	uint64TraceID, err := strconv.ParseUint(xDatadogTraceID, 10, 64)
 	if err != nil {
-		fmt.Println(err)
+		log.Error("Error converting x-datadog-trace-id: %v", err)
 	}
+
+	uint64ParentID, err := strconv.ParseUint(xDatadogParentID, 10, 64)
+	if err != nil {
+		log.Error("Error converting x-datadog-parent-id: %v", err)
+	}
+	
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sqs"
 	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Resource = parsedQueueName
 	inferredSpan.Span.TraceID = uint64TraceID
+	inferredSpan.Span.ParentID = uint64ParentID
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName:  "aws.sqs",

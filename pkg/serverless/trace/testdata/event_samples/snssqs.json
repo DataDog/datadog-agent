@@ -10,12 +10,7 @@
         "SenderId": "AIDAIOA2GYWSHW4E2VXIO",
         "ApproximateFirstReceiveTimestamp": "1639777618132"
       },
-      "messageAttributes": {
-        "_datadog" : {
-          "StringValue":"test",
-          "Type":"Binary",
-          "Value":"eyJ0cmFjZXBhcmVudCI6IjAwLTAwMDAwMDAwMDAwMDAwMDAxN2ZlNGQ1ODA0YWMxNzg3LTA0ZThhY2JmZGY2YWE5OTktMDEiLCJ0cmFjZXN0YXRlIjoiZGQ9czoxO3QuZG06LTEiLCJ4LWRhdGFkb2ctdHJhY2UtaWQiOiIxNzI4OTA0MzQ3Mzg3Njk3MDMxIiwieC1kYXRhZG9nLXBhcmVudC1pZCI6IjM1MzcyMjUxMDgzNTYyNDM0NSIsIngtZGF0YWRvZy1zYW1wbGluZy1wcmlvcml0eSI6IjEiLCJ4LWRhdGFkb2ctdGFncyI6Il9kZC5wLmRtPS0xIn0="}
-      },
+      "messageAttributes": {},
       "md5OfBody": "ee19d8b1377919239ad3fd5dabc33739",
       "eventSource": "aws:sqs",
       "eventSourceARN": "arn:aws:sqs:sa-east-1:425362996713:aj-js-library-test-dev-demo-queue",
