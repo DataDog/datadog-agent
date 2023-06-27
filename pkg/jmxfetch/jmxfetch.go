@@ -224,6 +224,10 @@ func (j *JMXFetch) Start(manage bool) error {
 			log.Warnf("Java option -XX:MaxRAMPercentage will not take affect since at least one of the java options -Xmx and XX:MaxHeapSize, which both ovrerride MaxRAMPercentage, are present")
 			passOption = false
 		}
+		if maxHeapSizeAsPercentRAM < 0.00 || maxHeapSizeAsPercentRAM > 100.0 {
+			log.Warnf("The value for MaxRAMPercentage must be between 0.0 and 100.0 for the option to take affect")
+			passOption = false
+		}
 		if passOption {
 			maxRAMPercentOption := fmt.Sprintf(" -XX:MaxRAMPercentage=%.4f", maxHeapSizeAsPercentRAM)
 			javaOptions += maxRAMPercentOption
