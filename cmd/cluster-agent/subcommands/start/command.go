@@ -222,21 +222,17 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 	}
 
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
-	if pkgconfig.Datadog.GetBool("orchestrator_explorer.enabled") {
-		// Generate and persist a cluster ID
-		// this must be a UUID, and ideally be stable for the lifetime of a cluster,
-		// so we store it in a configmap that we try and read before generating a new one.
-		coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
-		_, err = apicommon.GetOrCreateClusterID(coreClient)
-		if err != nil {
-			pkglog.Errorf("Failed to generate or retrieve the cluster ID")
-		}
+	// Generate and persist a cluster ID
+	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
+	// so we store it in a configmap that we try and read before generating a new one.
+	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+	clusterId, err := apicommon.GetOrCreateClusterID(coreClient)
+	if err != nil {
+		pkglog.Errorf("Failed to generate or retrieve the cluster ID")
+	}
 
-		if clusterName == "" {
-			pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
-		}
-	} else {
-		pkglog.Info("Orchestrator explorer is disabled")
+	if clusterName == "" {
+		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 	}
 
 	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
@@ -301,6 +297,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 				K8sClient:           apiCl.Cl,
 				RcClient:            rcClient,
 				ClusterName:         clusterName,
+				ClusterId:           clusterId,
 				StopCh:              stopCh,
 			}
 			if err := admissionpatch.StartControllers(patchCtx); err != nil {
