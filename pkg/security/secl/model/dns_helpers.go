@@ -80,9 +80,9 @@ LOOP:
 }
 
 func sanitizeDNSName(dns string) error {
-	if len(dns) < 3 { // check the minimun lenght, ie "a.b"
+	if len(dns) < 3 { // check the minimun length, ie "a.b"
 		return ErrDNSNameMalformatted
-	} else if len(dns) > 253 { // check the max full domain name lenght
+	} else if len(dns) > 253 { // check the max full domain name length
 		return ErrDNSNameMalformatted
 	}
 	domains := strings.Split(dns, ".")
