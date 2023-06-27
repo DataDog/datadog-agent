@@ -86,8 +86,7 @@ func TestUSMSuite(t *testing.T) {
 }
 
 func isTLSTag(staticTags uint64) bool {
-	// we check only if the TLS tag has set, not like network.IsTLSTag()
-	return staticTags&network.ConnTagTLS > 0
+	return network.IsTLSTag(staticTags)
 }
 
 func (s *USMSuite) TestEnableHTTPMonitoring() {
