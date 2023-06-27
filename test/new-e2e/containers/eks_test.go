@@ -26,9 +26,9 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/samber/lo"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -177,10 +177,10 @@ func (suite *eksSuite) TestAgent() {
 			if suite.NoError(err) && len(linuxPods.Items) >= 1 {
 				stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, tt.container, []string{"agent", "version"})
 				if suite.NoError(err) {
-					suite.Equal(stderr, "", "Standard error of `agent version` should be empty,")
+					suite.Equalf(stderr, "", "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
 					if suite.Equalf(2, len(match), "'Commit' not found in the output of `agent version`.") {
-						suite.Equal(GitCommit, match[1], "Agent isn’t running the expected version")
+						suite.Equalf(GitCommit, match[1], "Agent isn’t running the expected version")
 					}
 				}
 			}
@@ -389,25 +389,26 @@ func (suite *eksSuite) testMetric(metricName string, filterTags []string, expect
 	suite.Run(fmt.Sprintf("%s{%s}", metricName, strings.Join(filterTags, ",")), func() {
 		// suite.T().Parallel()
 
-		suite.NoError(backoff.Retry(func() error {
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				metricName,
 				fakeintake.WithTags[*aggregator.MetricSeries](filterTags),
 			)
 			if err != nil {
-				return err
+				collect.Errorf("%w", err)
+				return
 			}
 			if len(metrics) == 0 {
-				return fmt.Errorf("No `%s{%s}` metrics yet", metricName, strings.Join(filterTags, ","))
+				collect.Errorf("No `%s{%s}` metrics yet", metricName, strings.Join(filterTags, ","))
+				return
 			}
 
 			// Check tags
 			if err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags); err != nil {
-				return fmt.Errorf("Tags mismatch on `%s`: %w", metricName, err)
+				collect.Errorf("Tags mismatch on `%s`: %w", metricName, err)
+				return
 			}
-
-			return nil
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 7)))
+		}, 2*time.Minute, 10*time.Second, "Failed finding %s{%s} with proper tags", metricName, strings.Join(filterTags, ","))
 	})
 }
 
@@ -415,7 +416,7 @@ func (suite *eksSuite) testHPA(namespace, deployment string) {
 	suite.Run(fmt.Sprintf("kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
 		// suite.T().Parallel()
 
-		suite.NoError(backoff.Retry(func() error {
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				"kubernetes_state.deployment.replicas_available",
 				fakeintake.WithTags[*aggregator.MetricSeries]([]string{
@@ -424,10 +425,12 @@ func (suite *eksSuite) testHPA(namespace, deployment string) {
 				}),
 			)
 			if err != nil {
-				return err
+				collect.Errorf("%w", err)
+				return
 			}
 			if len(metrics) == 0 {
-				return fmt.Errorf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment)
+				collect.Errorf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment)
+				return
 			}
 
 			// Check HPA is properly scaling up and down
@@ -453,14 +456,12 @@ func (suite *eksSuite) testHPA(namespace, deployment string) {
 				}
 			}
 			if !scaleUp {
-				return fmt.Errorf("No scale up detected")
+				collect.Errorf("No scale up detected")
 			}
 			if !scaleDown {
-				return fmt.Errorf("No scale down detected")
+				collect.Errorf("No scale down detected")
 			}
-
-			return nil
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 120)))
+		}, 20*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
 	})
 }
 
