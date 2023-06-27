@@ -59,14 +59,18 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_openat_ctx *args) {
 //    libssl.so -> libssl.so
 // libcrypto.so -> crypto.so
 // libgnutls.so -> gnutls.so
+//
+// The matching is done in 2 stages here, first we look if the filename finished by ".so" 6 chars forward
+// this will give us the index (where the loop) for the 2nd stage
+// 2nd stage will try to match the remaining
+// it's done this way to avoid unroll code generation complexity and some verifier don't allow that
     bool is_shared_library = false;
 #define match3chars(_base, _a,_b,_c) (path->buf[_base+i] == _a && path->buf[_base+i+1] == _b && path->buf[_base+i+2] == _c)
 #define match6chars(_base, _a,_b,_c,_d,_e,_f) (match3chars(_base,_a,_b,_c) && match3chars(_base+3,_d,_e,_f))
     int i = 0;
 #pragma unroll
     for (i = 0; i < LIB_PATH_MAX_SIZE - (LIB_SO_SUFFIX_SIZE); i++) {
-        if(
-            match3chars(6, '.','s','o')) {
+        if(match3chars(6, '.','s','o')) {
             is_shared_library = true;
             break;
         }
