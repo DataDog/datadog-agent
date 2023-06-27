@@ -102,7 +102,8 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		}
 	}
 
-	mgr, err := newEBPFProgram(c, connectionProtocolMap, sockFD, bpfTelemetry)
+	// Patching connectionProtocolMap
+	mgr, err := newEBPFProgram(c, nil, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %w", err)
 	}

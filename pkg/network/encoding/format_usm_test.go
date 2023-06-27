@@ -11,29 +11,36 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 func TestFormatProtocols(t *testing.T) {
 	tests := []struct {
 		name     string
-		protocol protocols.Stack
+		protocol network.ProtocolType
 		want     *model.ProtocolStack
 	}{
 		{
-			name: "unknown protocol",
-			protocol: protocols.Stack{
-				Application: protocols.Unknown,
-				Api:         protocols.Unknown,
-				Encryption:  protocols.Unknown,
-			},
+			name:     "unknown protocol",
+			protocol: network.ProtocolUnknown,
 			want: &model.ProtocolStack{
-				Stack: nil,
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolUnknown,
+				},
+			},
+		},
+		{
+			name:     "unclassified protocol",
+			protocol: network.ProtocolUnclassified,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolUnknown,
+				},
 			},
 		},
 		{
 			name:     "http protocol",
-			protocol: protocols.Stack{Application: protocols.HTTP},
+			protocol: network.ProtocolHTTP,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolHTTP,
@@ -42,7 +49,7 @@ func TestFormatProtocols(t *testing.T) {
 		},
 		{
 			name:     "http2 protocol",
-			protocol: protocols.Stack{Application: protocols.HTTP2},
+			protocol: network.ProtocolHTTP2,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolHTTP2,
@@ -51,7 +58,7 @@ func TestFormatProtocols(t *testing.T) {
 		},
 		{
 			name:     "tls protocol",
-			protocol: protocols.Stack{Encryption: protocols.TLS},
+			protocol: network.ProtocolTLS,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolTLS,
@@ -60,7 +67,7 @@ func TestFormatProtocols(t *testing.T) {
 		},
 		{
 			name:     "kafka protocol",
-			protocol: protocols.Stack{Application: protocols.Kafka},
+			protocol: network.ProtocolKafka,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolKafka,
@@ -69,7 +76,7 @@ func TestFormatProtocols(t *testing.T) {
 		},
 		{
 			name:     "amqp protocol",
-			protocol: protocols.Stack{Application: protocols.AMQP},
+			protocol: network.ProtocolAMQP,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolAMQP,
@@ -78,7 +85,7 @@ func TestFormatProtocols(t *testing.T) {
 		},
 		{
 			name:     "redis protocol",
-			protocol: protocols.Stack{Application: protocols.Redis},
+			protocol: network.ProtocolRedis,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolRedis,
@@ -87,7 +94,7 @@ func TestFormatProtocols(t *testing.T) {
 		},
 		{
 			name:     "mongo protocol",
-			protocol: protocols.Stack{Application: protocols.Mongo},
+			protocol: network.ProtocolMongo,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolMongo,
@@ -96,7 +103,7 @@ func TestFormatProtocols(t *testing.T) {
 		},
 		{
 			name:     "mysql protocol",
-			protocol: protocols.Stack{Application: protocols.MySQL},
+			protocol: network.ProtocolMySQL,
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolMySQL,
@@ -106,7 +113,7 @@ func TestFormatProtocols(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, formatProtocolStack(tt.protocol, 0), "formatProtocol(%v)", tt.protocol)
+			assert.Equalf(t, tt.want, formatProtocol(tt.protocol, 0), "formatProtocol(%v)", tt.protocol)
 		})
 	}
 }

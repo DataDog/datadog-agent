@@ -125,4 +125,13 @@ BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
 // by using tail call.
 BPF_PROG_ARRAY(tcp_close_progs, 1)
 
+// This entry point is needed to bypass a memory limit on socket filters.
+// There is a limitation on number of instructions can be attached to a socket filter,
+// as we classify more protocols, we reached that limit, thus we workaround it
+// by using tail call.
+BPF_PROG_ARRAY(classification_progs, CLASSIFICATION_PROG_MAX)
+
+// Maps a connection tuple to its classified TLS protocol on socket layer only.
+BPF_HASH_MAP(tls_connection, conn_tuple_t, bool, 0)
+
 #endif
