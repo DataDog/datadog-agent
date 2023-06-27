@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2023-06-22
+Release on: 2023-06-27
 
 
 .. _Release Notes_7.45.1_Security Notes:
