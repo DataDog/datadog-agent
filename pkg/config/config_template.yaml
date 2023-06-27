@@ -2147,8 +2147,8 @@ api_key:
 ## When running in a container with jmx_use_container_support enabled, the JVM can
 ## automatically declare the maximmum heap size based off of a percentage of
 ## total container allocated memory. This option is overwritten if 
-## you use -Xmx to manually define the size of the heap. This option is
-## for containers with total allocated memory greater than ~250mb.
+## you use -Xmx to manually define the size of the heap. This option applies
+## to containers with a total memory limit greater than ~250mb.
 #
 # jmx_max_ram_percentage: 25.0
 

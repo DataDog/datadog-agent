@@ -221,7 +221,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		passOption := true
 		//These options overwrite the -XX:MaxRAMPercentage option, log a warning if they are found in the javaOptions
 		if strings.Contains(javaOptions, "Xmx") || strings.Contains(javaOptions, "XX:MaxHeapSize") {
-			log.Warnf("Java option Xmx and/or XX:MaxHeapSize overrides -XX:MaxRAMPercentage, remove if you want to scale by percent instead of a set memory limit")
+			log.Warnf("Java option -XX:MaxRAMPercentage will not take affect since at least one of the java options -Xmx and XX:MaxHeapSize, which both ovrerride MaxRAMPercentage, are present")
 			passOption = false
 		}
 		if passOption {
