@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path"
 	"sync"
@@ -56,7 +57,7 @@ const (
 const (
 	// When the agent continuously has the same authorization error when fetching RC updates
 	// The first initialLogRefreshError are logged as ERROR, and then it's only logged as INFO
-	initialUnauthorizedErrorLog uint64 = 5
+	initialFetchErrorLog uint64 = 5
 )
 
 // Service defines the remote config management service responsible for fetching, storing
@@ -90,8 +91,9 @@ type Service struct {
 
 	lastUpdateErr error
 
-	// Used to rate limit the 401 error logs
-	unauthorizedErrorCount uint64
+	// Used to rate limit the 4XX error logs
+	fetchErrorCount    uint64
+	lastFetchErrorType error
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -327,23 +329,25 @@ func (s *Service) refresh() error {
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		s.lastUpdateErr = fmt.Errorf("api: %v", err)
-		if err != api.ErrUnauthorized {
-			s.unauthorizedErrorCount = 0
-			return err
+		if s.lastFetchErrorType != err {
+			s.lastFetchErrorType = err
+			s.fetchErrorCount = 0
 		}
 
-		if s.unauthorizedErrorCount < initialUnauthorizedErrorLog {
-			s.unauthorizedErrorCount++
-			return err
+		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
+			if s.fetchErrorCount < initialFetchErrorLog {
+				s.fetchErrorCount++
+				return err
+			}
+			// If we saw the error enough time, we consider that RC not working is a normal behavior
+			// And we only log as INFO
+			// The agent will eventually log this error as INFO every maximalMaxBackoffTime
+			log.Infof("Could not refresh Remote Config: %v", err)
+			return nil
 		}
-
-		// If we saw the error enough time, we consider that RC not working is a normal behavior
-		// And we only log as INFO
-		// The agent will eventually log this error as INFO every maximalMaxBackoffTime
-		log.Infof("Could not refresh Remote Config: %v", err)
-		return nil
+		return err
 	}
-	s.unauthorizedErrorCount = 0
+	s.fetchErrorCount = 0
 	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
