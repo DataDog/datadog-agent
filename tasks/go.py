@@ -218,19 +218,19 @@ def generate_protobuf(ctx):
 
     # protoc-go-inject-tag targets
     inject_tag_targets = {
-        'trace': ['span.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
+        'trace': ['span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
     }
 
-    # msgp targets
+    # msgp targets (file, io)
     msgp_targets = {
-        'trace': ['trace.go', 'span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
-        'core': ['remoteconfig.pb.go'],
+        'trace': [('trace.go', False), ('span.pb.go', False), ('stats.pb.go', True), ('tracer_payload.pb.go', False), ('agent_payload.pb.go', False)],
+        'core': [('remoteconfig.pb.go', False)],
     }
 
     # msgp patches key is `pkg` : (patch, destination)
     #     if `destination` is `None` diff will target inherent patch files
     msgp_patches = {
-        'trace': [('0001-Customize-msgpack-parsing.patch', 'span_gen.go'), ('0002-Make-nil-map-deserialization-retrocompatible.patch', 'span_gen.go'), ('0003-pkg-trace-traceutil-credit-card-obfuscation-9213.patch', 'span_gen.go')],
+        'trace': [('0001-Customize-msgpack-parsing.patch', '-p4'), ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'), ('0003-pkg-trace-traceutil-credit-card-obfuscation-9213.patch', '-p4')],
     }
 
     base = os.path.dirname(os.path.abspath(__file__))
@@ -315,22 +315,20 @@ def generate_protobuf(ctx):
 
     # generate messagepack marshallers
     for pkg, files in msgp_targets.items():
-        for src in files:
+        for (src, io_gen) in files:
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
             ctx.run(
-                f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io=false"
+                f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}"
             )
 
     # apply msgp patches
     for pkg, patches in msgp_patches.items():
         for patch in patches:
             patch_file = os.path.join(proto_root, "patches", patch[0])
-            dst = patch[1]
-            if dst:
-                ctx.run(f"patch {pbgo_dir}/{pkg}/{dst} {patch_file}")
-            else:
-                ctx.run(f"git apply {patch_file}")
+            switches = patch[1] if patch[1] else ''
+            ctx.run(f"git apply {switches} --unsafe-paths --directory='{pbgo_dir}/{pkg}' {patch_file}")
+
 
 
 @task

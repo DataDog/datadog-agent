@@ -26,9 +26,10 @@ type StatsPayload struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	AgentHostname  string                `protobuf:"bytes,1,opt,name=agentHostname,proto3" json:"agentHostname,omitempty"`
-	AgentEnv       string                `protobuf:"bytes,2,opt,name=agentEnv,proto3" json:"agentEnv,omitempty"`
-	Stats          []*ClientStatsPayload `protobuf:"bytes,3,rep,name=stats,proto3" json:"stats,omitempty"`
+	AgentHostname string `protobuf:"bytes,1,opt,name=agentHostname,proto3" json:"agentHostname,omitempty"`
+	AgentEnv      string `protobuf:"bytes,2,opt,name=agentEnv,proto3" json:"agentEnv,omitempty"`
+	// @gotags: json:"stats,omitempty" msg:"stats,omitempty"
+	Stats          []*ClientStatsPayload `protobuf:"bytes,3,rep,name=stats,proto3" json:"stats,omitempty" msg:"stats,omitempty"`
 	AgentVersion   string                `protobuf:"bytes,4,opt,name=agentVersion,proto3" json:"agentVersion,omitempty"`
 	ClientComputed bool                  `protobuf:"varint,5,opt,name=clientComputed,proto3" json:"clientComputed,omitempty"`
 }
@@ -109,10 +110,11 @@ type ClientStatsPayload struct {
 
 	// Hostname is the tracer hostname. It's extracted from spans with "_dd.hostname" meta
 	// or set by tracer stats payload when hostname reporting is enabled.
-	Hostname      string               `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	Env           string               `protobuf:"bytes,2,opt,name=env,proto3" json:"env,omitempty"`         // env tag set on spans or in the tracers, used for aggregation
-	Version       string               `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"` // version tag set on spans or in the tracers, used for aggregation
-	Stats         []*ClientStatsBucket `protobuf:"bytes,4,rep,name=stats,proto3" json:"stats,omitempty"`
+	Hostname string `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Env      string `protobuf:"bytes,2,opt,name=env,proto3" json:"env,omitempty"`         // env tag set on spans or in the tracers, used for aggregation
+	Version  string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"` // version tag set on spans or in the tracers, used for aggregation
+	// @gotags: json:"stats,omitempty" msg:"stats,omitempty"
+	Stats         []*ClientStatsBucket `protobuf:"bytes,4,rep,name=stats,proto3" json:"stats,omitempty" msg:"stats,omitempty"`
 	Lang          string               `protobuf:"bytes,5,opt,name=lang,proto3" json:"lang,omitempty"`                   // informative field not used for aggregation
 	TracerVersion string               `protobuf:"bytes,6,opt,name=tracerVersion,proto3" json:"tracerVersion,omitempty"` // informative field not used for aggregation
 	RuntimeID     string               `protobuf:"bytes,7,opt,name=runtimeID,proto3" json:"runtimeID,omitempty"`         // used on stats payloads sent by the tracer to identify uniquely a message
@@ -253,9 +255,10 @@ type ClientStatsBucket struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Start    uint64                `protobuf:"varint,1,opt,name=start,proto3" json:"start,omitempty"`       // bucket start in nanoseconds
-	Duration uint64                `protobuf:"varint,2,opt,name=duration,proto3" json:"duration,omitempty"` // bucket duration in nanoseconds
-	Stats    []*ClientGroupedStats `protobuf:"bytes,3,rep,name=stats,proto3" json:"stats,omitempty"`
+	Start    uint64 `protobuf:"varint,1,opt,name=start,proto3" json:"start,omitempty"`       // bucket start in nanoseconds
+	Duration uint64 `protobuf:"varint,2,opt,name=duration,proto3" json:"duration,omitempty"` // bucket duration in nanoseconds
+	// @gotags: json:"stats,omitempty" msg:"stats,omitempty"
+	Stats []*ClientGroupedStats `protobuf:"bytes,3,rep,name=stats,proto3" json:"stats,omitempty" msg:"stats,omitempty"`
 	// AgentTimeShift is the shift applied by the agent stats aggregator on bucket start
 	// when the received bucket start is outside of the agent aggregation window
 	AgentTimeShift int64 `protobuf:"varint,4,opt,name=agentTimeShift,proto3" json:"agentTimeShift,omitempty"`
