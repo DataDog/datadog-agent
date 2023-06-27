@@ -369,6 +369,44 @@ SET k ?`,
 	}
 }
 
+func TestRemoveAllRedisArgs(t *testing.T) {
+	o := NewObfuscator(Config{})
+
+	for ti, tt := range [...]struct {
+		in, out string
+	}{
+		{
+			"",
+			"",
+		},
+		{
+			"SET key value",
+			"SET ?",
+		},
+		{
+			"GET k",
+			"GET ?",
+		},
+		{
+			"FAKECMD key value hash",
+			"FAKECMD ?",
+		},
+		{
+			"AUTH password",
+			"AUTH ?",
+		},
+		{
+			"GET",
+			"GET",
+		},
+	} {
+		t.Run(strconv.Itoa(ti), func(t *testing.T) {
+			out := o.RemoveAllRedisArgs(tt.in)
+			assert.Equal(t, tt.out, out, tt.in)
+		})
+	}
+}
+
 func BenchmarkRedisObfuscator(b *testing.B) {
 	cmd := strings.Repeat("GEOADD key longitude latitude member longitude latitude member longitude latitude member\n", 5)
 	o := NewObfuscator(Config{})

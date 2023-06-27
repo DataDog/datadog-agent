@@ -138,6 +138,10 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			RemoveQueryString: o.HTTP.RemoveQueryString,
 			RemovePathDigits:  o.HTTP.RemovePathDigits,
 		},
+		Redis: obfuscate.RedisConfig{
+			Enabled:       o.Redis.Enabled,
+			RemoveAllArgs: o.Redis.RemoveAllArgs,
+		},
 		Logger: new(debugLogger),
 	}
 }
