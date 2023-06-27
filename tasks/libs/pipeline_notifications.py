@@ -37,7 +37,7 @@ GITHUB_SLACK_MAP = {
     "@datadog/debugger": "#debugger-ops-prod",
     "@datadog/database-monitoring": "#database-monitoring",
     "@datadog/agent-cspm": "#k9-cspm-ops",
-    "@DataDog/telemetry-and-analytics": "#instrumentation-telemetry",
+    "@datadog/telemetry-and-analytics": "#instrumentation-telemetry",
 }
 
 
