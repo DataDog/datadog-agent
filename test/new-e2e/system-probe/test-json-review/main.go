@@ -61,6 +61,7 @@ func main() {
 		log.Fatal(err)
 	}
 	sort.Strings(matches)
+	fmt.Println(matches)
 
 	for i, testjson := range matches {
 		printHeader(fmt.Sprintf("Reviewing attempt %d", i+1))
@@ -69,7 +70,7 @@ func main() {
 			log.Fatal(err)
 		}
 		if len(failedTests) > 0 {
-			fmt.Fprint(os.Stderr, color.RedString(failedTests))
+			fmt.Println(color.RedString(failedTests))
 		} else {
 			fmt.Println(color.GreenString(fmt.Sprintf("All tests cleared in attempt %d", i+1)))
 			return
