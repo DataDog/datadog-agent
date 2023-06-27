@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -33,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
@@ -87,6 +89,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	// create files
@@ -111,6 +114,21 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		// Checking path1 still exists, and path2 not.
 		return checkPathIDDoesNotExist(watcher, fooPathID1) && checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid))
 	}, time.Second*10, time.Second, "")
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 0, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 1, "usm.so_watcher.matches")
+	telEqual(t, 1, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace() {
@@ -153,6 +171,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	time.Sleep(10 * time.Millisecond)
@@ -172,6 +191,21 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	// must fail on the host
 	_, err = os.Stat(libpath)
 	require.Error(t, err)
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 0, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 1, "usm.so_watcher.matches")
+	telEqual(t, 1, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_pathid_not_found")
+	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSameInodeRegression() {
@@ -199,6 +233,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	clientBin := buildSOWatcherClientBin(t)
@@ -226,6 +261,21 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 			checkPIDNotAssociatedWithPathID(watcher, fooPathID1, uint32(command1.Process.Pid)) &&
 			checkPIDNotAssociatedWithPathID(watcher, fooPathID2, uint32(command1.Process.Pid))
 	}, time.Second*10, time.Second, "")
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 1, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 2, "usm.so_watcher.matches") // command1 access to 2 files
+	telEqual(t, 1, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
+	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
@@ -236,7 +286,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
 
 	registerCB := func(id pathIdentifier, root string, path string) error { return nil }
-	unregisterCB := func(id pathIdentifier) error { return nil }
+	unregisterCB := func(id pathIdentifier) error { return errors.New("fake unregisterCB error") }
 
 	watcher := newSOWatcher(perfHandler,
 		soRule{
@@ -251,6 +301,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 		},
 	)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	// create files
@@ -308,6 +359,21 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	}, time.Second*10, time.Second, "")
 
 	checkWatcherStateIsClean(t, watcher)
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 1, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 3, "usm.so_watcher.matches") // command1 access to 2 files, command2 access to 1 file
+	telEqual(t, 2, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 2, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
+	telEqual(t, 2, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
@@ -344,6 +410,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	registerProcessTerminationUponCleanup(t, command1)
 	time.Sleep(time.Second)
 	watcher.Start()
+	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
 	require.Eventuallyf(t, func() bool {
@@ -378,6 +445,21 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	}, time.Second*10, time.Second, "")
 
 	checkWatcherStateIsClean(t, watcher)
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
+	telEqual(t, 1, "usm.so_watcher.already_registered")
+	telEqual(t, 0, "usm.so_watcher.blocked")
+	telEqual(t, 3, "usm.so_watcher.matches") // command1 access to 2 files, command2 access to 1 file
+	telEqual(t, 2, "usm.so_watcher.registered")
+	telEqual(t, 0, "usm.so_watcher.unregister_errors")
+	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
+	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
+	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
+	telEqual(t, 2, "usm.so_watcher.unregistered")
 }
 
 func buildSOWatcherClientBin(t *testing.T) string {
