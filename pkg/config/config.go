@@ -822,7 +822,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 	config.BindEnvAndSetDefault("jmx_use_container_support", false)
 	config.BindEnvAndSetDefault("jmx_max_ram_percentage", float64(25.0))
-	config.BindEnvAndSetDefault("jmx_initial_ram_percentage", float64(1.5625))
 	config.BindEnvAndSetDefault("jmx_max_restarts", int64(3))
 	config.BindEnvAndSetDefault("jmx_restart_interval", int64(5))
 	config.BindEnvAndSetDefault("jmx_thread_pool_size", 3)

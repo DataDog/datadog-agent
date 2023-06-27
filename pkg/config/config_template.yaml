@@ -2144,24 +2144,13 @@ api_key:
 
 ## @param jmx_max_ram_percentage - float - optional - default: 25.0
 ## @env DD_JMX_MAX_RAM_PERCENTAGE - float - optional - default: 25.0
-## When running in a container with use-container-support enabled, the JVM can
+## When running in a container with jmx_use_container_support enabled, the JVM can
 ## automatically declare the maximmum heap size based off of a percentage of
 ## total container allocated memory. This option is overwritten if 
 ## you use -Xmx to manually define the size of the heap. This option is
 ## for containers with total allocated memory greater than ~250mb.
 #
 # jmx_max_ram_percentage: 25.0
-
-## @param jmx_initial_ram_percentage - float - optional - default: 1.5625
-## @env DD_JMX_INITIAL_RAM_PERCENTAGE - float - optional - default: 1.5625
-## When running in a container with use-container-support enabled the JVM can
-## automatically allocate initial heap memory based off of a percentage of
-## total container allocated memory. This option defines the initial heap size
-## as a percentage of total container memory and is overwritten if -Xms is used to
-## manually define the starting heap size
-#
-# jmx_initial_ram_percentage: 1.5625
-
 
 ## @param jmx_log_file - string - optional
 ## @env DD_JMX_LOG_FILE - string - optional
