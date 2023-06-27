@@ -1,4 +1,4 @@
-//go:build windows || linux_bpf
+//go:build linux
 
 package telemetry
 
