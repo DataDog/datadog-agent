@@ -155,7 +155,6 @@ func (k *KubeASCheck) Configure(integrationConfigDigest uint64, config, initConf
 
 	hostnameDetected, _ := hostname.Get(context.TODO())
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
-	// TODO switching bundling mode here, so we want to add tags before/after this.
 	if k.instance.UnbundleEvents {
 		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetDefaultTagger(), k.instance.CollectedEventTypes)
 	} else {
