@@ -28,6 +28,7 @@ func TestStart(t *testing.T) {
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	remoteClient.EXPECT().Subscribe(state.ProductAPMSampling, gomock.Any()).Times(1)
+	remoteClient.EXPECT().Subscribe(state.ProductAgentConfig, gomock.Any()).Times(1)
 	remoteClient.EXPECT().Start().Times(1)
 
 	h.Start()
