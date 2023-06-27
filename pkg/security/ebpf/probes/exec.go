@@ -104,12 +104,6 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kretprobe_alloc_pid",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
 				EBPFFuncName: "kprobe_switch_task_namespaces",
 			},
 		},
@@ -117,18 +111,6 @@ func getExecProbes(fentry bool) []*manager.Probe {
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_do_coredump",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_switch_task_namespaces",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_do_coredump",
 			},
 		},
 	}
