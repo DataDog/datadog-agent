@@ -31,6 +31,8 @@ def getAllStackVolumesFn(conn, stack):
 
         volumes = list()
         for pool in pools:
+            if not pool.isActive():
+                continue
             volumes += pool.listAllVolumes()
 
         return volumes
@@ -55,7 +57,8 @@ def delete_pools(conn, stack):
 
     for pool in pools:
         name = pool.name()
-        pool.destroy()
+        if pool.isActive():
+            pool.destroy()
         pool.undefine()
         info(f"[+] Storage pool {name} deleted")
 

@@ -92,7 +92,7 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
         prefix = "aws-vault exec sandbox-account-admin --"
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack}"
+        f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} --local"
     )
 
 
@@ -120,7 +120,7 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
 
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy"
+        f"{env_vars} {prefix} inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
     )
 
 
@@ -144,6 +144,10 @@ def ec2_instance_ids(ctx, ip_list):
 
 def destroy_ec2_instances(ctx, stack):
     stack_output = os.path.join(KMT_STACKS_DIR, stack, "stack.output")
+    if not os.path.exists(stack_output):
+        warn(f"[-] File {stack_output} not found")
+        return
+
     with open(stack_output, 'r') as f:
         output = f.read().split('\n')
 
@@ -180,7 +184,7 @@ def destroy_stack_force(ctx, stack):
 
     destroy_ec2_instances(ctx, stack)
     # Find a better solution for this
-    ctx.run(f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {stack}")
+    ctx.run(f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {stack}", warn=True)
 
 
 def destroy_stack(ctx, stack, branch, force, ssh_key):
@@ -212,11 +216,11 @@ def resume_stack(ctx, stack=None, branch=False):
     resume_domains(conn, stack)
     conn.close()
 
-def info(ctx, stack=None, branch=False):
-    stack = check_and_get_stack(stack, branch)
-    if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-#    conn = libvirt.open("qemu:///system")
-#    list_domains(conn, stack)
-#    conn.close()
-    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.output")
+#def info(ctx, stack=None, branch=False):
+#    stack = check_and_get_stack(stack, branch)
+#    if not stack_exists(stack):
+#        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+##    conn = libvirt.open("qemu:///system")
+##    list_domains(conn, stack)
+##    conn.close()
+#    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.output")

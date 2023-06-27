@@ -39,10 +39,18 @@ if [ "$(uname -m )" == "aarch64" ]; then
     apt install -y qemu-efi-aarch64
 fi
 
+systemctl start nfs-kernel-server.service
+
 pip install -r tasks/kernel_matrix_testing/requirements.txt
 ```
 
-systemctl start nfs-kernel-server.service
+- [Install pulumi](https://www.pulumi.com/docs/install/).
+
+> Pulumi plugins will be installed automatically the first time the system is invoked
+
+```bash
+pulumi login --local
+```
 
 ## Getting started
 A straightforward flow to setup a collections of VMs is as follows:

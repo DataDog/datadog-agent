@@ -52,9 +52,9 @@ def pause_stack(ctx, stack=None, branch=False):
 def resume_stack(ctx, stack=None, branch=False):
     stacks.resume_stack(ctx, stack, branch)
     
-@task
-def info(ctx, stack=None, branch=False):
-    stacks.info(ctx, stacks, branch)
+#@task
+#def info(ctx, stack=None, branch=False):
+#    stacks.info(ctx, stacks, branch)
 
 @task
 def init(ctx, lite=False):
