@@ -81,7 +81,7 @@ var (
 )
 
 var (
-	dentryInvalidDiscarder = []interface{}{""}
+	dentryInvalidDiscarder = []string{""}
 	eventZeroDiscarder     = &model.Event{
 		FieldHandlers:    &model.DefaultFieldHandlers{},
 		ContainerContext: &model.ContainerContext{},
@@ -89,7 +89,7 @@ var (
 )
 
 // InvalidDiscarders exposes list of values that are not discarders
-var InvalidDiscarders = map[eval.Field][]interface{}{
+var InvalidDiscarders = map[eval.Field][]string{
 	"open.file.path":               dentryInvalidDiscarder,
 	"unlink.file.path":             dentryInvalidDiscarder,
 	"chmod.file.path":              dentryInvalidDiscarder,
@@ -528,13 +528,13 @@ func isInvalidDiscarder(field eval.Field, value string) bool {
 }
 
 // rearrange invalid discarders for fast lookup
-func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
-	invalidDiscarders := make(map[eval.Field]map[interface{}]bool)
+func createInvalidDiscardersCache() map[eval.Field]map[string]bool {
+	invalidDiscarders := make(map[eval.Field]map[string]bool)
 
 	for field, values := range InvalidDiscarders {
 		ivalues := invalidDiscarders[field]
 		if ivalues == nil {
-			ivalues = make(map[interface{}]bool)
+			ivalues = make(map[string]bool)
 			invalidDiscarders[field] = ivalues
 		}
 		for _, value := range values {
@@ -700,7 +700,7 @@ func dumpDiscarders(resolver *dentry.Resolver, pidMap, inodeMap, statsFB, statsB
 	return dump, nil
 }
 
-var invalidDiscarders map[eval.Field]map[interface{}]bool
+var invalidDiscarders map[eval.Field]map[string]bool
 
 func init() {
 	invalidDiscarders = createInvalidDiscardersCache()
