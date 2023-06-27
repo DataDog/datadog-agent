@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func TestIsVendorAMD(t *testing.T) {
@@ -43,13 +44,14 @@ func TestUpdateArchInfo(t *testing.T) {
 	copy(uname.Machine[:], []byte(machine))
 
 	expected := map[string]string{
-		"kernel_name":    sysname,
-		"hostname":       nodename,
-		"kernel_release": release,
-		"machine":        machine,
-		"processor":      machine,
-		"os":             machine,
-		"kernel_version": version,
+		"kernel_name":       sysname,
+		"hostname":          nodename,
+		"kernel_release":    release,
+		"machine":           machine,
+		"processor":         getProcessorType(machine),
+		"hardware_platform": getHardwarePlatform(machine),
+		"os":                getOperatingSystem(),
+		"kernel_version":    version,
 	}
 
 	archInfo := map[string]string{}
