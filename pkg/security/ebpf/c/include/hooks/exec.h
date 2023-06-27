@@ -142,19 +142,6 @@ int kprobe__do_fork(struct pt_regs *ctx) {
     return handle_do_fork(ctx);
 }
 
-SEC("kretprobe/alloc_pid")
-int kretprobe_alloc_pid(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (!syscall) {
-        return 0;
-    }
-
-    // cache the struct pid in the syscall cache, it will be populated by `alloc_pid`
-    struct pid *pid = (struct pid *) PT_REGS_RC(ctx);
-    bpf_probe_read(&syscall->fork.pid, sizeof(syscall->fork.pid), &pid);
-    return 0;
-}
-
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // inherit netns
