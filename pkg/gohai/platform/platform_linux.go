@@ -28,8 +28,8 @@ func getUnameOS() string {
 	return "GNU/Linux"
 }
 
-// check if the vendor is AMD
-// reader should be an io.Reader over /proc/cpuinfo
+// isVendorAMD checks if the vendor is AMD.
+// The reader is expecetd be an io.Reader over /proc/cpuinfo
 func isVendorAMD(reader io.Reader) bool {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
