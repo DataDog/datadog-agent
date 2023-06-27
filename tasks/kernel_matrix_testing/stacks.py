@@ -2,7 +2,7 @@ from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
 from .libvirt import delete_domains, delete_volumes, delete_pools, delete_networks, pause_domains, resume_domains
 import json
 import os
-from .tool import Exit, info, ask, error
+from .tool import Exit, info, ask, error, warn
 import getpass
 import libvirt
 
@@ -136,7 +136,8 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
     ctx.run(
         f"{env_vars} {prefix} inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
     )
-
+    
+    info(f"[+] Stack {stack} successfully setup")
 
 def is_ec2_ip_entry(entry):
     return entry.startswith("arm64-instance-ip") or entry.startswith("x86_64-instance-ip")

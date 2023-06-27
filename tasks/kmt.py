@@ -39,7 +39,6 @@ def launch_stack(
 ):
     stacks.launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami)
 
-
 @task
 def destroy_stack(ctx, stack=None, branch=False, force=False, ssh_key=""):
     stacks.destroy_stack(ctx, stack, branch, force, ssh_key)

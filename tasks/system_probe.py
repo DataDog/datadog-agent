@@ -1570,7 +1570,7 @@ def start_microvms(
         f"--subnets {subnets}" if subnets else "",
         f"--name {stack_name}",
         f"--vmconfig {vmconfig}" if vmconfig else "",
-        f"--local" if local else "",
+        "--local" if local else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))

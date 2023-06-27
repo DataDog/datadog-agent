@@ -100,7 +100,7 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
         os.remove(path)
 
     # extract tar.gz files
-    res = ctx.run(f"find {rootfs_dir} -name \"*.tar.gz\" -type f -exec tar xzvf $(basename {{}}) -C {rootfs_dir} \;")
+    res = ctx.run(f"find {rootfs_dir} -name \"*.tar.gz\" -type f -exec tar xzvf $(basename {{}}) -C {rootfs_dir} \\;")
     if not res.ok:
         if revert:
             revert_rootfs(ctx, rootfs_dir, backup_dir)
