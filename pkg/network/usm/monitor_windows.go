@@ -28,7 +28,7 @@ type Monitor interface {
 // batches of HTTP transactions received from the driver interface
 type WindowsMonitor struct {
 	di         *http.HttpDriverInterface
-	hei        *http.HttpEtwInterface
+	hei        *http.EtwInterface
 	telemetry  *http.Telemetry
 	statkeeper *http.StatKeeper
 
@@ -42,7 +42,7 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 	if err != nil {
 		return nil, err
 	}
-	hei := http.NewHttpEtwInterface(c)
+	hei := http.NewEtwInterface(c)
 
 	hei.SetMaxFlows(uint64(c.MaxTrackedConnections))
 	hei.SetMaxRequestBytes(uint64(c.HTTPMaxRequestFragment))
