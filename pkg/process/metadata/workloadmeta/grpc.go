@@ -90,7 +90,7 @@ func (l *grpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
 }
 
 func (l *grpcListener) start() error {
-	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%v", getGRPCStreamPort(l.config)))
+	listener, err := getListener(l.config)
 	if err != nil {
 		return err
 	}
@@ -144,10 +144,20 @@ func (l *grpcListener) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, stre
 	return nil
 }
 
+// getListener returns a listening connection
+func getListener(cfg config.ConfigReader) (net.Listener, error) {
+	address, err := config.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, getGRPCStreamPort(cfg)))
+}
+
 func getGRPCStreamPort(cfg config.ConfigReader) int {
 	grpcPort := cfg.GetInt("process_config.language_detection.grpc_port")
 	if grpcPort <= 0 {
-		_ = log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", grpcPort, config.DefaultProcessEntityStreamPort)
+		_ = log.Warnf("Invalid language_detection.grpc_port -- %d, using default port %d", grpcPort, config.DefaultProcessEntityStreamPort)
 		grpcPort = config.DefaultProcessEntityStreamPort
 	}
 	return grpcPort
