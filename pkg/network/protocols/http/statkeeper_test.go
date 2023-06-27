@@ -99,7 +99,7 @@ func TestPathProcessing(t *testing.T) {
 	)
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
-	setupStatKeeper := func(rules []*config.ReplaceRule) *HttpStatKeeper {
+	setupStatKeeper := func(rules []*config.ReplaceRule) *StatKeeper {
 		c := cfg
 		c.HTTPReplaceRules = rules
 
@@ -115,7 +115,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []HttpTX{
+		transactions := []Transaction{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/foobar", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/payment/123", statusCode, latency),
 		}
@@ -139,7 +139,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []HttpTX{
+		transactions := []Transaction{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/1", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/2", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/3", statusCode, latency),
@@ -171,7 +171,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []HttpTX{
+		transactions := []Transaction{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/ana/payment/123", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/bob/payment/456", statusCode, latency),
 		}

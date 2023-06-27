@@ -30,7 +30,7 @@ type WindowsMonitor struct {
 	di         *http.HttpDriverInterface
 	hei        *http.HttpEtwInterface
 	telemetry  *http.Telemetry
-	statkeeper *http.HttpStatKeeper
+	statkeeper *http.StatKeeper
 
 	mux         sync.Mutex
 	eventLoopWG sync.WaitGroup
@@ -101,7 +101,7 @@ func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {
 	defer m.mux.Unlock()
 
 	for i := range transactionBatch {
-		tx := http.HttpTX(&transactionBatch[i])
+		tx := http.Transaction(&transactionBatch[i])
 		m.telemetry.Count(tx)
 		m.statkeeper.Process(tx)
 	}

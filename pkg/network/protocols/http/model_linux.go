@@ -112,7 +112,7 @@ func (tx *EbpfTx) DynamicTags() []string {
 
 func (tx *EbpfTx) String() string {
 	var output strings.Builder
-	output.WriteString("ebpfHttpTx{")
+	output.WriteString("ebpfTx{")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(tx.Tags, 16) + "', ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(tx.Request_fragment[:]) + "', ")
