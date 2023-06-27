@@ -55,9 +55,13 @@ def pause_stack(ctx, stack=None, branch=False):
 def resume_stack(ctx, stack=None, branch=False):
     stacks.resume_stack(ctx, stack, branch)
     
-#@task
-#def info(ctx, stack=None, branch=False):
-#    stacks.info(ctx, stacks, branch)
+@task
+def ls(ctx, stack=None, branch=False):
+    stack = check_and_get_stack(stack, branch)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.outputs")
 
 @task
 def init(ctx, lite=False):
@@ -100,10 +104,17 @@ def get_vm_ip(stack, version, arch):
             if match is None:
                 continue
 
-            return match.group(0).split(' ')[0], match.group(0).split(' ')[1]
+            return arch, match.group(0).split(' ')[0], match.group(0).split(' ')[1]
+
+def get_instance_ip(stack, arch):
+    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
+        entries = f.readlines()
+        for entry in entries:
+            if f"{arch}-instance-ip" in entry.split(' ')[0]:
+                return entry.split()[0], entry.split()[1].strip('\n')
 
 @task
-def sync(ctx, stack=None, branch=False, vms=""):
+def sync(ctx, stack=None, branch=False, vms="", ssh_key=""):
     stack = check_and_get_stack(stack, branch)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -113,19 +124,35 @@ def sync(ctx, stack=None, branch=False, vms=""):
         raise Exit("No VMs to lookup")
 
     possible = vmconfig.list_possible()
-    ip_vm_pairs = list()
+    target_vms = list()
     for vm in vm_types:
         _, version, arch = vmconfig.normalize_vm_def(possible, vm)
-        pair = get_vm_ip(stack, version, arch)
-        ip_vm_pairs.append(pair) 
+        target = get_vm_ip(stack, version, arch)
+        target_vms.append(target)
+        if arch != "local" and ssh_key == "":
+            raise Exit("`ssh_key` is required when syncing VMs on remote instance")
 
-    info("[+] VMs to sync")
-    for vm, ip in ip_vm_pairs:
+    info("[*] VMs to sync")
+    for _, vm, ip in target_vms:
         info(f"    Syncing VM {vm} with ip {ip}")
 
     if ask("Do you want to sync? (y/n)") != "y":
         warn("[-] Sync aborted !")
+        return
 
-    info("[+] Beginning sync...")
-    for _, ip in ip_vm_pairs:
-        ctx.run(f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:/root/datadog-agent")
+    info("[*] Beginning sync...")
+
+    if ssh_key != "":
+        ssh_key_path = f"~/.ssh/{ssh_key}.pem"
+
+    for arch, _, ip in target_vms:
+        vm_copy = f"rsync -e \\\"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\\\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:/root/datadog-agent"
+        if arch == "local":
+            ctx.run(f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:/root/datadog-agent")
+        elif arch == "x86_64" or arch == "arm64":
+            instance_name, instance_ip = get_instance_ip(stack, arch)
+            info(f"[*] Instance {instance_name} has ip {instance_ip}")
+            ctx.run(f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {ssh_key_path}\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ ubuntu@{instance_ip}:/home/ubuntu/datadog-agent")
+            ctx.run(f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no ubuntu@{instance_ip} \"cd /home/ubuntu/datadog-agent && {vm_copy}\"")
+        else:
+            raise Exit(f"Unsupported arch {arch}")

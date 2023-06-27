@@ -60,6 +60,9 @@ def local_vms_in_config(vmconfig):
 
     return False
 
+def ask_for_ssh():
+    return ask("You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]") != "y"
+
 def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
@@ -75,12 +78,7 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
         ssh_key_file = find_ssh_key(ssh_key)
         ssh_add_cmd = f"ssh-add -l | grep {ssh_key} || ssh-add {ssh_key_file}"
     elif remote_vms_in_config(vm_config):
-        if (
-            ask(
-                "You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]"
-            )
-            != "Y"
-        ):
+        if ask_for_ssh():
             raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>'")
         ssh_add_cmd = ""
     else:
@@ -108,6 +106,8 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
     ctx.run(
         f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
     )
+
+    info(f"[+] Stack {stack} successfully setup")
 
 
 def destroy_stack_pulumi(ctx, stack, ssh_key):
@@ -137,7 +137,6 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
         f"{env_vars} {prefix} inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
     )
     
-    info(f"[+] Stack {stack} successfully setup")
 
 def is_ec2_ip_entry(entry):
     return entry.startswith("arm64-instance-ip") or entry.startswith("x86_64-instance-ip")

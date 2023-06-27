@@ -1,6 +1,6 @@
 from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
 from .download import archs_mapping, karch_mapping
-from .stacks import stack_exists, create_stack
+from .stacks import stack_exists, create_stack, X86_INSTANCE_TYPE, ARM_INSTANCE_TYPE
 import platform
 import math
 import json
@@ -163,7 +163,6 @@ def vmset_name_from_id(set_id):
 # Each set id will contain 1 or more of the VMs requested
 # by the user.
 def vmset_id(recipe, version, arch):
-    info(f"[+] recipe {recipe}, version {version}, arch {arch}")
     if recipe == "custom":
         if lte_414(version):
             return (recipe, arch, "lte_414")
@@ -328,6 +327,27 @@ def generate_vm_config(vm_config, vms, vcpu, memory):
     for vmset in vm_config["vmsets"]:
         vmset["vcpu"] = vcpu
         vmset["memory"] = memory
+
+    local_cnt = 0
+    remote_cnt = 0
+    amd64_ec2 = False
+    arm64_ec2 = False
+    for vmset in vm_config["vmsets"]:
+        if vmset["arch"] == "local":
+            local_cnt += len(vmset["kernels"])
+        if vmset["arch"] != "local":
+            remote_cnt += len(vmset["kernels"])
+        if vmset["arch"] == "x86_64":
+            amd64_ec2 = True
+        if vmset["arch"] == "arm64":
+            arm64_ec2 = True
+    
+    if arm64_ec2:
+        info(f"[*] Configuration will launch 1 arm64 {ARM_INSTANCE_TYPE} EC2 instance")
+    if amd64_ec2:
+        info(f"[*] Configuration will launch 1 x86_64 {X86_INSTANCE_TYPE} EC2 instance")
+
+    info(f"[*] Configuration launches {local_cnt} VMs locally, and {remote_cnt} VMs on remote instances")
 
 
 def ls_to_int(ls):

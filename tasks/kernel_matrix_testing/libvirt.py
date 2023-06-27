@@ -89,7 +89,7 @@ def resume_domains(conn, stack):
     for domain in domains:
         name = domain.name()
         domain.create()
-        info(f"[+] VM {name} is paused")
+        info(f"[+] VM {name} is resumed")
 
 def list_domains(conn, stack):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
