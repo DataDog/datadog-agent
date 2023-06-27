@@ -364,7 +364,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			continue
 		}
 		_, foundPid := fetchPids[c.Pid]
-		if foundPid && c.DPort == httpKey.DstPort && isTLSTag(c.StaticTags) && c.Protocol == network.ProtocolHTTP {
+		if foundPid && c.DPort == httpKey.DstPort && isTLSTag(c.StaticTags) {
 			found = true
 			break
 		}
