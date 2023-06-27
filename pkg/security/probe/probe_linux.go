@@ -58,7 +58,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -350,25 +349,6 @@ func (p *Probe) sendAnomalyDetection(event *model.Event) {
 	p.generatedAnomalyDetection[event.GetEventType()].Inc()
 }
 
-func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
-	if !event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) {
-		return false
-	}
-
-	// first, check if the current event is a kernel generated anomaly detection event
-	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
-		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
-		// check if the profile can generate anomalies for the current event type
-	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
-		return false
-	} else if event.IsInProfile() {
-		return false
-	}
-
-	p.sendAnomalyDetection(event)
-	return true
-}
-
 // AddActivityDumpHandler set the probe activity dump handler
 func (p *Probe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
@@ -395,13 +375,17 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
-	if !p.handleAnomalyDetection(event) && event.Error == nil {
-		// Process after evaluation because some monitors need the DentryResolver to have been called first.
+	// handle anomaly detections
+	if event.IsAnomalyDetectionEvent() {
+		if event.IsKernelSpaceAnomalyDetectionEvent() {
+			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
+		}
+		p.sendAnomalyDetection(event)
+	} else if event.Error == nil {
+		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 		if p.profileManagers.activityDumpManager != nil {
 			p.profileManagers.activityDumpManager.ProcessEvent(event)
 		}
-
 	}
 	p.monitor.ProcessEvent(event)
 }
