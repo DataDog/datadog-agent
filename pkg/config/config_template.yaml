@@ -2145,10 +2145,11 @@ api_key:
 ## @param jmx_max_ram_percentage - float - optional - default: 25.0
 ## @env DD_JMX_MAX_RAM_PERCENTAGE - float - optional - default: 25.0
 ## When running in a container with jmx_use_container_support enabled, the JVM can
-## automatically declare the maximmum heap size based off of a percentage of
+## automatically declare the maximum heap size based off of a percentage of
 ## total container allocated memory. This option is overwritten if 
 ## you use -Xmx to manually define the size of the heap. This option applies
-## to containers with a total memory limit greater than ~250mb.
+## to containers with a total memory limit greater than ~250mb. If 
+## jmx_use_container_support is disabled this option has no effect.
 #
 # jmx_max_ram_percentage: 25.0
 
