@@ -1638,7 +1638,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
 				return cs.Direction == network.OUTGOING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
 			}) {
-				if c.Protocol == expectedProtocol && expectedTLS == isTLSTag(c.StaticTags) {
+				if c.Protocol == expectedProtocol && expectedTLS == network.IsTLSTag(c.StaticTags) {
 					outgoing = &c
 					break
 				}
@@ -1649,7 +1649,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
 				return cs.Direction == network.INCOMING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
 			}) {
-				if c.Protocol == expectedProtocol && expectedTLS == isTLSTag(c.StaticTags) {
+				if c.Protocol == expectedProtocol && expectedTLS == network.IsTLSTag(c.StaticTags) {
 					incoming = &c
 					break
 				}

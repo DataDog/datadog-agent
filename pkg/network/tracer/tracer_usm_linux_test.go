@@ -85,11 +85,6 @@ func TestUSMSuite(t *testing.T) {
 	})
 }
 
-func isTLSTag(staticTags uint64) bool {
-	// we check only if the TLS tag has set, not like network.IsTLSTag()
-	return staticTags&network.ConnTagTLS > 0
-}
-
 func (s *USMSuite) TestEnableHTTPMonitoring() {
 	t := s.T()
 	if !httpSupported() {
@@ -365,7 +360,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			continue
 		}
 		_, foundPid := fetchPids[c.Pid]
-		if foundPid && c.DPort == httpKey.DstPort && isTLSTag(c.StaticTags) && c.Protocol == network.ProtocolHTTP {
+		if foundPid && c.DPort == httpKey.DstPort && network.IsTLSTag(c.StaticTags) {
 			found = true
 			break
 		}
@@ -892,7 +887,7 @@ func (s *USMSuite) TestJavaInjection() {
 							}
 
 							for _, c := range payload.Conns {
-								if c.SPort == key.SrcPort && c.DPort == key.DstPort && isTLSTag(c.StaticTags) {
+								if c.SPort == key.SrcPort && c.DPort == key.DstPort && network.IsTLSTag(c.StaticTags) {
 									return true
 								}
 							}
@@ -1166,7 +1161,7 @@ func (s *USMSuite) TestTLSClassification() {
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for _, c := range payload.Conns {
-						if c.DPort == 44330 && isTLSTag(c.StaticTags) {
+						if c.DPort == 44330 && network.IsTLSTag(c.StaticTags) {
 							return true
 						}
 					}
