@@ -16,7 +16,7 @@ require (
 	// Commit sha matches the first 8 digits of the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:01234567
-	github.com/DataDog/test-infra-definitions v0.0.0-20230622123358-60eb38e90955
+	github.com/DataDog/test-infra-definitions v0.0.0-20230626144635-a3bad1d37b5a
 	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.27
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
@@ -91,6 +91,10 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/pulumi-aws/sdk/v5 v5.41.0 // indirect
 	github.com/pulumi/pulumi-awsx/sdk v1.0.2 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk v1.103.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute v1.103.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice v1.103.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network v1.103.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.29.1 // indirect
