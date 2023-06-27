@@ -20,6 +20,8 @@ type CLCChecks struct {
 type CLCStats struct {
 	AverageExecutionTime int  `json:"AverageExecutionTime"`
 	MetricSamples        int  `json:"MetricSamples"`
+	HistogramBuckets     int  `json:"HistogramBuckets"`
+	Events               int  `json:"Events"`
 	LastExecFailed       bool `json:"LastExecFailed"`
 }
 
@@ -31,6 +33,8 @@ func (d *CLCStats) UnmarshalJSON(data []byte) error {
 	}
 	d.AverageExecutionTime = int(stats.AverageExecutionTime)
 	d.MetricSamples = int(stats.MetricSamples)
+	d.HistogramBuckets = int(stats.HistogramBuckets)
+	d.Events = int(stats.Events)
 	if stats.LastError != "" {
 		d.LastExecFailed = true
 	} else {
