@@ -93,7 +93,6 @@ func (c *CheckBase) Configure(integrationConfigDigest uint64, data integration.D
 // in order to setup common options (run interval, empty hostname)
 func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, instanceConfig integration.Data, source string) error {
 	handleConf := func(conf integration.Data, c *CheckBase) error {
-		log.Debugf("AKI check name: %q", c.checkName)
 
 		commonOptions := integration.CommonInstanceConfig{}
 		err := yaml.Unmarshal(conf, &commonOptions)
@@ -117,23 +116,17 @@ func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, 
 			s.DisableDefaultHostname(true)
 		}
 
-		// TODO TEST
 		var customTags []string
 
 		// Set tags configured in DD_TAGS
 		if len(cluster.GetTags()) > 0 {
 			customTags = cluster.GetTags()
-			log.Debugf("AKI customTags 1: %q", customTags)
 		}
 
 		// Set custom tags configured for this check
 		if len(commonOptions.Tags) > 0 {
-			log.Debugf("AKI commonOptions.Tags 2: %q", commonOptions.Tags)
 			customTags = append(customTags, commonOptions.Tags...)
 		}
-
-		// TEST code
-		log.Debugf("AKI custom Tags: %q", customTags)
 
 		// Set custom tags to sender
 		if len(customTags) > 0 {

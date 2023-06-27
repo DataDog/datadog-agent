@@ -80,12 +80,9 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, [
 
 		emittedEvents.Inc(involvedObject.Kind, ev.Type)
 
-		log.Debugf("AKI tagsAccumulator.Get(): %q", tagsAccumulator.Get())
-		// TEST
 		for _, t := range cluster.GetTags() {
 			tagsAccumulator.Append(t)
 		}
-		log.Debugf("AKI 2nd tagsAccumulator.Get(): %q", tagsAccumulator.Get())
 
 		datadogEvs = append(datadogEvs, metrics.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),

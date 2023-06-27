@@ -44,11 +44,7 @@ func newDispatcher() *dispatcher {
 	}
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
 	// Tags configured in DD_TAGS
-	var ddtags = cluster.GetTags()
-	log.Debugf("AKI cluster.GetTags(): %q", ddtags)
-	d.extraTags = append(config.Datadog.GetStringSlice("cluster_checks.extra_tags"))
-	d.extraTags = append(d.extraTags, ddtags...)
-	log.Debugf("AKI d.extraTags: %q", d.extraTags)
+	d.extraTags = append(config.Datadog.GetStringSlice("cluster_checks.extra_tags"), cluster.GetTags()...)
 	excludedChecks := config.Datadog.GetStringSlice("cluster_checks.exclude_checks")
 	// This option will almost always be empty
 	if len(excludedChecks) > 0 {
