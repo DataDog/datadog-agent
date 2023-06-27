@@ -5,29 +5,11 @@
 package platform
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
-
-func TestIsVendorAMD(t *testing.T) {
-	athlonSource := `processor   : 0
-vendor_id   : AuthenticAMD
-cpu family  : 15
-model       : 67
-model name  : Dual-Core AMD Opteron(tm) Processor 1218 HE`
-	reader := strings.NewReader(athlonSource)
-	require.True(t, isVendorAMD(reader))
-
-	notAthlonSource := `processor	: 0
-vendor_id	: GenuineIntel
-cpu family	: 6
-model		: 79
-model name	: Intel(R) Xeon(R) CPU E5-2686 v4 @ 2.30GHz`
-	reader = strings.NewReader(notAthlonSource)
-	require.False(t, isVendorAMD(reader))
-}
 
 func TestUpdateArchInfo(t *testing.T) {
 	uname := &unix.Utsname{}
@@ -47,8 +29,8 @@ func TestUpdateArchInfo(t *testing.T) {
 		"hostname":       nodename,
 		"kernel_release": release,
 		"machine":        machine,
-		"processor":      machine,
-		"os":             machine,
+		"processor":      getUnameProcessor(),
+		"os":             sysname,
 		"kernel_version": version,
 	}
 

@@ -25,7 +25,7 @@ func getOperatingSystem() string {
 }
 
 // isVendorAMD checks if the vendor is AMD.
-// The reader is expecetd be an io.Reader over /proc/cpuinfo
+// The reader is expected be an io.Reader over /proc/cpuinfo
 func isVendorAMD(reader io.Reader) bool {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {

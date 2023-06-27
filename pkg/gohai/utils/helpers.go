@@ -10,6 +10,11 @@ import "bytes"
 //
 // The given slice must be null-terminated.
 func StringFromBytes(slice []byte) string {
+	// using `string(slice)` will keep the null bytes in the resulting Go string, so we have to
+	// check for the position of the first null byte and troncate the slice
 	length := bytes.IndexByte(slice, 0)
+	if length == -1 {
+		length = len(slice)
+	}
 	return string(slice[:length])
 }
