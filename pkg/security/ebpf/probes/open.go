@@ -26,7 +26,7 @@ var openProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "hook_do_dentry_open",
+			EBPFFuncName: "kprobe_do_dentry_open",
 		},
 	},
 	{
