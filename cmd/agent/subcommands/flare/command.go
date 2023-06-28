@@ -258,7 +258,7 @@ func makeFlare(flareComp flare.Component, log log.Component, config config.Compo
 		}
 	}
 
-	response, e := flareComp.Send(filePath, caseID, customerEmail)
+	response, e := flareComp.Send(filePath, caseID, customerEmail, "local")
 	fmt.Println(response)
 	if e != nil {
 		return e

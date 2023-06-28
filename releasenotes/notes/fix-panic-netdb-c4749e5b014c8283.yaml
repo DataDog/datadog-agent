@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes a panic occuring when an entry in ``/etc/services`` does not follow
+    the format ``port/protocol``: https://gitlab.com/cznic/libc/-/issues/25

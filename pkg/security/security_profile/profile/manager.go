@@ -639,7 +639,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 
 	// shortcut for dedicated anomaly detection events
-	if IsAnomalyDetectionEvent(event.GetEventType()) {
+	if event.IsKernelSpaceAnomalyDetectionEvent() {
 		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 		return
 	}

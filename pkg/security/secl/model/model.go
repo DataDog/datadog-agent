@@ -369,9 +369,32 @@ func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
 }
 
-// IsInProfile return true if the event was fount in the profile
+// IsInProfile return true if the event was found in the profile
 func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
+}
+
+// IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
+func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
+	return AnomalyDetectionSyscallEventType == e.GetEventType()
+}
+
+// IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
+func (e *Event) IsAnomalyDetectionEvent() bool {
+	if !e.SecurityProfileContext.Status.IsEnabled(AnomalyDetection) {
+		return false
+	}
+
+	// first, check if the current event is a kernel generated anomaly detection event
+	if e.IsKernelSpaceAnomalyDetectionEvent() {
+		return true
+	} else if !e.SecurityProfileContext.CanGenerateAnomaliesFor(e.GetEventType()) {
+		// the profile can't generate anomalies for the current event type
+		return false
+	} else if e.IsInProfile() {
+		return false
+	}
+	return true
 }
 
 // AddToFlags adds a flag to the event

@@ -2,6 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// go:build test
+
 package runner
 
 import "github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
@@ -9,7 +12,7 @@ import "github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 var _ Profile = &mockProfile{}
 
 func newMockProfile(storeMap map[parameters.StoreKey]string) Profile {
-	store := parameters.NewCascadingStore(parameters.NewMockStore(storeMap))
+	store := parameters.NewMockStore(storeMap)
 	return mockProfile{baseProfile: newProfile("totoro", []string{}, store, nil)}
 }
 
