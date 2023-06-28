@@ -34,13 +34,13 @@ var (
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          offsetGuesserUID,
-				EBPFFuncName: "kprobe_get_pid_task_numbers",
+				EBPFFuncName: "hook_get_pid_task_numbers",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          offsetGuesserUID + "_a",
-				EBPFFuncName: "kprobe_get_pid_task_offset",
+				EBPFFuncName: "hook_get_pid_task_offset",
 			},
 		},
 	}

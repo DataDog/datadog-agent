@@ -50,7 +50,7 @@ static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
     }
 }
 
-static __attribute__((always_inline)) void dec_mount_ref(struct pt_regs *ctx, u32 mount_id) {
+static __attribute__((always_inline)) void dec_mount_ref(ctx_t *ctx, u32 mount_id) {
     u32 key = mount_id;
     struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
     if (ref) {
