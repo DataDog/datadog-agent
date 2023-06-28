@@ -32,8 +32,8 @@ SYSCALL_KPROBE0(linkat) {
     return trace__sys_link(SYNC_SYSCALL);
 }
 
-SEC("kprobe/do_linkat")
-int kprobe_do_linkat(struct pt_regs *ctx) {
+HOOK_ENTRY("do_linkat")
+int hook_do_linkat(ctx_t *ctx) {
     struct syscall_cache_t* syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return trace__sys_link(ASYNC_SYSCALL);
