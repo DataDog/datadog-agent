@@ -91,8 +91,10 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		newFallback, err = pkglog.GetLogLevel()
 		if err == nil {
 			h.configState.FallbackLogLevel = newFallback.String()
-			_, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, mergedConfig.LogLevel), "", nil)
+			var resp *http.Response
+			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, mergedConfig.LogLevel), "", nil)
 			if err == nil {
+				resp.Body.Close()
 				h.configState.LatestLogLevel = mergedConfig.LogLevel
 				pkglog.Infof("Changing log level of the trace-agent to %s through remote config", mergedConfig.LogLevel)
 			}
@@ -102,7 +104,11 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 		currentLogLevel, err = pkglog.GetLogLevel()
 		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
 			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
-			_, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, h.configState.FallbackLogLevel), "", nil)
+			var resp *http.Response
+			resp, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, h.configState.FallbackLogLevel), "", nil)
+			if err == nil {
+				resp.Body.Close()
+			}
 		}
 	}
 
