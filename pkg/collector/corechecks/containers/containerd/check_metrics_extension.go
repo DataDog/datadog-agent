@@ -20,10 +20,10 @@ import (
 
 type containerdCustomMetricsExtension struct {
 	sender    generic.SenderFunc
-	aggSender aggregator.Sender
+	aggSender sender.Sender
 }
 
-func (cext *containerdCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender aggregator.Sender) {
+func (cext *containerdCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender sender.Sender) {
 	cext.sender = sender
 	cext.aggSender = aggSender
 }

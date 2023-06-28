@@ -11,38 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Sender allows sending metrics from checks/a check
-type Sender interface {
-	Commit()
-	Gauge(metric string, value float64, hostname string, tags []string)
-	GaugeNoIndex(metric string, value float64, hostname string, tags []string)
-	Rate(metric string, value float64, hostname string, tags []string)
-	Count(metric string, value float64, hostname string, tags []string)
-	MonotonicCount(metric string, value float64, hostname string, tags []string)
-	MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool)
-	Counter(metric string, value float64, hostname string, tags []string)
-	Histogram(metric string, value float64, hostname string, tags []string)
-	Historate(metric string, value float64, hostname string, tags []string)
-	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
-	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
-	Event(e metrics.Event)
-	EventPlatformEvent(rawEvent []byte, eventType string)
-	GetSenderStats() stats.SenderStats
-	DisableDefaultHostname(disable bool)
-	SetCheckCustomTags(tags []string)
-	SetCheckService(service string)
-	SetNoIndex(noIndex bool)
-	FinalizeCheckServiceTag()
-	OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int)
-	OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string)
-}
 
 // RawSender interface to submit samples to aggregator directly
 type RawSender interface {
@@ -113,7 +88,7 @@ type senderOrchestratorManifest struct {
 
 type checkSenderPool struct {
 	agg     *BufferedAggregator
-	senders map[id.ID]Sender
+	senders map[id.ID]sender.Sender
 	m       sync.Mutex
 }
 
@@ -144,7 +119,7 @@ func newCheckSender(
 // GetSender returns a Sender with passed ID, properly registered with the aggregator
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore
-func GetSender(id id.ID) (Sender, error) {
+func GetSender(id id.ID) (sender.Sender, error) {
 	if demultiplexerInstance == nil {
 		return nil, errors.New("Demultiplexer was not initialized")
 	}
@@ -163,7 +138,7 @@ func DestroySender(id id.ID) {
 
 // SetSender returns the passed sender with the passed ID.
 // This is largely for testing purposes
-func SetSender(sender Sender, id id.ID) error {
+func SetSender(sender sender.Sender, id id.ID) error {
 	if demultiplexerInstance == nil {
 		return errors.New("Demultiplexer was not initialized")
 	}
@@ -171,7 +146,7 @@ func SetSender(sender Sender, id id.ID) error {
 }
 
 // GetDefaultSender returns the default sender
-func GetDefaultSender() (Sender, error) {
+func GetDefaultSender() (sender.Sender, error) {
 	if demultiplexerInstance == nil {
 		return nil, errors.New("Demultiplexer was not initialized")
 	}
@@ -434,7 +409,7 @@ func (s *checkSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody,
 	s.orchestratorManifestOut <- om
 }
 
-func (sp *checkSenderPool) getSender(id id.ID) (Sender, error) {
+func (sp *checkSenderPool) getSender(id id.ID) (sender.Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
@@ -444,7 +419,7 @@ func (sp *checkSenderPool) getSender(id id.ID) (Sender, error) {
 	return nil, fmt.Errorf("Sender not found")
 }
 
-func (sp *checkSenderPool) mkSender(id id.ID) (Sender, error) {
+func (sp *checkSenderPool) mkSender(id id.ID) (sender.Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
@@ -463,7 +438,7 @@ func (sp *checkSenderPool) mkSender(id id.ID) (Sender, error) {
 	return sender, err
 }
 
-func (sp *checkSenderPool) setSender(sender Sender, id id.ID) error {
+func (sp *checkSenderPool) setSender(sender sender.Sender, id id.ID) error {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 

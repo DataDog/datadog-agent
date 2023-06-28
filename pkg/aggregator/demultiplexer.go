@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -72,10 +73,10 @@ type Demultiplexer interface {
 	// Senders API, mainly used by collectors/checks
 	// --
 
-	GetSender(id id.ID) (Sender, error)
-	SetSender(sender Sender, id id.ID) error
+	GetSender(id id.ID) (sender.Sender, error)
+	SetSender(sender.Sender, id.ID) error
 	DestroySender(id id.ID)
-	GetDefaultSender() (Sender, error)
+	GetDefaultSender() (sender.Sender, error)
 	cleanSenders()
 }
 

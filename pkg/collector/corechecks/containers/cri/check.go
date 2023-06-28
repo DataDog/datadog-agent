@@ -99,7 +99,7 @@ func (c *CRICheck) Run() error {
 	return c.runProcessor(sender)
 }
 
-func (c *CRICheck) runProcessor(sender aggregator.Sender) error {
+func (c *CRICheck) runProcessor(sender sender.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 

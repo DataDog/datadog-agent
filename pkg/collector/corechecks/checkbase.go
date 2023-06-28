@@ -12,6 +12,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -249,7 +250,7 @@ func (c *CheckBase) GetWarnings() []error {
 // to avoid this performance cost, as long as they are careful to avoid errors.
 //
 // See `safesender.go` for details on the managed errors.
-func (c *CheckBase) GetSender() (aggregator.Sender, error) {
+func (c *CheckBase) GetSender() (sender.Sender, error) {
 	sender, err := c.GetRawSender()
 	if err != nil {
 		return nil, err
@@ -258,7 +259,7 @@ func (c *CheckBase) GetSender() (aggregator.Sender, error) {
 }
 
 // GetRawSender is similar to GetSender, but does not provide the safety wrapper.
-func (c *CheckBase) GetRawSender() (aggregator.Sender, error) {
+func (c *CheckBase) GetRawSender() (sender.Sender, error) {
 	return aggregator.GetSender(c.ID())
 }
 

@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -281,7 +281,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		pendingChecksChan,
 		checksTracker,
 		mockShouldAddStatsFunc,
-		func() (aggregator.Sender, error) { return nil, nil },
+		func() (sender.Sender, error) { return nil, nil },
 		100*time.Millisecond,
 	)
 	require.Nil(t, err)
@@ -502,7 +502,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 		pendingChecksChan,
 		checksTracker,
 		mockShouldAddStatsFunc,
-		func() (aggregator.Sender, error) {
+		func() (sender.Sender, error) {
 			return mockSender, nil
 		},
 		pollingInterval,
@@ -572,7 +572,7 @@ func TestWorkerSenderNil(t *testing.T) {
 		pendingChecksChan,
 		checksTracker,
 		mockShouldAddStatsFunc,
-		func() (aggregator.Sender, error) {
+		func() (sender.Sender, error) {
 			return nil, fmt.Errorf("testerr")
 		},
 		pollingInterval,
@@ -612,7 +612,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 		pendingChecksChan,
 		checksTracker,
 		mockShouldAddStatsFunc,
-		func() (aggregator.Sender, error) {
+		func() (sender.Sender, error) {
 			return mockSender, nil
 		},
 		pollingInterval,

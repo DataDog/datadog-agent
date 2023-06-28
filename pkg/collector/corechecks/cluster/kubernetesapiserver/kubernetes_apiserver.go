@@ -17,7 +17,7 @@ import (
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -300,7 +300,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]metrics.Event, error) {
 	return events, nil
 }
 
-func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
+func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatus *v1.ComponentStatusList) error {
 	for _, component := range componentsStatus.Items {
 		if component.ObjectMeta.Name == "" {
 			return errors.New("metadata structure has changed. Not collecting API Server's Components status")
@@ -340,7 +340,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 	return nil
 }
 
-func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
+func (k *KubeASCheck) componentStatusCheck(sender sender.Sender) error {
 	componentsStatus, err := k.ac.ComponentStatuses()
 	if err != nil {
 		return err
@@ -349,7 +349,7 @@ func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
 	return k.parseComponentStatus(sender, componentsStatus)
 }
 
-func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggregator.Sender) error {
+func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender.Sender) error {
 	ready, err := k.ac.IsAPIServerReady(ctx)
 
 	var (

@@ -29,7 +29,7 @@ import (
 )
 
 // computeEvents converts Containerd events into Datadog events
-func computeEvents(events []containerdEvent, sender aggregator.Sender, fil *containers.Filter) {
+func computeEvents(events []containerdEvent, sender sender.Sender, fil *containers.Filter) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {

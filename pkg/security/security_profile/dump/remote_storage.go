@@ -198,7 +198,7 @@ func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest,
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender aggregator.Sender) {
+func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender sender.Sender) {
 	// send too large entity metric
 	for entry, count := range storage.tooLargeEntities {
 		if entityCount := count.Swap(0); entityCount > 0 {

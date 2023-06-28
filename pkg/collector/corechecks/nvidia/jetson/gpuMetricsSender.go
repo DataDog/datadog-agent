@@ -29,7 +29,7 @@ func (gpuMetricSender *gpuMetricSender) Init() error {
 	return nil
 }
 
-func (gpuMetricSender *gpuMetricSender) SendMetrics(sender aggregator.Sender, field string) error {
+func (gpuMetricSender *gpuMetricSender) SendMetrics(sender sender.Sender, field string) error {
 	gpuFields := regexFindStringSubmatchMap(gpuMetricSender.regex, field)
 	if gpuFields == nil {
 		return errors.New("could not parse GPU usage fields")

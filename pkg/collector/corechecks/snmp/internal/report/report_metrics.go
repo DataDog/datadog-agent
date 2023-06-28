@@ -8,7 +8,7 @@ package report
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -19,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
-// MetricSender is a wrapper around aggregator.Sender
+// MetricSender is a wrapper around sender.Sender
 type MetricSender struct {
-	sender           aggregator.Sender
+	sender           sender.Sender
 	hostname         string
 	submittedMetrics int
 	interfaceConfigs []snmpintegration.InterfaceConfig
@@ -37,7 +37,7 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender aggregator.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig) *MetricSender {
 	return &MetricSender{
 		sender:           sender,
 		hostname:         hostname,

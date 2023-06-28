@@ -92,7 +92,7 @@ func preAllocateServiceChecks(n int) []*metrics.ServiceCheck {
 	return scs
 }
 
-func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sender, series, points []int,
+func benchmarkMemory(agg *aggregator.BufferedAggregator, sender sender.Sender, series, points []int,
 	ips, dur int, branchName string) []datadog.Metric {
 
 	results := []datadog.Metric{}

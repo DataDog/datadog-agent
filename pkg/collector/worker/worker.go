@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
@@ -34,7 +35,7 @@ type Worker struct {
 	Name string
 
 	checksTracker           *tracker.RunningChecksTracker
-	getDefaultSenderFunc    func() (aggregator.Sender, error)
+	getDefaultSenderFunc    func() (sender.Sender, error)
 	pendingChecksChan       chan check.Check
 	runnerID                int
 	shouldAddCheckStatsFunc func(id id.ID) bool
@@ -82,7 +83,7 @@ func newWorkerWithOptions(
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id id.ID) bool,
-	getDefaultSenderFunc func() (aggregator.Sender, error),
+	getDefaultSenderFunc func() (sender.Sender, error),
 	utilizationTickInterval time.Duration,
 ) (*Worker, error) {
 

@@ -121,11 +121,11 @@ func (c *ContainerdCheck) Run() error {
 	return nil
 }
 
-func (c *ContainerdCheck) runProcessor(sender aggregator.Sender) error {
+func (c *ContainerdCheck) runProcessor(sender sender.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 
-func (c *ContainerdCheck) runContainerdCustom(sender aggregator.Sender) error {
+func (c *ContainerdCheck) runContainerdCustom(sender sender.Sender) error {
 	namespaces, err := cutil.NamespacesToWatch(context.TODO(), c.client)
 	if err != nil {
 		return err
@@ -140,7 +140,7 @@ func (c *ContainerdCheck) runContainerdCustom(sender aggregator.Sender) error {
 	return nil
 }
 
-func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.ContainerdItf, namespace string) error {
+func (c *ContainerdCheck) collectImageSizes(sender sender.Sender, cl cutil.ContainerdItf, namespace string) error {
 	// Report images size
 	images, err := cl.ListImages(namespace)
 	if err != nil {
@@ -164,7 +164,7 @@ func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.C
 	return nil
 }
 
-func (c *ContainerdCheck) collectEvents(sender aggregator.Sender) {
+func (c *ContainerdCheck) collectEvents(sender sender.Sender) {
 	if !c.instance.CollectEvents {
 		return
 	}

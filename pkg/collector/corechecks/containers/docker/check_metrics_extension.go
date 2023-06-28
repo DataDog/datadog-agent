@@ -19,10 +19,10 @@ import (
 
 type dockerCustomMetricsExtension struct {
 	sender    generic.SenderFunc
-	aggSender aggregator.Sender
+	aggSender sender.Sender
 }
 
-func (dn *dockerCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender aggregator.Sender) {
+func (dn *dockerCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender sender.Sender) {
 	dn.sender = sender
 	dn.aggSender = aggSender
 }

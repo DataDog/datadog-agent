@@ -56,4 +56,4 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(sender aggregator.Sender) {}
+func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(sender sender.Sender) {}

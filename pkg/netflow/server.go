@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,7 +34,7 @@ type Server struct {
 }
 
 // NewNetflowServer configures and returns a running SNMP traps server.
-func NewNetflowServer(sender aggregator.Sender, epForwarder epforwarder.EventPlatformForwarder) (*Server, error) {
+func NewNetflowServer(sender sender.Sender, epForwarder epforwarder.EventPlatformForwarder) (*Server, error) {
 	var listeners []*netflowListener
 
 	mainConfig, err := config.ReadConfig()

@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -465,7 +465,7 @@ func isLeader() (bool, error) {
 	return true, nil
 }
 
-func (hc *HelmCheck) sendServiceCheck(sender aggregator.Sender) {
+func (hc *HelmCheck) sendServiceCheck(sender sender.Sender) {
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, taggedRel := range hc.store.getLatestRevisions(storageDriver) {
 			tags := taggedRel.commonTags

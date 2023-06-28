@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -46,7 +46,7 @@ func (em *eventsManager) addEventForUpdatedRelease(old *release, updated *releas
 	em.storeEvent(event)
 }
 
-func (em *eventsManager) sendEvents(sender aggregator.Sender) {
+func (em *eventsManager) sendEvents(sender sender.Sender) {
 	em.eventsMutex.Lock()
 	eventsToSend := em.events
 	em.events = nil

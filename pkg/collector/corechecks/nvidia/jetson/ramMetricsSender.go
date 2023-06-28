@@ -28,7 +28,7 @@ func (ramMetricSender *ramMetricSender) Init() error {
 	return nil
 }
 
-func (ramMetricSender *ramMetricSender) SendMetrics(sender aggregator.Sender, field string) error {
+func (ramMetricSender *ramMetricSender) SendMetrics(sender sender.Sender, field string) error {
 	ramFields := regexFindStringSubmatchMap(ramMetricSender.regex, field)
 	if ramFields == nil {
 		return errors.New("could not parse RAM fields")

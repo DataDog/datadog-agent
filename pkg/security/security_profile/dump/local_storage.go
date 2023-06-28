@@ -192,4 +192,4 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpLocalStorage) SendTelemetry(sender aggregator.Sender) {}
+func (storage *ActivityDumpLocalStorage) SendTelemetry(sender sender.Sender) {}

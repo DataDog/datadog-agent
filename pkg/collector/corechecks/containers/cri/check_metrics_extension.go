@@ -23,12 +23,12 @@ import (
 
 type criCustomMetricsExtension struct {
 	sender            generic.SenderFunc
-	aggSender         aggregator.Sender
+	aggSender         sender.Sender
 	criGetter         func() (cri.CRIClient, error)
 	criContainerStats map[string]*criTypes.ContainerStats
 }
 
-func (cext *criCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender aggregator.Sender) {
+func (cext *criCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender sender.Sender) {
 	cext.sender = sender
 	cext.aggSender = aggSender
 

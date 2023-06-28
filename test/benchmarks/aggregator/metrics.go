@@ -32,7 +32,7 @@ func generateMetrics(numberOfSeries int, pointPerSeries int, senderMetric sender
 	return float64(time.Since(start)) / float64(time.Millisecond)
 }
 
-func generateEvent(numberOfEvent int, sender aggregator.Sender) float64 {
+func generateEvent(numberOfEvent int, sender sender.Sender) float64 {
 	start := time.Now()
 	for i := 0; i < numberOfEvent; i++ {
 		sender.Event(metrics.Event{
@@ -51,7 +51,7 @@ func generateEvent(numberOfEvent int, sender aggregator.Sender) float64 {
 	return float64(time.Since(start)) / float64(time.Millisecond)
 }
 
-func generateServiceCheck(numberOfSC int, sender aggregator.Sender) float64 {
+func generateServiceCheck(numberOfSC int, sender sender.Sender) float64 {
 	start := time.Now()
 	for i := 0; i < numberOfSC; i++ {
 		sender.ServiceCheck("benchmark.ServiceCheck."+strconv.Itoa(i), metrics.ServiceCheckOK, "localhost", []string{"a", "b:21", "c"}, "some message")
@@ -59,7 +59,7 @@ func generateServiceCheck(numberOfSC int, sender aggregator.Sender) float64 {
 	return float64(time.Since(start)) / float64(time.Millisecond)
 }
 
-func benchmarkMetrics(numberOfSeries []int, nbPoints []int, sender aggregator.Sender, info *aggregatorStats, branchName string) []datadog.Metric {
+func benchmarkMetrics(numberOfSeries []int, nbPoints []int, sender sender.Sender, info *aggregatorStats, branchName string) []datadog.Metric {
 	metrics := map[string]senderFunc{"Gauge": sender.Gauge,
 		"Rate":           sender.Rate,
 		"Count":          sender.Count,

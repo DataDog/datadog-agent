@@ -26,7 +26,7 @@ type ActivityDumpStorage interface {
 	// Persist saves the provided buffer to the persistent storage
 	Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error
 	// SendTelemetry sends metrics using the provided metrics sender
-	SendTelemetry(sender aggregator.Sender)
+	SendTelemetry(sender sender.Sender)
 }
 
 // ActivityDumpStorageManager is used to manage activity dump storages
@@ -34,7 +34,7 @@ type ActivityDumpStorageManager struct {
 	statsdClient statsd.ClientInterface
 	storages     map[config.StorageType]ActivityDumpStorage
 
-	metricsSender aggregator.Sender
+	metricsSender sender.Sender
 }
 
 // NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager

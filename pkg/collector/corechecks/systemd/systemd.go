@@ -231,7 +231,7 @@ func (c *SystemdCheck) Run() error {
 	return nil
 }
 
-func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
+func (c *SystemdCheck) connect(sender sender.Sender) (*dbus.Conn, error) {
 	conn, err := c.getDbusConnection()
 	if err != nil {
 		newErr := fmt.Errorf("cannot create a connection: %v", err)
@@ -242,7 +242,7 @@ func (c *SystemdCheck) connect(sender aggregator.Sender) (*dbus.Conn, error) {
 	return conn, nil
 }
 
-func (c *SystemdCheck) submitSystemdState(sender aggregator.Sender, conn *dbus.Conn) {
+func (c *SystemdCheck) submitSystemdState(sender sender.Sender, conn *dbus.Conn) {
 	systemStateProp, err := c.stats.SystemState(conn)
 	// Expected to fail for Systemd version <212
 	// Source: https://github.com/systemd/systemd/blob/d4ffda38716d33dbc17faaa12034ccb77d0ed68b/NEWS#L7292-L7300
@@ -308,7 +308,7 @@ func (c *SystemdCheck) submitVersion(conn *dbus.Conn) {
 	inventories.SetCheckMetadata(checkID, "version.raw", version)
 }
 
-func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) error {
+func (c *SystemdCheck) submitMetrics(sender sender.Sender, conn *dbus.Conn) error {
 	units, err := c.stats.ListUnits(conn)
 	if err != nil {
 		return fmt.Errorf("error getting list of units: %v", err)
@@ -348,7 +348,7 @@ func (c *SystemdCheck) submitMetrics(sender aggregator.Sender, conn *dbus.Conn) 
 	return nil
 }
 
-func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
+func (c *SystemdCheck) submitBasicUnitMetrics(sender sender.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
 	active := 0
 	if unit.ActiveState == unitActiveState {
 		active = 1
@@ -374,7 +374,7 @@ func (c *SystemdCheck) submitBasicUnitMetrics(sender aggregator.Sender, conn *db
 	sender.Gauge("systemd.unit.uptime", float64(computeUptime(unit.ActiveState, activeEnterTimestamp, c.stats.UnixNow())), "", tags)
 }
 
-func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus.UnitStatus) {
+func (c *SystemdCheck) submitCountMetrics(sender sender.Sender, units []dbus.UnitStatus) {
 	counts := map[string]int{}
 
 	for _, activeState := range unitActiveStates {
@@ -391,7 +391,7 @@ func (c *SystemdCheck) submitCountMetrics(sender aggregator.Sender, units []dbus
 	}
 }
 
-func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender aggregator.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
+func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender sender.Sender, conn *dbus.Conn, unit dbus.UnitStatus, tags []string) {
 	for unitType := range metricConfigs {
 		if !strings.HasSuffix(unit.Name, "."+unitType) {
 			continue
@@ -415,7 +415,7 @@ func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender aggregator.Sender, co
 	}
 }
 
-func sendServicePropertyAsGauge(sender aggregator.Sender, properties map[string]interface{}, service metricConfigItem, tags []string) error {
+func sendServicePropertyAsGauge(sender sender.Sender, properties map[string]interface{}, service metricConfigItem, tags []string) error {
 	if service.accountingProperty != "" {
 		accounting, err := getPropertyBool(properties, service.accountingProperty)
 		if err != nil {
