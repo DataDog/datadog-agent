@@ -9,28 +9,20 @@
 package platform
 
 import (
-	"os/exec"
-	"regexp"
-	"strings"
+	"golang.org/x/sys/unix"
 )
 
 // GetArchInfo returns basic host architecture information
-func GetArchInfo() (archInfo map[string]string, err error) {
-	archInfo = map[string]string{}
+func GetArchInfo() (map[string]string, error) {
+	archInfo := map[string]string{}
 
-	out, err := exec.Command("uname", unameOptions...).Output()
+	var uname unix.Utsname
+	err := unix.Uname(&uname)
 	if err != nil {
 		return nil, err
 	}
-	line := string(out)
-	values := regexp.MustCompile(" +").Split(line, 7)
-	updateArchInfo(archInfo, values)
 
-	out, err = exec.Command("uname", "-v").Output()
-	if err != nil {
-		return nil, err
-	}
-	archInfo["kernel_version"] = strings.Trim(string(out), "\n")
+	updateArchInfo(archInfo, &uname)
 
-	return
+	return archInfo, nil
 }
