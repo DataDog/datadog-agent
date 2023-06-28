@@ -30,6 +30,13 @@ namespace WixSetup.Datadog
 
         public AgentInstallerUI(IWixProjectEvents wixProjectEvents, AgentCustomActions agentCustomActions)
         {
+            // We don't use WixUI_InstallDir, so disable Wix# auto-handling of the INSTALLDIR property for this UI.
+            // If we ever change this and want to use the Wix# auto-detection, we will have to set this value to
+            // the actual installdir property (currently PROJECTLOCATION) or use `new InstallDir()` instead of `new Dir()`.
+            // Current UI docs: https://www.firegiant.com/wix/tutorial/user-interface-revisited/customizations-galore/
+            // WixUI_InstallDir docs: https://wixtoolset.org/docs/v3/wixui/dialog_reference/wixui_installdir/
+            Compiler.AutoGeneration.InstallDirDefaultId = null;
+
             // ARPNOMODIFY=1 disables the "Change" button in the Control Panel, so remove it so that we have
             // our button.
             // https://learn.microsoft.com/en-us/windows/win32/msi/arpnomodify
