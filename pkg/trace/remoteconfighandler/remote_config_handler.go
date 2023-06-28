@@ -7,8 +7,11 @@ package remoteconfighandler
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -32,12 +35,13 @@ type rareSampler interface {
 
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
-	remoteClient    config.RemoteClient
-	prioritySampler prioritySampler
-	errorsSampler   errorsSampler
-	rareSampler     rareSampler
-	agentConfig     *config.AgentConfig
-	configState     *state.AgentConfigState
+	remoteClient                  config.RemoteClient
+	prioritySampler               prioritySampler
+	errorsSampler                 errorsSampler
+	rareSampler                   rareSampler
+	agentConfig                   *config.AgentConfig
+	configState                   *state.AgentConfigState
+	configSetEndpointFormatString string
 }
 
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
@@ -59,6 +63,9 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),
 		},
+		configSetEndpointFormatString: fmt.Sprintf(
+			"http://%s/config/set?log_level=%%s", net.JoinHostPort(conf.ReceiverHost, strconv.Itoa(conf.ReceiverPort)),
+		),
 	}
 }
 
@@ -79,21 +86,23 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 	}
 
 	if len(mergedConfig.LogLevel) > 0 {
-		pkglog.Infof("Changing log level of the trace-agent to %s through remote config", mergedConfig.LogLevel)
 		// Get the current log level
 		var newFallback seelog.LogLevel
 		newFallback, err = pkglog.GetLogLevel()
 		if err == nil {
 			h.configState.FallbackLogLevel = newFallback.String()
-			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
-			h.configState.LatestLogLevel = mergedConfig.LogLevel
+			_, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, mergedConfig.LogLevel), "", nil)
+			if err == nil {
+				h.configState.LatestLogLevel = mergedConfig.LogLevel
+				pkglog.Infof("Changing log level of the trace-agent to %s through remote config", mergedConfig.LogLevel)
+			}
 		}
 	} else {
 		var currentLogLevel seelog.LogLevel
 		currentLogLevel, err = pkglog.GetLogLevel()
 		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
 			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
-			err = settings.SetRuntimeSetting("log_level", h.configState.FallbackLogLevel)
+			_, err = http.Post(fmt.Sprintf(h.configSetEndpointFormatString, h.configState.FallbackLogLevel), "", nil)
 		}
 	}
 

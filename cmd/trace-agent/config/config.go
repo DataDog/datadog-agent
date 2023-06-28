@@ -722,6 +722,8 @@ func SetHandler() http.Handler {
 			value := html.UnescapeString(values[len(values)-1])
 			switch key {
 			case "log_level":
+				// Note: This endpoint is used by remote-config to set the log level dynamically
+				// Please make sure to reach out to this team before removing it.
 				lvl := strings.ToLower(value)
 				if lvl == "warning" {
 					lvl = "warn"

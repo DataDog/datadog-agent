@@ -7,6 +7,10 @@ package remoteconfighandler
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -14,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -179,16 +184,35 @@ func TestLogLevel(t *testing.T) {
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
-	pkglog.SetLogger("info")
+	pkglog.SetupLogger(seelog.Default, "debug")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+	port, _ := strconv.Atoi(strings.Split(srv.URL, ":")[2])
 
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
+	agentConfig := config.AgentConfig{
+		RemoteSamplingClient: remoteClient,
+		DefaultEnv:           "agent-env",
+		ReceiverHost:         "127.0.0.1",
+		ReceiverPort:         port,
+	}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
-	layer := state.RawConfig{Config: []byte(`{"name": "layer", "config": {"log_level": "debug"}}`)}
+	layer := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": "debug"}}`)}
 	configOrder := state.RawConfig{Config: []byte(`{"internal_order": ["layer1", "layer2"]}`)}
 
+	remoteClient.EXPECT().UpdateApplyStatus(
+		"datadog/2/AGENT_CONFIG/layer1/configname",
+		state.ApplyStatus{State: state.ApplyStateAcknowledged},
+	)
+	remoteClient.EXPECT().UpdateApplyStatus(
+		"datadog/2/AGENT_CONFIG/configuration_order/configname",
+		state.ApplyStatus{State: state.ApplyStateAcknowledged},
+	)
+
 	h.onAgentConfigUpdate(map[string]state.RawConfig{
-		"datadog/2/AGENT_CONFIG/layer/configname":               layer,
+		"datadog/2/AGENT_CONFIG/layer1/configname":              layer,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	})
 
