@@ -115,7 +115,7 @@ int hook_vfs_truncate(ctx_t *ctx) {
 }
 
 HOOK_ENTRY("vfs_open")
-int kprobe_vfs_open(ctx_t *ctx) {
+int hook_vfs_open(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
