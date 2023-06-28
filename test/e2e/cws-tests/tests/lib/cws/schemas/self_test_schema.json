@@ -16,7 +16,7 @@
             "required": ["rule_id", "version"]
         },
         "date": {
-            "$ref": "datetime.json"
+            "type": "datetime"
         },
         "hostname": {
             "type": "string"
