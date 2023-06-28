@@ -16,4 +16,5 @@ const (
 	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
 	KeyPairName         StoreKey = "key_pair_name"
 	PublicKeyPath       StoreKey = "public_key_path"
+	PrivateKeyPath      StoreKey = "private_key_path"
 )

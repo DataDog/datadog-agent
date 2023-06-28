@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -62,12 +63,6 @@ type Discarder struct {
 	Field eval.Field
 }
 
-// DiscarderStats is used to collect kernel space metrics about discarders
-type DiscarderStats struct {
-	DiscarderAdded uint64 `yaml:"discarder_added"`
-	EventDiscarded uint64 `yaml:"event_discarded"`
-}
-
 // ErrDiscarderNotSupported is returned when trying to discover a discarder on a field that doesn't support them
 type ErrDiscarderNotSupported struct {
 	Field string
@@ -86,7 +81,7 @@ var (
 )
 
 var (
-	dentryInvalidDiscarder = []interface{}{""}
+	dentryInvalidDiscarder = []string{""}
 	eventZeroDiscarder     = &model.Event{
 		FieldHandlers:    &model.DefaultFieldHandlers{},
 		ContainerContext: &model.ContainerContext{},
@@ -94,7 +89,7 @@ var (
 )
 
 // InvalidDiscarders exposes list of values that are not discarders
-var InvalidDiscarders = map[eval.Field][]interface{}{
+var InvalidDiscarders = map[eval.Field][]string{
 	"open.file.path":               dentryInvalidDiscarder,
 	"unlink.file.path":             dentryInvalidDiscarder,
 	"chmod.file.path":              dentryInvalidDiscarder,
@@ -523,27 +518,23 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 }
 
 // isInvalidDiscarder returns whether the given value is a valid discarder for the given field
-func isInvalidDiscarder(field eval.Field, value interface{}) bool {
-	values, exists := invalidDiscarders[field]
-	if !exists {
-		return false
-	}
-
-	return values[value]
+func isInvalidDiscarder(field eval.Field, value string) bool {
+	return invalidDiscarders[invalidDiscarderEntry{
+		field: field,
+		value: value,
+	}]
 }
 
 // rearrange invalid discarders for fast lookup
-func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
-	invalidDiscarders := make(map[eval.Field]map[interface{}]bool)
+func createInvalidDiscardersCache() map[invalidDiscarderEntry]bool {
+	invalidDiscarders := make(map[invalidDiscarderEntry]bool)
 
 	for field, values := range InvalidDiscarders {
-		ivalues := invalidDiscarders[field]
-		if ivalues == nil {
-			ivalues = make(map[interface{}]bool)
-			invalidDiscarders[field] = ivalues
-		}
 		for _, value := range values {
-			ivalues[value] = true
+			invalidDiscarders[invalidDiscarderEntry{
+				field: field,
+				value: value,
+			}] = true
 		}
 	}
 
@@ -567,10 +558,10 @@ type InodeDiscarderDump struct {
 
 // DiscardersDump describes a dump of discarders
 type DiscardersDump struct {
-	Date   time.Time                 `yaml:"date"`
-	Inodes []InodeDiscarderDump      `yaml:"inodes"`
-	Pids   []PidDiscarderDump        `yaml:"pids"`
-	Stats  map[string]DiscarderStats `yaml:"stats"`
+	Date   time.Time                           `yaml:"date"`
+	Inodes []InodeDiscarderDump                `yaml:"inodes"`
+	Pids   []PidDiscarderDump                  `yaml:"pids"`
+	Stats  map[string]discarder.DiscarderStats `yaml:"stats"`
 }
 
 func dumpPidDiscarders(resolver *dentry.Resolver, pidMap *ebpf.Map) ([]PidDiscarderDump, error) {
@@ -642,14 +633,14 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 	return dumps, nil
 }
 
-func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]DiscarderStats, error) {
+func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]discarder.DiscarderStats, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	stats := make(map[string]DiscarderStats)
-	perCpu := make([]DiscarderStats, numCPU)
+	stats := make(map[string]discarder.DiscarderStats)
+	perCpu := make([]discarder.DiscarderStats, numCPU)
 
 	var eventType uint32
 	for _, buffer := range buffers {
@@ -661,7 +652,7 @@ func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]DiscarderStats, error)
 
 				entry, exists := stats[key]
 				if !exists {
-					stats[key] = DiscarderStats{
+					stats[key] = discarder.DiscarderStats{
 						DiscarderAdded: stat.DiscarderAdded,
 						EventDiscarded: stat.EventDiscarded,
 					}
@@ -705,7 +696,12 @@ func dumpDiscarders(resolver *dentry.Resolver, pidMap, inodeMap, statsFB, statsB
 	return dump, nil
 }
 
-var invalidDiscarders map[eval.Field]map[interface{}]bool
+type invalidDiscarderEntry struct {
+	field eval.Field
+	value string
+}
+
+var invalidDiscarders map[invalidDiscarderEntry]bool
 
 func init() {
 	invalidDiscarders = createInvalidDiscardersCache()

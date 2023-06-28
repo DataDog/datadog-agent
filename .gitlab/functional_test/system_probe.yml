@@ -49,7 +49,9 @@ kitchen_test_dummy_job_tmp:
   stage: functional_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   needs: []
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
+  rules:
+    !reference [ .on_system_probe_changes_or_manual ]
   script:
     - 'true'
 

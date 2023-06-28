@@ -3,7 +3,7 @@
 
 package http
 
-type httpConnTuple = struct {
+type HttpConnTuple = struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
 	Daddr_h  uint64
@@ -15,7 +15,7 @@ type httpConnTuple = struct {
 	Metadata uint32
 }
 type SslSock struct {
-	Tup       httpConnTuple
+	Tup       HttpConnTuple
 	Fd        uint32
 	Pad_cgo_0 [4]byte
 }
@@ -25,7 +25,7 @@ type SslReadArgs struct {
 }
 
 type EbpfHttpTx struct {
-	Tup                  httpConnTuple
+	Tup                  HttpConnTuple
 	Request_started      uint64
 	Request_method       uint8
 	Response_status_code uint16

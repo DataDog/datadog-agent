@@ -1106,3 +1106,64 @@ func Test_getContantMetricValues(t *testing.T) {
 		})
 	}
 }
+
+func Test_isInterfaceTableMetric(t *testing.T) {
+	tests := []struct {
+		name     string
+		oid      string
+		expected bool
+	}{
+		{
+			name:     "OID in ifTable with . prefix",
+			oid:      ".1.3.6.1.2.1.2.2.1.7", // ifAdminStatus
+			expected: true,
+		},
+		{
+			name:     "OID in ifXTable with . prefix",
+			oid:      ".1.3.6.1.2.1.31.1.1.1.10", // ifHCOutOctets
+			expected: true,
+		},
+		{
+			name:     "OID with similar prefix to ifTable with . prefix",
+			oid:      ".1.3.6.1.2.1.2.2222",
+			expected: false,
+		},
+		{
+			name:     "OID with similar prefix to ifTable",
+			oid:      "1.3.6.1.2.1.2.2222",
+			expected: false,
+		},
+		{
+			name:     "OID with similar prefix to ifXTable with . prefix",
+			oid:      ".1.3.6.1.2.1.31.1.1111",
+			expected: false,
+		},
+		{
+			name:     "OID with similar prefix to ifXTable",
+			oid:      "1.3.6.1.2.1.31.1.111",
+			expected: false,
+		},
+		{
+			name:     "OID in ifTable",
+			oid:      "1.3.6.1.2.1.2.2.1.8", // ifOperStatus
+			expected: true,
+		},
+		{
+			name:     "OID in ifXTable",
+			oid:      "1.3.6.1.2.1.31.1.1.1.9", // ifHCInBroadcastPkts
+			expected: true,
+		},
+		{
+			name:     "random OID",
+			oid:      "1.3.6.1.4.1.4.7.34.2345",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := isInterfaceTableMetric(tt.oid)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+}

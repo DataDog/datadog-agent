@@ -17,6 +17,7 @@
       -v "$(Get-Location):c:\mnt"
       -e CI_JOB_ID=${CI_JOB_ID}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
       -e OMNIBUS_TARGET=${OMNIBUS_TARGET}
       -e WINDOWS_BUILDER=true
@@ -103,6 +104,8 @@ windows_zip_agent_binaries_x64-a7:
       -m 8192M
       -v "$(Get-Location):c:\mnt"
       -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e OMNIBUS_TARGET=${OMNIBUS_TARGET}
       -e WINDOWS_BUILDER=true
       -e RELEASE_VERSION="$RELEASE_VERSION"

@@ -32,10 +32,3 @@ You can now run the Agent on the command-line:
 ```
 ./bin/process-agent/process-agent -config $PATH_TO_PROCESS_CONFIG_FILE
 ```
-
-## Development
-The easiest way to build and test is inside a Vagrant VM. You can provision the VM by running `./pkg/process/tools/dev_setup.sh` and SSHing into the VM with `vagrant ssh` (vagrant must be installed.)
-
-The VM will mount your local $GOPATH, so you can edit source code with your editor of choice.
-
-For development on the system-probe, `rake ebpf:nettop` will run a small testing program which periodically prints statistics about TCP/UDP traffic inside the VM.

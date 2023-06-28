@@ -122,16 +122,21 @@ k8s-e2e-otlp-main:
 
 .new_e2e_template:
   stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:a58cc31c
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:a3bad1d37b5a
   tags: ["arch:amd64"]
   before_script:
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - set +x
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.agent-qa-profile --with-decryption --query "Parameter.Value" --out text >> ~/.aws/config
-    - set -x
     - export AWS_PROFILE=agent-qa-ci
+    # Now all `aws` commands target the agent-qa profile
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_public_key --with-decryption --query "Parameter.Value" --out text > $E2E_PUBLIC_KEY_PATH
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key --with-decryption --query "Parameter.Value" --out text > $E2E_PRIVATE_KEY_PATH
+    # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  variables:
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
   script:
     - inv -e new-e2e-tests.run --targets $TARGETS $CONFIGPARAMS
 
@@ -140,4 +145,4 @@ new-e2e-containers-main:
   rules: !reference [.on_main]
   variables:
     TARGETS: ./containers
-    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:master-py3"
+    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:master-py3 -c ddagent:clusterAgentFullImagePath=datadog/cluster-agent-dev:master"

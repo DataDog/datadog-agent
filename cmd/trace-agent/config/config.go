@@ -235,7 +235,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		if c.HasFeature("big_resource") {
 			c.MaxResourceLen = 15_000
 		}
-		log.Debug("Found APM feature flags: %v", c.Features)
+		log.Infof("Found APM feature flags: %s", feats)
 	}
 
 	if k := "apm_config.ignore_resources"; coreconfig.Datadog.IsSet(k) {
@@ -320,6 +320,57 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.credit_cards.luhn") {
 			c.Obfuscation.CreditCards.Luhn = coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.elasticsearch.enabled") {
+			c.Obfuscation.ES.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.elasticsearch.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.elasticsearch.keep_values") {
+			c.Obfuscation.ES.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.elasticsearch.obfuscate_sql_values") {
+			c.Obfuscation.ES.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.http.remove_query_string") {
+			c.Obfuscation.HTTP.RemoveQueryString = coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_query_string")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.http.remove_paths_with_digits") {
+			c.Obfuscation.HTTP.RemovePathDigits = coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_paths_with_digits")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.enabled") {
+			c.Obfuscation.Memcached.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.enabled") {
+			c.Obfuscation.Mongo.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.keep_values") {
+			c.Obfuscation.Mongo.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.obfuscate_sql_values") {
+			c.Obfuscation.Mongo.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.enabled") {
+			c.Obfuscation.Redis.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.remove_stack_traces") {
+			c.Obfuscation.RemoveStackTraces = coreconfig.Datadog.GetBool("apm_config.obfuscation.remove_stack_traces")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan.enabled") {
+			c.Obfuscation.SQLExecPlan.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan.keep_values") {
+			c.Obfuscation.SQLExecPlan.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values") {
+			c.Obfuscation.SQLExecPlan.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.enabled") {
+			c.Obfuscation.SQLExecPlanNormalize.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.keep_values") {
+			c.Obfuscation.SQLExecPlanNormalize.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values") {
+			c.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
 		}
 	}
 

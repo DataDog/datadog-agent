@@ -11,49 +11,43 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
-func getMemoryInfo() (memoryInfo map[string]string, err error) {
-	memoryInfo = make(map[string]string)
-
+func getTotalBytes() (uint64, error) {
 	out, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
-	if err == nil {
-		memoryInfo["total"] = strings.Trim(string(out), "\n")
+	if err != nil {
+		return 0, fmt.Errorf("sysctl: %w", err)
 	}
 
-	out, err = exec.Command("sysctl", "-n", "vm.swapusage").Output()
-	if err == nil {
-		swap := regexp.MustCompile("total = ").Split(string(out), 2)[1]
-		memoryInfo["swap_total"] = strings.Split(swap, " ")[0]
+	v := strings.Trim(string(out), "\n")
+	mem, e := strconv.ParseUint(v, 10, 64)
+	if e != nil {
+		return 0, fmt.Errorf("could not parse memory size: %w", e)
 	}
 
-	return
+	return mem, nil // mem is in bytes
 }
 
-func getMemoryInfoByte() (uint64, uint64, []string, error) {
-	memInfo, err := getMemoryInfo()
-	var mem, swap uint64
-	warnings := []string{}
-
-	// mem is already in bytes but `swap_total` use the format "5120,00M"
-	if v, ok := memInfo["swap_total"]; ok {
-		idx := strings.IndexAny(v, ",.") // depending on the locale either a comma or dot is used
-		swapTotal, e := strconv.ParseUint(v[0:idx], 10, 64)
-		if e == nil {
-			swap = swapTotal * 1024 * 1024 // swapTotal is in mb
-		} else {
-			warnings = append(warnings, fmt.Sprintf("could not parse swap size: %s", e))
-		}
+func getTotalSwapKb() (uint64, error) {
+	out, err := exec.Command("sysctl", "-n", "vm.swapusage").Output()
+	if err != nil {
+		return 0, fmt.Errorf("sysctl: %w", err)
 	}
 
-	if v, ok := memInfo["total"]; ok {
-		t, e := strconv.ParseUint(v, 10, 64)
-		if e == nil {
-			mem = t // mem is returned in bytes
-		} else {
-			warnings = append(warnings, fmt.Sprintf("could not parse memory size: %s", e))
-		}
+	swap := regexp.MustCompile("total = ").Split(string(out), 2)[1]
+	v := strings.Split(swap, " ")[0]
+	idx := strings.IndexAny(v, ",.") // depending on the locale either a comma or dot is used
+	swapTotal, err := strconv.ParseUint(v[0:idx], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("could not parse swap size: %w", err)
 	}
 
-	return mem, swap, warnings, err
+	return swapTotal * 1024, nil // swapTotal is in mb
+}
+
+func (info *Info) fillMemoryInfo() {
+	info.TotalBytes = utils.NewValueFrom(getTotalBytes())
+	info.SwapTotalKb = utils.NewValueFrom(getTotalSwapKb())
 }

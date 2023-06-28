@@ -56,7 +56,16 @@ func (suite *TailerTestSuite) SetupTest() {
 	}))
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), sleepDuration, decoder.NewDecoderFromSource(suite.source, info), info)
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	suite.tailer = NewTailer(tailerOptions)
 	suite.tailer.closeTimeout = closeTimeout
 }
 
@@ -99,8 +108,18 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	suite.tailer.StartFromBeginning()
 
 	coreConfig.Datadog.Set("logs_config.close_timeout", 42)
+	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
-	tailer := NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), false), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source, info), info)
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, suite.source.UnderlyingSource(), false),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	tailer := NewTailer(tailerOptions)
 	tailer.StartFromBeginning()
 
 	suite.Equal(tailer.closeTimeout, time.Duration(42)*time.Second)
@@ -255,7 +274,16 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 	})
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration, decoder.NewDecoderFromSource(suite.source, info), info)
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, dirTaggedSource, true),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	suite.tailer = NewTailer(tailerOptions)
 	suite.tailer.StartFromBeginning()
 
 	_, err := suite.testFile.WriteString("foo\n")
@@ -276,7 +304,16 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	})
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, false), sleepDuration, decoder.NewDecoderFromSource(suite.source, info), info)
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, dirTaggedSource, false),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	suite.tailer = NewTailer(tailerOptions)
 
 	suite.tailer.StartFromBeginning()
 
@@ -293,7 +330,16 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	})
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, dirTaggedSource, true), sleepDuration, decoder.NewDecoderFromSource(suite.source, info), info)
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, dirTaggedSource, true),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	suite.tailer = NewTailer(tailerOptions)
 	suite.tailer.StartFromBeginning()
 
 	tags := suite.tailer.buildTailerTags()
@@ -313,8 +359,18 @@ func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 	suite.source.Config().AutoMultiLine = &aml
 	suite.source.Config().AutoMultiLineSampleSize = 3
 
+	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
-	suite.tailer = NewTailer(suite.outputChan, NewFile(suite.testPath, suite.source.UnderlyingSource(), true), 10*time.Millisecond, decoder.NewDecoderFromSource(suite.source, info), info)
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, suite.source.UnderlyingSource(), true),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	suite.tailer = NewTailer(tailerOptions)
 
 	_, err = suite.testFile.WriteString(lines)
 	suite.Nil(err)

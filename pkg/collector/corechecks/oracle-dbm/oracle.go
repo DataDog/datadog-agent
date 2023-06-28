@@ -285,7 +285,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 }
 
 func oracleFactory() check.Check {
-	return &Check{CheckBase: core.NewCheckBase(common.IntegrationNameScheduler)}
+	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
 }
 
 func init() {

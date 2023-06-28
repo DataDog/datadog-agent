@@ -54,13 +54,13 @@ func computeDefaultEventsRingBufferSize() uint32 {
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
-func AllProbes() []*manager.Probe {
+func AllProbes(fentry bool) []*manager.Probe {
 	if len(allProbes) > 0 {
 		return allProbes
 	}
 
 	allProbes = append(allProbes, getAttrProbes()...)
-	allProbes = append(allProbes, getExecProbes()...)
+	allProbes = append(allProbes, getExecProbes(fentry)...)
 	allProbes = append(allProbes, getLinkProbe()...)
 	allProbes = append(allProbes, getMkdirProbes()...)
 	allProbes = append(allProbes, getMountProbes()...)
@@ -157,6 +157,10 @@ type MapSpecEditorOpts struct {
 // AllMapSpecEditors returns the list of map editors
 func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.MapSpecEditor {
 	editors := map[string]manager.MapSpecEditor{
+		"syscalls": {
+			MaxEntries: getMaxEntries(numCPU, 2048, 8192),
+			EditorFlag: manager.EditMaxEntries,
+		},
 		"proc_cache": {
 			MaxEntries: getMaxEntries(numCPU, minProcEntries, maxProcEntries),
 			EditorFlag: manager.EditMaxEntries,

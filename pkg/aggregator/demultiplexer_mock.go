@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -157,9 +158,9 @@ func (a *TestAgentDemultiplexer) Reset() {
 }
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
-func InitTestAgentDemultiplexerWithOpts(sharedForwarderOptions *forwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, sharedForwarderOptions)
-	demux := InitAndStartAgentDemultiplexer(sharedForwarder, opts, "hostname")
+func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOptions *forwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)
+	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "hostname")
 	testAgent := TestAgentDemultiplexer{
 		AgentDemultiplexer: demux,
 		events:             make(chan []*metrics.Event),
@@ -169,15 +170,15 @@ func InitTestAgentDemultiplexerWithOpts(sharedForwarderOptions *forwarder.Option
 }
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
-func InitTestAgentDemultiplexerWithFlushInterval(flushInterval time.Duration) *TestAgentDemultiplexer {
+func InitTestAgentDemultiplexerWithFlushInterval(log log.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	return InitTestAgentDemultiplexerWithOpts(forwarder.NewOptions(config.Datadog, nil), opts)
+	return InitTestAgentDemultiplexerWithOpts(log, forwarder.NewOptions(config.Datadog, log, nil), opts)
 }
 
 // InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.
-func InitTestAgentDemultiplexer() *TestAgentDemultiplexer {
-	return InitTestAgentDemultiplexerWithFlushInterval(time.Hour) // long flush interval for unit tests
+func InitTestAgentDemultiplexer(log log.Component) *TestAgentDemultiplexer {
+	return InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour) // long flush interval for unit tests
 }

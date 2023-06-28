@@ -60,7 +60,7 @@ func (c *VerticalPodAutoscalerCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *VerticalPodAutoscalerCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.VPAInformerFactory.Autoscaling().V1().VerticalPodAutoscalers()
+	c.informer = rcfg.OrchestratorInformerFactory.VPAInformerFactory.Autoscaling().V1().VerticalPodAutoscalers()
 	c.lister = c.informer.Lister()
 }
 

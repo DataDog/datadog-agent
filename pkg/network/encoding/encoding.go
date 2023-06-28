@@ -74,6 +74,7 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	httpEncoder := newHTTPEncoder(conns)
 	defer httpEncoder.Close()
 	kafkaEncoder := newKafkaEncoder(conns)
+	defer kafkaEncoder.Close()
 	http2Encoder := newHTTP2Encoder(conns)
 	ipc := make(ipCache, len(conns.Conns)/2)
 	dnsFormatter := newDNSFormatter(conns, ipc)
@@ -95,20 +96,6 @@ func modelConnections(conns *network.Connections) *model.Connections {
 			telemetry.OptExpvar,
 			telemetry.OptStatsd,
 		).Add(int64(http2Encoder.orphanEntries))
-	}
-
-	if kafkaEncoder != nil && kafkaEncoder.orphanEntries > 0 {
-		log.Debugf(
-			"detected orphan kafka aggregations. this may be caused by conntrack sampling or missed tcp close events. count=%d",
-			kafkaEncoder.orphanEntries,
-		)
-
-		telemetry.NewMetric(
-			"usm.kafka.orphan_aggregations",
-			telemetry.OptMonotonic,
-			telemetry.OptExpvar,
-			telemetry.OptStatsd,
-		).Add(int64(kafkaEncoder.orphanEntries))
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
