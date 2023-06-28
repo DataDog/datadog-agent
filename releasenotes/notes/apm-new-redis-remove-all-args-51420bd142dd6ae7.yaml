@@ -12,4 +12,4 @@ features:
     command, all arguments will be replaced by a single "?". Configurable using 
     config variable ``apm_config.obfuscation.redis.remove_all_args`` and 
     environment variable ``DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS``.
-    Both accepts a boolean value with default value ``false``.
+    Both accept a boolean value with default value ``false``.
