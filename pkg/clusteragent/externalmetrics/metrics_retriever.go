@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,6 +24,11 @@ const (
 	invalidMetricGlobalErrorMessage   string = "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details"
 	metricRetrieverStoreID            string = "mr"
 )
+
+// Backoff range for number of retries R:
+// For R < 6 random(2^(R-1) * 30, 2^R * 30)
+// Otherwise 1800sec
+var backoffPolicy backoff.Policy = backoff.NewPolicy(2, 30, 1800, 2, false)
 
 // MetricsRetriever is responsible for querying and storing external metrics
 type MetricsRetriever struct {
@@ -77,9 +83,27 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 	// First split then query because store state is shared and query mutates it
 	mr.retrieveMetricsValuesSlice(datadogMetrics)
 	for _, metrics := range datadogMetricsErr {
-		singleton := []model.DatadogMetricInternal{metrics}
-		mr.retrieveMetricsValuesSlice(singleton)
+
+		shouldBackoff := shouldBackoff(&metrics, &backoffPolicy)
+
+		log.Info("EMDEBUGGING backoff",
+			"extMetricName", metrics.ExternalMetricName,
+			"retries", metrics.Retries,
+			"lastUpdate", metrics.UpdateTime,
+			"currentBackoff", backoffPolicy.GetBackoffDuration(metrics.Retries),
+			"shouldBackoff", shouldBackoff,
+		)
+		log.Info("EMDEBUGGING err metric", "full", metrics)
+
+		if !shouldBackoff {
+			singleton := []model.DatadogMetricInternal{metrics}
+			mr.retrieveMetricsValuesSlice(singleton)
+		}
 	}
+}
+
+func shouldBackoff(metricsInternal *model.DatadogMetricInternal, backoffPolicy *backoff.Policy) bool {
+	return time.Now().Sub(metricsInternal.UpdateTime) < backoffPolicy.GetBackoffDuration(metricsInternal.Retries)
 }
 
 func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.DatadogMetricInternal) {
@@ -120,8 +144,8 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 		timeWindow := MaybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
 		results := resultsByTimeWindow[timeWindow]
 		if queryResult, found := results[query]; found {
-
 			if queryResult.Valid {
+				datadogMetricFromStore.Retries = 0
 				datadogMetricFromStore.Value = queryResult.Value
 				datadogMetricFromStore.DataTime = time.Unix(queryResult.Timestamp, 0).UTC()
 
@@ -140,12 +164,14 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 				}
 			} else {
 				datadogMetricFromStore.Valid = false
+				datadogMetricFromStore.Retries++
 				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricErrorMessage, queryResult.Error, query)
 			}
 		} else {
 			log.Info("EMDEBUGGING.metrics_retriever.retrieveMetricsValues queryResult notfound", "query", query)
 			datadogMetricFromStore.Valid = false
 			if globalError {
+				datadogMetricFromStore.Retries++
 				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage)
 			} else {
 				// This should never happen as `QueryExternalMetric` is filling all missing series

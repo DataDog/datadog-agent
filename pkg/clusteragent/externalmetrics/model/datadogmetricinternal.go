@@ -47,6 +47,7 @@ type DatadogMetricInternal struct {
 	Error                error
 	MaxAge               time.Duration
 	TimeWindow           time.Duration
+	Retries              int
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
@@ -63,6 +64,7 @@ func NewDatadogMetricInternal(id string, datadogMetric datadoghq.DatadogMetric) 
 		AutoscalerReferences: datadogMetric.Status.AutoscalerReferences,
 		MaxAge:               datadogMetric.Spec.MaxAge.Duration,
 		TimeWindow:           datadogMetric.Spec.TimeWindow.Duration,
+		Retries:              0,
 	}
 
 	if len(datadogMetric.Spec.ExternalMetricName) > 0 {
