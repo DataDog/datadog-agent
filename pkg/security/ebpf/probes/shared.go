@@ -36,7 +36,7 @@ func getSharedProbes(fentry bool) []*manager.Probe {
 		probes = append(probes, &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_mnt_want_write_file_path",
+				EBPFFuncName: "hook_mnt_want_write_file_path",
 			},
 		})
 	}
