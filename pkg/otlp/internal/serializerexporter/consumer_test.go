@@ -19,9 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )
@@ -104,17 +105,14 @@ func TestConsumeAPMStats(t *testing.T) {
 	sc.ConsumeAPMStats(statsPayloads[1])
 	require.Len(t, sc.apmstats, 2)
 
-	var one, two *pb.ClientStatsPayload
+	one := &pb.ClientStatsPayload{}
+	two := &pb.ClientStatsPayload{}
 	err := msgp.Decode(sc.apmstats[0], one)
 	require.NoError(t, err)
 	err = msgp.Decode(sc.apmstats[1], two)
 	require.NoError(t, err)
-	// We add back the tags to the originally added statsPayloads because that's
-	// what we need to compare against: ConsumeAPMStats adds the extraTags
-	statsPayloads[0].Tags = append(statsPayloads[0].Tags, sc.extraTags...)
-	statsPayloads[1].Tags = append(statsPayloads[1].Tags, sc.extraTags...)
-	require.Equal(t, one, statsPayloads[0])
-	require.Equal(t, two, statsPayloads[1])
+	assert.Equal(t, one.String(), statsPayloads[0].String())
+	assert.Equal(t, two.String(), statsPayloads[1].String())
 }
 
 func TestSendAPMStats(t *testing.T) {
@@ -132,11 +130,13 @@ func TestSendAPMStats(t *testing.T) {
 		var called int
 		srv := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			require.Equal(t, req.URL.Path, "/v0.6/stats")
-			var in *pb.ClientStatsPayload
+			in := &pb.ClientStatsPayload{}
+			in.Reset()
 			err := msgp.Decode(req.Body, in)
 			defer req.Body.Close()
 			require.NoError(t, err)
-			require.Equal(t, statsPayloads[called], in)
+			// compare string representations of messages
+			assert.Equal(t, statsPayloads[called].String(), in.String())
 			called++
 		}))
 		defer srv.Close()
