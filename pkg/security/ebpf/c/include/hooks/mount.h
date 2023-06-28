@@ -6,14 +6,14 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-SEC("kprobe/mnt_want_write")
-int kprobe_mnt_want_write(struct pt_regs *ctx) {
+HOOK_ENTRY("mnt_want_write")
+int hook_mnt_want_write(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_predicate);
     if (!syscall) {
         return 0;
     }
 
-    struct vfsmount *mnt = (struct vfsmount *)PT_REGS_PARM1(ctx);
+    struct vfsmount *mnt = (struct vfsmount *)CTX_PARM1(ctx);
 
     switch (syscall->type) {
     case EVENT_UTIME:
@@ -69,13 +69,13 @@ int kprobe_mnt_want_write(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_file_predicate);
     if (!syscall) {
         return 0;
     }
 
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
+    struct file *file = (struct file *)CTX_PARM1(ctx);
     struct vfsmount *mnt;
     bpf_probe_read(&mnt, sizeof(mnt), &file->f_path.mnt);
 
@@ -102,16 +102,18 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ct
     return 0;
 }
 
-SEC("kprobe/mnt_want_write_file")
-int kprobe_mnt_want_write_file(struct pt_regs *ctx) {
+HOOK_ENTRY("mnt_want_write_file")
+int hook_mnt_want_write_file(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
 
+#ifndef USE_FENTRY
 // mnt_want_write_file_path was used on old kernels (RHEL 7)
-SEC("kprobe/mnt_want_write_file_path")
-int kprobe_mnt_want_write_file_path(struct pt_regs *ctx) {
+HOOK_ENTRY("mnt_want_write_file_path")
+int hook_mnt_want_write_file_path(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
+#endif
 
 SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
