@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,10 +29,19 @@ type ProcessEntity struct {
 type WorkloadMetaExtractor struct {
 	// Cache is a map from process hash to the workloadmeta entity
 	// The cache key takes the form of `pid:<pid>|createTime:<createTime>`. See hashProcess
-	cache      map[string]*ProcessEntity
-	cacheMutex sync.RWMutex
+	cache        map[string]*ProcessEntity
+	cacheVersion int32
+	cacheMutex   sync.RWMutex
 
-	grpcListener mockableGrpcListener
+	diffChan chan *ProcessCacheDiff
+}
+
+// ProcessCacheDiff holds the information about processes that have been created and deleted in the past
+// Extract call from the WorkloadMetaExtractor cache
+type ProcessCacheDiff struct {
+	cacheVersion int32
+	creation     []*ProcessEntity
+	deletion     []*ProcessEntity
 }
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
@@ -43,15 +51,11 @@ func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor
 		cache: make(map[string]*ProcessEntity),
 	}
 
-	grpcListener := newGrpcListener(config, extractor.getCacheState)
-	extractor.grpcListener = grpcListener
+	// Keep only the latest diff in memory in case there's no consumer for it
+	extractor.diffChan = make(chan *ProcessCacheDiff, 1)
+	extractor.cacheVersion = 0
 
 	return extractor
-}
-
-// Start starts the underlying grpc server for the WorkloadMetaExtractor
-func (w *WorkloadMetaExtractor) Start() error {
-	return w.grpcListener.start()
 }
 
 // Extract detects the process language, creates a process entity, and sends that entity to WorkloadMeta
@@ -84,11 +88,30 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	}
 
 	deadProcs := getDifference(w.cache, newCache)
-	w.grpcListener.writeEvents(deadProcs, newEntities)
 
 	w.cacheMutex.Lock()
 	w.cache = newCache
+	w.cacheVersion++
 	w.cacheMutex.Unlock()
+
+	// If previous cache diff hasn't been consumed, drop it
+	if len(w.diffChan) > 0 {
+		<-w.diffChan
+	}
+
+	diff := &ProcessCacheDiff{
+		cacheVersion: w.cacheVersion,
+		creation:     newEntities,
+		deletion:     deadProcs,
+	}
+
+	// Do not block on write to prevent Extract caller from hanging e.g. process check
+	select {
+	case w.diffChan <- diff:
+		break
+	default:
+		log.Error("Dropping newer process diff in WorkloadMetaExtractor")
+	}
 }
 
 func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntity {
@@ -111,20 +134,22 @@ func hashProcess(pid int32, createTime int64) string {
 	return "pid:" + strconv.Itoa(int(pid)) + "|createTime:" + strconv.Itoa(int(createTime))
 }
 
-// getCacheState returns the entire state of the cache as a `pbgo.WorkloadMetaProcessEvents`
-func (w *WorkloadMetaExtractor) getCacheState() *pbgo.ProcessStreamResponse {
+// GetAllProcessEntities returns all processes Entities stored in the WorkloadMetaExtractor cache and the version
+// of the cache at the moment of the read
+func (w *WorkloadMetaExtractor) GetAllProcessEntities() (map[string]*ProcessEntity, int32) {
 	w.cacheMutex.RLock()
 	defer w.cacheMutex.RUnlock()
 
-	setEvents := make([]*pbgo.ProcessEventSet, 0, len(w.cache))
-	for _, proc := range w.cache {
-		setEvents = append(setEvents, &pbgo.ProcessEventSet{
-			Pid:      proc.pid,
-			Language: &pbgo.Language{Name: string(proc.language.Name)},
-		})
+	// Store pointers in map to avoid duplicating ProcessEntity data
+	snapshot := make(map[string]*ProcessEntity)
+	for id, proc := range w.cache {
+		snapshot[id] = proc
 	}
 
-	return &pbgo.ProcessStreamResponse{
-		SetEvents: setEvents,
-	}
+	return snapshot, w.cacheVersion
+}
+
+// ProcessCacheDiff returns a channel to consume process diffs from
+func (w *WorkloadMetaExtractor) ProcessCacheDiff() <-chan *ProcessCacheDiff {
+	return w.diffChan
 }

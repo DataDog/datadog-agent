@@ -17,79 +17,46 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type mockableGrpcListener interface {
-	writeEvents(procsToDelete, procsToAdd []*ProcessEntity)
-	start() error
-}
-
-var _ mockableGrpcListener = (*noopGRPCListener)(nil)
-
-type noopGRPCListener struct{}
-
-func (l *noopGRPCListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {}
-
-func (l *noopGRPCListener) start() error {
-	return nil
-}
-
-var _ mockableGrpcListener = (*grpcListener)(nil)
-
-type getCacheCB func() *pbgo.ProcessStreamResponse
-
-type streamChan chan *pbgo.ProcessStreamResponse
-
-type grpcListener struct {
-	wg sync.WaitGroup
-
-	streams      sync.Map
-	nextWorkerId uint64
-
-	getCache getCacheCB
-
-	server *grpc.Server
-
-	config config.ConfigReader
-
+type GRPCServer struct {
+	config    config.ConfigReader
+	extractor *WorkloadMetaExtractor
+	server    *grpc.Server
 	// The address of the server set by start(). Primarily used for testing. May be nil if start() has not been called.
 	addr net.Addr
+
+	wg sync.WaitGroup
 }
 
-func newGrpcListener(config config.ConfigReader, getCache getCacheCB) *grpcListener {
-	l := &grpcListener{
-		config:   config,
-		server:   grpc.NewServer(),
-		getCache: getCache,
+func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor) *GRPCServer {
+	l := &GRPCServer{
+		config:    config,
+		extractor: extractor,
+		server:    grpc.NewServer(),
 	}
 
 	pbgo.RegisterProcessEntityStreamServer(l.server, l)
 	return l
 }
 
-func (l *grpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
-	setEvents := make([]*pbgo.ProcessEventSet, len(procsToAdd))
-	for i, proc := range procsToAdd {
+func (l *GRPCServer) consumeProcessDiff(diff *ProcessCacheDiff) ([]*pbgo.ProcessEventSet, []*pbgo.ProcessEventUnset) {
+	setEvents := make([]*pbgo.ProcessEventSet, len(diff.creation))
+	for i, proc := range diff.creation {
 		setEvents[i] = &pbgo.ProcessEventSet{
 			Pid:      proc.pid,
 			Language: &pbgo.Language{Name: string(proc.language.Name)},
 		}
 	}
 
-	unsetEvents := make([]*pbgo.ProcessEventUnset, len(procsToDelete))
-	for i, proc := range procsToDelete {
+	unsetEvents := make([]*pbgo.ProcessEventUnset, len(diff.deletion))
+	for i, proc := range diff.deletion {
 		unsetEvents[i] = &pbgo.ProcessEventUnset{Pid: proc.pid}
 	}
 
-	l.streams.Range(func(key, value any) bool {
-		stream := value.(streamChan)
-		stream <- &pbgo.ProcessStreamResponse{
-			SetEvents:   setEvents,
-			UnsetEvents: unsetEvents,
-		}
-		return true
-	})
+	return setEvents, unsetEvents
 }
 
-func (l *grpcListener) start() error {
+func (l *GRPCServer) Start() error {
+	log.Info("Starting Process Entity WorkloadMeta gRPC server")
 	listener, err := getListener(l.config)
 	if err != nil {
 		return err
@@ -110,38 +77,54 @@ func (l *grpcListener) start() error {
 	return nil
 }
 
-func (l *grpcListener) stop() {
+func (l *GRPCServer) Stop() {
+	log.Info("Stopping Process Entity WorkloadMeta gRPC server")
 	l.server.Stop()
 	l.wg.Wait()
+	log.Info("Process Entity WorkloadMeta gRPC server stopped")
 }
 
-func (l *grpcListener) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, stream pbgo.ProcessEntityStream_StreamEntitiesServer) error {
-	syncMessage := l.getCache()
-	err := stream.Send(syncMessage)
+func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
+	// When connection is created, send a snapshot of all processes detected on the host so far as "SET" events
+	procs, version := l.extractor.GetAllProcessEntities()
+	setEvents := make([]*pbgo.ProcessEventSet, 0, len(procs))
+	for _, proc := range procs {
+		setEvents = append(setEvents, &pbgo.ProcessEventSet{
+			Pid:      proc.pid,
+			Language: &pbgo.Language{Name: string(proc.language.Name)},
+		})
+	}
+
+	syncMessage := &pbgo.ProcessStreamResponse{
+		EventID:   version,
+		SetEvents: setEvents,
+	}
+	err := out.Send(syncMessage)
 	if err != nil {
+		log.Errorf("error sending process entity event: %s", err)
 		return err
 	}
 
-	evtsChan := make(streamChan, 1)
-	currentWorkerId := l.nextWorkerId
-	l.streams.Store(currentWorkerId, evtsChan)
-	defer func() {
-		l.streams.Delete(currentWorkerId)
-		close(evtsChan)
-	}()
-	l.nextWorkerId++
+	// Once connection is established, only diffs (process creations/deletions) are sent to the client
+	for {
+		select {
+		case diff := <-l.extractor.ProcessCacheDiff():
+			sets, unsets := l.consumeProcessDiff(diff)
+			msg := &pbgo.ProcessStreamResponse{
+				EventID:     diff.cacheVersion,
+				SetEvents:   sets,
+				UnsetEvents: unsets,
+			}
+			err := out.Send(msg)
+			if err != nil {
+				log.Warnf("error sending process entity event: %s", err)
+				return err
+			}
 
-	var currentEventId int32 = 1
-	for evt := range evtsChan {
-		evt.EventID = currentEventId
-		currentEventId++
-		err := stream.Send(evt)
-		if err != nil {
-			return err
+		case <-out.Context().Done():
+			return nil
 		}
 	}
-
-	return nil
 }
 
 // getListener returns a listening connection

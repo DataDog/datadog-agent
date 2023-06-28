@@ -12,7 +12,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
@@ -36,18 +35,12 @@ func assertUnsetEvent(t *testing.T, expected, actual *pbgo.ProcessEventUnset) {
 }
 
 func toEventSet(proc *procutil.Process) *pbgo.ProcessEventSet {
-	return &pbgo.ProcessEventSet{Pid: proc.Pid}
+	return &pbgo.ProcessEventSet{
+		Pid: proc.Pid}
 }
 
 func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
 	return &pbgo.ProcessEventUnset{Pid: proc.Pid}
-}
-
-func toProcessEntity(proc *procutil.Process) *ProcessEntity {
-	return &ProcessEntity{
-		pid:      proc.Pid,
-		language: &languagemodels.Language{Name: languagemodels.Unknown},
-	}
 }
 
 func TestGetGRPCStreamPort(t *testing.T) {
@@ -73,14 +66,16 @@ func TestGetGRPCStreamPort(t *testing.T) {
 
 func TestStartStop(t *testing.T) {
 	cfg := config.Mock(t)
-	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
-	srv := newGrpcListener(config.Mock(t), func() *pbgo.ProcessStreamResponse { return &pbgo.ProcessStreamResponse{} })
 
-	err := srv.start()
+	extractor := NewWorkloadMetaExtractor(cfg)
+	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+	srv := NewGRPCServer(config.Mock(t), extractor)
+
+	err := srv.Start()
 	assert.NoError(t, err)
 
 	assertEventuallyReturns(t, func() {
-		srv.stop()
+		srv.Stop()
 	}, time.Second*5)
 }
 
@@ -91,19 +86,21 @@ func TestStreamServer(t *testing.T) {
 		proc3 = testProc(Pid3, []string{"corrina", "--at-her-best"})
 	)
 
-	mockCacheState := &pbgo.ProcessStreamResponse{
-		SetEvents: []*pbgo.ProcessEventSet{
-			toEventSet(proc1),
-			toEventSet(proc2),
-		},
-	}
-
 	cfg := config.Mock(t)
+	extractor := NewWorkloadMetaExtractor(cfg)
+
 	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
-	srv := newGrpcListener(cfg, func() *pbgo.ProcessStreamResponse { return mockCacheState })
-	require.NoError(t, srv.start())
+	srv := NewGRPCServer(cfg, extractor)
+	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
-	defer srv.stop()
+	defer srv.Stop()
+
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1,
+		Pid2: proc2,
+	})
+	// When first diff is generated, extractor cache is fully hydrated
+	<-extractor.ProcessCacheDiff()
 
 	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
@@ -120,19 +117,24 @@ func TestStreamServer(t *testing.T) {
 		return msg.SetEvents[i].Pid < msg.SetEvents[j].Pid
 	})
 	require.NoError(t, err)
-	assertEqualStreamEntitiesResponse(t, mockCacheState, msg)
+	assertEqualStreamEntitiesResponse(t, &pbgo.ProcessStreamResponse{
+		EventID: 1,
+		SetEvents: []*pbgo.ProcessEventSet{
+			toEventSet(proc1),
+			toEventSet(proc2),
+		},
+	}, msg)
 
 	// Test that diffs are sent to the client
-	srv.writeEvents([]*ProcessEntity{
-		toProcessEntity(proc1),
-		toProcessEntity(proc2),
-	}, []*ProcessEntity{
-		toProcessEntity(proc3),
+	// proc1 and proc2 terminated
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid3: proc3,
 	})
+
 	msg, err = stream.Recv()
 	require.NoError(t, err)
 	assertEqualStreamEntitiesResponse(t, &pbgo.ProcessStreamResponse{
-		EventID: 1,
+		EventID: 2,
 		SetEvents: []*pbgo.ProcessEventSet{
 			toEventSet(proc3),
 		},
@@ -142,13 +144,12 @@ func TestStreamServer(t *testing.T) {
 		},
 	}, msg)
 
-	srv.writeEvents([]*ProcessEntity{
-		toProcessEntity(proc3),
-	}, []*ProcessEntity{})
+	// proc3 terminated
+	extractor.Extract(map[int32]*procutil.Process{})
 	msg, err = stream.Recv()
 	require.NoError(t, err)
 	assertEqualStreamEntitiesResponse(t, &pbgo.ProcessStreamResponse{
-		EventID:   2,
+		EventID:   3,
 		SetEvents: []*pbgo.ProcessEventSet{},
 		UnsetEvents: []*pbgo.ProcessEventUnset{
 			toEventUnset(proc3),
