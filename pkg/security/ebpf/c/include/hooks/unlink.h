@@ -31,8 +31,8 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
     return trace__sys_unlink(SYNC_SYSCALL, flags);
 }
 
-SEC("kprobe/do_unlinkat")
-int kprobe_do_unlinkat(struct pt_regs *ctx) {
+HOOK_ENTRY("do_unlinkat")
+int hook_do_unlinkat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
         return trace__sys_unlink(ASYNC_SYSCALL, 0);
