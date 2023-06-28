@@ -23,8 +23,8 @@ SYSCALL_KPROBE0(rmdir) {
     return trace__sys_rmdir(SYNC_SYSCALL, 0);
 }
 
-SEC("kprobe/do_rmdir")
-int kprobe_do_rmdir(struct pt_regs *ctx) {
+HOOK_ENTRY("do_rmdir")
+int hook_do_rmdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return trace__sys_rmdir(ASYNC_SYSCALL, 0);
