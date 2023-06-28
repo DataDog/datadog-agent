@@ -49,7 +49,7 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 			if value == "yes" || value == "true" {
 				continue
 			}
-			log.Infof("ignoring container: name=%s id=%s image_id=%s", container.Name, container.ID, container.Image.ID)
+			log.Debugf("ignoring container: name=%s id=%s image_id=%s", container.Name, container.ID, container.Image.ID)
 		}
 
 		c.Sender.Gauge(metricName, 1.0, "", []string{"container_id:" + container.ID})
