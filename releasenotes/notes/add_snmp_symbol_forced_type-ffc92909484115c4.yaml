@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [corechecks/snmp] Add symbol level ``forced_type`` for table metrics.
+    [corechecks/snmp] Add symbol level ``metric_type`` for table metrics.
