@@ -8,8 +8,8 @@
 #include "helpers/utils.h"
 
 // used during the snapshot thus this kprobe will present only at the snapshot
-SEC("kprobe/security_inode_getattr")
-int kprobe_security_inode_getattr(struct pt_regs *ctx) {
+HOOK_ENTRY("security_inode_getattr")
+int hook_security_inode_getattr(ctx_t *ctx) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -20,12 +20,12 @@ int kprobe_security_inode_getattr(struct pt_regs *ctx) {
     u64 getattr2 = get_getattr2();
 
     if (getattr2) {
-        struct vfsmount *mnt = (struct vfsmount *)PT_REGS_PARM1(ctx);
+        struct vfsmount *mnt = (struct vfsmount *)CTX_PARM1(ctx);
         mount_id = get_vfsmount_mount_id(mnt);
 
-        dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+        dentry = (struct dentry *)CTX_PARM2(ctx);
     } else {
-        struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+        struct path *path = (struct path *)CTX_PARM1(ctx);
         mount_id = get_path_mount_id(path);
 
         dentry = get_path_dentry(path);

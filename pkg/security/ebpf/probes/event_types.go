@@ -65,9 +65,11 @@ var SyscallMonitorSelectors = []manager.ProbesSelector{
 }
 
 // SnapshotSelectors selectors required during the snapshot
-var SnapshotSelectors = []manager.ProbesSelector{
-	// required to stat /proc/.../exe
-	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_inode_getattr"}},
+func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
+	return []manager.ProbesSelector{
+		// required to stat /proc/.../exe
+		kprobeOrFentry("security_inode_getattr", fentry),
+	}
 }
 
 var selectorsPerEventTypeStore map[eval.EventType][]manager.ProbesSelector
@@ -200,7 +202,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "renameat", EntryAndExit)},
 			&manager.BestEffort{Selectors: append(
 				[]manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_renameat2"}},
+					kprobeOrFentry("do_renameat2", fentry),
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_renameat2"}}},
 				ExpandSyscallProbesSelector(SecurityAgentUID, "renameat2", EntryAndExit)...)},
 
@@ -368,7 +370,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"ptrace": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "ptrace", EntryAndExit)},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_ptrace_check_attach"}},
+				kprobeOrFentry("ptrace_check_attach", fentry),
 			}},
 		},
 

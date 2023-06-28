@@ -249,7 +249,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
