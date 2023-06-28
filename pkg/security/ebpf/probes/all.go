@@ -68,7 +68,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getRenameProbes()...)
 	allProbes = append(allProbes, getRmdirProbe()...)
 	allProbes = append(allProbes, sharedProbes...)
-	allProbes = append(allProbes, iouringProbes...)
+	allProbes = append(allProbes, getIouringProbes(fentry)...)
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
 	allProbes = append(allProbes, getIoctlProbes()...)
