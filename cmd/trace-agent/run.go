@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -83,11 +82,6 @@ func Run(ctx context.Context) {
 		if err := info.Info(os.Stdout, cfg); err != nil {
 			osutil.Exitf("Failed to print info: %s", err)
 		}
-		return
-	}
-
-	if err = initRuntimeSettings(); err != nil {
-		osutil.Exitf("Failed to start runtime configs: %s", err)
 		return
 	}
 
@@ -252,10 +246,6 @@ func Run(ctx context.Context) {
 		}
 		f.Close()
 	}
-}
-
-func initRuntimeSettings() error {
-	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{})
 }
 
 type corelogger struct{}
