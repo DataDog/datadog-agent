@@ -30,6 +30,7 @@ func TestStart(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
@@ -53,6 +54,7 @@ func TestPrioritySampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
 	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -83,6 +85,7 @@ func TestErrorsSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
 	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -113,6 +116,7 @@ func TestRareSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
 	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -143,6 +147,7 @@ func TestEnvPrecedence(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
 	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
