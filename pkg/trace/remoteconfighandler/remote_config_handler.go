@@ -8,7 +8,6 @@ package remoteconfighandler
 import (
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
@@ -38,7 +37,7 @@ type RemoteConfigHandler struct {
 	errorsSampler   errorsSampler
 	rareSampler     rareSampler
 	agentConfig     *config.AgentConfig
-	configState     *remote.AgentConfigState
+	configState     *state.AgentConfigState
 }
 
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
@@ -57,7 +56,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		rareSampler:     rareSampler,
 		errorsSampler:   errorsSampler,
 		agentConfig:     conf,
-		configState: &remote.AgentConfigState{
+		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),
 		},
 	}
@@ -74,7 +73,7 @@ func (h *RemoteConfigHandler) Start() {
 }
 
 func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig) {
-	mergedConfig, err := remote.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
+	mergedConfig, err := state.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
 	if err != nil {
 		return
 	}

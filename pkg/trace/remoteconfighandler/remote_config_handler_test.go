@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -167,6 +168,29 @@ func TestEnvPrecedence(t *testing.T) {
 	rareSampler.EXPECT().SetEnabled(false).Times(1)
 
 	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+
+	ctrl.Finish()
+}
+
+func TestLogLevel(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	remoteClient := NewMockRemoteClient(ctrl)
+	prioritySampler := NewMockprioritySampler(ctrl)
+	errorsSampler := NewMockerrorsSampler(ctrl)
+	rareSampler := NewMockrareSampler(ctrl)
+
+	pkglog.SetLogger("info")
+
+	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
+	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
+
+	layer := state.RawConfig{Config: []byte(`{"name": "layer", "config": {"log_level": "debug"}}`)}
+	configOrder := state.RawConfig{Config: []byte(`{"internal_order": ["layer1", "layer2"]}`)}
+
+	h.onAgentConfigUpdate(map[string]state.RawConfig{
+		"datadog/2/AGENT_CONFIG/layer/configname":               layer,
+		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
+	})
 
 	ctrl.Finish()
 }

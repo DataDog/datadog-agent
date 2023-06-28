@@ -37,7 +37,7 @@ type rcClient struct {
 	client        *remote.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
-	configState   *remote.AgentConfigState
+	configState   *state.AgentConfigState
 
 	listeners []RCAgentTaskListener
 }
@@ -59,7 +59,7 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 	rc := rcClient{
 		listeners: deps.Listeners,
 		m:         &sync.Mutex{},
-		configState: &remote.AgentConfigState{
+		configState: &state.AgentConfigState{
 			FallbackLogLevel: level.String(),
 		},
 		client: nil,
@@ -92,7 +92,7 @@ func (rc rcClient) Listen() error {
 }
 
 func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig) {
-	mergedConfig, err := remote.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
+	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {
 		return
 	}
