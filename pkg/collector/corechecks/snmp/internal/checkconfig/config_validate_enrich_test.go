@@ -442,6 +442,45 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			},
 		},
 		{
+			name: "forced_type usage in column symbol",
+			metrics: []MetricsConfig{
+				{
+					Symbols: []SymbolConfig{
+						{
+							Name:       "abc",
+							OID:        "1.2.3",
+							ForcedType: "monotonic_count",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								Name: "abc",
+								OID:  "1.2.3",
+							},
+							Tag: "hello",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "forced_type usage in scalar symbol",
+			metrics: []MetricsConfig{
+				{
+					Symbol: SymbolConfig{
+						Name:       "abc",
+						OID:        "1.2.3",
+						ForcedType: "monotonic_count",
+					},
+				},
+			},
+			expectedErrors: []string{
+				"`forced_type` cannot be used outside table symbols and metrics root",
+			},
+		},
+		{
 			name: "mapping used without tag should raise a warning",
 			metrics: []MetricsConfig{
 				{

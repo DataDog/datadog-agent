@@ -195,6 +195,18 @@ func TestSendMetric(t *testing.T) {
 			},
 		},
 		{
+			caseName:           "Forced monotonic_count via symbol config",
+			symbol:             checkconfig.SymbolConfig{Name: "my.metric", ForcedType: "monotonic_count"},
+			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			tags:               []string{},
+			metricConfig:       checkconfig.MetricsConfig{},
+			expectedMethod:     "MonotonicCount",
+			expectedMetricName: "snmp.my.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
 			caseName: "Error converting value",
 			symbol:   checkconfig.SymbolConfig{Name: "metric"},
 			value:    valuestore.ResultValue{Value: valuestore.ResultValue{}},
