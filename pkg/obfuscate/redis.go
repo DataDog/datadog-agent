@@ -253,10 +253,33 @@ func (*Obfuscator) RemoveAllRedisArgs(rediscmd string) string {
 		return ""
 	}
 	cmd, args := fullCmd[0], fullCmd[1:]
+
+	var out strings.Builder
+	out.WriteString(cmd)
 	if len(args) == 0 {
-		return cmd
+		return out.String()
 	}
-	return cmd + " ?"
+
+	out.WriteByte(' ')
+	switch strings.ToUpper(cmd) {
+	case "BITFIELD":
+		out.WriteString("?")
+		for _, arg := range args {
+			if arg == "SET" || arg == "GET" || arg == "INCRBY" {
+				out.WriteString(strings.Join([]string{"", arg, "?"}, " "))
+			}
+		}
+	case "CONFIG":
+		if args[0] == "GET" || args[0] == "SET" || args[0] == "RESETSTAT" || args[0] == "REWRITE" {
+			out.WriteString(strings.Join([]string{args[0], "?"}, " "))
+		} else {
+			out.WriteString("?")
+		}
+	default:
+		out.WriteString("?")
+	}
+
+	return out.String()
 }
 
 func obfuscateRedisArgN(args []string, n int) {
