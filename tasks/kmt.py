@@ -15,7 +15,6 @@ from .kernel_matrix_testing import stacks
 from .kernel_matrix_testing.tool import info, warn, ask, Exit
 from .kernel_matrix_testing.download import update_kernel_packages, update_rootfs, revert_kernel_packages, revert_rootfs
 from .kernel_matrix_testing.init_kmt import check_and_get_stack
-from .kernel_matrix_testing.vmconfig import list_possible, normalize_vm_def
 
 @task
 def create_stack(ctx, stack=None, branch=False):
@@ -100,7 +99,7 @@ def get_vm_ip(stack, version, arch):
     with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
         entries = f.readlines()
         for entry in entries:
-            match = re.search(f"^.+{arch}-{version}.+\s+.+$", entry.strip('\n'))
+            match = re.search(f"^.+{arch}-{version}.+\\s+.+$", entry.strip('\n'))
             if match is None:
                 continue
 

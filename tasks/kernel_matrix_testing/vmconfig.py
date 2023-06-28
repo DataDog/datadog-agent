@@ -295,6 +295,7 @@ def modify_existing_vmsets(vm_config, set_id, kernels):
 
     return True
 
+
 def generate_vm_config(vm_config, vms, vcpu, memory):
     # get all possible (recipe, version, arch) combinations we can support.
     possible = list_possible()
@@ -341,7 +342,7 @@ def generate_vm_config(vm_config, vms, vcpu, memory):
             amd64_ec2 = True
         if vmset["arch"] == "arm64":
             arm64_ec2 = True
-    
+
     if arm64_ec2:
         info(f"[*] Configuration will launch 1 arm64 {ARM_INSTANCE_TYPE} EC2 instance")
     if amd64_ec2:
