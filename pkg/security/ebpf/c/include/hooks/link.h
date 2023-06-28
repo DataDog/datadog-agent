@@ -41,6 +41,7 @@ int hook_do_linkat(ctx_t *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/vfs_link")
 int kprobe_vfs_link(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -95,6 +96,7 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_link_src_callback")
 int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -196,6 +198,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_link_dst_callback")
 int __attribute__((always_inline)) kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);

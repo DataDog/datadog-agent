@@ -40,6 +40,7 @@ int hook_do_unlinkat(ctx_t *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/vfs_unlink")
 int kprobe_vfs_unlink(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
@@ -84,6 +85,7 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_unlink_callback")
 int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);

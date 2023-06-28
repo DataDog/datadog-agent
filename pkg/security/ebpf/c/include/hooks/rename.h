@@ -209,6 +209,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_rename_callback")
 int __attribute__((always_inline)) kprobe_dr_rename_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);

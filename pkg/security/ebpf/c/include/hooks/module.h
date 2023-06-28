@@ -50,6 +50,7 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
     return 0;
 }
 
+// fentry blocked by: parse args special bug
 SEC("kprobe/parse_args")
 int kprobe_parse_args(struct pt_regs *ctx){
     char *args = (char *) PT_REGS_PARM2(ctx);
@@ -64,12 +65,14 @@ int kprobe_parse_args(struct pt_regs *ctx){
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/security_kernel_module_from_file")
 int kprobe_security_kernel_module_from_file(struct pt_regs *ctx) {
     struct file *f = (struct file *)PT_REGS_PARM1(ctx);
     return trace_kernel_file(ctx, f);
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/security_kernel_read_file")
 int kprobe_security_kernel_read_file(struct pt_regs *ctx) {
     struct file *f = (struct file *)PT_REGS_PARM1(ctx);

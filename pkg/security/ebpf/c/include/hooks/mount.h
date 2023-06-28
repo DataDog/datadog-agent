@@ -141,6 +141,7 @@ SYSCALL_KPROBE1(unshare, unsigned long, flags) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/attach_mnt")
 int kprobe_attach_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -157,6 +158,7 @@ int kprobe_attach_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/__attach_mnt")
 int kprobe___attach_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -179,6 +181,7 @@ int kprobe___attach_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/mnt_set_mountpoint")
 int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -202,6 +205,7 @@ int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_one_callback")
 int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -225,6 +229,7 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(st
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_two_callback")
 int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -252,6 +257,7 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(st
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/clone_mnt")
 int kprobe_clone_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
@@ -280,6 +286,7 @@ int kprobe_clone_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/attach_recursive_mnt")
 int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
@@ -311,6 +318,7 @@ int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/propagate_mnt")
 int kprobe_propagate_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
@@ -414,6 +422,7 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_mount_callback")
 int __attribute__((always_inline)) kprobe_dr_mount_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);
