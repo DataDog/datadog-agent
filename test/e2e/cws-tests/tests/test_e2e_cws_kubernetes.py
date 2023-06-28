@@ -6,6 +6,7 @@ import time
 import unittest
 import uuid
 import warnings
+import json
 
 import emoji
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
@@ -70,7 +71,6 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="select pod", emoji=":man_running:"):
 
             self.kubernetes_helper.select_pod_name("app=datadog-agent")
-            # self.kubernetes_helper.select_pod_name("app.kubernetes.io/component=agent")
 
         with Step(msg="check security-agent start", emoji=":customs:"):
             wait_agent_log("security-agent", self.kubernetes_helper, SECURITY_START_LOG)
@@ -144,8 +144,9 @@ class TestE2EKubernetes(unittest.TestCase):
                 "failed_tests" not in attributes,
                 f"failed tests: {attributes['failed_tests']}" if "failed_tests" in attributes else "success",
             )
-            # jsonSchemaValidator = JsonSchemaValidator("../../../../pkg/security/tests/schemas")
-            # print(jsonSchemaValidator.validate("self_test_schema",attributes))
+
+            jsonSchemaValidator = JsonSchemaValidator()
+            jsonSchemaValidator.validate_json_data("self_test.json",attributes)
 
         with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
             self.app.wait_for_metric("datadog.security_agent.runtime.running", host=TestE2EKubernetes.hostname)
