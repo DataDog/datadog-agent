@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
@@ -220,8 +221,8 @@ func (c *ProcessAgentCheck) Stop() {
 func (c *ProcessAgentCheck) Cancel() {}
 
 // GetSenderStats returns the stats from the last run of the check, but there aren't any yet
-func (c *ProcessAgentCheck) GetSenderStats() (check.SenderStats, error) {
-	return check.NewSenderStats(), nil
+func (c *ProcessAgentCheck) GetSenderStats() (stats.SenderStats, error) {
+	return stats.NewSenderStats(), nil
 }
 
 func init() {

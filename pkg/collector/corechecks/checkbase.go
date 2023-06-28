@@ -13,9 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -263,10 +263,10 @@ func (c *CheckBase) GetRawSender() (aggregator.Sender, error) {
 }
 
 // GetSenderStats returns the stats from the last run of the check.
-func (c *CheckBase) GetSenderStats() (check.SenderStats, error) {
+func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := c.GetSender()
 	if err != nil {
-		return check.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
 	}
 	return sender.GetSenderStats(), nil
 }

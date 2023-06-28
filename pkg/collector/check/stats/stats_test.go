@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package check
+package stats
 
 import (
 	"net/http"
@@ -32,7 +32,7 @@ func (mc *mockCheck) ID() id.ID            { return mc.id }
 func (mc *mockCheck) String() string       { return mc.stringVal }
 func (mc *mockCheck) Version() string      { return mc.version }
 
-func newMockCheck() Check {
+func newMockCheck() StatsCheck {
 	return &mockCheck{
 		cfgSource: "checkConfigSrc",
 		id:        "checkID",

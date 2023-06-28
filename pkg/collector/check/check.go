@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 )
 
 // Check is an interface for types capable to run checks
@@ -33,7 +34,7 @@ type Check interface {
 	// GetWarnings returns the last warning registered by the check
 	GetWarnings() []error
 	// GetSenderStats returns the stats from the last run of the check.
-	GetSenderStats() (SenderStats, error)
+	GetSenderStats() (stats.SenderStats, error)
 	// Version returns the version of the check if available
 	Version() string
 	// ConfigSource returns the configuration source of the check

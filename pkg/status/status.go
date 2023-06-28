@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs"
@@ -123,7 +124,7 @@ func GetAndFormatStatus() ([]byte, error) {
 }
 
 // GetCheckStatusJSON gets the status of a single check as JSON
-func GetCheckStatusJSON(c check.Check, cs *check.Stats) ([]byte, error) {
+func GetCheckStatusJSON(c check.Check, cs *checkstats.Stats) ([]byte, error) {
 	s, err := GetStatus(false)
 	if err != nil {
 		return nil, err
@@ -141,7 +142,7 @@ func GetCheckStatusJSON(c check.Check, cs *check.Stats) ([]byte, error) {
 }
 
 // GetCheckStatus gets the status of a single check as human-readable text
-func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
+func GetCheckStatus(c check.Check, cs *checkstats.Stats) ([]byte, error) {
 	statusJSON, err := GetCheckStatusJSON(c, cs)
 	if err != nil {
 		return nil, err
@@ -357,7 +358,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	aggregatorStats := make(map[string]interface{})
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
 	stats["aggregatorStats"] = aggregatorStats
-	s, err := check.TranslateEventPlatformEventTypes(stats["aggregatorStats"])
+	s, err := checkstats.TranslateEventPlatformEventTypes(stats["aggregatorStats"])
 	if err != nil {
 		log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
 	} else {

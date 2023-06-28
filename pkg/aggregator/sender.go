@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,7 +34,7 @@ type Sender interface {
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	Event(e metrics.Event)
 	EventPlatformEvent(rawEvent []byte, eventType string)
-	GetSenderStats() check.SenderStats
+	GetSenderStats() stats.SenderStats
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
 	SetCheckService(service string)
@@ -56,8 +56,8 @@ type checkSender struct {
 	id                      id.ID
 	defaultHostname         string
 	defaultHostnameDisabled bool
-	metricStats             check.SenderStats
-	priormetricStats        check.SenderStats
+	metricStats             stats.SenderStats
+	priormetricStats        stats.SenderStats
 	statsLock               sync.RWMutex
 	itemsOut                chan<- senderItem
 	serviceCheckOut         chan<- metrics.ServiceCheck
@@ -133,8 +133,8 @@ func newCheckSender(
 		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
 		eventOut:                eventOut,
-		metricStats:             check.NewSenderStats(),
-		priormetricStats:        check.NewSenderStats(),
+		metricStats:             stats.NewSenderStats(),
+		priormetricStats:        stats.NewSenderStats(),
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
@@ -215,7 +215,7 @@ func (s *checkSender) Commit() {
 	s.cyclemetricStats()
 }
 
-func (s *checkSender) GetSenderStats() (metricStats check.SenderStats) {
+func (s *checkSender) GetSenderStats() (metricStats stats.SenderStats) {
 	s.statsLock.RLock()
 	defer s.statsLock.RUnlock()
 	return s.priormetricStats.Copy()
@@ -225,7 +225,7 @@ func (s *checkSender) cyclemetricStats() {
 	s.statsLock.Lock()
 	defer s.statsLock.Unlock()
 	s.priormetricStats = s.metricStats.Copy()
-	s.metricStats = check.NewSenderStats()
+	s.metricStats = stats.NewSenderStats()
 }
 
 // SendRawMetricSample sends the raw sample

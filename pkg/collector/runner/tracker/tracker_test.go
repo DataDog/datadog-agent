@@ -15,10 +15,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 )
 
 type testCheck struct {
-	check.StubCheck
+	stats.StubCheck
 	id string
 }
 

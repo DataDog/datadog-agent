@@ -13,10 +13,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 )
 
 func TestBuildID(t *testing.T) {
-	testCheck := &StubCheck{}
+	testCheck := &stats.StubCheck{}
 
 	instance1 := integration.Data("key1:value1\nkey2:value2")
 	initConfig1 := integration.Data("key:value")

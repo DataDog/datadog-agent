@@ -13,12 +13,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 type stubCheck struct {
-	check.StubCheck
+	stats.StubCheck
 	id string
 }
 
@@ -30,7 +31,7 @@ func newTestCheck(id string) *stubCheck {
 }
 
 func addExpvarsCheckStats(c check.Check) {
-	expvars.AddCheckStats(c, 0, nil, nil, check.SenderStats{})
+	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{})
 }
 
 func setUp() {

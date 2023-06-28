@@ -18,10 +18,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -314,10 +314,10 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 }
 
 // GetSenderStats returns the stats from the last run of the check
-func (c *PythonCheck) GetSenderStats() (check.SenderStats, error) {
+func (c *PythonCheck) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
-		return check.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}
 	return sender.GetSenderStats(), nil
 }

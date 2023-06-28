@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 )
 
 // CheckWrapper cleans up the check sender after a check was
@@ -88,7 +89,7 @@ func (c *CheckWrapper) GetWarnings() []error {
 }
 
 // GetSenderStats implements Check#GetSenderStats
-func (c *CheckWrapper) GetSenderStats() (check.SenderStats, error) {
+func (c *CheckWrapper) GetSenderStats() (stats.SenderStats, error) {
 	return c.inner.GetSenderStats()
 }
 

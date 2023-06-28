@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -28,7 +28,7 @@ type testCheck struct {
 	runCount *atomic.Uint64
 	stopped  *atomic.Bool
 
-	check.StubCheck
+	stats.StubCheck
 	RunLock   sync.Mutex
 	StartLock sync.Mutex
 	StopLock  sync.Mutex
