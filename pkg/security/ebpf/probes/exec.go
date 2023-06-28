@@ -44,25 +44,13 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_cgroup_procs_write",
+				EBPFFuncName: "hook_cgroup_procs_write",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_cgroup1_procs_write",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_cgroup_tasks_write",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_cgroup1_tasks_write",
+				EBPFFuncName: "hook_cgroup1_procs_write",
 			},
 		},
 		{
@@ -133,6 +121,18 @@ func getExecProbes(fentry bool) []*manager.Probe {
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					UID:          SecurityAgentUID,
 					EBPFFuncName: "hook__do_fork",
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID:          SecurityAgentUID,
+					EBPFFuncName: "hook_cgroup_tasks_write",
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID:          SecurityAgentUID,
+					EBPFFuncName: "hook_cgroup1_tasks_write",
 				},
 			},
 		}...)

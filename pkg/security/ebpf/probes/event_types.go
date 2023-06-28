@@ -103,8 +103,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("do_coredump", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup_procs_write"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup1_procs_write"}},
+				kprobeOrFentry("cgroup_procs_write", fentry),
+				kprobeOrFentry("cgroup1_procs_write", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("_do_fork", fentry, withSkipIfFentry(true)),
@@ -112,8 +112,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("kernel_clone", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup_tasks_write"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup1_tasks_write"}},
+				kprobeOrFentry("cgroup_tasks_write", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("cgroup1_tasks_write", fentry, withSkipIfFentry(true)),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execve", Entry)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execveat", Entry)},
