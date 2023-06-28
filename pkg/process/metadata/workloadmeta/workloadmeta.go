@@ -46,7 +46,7 @@ type ProcessCacheDiff struct {
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
 func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor {
-	log.Debug("Instantiated the WorkloadMetaExtractor")
+	log.Info("Instantiating a new WorkloadMetaExtractor")
 	return &WorkloadMetaExtractor{
 		cache:        make(map[string]*ProcessEntity),
 		cacheVersion: 0,
