@@ -132,6 +132,7 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 			blocklistByID: make(pathIdentifierSet),
 
 			telemetry: soRegistryTelemetry{
+				libHookFailed:               metricGroup.NewMetric("hook_failed"),
 				libRegistered:               metricGroup.NewMetric("registered"),
 				libAlreadyRegistered:        metricGroup.NewMetric("already_registered"),
 				libBlocked:                  metricGroup.NewMetric("blocked"),
