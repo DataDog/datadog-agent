@@ -14,9 +14,11 @@ import (
 	"sync"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -94,10 +96,10 @@ func (r *RCProfileProvider) rcAgentConfigCallback(update map[string]state.RawCon
 	}
 
 	if len(mergedConfig.LogLevel) > 0 {
-		pkglog.Infof("Changing log level of the trace-agent to %s through remote config", mergedConfig.LogLevel)
+		log.Infof("Changing log level of the trace-agent to %s through remote config", mergedConfig.LogLevel)
 		// Get the current log level
 		var newFallback seelog.LogLevel
-		newFallback, err = pkglog.GetLogLevel()
+		newFallback, err = log.GetLogLevel()
 		if err == nil {
 			r.configState.FallbackLogLevel = newFallback.String()
 			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
@@ -105,9 +107,9 @@ func (r *RCProfileProvider) rcAgentConfigCallback(update map[string]state.RawCon
 		}
 	} else {
 		var currentLogLevel seelog.LogLevel
-		currentLogLevel, err = pkglog.GetLogLevel()
+		currentLogLevel, err = log.GetLogLevel()
 		if err == nil && currentLogLevel.String() == r.configState.LatestLogLevel {
-			pkglog.Infof("Removing remote-config log level override, falling back to %s", r.configState.FallbackLogLevel)
+			log.Infof("Removing remote-config log level override, falling back to %s", r.configState.FallbackLogLevel)
 			err = settings.SetRuntimeSetting("log_level", r.configState.FallbackLogLevel)
 		}
 	}
@@ -115,9 +117,9 @@ func (r *RCProfileProvider) rcAgentConfigCallback(update map[string]state.RawCon
 	// Apply the new status to all configs
 	for cfgPath := range updates {
 		if err == nil {
-			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		} else {
-			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{
+			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
@@ -183,7 +185,7 @@ func NewRCProfileProvider() (*RCProfileProvider, error) {
 		return nil, err
 	}
 
-	level, err := pkglog.GetLogLevel()
+	level, err := log.GetLogLevel()
 	if err != nil {
 		return nil, err
 	}
