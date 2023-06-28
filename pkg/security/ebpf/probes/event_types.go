@@ -36,7 +36,7 @@ func NetworkSelectors(fentry bool) []manager.ProbesSelector {
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			kprobeOrFentry("security_socket_bind", fentry),
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_sk_classify_flow"}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_path_get"}},
+			kprobeOrFentry("path_get", fentry),
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_proc_fd_link"}},
 		}},
 
@@ -265,7 +265,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			// pipes
 			// This is needed to skip FIM events relatives to pipes (avoiding abnormal path events)
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mntget"}},
+				kprobeOrFentry("mntget", fentry),
 			}}},
 
 		// List of probes required to capture chmod events
