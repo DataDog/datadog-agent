@@ -249,6 +249,8 @@ func parseInt32Bytes(bts []byte) (int32, []byte, error) {
 }
 
 // parseBytes reads the next BinType in the msgpack payload.
+//
+//nolint:unused // potentially useful; was used with prior proto definitions
 func parseBytes(bts []byte) ([]byte, []byte, error) {
 	if msgp.IsNil(bts) {
 		bts, err := msgp.ReadNilBytes(bts)
