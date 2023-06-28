@@ -28,7 +28,7 @@ type SymbolConfig struct {
 	Format           string  `yaml:"format"`
 	ConstantValueOne bool    `yaml:"constant_value_one"`
 
-	ForcedType string `yaml:"forced_type"`
+	MetricType string `yaml:"metric_type"`
 }
 
 // MetricTagConfig holds metric tag info

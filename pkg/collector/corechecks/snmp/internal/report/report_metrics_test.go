@@ -196,7 +196,7 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName:           "Forced monotonic_count via symbol config",
-			symbol:             checkconfig.SymbolConfig{Name: "my.metric", ForcedType: "monotonic_count"},
+			symbol:             checkconfig.SymbolConfig{Name: "my.metric", MetricType: "monotonic_count"},
 			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:               []string{},
 			metricConfig:       checkconfig.MetricsConfig{},

@@ -449,7 +449,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 						{
 							Name:       "abc",
 							OID:        "1.2.3",
-							ForcedType: "monotonic_count",
+							MetricType: "monotonic_count",
 						},
 					},
 					MetricTags: MetricTagConfigList{
@@ -472,7 +472,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					Symbol: SymbolConfig{
 						Name:       "abc",
 						OID:        "1.2.3",
-						ForcedType: "monotonic_count",
+						MetricType: "monotonic_count",
 					},
 				},
 			},
@@ -495,7 +495,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 							Column: SymbolConfig{
 								Name:       "abc",
 								OID:        "1.2.3",
-								ForcedType: "monotonic_count",
+								MetricType: "monotonic_count",
 							},
 							Tag: "hello",
 						},
