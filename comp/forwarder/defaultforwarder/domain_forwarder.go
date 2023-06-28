@@ -246,8 +246,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	close(f.lowPrio)
 	close(f.requeuedTransaction)
 
-	for len(f.requeuedTransaction) > 0 {
-		t := <-f.requeuedTransaction
+	for t := range f.requeuedTransaction {
 		f.requeueTransaction(t)
 	}
 	f.retryQueue.FlushToDisk()
