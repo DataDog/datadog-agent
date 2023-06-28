@@ -16,7 +16,7 @@ A `stack` may be:
 - Resumed
 - Destroyed
 
-> All subsequenct command are assumed to be executed from the root of the datadog-agent repository.
+> All subsequent commands are assumed to be executed from the root directory of the datadog-agent repository.
 
 ## Dependencies
 ```bash
@@ -93,9 +93,9 @@ inv -e kmt.launch-stack --stack=demo-stack --ssh-key=<ssh-key>
 
 ### Connecting to VMs
 ```bash
-inv -e kmt.info --stack=demo-stack
+inv -e kmt.ls --stack=demo-stack
 ```
-This will print the ips of all the VMs and the remote machines if any
+This will print the IP addresses of all the VMs and the remote machines if any
 
 To connect to the VM first ssh to the remote machine, if required.
 
