@@ -37,7 +37,7 @@ func NetworkSelectors(fentry bool) []manager.ProbesSelector {
 			kprobeOrFentry("security_socket_bind", fentry),
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_sk_classify_flow"}},
 			kprobeOrFentry("path_get", fentry),
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_proc_fd_link"}},
+			kprobeOrFentry("proc_fd_link", fentry),
 		}},
 
 		// network device probes

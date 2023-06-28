@@ -38,7 +38,7 @@ var flowProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_proc_fd_link",
+			EBPFFuncName: "hook_proc_fd_link",
 		},
 	},
 }
