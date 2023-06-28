@@ -14,7 +14,7 @@ var sharedProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_filename_create",
+			EBPFFuncName: "hook_filename_create",
 		},
 	},
 	{
