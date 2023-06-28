@@ -50,6 +50,7 @@ def remote_vms_in_config(vmconfig):
 
     return False
 
+
 def local_vms_in_config(vmconfig):
     with open(vmconfig, 'r') as f:
         data = json.load(f)
@@ -60,8 +61,15 @@ def local_vms_in_config(vmconfig):
 
     return False
 
+
 def ask_for_ssh():
-    return ask("You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]") != "y"
+    return (
+        ask(
+            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]"
+        )
+        != "y"
+    )
+
 
 def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
     stack = check_and_get_stack(stack, branch)
@@ -136,7 +144,7 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
     ctx.run(
         f"{env_vars} {prefix} inv system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
     )
-    
+
 
 def is_ec2_ip_entry(entry):
     return entry.startswith("arm64-instance-ip") or entry.startswith("x86_64-instance-ip")
@@ -198,7 +206,9 @@ def destroy_stack_force(ctx, stack):
 
     destroy_ec2_instances(ctx, stack)
     # Find a better solution for this
-    ctx.run(f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {stack}", warn=True)
+    ctx.run(
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {stack}", warn=True
+    )
 
 
 def destroy_stack(ctx, stack, branch, force, ssh_key):
@@ -214,6 +224,7 @@ def destroy_stack(ctx, stack, branch, force, ssh_key):
 
     ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
 
+
 def pause_stack(ctx, stack=None, branch=False):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
@@ -221,6 +232,7 @@ def pause_stack(ctx, stack=None, branch=False):
     conn = libvirt.open("qemu:///system")
     pause_domains(conn, stack)
     conn.close()
+
 
 def resume_stack(ctx, stack=None, branch=False):
     stack = check_and_get_stack(stack, branch)
@@ -230,7 +242,8 @@ def resume_stack(ctx, stack=None, branch=False):
     resume_domains(conn, stack)
     conn.close()
 
-#def info(ctx, stack=None, branch=False):
+
+# def info(ctx, stack=None, branch=False):
 #    stack = check_and_get_stack(stack, branch)
 #    if not stack_exists(stack):
 #        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")

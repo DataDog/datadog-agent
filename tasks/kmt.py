@@ -1,5 +1,5 @@
 from invoke import task
-import re 
+import re
 from glob import glob
 from .kernel_matrix_testing.init_kmt import (
     KMT_DIR,
@@ -15,6 +15,7 @@ from .kernel_matrix_testing import stacks
 from .kernel_matrix_testing.tool import info, warn, ask, Exit
 from .kernel_matrix_testing.download import update_kernel_packages, update_rootfs, revert_kernel_packages, revert_rootfs
 from .kernel_matrix_testing.init_kmt import check_and_get_stack
+
 
 @task
 def create_stack(ctx, stack=None, branch=False):
@@ -42,18 +43,22 @@ def launch_stack(
 ):
     stacks.launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami)
 
+
 @task
 def destroy_stack(ctx, stack=None, branch=False, force=False, ssh_key=""):
     stacks.destroy_stack(ctx, stack, branch, force, ssh_key)
+
 
 @task
 def pause_stack(ctx, stack=None, branch=False):
     stacks.pause_stack(ctx, stack, branch)
 
+
 @task
 def resume_stack(ctx, stack=None, branch=False):
     stacks.resume_stack(ctx, stack, branch)
-    
+
+
 @task
 def ls(ctx, stack=None, branch=False):
     stack = check_and_get_stack(stack, branch)
@@ -61,6 +66,7 @@ def ls(ctx, stack=None, branch=False):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.outputs")
+
 
 @task
 def init(ctx, lite=False):
@@ -105,12 +111,14 @@ def get_vm_ip(stack, version, arch):
 
             return arch, match.group(0).split(' ')[0], match.group(0).split(' ')[1]
 
+
 def get_instance_ip(stack, arch):
     with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
         entries = f.readlines()
         for entry in entries:
             if f"{arch}-instance-ip" in entry.split(' ')[0]:
                 return entry.split()[0], entry.split()[1].strip('\n')
+
 
 @task
 def sync(ctx, stack=None, branch=False, vms="", ssh_key=""):
@@ -147,11 +155,17 @@ def sync(ctx, stack=None, branch=False, vms="", ssh_key=""):
     for arch, _, ip in target_vms:
         vm_copy = f"rsync -e \\\"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\\\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:/root/datadog-agent"
         if arch == "local":
-            ctx.run(f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:/root/datadog-agent")
+            ctx.run(
+                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:/root/datadog-agent"
+            )
         elif arch == "x86_64" or arch == "arm64":
             instance_name, instance_ip = get_instance_ip(stack, arch)
             info(f"[*] Instance {instance_name} has ip {instance_ip}")
-            ctx.run(f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {ssh_key_path}\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ ubuntu@{instance_ip}:/home/ubuntu/datadog-agent")
-            ctx.run(f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no ubuntu@{instance_ip} \"cd /home/ubuntu/datadog-agent && {vm_copy}\"")
+            ctx.run(
+                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {ssh_key_path}\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ ubuntu@{instance_ip}:/home/ubuntu/datadog-agent"
+            )
+            ctx.run(
+                f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no ubuntu@{instance_ip} \"cd /home/ubuntu/datadog-agent && {vm_copy}\""
+            )
         else:
             raise Exit(f"Unsupported arch {arch}")

@@ -1,5 +1,6 @@
 from .tool import info
 
+
 def resource_in_stack(stack, resource):
     return stack in resource
 
@@ -73,30 +74,31 @@ def delete_networks(conn, stack):
         network.undefine()
         info(f"[+] Network {name} deleted")
 
+
 def pause_domains(conn, stack):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
-    info (f"[*] {len(domains)} VMs running in stack {stack}")
+    info(f"[*] {len(domains)} VMs running in stack {stack}")
 
     for domain in domains:
         name = domain.name()
         domain.destroy()
         info(f"[+] VM {name} is paused")
 
+
 def resume_domains(conn, stack):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
-    info (f"[*] {len(domains)} VMs running in stack {stack}")
+    info(f"[*] {len(domains)} VMs running in stack {stack}")
 
     for domain in domains:
         name = domain.name()
         domain.create()
         info(f"[+] VM {name} is resumed")
 
+
 def list_domains(conn, stack):
     domains = get_resources_in_stack(stack, conn.listAllDomains)
-    info (f"[*] {len(domains)} VMs running in stack {stack}")
+    info(f"[*] {len(domains)} VMs running in stack {stack}")
 
     for domain in domains:
         name = domain.name()
         info(f"[+] VM {name} is defined")
-
-
