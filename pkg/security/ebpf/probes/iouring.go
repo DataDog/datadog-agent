@@ -25,13 +25,13 @@ var iouringProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_io_allocate_scq_urings",
+			EBPFFuncName: "hook_io_allocate_scq_urings",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_io_sq_offload_start",
+			EBPFFuncName: "hook_io_sq_offload_start",
 		},
 	},
 }
