@@ -15,32 +15,25 @@ import (
 // GetAuthProtocol converts auth protocol from string to type
 func GetAuthProtocol(authProtocolStr string) (gosnmp.SnmpV3AuthProtocol, error) {
 	var authProtocol gosnmp.SnmpV3AuthProtocol
-	if !SwitchAuthProtocol(authProtocolStr, &authProtocol) {
+	lowerAuthProtocol := strings.ToLower(authProtocolStr)
+	if lowerAuthProtocol == "" {
+		authProtocol = gosnmp.NoAuth
+	} else if lowerAuthProtocol == "md5" {
+		authProtocol = gosnmp.MD5
+	} else if lowerAuthProtocol == "sha" {
+		authProtocol = gosnmp.SHA
+	} else if lowerAuthProtocol == "sha224" {
+		authProtocol = gosnmp.SHA224
+	} else if lowerAuthProtocol == "sha256" {
+		authProtocol = gosnmp.SHA256
+	} else if lowerAuthProtocol == "sha384" {
+		authProtocol = gosnmp.SHA384
+	} else if lowerAuthProtocol == "sha512" {
+		authProtocol = gosnmp.SHA512
+	} else {
 		return gosnmp.NoAuth, fmt.Errorf("unsupported authentication protocol: %s", authProtocolStr)
 	}
 	return authProtocol, nil
-}
-
-func SwitchAuthProtocol(authProtocol string, finalAuthProtocol *gosnmp.SnmpV3AuthProtocol) bool {
-	switch strings.ToLower(authProtocol) {
-	case "":
-		*finalAuthProtocol = gosnmp.NoAuth
-	case "md5":
-		*finalAuthProtocol = gosnmp.MD5
-	case "sha":
-		*finalAuthProtocol = gosnmp.SHA
-	case "sha224", "sha-224":
-		*finalAuthProtocol = gosnmp.SHA224
-	case "sha256", "sha-256":
-		*finalAuthProtocol = gosnmp.SHA256
-	case "sha384", "sha-384":
-		*finalAuthProtocol = gosnmp.SHA384
-	case "sha512", "sha-512":
-		*finalAuthProtocol = gosnmp.SHA512
-	default:
-		return false
-	}
-	return true
 }
 
 // GetPrivProtocol converts priv protocol from string to type
@@ -49,30 +42,23 @@ func SwitchAuthProtocol(authProtocol string, finalAuthProtocol *gosnmp.SnmpV3Aut
 // Blumenthal AES192/256: Not many vendors use this algorithm.
 func GetPrivProtocol(privProtocolStr string) (gosnmp.SnmpV3PrivProtocol, error) {
 	var privProtocol gosnmp.SnmpV3PrivProtocol
-	if !SwitchPrivProtocol(privProtocolStr, &privProtocol) {
+	lowerPrivProtocol := strings.ToLower(privProtocolStr)
+	if lowerPrivProtocol == "" {
+		privProtocol = gosnmp.NoPriv
+	} else if lowerPrivProtocol == "des" {
+		privProtocol = gosnmp.DES
+	} else if lowerPrivProtocol == "aes" {
+		privProtocol = gosnmp.AES
+	} else if lowerPrivProtocol == "aes192" {
+		privProtocol = gosnmp.AES192 // Blumenthal-AES192
+	} else if lowerPrivProtocol == "aes256" {
+		privProtocol = gosnmp.AES256 // Blumenthal-AES256
+	} else if lowerPrivProtocol == "aes192c" {
+		privProtocol = gosnmp.AES192C // Reeder-AES192
+	} else if lowerPrivProtocol == "aes256c" {
+		privProtocol = gosnmp.AES256C // Reeder-AES256
+	} else {
 		return gosnmp.NoPriv, fmt.Errorf("unsupported privacy protocol: %s", privProtocolStr)
 	}
 	return privProtocol, nil
-}
-
-func SwitchPrivProtocol(privProtocol string, finalPrivProtocol *gosnmp.SnmpV3PrivProtocol) bool {
-	switch strings.ToLower(privProtocol) {
-	case "":
-		*finalPrivProtocol = gosnmp.NoPriv
-	case "des":
-		*finalPrivProtocol = gosnmp.DES
-	case "aes":
-		*finalPrivProtocol = gosnmp.AES
-	case "aes192", "aes-192":
-		*finalPrivProtocol = gosnmp.AES192
-	case "aes192c", "aes-192c", "aes-192-c":
-		*finalPrivProtocol = gosnmp.AES192C
-	case "aes256", "aes-256":
-		*finalPrivProtocol = gosnmp.AES256
-	case "aes256c", "aes-256c", "aes-256-c":
-		*finalPrivProtocol = gosnmp.AES256C
-	default:
-		return false
-	}
-	return true
 }

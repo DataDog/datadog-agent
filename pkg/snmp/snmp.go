@@ -169,7 +169,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 	return snmpConfig, nil
 }
 
-// Digest returns a hash value representing the data stored in this configuration, minus the network address
+// Digest returns an hash value representing the data stored in this configuration, minus the network address
 func (c *Config) Digest(address string) string {
 	h := fnv.New64()
 	// Hash write never returns an error
@@ -207,12 +207,15 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 	}
 
 	var version gosnmp.SnmpVersion
-
-	if !CheckAndSetVersion(c.Version, &version, c.Community, c.User) {
+	if c.Version == "1" {
+		version = gosnmp.Version1
+	} else if c.Version == "2" || (c.Version == "" && c.Community != "") {
+		version = gosnmp.Version2c
+	} else if c.Version == "3" || (c.Version == "" && c.User != "") {
+		version = gosnmp.Version3
+	} else {
 		return nil, fmt.Errorf("SNMP version not supported: %s", c.Version)
 	}
-
-	CheckAndSetDefaultProtocols(c.AuthKey, &c.AuthProtocol, c.PrivKey, &c.PrivProtocol)
 
 	authProtocol, err := gosnmplib.GetAuthProtocol(c.AuthProtocol)
 	if err != nil {
@@ -225,7 +228,11 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv
-	SetMsgFlags(c.PrivKey, c.AuthKey, &msgFlags)
+	if c.PrivKey != "" {
+		msgFlags = gosnmp.AuthPriv
+	} else if c.AuthKey != "" {
+		msgFlags = gosnmp.AuthNoPriv
+	}
 
 	return &gosnmp.GoSNMP{
 		Target:          deviceIP,
@@ -247,36 +254,6 @@ func (c *Config) BuildSNMPParams(deviceIP string) (*gosnmp.GoSNMP, error) {
 			PrivacyPassphrase:        c.PrivKey,
 		},
 	}, nil
-}
-
-func CheckAndSetDefaultProtocols(authKey string, authProtocol *string, privKey string, privProtocol *string) {
-	if authKey != "" && *authProtocol == "" {
-		*authProtocol = "md5"
-	}
-	if privKey != "" && *privProtocol == "" {
-		*privProtocol = "des"
-	}
-}
-
-func SetMsgFlags(privKey string, authKey string, finalMsgFlags *gosnmp.SnmpV3MsgFlags) {
-	if privKey != "" {
-		*finalMsgFlags = gosnmp.AuthPriv
-	} else if authKey != "" {
-		*finalMsgFlags = gosnmp.AuthNoPriv
-	}
-}
-
-func CheckAndSetVersion(version string, finalVersion *gosnmp.SnmpVersion, community string, user string) bool {
-	if version == "1" {
-		*finalVersion = gosnmp.Version1
-	} else if version == "2" || (version == "" && community != "") {
-		*finalVersion = gosnmp.Version2c
-	} else if version == "3" || (version == "" && user != "") {
-		*finalVersion = gosnmp.Version3
-	} else {
-		return false
-	}
-	return true
 }
 
 // IsIPIgnored checks the given IP against IgnoredIPAddresses
