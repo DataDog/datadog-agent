@@ -8,75 +8,70 @@ package memory
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
-var memMap = map[string]string{
-	"MemTotal":  "total",
-	"SwapTotal": "swap_total",
-}
-
-func getMemoryInfo() (memoryInfo map[string]string, err error) {
-	file, err := os.Open("/proc/meminfo")
-
-	if err != nil {
-		return
-	}
-
+func parseMemoryInfo(reader io.Reader) (totalBytes utils.Value[uint64], swapTotalKb utils.Value[uint64], err error) {
 	var lines []string
-	scanner := bufio.NewScanner(file)
-
+	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
 
 	if scanner.Err() != nil {
-		err = scanner.Err()
+		err = fmt.Errorf("could not read /proc/meminfo: %w", scanner.Err())
 		return
 	}
 
-	memoryInfo = make(map[string]string)
-
+	totalBytes = utils.NewErrorValue[uint64](fmt.Errorf("'MemTotal' not found in /proc/meminfo"))
+	swapTotalKb = utils.NewErrorValue[uint64](fmt.Errorf("'SwapTotal' not found in /proc/meminfo"))
 	for _, line := range lines {
 		pair := regexp.MustCompile(": +").Split(line, 2)
 		values := regexp.MustCompile(" +").Split(pair[1], 2)
 
-		key, ok := memMap[pair[0]]
-		if ok {
-			memoryInfo[key] = fmt.Sprintf("%s%s", values[0], values[1])
+		switch pair[0] {
+		case "MemTotal":
+			val, parseErr := strconv.ParseUint(values[0], 10, 64)
+			if parseErr == nil {
+				// val is in kb
+				totalBytes = utils.NewValue(val * 1024)
+			} else {
+				totalBytes = utils.NewErrorValue[uint64](fmt.Errorf("could not parse total size: %w", parseErr))
+			}
+		case "SwapTotal":
+			val, parseErr := strconv.ParseUint(values[0], 10, 64)
+			if parseErr == nil {
+				swapTotalKb = utils.NewValue(val)
+			} else {
+				swapTotalKb = utils.NewErrorValue[uint64](fmt.Errorf("could not parse total swap size: %w", parseErr))
+			}
 		}
 	}
 
 	return
 }
 
-func getMemoryInfoByte() (mem uint64, swap uint64, warnings []string, err error) {
-	memInfo, err := getMemoryInfo()
+func (info *Info) fillMemoryInfo() {
+	var totalBytes, swapTotalKb utils.Value[uint64]
+
+	file, err := os.Open("/proc/meminfo")
+	if err == nil {
+		defer file.Close()
+		totalBytes, swapTotalKb, err = parseMemoryInfo(file)
+	} else {
+		err = fmt.Errorf("could not open /proc/meminfo: %w", err)
+	}
+
 	if err != nil {
-		return
+		totalBytes = utils.NewErrorValue[uint64](err)
+		swapTotalKb = utils.NewErrorValue[uint64](err)
 	}
 
-	memString := strings.TrimSuffix(strings.ToLower(utils.GetString(memInfo, "total")), "kb")
-	swapString := strings.TrimSuffix(strings.ToLower(utils.GetString(memInfo, "swap_total")), "kb")
-
-	t, e := strconv.ParseUint(memString, 10, 64)
-	if e == nil {
-		mem = t * 1024 // getMemoryInfo return values in KB
-	} else {
-		warnings = append(warnings, fmt.Sprintf("could not parse memory size: %s", e))
-	}
-
-	s, e := strconv.ParseUint(swapString, 10, 64)
-	if e == nil {
-		swap = s * 1024 // getMemoryInfo return values in KB
-	} else {
-		warnings = append(warnings, fmt.Sprintf("could not parse swap size: %s", e))
-	}
-
-	return mem, swap, warnings, err
+	info.TotalBytes = totalBytes
+	info.SwapTotalKb = swapTotalKb
 }

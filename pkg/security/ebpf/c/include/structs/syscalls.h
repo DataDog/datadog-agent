@@ -121,7 +121,6 @@ struct syscall_cache_t {
 
         struct {
             u32 is_thread;
-            struct pid *pid;
         } fork;
 
         struct {

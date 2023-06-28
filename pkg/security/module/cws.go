@@ -9,39 +9,23 @@ package module
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-	"go.uber.org/atomic"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
-)
-
-const (
-	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
-	ThreatScoreRuleSetTagValue     = "threat_score"
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -52,62 +36,58 @@ type CWSConsumer struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
-	wg                        sync.WaitGroup
-	ctx                       context.Context
-	cancelFnc                 context.CancelFunc
-	currentRuleSet            *atomic.Value
-	currentThreatScoreRuleSet *atomic.Value
-	reloading                 *atomic.Bool
-	apiServer                 *APIServer
-	rateLimiter               *RateLimiter
-	sigupChan                 chan os.Signal
-	rulesLoaded               func(es *rules.EvaluationSet, err *multierror.Error)
-	policiesVersions          []string
-	policyProviders           []rules.PolicyProvider
-	policyLoader              *rules.PolicyLoader
-	policyOpts                rules.PolicyLoaderOpts
-	selfTester                *selftests.SelfTester
-	policyMonitor             *PolicyMonitor
-	sendStatsChan             chan chan bool
-	eventSender               EventSender
-	grpcServer                *GRPCServer
+	wg            sync.WaitGroup
+	ctx           context.Context
+	cancelFnc     context.CancelFunc
+	apiServer     *APIServer
+	rateLimiter   *events.RateLimiter
+	sendStatsChan chan chan bool
+	eventSender   events.EventSender
+	grpcServer    *GRPCServer
+	ruleEngine    *rulesmodule.RuleEngine
+	selfTester    *selftests.SelfTester
 }
 
 // Init initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts ...Opts) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	selfTester, err := selftests.NewSelfTester()
+	selfTester, err := selftests.NewSelfTester(evm.Probe)
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
-
-	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	c := &CWSConsumer{
 		config:       config,
 		probe:        evm.Probe,
 		statsdClient: evm.StatsdClient,
 		// internals
-		ctx:                       ctx,
-		cancelFnc:                 cancelFnc,
-		currentRuleSet:            new(atomic.Value),
-		currentThreatScoreRuleSet: new(atomic.Value),
-		reloading:                 atomic.NewBool(false),
-		apiServer:                 NewAPIServer(config, evm.Probe, evm.StatsdClient),
-		rateLimiter:               NewRateLimiter(config, evm.StatsdClient),
-		sigupChan:                 make(chan os.Signal, 1),
-		selfTester:                selfTester,
-		policyMonitor:             NewPolicyMonitor(evm.StatsdClient),
-		sendStatsChan:             make(chan chan bool, 1),
-		grpcServer:                NewGRPCServer(config.SocketPath),
+		ctx:           ctx,
+		cancelFnc:     cancelFnc,
+		apiServer:     NewAPIServer(config, evm.Probe, evm.StatsdClient, selfTester),
+		rateLimiter:   events.NewRateLimiter(config, evm.StatsdClient),
+		sendStatsChan: make(chan chan bool, 1),
+		grpcServer:    NewGRPCServer(config.SocketPath),
+		selfTester:    selfTester,
 	}
-	c.apiServer.cwsConsumer = c
 
 	// set sender
-	if len(opts) > 0 && opts[0].EventSender != nil {
-		c.eventSender = opts[0].EventSender
+	if opts.EventSender != nil {
+		c.eventSender = opts.EventSender
 	} else {
 		c.eventSender = c
+	}
+
+	seclog.Infof("Instantiating CWS rule engine")
+
+	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, config, evm.Probe, c.rateLimiter, c.apiServer, c.eventSender, c.statsdClient, selfTester)
+	if err != nil {
+		return nil, err
+	}
+	c.apiServer.SetCWSConsumer(c)
+
+	if err := evm.Probe.AddCustomEventHandler(model.UnknownEventType, c); err != nil {
+		return nil, err
 	}
 
 	seclog.SetPatterns(config.LogPatterns...)
@@ -115,19 +95,8 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 
 	api.RegisterSecurityModuleServer(c.grpcServer.server, c.apiServer)
 
-	// register as event handler
-	if err := evm.Probe.AddEventHandler(model.UnknownEventType, c); err != nil {
-		return nil, err
-	}
-	if err := evm.Probe.AddCustomEventHandler(model.UnknownEventType, c); err != nil {
-		return nil, err
-	}
-
 	// Activity dumps related
 	evm.Probe.AddActivityDumpHandler(c)
-
-	// policy loader
-	c.policyLoader = rules.NewPolicyLoader()
 
 	return c, nil
 }
@@ -147,12 +116,7 @@ func (c *CWSConsumer) Start() error {
 	// start api server
 	c.apiServer.Start(c.ctx)
 
-	// monitor policies
-	if c.config.PolicyMonitorEnabled {
-		c.policyMonitor.Start(c.ctx)
-	}
-
-	if c.config.SelfTestEnabled && c.selfTester != nil {
+	if c.config.SelfTestEnabled {
 		if triggerred, err := c.RunSelfTest(true); err != nil {
 			err = fmt.Errorf("failed to run self test: %w", err)
 			if !triggerred {
@@ -162,258 +126,76 @@ func (c *CWSConsumer) Start() error {
 		}
 	}
 
-	var policyProviders []rules.PolicyProvider
-
-	agentVersion, err := utils.GetAgentSemverVersion()
-	if err != nil {
-		seclog.Errorf("failed to parse agent version: %v", err)
-	}
-
-	// Set up rule filters
-	var macroFilters []rules.MacroFilter
-	var ruleFilters []rules.RuleFilter
-
-	agentVersionFilter, err := rules.NewAgentVersionFilter(agentVersion)
-	if err != nil {
-		seclog.Errorf("failed to create agent version filter: %v", err)
-	} else {
-		macroFilters = append(macroFilters, agentVersionFilter)
-		ruleFilters = append(ruleFilters, agentVersionFilter)
-	}
-
-	ruleFilterModel := NewRuleFilterModel()
-	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
-	macroFilters = append(macroFilters, seclRuleFilter)
-	ruleFilters = append(ruleFilters, seclRuleFilter)
-
-	c.policyOpts = rules.PolicyLoaderOpts{
-		MacroFilters: macroFilters,
-		RuleFilters:  ruleFilters,
-	}
-
-	// directory policy provider
-	if provider, err := rules.NewPoliciesDirProvider(c.config.PoliciesDir, c.config.WatchPoliciesDir); err != nil {
-		seclog.Errorf("failed to load policies: %s", err)
-	} else {
-		policyProviders = append(policyProviders, provider)
-	}
-
-	// add remote config as config provider if enabled
-	if c.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
-		if err != nil {
-			seclog.Errorf("will be unable to load remote policy: %s", err)
-		} else {
-			policyProviders = append(policyProviders, rcPolicyProvider)
-		}
-	}
-
-	if err := c.LoadPolicies(policyProviders, true); err != nil {
-		return fmt.Errorf("failed to load policies: %s", err)
+	if err := c.ruleEngine.Start(c.ctx, &c.wg); err != nil {
+		return err
 	}
 
 	c.wg.Add(1)
 	go c.statsSender()
-
-	signal.Notify(c.sigupChan, syscall.SIGHUP)
-
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-
-		for range c.sigupChan {
-			if err := c.ReloadPolicies(); err != nil {
-				seclog.Errorf("failed to reload policies: %s", err)
-			}
-		}
-	}()
-
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-
-		for range c.policyLoader.NewPolicyReady() {
-			if err := c.ReloadPolicies(); err != nil {
-				seclog.Errorf("failed to reload policies: %s", err)
-			}
-		}
-	}()
-
-	for _, provider := range c.policyProviders {
-		provider.Start()
-	}
 
 	seclog.Infof("runtime security started")
 
 	return nil
 }
 
-func (c *CWSConsumer) displayApplyRuleSetReport(report *kfilters.ApplyRuleSetReport) {
-	content, _ := json.Marshal(report)
-	seclog.Debugf("Policy report: %s", content)
-}
-
-func (c *CWSConsumer) getEventTypeEnabled() map[eval.EventType]bool {
-	enabled := make(map[eval.EventType]bool)
-
-	categories := model.GetEventTypePerCategory()
-
-	if c.config.FIMEnabled {
-		if eventTypes, exists := categories[model.FIMCategory]; exists {
-			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+// RunSelfTest runs the self tests
+func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
+	prevProviders, providers := c.ruleEngine.GetPolicyProviders(), c.ruleEngine.GetPolicyProviders()
+	if len(prevProviders) > 0 {
+		defer func() {
+			if err := c.ruleEngine.LoadPolicies(prevProviders, false); err != nil {
+				seclog.Errorf("failed to load policies: %s", err)
 			}
-		}
+		}()
 	}
 
-	if c.probe.IsNetworkEnabled() {
-		if eventTypes, exists := categories[model.NetworkCategory]; exists {
-			for _, eventType := range eventTypes {
-				enabled[eventType] = true
-			}
-		}
+	// add selftests as provider
+	providers = append(providers, c.selfTester)
+
+	if err := c.ruleEngine.LoadPolicies(providers, false); err != nil {
+		return false, err
 	}
 
-	if c.config.RuntimeEnabled {
-		// everything but FIM
-		for _, category := range model.GetAllCategories() {
-			if category == model.FIMCategory || category == model.NetworkCategory {
-				continue
-			}
-
-			if eventTypes, exists := categories[category]; exists {
-				for _, eventType := range eventTypes {
-					enabled[eventType] = true
-				}
-			}
-		}
-	}
-
-	return enabled
-}
-
-func getPoliciesVersions(es *rules.EvaluationSet) []string {
-	var versions []string
-
-	cache := make(map[string]bool)
-	for _, rs := range es.RuleSets {
-		for _, rule := range rs.GetRules() {
-			version := rule.Definition.Policy.Version
-
-			if _, exists := cache[version]; !exists {
-				cache[version] = true
-
-				versions = append(versions, version)
-			}
-		}
-	}
-
-	return versions
-}
-
-// ReloadPolicies reloads the policies
-func (c *CWSConsumer) ReloadPolicies() error {
-	seclog.Infof("reload policies")
-
-	return c.LoadPolicies(c.policyProviders, true)
-}
-
-// LoadPolicies loads the policies
-func (c *CWSConsumer) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
-	seclog.Infof("load policies")
-
-	c.Lock()
-	defer c.Unlock()
-
-	c.reloading.Store(true)
-	defer c.reloading.Store(false)
-
-	// load policies
-	c.policyLoader.SetProviders(policyProviders)
-
-	evaluationSet, err := c.probe.NewEvaluationSet(c.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetTagValue, ThreatScoreRuleSetTagValue})
+	success, fails, err := c.selfTester.RunSelfTest()
 	if err != nil {
-		return err
+		return true, err
 	}
 
-	loadErrs := evaluationSet.LoadPolicies(c.policyLoader, c.policyOpts)
-	if loadErrs.ErrorOrNil() != nil {
-		logLoadingErrors("error while loading policies: %+v", loadErrs)
+	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
+
+	// send the report
+	if c.config.SelfTestSendReport {
+		ReportSelfTest(c.eventSender, c.statsdClient, success, fails)
 	}
 
-	// update current policies related module attributes
-	c.policiesVersions = getPoliciesVersions(evaluationSet)
-	c.policyProviders = policyProviders
+	return true, nil
+}
 
-	// notify listeners
-	if c.rulesLoaded != nil {
-		c.rulesLoaded(evaluationSet, loadErrs)
+// ReportSelfTest reports to Datadog that a self test was performed
+func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterface, success []string, fails []string) {
+	// send metric with number of success and fails
+	tags := []string{
+		fmt.Sprintf("success:%d", len(success)),
+		fmt.Sprintf("fails:%d", len(fails)),
+	}
+	if err := statsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
+		seclog.Errorf("failed to send self_test metric: %s", err)
 	}
 
-	// add module as listener for rule match callback
-	for _, rs := range evaluationSet.RuleSets {
-		rs.AddListener(c)
-	}
-
-	// full list of IDs, user rules + custom
-	var ruleIDs []rules.RuleID
-	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
-
-	probeEvaluationRuleSet := evaluationSet.RuleSets[ProbeEvaluationRuleSetTagValue]
-	threatScoreRuleSet := evaluationSet.RuleSets[ThreatScoreRuleSetTagValue]
-
-	if threatScoreRuleSet != nil {
-		c.currentThreatScoreRuleSet.Store(threatScoreRuleSet)
-		ruleIDs = append(ruleIDs, threatScoreRuleSet.ListRuleIDs()...)
-	}
-
-	if probeEvaluationRuleSet != nil {
-		c.currentRuleSet.Store(probeEvaluationRuleSet)
-		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
-
-		// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-		report, err := c.probe.ApplyRuleSet(probeEvaluationRuleSet)
-		if err != nil {
-			return err
-		}
-		c.displayApplyRuleSetReport(report)
-
-		// set the rate limiters on sending events to the backend
-		c.rateLimiter.Apply(probeEvaluationRuleSet, events.AllCustomRuleIDs())
-
-	}
-
-	c.apiServer.Apply(ruleIDs)
-
-	if sendLoadedReport {
-		ReportRuleSetLoaded(c.eventSender, c.statsdClient, evaluationSet.RuleSets, loadErrs)
-		c.policyMonitor.AddPolicies(evaluationSet.GetPolicies(), loadErrs)
-	}
-
-	return nil
+	// send the custom event with the list of succeed and failed self tests
+	rule, event := events.NewSelfTestEvent(success, fails)
+	sender.SendEvent(rule, event, nil, "")
 }
 
 // Close the module
 func (c *CWSConsumer) Stop() {
-	signal.Stop(c.sigupChan)
-	close(c.sigupChan)
-
 	if c.apiServer != nil {
 		c.apiServer.Stop()
 	}
 
-	for _, provider := range c.policyProviders {
-		_ = provider.Close()
-	}
+	_ = c.selfTester.Close()
 
-	// close the policy loader and all the related providers
-	if c.policyLoader != nil {
-		c.policyLoader.Close()
-	}
-
-	if c.selfTester != nil {
-		_ = c.selfTester.Close()
-	}
+	c.ruleEngine.Stop()
 
 	c.cancelFnc()
 	c.wg.Wait()
@@ -421,80 +203,13 @@ func (c *CWSConsumer) Stop() {
 	c.grpcServer.Stop()
 }
 
-// EventDiscarderFound is called by the ruleset when a new discarder discovered
-func (c *CWSConsumer) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
-	if c.reloading.Load() {
-		return
-	}
-
-	c.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType)
-}
-
-// HandleEvent is called by the probe when an event arrives from the kernel
-func (c *CWSConsumer) HandleEvent(event *model.Event) {
-	// event already marked with an error, skip it
-	if event.Error != nil {
-		return
-	}
-
-	if threatScoreRuleSet := c.GetThreatScoreRuleSet(); threatScoreRuleSet != nil {
-		threatScoreRuleSet.Evaluate(event)
-	}
-
-	// if the event should have been discarded in kernel space, we don't need to evaluate it
-	if event.IsSavedByActivityDumps() {
-		return
-	}
-
-	if ruleSet := c.GetRuleSet(); ruleSet != nil {
-		if (event.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) && event.IsInProfile()) || !ruleSet.Evaluate(event) {
-			ruleSet.EvaluateDiscarders(event)
-		}
-	}
-}
-
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
 func (c *CWSConsumer) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	c.eventSender.SendEvent(rule, event, nil, "")
 }
 
-// RuleMatch is called by the ruleset when a rule matches
-func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
-	ev := event.(*model.Event)
-
-	// do not send broken event
-	if ev.Error != nil {
-		return
-	}
-
-	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
-
-	if ev.ContainerContext.ID != "" && c.config.ActivityDumpTagRulesEnabled {
-		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
-	}
-	if val, ok := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
-		return // if the triggered rule is only meant to tag secdumps, dont send it
-	}
-
-	// needs to be resolved here, outside of the callback as using process tree
-	// which can be modified during queuing
-	service := c.probe.GetService(ev)
-
-	extTagsCb := func() []string {
-		return c.probe.GetEventTags(ev)
-	}
-
-	// send if not selftest related events
-	if c.selfTester == nil || !c.selfTester.IsExpectedEvent(rule, event, c.probe) {
-		c.eventSender.SendEvent(rule, event, extTagsCb, service)
-	}
-}
-
 // SendEvent sends an event to the backend after checking that the rate limiter allows it for the provided rule
-func (c *CWSConsumer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []string, service string) {
+func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
 	if c.rateLimiter.Allow(rule.ID, event) {
 		c.apiServer.SendEvent(rule, event, extTagsCb, service)
 	} else {
@@ -529,9 +244,6 @@ func (c *CWSConsumer) statsSender() {
 	statsTicker := time.NewTicker(c.probe.StatsPollingInterval())
 	defer statsTicker.Stop()
 
-	heartbeatTicker := time.NewTicker(15 * time.Second)
-	defer heartbeatTicker.Stop()
-
 	for {
 		select {
 		case ackChan := <-c.sendStatsChan:
@@ -539,95 +251,15 @@ func (c *CWSConsumer) statsSender() {
 			ackChan <- true
 		case <-statsTicker.C:
 			c.sendStats()
-		case <-heartbeatTicker.C:
-			tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
-
-			c.RLock()
-			for _, version := range c.policiesVersions {
-				tags = append(tags, fmt.Sprintf("policies_version:%s", version))
-			}
-			c.RUnlock()
-
-			if c.config.RuntimeEnabled {
-				_ = c.statsdClient.Gauge(metrics.MetricSecurityAgentRuntimeRunning, 1, tags, 1)
-			} else if c.config.FIMEnabled {
-				_ = c.statsdClient.Gauge(metrics.MetricSecurityAgentFIMRunning, 1, tags, 1)
-			}
 		case <-c.ctx.Done():
 			return
 		}
 	}
 }
 
-// GetRuleSet returns the set of loaded rules
-func (c *CWSConsumer) GetRuleSet() (rs *rules.RuleSet) {
-	if ruleSet := c.currentRuleSet.Load(); ruleSet != nil {
-		return ruleSet.(*rules.RuleSet)
-	}
-	return nil
-}
-
-// GetThreatScoreRuleSet returns the set of loaded rules
-func (c *CWSConsumer) GetThreatScoreRuleSet() (rs *rules.RuleSet) {
-	if threatScoreRuleSet := c.currentThreatScoreRuleSet.Load(); threatScoreRuleSet != nil {
-		return threatScoreRuleSet.(*rules.RuleSet)
-	}
-	return nil
-}
-
-// SetRulesetLoadedCallback allows setting a callback called when a rule set is loaded
-func (c *CWSConsumer) SetRulesetLoadedCallback(cb func(es *rules.EvaluationSet, err *multierror.Error)) {
-	c.rulesLoaded = cb
-}
-
-// RunSelfTest runs the self tests
-func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
-	prevProviders, providers := c.policyProviders, c.policyProviders
-	if len(prevProviders) > 0 {
-		defer func() {
-			if err := c.LoadPolicies(prevProviders, false); err != nil {
-				seclog.Errorf("failed to load policies: %s", err)
-			}
-		}()
-	}
-
-	// add selftests as provider
-	providers = append(providers, c.selfTester)
-
-	if err := c.LoadPolicies(providers, false); err != nil {
-		return false, err
-	}
-
-	success, fails, err := c.selfTester.RunSelfTest()
-	if err != nil {
-		return true, err
-	}
-
-	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
-
-	// send the report
-	if c.config.SelfTestSendReport {
-		ReportSelfTest(c.eventSender, c.statsdClient, success, fails)
-	}
-
-	return true, nil
-}
-
-func logLoadingErrors(msg string, m *multierror.Error) {
-	var errorLevel bool
-	for _, err := range m.Errors {
-		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
-				errorLevel = true
-			}
-		}
-	}
-
-	if errorLevel {
-		seclog.Errorf(msg, m.Error())
-	} else {
-		seclog.Warnf(msg, m.Error())
-	}
+// GetRuleEngine returns new current rule engine
+func (c *CWSConsumer) GetRuleEngine() *rulesmodule.RuleEngine {
+	return c.ruleEngine
 }
 
 // UpdateEventMonitorOpts adapt the event monitor options

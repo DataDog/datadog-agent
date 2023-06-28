@@ -369,14 +369,17 @@ def get_version(
     version = ""
     pipeline_id = os.getenv("CI_PIPELINE_ID")
     project_name = os.getenv("CI_PROJECT_NAME")
-    if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
-        try:
-            if not os.path.exists(AGENT_VERSION_CACHE_NAME):
+    try:
+        agent_version_cache_file_exist = os.path.exists(AGENT_VERSION_CACHE_NAME)
+        if not agent_version_cache_file_exist:
+            if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
                 ctx.run(
                     f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
                     hide="stdout",
                 )
+                agent_version_cache_file_exist = True
 
+        if agent_version_cache_file_exist:
             with open(AGENT_VERSION_CACHE_NAME, "r") as file:
                 cache_data = json.load(file)
 
@@ -385,12 +388,13 @@ def get_version(
 
             if pre:
                 version = f"{version}-{pre}"
-        except (IOError, json.JSONDecodeError, IndexError) as e:
-            # If a cache file is found but corrupted we ignore it.
-            print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
-            version = ""
+    except (IOError, json.JSONDecodeError, IndexError) as e:
+        # If a cache file is found but corrupted we ignore it.
+        print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
+        version = ""
     # If we didn't load the cache
     if not version:
+        print("[WARN] Agent version cache file hasn't been loaded !")
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
             ctx, git_sha_length, prefix, major_version_hint=major_version

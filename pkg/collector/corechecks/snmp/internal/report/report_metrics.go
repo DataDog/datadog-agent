@@ -140,6 +140,13 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				tmpTags := common.CopyStrings(tags)
 				tmpTags = append(tmpTags, metricConfig.StaticTags...)
 				tmpTags = append(tmpTags, getTagsFromMetricTagConfigList(metricConfig.MetricTags, fullIndex, values)...)
+				if isInterfaceTableMetric(symbol.OID) {
+					interfaceCfg, err := getInterfaceConfig(ms.interfaceConfigs, fullIndex, tmpTags)
+					if err != nil {
+						log.Tracef("unable to tag snmp.%s metric with interface_config data: %s", symbol.Name, err.Error())
+					}
+					tmpTags = append(tmpTags, interfaceCfg.Tags...)
+				}
 				rowTagsCache[fullIndex] = tmpTags
 			}
 			rowTags := rowTagsCache[fullIndex]

@@ -36,7 +36,7 @@ func Init() error {
 }
 
 // HandlerFunc is the prototype for an event handler callback for process events
-type HandlerFunc func(*model.ProcessCacheEntry)
+type HandlerFunc func(*model.ProcessContext)
 
 // RegisterHandler registers a handler function for getting process events
 func RegisterHandler(handler HandlerFunc) {
@@ -78,24 +78,14 @@ func newEventMonitor() (*eventMonitor, error) {
 }
 
 func (e *eventMonitor) HandleEvent(ev *model.Event) {
-	if ev.Type == uint32(model.ExitEventType) {
-		return
-	}
-
-	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.ProcessContext.Process)
-
-	entry, ok := ev.ResolveProcessCacheEntry()
-	if !ok {
-		return
-	}
+	ev.ResolveFields()
 
 	e.Lock()
 	defer e.Unlock()
 
 	for _, h := range e.handlers {
-		h(entry)
+		h(ev.ProcessContext)
 	}
-
 }
 
 func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {

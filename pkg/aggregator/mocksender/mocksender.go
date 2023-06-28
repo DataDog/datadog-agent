@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -24,8 +25,9 @@ func NewMockSender(id check.ID) *MockSender {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, forwarder.NewOptions(config.Datadog, nil))
-	aggregator.InitAndStartAgentDemultiplexer(sharedForwarder, opts, "")
+	log := log.NewTemporaryLoggerWithoutInit()
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
+	aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
 
 	SetSender(mockSender, id)
 

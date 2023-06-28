@@ -12,13 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -112,11 +111,14 @@ func (cb *ManifestBuffer) appendManifest(m interface{}, sender aggregator.Sender
 // Start is to start a thread to buffer manifest and send them
 // It flushes manifests every defaultFlushManifestTime
 func (cb *ManifestBuffer) Start(sender aggregator.Sender) {
-	ticker := time.NewTicker(cb.Cfg.ManifestBufferFlushInterval)
 	cb.wg.Add(1)
 
 	go func() {
-		defer cb.wg.Done()
+		ticker := time.NewTicker(cb.Cfg.ManifestBufferFlushInterval)
+		defer func() {
+			ticker.Stop()
+			cb.wg.Done()
+		}()
 	loop:
 		for {
 			select {

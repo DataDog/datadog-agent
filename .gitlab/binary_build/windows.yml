@@ -16,6 +16,8 @@ build_windows_container_entrypoint:
       -m 8192M
       -v "$(Get-Location):c:\mnt"
       -e CI_JOB_ID=${CI_JOB_ID}
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
       -e WINDOWS_BUILDER=true
       -e AWS_NETWORKING=true
       -e TARGET_ARCH="$ARCH"

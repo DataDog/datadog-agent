@@ -22,7 +22,7 @@ enum event_type {
     EVENT_FORK,
     EVENT_EXEC,
     EVENT_EXIT,
-    EVENT_INVALIDATE_DENTRY,
+    EVENT_INVALIDATE_DENTRY, // deprecated
     EVENT_SETUID,
     EVENT_SETGID,
     EVENT_CAPSET,

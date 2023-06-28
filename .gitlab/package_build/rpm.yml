@@ -72,7 +72,7 @@ agent_rpm-x64-a6:
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: amd64
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 # build Agent package for rpm-x64
@@ -90,7 +90,7 @@ agent_rpm-x64-a7:
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: amd64
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 # build Agent package for rpm-arm64
@@ -107,7 +107,7 @@ agent_rpm-arm64-a6:
     PYTHON_RUNTIMES: '2,3'
     PACKAGE_ARCH: arm64
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 # build Agent package for rpm-arm64
@@ -124,12 +124,13 @@ agent_rpm-arm64-a7:
     PYTHON_RUNTIMES: '3'
     PACKAGE_ARCH: arm64
   before_script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 .iot_agent_build_common_rpm:
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
+    - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
@@ -195,8 +196,8 @@ dogstatsd_rpm-x64:
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*

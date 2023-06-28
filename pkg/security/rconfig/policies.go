@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
 package rconfig
 
 import (
@@ -152,4 +150,8 @@ func (r *RCPolicyProvider) Close() error {
 	r.debouncer.Stop()
 	r.client.Close()
 	return nil
+}
+
+func (r *RCPolicyProvider) Type() string {
+	return PolicyProviderType
 }

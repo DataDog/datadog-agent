@@ -30,6 +30,7 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s", listener.listener.Addr()))
 	assert.Nil(t, err)
+	defer conn.Close()
 
 	var msg *message.Message
 
