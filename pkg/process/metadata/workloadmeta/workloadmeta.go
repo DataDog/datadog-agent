@@ -47,15 +47,12 @@ type ProcessCacheDiff struct {
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
 func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor {
 	log.Debug("Instantiated the WorkloadMetaExtractor")
-	extractor := &WorkloadMetaExtractor{
-		cache: make(map[string]*ProcessEntity),
+	return &WorkloadMetaExtractor{
+		cache:        make(map[string]*ProcessEntity),
+		cacheVersion: 0,
+		// Keep only the latest diff in memory in case there's no consumer for it
+		diffChan: make(chan *ProcessCacheDiff, 1),
 	}
-
-	// Keep only the latest diff in memory in case there's no consumer for it
-	extractor.diffChan = make(chan *ProcessCacheDiff, 1)
-	extractor.cacheVersion = 0
-
-	return extractor
 }
 
 // Extract detects the process language, creates a process entity, and sends that entity to WorkloadMeta

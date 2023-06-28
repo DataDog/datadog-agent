@@ -35,8 +35,7 @@ func assertUnsetEvent(t *testing.T, expected, actual *pbgo.ProcessEventUnset) {
 }
 
 func toEventSet(proc *procutil.Process) *pbgo.ProcessEventSet {
-	return &pbgo.ProcessEventSet{
-		Pid: proc.Pid}
+	return &pbgo.ProcessEventSet{Pid: proc.Pid}
 }
 
 func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {

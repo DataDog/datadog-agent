@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
 	config    config.ConfigReader
 	extractor *WorkloadMetaExtractor
@@ -27,6 +28,7 @@ type GRPCServer struct {
 	wg sync.WaitGroup
 }
 
+// NewGRPCServer creates a new instance of a GRPCServer
 func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor) *GRPCServer {
 	l := &GRPCServer{
 		config:    config,
@@ -55,6 +57,7 @@ func (l *GRPCServer) consumeProcessDiff(diff *ProcessCacheDiff) ([]*pbgo.Process
 	return setEvents, unsetEvents
 }
 
+// Start starts the GRPCServer to listen for new connections
 func (l *GRPCServer) Start() error {
 	log.Info("Starting Process Entity WorkloadMeta gRPC server")
 	listener, err := getListener(l.config)
@@ -77,6 +80,7 @@ func (l *GRPCServer) Start() error {
 	return nil
 }
 
+// Stop stops and cleans up resources allocated by the GRPCServer
 func (l *GRPCServer) Stop() {
 	log.Info("Stopping Process Entity WorkloadMeta gRPC server")
 	l.server.Stop()
@@ -84,6 +88,7 @@ func (l *GRPCServer) Stop() {
 	log.Info("Process Entity WorkloadMeta gRPC server stopped")
 }
 
+// StreamEntities streams Process Entities collected through the WorkloadMetaExtractor
 func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
 	// When connection is created, send a snapshot of all processes detected on the host so far as "SET" events
 	procs, snapshotVersion := l.extractor.GetAllProcessEntities()
@@ -145,7 +150,7 @@ func getListener(cfg config.ConfigReader) (net.Listener, error) {
 func getGRPCStreamPort(cfg config.ConfigReader) int {
 	grpcPort := cfg.GetInt("process_config.language_detection.grpc_port")
 	if grpcPort <= 0 {
-		_ = log.Warnf("Invalid language_detection.grpc_port -- %d, using default port %d", grpcPort, config.DefaultProcessEntityStreamPort)
+		_ = log.Warnf("Invalid process_config.language_detection.grpc_port -- %d, using default port %d", grpcPort, config.DefaultProcessEntityStreamPort)
 		grpcPort = config.DefaultProcessEntityStreamPort
 	}
 	return grpcPort
