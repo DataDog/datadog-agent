@@ -75,7 +75,7 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 				errors = append(errors, validateEnrichSymbol(&metricConfig.Symbols[j], ColumnSymbol)...)
 			}
 			if len(metricConfig.MetricTags) == 0 {
-				errors = append(errors, fmt.Sprintf("column symbols %v doesn't have a 'metric_tags' section, all its metrics will use the same tags; "+
+				errors = append(errors, fmt.Sprintf("column symbols doesn't have a 'metric_tags' section (%v), all its metrics will use the same tags; "+
 					"if the table has multiple rows, only one row will be submitted; "+
 					"please add at least one discriminating metric tag (such as a row index) "+
 					"to ensure metrics of all rows are submitted", metricConfig.Symbols))

@@ -169,7 +169,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"column symbols [{1.2 abc  <nil>   <nil> 0  false}] doesn't have a 'metric_tags' section",
+				"column symbols doesn't have a 'metric_tags' section",
 			},
 		},
 		{
