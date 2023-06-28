@@ -61,7 +61,6 @@ func main() {
 		log.Fatal(err)
 	}
 	sort.Strings(matches)
-	fmt.Println(matches)
 
 	for i, testjson := range matches {
 		printHeader(fmt.Sprintf("Reviewing attempt %d", i+1))
