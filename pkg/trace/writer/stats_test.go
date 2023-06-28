@@ -54,7 +54,7 @@ func assertPayload(assert *assert.Assertions, testSets []*pb.StatsPayload, paylo
 		return decoded[i].AgentEnv < decoded[j].AgentEnv
 	})
 	for i, p := range decoded {
-		assert.Equal(testSets[i], p)
+		assert.Equal(testSets[i].String(), p.String())
 	}
 }
 
@@ -128,8 +128,20 @@ func TestStatsWriter(t *testing.T) {
 				}},
 			},
 		}
-		baseClientPayload := stats.Stats[0]
-		baseClientPayload.Stats = nil
+
+		baseClientPayload := &pb.ClientStatsPayload{
+			Hostname:         stats.Stats[0].GetHostname(),
+			Env:              stats.Stats[0].GetEnv(),
+			Version:          stats.Stats[0].GetVersion(),
+			Lang:             stats.Stats[0].GetLang(),
+			TracerVersion:    stats.Stats[0].GetTracerVersion(),
+			RuntimeID:        stats.Stats[0].GetRuntimeID(),
+			Sequence:         stats.Stats[0].GetSequence(),
+			AgentAggregation: stats.Stats[0].GetAgentAggregation(),
+			Service:          stats.Stats[0].GetService(),
+			ContainerID:      stats.Stats[0].GetContainerID(),
+		}
+
 		expectedNbEntries := 15
 		expectedNbPayloads := int(math.Ceil(float64(expectedNbEntries) / 12))
 		// Compute our expected number of entries by payload
@@ -139,7 +151,6 @@ func TestStatsWriter(t *testing.T) {
 		}
 
 		payloads := sw.buildPayloads(stats, 12)
-
 		assert.Equal(expectedNbPayloads, len(payloads))
 		for i := 0; i < expectedNbPayloads; i++ {
 			assert.Equal(1, len(payloads[i].Stats))
@@ -147,7 +158,7 @@ func TestStatsWriter(t *testing.T) {
 			assert.Equal(expectedNbEntriesByPayload[i], len(payloads[i].Stats[0].Stats[0].Stats))
 			actual := payloads[i].Stats[0]
 			actual.Stats = nil
-			assert.Equal(baseClientPayload, actual)
+			assert.Equal(baseClientPayload.String(), actual.String())
 		}
 		assert.Equal(extractCounts([]*pb.StatsPayload{stats}), extractCounts(payloads))
 		for _, p := range payloads {

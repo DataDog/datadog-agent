@@ -8,6 +8,7 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"strings"
@@ -95,6 +96,7 @@ func (w *StatsWriter) Run() {
 	for {
 		select {
 		case stats := <-w.in:
+			fmt.Printf("RECEIVED STAT: %v\n", stats)
 			w.addStats(stats)
 			if !w.syncMode {
 				w.sendPayloads()
@@ -152,6 +154,7 @@ func (w *StatsWriter) SendPayload(p *pb.StatsPayload) {
 
 func (w *StatsWriter) sendPayloads() {
 	for _, p := range w.payloads {
+		fmt.Printf("SENDING PAYLOAD: %v\n", p.String())
 		w.SendPayload(p)
 	}
 	w.resetBuffer()
@@ -193,12 +196,19 @@ func (w *StatsWriter) buildPayloads(sp *pb.StatsPayload, maxEntriesPerPayload in
 		w.stats.ClientPayloads.Add(int64(len(current.Stats)))
 		w.stats.StatsEntries.Add(int64(nbEntries))
 		grouped = append(grouped, current)
-		current.Stats = nil
 		nbEntries = 0
 		nbBuckets = 0
+		current = &pb.StatsPayload{
+			AgentHostname:  sp.AgentHostname,
+			AgentEnv:       sp.AgentEnv,
+			AgentVersion:   sp.AgentVersion,
+			ClientComputed: sp.ClientComputed,
+		}
 	}
 	for _, p := range split {
+		fmt.Printf("Payload has %v entries, already storing %v entries\n", p.nbEntries, nbEntries)
 		if nbEntries+p.nbEntries > maxEntriesPerPayload {
+			fmt.Printf("NEW PAYLOAD REQUIRED\n")
 			addPayload()
 		}
 		nbEntries += p.nbEntries

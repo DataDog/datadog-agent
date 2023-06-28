@@ -22,7 +22,7 @@ func FuzzProcessStats(f *testing.F) {
 		return pbStats.MarshalVT()
 	}
 	decode := func(stats []byte) (*pb.ClientStatsPayload, error) {
-		var payload *pb.ClientStatsPayload
+		payload := &pb.ClientStatsPayload{}
 		err := payload.UnmarshalVT(stats)
 		return payload, err
 	}

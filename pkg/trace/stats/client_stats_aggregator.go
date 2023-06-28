@@ -208,6 +208,9 @@ func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload, enablePeerSvcAgg bool
 	}
 	for _, s := range p.Stats {
 		for _, sb := range s.Stats {
+			if sb == nil {
+				continue
+			}
 			aggKey := newBucketAggregationKey(sb, enablePeerSvcAgg)
 			agg, ok := payloadAgg[aggKey]
 			if !ok {
@@ -288,6 +291,9 @@ func trimCounts(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
 	p.AgentAggregation = keyDistributions
 	for _, s := range p.Stats {
 		for i, b := range s.Stats {
+			if b == nil {
+				continue
+			}
 			b.Hits = 0
 			b.Errors = 0
 			b.Duration = 0

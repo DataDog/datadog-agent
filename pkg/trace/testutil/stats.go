@@ -36,7 +36,7 @@ func BucketWithSpans(spans []*pb.Span) *pb.ClientStatsBucket {
 	if len(buckets) != 1 {
 		panic("All entries must have the same payload key.")
 	}
-	for _, b := range srb.Export() {
+	for _, b := range buckets {
 		return b
 	}
 	return &pb.ClientStatsBucket{}

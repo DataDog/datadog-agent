@@ -163,7 +163,7 @@ func FuzzHandleStats(f *testing.F) {
 	cfg := newTestReceiverConfig()
 	decode := func(stats []byte) (*pb.ClientStatsPayload, error) {
 		reader := bytes.NewReader(stats)
-		var payload *pb.ClientStatsPayload
+		payload := &pb.ClientStatsPayload{}
 		return payload, msgp.Decode(apiutil.NewLimitedReader(io.NopCloser(reader), cfg.MaxRequestBytes), payload)
 	}
 	receiver := newTestReceiverFromConfig(cfg)

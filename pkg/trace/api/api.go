@@ -433,7 +433,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	ts := r.tagStats(V07, req.Header)
 	rd := apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 	req.Header.Set("Accept", "application/msgpack")
-	var in *pb.ClientStatsPayload
+	in := &pb.ClientStatsPayload{}
 	if err := msgp.Decode(rd, in); err != nil {
 		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w)

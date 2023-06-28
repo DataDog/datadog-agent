@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -71,10 +72,10 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, dura
 
 func getTestStatsWithStart(start time.Time) *pb.ClientStatsPayload {
 	b := &pb.ClientStatsBucket{}
-	fuzzer.Fuzz(&b)
+	fuzzer.Fuzz(b)
 	b.Start = uint64(start.UnixNano())
 	p := &pb.ClientStatsPayload{}
-	fuzzer.Fuzz(&p)
+	fuzzer.Fuzz(p)
 	p.Tags = nil
 	p.Stats = []*pb.ClientStatsBucket{b}
 	return p
@@ -85,13 +86,16 @@ func assertDistribPayload(t *testing.T, withCounts, res *pb.StatsPayload) {
 		withCounts.Stats[j].AgentAggregation = keyDistributions
 		for _, s := range p.Stats {
 			for i := range s.Stats {
+				if s.Stats[i] == nil {
+					continue
+				}
 				s.Stats[i].Hits = 0
 				s.Stats[i].Errors = 0
 				s.Stats[i].Duration = 0
 			}
 		}
 	}
-	assert.Equal(t, withCounts, res)
+	assert.Equal(t, withCounts.String(), res.String())
 }
 
 func assertAggCountsPayload(t *testing.T, aggCounts *pb.StatsPayload) {
@@ -119,9 +123,9 @@ func agg2Counts(insertionTime time.Time, p *pb.ClientStatsPayload) *pb.ClientSta
 	p.Service = ""
 	p.ContainerID = ""
 	for i, s := range p.Stats {
-		p.Stats[i].Start = uint64(alignAggTs(insertionTime).UnixNano())
-		p.Stats[i].Duration = uint64(clientBucketDuration.Nanoseconds())
-		p.Stats[i].AgentTimeShift = 0
+		s.Start = uint64(alignAggTs(insertionTime).UnixNano())
+		s.Duration = uint64(clientBucketDuration.Nanoseconds())
+		s.AgentTimeShift = 0
 		for j := range s.Stats {
 			s.Stats[j].DBType = ""
 			s.Stats[j].Hits *= 2
@@ -174,7 +178,8 @@ func TestMergeMany(t *testing.T) {
 		assert.Len(a.out, 4)
 		assertDistribPayload(t, wrapPayloads([]*pb.ClientStatsPayload{merge1, merge2}), <-a.out)
 		assertDistribPayload(t, wrapPayload(merge3), <-a.out)
-		assert.Equal(wrapPayload(other), <-a.out)
+		s := <-a.out
+		assert.Equal(wrapPayload(other).String(), s.String())
 		assertAggCountsPayload(t, <-a.out)
 		assert.Len(a.buckets, 0)
 	}
@@ -224,7 +229,8 @@ func TestTimeShifts(t *testing.T) {
 			assert.Len(a.out, 1)
 			stats.Stats[0].AgentTimeShift = -tc.expectedShift.Nanoseconds()
 			stats.Stats[0].Start -= uint64(tc.expectedShift.Nanoseconds())
-			assert.Equal(wrapPayload(stats), <-a.out)
+			s := <-a.out
+			assert.Equal(wrapPayload(stats).String(), s.String())
 		})
 	}
 }
@@ -462,7 +468,19 @@ func TestNewBucketAggregationKeyPeerService(t *testing.T) {
 }
 
 func deepCopy(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
-	new := p
+	new := &pb.ClientStatsPayload{
+		Hostname:         p.GetHostname(),
+		Env:              p.GetEnv(),
+		Version:          p.GetVersion(),
+		Lang:             p.GetLang(),
+		TracerVersion:    p.GetTracerVersion(),
+		RuntimeID:        p.GetRuntimeID(),
+		Sequence:         p.GetSequence(),
+		AgentAggregation: p.GetAgentAggregation(),
+		Service:          p.GetService(),
+		ContainerID:      p.GetContainerID(),
+		Tags:             p.GetTags(),
+	}
 	new.Stats = deepCopyStatsBucket(p.Stats)
 	return new
 }
@@ -473,7 +491,11 @@ func deepCopyStatsBucket(s []*pb.ClientStatsBucket) []*pb.ClientStatsBucket {
 	}
 	new := make([]*pb.ClientStatsBucket, len(s))
 	for i, b := range s {
-		new[i] = b
+		new[i] = &pb.ClientStatsBucket{
+			Start:          b.GetStart(),
+			Duration:       b.GetDuration(),
+			AgentTimeShift: b.GetAgentTimeShift(),
+		}
 		new[i].Stats = deepCopyGroupedStats(b.Stats)
 	}
 	return new
@@ -483,9 +505,28 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 	if s == nil {
 		return nil
 	}
+	fmt.Printf("COPYING (%v) GROUPED STATS: %v\n", len(s), s)
 	new := make([]*pb.ClientGroupedStats, len(s))
 	for i, b := range s {
-		new[i] = b
+		if b == nil {
+			new[i] = nil
+			continue
+		}
+
+		new[i] = &pb.ClientGroupedStats{
+			Service:        b.GetService(),
+			Name:           b.GetName(),
+			Resource:       b.GetResource(),
+			HTTPStatusCode: b.GetHTTPStatusCode(),
+			Type:           b.GetType(),
+			DBType:         b.GetDBType(),
+			Hits:           b.GetHits(),
+			Errors:         b.GetErrors(),
+			Duration:       b.GetDuration(),
+			Synthetics:     b.GetSynthetics(),
+			TopLevelHits:   b.GetTopLevelHits(),
+			PeerService:    b.GetPeerService(),
+		}
 		if b.OkSummary != nil {
 			new[i].OkSummary = make([]byte, len(b.OkSummary))
 			copy(new[i].OkSummary, b.OkSummary)
