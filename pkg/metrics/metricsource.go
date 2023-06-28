@@ -6,7 +6,7 @@
 package metrics
 
 // MetricSource represents how this metric made it into the Agent
-type MetricSource int
+type MetricSource uint16
 
 // Enumeration of the currently supported MetricSources
 const (
