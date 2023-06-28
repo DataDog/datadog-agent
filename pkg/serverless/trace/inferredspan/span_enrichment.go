@@ -245,7 +245,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	bodyStruct := new(BodyStruct)
 	err := json.Unmarshal([]byte(body), bodyStruct)
 	if err != nil {
-		log.Error("Error parsing body: %v", err)
+		log.Errorf("Error parsing body: %v", err)
 	}
 
 	// Get the _datadog attribute value
@@ -254,14 +254,14 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	// Base64 decode the _datadog attribute (if needed)
 	datadogAttrData, err := base64.StdEncoding.DecodeString(datadogAttrStr)
 	if err != nil {
-		log.Error("Error decoding _datadog attribute: %v", err)
+		log.Errorf("Error decoding _datadog attribute: %v", err)
 	}
 
 	// Parse _datadog attribute from JSON
 	datadogAttr := new(DatadogAttribute)
 	err = json.Unmarshal(datadogAttrData, datadogAttr)
 	if err != nil {
-		log.Error("Error parsing _datadog attribute: %v", err)
+		log.Errorf("Error parsing _datadog attribute: %v", err)
 	}
 
 	// Get the x-datadog-trace-id and x-datadog-parent-id
@@ -270,12 +270,12 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 
 	uint64TraceID, err := strconv.ParseUint(xDatadogTraceID, 10, 64)
 	if err != nil {
-		log.Error("Error converting x-datadog-trace-id: %v", err)
+		log.Errorf("Error converting x-datadog-trace-id: %v", err)
 	}
 
 	uint64ParentID, err := strconv.ParseUint(xDatadogParentID, 10, 64)
 	if err != nil {
-		log.Error("Error converting x-datadog-parent-id: %v", err)
+		log.Errorf("Error converting x-datadog-parent-id: %v", err)
 	}
 
 	inferredSpan.IsAsync = true
