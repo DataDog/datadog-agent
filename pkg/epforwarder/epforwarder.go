@@ -336,6 +336,7 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 		strategy = sender.NewBatchStrategy(inputChan,
 			senderInput,
 			make(chan struct{}),
+			nil,
 			sender.ArraySerializer,
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,

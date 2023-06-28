@@ -8,14 +8,18 @@ package client
 import (
 	"context"
 	"sync"
+
+	// we don't want to directly import that, use an interface here
+	"github.com/DataDog/datadog-agent/pkg/serverless/logsyncorchestrator"
 )
 
 // A DestinationsContext manages senders and allows us to "unclog" the pipeline
 // when trying to stop it and failing to send messages.
 type DestinationsContext struct {
-	context context.Context
-	cancel  context.CancelFunc
-	mutex   sync.Mutex
+	context             context.Context
+	cancel              context.CancelFunc
+	mutex               sync.Mutex
+	LogSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator
 }
 
 // NewDestinationsContext returns an initialized DestinationsContext

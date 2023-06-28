@@ -29,11 +29,12 @@ import (
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/serverless/logsyncorchestrator"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 // NewAgent returns a new Logs Agent
-func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
@@ -78,7 +79,7 @@ func NewAgent(sources *sources.LogSources, services *service.Services, tracker *
 // the AutoConfig is ready, please consider using BlockUntilAutoConfigRanOnce
 // instead of directly using it.
 func Start(ac *autodiscovery.AutoConfig) (*Agent, error) {
-	agent, err := start()
+	agent, err := start(nil)
 	if err != nil {
 		return nil, err
 	}

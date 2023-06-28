@@ -13,6 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	// we don't want to directly import that, use an interface here
+	"github.com/DataDog/datadog-agent/pkg/serverless/logsyncorchestrator"
 )
 
 var (
@@ -21,10 +24,11 @@ var (
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	inputChan  chan *message.Message
-	outputChan chan *message.Payload
-	flushChan  chan struct{}
-	buffer     *MessageBuffer
+	inputChan           chan *message.Message
+	outputChan          chan *message.Payload
+	flushChan           chan struct{}
+	buffer              *MessageBuffer
+	logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName    string
 	serializer      Serializer
@@ -38,18 +42,20 @@ type batchStrategy struct {
 func NewBatchStrategy(inputChan chan *message.Message,
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
+	logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator,
 	serializer Serializer,
 	batchWait time.Duration,
 	maxBatchSize int,
 	maxContentSize int,
 	pipelineName string,
 	contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, logSyncOrchestrator, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
+	logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator
 	serializer Serializer,
 	batchWait time.Duration,
 	maxBatchSize int,
@@ -62,6 +68,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		inputChan:       inputChan,
 		outputChan:      outputChan,
 		flushChan:       flushChan,
+		logSyncOrchestrator: logSyncOrchestrator,
 		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:      serializer,
 		batchWait:       batchWait,

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/DataDog/datadog-agent/pkg/serverless/logsyncorchestrator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -97,6 +98,8 @@ type Daemon struct {
 	InvocationProcessor invocationlifecycle.InvocationProcessor
 
 	logCollector *serverlessLog.LambdaLogsCollector
+
+	LogSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime and coordinate
@@ -106,18 +109,19 @@ func StartDaemon(addr string) *Daemon {
 	mux := http.NewServeMux()
 
 	daemon := &Daemon{
-		httpServer:        &http.Server{Addr: addr, Handler: mux},
-		mux:               mux,
-		RuntimeWg:         &sync.WaitGroup{},
-		FlushLock:         sync.Mutex{},
-		lastInvocations:   make([]time.Time, 0),
-		useAdaptiveFlush:  true,
-		flushStrategy:     &flush.AtTheEnd{},
-		ExtraTags:         &serverlessLog.Tags{},
-		ExecutionContext:  &executioncontext.ExecutionContext{},
-		metricsFlushMutex: sync.Mutex{},
-		tracesFlushMutex:  sync.Mutex{},
-		logsFlushMutex:    sync.Mutex{},
+		httpServer:          &http.Server{Addr: addr, Handler: mux},
+		mux:                 mux,
+		RuntimeWg:           &sync.WaitGroup{},
+		FlushLock:           sync.Mutex{},
+		lastInvocations:     make([]time.Time, 0),
+		useAdaptiveFlush:    true,
+		flushStrategy:       &flush.AtTheEnd{},
+		ExtraTags:           &serverlessLog.Tags{},
+		ExecutionContext:    &executioncontext.ExecutionContext{},
+		metricsFlushMutex:   sync.Mutex{},
+		tracesFlushMutex:    sync.Mutex{},
+		logsFlushMutex:      sync.Mutex{},
+		LogSyncOrchestrator: logsyncorchestrator.NewLogSyncOrchestrator(),
 	}
 
 	mux.Handle("/lambda/hello", wrapOtlpError(&Hello{daemon}))
@@ -184,8 +188,8 @@ func (d *Daemon) GetFlushStrategy() string {
 func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool, lambdaInitMetricChan chan<- *serverlessLog.LambdaInitMetric) {
 
 	d.logCollector = serverlessLog.NewLambdaLogCollector(logsChan,
-		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone, lambdaInitMetricChan)
-	server := serverlessLog.NewLambdaLogsAPIServer(d.logCollector.In)
+		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone, lambdaInitMetricChan, d.LogSyncOrchestrator)
+	server := serverlessLog.NewLambdaLogsAPIServer(d.logCollector.In, d.LogSyncOrchestrator)
 
 	d.mux.Handle(route, &server)
 }
@@ -283,9 +287,12 @@ func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
 // It is protected by a mutex to ensure only one logs flush can be in progress at any given time.
 func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
 	d.logsFlushMutex.Lock()
+	d.LogSyncOrchestrator.BlockIncomingRequest()
 	flushStartTime := time.Now().Unix()
 	log.Debugf("Beginning logs flush at time %d", flushStartTime)
 	logs.Flush(ctx)
+	d.LogSyncOrchestrator.Wait(0, ctx, &d.logsFlushMutex, logs.Flush)
+	d.LogSyncOrchestrator.AllowIncomingRequest()
 	log.Debugf("Finished logs flush that was started at time %d", flushStartTime)
 	wg.Done()
 	d.logsFlushMutex.Unlock()

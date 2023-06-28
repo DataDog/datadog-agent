@@ -212,7 +212,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		d.blockedUntil = time.Now().Add(backoffDuration)
 		if d.blockedUntil.After(time.Now()) {
 			log.Debugf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, d.blockedUntil, backoffDuration.String(), d.nbErrors)
-			d.waitForBackoff()
+			// TODO need to implement a new policy type (serverless type)
+			time.Sleep(100 * time.Millisecond)
 		}
 		d.retryLock.Unlock()
 
@@ -222,6 +223,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
 			log.Warnf("Could not send payload: %v", err)
+		} else {
+			d.destinationsContext.LogSyncOrchestrator.NbMessageSent.Add(uint32(len(payload.Messages)))
 		}
 
 		if err == context.Canceled {
