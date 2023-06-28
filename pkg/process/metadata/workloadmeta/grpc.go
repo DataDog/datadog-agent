@@ -86,7 +86,7 @@ func (l *GRPCServer) Stop() {
 
 func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
 	// When connection is created, send a snapshot of all processes detected on the host so far as "SET" events
-	procs, version := l.extractor.GetAllProcessEntities()
+	procs, snapshotVersion := l.extractor.GetAllProcessEntities()
 	setEvents := make([]*pbgo.ProcessEventSet, 0, len(procs))
 	for _, proc := range procs {
 		setEvents = append(setEvents, &pbgo.ProcessEventSet{
@@ -96,7 +96,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	}
 
 	syncMessage := &pbgo.ProcessStreamResponse{
-		EventID:   version,
+		EventID:   snapshotVersion,
 		SetEvents: setEvents,
 	}
 	err := out.Send(syncMessage)
@@ -109,6 +109,11 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	for {
 		select {
 		case diff := <-l.extractor.ProcessCacheDiff():
+			// Do not send diff if it has the same version of the cache snapshot sent on the connection creation
+			if diff.cacheVersion == snapshotVersion {
+				continue
+			}
+
 			sets, unsets := l.consumeProcessDiff(diff)
 			msg := &pbgo.ProcessStreamResponse{
 				EventID:     diff.cacheVersion,

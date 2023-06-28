@@ -99,7 +99,7 @@ func TestStreamServer(t *testing.T) {
 		Pid1: proc1,
 		Pid2: proc2,
 	})
-	// When first diff is generated, extractor cache is fully hydrated
+	// Drop first cache diff before gRPC connection is created
 	<-extractor.ProcessCacheDiff()
 
 	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -153,6 +153,71 @@ func TestStreamServer(t *testing.T) {
 		SetEvents: []*pbgo.ProcessEventSet{},
 		UnsetEvents: []*pbgo.ProcessEventUnset{
 			toEventUnset(proc3),
+		},
+	}, msg)
+}
+
+func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
+	var (
+		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
+		proc2 = testProc(Pid2, []string{"python", "myprogram.py"})
+		proc3 = testProc(Pid3, []string{"corrina", "--at-her-best"})
+	)
+
+	cfg := config.Mock(t)
+	extractor := NewWorkloadMetaExtractor(cfg)
+
+	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+	srv := NewGRPCServer(cfg, extractor)
+	require.NoError(t, srv.Start())
+	require.NotNil(t, srv.addr)
+	defer srv.Stop()
+
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1,
+		Pid2: proc2,
+	})
+
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer cc.Close()
+	streamClient := pbgo.NewProcessEntityStreamClient(cc)
+
+	// Test that the sync message is sent to the client
+	stream, err := streamClient.StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	require.NoError(t, err)
+	defer stream.CloseSend()
+
+	msg, err := stream.Recv()
+	sort.SliceStable(msg.SetEvents, func(i, j int) bool {
+		return msg.SetEvents[i].Pid < msg.SetEvents[j].Pid
+	})
+	require.NoError(t, err)
+	assertEqualStreamEntitiesResponse(t, &pbgo.ProcessStreamResponse{
+		EventID: 1,
+		SetEvents: []*pbgo.ProcessEventSet{
+			toEventSet(proc1),
+			toEventSet(proc2),
+		},
+	}, msg)
+
+	// Verify that first diff is not sent to the client since its version is equal to the first cache snapshot
+	// sent on the connection creation
+	// proc1 and proc2 terminated
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid3: proc3,
+	})
+
+	msg, err = stream.Recv()
+	require.NoError(t, err)
+	assertEqualStreamEntitiesResponse(t, &pbgo.ProcessStreamResponse{
+		EventID: 2,
+		SetEvents: []*pbgo.ProcessEventSet{
+			toEventSet(proc3),
+		},
+		UnsetEvents: []*pbgo.ProcessEventUnset{
+			toEventUnset(proc1),
+			toEventUnset(proc2),
 		},
 	}, msg)
 }
