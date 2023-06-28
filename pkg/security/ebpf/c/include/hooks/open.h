@@ -129,6 +129,7 @@ int hook_vfs_open(ctx_t *ctx) {
     return handle_open_event(syscall, file, path, inode);
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/do_dentry_open")
 int kprobe_do_dentry_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
