@@ -273,7 +273,7 @@ kernel_matrix_testing_run_tests_arm64:
     - INSTANCE_IDS=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi"  $IP_FILTER --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
     - echo $INSTANCE_IDS
     - |
-      if [ $($INSTANCE_IDS | wc -w) != "0" ]; then
+      if [ $(echo $INSTANCE_IDS | wc -w) != "0" ]; then
         aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
       fi
 
