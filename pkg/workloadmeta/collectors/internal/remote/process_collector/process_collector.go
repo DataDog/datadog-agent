@@ -56,7 +56,7 @@ func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 		return &remote.GenericCollector{
 			StreamHandler: &remoteProcessCollectorStreamHandler{},
-			Port:          config.Datadog.GetInt("process_config.workloadmeta_extractor.port"),
+			Port:          config.Datadog.GetInt("process_config.language_detection.grpc_port"),
 		}
 	})
 }

@@ -200,7 +200,6 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.cache_lookupid", false)
 
 	procBindEnvAndSetDefault(config, "process_config.language_detection.enabled", false)
-	procBindEnvAndSetDefault(config, "process_config.workloadmeta_extractor.port", 5004)
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)
