@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -52,7 +53,7 @@ type RawSender interface {
 
 // checkSender implements Sender
 type checkSender struct {
-	id                      check.ID
+	id                      id.ID
 	defaultHostname         string
 	defaultHostnameDisabled bool
 	metricStats             check.SenderStats
@@ -75,7 +76,7 @@ type senderItem interface {
 }
 
 type senderMetricSample struct {
-	id           check.ID
+	id           id.ID
 	metricSample *metrics.MetricSample
 	commit       bool
 }
@@ -85,7 +86,7 @@ func (s *senderMetricSample) handle(agg *BufferedAggregator) {
 }
 
 type senderHistogramBucket struct {
-	id     check.ID
+	id     id.ID
 	bucket *metrics.HistogramBucket
 }
 
@@ -94,7 +95,7 @@ func (s *senderHistogramBucket) handle(agg *BufferedAggregator) {
 }
 
 type senderEventPlatformEvent struct {
-	id        check.ID
+	id        id.ID
 	rawEvent  []byte
 	eventType string
 }
@@ -112,12 +113,12 @@ type senderOrchestratorManifest struct {
 
 type checkSenderPool struct {
 	agg     *BufferedAggregator
-	senders map[check.ID]Sender
+	senders map[id.ID]Sender
 	m       sync.Mutex
 }
 
 func newCheckSender(
-	id check.ID,
+	id id.ID,
 	defaultHostname string,
 	itemsOut chan<- senderItem,
 	serviceCheckOut chan<- metrics.ServiceCheck,
@@ -143,7 +144,7 @@ func newCheckSender(
 // GetSender returns a Sender with passed ID, properly registered with the aggregator
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore
-func GetSender(id check.ID) (Sender, error) {
+func GetSender(id id.ID) (Sender, error) {
 	if demultiplexerInstance == nil {
 		return nil, errors.New("Demultiplexer was not initialized")
 	}
@@ -153,7 +154,7 @@ func GetSender(id check.ID) (Sender, error) {
 // DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
 // Should be called when no sender with this ID is used anymore
 // The metrics of this (these) sender(s) that haven't been flushed yet will be lost
-func DestroySender(id check.ID) {
+func DestroySender(id id.ID) {
 	if demultiplexerInstance == nil {
 		return
 	}
@@ -162,7 +163,7 @@ func DestroySender(id check.ID) {
 
 // SetSender returns the passed sender with the passed ID.
 // This is largely for testing purposes
-func SetSender(sender Sender, id check.ID) error {
+func SetSender(sender Sender, id id.ID) error {
 	if demultiplexerInstance == nil {
 		return errors.New("Demultiplexer was not initialized")
 	}
@@ -433,7 +434,7 @@ func (s *checkSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody,
 	s.orchestratorManifestOut <- om
 }
 
-func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
+func (sp *checkSenderPool) getSender(id id.ID) (Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
@@ -443,7 +444,7 @@ func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
 	return nil, fmt.Errorf("Sender not found")
 }
 
-func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
+func (sp *checkSenderPool) mkSender(id id.ID) (Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
@@ -462,7 +463,7 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 	return sender, err
 }
 
-func (sp *checkSenderPool) setSender(sender Sender, id check.ID) error {
+func (sp *checkSenderPool) setSender(sender Sender, id id.ID) error {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
@@ -475,7 +476,7 @@ func (sp *checkSenderPool) setSender(sender Sender, id check.ID) error {
 	return err
 }
 
-func (sp *checkSenderPool) removeSender(id check.ID) {
+func (sp *checkSenderPool) removeSender(id id.ID) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 

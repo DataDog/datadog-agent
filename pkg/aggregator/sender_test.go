@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -31,7 +31,7 @@ type senderWithChans struct {
 	sender                   *checkSender
 }
 
-func initSender(id check.ID, defaultHostname string) (s senderWithChans) {
+func initSender(id id.ID, defaultHostname string) (s senderWithChans) {
 	s.itemChan = make(chan senderItem, 10)
 	s.serviceCheckChan = make(chan metrics.ServiceCheck, 10)
 	s.eventChan = make(chan metrics.Event, 10)

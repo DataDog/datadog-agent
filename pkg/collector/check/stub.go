@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // StubCheck stubs a check, should only be used in tests
@@ -39,7 +40,7 @@ func (c *StubCheck) Interval() time.Duration { return 1 * time.Second }
 func (c *StubCheck) Run() error { return nil }
 
 // ID returns the check name
-func (c *StubCheck) ID() ID { return ID(c.String()) }
+func (c *StubCheck) ID() id.ID { return id.ID(c.String()) }
 
 // GetWarnings returns an empty slice
 func (c *StubCheck) GetWarnings() []error { return []error{} }

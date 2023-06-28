@@ -104,7 +104,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 
 func TestDockerCustomPart(t *testing.T) {
 	// Mocksender
-	mockSender := mocksender.NewMockSender(check.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(id.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := local.NewFakeTagger()
@@ -234,7 +234,7 @@ func TestDockerCustomPart(t *testing.T) {
 }
 
 func TestContainersRunning(t *testing.T) {
-	mockSender := mocksender.NewMockSender(check.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(id.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	// Define tags for 3 different containers. The first 2 have the same tags.

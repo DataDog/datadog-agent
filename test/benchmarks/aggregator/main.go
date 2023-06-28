@@ -208,7 +208,7 @@ func main() {
 	agg = aggregator.NewBufferedAggregator(s, nil, "hostname", time.Duration(*flushIval)*time.Second)
 
 	aggregator.SetDefaultAggregator(agg)
-	sender, err := aggregator.GetSender(check.ID("benchmark check"))
+	sender, err := aggregator.GetSender(id.ID("benchmark check"))
 	if err != nil {
 		log.Criticalf("could not get sender: %s", err)
 		return

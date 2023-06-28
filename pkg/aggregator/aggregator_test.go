@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -35,8 +35,8 @@ import (
 )
 
 var (
-	checkID1 check.ID = "1"
-	checkID2 check.ID = "2"
+	checkID1 id.ID = "1"
+	checkID2 id.ID = "2"
 )
 
 const defaultHostname = "hostname"
@@ -86,7 +86,7 @@ func TestRegisterCheckSampler(t *testing.T) {
 	// -
 
 	agg := getAggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+	agg.checkSamplers = make(map[id.ID]*CheckSampler)
 
 	lenSenders := func(n int) bool {
 		agg.mu.Lock()
@@ -115,7 +115,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	defer demux.Stop(false)
 
 	agg := demux.Aggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
+	agg.checkSamplers = make(map[id.ID]*CheckSampler)
 
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)

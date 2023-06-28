@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -25,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -208,7 +208,7 @@ type BufferedAggregator struct {
 	MetricSamplePool *metrics.MetricSamplePool
 
 	tagsStore              *tags.Store
-	checkSamplers          map[check.ID]*CheckSampler
+	checkSamplers          map[id.ID]*CheckSampler
 	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
 	manifests              []*senderOrchestratorManifest
@@ -279,7 +279,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		eventPlatformIn:        make(chan senderEventPlatformEvent, bufferSize),
 
 		tagsStore:                   tagsStore,
-		checkSamplers:               make(map[check.ID]*CheckSampler),
+		checkSamplers:               make(map[id.ID]*CheckSampler),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -373,12 +373,12 @@ func (agg *BufferedAggregator) GetEventPlatformForwarder() (epforwarder.EventPla
 	return agg.eventPlatformForwarder, nil
 }
 
-func (agg *BufferedAggregator) registerSender(id check.ID) error {
+func (agg *BufferedAggregator) registerSender(id id.ID) error {
 	agg.checkItems <- &registerSampler{id}
 	return nil
 }
 
-func (agg *BufferedAggregator) deregisterSender(id check.ID) {
+func (agg *BufferedAggregator) deregisterSender(id id.ID) {
 	// Use the same channel as metrics, so that the drop happens only
 	// after we handle all the metrics sent so far.
 	agg.checkItems <- &deregisterSampler{id}
@@ -830,7 +830,7 @@ func (agg *BufferedAggregator) updateChecksTelemetry() {
 
 // deregisterSampler is an item sent internally by the aggregator to
 // signal that the sender will no longer will be used for a given
-// check.ID.
+// id.ID.
 //
 // 1. A check is unscheduled while running.
 //
@@ -855,14 +855,14 @@ func (agg *BufferedAggregator) updateChecksTelemetry() {
 // 7. Aggregator flushes metrics from the sampler and can now remove
 // it: we know for sure that no more metrics will arrive.
 type deregisterSampler struct {
-	id check.ID
+	id id.ID
 }
 
 func (s *deregisterSampler) handle(agg *BufferedAggregator) {
 	agg.handleDeregisterSampler(s.id)
 }
 
-func (agg *BufferedAggregator) handleDeregisterSampler(id check.ID) {
+func (agg *BufferedAggregator) handleDeregisterSampler(id id.ID) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	if cs, ok := agg.checkSamplers[id]; ok {
@@ -881,14 +881,14 @@ func (agg *BufferedAggregator) handleDeregisterSampler(id check.ID) {
 // the check is re-scheduled. If registerSampler is called before
 // the check runs, we will have a sampler for it one way or another.
 type registerSampler struct {
-	id check.ID
+	id id.ID
 }
 
 func (s *registerSampler) handle(agg *BufferedAggregator) {
 	agg.handleRegisterSampler(s.id)
 }
 
-func (agg *BufferedAggregator) handleRegisterSampler(id check.ID) {
+func (agg *BufferedAggregator) handleRegisterSampler(id id.ID) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 

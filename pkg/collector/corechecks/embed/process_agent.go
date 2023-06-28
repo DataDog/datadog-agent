@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
@@ -195,7 +196,7 @@ func (c *ProcessAgentCheck) Interval() time.Duration {
 }
 
 // ID returns the name of the check since there should be only one instance running
-func (c *ProcessAgentCheck) ID() check.ID {
+func (c *ProcessAgentCheck) ID() id.ID {
 	return "PROCESS_AGENT"
 }
 

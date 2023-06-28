@@ -288,7 +288,7 @@ func TestDbusConnectionErr(t *testing.T) {
 	check := SystemdCheck{stats: stats}
 	check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
-	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	mockSender := mocksender.NewMockSender(id.ID()) // required to initiate aggregator
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	err := check.Run()
@@ -308,7 +308,7 @@ func TestSystemStateCallFailGracefully(t *testing.T) {
 	check := SystemdCheck{stats: stats}
 	check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
-	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	mockSender := mocksender.NewMockSender(id.ID()) // required to initiate aggregator
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -327,7 +327,7 @@ func TestListUnitErr(t *testing.T) {
 	check := SystemdCheck{stats: stats}
 	check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
-	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+	mockSender := mocksender.NewMockSender(id.ID()) // required to initiate aggregator
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	err := check.Run()
@@ -365,7 +365,7 @@ unit_names:
 	// setup expectations
 	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, mock.Anything).Return(map[string]interface{}{}, nil)
 
-	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(id.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -424,7 +424,7 @@ unit_names:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(id.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -491,7 +491,7 @@ unit_names:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(id.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -566,7 +566,7 @@ unit_names:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(id.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -614,7 +614,7 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 			check := SystemdCheck{stats: stats}
 			check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
-			mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
+			mockSender := mocksender.NewMockSender(id.ID()) // required to initiate aggregator
 			mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -662,7 +662,7 @@ unit_names:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(id.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -727,7 +727,7 @@ substate_status_mapping:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(id.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -809,7 +809,7 @@ func TestSendServicePropertyAsGaugeSkipAndWarnOnMissingProperty(t *testing.T) {
 	serviceUnitConfigNRestart := metricConfigItem{metricName: "systemd.service.restart_count", propertyName: "NRestarts", accountingProperty: "", optional: false}
 
 	check := SystemdCheck{}
-	mockSender := mocksender.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(id.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	sendServicePropertyAsGauge(mockSender, serviceProperties, serviceUnitConfigCPU, nil)
@@ -1035,7 +1035,7 @@ unit_names:
 	err = check2.Configure(integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, check.ID("systemd:71ee0a4fef872b6d"), check1.ID())
-	assert.Equal(t, check.ID("systemd:b1fb7cdd591e17a1"), check2.ID())
+	assert.Equal(t, id.ID("systemd:71ee0a4fef872b6d"), check1.ID())
+	assert.Equal(t, id.ID("systemd:b1fb7cdd591e17a1"), check2.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }

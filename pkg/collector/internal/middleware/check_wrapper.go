@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // CheckWrapper cleans up the check sender after a check was
@@ -77,7 +78,7 @@ func (c *CheckWrapper) Interval() time.Duration {
 }
 
 // ID implements Check#ID
-func (c *CheckWrapper) ID() check.ID {
+func (c *CheckWrapper) ID() id.ID {
 	return c.inner.ID()
 }
 

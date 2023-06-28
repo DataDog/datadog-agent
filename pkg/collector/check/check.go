@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // Check is an interface for types capable to run checks
@@ -28,7 +29,7 @@ type Check interface {
 	// Interval returns the interval time for the check
 	Interval() time.Duration
 	// ID provides a unique identifier for every check instance
-	ID() ID
+	ID() id.ID
 	// GetWarnings returns the last warning registered by the check
 	GetWarnings() []error
 	// GetSenderStats returns the stats from the last run of the check.
@@ -53,7 +54,7 @@ type Info interface {
 	// Interval returns the interval time for the check
 	Interval() time.Duration
 	// ID provides a unique identifier for every check instance
-	ID() ID
+	ID() id.ID
 	// Version returns the version of the check if available
 	Version() string
 	// ConfigSource returns the configuration source of the check

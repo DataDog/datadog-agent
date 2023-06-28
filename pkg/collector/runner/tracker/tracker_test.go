@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 type testCheck struct {
@@ -21,8 +22,8 @@ type testCheck struct {
 	id string
 }
 
-func (c *testCheck) ID() check.ID   { return check.ID(c.id) }
-func (c *testCheck) String() string { return check.IDToCheckName(c.ID()) }
+func (c *testCheck) ID() id.ID      { return id.ID(c.id) }
+func (c *testCheck) String() string { return id.IDToCheckName(c.ID()) }
 
 func newTestCheck(id string) *testCheck {
 	return &testCheck{id: id}
@@ -98,7 +99,7 @@ func TestRunningChecksTrackerAddAndDeleteLocking(t *testing.T) {
 func TestRunningChecksTrackerWithRunningChecks(t *testing.T) {
 	tracker := NewRunningChecksTracker()
 
-	checks := make(map[check.ID]check.Check)
+	checks := make(map[id.ID]check.Check)
 
 	for idx := 0; idx < 50; idx++ {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
@@ -106,7 +107,7 @@ func TestRunningChecksTrackerWithRunningChecks(t *testing.T) {
 		checks[testCheck.ID()] = testCheck
 	}
 
-	loopFunc := func(actualChecks map[check.ID]check.Check) {
+	loopFunc := func(actualChecks map[id.ID]check.Check) {
 		for _, actualCheck := range actualChecks {
 			expectedCheck, found := checks[actualCheck.ID()]
 

@@ -7,12 +7,14 @@ package check
 
 import (
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // MockInfo is a mock for test using check.Info interface
 type MockInfo struct {
 	Name         string
-	CheckID      ID
+	CheckID      id.ID
 	Source       string
 	InitConf     string
 	InstanceConf string
@@ -25,7 +27,7 @@ func (m MockInfo) String() string { return m.Name }
 func (m MockInfo) Interval() time.Duration { return 0 }
 
 // ID returns the ID of the check
-func (m MockInfo) ID() ID { return m.CheckID }
+func (m MockInfo) ID() id.ID { return m.CheckID }
 
 // Version returns an empty string
 func (m MockInfo) Version() string { return "" }

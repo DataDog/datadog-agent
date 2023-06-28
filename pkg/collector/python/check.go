@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +38,7 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
-	id             check.ID
+	id             id.ID
 	version        string
 	instance       *C.rtloader_pyobject_t
 	class          *C.rtloader_pyobject_t
@@ -208,7 +209,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 // Configure the Python check from YAML data
 func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
-	c.id = check.BuildID(c.String(), integrationConfigDigest, data, initConfig)
+	c.id = id.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
 	commonGlobalOptions := integration.CommonGlobalConfig{}
 	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {
@@ -327,7 +328,7 @@ func (c *PythonCheck) Interval() time.Duration {
 }
 
 // ID returns the ID of the check
-func (c *PythonCheck) ID() check.ID {
+func (c *PythonCheck) ID() id.ID {
 	return c.id
 }
 

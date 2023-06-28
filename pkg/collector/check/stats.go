@@ -11,6 +11,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -81,7 +82,7 @@ type Stats struct {
 	CheckName                string
 	CheckVersion             string
 	CheckConfigSource        string
-	CheckID                  ID
+	CheckID                  id.ID
 	TotalRuns                uint64
 	TotalErrors              uint64
 	TotalWarnings            uint64
