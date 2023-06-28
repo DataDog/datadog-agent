@@ -46,7 +46,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 		time.Duration(secretBackendTimeout)*time.Second)
 	defer cancel()
 
-	cmd, done, err := commandContext(ctx, secretBackendCommand, secretBackendArguments...)
+	cmd, done, err := commandContext(ctx, secretBackendCommand, secretBackendEnv, secretBackendArguments...)
 	if err != nil {
 		return nil, err
 	}
@@ -74,11 +74,11 @@ func execCommand(inputPayload string) ([]byte, error) {
 	// buffer logs until it's initialized. This means the time of the log line will be the one after the package is
 	// initialized and not the creation time. This is an issue when troubleshooting a secret_backend_command in
 	// datadog.yaml.
-	log.Debugf("%s | calling secret_backend_command with payload: '%s'", time.Now().String(), inputPayload)
+	log.Debugf("%s | calling secret_backend_command with payload: %q, env: %q", time.Now().String(), inputPayload, secretBackendEnv)
 	start := time.Now()
 	err = cmd.Run()
 	elapsed := time.Since(start)
-	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), secretBackendCommand, elapsed)
+	log.Debugf("%s | secret_backend_command %q completed in %s", time.Now().String(), secretBackendCommand, elapsed)
 
 	// We always log stderr to allow a secret_backend_command to logs info in the agent log file. This is useful to
 	// troubleshoot secret_backend_command in a containerized environment.

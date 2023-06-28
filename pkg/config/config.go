@@ -370,6 +370,7 @@ func InitConfig(config Config) {
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
+	config.BindEnvAndSetDefault("secret_backend_env", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
 	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
@@ -1702,6 +1703,7 @@ func ResolveSecrets(config Config, origin string) error {
 	secrets.Init(
 		config.GetString("secret_backend_command"),
 		config.GetStringSlice("secret_backend_arguments"),
+		config.GetStringSlice("secret_backend_env"),
 		config.GetInt("secret_backend_timeout"),
 		config.GetInt("secret_backend_output_max_size"),
 		config.GetBool("secret_backend_command_allow_group_exec_perm"),

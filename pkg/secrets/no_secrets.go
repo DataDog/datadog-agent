@@ -18,7 +18,7 @@ import (
 var SecretBackendOutputMaxSize = 1024 * 1024
 
 // Init placeholder when compiled without the 'secrets' build tag
-func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool, removeTrailingLineBreak bool) {
+func Init(command string, arguments []string, env []string, timeout int, maxSize int, groupExecPerm bool, removeLinebreak bool) {
 }
 
 // Decrypt encrypted secrets are not available on windows

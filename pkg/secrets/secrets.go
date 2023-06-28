@@ -34,6 +34,7 @@ var (
 
 	secretBackendCommand               string
 	secretBackendArguments             []string
+	secretBackendEnv                   []string
 	secretBackendTimeout               = 5
 	secretBackendCommandAllowGroupExec bool
 	removeTrailingLinebreak            bool
@@ -83,9 +84,10 @@ func registerSecretOrigin(handle string, origin string, yamlPath []string) {
 // Init initializes the command and other options of the secrets package. Since
 // this package is used by the 'config' package to decrypt itself we can't
 // directly use it.
-func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool, removeLinebreak bool) {
+func Init(command string, arguments []string, env []string, timeout int, maxSize int, groupExecPerm bool, removeLinebreak bool) {
 	secretBackendCommand = command
 	secretBackendArguments = arguments
+	secretBackendEnv = env
 	secretBackendTimeout = timeout
 	SecretBackendOutputMaxSize = maxSize
 	secretBackendCommandAllowGroupExec = groupExecPerm

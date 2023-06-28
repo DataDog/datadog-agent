@@ -22,8 +22,9 @@ import (
 const ddAgentServiceName = "datadogagent"
 
 // commandContext sets up an exec.Cmd for running with a context
-func commandContext(ctx context.Context, name string, arg ...string) (*exec.Cmd, func(), error) {
+func commandContext(ctx context.Context, name string, env []string, arg ...string) (*exec.Cmd, func(), error) {
 	cmd := exec.CommandContext(ctx, name, arg...)
+	cmd.Env = append(cmd.Env, env...)
 	done := func() {}
 	localSystem, err := getLocalSystemSID()
 	if err != nil {
