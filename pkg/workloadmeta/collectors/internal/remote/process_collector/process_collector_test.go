@@ -67,7 +67,6 @@ func TestCollection(t *testing.T) {
 	creationTime := time.Now().Unix()
 	tests := []struct {
 		name      string
-		eventID   int32
 		preEvents []workloadmeta.CollectorEvent
 
 		serverResponses   []*pb.ProcessStreamResponse
@@ -75,8 +74,7 @@ func TestCollection(t *testing.T) {
 		errorResponse     bool
 	}{
 		{
-			name:    "initially empty",
-			eventID: 0,
+			name: "initially empty",
 			serverResponses: []*pb.ProcessStreamResponse{
 				{
 					EventID: 0,
@@ -106,8 +104,7 @@ func TestCollection(t *testing.T) {
 			},
 		},
 		{
-			name:    "two response with set",
-			eventID: 0,
+			name: "two response with set",
 			serverResponses: []*pb.ProcessStreamResponse{
 				{
 					EventID: 0,
@@ -159,8 +156,7 @@ func TestCollection(t *testing.T) {
 			},
 		},
 		{
-			name:    "one set one unset",
-			eventID: 0,
+			name: "one set one unset",
 			serverResponses: []*pb.ProcessStreamResponse{
 				{
 					EventID: 0,
@@ -184,6 +180,52 @@ func TestCollection(t *testing.T) {
 				},
 			},
 			expectedProcesses: []*workloadmeta.Process{},
+		},
+		{
+			name: "on resync",
+			preEvents: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceRemoteProcessCollector,
+					Entity: &workloadmeta.Process{
+						EntityID: workloadmeta.EntityID{
+							ID:   "123",
+							Kind: workloadmeta.KindProcess,
+						},
+						NsPid:        345,
+						ContainerId:  "cid",
+						Language:     &languagemodels.Language{Name: languagemodels.Java},
+						CreationTime: time.Unix(creationTime, 0),
+					},
+				},
+			},
+			serverResponses: []*pb.ProcessStreamResponse{
+				{
+					EventID: 0,
+					SetEvents: []*pb.ProcessEventSet{
+						{
+							Pid:          345,
+							Nspid:        678,
+							ContainerId:  "cid",
+							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							CreationTime: creationTime,
+						},
+					},
+				},
+			},
+			expectedProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{
+						ID:   "345",
+						Kind: workloadmeta.KindProcess,
+					},
+					NsPid:        678,
+					ContainerId:  "cid",
+					Language:     &languagemodels.Language{Name: languagemodels.Java},
+					CreationTime: time.Unix(creationTime, 0),
+				},
+			},
+			errorResponse: true,
 		},
 	}
 
