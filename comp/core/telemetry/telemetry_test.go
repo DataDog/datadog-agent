@@ -146,7 +146,6 @@ func TestMeterProvider(t *testing.T) {
 
 	_ = telemetry.meterProvider.ForceFlush(context.TODO())
 
-	// Sanity check that we don't have any metrics
 	metrics, err := telemetry.registry.Gather()
 	assert.NoError(t, err)
 
