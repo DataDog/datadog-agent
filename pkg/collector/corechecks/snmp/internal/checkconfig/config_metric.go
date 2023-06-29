@@ -19,6 +19,7 @@ const (
 	ProfileMetricTypeMonotonicCount         ProfileMetricType = "monotonic_count"
 	ProfileMetricTypeMonotonicCountAndRate4 ProfileMetricType = "monotonic_count_and_rate"
 	ProfileMetricTypeRate                   ProfileMetricType = "rate"
+	ProfileMetricTypeFlagStream             ProfileMetricType = "flag_stream"
 
 	// ProfileMetricTypeCounter is DEPRECATED
 	ProfileMetricTypeCounter ProfileMetricType = "counter"

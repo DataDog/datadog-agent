@@ -43,7 +43,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Gauge metric case",
 			symbol:             checkconfig.SymbolConfig{Name: "gauge.metric"},
-			value:              valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeGauge, Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.gauge.metric",
@@ -54,7 +54,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Counter32 metric case",
 			symbol:             checkconfig.SymbolConfig{Name: "counter.metric"},
-			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.counter.metric",
@@ -65,10 +65,10 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName: "Forced gauge metric case",
 			symbol:   checkconfig.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				MetricType: "gauge",
+				MetricType: checkconfig.ProfileMetricTypeGauge,
 			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.my.metric",
@@ -79,10 +79,10 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName: "Forced counter metric case",
 			symbol:   checkconfig.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				MetricType: "counter",
+				MetricType: checkconfig.ProfileMetricTypeCounter,
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric",
@@ -93,10 +93,10 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName: "Forced monotonic_count metric case",
 			symbol:   checkconfig.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				MetricType: "monotonic_count",
+				MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
 			},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
@@ -107,10 +107,10 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName: "Forced monotonic_count_and_rate metric case: MonotonicCount called",
 			symbol:   checkconfig.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				MetricType: "monotonic_count_and_rate",
+				MetricType: checkconfig.ProfileMetricTypeMonotonicCountAndRate4,
 			},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
@@ -121,10 +121,10 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName: "Forced monotonic_count_and_rate metric case: Rate called",
 			symbol:   checkconfig.SymbolConfig{Name: "my.metric"},
-			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				MetricType: "monotonic_count_and_rate",
+				MetricType: checkconfig.ProfileMetricTypeMonotonicCountAndRate4,
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric.rate",
@@ -138,7 +138,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{Value: 0.5},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				MetricType: "percent",
+				MetricType: checkconfig.ProfileMetricTypePercent,
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.Rate.metric",
@@ -196,8 +196,8 @@ func TestSendMetric(t *testing.T) {
 		},
 		{
 			caseName:           "Forced monotonic_count via symbol config",
-			symbol:             checkconfig.SymbolConfig{Name: "my.metric", MetricType: "monotonic_count"},
-			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			symbol:             checkconfig.SymbolConfig{Name: "my.metric", MetricType: checkconfig.ProfileMetricTypeMonotonicCount},
+			value:              valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:               []string{},
 			metricConfig:       checkconfig.MetricsConfig{},
 			expectedMethod:     "MonotonicCount",
@@ -261,7 +261,7 @@ func TestSendMetric(t *testing.T) {
 				Name:        "scaled.metric",
 				ScaleFactor: 2,
 			},
-			value:              valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeGauge, Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.scaled.metric",
@@ -272,7 +272,7 @@ func TestSendMetric(t *testing.T) {
 		{
 			caseName:           "Scaled value by float",
 			symbol:             checkconfig.SymbolConfig{Name: "scaled.metric", ScaleFactor: 0.5},
-			value:              valuestore.ResultValue{SubmissionType: "gauge", Value: float64(10)},
+			value:              valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeGauge, Value: float64(10)},
 			tags:               []string{},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.scaled.metric",
