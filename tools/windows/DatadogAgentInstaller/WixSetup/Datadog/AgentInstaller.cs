@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using Datadog.CustomActions;
-using Microsoft.Deployment.WindowsInstaller;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
