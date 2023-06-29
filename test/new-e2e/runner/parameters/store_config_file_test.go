@@ -22,6 +22,7 @@ func Test_parseConfigFileContent(t *testing.T) {
 	store.parseConfigFileContent(config_with_stackparams)
 	assert.Equal(t, "totoro", store.config.ConfigParams.AWS.KeyPairName)
 	assert.Equal(t, "/Users/totoro/.ssh/id_rsa.pub", store.config.ConfigParams.AWS.PublicKeyPath)
+	assert.Equal(t, "kiki", store.config.ConfigParams.AWS.Account)
 	assert.Equal(t, "00000000000000000000000000000000", store.config.ConfigParams.Agent.APIKey)
 
 	stackParamsStr, err := store.get(StackParameters)

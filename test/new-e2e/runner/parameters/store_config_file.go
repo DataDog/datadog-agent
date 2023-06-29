@@ -34,6 +34,7 @@ type ConfigParams struct {
 	Agent Agent `yaml:"agent"`
 }
 type AWS struct {
+	Account       string `yaml:"account"`
 	KeyPairName   string `yaml:"keyPairName"`
 	PublicKeyPath string `yaml:"publicKeyPath"`
 }
