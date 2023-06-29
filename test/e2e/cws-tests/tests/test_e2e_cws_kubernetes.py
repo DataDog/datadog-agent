@@ -6,7 +6,6 @@ import time
 import unittest
 import uuid
 import warnings
-import json
 
 import emoji
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
