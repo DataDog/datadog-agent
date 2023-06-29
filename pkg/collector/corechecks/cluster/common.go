@@ -32,4 +32,3 @@ func RunLeaderElection() (string, error) {
 
 	return leaderEngine.GetLeader(), nil
 }
-
