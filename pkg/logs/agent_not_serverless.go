@@ -24,17 +24,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/serverless/logsyncorchestrator"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 // NewAgent returns a new Logs Agent
-func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator) *Agent {
+func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, logSync util.LogSync) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor

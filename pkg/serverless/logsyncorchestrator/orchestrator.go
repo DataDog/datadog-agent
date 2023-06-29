@@ -13,7 +13,7 @@ const MAX_RETRY_COUNT = 20
 
 type LogSyncOrchestrator struct {
 	TelemetryApiMessageReceivedCount atomic.Uint32
-	NbMessageSent                    atomic.Uint32
+	nbMessageSent                    atomic.Uint32
 	wg                               *sync.WaitGroup
 }
 
@@ -40,7 +40,7 @@ func (l *LogSyncOrchestrator) Wait(retryIdx int, ctx context.Context, logsFlushM
 		log.Error("LogSyncOrchestrator.Wait() failed, retryIdx > 20 (2)")
 	} else {
 		receivedCount := l.TelemetryApiMessageReceivedCount.Load()
-		sent := l.NbMessageSent.Load()
+		sent := l.nbMessageSent.Load()
 		if receivedCount != sent {
 			log.Debugf("logSync needs to wait (%v/%v)\n", receivedCount, sent)
 			logsFlushMutex.Lock()
@@ -52,4 +52,8 @@ func (l *LogSyncOrchestrator) Wait(retryIdx int, ctx context.Context, logsFlushM
 			log.Debug("logSync is balanced")
 		}
 	}
+}
+
+func (l *LogSyncOrchestrator) Add(nbMessageReceived uint32) {
+	l.nbMessageSent.Add(nbMessageReceived)
 }

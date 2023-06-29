@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
@@ -23,9 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
-
 	// we don't want to directly import that, use an interface here
-	"github.com/DataDog/datadog-agent/pkg/serverless/logsyncorchestrator"
 )
 
 const (
@@ -49,11 +48,11 @@ var (
 )
 
 // StartServerless starts a Serverless instance of the Logs Agent.
-func StartServerless(logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator) (*Agent, error) {
-	return start(logSyncOrchestrator)
+func StartServerless(logSync util.LogSync) (*Agent, error) {
+	return start(logSync)
 }
 
-func start(logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator) (*Agent, error) {
+func start(logSync util.LogSync) (*Agent, error) {
 	if IsAgentRunning() {
 		return agent, nil
 	}
@@ -95,7 +94,7 @@ func start(logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator) (*Agent
 
 	// setup and start the logs agent
 	log.Info("Starting logs-agent...")
-	agent = NewAgent(sources, services, tracker, processingRules, endpoints, logSyncOrchestrator)
+	agent = NewAgent(sources, services, tracker, processingRules, endpoints, logSync)
 
 	agent.Start()
 	isRunning.Store(true)
