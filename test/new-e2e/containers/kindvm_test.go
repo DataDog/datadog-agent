@@ -7,7 +7,6 @@ package containers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -16,7 +15,7 @@ import (
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -24,11 +23,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type eksSuite struct {
+type kindSuite struct {
 	k8sSuite
 }
 
-func TestEKSSuite(t *testing.T) {
+func TestKindSuite(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
@@ -38,27 +37,26 @@ func TestEKSSuite(t *testing.T) {
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "eks-cluster", stackConfig, eks.Run, false)
+	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		infra.GetStackManager().DeleteStack(ctx, "eks-cluster")
+		infra.GetStackManager().DeleteStack(ctx, "kind-cluster")
 	})
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
-	kubeconfig, err := json.Marshal(stackOutput.Outputs["kubeconfig"].Value.(map[string]interface{}))
-	require.NoError(t, err)
+	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.(string)
 
 	kubeconfigFile := path.Join(t.TempDir(), "kubeconfig")
-	require.NoError(t, os.WriteFile(kubeconfigFile, kubeconfig, 0600))
+	require.NoError(t, os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600))
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigFile)
 	require.NoError(t, err)
 
-	suite.Run(t, &eksSuite{
+	suite.Run(t, &kindSuite{
 		k8sSuite: k8sSuite{
 			AgentLinuxHelmInstallName:   stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string),
-			AgentWindowsHelmInstallName: stackOutput.Outputs["agent-windows-helm-install-name"].Value.(string),
+			AgentWindowsHelmInstallName: "none",
 			Fakeintake:                  fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost)),
 			K8sConfig:                   config,
 			K8sClient:                   kubernetes.NewForConfigOrDie(config),
