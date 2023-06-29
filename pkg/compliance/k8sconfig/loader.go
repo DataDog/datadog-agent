@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/yaml.v3"
 )
@@ -144,8 +145,10 @@ func (l *loader) loadDirMeta(name string) *K8sDirMeta {
 		return nil
 	}
 	return &K8sDirMeta{
-		Path: name,
-		Mode: uint32(info.Mode()),
+		Path:  name,
+		User:  utils.GetFileUser(info),
+		Group: utils.GetFileGroup(info),
+		Mode:  uint32(info.Mode()),
 	}
 }
 
@@ -179,8 +182,11 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 	default:
 		content = string(b)
 	}
+
 	return &K8sConfigFileMeta{
 		Path:    name,
+		User:    utils.GetFileUser(info),
+		Group:   utils.GetFileGroup(info),
 		Mode:    uint32(info.Mode()),
 		Content: content,
 	}
@@ -207,6 +213,8 @@ func (l *loader) loadAdmissionConfigFileMeta(name string) *K8sAdmissionConfigFil
 		result.Plugins = append(result.Plugins, added)
 	}
 	result.Path = name
+	result.User = utils.GetFileUser(info)
+	result.Group = utils.GetFileGroup(info)
 	result.Mode = uint32(info.Mode())
 	return &result
 }
@@ -222,6 +230,8 @@ func (l *loader) loadEncryptionProviderConfigFileMeta(name string) *K8sEncryptio
 		return nil
 	}
 	content.Path = name
+	content.User = utils.GetFileUser(info)
+	content.Group = utils.GetFileGroup(info)
 	content.Mode = uint32(info.Mode())
 	return &content
 }
@@ -232,8 +242,10 @@ func (l *loader) loadTokenFileMeta(name string) *K8sTokenFileMeta {
 		return nil
 	}
 	return &K8sTokenFileMeta{
-		Path: name,
-		Mode: uint32(info.Mode()),
+		Path:  name,
+		User:  utils.GetFileUser(info),
+		Group: utils.GetFileGroup(info),
+		Mode:  uint32(info.Mode()),
 	}
 }
 
@@ -244,6 +256,8 @@ func (l *loader) loadKeyFileMeta(name string) *K8sKeyFileMeta {
 	}
 	var meta K8sKeyFileMeta
 	meta.Path = name
+	meta.User = utils.GetFileUser(info)
+	meta.Group = utils.GetFileGroup(info)
 	meta.Mode = uint32(info.Mode())
 	return &meta
 }
@@ -256,6 +270,8 @@ func (l *loader) loadCertFileMeta(name string) *K8sCertFileMeta {
 	}
 	meta := l.extractCertData(certData)
 	meta.Path = name
+	meta.User = utils.GetFileUser(info)
+	meta.Group = utils.GetFileGroup(info)
 	meta.Mode = uint32(info.Mode())
 	return meta
 }
@@ -377,6 +393,8 @@ func (l *loader) loadKubeconfigMeta(name string) *K8sKubeconfigMeta {
 
 	return &K8sKubeconfigMeta{
 		Path:       name,
+		User:       utils.GetFileUser(info),
+		Group:      utils.GetFileGroup(info),
 		Mode:       uint32(info.Mode()),
 		Kubeconfig: content,
 	}
@@ -435,6 +453,9 @@ func (l *loader) pushError(err error) {
 }
 
 func (l *loader) parseBool(v string) bool {
+	if v == "" {
+		return true
+	}
 	b, err := strconv.ParseBool(v)
 	if err != nil {
 		l.pushError(err)

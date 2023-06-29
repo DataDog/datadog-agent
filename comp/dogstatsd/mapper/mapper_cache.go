@@ -6,16 +6,16 @@
 package mapper
 
 import (
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 type mapperCache struct {
-	cache *lru.Cache
+	cache *lru.Cache[string, *MapResult]
 }
 
 // newMapperCache creates a new mapperCache
 func newMapperCache(size int) (*mapperCache, error) {
-	cache, err := lru.New(size)
+	cache, err := lru.New[string, *MapResult](size)
 	if err != nil {
 		return &mapperCache{}, err
 	}
@@ -27,7 +27,7 @@ func newMapperCache(size int) (*mapperCache, error) {
 // - a boolean indicating if a match has been found
 func (m *mapperCache) get(metricName string) (*MapResult, bool) {
 	if result, ok := m.cache.Get(metricName); ok {
-		return result.(*MapResult), true
+		return result, true
 	}
 	return nil, false
 }

@@ -26,10 +26,11 @@ import (
 )
 
 const (
-	policySource  = "self-test"
-	policyVersion = "1.0.0"
-	policyName    = "datadog-agent-cws-self-test-policy"
-	ruleIDPrefix  = "datadog_agent_cws_self_test_rule"
+	policySource       = "self-test"
+	policyVersion      = "1.0.0"
+	policyName         = "datadog-agent-cws-self-test-policy"
+	ruleIDPrefix       = "datadog_agent_cws_self_test_rule"
+	PolicyProviderType = "selfTesterPolicyProvider"
 )
 
 // EventPredicate defines a self test event validation predicate
@@ -52,6 +53,7 @@ var FileSelfTests = []FileSelfTest{
 type SelfTester struct {
 	waitingForEvent *atomic.Bool
 	eventChan       chan selfTestEvent
+	probe           *probe.Probe
 	success         []string
 	fails           []string
 	lastTimestamp   time.Time
@@ -64,10 +66,11 @@ type SelfTester struct {
 var _ rules.PolicyProvider = (*SelfTester)(nil)
 
 // NewSelfTester returns a new SelfTester, enabled or not
-func NewSelfTester() (*SelfTester, error) {
+func NewSelfTester(probe *probe.Probe) (*SelfTester, error) {
 	s := &SelfTester{
 		waitingForEvent: atomic.NewBool(false),
 		eventChan:       make(chan selfTestEvent, 10),
+		probe:           probe,
 	}
 
 	if err := s.createTargetFile(); err != nil {
@@ -226,4 +229,16 @@ func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) error {
 			return errors.New("failed to receive expected event")
 		}
 	}
+}
+
+func (t *SelfTester) Type() string {
+	return PolicyProviderType
+}
+
+func (t *SelfTester) RuleMatch(rule *rules.Rule, event eval.Event) bool {
+	// send if not selftest related events
+	return !t.IsExpectedEvent(rule, event, t.probe)
+}
+
+func (t *SelfTester) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 }

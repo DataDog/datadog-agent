@@ -111,7 +111,7 @@ func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, va
 		value:      value,
 		tags:       scalarTags,
 		symbol:     metric.Symbol,
-		forcedType: metric.ForcedType,
+		forcedType: metric.MetricType,
 		options:    metric.Options,
 	}
 	ms.sendMetric(sample)
@@ -140,6 +140,13 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				tmpTags := common.CopyStrings(tags)
 				tmpTags = append(tmpTags, metricConfig.StaticTags...)
 				tmpTags = append(tmpTags, getTagsFromMetricTagConfigList(metricConfig.MetricTags, fullIndex, values)...)
+				if isInterfaceTableMetric(symbol.OID) {
+					interfaceCfg, err := getInterfaceConfig(ms.interfaceConfigs, fullIndex, tmpTags)
+					if err != nil {
+						log.Tracef("unable to tag snmp.%s metric with interface_config data: %s", symbol.Name, err.Error())
+					}
+					tmpTags = append(tmpTags, interfaceCfg.Tags...)
+				}
 				rowTagsCache[fullIndex] = tmpTags
 			}
 			rowTags := rowTagsCache[fullIndex]
@@ -147,7 +154,7 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				value:      value,
 				tags:       rowTags,
 				symbol:     symbol,
-				forcedType: metricConfig.ForcedType,
+				forcedType: metricConfig.MetricType,
 				options:    metricConfig.Options,
 			}
 			ms.sendMetric(sample)
@@ -164,6 +171,9 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	metricFullName := "snmp." + metricSample.symbol.Name
 	forcedType := metricSample.forcedType
+	if metricSample.symbol.MetricType != "" {
+		forcedType = metricSample.symbol.MetricType
+	}
 	if forcedType == "" {
 		if metricSample.value.SubmissionType != "" {
 			forcedType = metricSample.value.SubmissionType
@@ -202,7 +212,7 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	case "gauge":
 		ms.Gauge(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case "counter":
+	case "counter", "rate":
 		ms.Rate(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
 	case "percent":

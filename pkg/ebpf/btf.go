@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/gopsutil/host"
 	"github.com/cilium/ebpf/btf"
+	"github.com/cilium/ebpf/linux"
 	"github.com/mholt/archiver/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,7 +41,7 @@ func GetBTF(userProvidedBtfPath, bpfDir string) (*btf.Spec, COREResult) {
 	}
 	log.Debugf("couldn't find BTF in embedded collection: %s", err)
 
-	btfSpec, err = btf.LoadKernelSpec()
+	btfSpec, err = linux.Types()
 	if err == nil {
 		log.Debugf("loaded BTF from default kernel location")
 		return btfSpec, successDefaultBTF

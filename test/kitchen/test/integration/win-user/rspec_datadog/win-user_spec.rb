@@ -8,10 +8,10 @@ G:group_sid
 D:dacl_flags(string_ace1)(string_ace2)... (string_acen)
 S:sacl_flags(string_ace1)(string_ace2)... (string_acen)
 
-Well known SID strings we're interested in 
+Well known SID strings we're interested in
 SY = LOCAL_SYSTEM
 BU = Builtin Users
-BA = Builtin Administrators 
+BA = Builtin Administrators
 
 So, the string O:SYG:SY indicates owner sid is LOCAL_SYSTEM group sid is SYSTEM
 Then, D: indicates what comes after is the DACL, which is a list of ACE strings
@@ -23,7 +23,7 @@ Ace types include
 A = Allowed
 D = Denied
 
-Ace flags 
+Ace flags
 ID = this ace inherited from parent
 
 rights
@@ -48,34 +48,24 @@ A;ID;FA;;;#{dd_user_id} grants the ddagentuser FileAllAccess, this ACE is inheri
 
 shared_examples_for 'an Agent with valid permissions' do
   dd_user_sid = get_user_sid('ddagentuser')
-  #datadog_yaml_sddl = get_sddl_for_object("c:\\programdata\\datadog\\datadog.yaml")
   it 'has proper permissions on programdata\datadog' do
-    # should have a sddl like so 
-    # O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;<sid>)
-
-    # on server 2016, it doesn't have the assigned system right, only the inherited.
-    # allow either
-    #expected_sddl = "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
-    expected_sddl = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
-    expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    # og+ng installers set protected explicit ACE on the config root
+    expected_sddl_ng = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;#{dd_user_sid})"
+    expected_sddl =    "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog")
 
     expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
-                       .or have_sddl_equal_to(expected_sddl_2016)
+                       .or have_sddl_equal_to(expected_sddl_ng)
   end
   it 'has proper permissions on datadog.yaml' do
-    # should have a sddl like so 
-    # O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;<sid>)
-
-    # on server 2016, it doesn't have the assigned system right, only the inherited.
-    # allow either
-    #expected_sddl =   "O:SYG:SYD:(A;;FA;;;SY)(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
-    expected_sddl = "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{dd_user_sid})"
-    expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
+    # ng installer sets inherited ACE
+    expected_sddl_ng = "O:SYG:SYD:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;FA;;;#{dd_user_sid})"
+    # og installer sets protected explicit ACE
+    expected_sddl =    "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\datadog.yaml")
 
     expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
-                       .or have_sddl_equal_to(expected_sddl_2016)
+                       .or have_sddl_equal_to(expected_sddl_ng)
   end
   it 'has proper permissions on the conf.d directory' do
     # A,OICI;FA;;;SY = Allows Object Inheritance (OI) container inherit (CI); File All Access to LocalSystem
@@ -84,10 +74,15 @@ shared_examples_for 'an Agent with valid permissions' do
     # A,OICIID;FA;;;SY = Inherited right of OI, CI, (FA) to LocalSystem
     # A,OICIID;FA;;;dd_user_sid = explicit right assignment of OI, CI, FA to the dd-agent user, inherited from the parent
 
-    expected_sddl =      "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
+    # ng installer sets inherited ACE
+    expected_sddl_ng = "O:SYG:SYD:AI(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)(A;OICIID;FA;;;#{dd_user_sid})"
+    # og installer sets protected explicit ACE
+    expected_sddl =    "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\conf.d")
 
     expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
+                       .or have_sddl_equal_to(expected_sddl_ng)
+
   end
 
   it 'has the proper permissions on the DataDog registry key' do
@@ -131,7 +126,6 @@ shared_examples_for 'an Agent with valid permissions' do
   end
 
   it 'has agent.exe running as ddagentuser' do
-    uname = get_username_from_tasklist("agent.exe")
     expect(get_username_from_tasklist("agent.exe")).to eq("ddagentuser")
   end
   it 'has trace agent running as ddagentuser' do
@@ -159,4 +153,4 @@ describe 'dd-agent-win-user' do
   it_behaves_like 'a running Agent with APM'
   it_behaves_like 'a running Agent with process enabled'
 end
-  
+

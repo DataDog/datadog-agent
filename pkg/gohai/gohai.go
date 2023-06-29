@@ -34,13 +34,39 @@ type Collector interface {
 	Collect() (interface{}, error)
 }
 
+// CollectorV2 is a compatibility layer between the old 'Collector' interface and
+// the way the new API is defined
+type CollectorV2[T Jsonable] struct {
+	name    string
+	collect func() T
+}
+
+// Jsonable represents a type which can be converted to a mashallable object
+type Jsonable interface {
+	AsJSON() (interface{}, []string, error)
+}
+
+// Name returns the name of the CollectorV2
+func (collector *CollectorV2[T]) Name() string {
+	return collector.name
+}
+
+// Collect calls the CollectorV2's collect method and returns only its marshallable object and error
+func (collector *CollectorV2[T]) Collect() (interface{}, error) {
+	json, _, err := collector.collect().AsJSON()
+	return json, err
+}
+
 // SelectedCollectors represents a set of collector names
 type SelectedCollectors map[string]struct{}
 
 var collectors = []Collector{
 	&cpu.Cpu{},
 	&filesystem.FileSystem{},
-	&memory.Memory{},
+	&CollectorV2[*memory.Info]{
+		name:    "memory",
+		collect: memory.CollectInfo,
+	},
 	&network.Network{},
 	&platform.Platform{},
 	&processes.Processes{},

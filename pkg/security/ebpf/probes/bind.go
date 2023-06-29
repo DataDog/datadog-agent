@@ -23,7 +23,7 @@ func getBindProbes() []*manager.Probe {
 	bindProbes = append(bindProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_socket_bind",
+			EBPFFuncName: "hook_security_socket_bind",
 		},
 	})
 

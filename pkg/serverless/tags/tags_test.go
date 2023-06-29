@@ -251,7 +251,7 @@ func TestAddColdStartTagWithoutColdStart(t *testing.T) {
 	generatedTags := AddColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	}, false)
+	}, false, false)
 
 	assert.Equal(t, generatedTags, []string{
 		"myTagName0:myTagValue0",
@@ -264,12 +264,26 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 	generatedTags := AddColdStartTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-	}, true)
+	}, true, false)
 
 	assert.Equal(t, generatedTags, []string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 		"cold_start:true",
+	})
+}
+
+func TestAddColdStartTagWithColdStartAndProactiveInit(t *testing.T) {
+	generatedTags := AddColdStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	}, true, true)
+
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"cold_start:false",
+		"proactive_initialization:true",
 	})
 }
 

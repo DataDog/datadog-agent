@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/module"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules"
+	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -85,9 +85,9 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel := module.NewRuleFilterModel()
-		seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
-		accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+		ruleFilterModel := rules.NewRuleFilterModel()
+		seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
+		accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 			Filters: r.Filters,
 		})
 		if err != nil {
@@ -314,9 +314,9 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel := module.NewRuleFilterModel()
-	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
-	accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+	ruleFilterModel := rules.NewRuleFilterModel()
+	seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
+	accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 		Filters: []string{aptconfig.SeclFilter},
 	})
 	if !accepted || err != nil {

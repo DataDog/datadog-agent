@@ -93,10 +93,7 @@ func FormatConnection(
 		c.Http2Aggregations, _ = proto.Marshal(httpStats2)
 	}
 
-	kafkaStats := kafkaEncoder.GetKafkaAggregations(conn)
-	if kafkaStats != nil {
-		c.DataStreamsAggregations, _ = proto.Marshal(kafkaStats)
-	}
+	c.DataStreamsAggregations = kafkaEncoder.GetKafkaAggregations(conn)
 
 	conn.StaticTags |= staticTags
 	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
@@ -123,14 +120,18 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 
 // FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
-	if tel == nil {
-		return nil
-	}
+	// Fetch USM payload telemetry
+	ret := GetUSMPayloadTelemetry()
 
-	ret := make(map[string]int64)
+	// Merge it with NPM telemetry
 	for k, v := range tel {
 		ret[string(k)] = v
 	}
+
+	if len(ret) == 0 {
+		return nil
+	}
+
 	return ret
 }
 

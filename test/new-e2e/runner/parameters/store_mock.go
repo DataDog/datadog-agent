@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// go:build test
+
 package parameters
 
 var _ valueStore = &mockStore{}
@@ -10,15 +12,15 @@ var _ valueStore = &mockStore{}
 // MockStore dummy store meant for unit tests
 // Its `get` always return the string value of the looked up key
 type mockStore struct {
-	store map[StoreKey]string
+	values map[StoreKey]string
 }
 
-func NewMockStore(storeMap map[StoreKey]string) mockStore {
-	return mockStore{store: storeMap}
+func NewMockStore(values map[StoreKey]string) Store {
+	return newStore(mockStore{values: values})
 }
 
 func (ms mockStore) get(key StoreKey) (string, error) {
-	if value, found := ms.store[key]; found {
+	if value, found := ms.values[key]; found {
 		return value, nil
 	}
 	return string(key), nil
