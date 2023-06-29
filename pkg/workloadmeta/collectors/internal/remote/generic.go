@@ -55,6 +55,7 @@ type StreamHandler interface {
 
 // GenericCollector is a generic remote workloadmeta collector with resync mechanisms.
 type GenericCollector struct {
+	CollectorID   string
 	StreamHandler StreamHandler
 
 	Port int // Currently, only TCP + TLS is supported
@@ -192,7 +193,7 @@ func (c *GenericCollector) Run() {
 		if err != nil {
 			c.streamCancel()
 
-			telemetry.RemoteClientErrors.Inc()
+			telemetry.RemoteClientErrors.Inc(c.CollectorID)
 
 			// when Recv() returns an error, the stream is aborted and the
 			// contents of our store are considered out of sync. The stream must

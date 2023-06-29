@@ -17,9 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 const (
@@ -27,10 +29,12 @@ const (
 )
 
 type client struct {
-	cl pb.ProcessEntityStreamClient
+	cl              pb.ProcessEntityStreamClient
+	parentCollector *remoteProcessCollectorStreamHandler
 }
 
 func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) {
+	c.parentCollector.eventIdSet = false // Can be removed when the remote workloadmeta guarantees to not skip any event
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
 		&pb.ProcessStreamEntitiesRequest{},
@@ -49,14 +53,19 @@ func (s *stream) Recv() (interface{}, error) {
 	return s.cl.Recv()
 }
 
-type remoteProcessCollectorStreamHandler struct{}
+type remoteProcessCollectorStreamHandler struct {
+	lastEventID int32
+	eventIdSet  bool
+}
 
 func init() {
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 		return &remote.GenericCollector{
+			CollectorID:   collectorID,
 			StreamHandler: &remoteProcessCollectorStreamHandler{},
 			Port:          config.Datadog.GetInt("process_config.language_detection.grpc_port"),
+			Insecure:      true, // wlm extractor currently does not support TLS
 		}
 	})
 }
@@ -70,7 +79,7 @@ func (s *remoteProcessCollectorStreamHandler) IsEnabled() error {
 }
 
 func (s *remoteProcessCollectorStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
-	return &client{cl: pb.NewProcessEntityStreamClient(cc)}
+	return &client{cl: pb.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
 func (s *remoteProcessCollectorStreamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
@@ -78,6 +87,19 @@ func (s *remoteProcessCollectorStreamHandler) HandleResponse(resp interface{}) (
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
 	}
+
+	if s.eventIdSet {
+		if response.EventID != s.lastEventID {
+			// This edge case should not occur if the server does not skip any EventID which is not the case for 7.47.0 release
+			log.Warnf("remote process collector server is out of sync: expected id [%d], received id [%d]", s.lastEventID+1, response.EventID)
+			telemetry.RemoteProcessCollectorOutOfSync.Inc()
+		}
+		s.lastEventID = response.EventID
+	} else {
+		s.lastEventID = response.EventID
+		s.eventIdSet = true
+	}
+
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))
 
 	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, protoutils.WorkloadmetaEventFromProcessEventUnset)

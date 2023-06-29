@@ -57,6 +57,7 @@ func init() {
 
 	workloadmeta.RegisterRemoteCollector(collectorID, func() workloadmeta.Collector {
 		return &remote.GenericCollector{
+			CollectorID:   collectorID,
 			StreamHandler: &remoteWorkloadMetaStreamHandler{},
 			Port:          config.Datadog.GetInt("cmd_port"),
 		}
