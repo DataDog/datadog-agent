@@ -223,14 +223,24 @@ def generate_protobuf(ctx):
 
     # msgp targets (file, io)
     msgp_targets = {
-        'trace': [('trace.go', False), ('span.pb.go', False), ('stats.pb.go', True), ('tracer_payload.pb.go', False), ('agent_payload.pb.go', False)],
+        'trace': [
+            ('trace.go', False),
+            ('span.pb.go', False),
+            ('stats.pb.go', True),
+            ('tracer_payload.pb.go', False),
+            ('agent_payload.pb.go', False),
+        ],
         'core': [('remoteconfig.pb.go', False)],
     }
 
     # msgp patches key is `pkg` : (patch, destination)
     #     if `destination` is `None` diff will target inherent patch files
     msgp_patches = {
-        'trace': [('0001-Customize-msgpack-parsing.patch', '-p4'), ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'), ('0003-pkg-trace-traceutil-credit-card-obfuscation-9213.patch', '-p4')],
+        'trace': [
+            ('0001-Customize-msgpack-parsing.patch', '-p4'),
+            ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'),
+            ('0003-pkg-trace-traceutil-credit-card-obfuscation-9213.patch', '-p4'),
+        ],
     }
 
     base = os.path.dirname(os.path.abspath(__file__))
@@ -272,9 +282,7 @@ def generate_protobuf(ctx):
             # so keep it in a variable for sanity.
             output_generator = "--go_out=plugins=grpc:"
             cli_extras = ''
-            ctx.run(
-                f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
-            )
+            ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
 
             if pkg in PKG_PLUGINS:
                 output_generator = PKG_PLUGINS[pkg]
@@ -282,17 +290,13 @@ def generate_protobuf(ctx):
                 if pkg in PKG_CLI_EXTRAS:
                     cli_extras = PKG_CLI_EXTRAS[pkg]
 
-                ctx.run(
-                    f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
-                )
+                ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
 
             if inject_tags:
                 inject_path = os.path.join(proto_root, "pbgo", pkg)
                 # inject_tags logic
                 for target in inject_tag_targets[pkg]:
-                    ctx.run(
-                        f"protoc-go-inject-tag -input={os.path.join(inject_path, target)}"
-                    )
+                    ctx.run(f"protoc-go-inject-tag -input={os.path.join(inject_path, target)}")
 
             if grpc_gateway:
                 # grpc-gateway logic
@@ -309,18 +313,14 @@ def generate_protobuf(ctx):
             print(f"{mockgen_out} folder already exists")
 
         # TODO: this should be parametrized
-        ctx.run(
-            f"mockgen -source={pbgo_dir}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go"
-        )
+        ctx.run(f"mockgen -source={pbgo_dir}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
 
     # generate messagepack marshallers
     for pkg, files in msgp_targets.items():
         for (src, io_gen) in files:
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
-            ctx.run(
-                f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}"
-            )
+            ctx.run(f"msgp -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}")
 
     # apply msgp patches
     for pkg, patches in msgp_patches.items():
@@ -328,7 +328,6 @@ def generate_protobuf(ctx):
             patch_file = os.path.join(proto_root, "patches", patch[0])
             switches = patch[1] if patch[1] else ''
             ctx.run(f"git apply {switches} --unsafe-paths --directory='{pbgo_dir}/{pkg}' {patch_file}")
-
 
 
 @task
