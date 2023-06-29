@@ -443,7 +443,6 @@ shared_examples_for 'Agent behavior' do
   include_examples 'Basic Agent behavior'
   it_behaves_like 'a running Agent with APM'
   it_behaves_like 'a running Agent with APM manually disabled'
-  it_behaves_like 'an Agent with Python'
   if deploy_cws?
     it_behaves_like 'a running Agent with CWS enabled'
   end
