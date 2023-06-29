@@ -143,13 +143,14 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 func StartSystemProbeWithDefaults() error {
 	// run startSystemProbe in an app, so that the log and config components get initialized
 	return fxutil.OneShot(
-		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component) error {
-			return startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, sysprobeconfig)
+		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
+			return startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, sysprobeconfig, rcclient)
 		},
 		// no config file path specification in this situation
 		fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
 		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""), sysprobeconfig.WithConfigLoadSecrets(true))),
 		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		rcclient.Module,
 		config.Module,
 		sysprobeconfig.Module,
 		// use system-probe config instead of agent config for logging
