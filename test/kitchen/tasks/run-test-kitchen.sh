@@ -171,7 +171,6 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   fi
 
   if [ "$result" -eq 0 ]; then
-      # if kitchen test succeeded, exit with 0
       echo "Kitchen test succeeded exiting 0"
       exit 0
   else

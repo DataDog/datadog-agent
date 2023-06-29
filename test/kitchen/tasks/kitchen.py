@@ -180,9 +180,11 @@ def should_rerun_failed(_, runlog):
         result_gotest = set(test_result_re_gotest.findall(text))
         result = result_rspec.union(result_gotest)
         if result == {'0'} or result == set():
-            print("Seeing no failed tests in log, advising to rerun")
+            print(
+                "Seeing no failed kitchen tests in log this is probably an infrastructure problem, advising to rerun the failed test suite"
+            )
         else:
-            raise Exit("Seeing some failed tests in log, not advising to rerun", 1)
+            raise Exit("Seeing some failed kitchen tests in log, not advising to rerun the failed test suite", 1)
 
 
 @task
