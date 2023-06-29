@@ -19,6 +19,7 @@ A `stack` may be:
 > All subsequent commands are assumed to be executed from the root directory of the datadog-agent repository.
 
 ## Dependencies
+### Linux
 Review and run `tasks/kernel_matrix_testing/env-setup.sh`   
    
 Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.   
@@ -29,6 +30,9 @@ export PULUMI_CONFIG_PASSPHRASE=dummy
 pulumi --non-interactive plugin install
 pulumi --non-interactive plugin ls
 ```
+
+### MacOS
+> Coming soon...
 
 ## Getting started
 A straightforward flow to setup a collections of VMs is as follows:
