@@ -1347,12 +1347,12 @@ func LoadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -1499,12 +1499,7 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
-// LoadDatadogCustom has several datadog.yaml customizations that other configs may not need with LoadCusto
-func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(config, origin, loadSecret, nil)
-}
-
-func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
