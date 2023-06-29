@@ -46,7 +46,7 @@ func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 		srv := workloadmeta.NewGRPCServer(config, wlmExtractor)
 		err := srv.Start()
 		if err != nil {
-			_ = log.Error("Failed to start the workload meta gRPC server:", err)
+			log.Error("Failed to start the workload meta gRPC server:", err)
 		} else {
 			extractors = append(extractors, wlmExtractor)
 			wlmServer = srv

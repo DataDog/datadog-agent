@@ -6,8 +6,8 @@
 package workloadmeta
 
 import (
-	"fmt"
 	"net"
+	"strconv"
 	"sync"
 
 	"google.golang.org/grpc"
@@ -73,7 +73,7 @@ func (l *GRPCServer) Start() error {
 
 		err = l.server.Serve(listener)
 		if err != nil {
-			_ = log.Error(err)
+			log.Error(err)
 		}
 	}()
 
@@ -106,7 +106,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	}
 	err := out.Send(syncMessage)
 	if err != nil {
-		log.Errorf("error sending process entity event: %s", err)
+		log.Warnf("error sending process entity event: %s", err)
 		return err
 	}
 
@@ -114,8 +114,8 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	for {
 		select {
 		case diff := <-l.extractor.ProcessCacheDiff():
-			// Do not send diff if it has the same version of the cache snapshot sent on the connection creation
-			if diff.cacheVersion == snapshotVersion {
+			// Do not send diff if it has the same or older version of the cache snapshot sent on the connection creation
+			if diff.cacheVersion <= snapshotVersion {
 				continue
 			}
 
@@ -139,18 +139,19 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 // getListener returns a listening connection
 func getListener(cfg config.ConfigReader) (net.Listener, error) {
-	address, err := config.GetIPCAddress()
+	host, err := config.GetIPCAddress()
 	if err != nil {
 		return nil, err
 	}
 
-	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, getGRPCStreamPort(cfg)))
+	address := net.JoinHostPort(host, strconv.Itoa(getGRPCStreamPort(cfg)))
+	return net.Listen("tcp", address)
 }
 
 func getGRPCStreamPort(cfg config.ConfigReader) int {
 	grpcPort := cfg.GetInt("process_config.language_detection.grpc_port")
 	if grpcPort <= 0 {
-		_ = log.Warnf("Invalid process_config.language_detection.grpc_port -- %d, using default port %d", grpcPort, config.DefaultProcessEntityStreamPort)
+		log.Warnf("Invalid process_config.language_detection.grpc_port -- %d, using default port %d", grpcPort, config.DefaultProcessEntityStreamPort)
 		grpcPort = config.DefaultProcessEntityStreamPort
 	}
 	return grpcPort

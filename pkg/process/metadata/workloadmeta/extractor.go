@@ -91,9 +91,12 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	w.cacheVersion++
 	w.cacheMutex.Unlock()
 
-	// If previous cache diff hasn't been consumed, drop it
-	if len(w.diffChan) > 0 {
-		<-w.diffChan
+	// Drop previous cache diff if it hasn't been consumed yet
+	select {
+	case <-w.diffChan:
+		// drop message
+		break
+	default:
 	}
 
 	diff := &ProcessCacheDiff{

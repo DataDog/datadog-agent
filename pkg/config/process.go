@@ -50,8 +50,7 @@ const (
 	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
 	DefaultProcessCmdPort = 6162
 
-	// DefaultProcessEntityStreamPort is the default port used by the WorkloadMetaExtractor for sending process payloads
-	// to the core agent
+	// DefaultProcessEntityStreamPort is the default port used by the process-agent to expose Process Entities
 	DefaultProcessEntityStreamPort = 6262
 
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
