@@ -205,7 +205,9 @@ func (dr *Resolver) DelCacheEntry(mountID uint32, inode uint64) {
 // DelCacheEntries removes all the entries belonging to a mountID
 func (dr *Resolver) DelCacheEntries(mountID uint32) {
 	entries := dr.cache[mountID]
-	entries.Purge()
+	if entries != nil {
+		entries.Purge()
+	}
 	delete(dr.cache, mountID)
 }
 
