@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [corechecks/snmp] Add forced type ``rate`` as alternative to ``counter``.
+    [corechecks/snmp] Add forced type ``rate`` as an alternative to ``counter``.
