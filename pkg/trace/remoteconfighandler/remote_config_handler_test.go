@@ -26,7 +26,7 @@ import (
 func TestStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient}
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
@@ -56,7 +56,7 @@ func TestPrioritySampler(t *testing.T) {
 	rareSampler := NewMockrareSampler(ctrl)
 	pkglog.SetupLogger(seelog.Default, "debug")
 
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -87,7 +87,7 @@ func TestErrorsSampler(t *testing.T) {
 	rareSampler := NewMockrareSampler(ctrl)
 	pkglog.SetupLogger(seelog.Default, "debug")
 
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -118,7 +118,7 @@ func TestRareSampler(t *testing.T) {
 	rareSampler := NewMockrareSampler(ctrl)
 	pkglog.SetupLogger(seelog.Default, "debug")
 
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -149,7 +149,7 @@ func TestEnvPrecedence(t *testing.T) {
 	rareSampler := NewMockrareSampler(ctrl)
 	pkglog.SetupLogger(seelog.Default, "debug")
 
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -197,10 +197,10 @@ func TestLogLevel(t *testing.T) {
 	port, _ := strconv.Atoi(strings.Split(srv.URL, ":")[2])
 
 	agentConfig := config.AgentConfig{
-		RemoteSamplingClient: remoteClient,
-		DefaultEnv:           "agent-env",
-		ReceiverHost:         "127.0.0.1",
-		ReceiverPort:         port,
+		RemoteConfigClient: remoteClient,
+		DefaultEnv:         "agent-env",
+		ReceiverHost:       "127.0.0.1",
+		ReceiverPort:       port,
 	}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 

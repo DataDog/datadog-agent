@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 )
@@ -45,17 +46,18 @@ type RemoteConfigHandler struct {
 }
 
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
-	if conf.RemoteSamplingClient == nil {
+	if conf.RemoteConfigClient == nil {
 		return nil
 	}
 
 	level, err := pkglog.GetLogLevel()
 	if err != nil {
+		log.Errorf("couldn't get the default log level: %s", err)
 		return nil
 	}
 
 	return &RemoteConfigHandler{
-		remoteClient:    conf.RemoteSamplingClient,
+		remoteClient:    conf.RemoteConfigClient,
 		prioritySampler: prioritySampler,
 		rareSampler:     rareSampler,
 		errorsSampler:   errorsSampler,
@@ -82,6 +84,7 @@ func (h *RemoteConfigHandler) Start() {
 func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig) {
 	mergedConfig, err := state.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
 	if err != nil {
+		log.Debugf("couldn't merge the agent config from remote configuration: %s", err)
 		return
 	}
 
@@ -110,6 +113,10 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 				resp.Body.Close()
 			}
 		}
+	}
+
+	if err != nil {
+		log.Errorf("couldn't apply the remote configuration agent config: %s", err)
 	}
 
 	// Apply the new status to all configs

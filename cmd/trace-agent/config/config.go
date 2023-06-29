@@ -97,7 +97,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
-			cfg.RemoteSamplingClient = client
+			cfg.RemoteConfigClient = client
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
