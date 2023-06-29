@@ -51,10 +51,10 @@ func (l *LogSyncOrchestrator) Wait(retryIdx int, ctx context.Context, flush func
 			log.Debugf("logSync needs to wait (%v/%v)\n", receivedCount, sent)
 			time.Sleep(100 * time.Millisecond)
 			if !l.isProcessing {
-				log.Debugf("logSync is not processing, trigger a new flush\n")
+				log.Debug("logSync is not processing, trigger a new flush")
 				flush(ctx)
 			} else {
-				log.Debugf("logSync is processing, just wait\n")
+				log.Debug("logSync is processing, just wait")
 			}
 			l.Wait(retryIdx+1, ctx, flush)
 		} else {
