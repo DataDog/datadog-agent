@@ -16,15 +16,17 @@ import (
 // easyjson:json
 type SelfTestEvent struct {
 	CustomEventCommonFields
-	Success []string `json:"succeeded_tests"`
-	Fails   []string `json:"failed_tests"`
+	Success    []string                `json:"succeeded_tests"`
+	Fails      []string                `json:"failed_tests"`
+	TestEvents map[string]*model.Event `json:"test_events"`
 }
 
 // NewSelfTestEvent returns the rule and the result of the self test
-func NewSelfTestEvent(success []string, fails []string) (*rules.Rule, *CustomEvent) {
+func NewSelfTestEvent(success []string, fails []string, testEvents map[string]*model.Event) (*rules.Rule, *CustomEvent) {
 	evt := SelfTestEvent{
-		Success: success,
-		Fails:   fails,
+		Success:    success,
+		Fails:      fails,
+		TestEvents: testEvents,
 	}
 	evt.FillCustomEventCommonFields()
 
