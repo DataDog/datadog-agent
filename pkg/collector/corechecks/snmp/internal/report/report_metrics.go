@@ -32,7 +32,7 @@ type MetricSample struct {
 	value      valuestore.ResultValue
 	tags       []string
 	symbol     checkconfig.SymbolConfig
-	forcedType string
+	forcedType checkconfig.ProfileMetricType
 	options    checkconfig.MetricsConfigOption
 }
 
@@ -209,19 +209,19 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	}
 
 	switch forcedType {
-	case "gauge":
+	case checkconfig.ProfileMetricTypeGauge:
 		ms.Gauge(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case "counter":
+	case checkconfig.ProfileMetricTypeCounter:
 		ms.Rate(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case "percent":
+	case checkconfig.ProfileMetricTypePercent:
 		ms.Rate(metricFullName, floatValue*100, metricSample.tags)
 		ms.submittedMetrics++
-	case "monotonic_count":
+	case checkconfig.ProfileMetricTypeMonotonicCount:
 		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case "monotonic_count_and_rate":
+	case checkconfig.ProfileMetricTypeMonotonicCountAndRate4:
 		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
 		ms.Rate(metricFullName+".rate", floatValue, metricSample.tags)
 		ms.submittedMetrics += 2
