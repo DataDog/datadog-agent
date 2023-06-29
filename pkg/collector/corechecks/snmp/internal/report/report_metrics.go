@@ -220,7 +220,7 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	case checkconfig.ProfileMetricTypeMonotonicCount:
 		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case checkconfig.ProfileMetricTypeMonotonicCountAndRate4:
+	case checkconfig.ProfileMetricTypeMonotonicCountAndRate:
 		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
 		ms.Rate(metricFullName+".rate", floatValue, metricSample.tags)
 		ms.submittedMetrics += 2

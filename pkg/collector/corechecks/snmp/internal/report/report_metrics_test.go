@@ -110,7 +110,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				MetricType: checkconfig.ProfileMetricTypeMonotonicCountAndRate4,
+				MetricType: checkconfig.ProfileMetricTypeMonotonicCountAndRate,
 			},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
@@ -124,7 +124,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				MetricType: checkconfig.ProfileMetricTypeMonotonicCountAndRate4,
+				MetricType: checkconfig.ProfileMetricTypeMonotonicCountAndRate,
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric.rate",
