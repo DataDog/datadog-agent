@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 )
 
 type eventsManager struct {
-	events      []coreMetrics.Event
+	events      []event.Event
 	eventsMutex sync.Mutex
 }
 
@@ -57,23 +57,23 @@ func (em *eventsManager) sendEvents(sender sender.Sender) {
 	}
 }
 
-func (em *eventsManager) storeEvent(event coreMetrics.Event) {
+func (em *eventsManager) storeEvent(event event.Event) {
 	em.eventsMutex.Lock()
 	defer em.eventsMutex.Unlock()
 	em.events = append(em.events, event)
 }
 
-func eventForRelease(rel *release, text string, tags []string) coreMetrics.Event {
+func eventForRelease(rel *release, text string, tags []string) event.Event {
 	status := ""
 	if rel.Info != nil {
 		status = rel.Info.Status
 	}
 
-	return coreMetrics.Event{
+	return event.Event{
 		Title:          eventTitle,
 		Text:           text,
 		Ts:             time.Now().Unix(),
-		Priority:       coreMetrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		SourceTypeName: checkName,
 		EventType:      checkName,
 		AggregationKey: fmt.Sprintf("helm_release:%s", rel.namespacedName()),
@@ -115,10 +115,10 @@ func textForChangedStatus(previousRelStatus string, updatedRelease *release) str
 		updatedRelease.Info.Status)
 }
 
-func alertType(releaseStatus string) coreMetrics.EventAlertType {
+func alertType(releaseStatus string) event.EventAlertType {
 	if releaseStatus == helmStatusFailed {
-		return coreMetrics.EventAlertTypeError
+		return event.EventAlertTypeError
 	}
 
-	return coreMetrics.EventAlertTypeInfo
+	return event.EventAlertTypeInfo
 }

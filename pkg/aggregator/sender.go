@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,7 +24,7 @@ import (
 type RawSender interface {
 	SendRawMetricSample(sample *metrics.MetricSample)
 	SendRawServiceCheck(sc *metrics.ServiceCheck)
-	Event(e metrics.Event)
+	Event(e event.Event)
 }
 
 // checkSender implements Sender
@@ -36,7 +37,7 @@ type checkSender struct {
 	statsLock               sync.RWMutex
 	itemsOut                chan<- senderItem
 	serviceCheckOut         chan<- metrics.ServiceCheck
-	eventOut                chan<- metrics.Event
+	eventOut                chan<- event.Event
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
@@ -97,7 +98,7 @@ func newCheckSender(
 	defaultHostname string,
 	itemsOut chan<- senderItem,
 	serviceCheckOut chan<- metrics.ServiceCheck,
-	eventOut chan<- metrics.Event,
+	eventOut chan<- event.Event,
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata,
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
 	eventPlatformOut chan<- senderEventPlatformEvent,
@@ -363,7 +364,7 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 }
 
 // Event submits an event
-func (s *checkSender) Event(e metrics.Event) {
+func (s *checkSender) Event(e event.Event) {
 	e.Tags = append(e.Tags, s.checkTags...)
 
 	log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)

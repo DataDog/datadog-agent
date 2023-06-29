@@ -52,18 +52,18 @@ func preAllocateMetrics(n int) map[string][]*metrics.MetricSample {
 	return metricMap
 }
 
-func preAllocateEvents(n int) []*metrics.Event {
-	events := make([]*metrics.Event, n)
+func preAllocateEvents(n int) []*event.Event {
+	events := make([]*event.Event, n)
 
 	for i := range events {
-		event := &metrics.Event{
+		event := &event.Event{
 			Title:          "Event title",
 			Text:           "some text",
 			Ts:             21,
-			Priority:       metrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			Host:           "localhost",
 			Tags:           []string{"a", "b:21", "c"},
-			AlertType:      metrics.EventAlertTypeWarning,
+			AlertType:      event.EventAlertTypeWarning,
 			AggregationKey: "",
 			SourceTypeName: "",
 			EventType:      "",

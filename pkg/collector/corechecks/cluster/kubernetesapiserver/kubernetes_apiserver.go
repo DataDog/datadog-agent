@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -90,7 +91,7 @@ type collectedEventType struct {
 }
 
 type eventTransformer interface {
-	Transform([]*v1.Event) ([]metrics.Event, []error)
+	Transform([]*v1.Event) ([]event.Event, []error)
 }
 
 type eventCollection struct {
@@ -251,7 +252,7 @@ func (k *KubeASCheck) Run() error {
 	return nil
 }
 
-func (k *KubeASCheck) eventCollectionCheck() ([]metrics.Event, error) {
+func (k *KubeASCheck) eventCollectionCheck() ([]event.Event, error) {
 	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
 	if err != nil {
 		return nil, err

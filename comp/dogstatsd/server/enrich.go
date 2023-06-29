@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -210,34 +211,34 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	})
 }
 
-func enrichEventPriority(priority eventPriority) metrics.EventPriority {
+func enrichEventPriority(priority eventPriority) metricsevent.EventPriority {
 	switch priority {
 	case priorityNormal:
-		return metrics.EventPriorityNormal
+		return metricsevent.EventPriorityNormal
 	case priorityLow:
-		return metrics.EventPriorityLow
+		return metricsevent.EventPriorityLow
 	}
-	return metrics.EventPriorityNormal
+	return metricsevent.EventPriorityNormal
 }
 
-func enrichEventAlertType(dogstatsdAlertType alertType) metrics.EventAlertType {
+func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.EventAlertType {
 	switch dogstatsdAlertType {
 	case alertTypeSuccess:
-		return metrics.EventAlertTypeSuccess
+		return metricsevent.EventAlertTypeSuccess
 	case alertTypeInfo:
-		return metrics.EventAlertTypeInfo
+		return metricsevent.EventAlertTypeInfo
 	case alertTypeWarning:
-		return metrics.EventAlertTypeWarning
+		return metricsevent.EventAlertTypeWarning
 	case alertTypeError:
-		return metrics.EventAlertTypeError
+		return metricsevent.EventAlertTypeError
 	}
-	return metrics.EventAlertTypeSuccess
+	return metricsevent.EventAlertTypeSuccess
 }
 
-func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metrics.Event {
+func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metricsevent.Event {
 	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(event.tags, origin, event.containerID, conf)
 
-	enrichedEvent := &metrics.Event{
+	enrichedEvent := &metricsevent.Event{
 		Title:            event.title,
 		Text:             event.text,
 		Ts:               event.timestamp,

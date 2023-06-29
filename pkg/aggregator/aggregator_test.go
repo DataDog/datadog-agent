@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -184,20 +185,20 @@ func TestAddEventDefaultValues(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
-	agg.addEvent(metrics.Event{
+	agg.addEvent(event.Event{
 		// only populate required fields
 		Title: "An event occurred",
 		Text:  "Event description",
 	})
-	agg.addEvent(metrics.Event{
+	agg.addEvent(event.Event{
 		// populate all fields
 		Title:          "Another event occurred",
 		Text:           "Other event description",
 		Ts:             12345,
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar", "foo"},
-		AlertType:      metrics.EventAlertTypeError,
+		AlertType:      event.EventAlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
 	})
@@ -219,9 +220,9 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "Another event occurred", event2.Title)
 	assert.Equal(t, "my-hostname", event2.Host)
 	assert.Equal(t, int64(12345), event2.Ts)
-	assert.Equal(t, metrics.EventPriorityNormal, event2.Priority)
+	assert.Equal(t, event.EventPriorityNormal, event2.Priority)
 	assert.ElementsMatch(t, []string{"foo", "bar"}, event2.Tags)
-	assert.Equal(t, metrics.EventAlertTypeError, event2.AlertType)
+	assert.Equal(t, event.EventAlertTypeError, event2.AlertType)
 	assert.Equal(t, "my_agg_key", event2.AggregationKey)
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
 }

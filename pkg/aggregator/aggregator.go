@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -193,9 +194,9 @@ func init() {
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
-	bufferedEventIn        chan []*metrics.Event
+	bufferedEventIn        chan []*event.Event
 
-	eventIn        chan metrics.Event
+	eventIn        chan event.Event
 	serviceCheckIn chan metrics.ServiceCheck
 
 	checkItems             chan senderItem
@@ -210,7 +211,7 @@ type BufferedAggregator struct {
 	tagsStore              *tags.Store
 	checkSamplers          map[id.ID]*CheckSampler
 	serviceChecks          metrics.ServiceChecks
-	events                 metrics.Events
+	events                 event.Events
 	manifests              []*senderOrchestratorManifest
 	flushInterval          time.Duration
 	mu                     sync.Mutex // to protect the checkSamplers field
@@ -267,10 +268,10 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 	aggregator := &BufferedAggregator{
 		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
-		bufferedEventIn:        make(chan []*metrics.Event, bufferSize),
+		bufferedEventIn:        make(chan []*event.Event, bufferSize),
 
 		serviceCheckIn: make(chan metrics.ServiceCheck, bufferSize),
-		eventIn:        make(chan metrics.Event, bufferSize),
+		eventIn:        make(chan event.Event, bufferSize),
 
 		checkItems: make(chan senderItem, bufferSize),
 
@@ -361,7 +362,7 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 }
 
 // GetBufferedChannels returns a channel which can be subsequently used to send Event or ServiceCheck.
-func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan []*metrics.ServiceCheck) {
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
@@ -442,7 +443,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 }
 
 // addEvent adds the event to the slice of current events
-func (agg *BufferedAggregator) addEvent(e metrics.Event) {
+func (agg *BufferedAggregator) addEvent(e event.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
@@ -630,7 +631,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerial
 }
 
 // GetEvents grabs the events from the queue and clears it
-func (agg *BufferedAggregator) GetEvents() metrics.Events {
+func (agg *BufferedAggregator) GetEvents() event.Events {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	events := agg.events
@@ -644,7 +645,7 @@ func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Me
 	return agg.eventPlatformForwarder.Purge()
 }
 
-func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events) {
+func (agg *BufferedAggregator) sendEvents(start time.Time, events event.Events) {
 	log.Debugf("Flushing %d events to the forwarder", len(events))
 	err := agg.serializer.SendEvents(events)
 	state := stateOk

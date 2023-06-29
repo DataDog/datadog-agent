@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
@@ -86,7 +87,7 @@ func initExtraHeaders() {
 
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
-	SendEvents(e metrics.Events) error
+	SendEvents(e event.Events) error
 	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
 	SendIterableSeries(serieSource metrics.SerieSource) error
 	AreSeriesEnabled() bool
@@ -258,7 +259,7 @@ func (s Serializer) serializeEventsStreamJSONMarshalerPayload(
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *Serializer) SendEvents(events metrics.Events) error {
+func (s *Serializer) SendEvents(events event.Events) error {
 	if !s.enableEvents {
 		log.Debug("events payloads are disabled: dropping it")
 		return nil

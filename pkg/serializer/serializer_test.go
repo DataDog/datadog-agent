@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -230,7 +231,7 @@ func TestSendV1Events(t *testing.T) {
 	f.On("SubmitV1Intake", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f, nil)
-	err := s.SendEvents([]*metrics.Event{})
+	err := s.SendEvents([]*event.Event{})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -242,7 +243,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 
 	s := NewSerializer(f, nil)
 
-	events := metrics.Events{&metrics.Event{SourceTypeName: "source1"}, &metrics.Event{SourceTypeName: "source2"}, &metrics.Event{SourceTypeName: "source3"}}
+	events := event.Events{&event.Event{SourceTypeName: "source1"}, &event.Event{SourceTypeName: "source2"}, &event.Event{SourceTypeName: "source3"}}
 	payloadsCountMatcher := func(payloadCount int) interface{} {
 		return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 			return len(payloads) == payloadCount
@@ -384,7 +385,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 
 	payload := &testPayload{}
 
-	s.SendEvents(make(metrics.Events, 0))
+	s.SendEvents(make(event.Events, 0))
 	s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	s.SendSketch(metrics.NewSketchesSourceTest())
 	s.SendServiceChecks(make(metrics.ServiceChecks, 0))

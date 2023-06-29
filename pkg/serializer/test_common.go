@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -20,7 +21,7 @@ type MockSerializer struct {
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
-func (s *MockSerializer) SendEvents(events metrics.Events) error {
+func (s *MockSerializer) SendEvents(events event.Events) error {
 	return s.Called(events).Error(0)
 }
 

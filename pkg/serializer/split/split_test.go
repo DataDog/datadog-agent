@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -172,7 +173,7 @@ func TestSplitPayloadsEvents(t *testing.T) {
 func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 	testEvent := metricsserializer.Events{}
 	for i := 0; i < numPoints; i++ {
-		event := metrics.Event{
+		event := event.Event{
 			Title:          "test title",
 			Text:           "test text",
 			Ts:             12345,

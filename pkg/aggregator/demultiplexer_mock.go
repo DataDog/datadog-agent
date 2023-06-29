@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 // TestAgentDemultiplexer is an implementation of the Demultiplexer which is sending
@@ -27,7 +28,7 @@ type TestAgentDemultiplexer struct {
 	noAggSamples      []metrics.MetricSample
 	sync.Mutex
 
-	events        chan []*metrics.Event
+	events        chan []*event.Event
 	serviceChecks chan []*metrics.ServiceCheck
 }
 
@@ -51,7 +52,7 @@ func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventP
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
-func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*metrics.ServiceCheck) {
 	return a.events, a.serviceChecks
 }
 
@@ -163,7 +164,7 @@ func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOption
 	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "hostname")
 	testAgent := TestAgentDemultiplexer{
 		AgentDemultiplexer: demux,
-		events:             make(chan []*metrics.Event),
+		events:             make(chan []*event.Event),
 		serviceChecks:      make(chan []*metrics.ServiceCheck),
 	}
 	return &testAgent

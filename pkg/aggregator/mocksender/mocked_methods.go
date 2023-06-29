@@ -8,6 +8,7 @@ package mocksender
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -67,7 +68,7 @@ func (m *MockSender) DisableDefaultHostname(d bool) {
 }
 
 // Event enables the event mock call.
-func (m *MockSender) Event(e metrics.Event) {
+func (m *MockSender) Event(e event.Event) {
 	m.Called(e)
 }
 

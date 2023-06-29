@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 // AssertServiceCheck allows to assert a ServiceCheck was exclusively emitted with given parameters.
@@ -61,7 +62,7 @@ func (m *MockSender) AssertMetricNotTaggedWith(t *testing.T, method string, metr
 
 // AssertEvent assert the expectedEvent was emitted with the following values:
 // AggregationKey, Priority, SourceTypeName, EventType, Host and a Ts range weighted with the parameter allowedDelta
-func (m *MockSender) AssertEvent(t *testing.T, expectedEvent metrics.Event, allowedDelta time.Duration) bool {
+func (m *MockSender) AssertEvent(t *testing.T, expectedEvent event.Event, allowedDelta time.Duration) bool {
 	return m.Mock.AssertCalled(t, "Event", MatchEventLike(expectedEvent, allowedDelta))
 }
 
@@ -72,7 +73,7 @@ func (m *MockSender) AssertEventPlatformEvent(t *testing.T, expectedRawEvent []b
 
 // AssertEventMissing assert the expectedEvent was never emitted with the following values:
 // AggregationKey, Priority, SourceTypeName, EventType, Host and a Ts range weighted with the parameter allowedDelta
-func (m *MockSender) AssertEventMissing(t *testing.T, expectedEvent metrics.Event, allowedDelta time.Duration) bool {
+func (m *MockSender) AssertEventMissing(t *testing.T, expectedEvent event.Event, allowedDelta time.Duration) bool {
 	return m.Mock.AssertNotCalled(t, "Event", MatchEventLike(expectedEvent, allowedDelta))
 }
 
@@ -112,8 +113,8 @@ func AssertFloatInRange(min float64, max float64) interface{} {
 // It allows to check if an event is Equal on the following Event elements:
 // AggregationKey, Priority, SourceTypeName, EventType, Host and Tag list
 // Also do a timestamp comparison with a tolerance defined by allowedDelta
-func MatchEventLike(expected metrics.Event, allowedDelta time.Duration) interface{} {
-	return mock.MatchedBy(func(actual metrics.Event) bool {
+func MatchEventLike(expected event.Event, allowedDelta time.Duration) interface{} {
+	return mock.MatchedBy(func(actual event.Event) bool {
 		expectedTime := time.Unix(expected.Ts, 0)
 		actualTime := time.Unix(actual.Ts, 0)
 		dt := expectedTime.Sub(actualTime)
@@ -126,7 +127,7 @@ func MatchEventLike(expected metrics.Event, allowedDelta time.Duration) interfac
 
 // Compare an Event on specifics values:
 // AggregationKey, Priority, SourceTypeName, EventType, Host, and tag list
-func eventLike(expectedEvent, actualEvent metrics.Event) bool {
+func eventLike(expectedEvent, actualEvent event.Event) bool {
 	return (assert.ObjectsAreEqualValues(expectedEvent.AggregationKey, actualEvent.AggregationKey) &&
 		assert.ObjectsAreEqualValues(expectedEvent.Priority, actualEvent.Priority) &&
 		assert.ObjectsAreEqualValues(expectedEvent.SourceTypeName, actualEvent.SourceTypeName) &&

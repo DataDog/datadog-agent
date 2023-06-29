@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -185,7 +186,7 @@ func TestSendAPMStats(t *testing.T) {
 // MockSerializer implements a no-op serializer.MetricSerializer.
 type MockSerializer struct{}
 
-func (m *MockSerializer) SendEvents(_ metrics.Events) error                       { return nil }
+func (m *MockSerializer) SendEvents(_ event.Events) error                         { return nil }
 func (m *MockSerializer) SendServiceChecks(_ metrics.ServiceChecks) error         { return nil }
 func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error          { return nil }
 func (m *MockSerializer) AreSeriesEnabled() bool                                  { return true }

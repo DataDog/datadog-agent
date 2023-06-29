@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 type unittestMock struct {
@@ -119,24 +120,24 @@ func TestMockedEvent(t *testing.T) {
 	tags := []string{"one", "two"}
 
 	eventTimestamp := time.Date(2010, 01, 01, 01, 01, 01, 00, time.UTC).Unix()
-	eventOne := metrics.Event{
+	eventOne := event.Event{
 		Ts:             eventTimestamp,
 		EventType:      "docker",
 		Tags:           tags,
 		AggregationKey: "docker:busybox",
 		SourceTypeName: "docker",
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 	}
 	sender.Event(eventOne)
 	sender.AssertEvent(t, eventOne, time.Second)
 
-	eventTwo := metrics.Event{
+	eventTwo := event.Event{
 		Ts:             eventTimestamp,
 		EventType:      "docker",
 		Tags:           tags,
 		AggregationKey: "docker:redis",
 		SourceTypeName: "docker",
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 	}
 	sender.AssertEventMissing(t, eventTwo, 0)
 

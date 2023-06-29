@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 // #include <datadog_agent_rtloader.h>
@@ -186,7 +187,7 @@ func testSubmitEvent(t *testing.T) {
 
 	SubmitEvent(C.CString("testID"), &ev)
 
-	expectedEvent := metrics.Event{
+	expectedEvent := event.Event{
 		Title:          "ev_title",
 		Text:           "ev_text",
 		Ts:             21,

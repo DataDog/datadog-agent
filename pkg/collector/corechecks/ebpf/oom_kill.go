@@ -136,8 +136,8 @@ func (m *OOMKillCheck) Run() error {
 		sender.Count("oom_kill.oom_process.count", 1, "", tags)
 
 		// submit event with a few more details
-		event := metrics.Event{
-			Priority:       metrics.EventPriorityNormal,
+		event := event.Event{
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: oomKillCheckName,
 			EventType:      oomKillCheckName,
 			AggregationKey: containerID,

@@ -18,13 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type senderWithChans struct {
 	itemChan                 chan senderItem
 	serviceCheckChan         chan metrics.ServiceCheck
-	eventChan                chan metrics.Event
+	eventChan                chan event.Event
 	orchestratorChan         chan senderOrchestratorMetadata
 	orchestratorManifestChan chan senderOrchestratorManifest
 	eventPlatformEventChan   chan senderEventPlatformEvent
@@ -34,7 +35,7 @@ type senderWithChans struct {
 func initSender(id id.ID, defaultHostname string) (s senderWithChans) {
 	s.itemChan = make(chan senderItem, 10)
 	s.serviceCheckChan = make(chan metrics.ServiceCheck, 10)
-	s.eventChan = make(chan metrics.Event, 10)
+	s.eventChan = make(chan event.Event, 10)
 	s.orchestratorChan = make(chan senderOrchestratorMetadata, 10)
 	s.orchestratorManifestChan = make(chan senderOrchestratorManifest, 10)
 	s.eventPlatformEventChan = make(chan senderEventPlatformEvent, 10)
@@ -173,7 +174,7 @@ func TestGetAndSetSender(t *testing.T) {
 
 	itemChan := make(chan senderItem, 10)
 	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-	eventChan := make(chan metrics.Event, 10)
+	eventChan := make(chan event.Event, 10)
 	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
 	orchestratorManifestChan := make(chan senderOrchestratorManifest, 10)
 	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
@@ -262,7 +263,7 @@ func TestGetSenderServiceTagEvent(t *testing.T) {
 	s := initSender(checkID1, "")
 	checkTags := []string{"check:tag1", "check:tag2"}
 
-	event := metrics.Event{
+	event := event.Event{
 		Title: "title",
 		Host:  "testhostname",
 		Ts:    time.Now().Unix(),
@@ -358,7 +359,7 @@ func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 
 	s := initSender(checkID1, "")
 
-	event := metrics.Event{
+	event := event.Event{
 		Title: "title",
 		Host:  "testhostname",
 		Ts:    time.Now().Unix(),
@@ -445,14 +446,14 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.Commit()
 	s.sender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
 	s.sender.EventPlatformEvent([]byte("raw-event"), "dbm-sample")
-	submittedEvent := metrics.Event{
+	submittedEvent := event.Event{
 		Title:          "Something happened",
 		Text:           "Description of the event",
 		Ts:             12,
-		Priority:       metrics.EventPriorityLow,
+		Priority:       event.EventPriorityLow,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar"},
-		AlertType:      metrics.EventAlertTypeInfo,
+		AlertType:      event.EventAlertTypeInfo,
 		AggregationKey: "event_agg_key",
 		SourceTypeName: "docker",
 	}
@@ -564,14 +565,14 @@ func TestCheckSenderHostname(t *testing.T) {
 			s.sender.Gauge("my.metric", 1.0, tc.submittedHostname, []string{"foo", "bar"})
 			s.sender.Commit()
 			s.sender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, tc.submittedHostname, []string{"foo", "bar"}, "message")
-			submittedEvent := metrics.Event{
+			submittedEvent := event.Event{
 				Title:          "Something happened",
 				Text:           "Description of the event",
 				Ts:             12,
-				Priority:       metrics.EventPriorityLow,
+				Priority:       event.EventPriorityLow,
 				Host:           tc.submittedHostname,
 				Tags:           []string{"foo", "bar"},
-				AlertType:      metrics.EventAlertTypeInfo,
+				AlertType:      event.EventAlertTypeInfo,
 				AggregationKey: "event_agg_key",
 				SourceTypeName: "docker",
 			}

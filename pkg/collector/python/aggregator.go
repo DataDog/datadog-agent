@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -101,13 +102,13 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		return
 	}
 
-	_event := metrics.Event{
+	_event := metricsevent.Event{
 		Title:          eventParseString(event.title, "msg_title"),
 		Text:           eventParseString(event.text, "msg_text"),
-		Priority:       metrics.EventPriority(eventParseString(event.priority, "priority")),
+		Priority:       metricsevent.EventPriority(eventParseString(event.priority, "priority")),
 		Host:           eventParseString(event.host, "host"),
 		Tags:           cStringArrayToSlice(event.tags),
-		AlertType:      metrics.EventAlertType(eventParseString(event.alert_type, "alert_type")),
+		AlertType:      metricsevent.EventAlertType(eventParseString(event.alert_type, "alert_type")),
 		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
 		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
 		Ts:             int64(event.ts),

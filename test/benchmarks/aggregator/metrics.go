@@ -35,14 +35,14 @@ func generateMetrics(numberOfSeries int, pointPerSeries int, senderMetric sender
 func generateEvent(numberOfEvent int, sender sender.Sender) float64 {
 	start := time.Now()
 	for i := 0; i < numberOfEvent; i++ {
-		sender.Event(metrics.Event{
+		sender.Event(event.Event{
 			Title:          "Event title",
 			Text:           "some text",
 			Ts:             21,
-			Priority:       metrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			Host:           "localhost",
 			Tags:           []string{"a", "b:21", "c"},
-			AlertType:      metrics.EventAlertTypeWarning,
+			AlertType:      event.EventAlertTypeWarning,
 			AggregationKey: "",
 			SourceTypeName: "",
 			EventType:      "",

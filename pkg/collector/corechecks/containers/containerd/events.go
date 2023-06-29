@@ -49,7 +49,7 @@ func computeEvents(events []containerdEvent, sender sender.Sender, fil *containe
 			}
 		}
 
-		alertType := metrics.EventAlertTypeInfo
+		alertType := event.EventAlertTypeInfo
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
 			t, err := tagger.Tag(containers.BuildTaggerEntityName(e.ID), collectors.HighCardinality)
@@ -65,13 +65,13 @@ func computeEvents(events []containerdEvent, sender sender.Sender, fil *containe
 			}
 
 			if split[2] == "oom" {
-				alertType = metrics.EventAlertTypeError
+				alertType = event.EventAlertTypeError
 			}
 		}
 
-		output := metrics.Event{
+		output := event.Event{
 			Title:          fmt.Sprintf("Event on %s from Containerd", split[1]),
-			Priority:       metrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			SourceTypeName: containerdCheckName,
 			EventType:      containerdCheckName,
 			AlertType:      alertType,
