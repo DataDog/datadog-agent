@@ -489,6 +489,7 @@ namespace WixSetup.Datadog
             var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
                 new DirFiles($@"{EtcSource}\*.yaml.example"),
                 new Dir("checks.d"),
+                new Dir("run"),
                 new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
                     new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
                 ));
