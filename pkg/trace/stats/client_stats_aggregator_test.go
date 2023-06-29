@@ -7,7 +7,6 @@ package stats
 
 import (
 	"fmt"
-	"sort"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ func newTestAggregator() *ClientStatsAggregator {
 	return a
 }
 
-func pbToSortedStringSlice(s []*pb.ClientGroupedStats) []string {
+func pbToStringSlice(s []*pb.ClientGroupedStats) []string {
 	slice := []string{}
 	for _, s := range s {
 		if s == nil {
@@ -40,7 +39,6 @@ func pbToSortedStringSlice(s []*pb.ClientGroupedStats) []string {
 		slice = append(slice, s.String())
 	}
 
-	sort.Strings(slice)
 	return slice
 }
 
@@ -273,8 +271,8 @@ func TestFuzzCountFields(t *testing.T) {
 		expectedAggCounts := wrapPayload(agg2Counts(insertionTime, merge1))
 
 		// map gives random orders post aggregation
-		expected := pbToSortedStringSlice(expectedAggCounts.Stats[0].Stats[0].Stats)
-		actual := pbToSortedStringSlice(aggCounts.Stats[0].Stats[0].Stats)
+		expected := pbToStringSlice(expectedAggCounts.Stats[0].Stats[0].Stats)
+		actual := pbToStringSlice(aggCounts.Stats[0].Stats[0].Stats)
 
 		assert.ElementsMatch(actual, expected)
 		aggCounts.Stats[0].Stats[0].Stats = nil
