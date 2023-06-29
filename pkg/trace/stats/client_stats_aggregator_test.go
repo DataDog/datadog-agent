@@ -7,6 +7,7 @@ package stats
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -28,6 +29,19 @@ func newTestAggregator() *ClientStatsAggregator {
 	a.Start()
 	a.flushTicker.Stop()
 	return a
+}
+
+func pbToSortedStringSlice(s []*pb.ClientGroupedStats) []string {
+	slice := []string{}
+	for _, s := range s {
+		if s == nil {
+			continue
+		}
+		slice = append(slice, s.String())
+	}
+
+	sort.Strings(slice)
+	return slice
 }
 
 func wrapPayload(p *pb.ClientStatsPayload) *pb.StatsPayload {
@@ -122,18 +136,21 @@ func agg2Counts(insertionTime time.Time, p *pb.ClientStatsPayload) *pb.ClientSta
 	p.AgentAggregation = "counts"
 	p.Service = ""
 	p.ContainerID = ""
-	for i, s := range p.Stats {
+	for _, s := range p.Stats {
 		s.Start = uint64(alignAggTs(insertionTime).UnixNano())
 		s.Duration = uint64(clientBucketDuration.Nanoseconds())
 		s.AgentTimeShift = 0
-		for j := range s.Stats {
-			s.Stats[j].DBType = ""
-			s.Stats[j].Hits *= 2
-			s.Stats[j].Errors *= 2
-			s.Stats[j].Duration *= 2
-			s.Stats[j].TopLevelHits = 0
-			s.Stats[j].OkSummary = nil
-			s.Stats[j].ErrorSummary = nil
+		for _, stat := range s.Stats {
+			if stat == nil {
+				continue
+			}
+			stat.DBType = ""
+			stat.Hits *= 2
+			stat.Errors *= 2
+			stat.Duration *= 2
+			stat.TopLevelHits = 0
+			stat.OkSummary = nil
+			stat.ErrorSummary = nil
 		}
 	}
 	return p
@@ -152,7 +169,8 @@ func TestAggregatorFlushTime(t *testing.T) {
 	a.flushOnTime(testTime.Add(oldestBucketStart - bucketDuration))
 	assert.Len(a.out, 0)
 	a.flushOnTime(testTime.Add(oldestBucketStart))
-	assert.Equal(<-a.out, wrapPayload(testPayload))
+	s := <-a.out
+	assert.Equal(s.String(), wrapPayload(testPayload).String())
 	assert.Len(a.buckets, 0)
 }
 
@@ -253,8 +271,12 @@ func TestFuzzCountFields(t *testing.T) {
 		assertDistribPayload(t, wrapPayloads([]*pb.ClientStatsPayload{deepCopy(merge1), deepCopy(merge1)}), <-a.out)
 		aggCounts := <-a.out
 		expectedAggCounts := wrapPayload(agg2Counts(insertionTime, merge1))
+
 		// map gives random orders post aggregation
-		assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, expectedAggCounts.Stats[0].Stats[0].Stats)
+		expected := pbToSortedStringSlice(expectedAggCounts.Stats[0].Stats[0].Stats)
+		actual := pbToSortedStringSlice(aggCounts.Stats[0].Stats[0].Stats)
+
+		assert.ElementsMatch(actual, expected)
 		aggCounts.Stats[0].Stats[0].Stats = nil
 		expectedAggCounts.Stats[0].Stats[0].Stats = nil
 		assert.Equal(expectedAggCounts, aggCounts)
