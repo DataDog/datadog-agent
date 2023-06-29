@@ -127,7 +127,7 @@ func (t *SelfTester) createTargetFile() error {
 }
 
 // RunSelfTest runs the self test and return the result
-func (t *SelfTester) RunSelfTest() ([]string, []string, map[string]*model.Event, error) {
+func (t *SelfTester) RunSelfTest() ([]string, []string, map[string]*serializers.EventSerializer, error) {
 	if err := t.BeginWaitingForEvent(); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to run self test: %w", err)
 	}
@@ -138,7 +138,7 @@ func (t *SelfTester) RunSelfTest() ([]string, []string, map[string]*model.Event,
 	// launch the self tests
 	var success []string
 	var fails []string
-	testEvents := make(map[string]*model.Event)
+	testEvents := make(map[string]*serializers.EventSerializer)
 
 	for _, selftest := range FileSelfTests {
 		def := selftest.GetRuleDefinition(t.targetFilePath)
@@ -195,7 +195,7 @@ func (t *SelfTester) EndWaitingForEvent() {
 type selfTestEvent struct {
 	Type     string
 	Filepath string
-	Event    *model.Event
+	Event    *serializers.EventSerializer
 }
 
 // IsExpectedEvent sends an event to the tester
@@ -214,7 +214,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *prob
 		selfTestEvent := selfTestEvent{
 			Type:     event.GetType(),
 			Filepath: s.FileEventSerializer.Path,
-			Event:    ev,
+			Event:    s,
 		}
 		t.eventChan <- selfTestEvent
 		return true
@@ -222,7 +222,7 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *prob
 	return false
 }
 
-func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) (*model.Event, error) {
+func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) (*serializers.EventSerializer, error) {
 	timer := time.After(3 * time.Second)
 	for {
 		select {
