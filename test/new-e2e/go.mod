@@ -16,7 +16,7 @@ require (
 	// Commit sha matches the first 8 digits of the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:01234567
-	github.com/DataDog/test-infra-definitions v0.0.0-20230627141421-3416c0ea5335
+	github.com/DataDog/test-infra-definitions v0.0.0-20230629072331-ca7799ab15ca
 	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.27
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
