@@ -224,7 +224,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			metrics.TlmDestinationErrors.Inc()
 			log.Warnf("Could not send payload: %v", err)
 		} else {
-			d.destinationsContext.LogSync.Add(uint32(len(payload.Messages)))
+			if d.destinationsContext.LogSync != nil {
+				d.destinationsContext.LogSync.Add(uint32(len(payload.Messages)))
+			}
 		}
 
 		if err == context.Canceled {

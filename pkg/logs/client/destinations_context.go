@@ -9,7 +9,6 @@ import (
 	"context"
 	"sync"
 
-	// we don't want to directly import that, use an interface here
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 )
 
