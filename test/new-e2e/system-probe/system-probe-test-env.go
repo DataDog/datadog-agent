@@ -161,6 +161,9 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 					},
 					OSCommand: osCommand,
 				})
+				if err != nil {
+					return fmt.Errorf("new runner: %w", err)
+				}
 
 				if opts.UploadDependencies {
 					// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
