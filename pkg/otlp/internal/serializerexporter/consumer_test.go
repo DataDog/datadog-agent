@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
@@ -198,10 +198,10 @@ func (m *MockSerializer) SendHostMetadata(_ marshaler.JSONMarshaler) error      
 func (m *MockSerializer) SendProcessesMetadata(_ interface{}) error               { return nil }
 func (m *MockSerializer) SendAgentchecksMetadata(_ marshaler.JSONMarshaler) error { return nil }
 
-func (m *MockSerializer) SendOrchestratorMetadata(_ []serializer.ProcessMessageBody, _, _ string, _ int) error {
+func (m *MockSerializer) SendOrchestratorMetadata(_ []types.ProcessMessageBody, _, _ string, _ int) error {
 	return nil
 }
 
-func (m *MockSerializer) SendOrchestratorManifests(_ []serializer.ProcessMessageBody, _, _ string) error {
+func (m *MockSerializer) SendOrchestratorManifests(_ []types.ProcessMessageBody, _, _ string) error {
 	return nil
 }

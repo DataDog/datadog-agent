@@ -17,11 +17,12 @@ import (
 
 	dockerTypes "github.com/docker/docker/api/types"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -40,7 +41,7 @@ const (
 )
 
 type eventTransformer interface {
-	Transform([]*docker.ContainerEvent) ([]coreMetrics.Event, []error)
+	Transform([]*docker.ContainerEvent) ([]event.Event, []error)
 }
 
 // DockerCheck grabs docker metrics

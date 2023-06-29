@@ -22,9 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 const systemdVersion = "241"
@@ -288,7 +289,7 @@ func TestDbusConnectionErr(t *testing.T) {
 	check := SystemdCheck{stats: stats}
 	check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
-	mockSender := mocksender.NewMockSender(id.ID()) // required to initiate aggregator
+	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	err := check.Run()
@@ -308,7 +309,7 @@ func TestSystemStateCallFailGracefully(t *testing.T) {
 	check := SystemdCheck{stats: stats}
 	check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
-	mockSender := mocksender.NewMockSender(id.ID()) // required to initiate aggregator
+	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -327,7 +328,7 @@ func TestListUnitErr(t *testing.T) {
 	check := SystemdCheck{stats: stats}
 	check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
-	mockSender := mocksender.NewMockSender(id.ID()) // required to initiate aggregator
+	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	err := check.Run()
@@ -365,7 +366,7 @@ unit_names:
 	// setup expectations
 	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, mock.Anything).Return(map[string]interface{}{}, nil)
 
-	mockSender := mocksender.NewMockSender(id.ID())
+	mockSender := mocksender.NewMockSender(check.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -424,7 +425,7 @@ unit_names:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(id.ID())
+	mockSender := mocksender.NewMockSender(check.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -491,7 +492,7 @@ unit_names:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(id.ID())
+	mockSender := mocksender.NewMockSender(check.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -566,7 +567,7 @@ unit_names:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(id.ID())
+	mockSender := mocksender.NewMockSender(check.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -614,7 +615,7 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 			check := SystemdCheck{stats: stats}
 			check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
-			mockSender := mocksender.NewMockSender(id.ID()) // required to initiate aggregator
+			mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
 			mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -662,7 +663,7 @@ unit_names:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(id.ID())
+	mockSender := mocksender.NewMockSender(check.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -727,7 +728,7 @@ substate_status_mapping:
 	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
 
 	// setup expectation
-	mockSender := mocksender.NewMockSender(id.ID())
+	mockSender := mocksender.NewMockSender(check.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -809,7 +810,7 @@ func TestSendServicePropertyAsGaugeSkipAndWarnOnMissingProperty(t *testing.T) {
 	serviceUnitConfigNRestart := metricConfigItem{metricName: "systemd.service.restart_count", propertyName: "NRestarts", accountingProperty: "", optional: false}
 
 	check := SystemdCheck{}
-	mockSender := mocksender.NewMockSender(id.ID())
+	mockSender := mocksender.NewMockSender(check.ID())
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	sendServicePropertyAsGauge(mockSender, serviceProperties, serviceUnitConfigCPU, nil)
