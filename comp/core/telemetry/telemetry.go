@@ -8,18 +8,24 @@ package telemetry
 import (
 	"net/http"
 
+	promOtel "go.opentelemetry.io/otel/exporters/prometheus"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel/metric"
+	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
 
 // TODO (components): Remove the global and move this into `newTelemetry` after all telemetry is migrated to the component
 var (
 	registry = newRegistry()
+	provider = newProvider(registry)
 )
 
 type telemetryImpl struct {
-	registry *prometheus.Registry
+	registry      *prometheus.Registry
+	meterProvider *sdk.MeterProvider
 }
 
 func newRegistry() *prometheus.Registry {
@@ -29,17 +35,32 @@ func newRegistry() *prometheus.Registry {
 	return reg
 }
 
+func newProvider(reg *prometheus.Registry) *sdk.MeterProvider {
+	exporter, err := promOtel.New(promOtel.WithRegisterer(reg))
+
+	if err != nil {
+		panic(err)
+	}
+
+	return sdk.NewMeterProvider(sdk.WithReader(exporter))
+}
+
 func newTelemetry() Component {
 	return &telemetryImpl{
-		registry: registry,
+		registry:      registry,
+		meterProvider: provider,
 	}
 }
 
 // Same as `newTelemetry“ without the global.
 // Can be merged with `newTelemetry` when the global is removed
 func newMock() Component {
+	reg := prometheus.NewRegistry()
+	provider := newProvider(reg)
+
 	return &telemetryImpl{
-		registry: newRegistry(),
+		registry:      reg,
+		meterProvider: provider,
 	}
 }
 
@@ -55,6 +76,10 @@ func (t *telemetryImpl) Handler() http.Handler {
 func (t *telemetryImpl) Reset() {
 	registry = prometheus.NewRegistry()
 	t.registry = registry
+}
+
+func (t *telemetryImpl) NewMeter(name string, options ...metric.MeterOption) metric.Meter {
+	return t.meterProvider.Meter(name, options...)
 }
 
 func (t *telemetryImpl) NewCounter(subsystem, name string, tags []string, help string) Counter {

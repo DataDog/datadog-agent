@@ -6,15 +6,16 @@
 package telemetry
 
 import (
+	"context"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCounterInitializer(t *testing.T) {
 
 	telemetry := newMock().(*telemetryImpl)
-	telemetry.Reset()
 
 	counter := telemetry.NewCounter("subsystem", "test", []string{"check_name", "state"}, "help docs")
 
@@ -25,7 +26,8 @@ func TestCounterInitializer(t *testing.T) {
 		return
 	}
 
-	assert.Zero(t, len(startMetrics))
+	// 1 because OTEL adds a target_info gauge by default
+	assert.Equal(t, 1, len(startMetrics))
 
 	// Set some values and ensure that we have those counters
 	counter.Initialize("mycheck", "mystate")
@@ -35,16 +37,22 @@ func TestCounterInitializer(t *testing.T) {
 		return
 	}
 
-	if !assert.Equal(t, len(endMetrics), 1) {
+	// 2 because OTEL adds a target_info gauge by default
+	if !assert.Equal(t, len(endMetrics), 2) {
 		return
 	}
 
-	metricFamily := endMetrics[0]
+	var metricFamily *dto.MetricFamily
+
+	for _, m := range endMetrics {
+		if m.GetName() == "subsystem__test" {
+			metricFamily = m
+		}
+	}
+
 	if !assert.Equal(t, len(metricFamily.GetMetric()), 1) {
 		return
 	}
-
-	assert.Equal(t, metricFamily.GetName(), "subsystem__test")
 
 	metric := metricFamily.GetMetric()[0]
 	assert.Equal(t, metric.GetLabel()[0].GetName(), "check_name")
@@ -127,4 +135,30 @@ func TestGetHistogramValue(t *testing.T) {
 
 	assert.Equal(t, uint64(1), hist.WithTags(map[string]string{"state": "ok"}).Get().Buckets[0].Count)
 	assert.Equal(t, uint64(2), hist.WithTags(map[string]string{"state": "ok"}).Get().Buckets[1].Count)
+}
+
+func TestMeterProvider(t *testing.T) {
+
+	telemetry := newMock().(*telemetryImpl)
+
+	counter, _ := telemetry.NewMeter("foo").Int64Counter("bar")
+	counter.Add(context.TODO(), 123)
+
+	_ = telemetry.meterProvider.ForceFlush(context.TODO())
+
+	// Sanity check that we don't have any metrics
+	metrics, err := telemetry.registry.Gather()
+	assert.NoError(t, err)
+
+	var metricFamily *dto.MetricFamily
+
+	for _, m := range metrics {
+		if m.GetName() == "bar_total" {
+			metricFamily = m
+		}
+	}
+
+	metric := metricFamily.GetMetric()[0]
+	assert.Equal(t, metric.GetCounter().GetValue(), 123.0)
+	assert.Equal(t, *metric.GetLabel()[0].Value, "foo")
 }

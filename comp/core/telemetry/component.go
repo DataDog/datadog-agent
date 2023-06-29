@@ -9,6 +9,7 @@ package telemetry
 import (
 	"net/http"
 
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -22,6 +23,8 @@ type Component interface {
 	Handler() http.Handler
 	// Reset resets all tracked telemetry
 	Reset()
+	// NewMeter returns a new OTEL meter
+	NewMeter(name string, options ...metric.MeterOption) metric.Meter
 
 	// NewCounter creates a Counter with default options for telemetry purpose.
 	NewCounter(subsystem, name string, tags []string, help string) Counter
