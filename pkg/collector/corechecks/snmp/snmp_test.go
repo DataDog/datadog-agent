@@ -359,7 +359,7 @@ metrics:
 - table:
     OID: 1.3.6.1.2.1.2.2
     name: ifTable
-  forced_type: monotonic_count_and_rate
+  metric_type: monotonic_count_and_rate
   symbols:
   - OID: 1.3.6.1.2.1.31.1.1.1.6
     name: ifHCInOctets

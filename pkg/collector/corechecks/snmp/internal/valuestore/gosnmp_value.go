@@ -103,7 +103,7 @@ func getSubmissionType(gosnmpType gosnmp.Asn1BER) string {
 	// Counter Types: From the snmp doc: The Counter32 type represents a non-negative integer which monotonically increases until it reaches a maximum
 	// value of 2^32-1 (4294967295 decimal), when it wraps around and starts increasing again from zero.
 	// We convert snmp counters by default to `rate` submission type, but sometimes `monotonic_count` might be more appropriate.
-	// To achieve that, we can use `forced_type: monotonic_count` or `forced_type: monotonic_count_and_rate`.
+	// To achieve that, we can use `metric_type: monotonic_count` or `metric_type: monotonic_count_and_rate`.
 	case gosnmp.Counter32, gosnmp.Counter64:
 		return "counter"
 	}

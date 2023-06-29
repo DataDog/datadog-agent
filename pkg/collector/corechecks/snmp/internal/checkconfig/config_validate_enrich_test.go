@@ -442,7 +442,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "forced_type usage in column symbol",
+			name: "metric_type usage in column symbol",
 			metrics: []MetricsConfig{
 				{
 					Symbols: []SymbolConfig{
@@ -466,7 +466,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			expectedErrors: []string{},
 		},
 		{
-			name: "forced_type usage in scalar symbol",
+			name: "metric_type usage in scalar symbol",
 			metrics: []MetricsConfig{
 				{
 					Symbol: SymbolConfig{
@@ -477,11 +477,11 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"`forced_type` cannot be used outside table symbols and metrics root",
+				"`metric_type` cannot be used outside table symbols and metrics root",
 			},
 		},
 		{
-			name: "forced_type usage in metric_tags",
+			name: "metric_type usage in metric_tags",
 			metrics: []MetricsConfig{
 				{
 					Symbols: []SymbolConfig{
@@ -503,7 +503,50 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"`forced_type` cannot be used outside table symbols and metrics root",
+				"`metric_type` cannot be used outside table symbols and metrics root",
+			},
+		},
+		{
+			name: "metric root forced_type converted to metric_type",
+			metrics: []MetricsConfig{
+				{
+					ForcedType: "monotonic_count",
+					Symbols: []SymbolConfig{
+						{
+							Name: "abc",
+							OID:  "1.2.3",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								Name: "abc",
+								OID:  "1.2.3",
+							},
+							Tag: "hello",
+						},
+					},
+				},
+			},
+			expectedMetrics: []MetricsConfig{
+				{
+					MetricType: "monotonic_count",
+					Symbols: []SymbolConfig{
+						{
+							Name: "abc",
+							OID:  "1.2.3",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								Name: "abc",
+								OID:  "1.2.3",
+							},
+							Tag: "hello",
+						},
+					},
+				},
 			},
 		},
 		{

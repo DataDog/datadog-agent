@@ -111,7 +111,7 @@ func (ms *MetricSender) reportScalarMetrics(metric checkconfig.MetricsConfig, va
 		value:      value,
 		tags:       scalarTags,
 		symbol:     metric.Symbol,
-		forcedType: metric.ForcedType,
+		forcedType: metric.MetricType,
 		options:    metric.Options,
 	}
 	ms.sendMetric(sample)
@@ -154,7 +154,7 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 				value:      value,
 				tags:       rowTags,
 				symbol:     symbol,
-				forcedType: metricConfig.ForcedType,
+				forcedType: metricConfig.MetricType,
 				options:    metricConfig.Options,
 			}
 			ms.sendMetric(sample)
