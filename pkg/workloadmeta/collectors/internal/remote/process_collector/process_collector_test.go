@@ -15,13 +15,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/proto"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote"
 	"google.golang.org/grpc"
@@ -29,81 +28,31 @@ import (
 
 type mockServer struct {
 	pbgo.UnimplementedProcessEntityStreamServer
-	eventID     int32
-	setEvents   []*pb.ProcessEventSet
-	unsetEvents []*pb.ProcessEventUnset
-	timeout     time.Duration
-	answered    bool
+
+	responses     []*pb.ProcessStreamResponse
+	errorResponse bool // first response is an error
+
+	currentResponse int
 }
 
-func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
-	if s.answered {
+func (s *mockServer) StreamEntities(req *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
+	// Handle error response for the first request
+	if s.errorResponse {
+		s.errorResponse = false // Reset error response for subsequent requests
+		return xerrors.New("dummy first error")
+	}
+
+	if s.currentResponse >= len(s.responses) {
 		return nil
 	}
-	err := ddgrpc.DoWithTimeout(func() error {
-		return out.Send(&pb.ProcessStreamResponse{
-			EventID:     s.eventID,
-			SetEvents:   s.setEvents,
-			UnsetEvents: s.unsetEvents,
-		})
-	}, s.timeout)
+
+	err := out.Send(s.responses[s.currentResponse])
 	if err != nil {
 		panic(err)
 	}
-	s.answered = true
+	s.currentResponse++
+
 	return nil
-}
-
-func TestHandleProcessStreamResponse(t *testing.T) {
-	unsetEvents := []*pbgo.ProcessEventUnset{
-		{
-			Pid: 456,
-		},
-		{
-			Pid: 789,
-		},
-	}
-
-	setEvents := []*pbgo.ProcessEventSet{
-		{
-			Pid: 123,
-		},
-		{
-			Pid: 345,
-		},
-	}
-	expectedEvents := make([]workloadmeta.CollectorEvent, 0, len(unsetEvents)+len(setEvents))
-	for i := range unsetEvents {
-		expectedUnsetEvent, err := proto.WorkloadmetaEventFromProcessEventUnset(unsetEvents[i])
-		require.NoError(t, err)
-		expectedEvents = append(expectedEvents, workloadmeta.CollectorEvent{
-			Type:   expectedUnsetEvent.Type,
-			Source: workloadmeta.SourceRemoteProcessCollector,
-			Entity: expectedUnsetEvent.Entity,
-		})
-	}
-
-	for i := range setEvents {
-		expectedSetEvent, err := proto.WorkloadmetaEventFromProcessEventSet(setEvents[i])
-		require.NoError(t, err)
-		expectedEvents = append(expectedEvents, workloadmeta.CollectorEvent{
-			Type:   expectedSetEvent.Type,
-			Source: workloadmeta.SourceRemoteProcessCollector,
-			Entity: expectedSetEvent.Entity,
-		})
-	}
-
-	mockResponse := &pbgo.ProcessStreamResponse{
-		EventID:     0,
-		SetEvents:   setEvents,
-		UnsetEvents: unsetEvents,
-	}
-
-	streamhandler := &remoteProcessCollectorStreamHandler{}
-	collectorEvents, err := streamhandler.HandleResponse(mockResponse)
-	require.NoError(t, err)
-
-	assert.Equal(t, expectedEvents, collectorEvents)
 }
 
 func TestCollection(t *testing.T) {
@@ -117,27 +66,32 @@ func TestCollection(t *testing.T) {
 	}
 	creationTime := time.Now().Unix()
 	tests := []struct {
-		name              string
-		eventID           int32
-		preEvents         []workloadmeta.CollectorEvent
-		setEvents         []*pb.ProcessEventSet
-		unsetEvents       []*pb.ProcessEventUnset
-		timeout           time.Duration
+		name      string
+		eventID   int32
+		preEvents []workloadmeta.CollectorEvent
+
+		serverResponses   []*pb.ProcessStreamResponse
 		expectedProcesses []*workloadmeta.Process
+		errorResponse     bool
 	}{
 		{
 			name:    "initially empty",
 			eventID: 0,
-			setEvents: []*pb.ProcessEventSet{
+			serverResponses: []*pb.ProcessStreamResponse{
 				{
-					Pid:          123,
-					Nspid:        345,
-					ContainerId:  "cid",
-					Language:     &pb.Language{Name: string(languagemodels.Java)},
-					CreationTime: creationTime,
+					EventID: 0,
+					SetEvents: []*pb.ProcessEventSet{
+						{
+							Pid:          123,
+							Nspid:        345,
+							ContainerId:  "cid",
+							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							CreationTime: creationTime,
+						},
+					},
 				},
 			},
-			timeout: 1 * time.Second,
+
 			expectedProcesses: []*workloadmeta.Process{
 				{
 					EntityID: workloadmeta.EntityID{
@@ -151,16 +105,95 @@ func TestCollection(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "two response with set",
+			eventID: 0,
+			serverResponses: []*pb.ProcessStreamResponse{
+				{
+					EventID: 0,
+					SetEvents: []*pb.ProcessEventSet{
+						{
+							Pid:          123,
+							Nspid:        345,
+							ContainerId:  "cid",
+							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							CreationTime: creationTime,
+						},
+					},
+				},
+				{
+					EventID: 1,
+					SetEvents: []*pb.ProcessEventSet{
+						{
+							Pid:          345,
+							Nspid:        567,
+							ContainerId:  "cid",
+							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							CreationTime: creationTime,
+						},
+					},
+				},
+			},
+
+			expectedProcesses: []*workloadmeta.Process{
+				{
+					EntityID: workloadmeta.EntityID{
+						ID:   "123",
+						Kind: workloadmeta.KindProcess,
+					},
+					NsPid:        345,
+					ContainerId:  "cid",
+					Language:     &languagemodels.Language{Name: languagemodels.Java},
+					CreationTime: time.Unix(creationTime, 0),
+				},
+				{
+					EntityID: workloadmeta.EntityID{
+						ID:   "345",
+						Kind: workloadmeta.KindProcess,
+					},
+					NsPid:        567,
+					ContainerId:  "cid",
+					Language:     &languagemodels.Language{Name: languagemodels.Java},
+					CreationTime: time.Unix(creationTime, 0),
+				},
+			},
+		},
+		{
+			name:    "one set one unset",
+			eventID: 0,
+			serverResponses: []*pb.ProcessStreamResponse{
+				{
+					EventID: 0,
+					SetEvents: []*pb.ProcessEventSet{
+						{
+							Pid:          123,
+							Nspid:        345,
+							ContainerId:  "cid",
+							Language:     &pb.Language{Name: string(languagemodels.Java)},
+							CreationTime: creationTime,
+						},
+					},
+				},
+				{
+					EventID: 1,
+					UnsetEvents: []*pb.ProcessEventUnset{
+						{
+							Pid: 123,
+						},
+					},
+				},
+			},
+			expectedProcesses: []*workloadmeta.Process{},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// remote process collector server (process agent)
 			server := &mockServer{
-				eventID:     test.eventID,
-				setEvents:   test.setEvents,
-				unsetEvents: test.unsetEvents,
-				timeout:     test.timeout,
+				responses:       test.serverResponses,
+				errorResponse:   test.errorResponse,
+				currentResponse: 0,
 			}
 			grpcServer := grpc.NewServer()
 			pbgo.RegisterProcessEntityStreamServer(grpcServer, server)
@@ -190,7 +223,7 @@ func TestCollection(t *testing.T) {
 			err = collector.Collect(context.TODO(), mockStore)
 			require.NoError(t, err)
 
-			time.Sleep(2 * time.Second)
+			time.Sleep(1 * time.Second)
 
 			for i := range test.expectedProcesses {
 				pid, err := strconv.Atoi(test.expectedProcesses[i].ID)
