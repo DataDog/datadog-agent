@@ -22,7 +22,7 @@ import (
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 
-	"github.com/DataDog/datadog-agent/pkg/config"	
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 )

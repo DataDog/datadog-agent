@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TrapServer manages an SNMP trap listener.
