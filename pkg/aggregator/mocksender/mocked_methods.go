@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 )
 
 // Rate adds a rate type to the mock calls.
@@ -113,11 +113,11 @@ func (m *MockSender) GetSenderStats() stats.SenderStats {
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (m *MockSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int) {
+func (m *MockSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int) {
 	m.Called(msgs, clusterID, nodeType)
 }
 
 // OrchestratorManifest submit orchestrator manifest messages
-func (m *MockSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string) {
+func (m *MockSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {
 	m.Called(msgs, clusterID)
 }

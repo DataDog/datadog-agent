@@ -6,11 +6,10 @@
 package sender
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 )
 
 // Sender allows sending metrics from checks/a check
@@ -35,6 +34,6 @@ type Sender interface {
 	SetCheckService(service string)
 	SetNoIndex(noIndex bool)
 	FinalizeCheckServiceTag()
-	OrchestratorMetadata(msgs []model.MessageBody, clusterID string, nodeType int)
-	OrchestratorManifest(msgs []model.MessageBody, clusterID string)
+	OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int)
+	OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string)
 }

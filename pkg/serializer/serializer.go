@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -99,8 +100,8 @@ type MetricSerializer interface {
 	SendHostMetadata(m marshaler.JSONMarshaler) error
 	SendProcessesMetadata(data interface{}) error
 	SendAgentchecksMetadata(m marshaler.JSONMarshaler) error
-	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
-	SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error
+	SendOrchestratorMetadata(msgs []types.ProcessMessageBody, hostName, clusterID string, payloadType int) error
+	SendOrchestratorManifests(msgs []types.ProcessMessageBody, hostName, clusterID string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -436,7 +437,7 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 }
 
 // SendOrchestratorMetadata serializes & send orchestrator metadata payloads
-func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error {
+func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, hostName, clusterID string, payloadType int) error {
 	if s.orchestratorForwarder == nil {
 		return errors.New("orchestrator forwarder is not setup")
 	}
@@ -461,7 +462,7 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostNam
 }
 
 // SendOrchestratorManifests serializes & send orchestrator manifest payloads
-func (s *Serializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error {
+func (s *Serializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, hostName, clusterID string) error {
 	if s.orchestratorForwarder == nil {
 		return errors.New("orchestrator forwarder is not setup")
 	}
@@ -486,7 +487,7 @@ func (s *Serializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostNa
 	return nil
 }
 
-func makeOrchestratorPayloads(msg ProcessMessageBody, hostName, clusterID string) (transaction.BytesPayloads, http.Header, error) {
+func makeOrchestratorPayloads(msg types.ProcessMessageBody, hostName, clusterID string) (transaction.BytesPayloads, http.Header, error) {
 	extraHeaders := make(http.Header)
 	extraHeaders.Set(headers.HostHeader, hostName)
 	extraHeaders.Set(headers.ClusterIDHeader, clusterID)
@@ -495,7 +496,7 @@ func makeOrchestratorPayloads(msg ProcessMessageBody, hostName, clusterID string
 	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
-	body, err := processPayloadEncoder(msg)
+	body, err := types.ProcessPayloadEncoder(msg)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 )
 
 // MockSerializer is a mock for the MetricSerializer
@@ -68,11 +69,11 @@ func (s *MockSerializer) SendProcessesMetadata(data interface{}) error {
 }
 
 // SendOrchestratorMetadata serializes & sends orchestrator metadata payloads
-func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error {
+func (s *MockSerializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, hostName, clusterID string, payloadType int) error {
 	return s.Called(msgs, hostName, clusterID, payloadType).Error(0)
 }
 
 // SendOrchestratorManifests serializes & send orchestrator manifest payloads
-func (s *MockSerializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error {
+func (s *MockSerializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, hostName, clusterID string) error {
 	return s.Called(msgs, hostName, clusterID).Error(0)
 }

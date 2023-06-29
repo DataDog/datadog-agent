@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -78,13 +78,13 @@ type senderEventPlatformEvent struct {
 }
 
 type senderOrchestratorMetadata struct {
-	msgs        []serializer.ProcessMessageBody
+	msgs        []types.ProcessMessageBody
 	clusterID   string
 	payloadType int
 }
 
 type senderOrchestratorManifest struct {
-	msgs      []serializer.ProcessMessageBody
+	msgs      []types.ProcessMessageBody
 	clusterID string
 }
 
@@ -394,7 +394,7 @@ func (s *checkSender) EventPlatformEvent(rawEvent []byte, eventType string) {
 }
 
 // OrchestratorMetadata submit orchestrator metadata messages
-func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody, clusterID string, nodeType int) {
+func (s *checkSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int) {
 	om := senderOrchestratorMetadata{
 		msgs:        msgs,
 		clusterID:   clusterID,
@@ -403,7 +403,7 @@ func (s *checkSender) OrchestratorMetadata(msgs []serializer.ProcessMessageBody,
 	s.orchestratorMetadataOut <- om
 }
 
-func (s *checkSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string) {
+func (s *checkSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {
 	om := senderOrchestratorManifest{
 		msgs:      msgs,
 		clusterID: clusterID,
