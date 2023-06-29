@@ -75,16 +75,17 @@ function find_latest_patch_version_for() {
 }
 
 function prepare_dmg_file() {
-    $sudo_cmd rm -f $dmg_file
-    $sudo_cmd touch $dmg_file
-    $sudo_cmd chmod 600 $dmg_file
+    dmg_file_to_prepare=$1
+    $sudo_cmd rm -f "$dmg_file_to_prepare"
+    $sudo_cmd touch "$dmg_file_to_prepare"
+    $sudo_cmd chmod 600 "$dmg_file_to_prepare"
 
-    file_owner=$(stat -c %u $dmg_file)
-    file_permission=$(stat -c %a $dmg_file)
-    file_size=$(stat -c %s $dmg_file)
-    if [ "$file_owner" -ne 0 ] || [ "$file_permission" -ne 600 ] || [ "$file_size" -ne 0 ]; then
-    echo -e "\033[31mFailed to prepare datadog-agent dmg file\033[0m\n"
-    exit 1;
+    file_owner=$(stat -c %u "$dmg_file_to_prepare")
+    file_permission=$(stat -c %a "$dmg_file_to_prepare")
+    file_size=$(stat -c %s "$dmg_file_to_prepare")
+    if [[ "$file_owner" -ne 0 ]] || [[ "$file_permission" -ne 600 ]] || [[ "$file_size" -ne 0 ]]; then
+        echo -e "\033[31mFailed to prepare datadog-agent dmg file\033[0m\n"
+        exit 1;
     fi
 }
 
@@ -341,7 +342,7 @@ function plist_modify_user_group() {
 
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
-prepare_dmg_file
+prepare_dmg_file $dmg_file
 if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" --output $dmg_file; then
     printf "\033[31mCouldn't download the installer for macOS Agent version ${dmg_version}.\033[0m\n"
     exit 1;
