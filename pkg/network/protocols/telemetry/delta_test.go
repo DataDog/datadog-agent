@@ -16,11 +16,10 @@ func TestMonotonicDeltas(t *testing.T) {
 	Clear()
 
 	var deltas deltaCalculator
-	t.Run("non-monotonic metric", func(t *testing.T) {
+	t.Run("gauge metric", func(t *testing.T) {
 		state := deltas.GetState("")
-		m := NewMetric("cache_size")
+		m := NewMetric("cache_size", OptGauge)
 
-		// if metric is not flagged as monotonic we always return the current value
 		m.Set(10)
 		assert.Equal(int64(10), state.ValueFor(m))
 		assert.Equal(int64(10), state.ValueFor(m))
@@ -30,7 +29,7 @@ func TestMonotonicDeltas(t *testing.T) {
 
 	t.Run("monotonic metric", func(t *testing.T) {
 		state := deltas.GetState("")
-		m := NewMetric("requests_processed", OptMonotonic)
+		m := NewMetric("requests_processed")
 
 		m.Set(10)
 		assert.Equal(int64(10), state.ValueFor(m))
@@ -42,7 +41,7 @@ func TestMonotonicDeltas(t *testing.T) {
 	t.Run("one metric, multiple clients", func(t *testing.T) {
 		stateA := deltas.GetState("clientA")
 		stateB := deltas.GetState("clientB")
-		m := NewMetric("connections_closed", OptMonotonic)
+		m := NewMetric("connections_closed")
 
 		m.Set(10)
 		assert.Equal(int64(10), stateA.ValueFor(m))

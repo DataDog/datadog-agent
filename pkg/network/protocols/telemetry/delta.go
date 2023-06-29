@@ -8,8 +8,6 @@ package telemetry
 import (
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const stateTTL = 5 * time.Minute
@@ -55,7 +53,7 @@ type clientState struct {
 }
 
 func (c *clientState) ValueFor(m *Metric) int64 {
-	if !contains(OptMonotonic, m.opts) {
+	if contains(OptGauge, m.opts) {
 		return m.Get()
 	}
 
@@ -66,14 +64,6 @@ func (c *clientState) ValueFor(m *Metric) int64 {
 	defer c.mux.Unlock()
 
 	prev := c.prevValues[name]
-	if prev > current {
-		// let the library client know if this metric is being misconfigured
-		log.Debugf(
-			"error: metric %q is not growing monotonically but it was instantiated with `OptMonotonic`",
-			name,
-		)
-	}
-
 	c.prevValues[name] = current
 	return current - prev
 }

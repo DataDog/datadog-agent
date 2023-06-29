@@ -53,39 +53,21 @@ func TestNewMetric(t *testing.T) {
 
 func TestMetricOperations(t *testing.T) {
 	assert := assert.New(t)
-
-	t.Run("regular (non-monotonic) metric", func(t *testing.T) {
+	t.Run("counter metric", func(t *testing.T) {
 		Clear()
 
 		m1 := NewMetric("m1")
 		m1.Add(int64(5))
 		assert.Equal(int64(5), m1.Get())
-
-		m1.Add(int64(5))
-		assert.Equal(int64(10), m1.Get())
-
-		v := m1.Swap(int64(0))
-		assert.Equal(int64(10), v)
-		assert.Equal(int64(0), m1.Get())
-
-		m1.Set(20)
-		assert.Equal(int64(20), m1.Get())
-	})
-
-	t.Run("monotonic metric", func(t *testing.T) {
-		Clear()
-
-		m1 := NewMetric("m1", OptMonotonic)
-		m1.Add(int64(5))
-		assert.Equal(int64(5), m1.Get())
-		assert.Equal(int64(5), m1.Delta())
-		assert.Equal(int64(0), m1.Delta())
 		assert.Equal(int64(5), m1.Get())
 
 		m1.Add(int64(10))
 		assert.Equal(int64(15), m1.Get())
-		assert.Equal(int64(10), m1.Delta())
-		assert.Equal(int64(0), m1.Delta())
+		assert.Equal(int64(15), m1.Get())
+
+		// Negative values are ignored as counters are always monotonic
+		m1.Add(int64(-5))
+		assert.Equal(int64(15), m1.Get())
 		assert.Equal(int64(15), m1.Get())
 	})
 }

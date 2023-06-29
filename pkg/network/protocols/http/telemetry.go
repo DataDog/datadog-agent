@@ -30,7 +30,6 @@ func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
-		libtelemetry.OptMonotonic,
 	)
 
 	t := &Telemetry{

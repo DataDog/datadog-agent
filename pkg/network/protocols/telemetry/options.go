@@ -23,8 +23,4 @@ const (
 
 	// OptCounter represents a counter-type metric
 	OptCounter = "_counter"
-
-	// OptMonotonic designates a metric of monotonic type.
-	// In this case the reporters will only emmit the delta
-	OptMonotonic = "_monotonic"
 )

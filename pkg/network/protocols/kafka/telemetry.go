@@ -27,7 +27,6 @@ func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.kafka",
 		libtelemetry.OptExpvar,
-		libtelemetry.OptMonotonic,
 	)
 
 	t := &Telemetry{

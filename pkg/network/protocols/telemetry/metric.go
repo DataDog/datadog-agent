@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 )
 
@@ -19,10 +18,6 @@ type Metric struct {
 	tags  []string
 	opts  []string
 	value *atomic.Int64
-
-	// metrics of type OptMonotonic use this value
-	// when Delta() is called
-	prevValue *atomic.Int64
 }
 
 // NewMetric returns a new `Metric` instance
@@ -33,10 +28,6 @@ func NewMetric(name string, tagsAndOptions ...string) *Metric {
 		value: atomic.NewInt64(0),
 		tags:  tags,
 		opts:  opts,
-	}
-
-	if contains(OptMonotonic, m.opts) {
-		m.prevValue = atomic.NewInt64(0)
 	}
 
 	globalRegistry.Lock()
@@ -67,30 +58,16 @@ func (m *Metric) Set(v int64) {
 
 // Add value atomically
 func (m *Metric) Add(v int64) {
+	if v < 0 {
+		return
+	}
+
 	m.value.Add(v)
 }
 
 // Get value atomically
 func (m *Metric) Get() int64 {
 	return m.value.Load()
-}
-
-// Swap value atomically
-func (m *Metric) Swap(v int64) int64 {
-	return m.value.Swap(v)
-}
-
-// Delta returns the difference between the current value and the previous one
-func (m *Metric) Delta() int64 {
-	if m.prevValue == nil {
-		// indicates misuse of the library
-		log.Errorf("metric %s was not instantiated with telemetry.OptMonotonic", m.name)
-		return 0
-	}
-
-	current := m.value.Load()
-	previous := m.prevValue.Swap(current)
-	return current - previous
 }
 
 // MarshalJSON returns a json representation of the current `Metric`. We
