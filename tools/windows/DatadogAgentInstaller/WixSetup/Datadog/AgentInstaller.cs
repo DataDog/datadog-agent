@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using Datadog.CustomActions;
+using Microsoft.Deployment.WindowsInstaller;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -302,30 +303,25 @@ namespace WixSetup.Datadog
 
         private Dir CreateProgramFilesFolder()
         {
-            var targetBinFolder = CreateBinFolder();
-            InstallDir installDir;
-            // careful, when Dir() is given a path with subdirs it returns the ROOT dir (ProgramFiles), not the last dir (Datadog),
-            // but all the files are added to the last dir
-            var programFilesDir = new Dir("%ProgramFiles%\\Datadog",
-                installDir = new InstallDir(new Id("PROJECTLOCATION"), "Datadog Agent",
-                    targetBinFolder,
-                    new Dir("LICENSES",
-                        new Files($@"{InstallerSource}\LICENSES\*")
-                    ),
-                    new DirFiles($@"{InstallerSource}\LICENSE"),
-                    new DirFiles($@"{InstallerSource}\*.json"),
-                    new DirFiles($@"{InstallerSource}\*.txt"),
-                    new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
-                    // Recursively delete/backup all files/folders in PROJECTLOCATION, they will be restored
-                    // on rollback. By default WindowsInstller only removes the files it tracks, and embedded3 isn't tracked
-                    new RemoveFolderEx { On=InstallEvent.uninstall, Property="PROJECTLOCATION"}
-                ));
+            var datadogAgentFolder = new InstallDir(new Id("PROJECTLOCATION"), "Datadog Agent",
+                CreateBinFolder(),
+                new Dir("LICENSES",
+                    new Files($@"{InstallerSource}\LICENSES\*")
+                ),
+                new DirFiles($@"{InstallerSource}\LICENSE"),
+                new DirFiles($@"{InstallerSource}\*.json"),
+                new DirFiles($@"{InstallerSource}\*.txt"),
+                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
+                // Recursively delete/backup all files/folders in PROJECTLOCATION, they will be restored
+                // on rollback. By default WindowsInstller only removes the files it tracks, and embedded3 isn't tracked
+                new RemoveFolderEx { On = InstallEvent.uninstall, Property = "PROJECTLOCATION" }
+            );
             if (_agentPython.IncludePython2)
             {
-                installDir.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
+                datadogAgentFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
             }
 
-            return programFilesDir;
+            return new Dir("%ProgramFiles%\\Datadog", datadogAgentFolder);
         }
 
         private static PermissionEx DefaultPermissions()
