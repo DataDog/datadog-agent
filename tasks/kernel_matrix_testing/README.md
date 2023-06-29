@@ -19,37 +19,15 @@ A `stack` may be:
 > All subsequent commands are assumed to be executed from the root directory of the datadog-agent repository.
 
 ## Dependencies
+Review and run `tasks/kernel_matrix_testing/env-setup.sh`   
+   
+Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.   
+From within the repository execute the following commands:  
 ```bash
-apt update
-apt install -y \
-    aria2 \
-    fio \
-    socat \
-    qemu-kvm \
-    libvirt-daemon-system \
-    curl \
-    debootstrap \
-    libguestfs-tools \
-    libvirt-dev \
-    python3-pip \
-    nfs-kernel-server \
-    rpcbind
-
-if [ "$(uname -m )" == "aarch64" ]; then
-    apt install -y qemu-efi-aarch64
-fi
-
-systemctl start nfs-kernel-server.service
-
-pip install -r tasks/kernel_matrix_testing/requirements.txt
-```
-
-- [Install pulumi](https://www.pulumi.com/docs/install/).
-
-> Pulumi plugins will be installed automatically the first time the system is invoked
-
-```bash
-pulumi login --local
+go mod download
+export PULUMI_CONFIG_PASSPHRASE=dummy
+pulumi --non-interactive plugin install
+pulumi --non-interactive plugin ls
 ```
 
 ## Getting started
