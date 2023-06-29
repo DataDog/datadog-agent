@@ -207,7 +207,9 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 // Send sends a payload over HTTP,
 func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	for {
-		d.destinationsContext.LogSync.Processing(true)
+		if d.destinationsContext.LogSync != nil {
+			d.destinationsContext.LogSync.Processing(true)
+		}
 		d.retryLock.Lock()
 		backoffDuration := d.backoff.GetBackoffDuration(d.nbErrors)
 		d.blockedUntil = time.Now().Add(backoffDuration)
@@ -243,7 +245,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		metrics.LogsSent.Add(int64(len(payload.Messages)))
 		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
 		output <- payload
-		d.destinationsContext.LogSync.Processing(false)
+		if d.destinationsContext.LogSync != nil {
+			d.destinationsContext.LogSync.Processing(false)
+		}
 		return
 	}
 }
