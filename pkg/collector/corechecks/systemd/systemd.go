@@ -126,13 +126,13 @@ var serviceCheckStateMapping = map[string]string{
 	"deactivating": "unknown",
 }
 
-var systemdStatusMapping = map[string]metrics.ServiceCheckStatus{
-	"initializing": metrics.ServiceCheckUnknown,
-	"starting":     metrics.ServiceCheckUnknown,
-	"running":      metrics.ServiceCheckOK,
-	"degraded":     metrics.ServiceCheckCritical,
-	"maintenance":  metrics.ServiceCheckCritical,
-	"stopping":     metrics.ServiceCheckCritical,
+var systemdStatusMapping = map[string]servicecheck.ServiceCheckStatus{
+	"initializing": servicecheck.ServiceCheckUnknown,
+	"starting":     servicecheck.ServiceCheckUnknown,
+	"running":      servicecheck.ServiceCheckOK,
+	"degraded":     servicecheck.ServiceCheckCritical,
+	"maintenance":  servicecheck.ServiceCheckCritical,
+	"stopping":     servicecheck.ServiceCheckCritical,
 }
 
 // SystemdCheck aggregates metrics from one SystemdCheck instance
@@ -235,10 +235,10 @@ func (c *SystemdCheck) connect(sender sender.Sender) (*dbus.Conn, error) {
 	conn, err := c.getDbusConnection()
 	if err != nil {
 		newErr := fmt.Errorf("cannot create a connection: %v", err)
-		sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckCritical, "", nil, newErr.Error())
+		sender.ServiceCheck(canConnectServiceCheck, servicecheck.ServiceCheckCritical, "", nil, newErr.Error())
 		return nil, newErr
 	}
-	sender.ServiceCheck(canConnectServiceCheck, metrics.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck(canConnectServiceCheck, servicecheck.ServiceCheckOK, "", nil, "")
 	return conn, nil
 }
 
@@ -250,7 +250,7 @@ func (c *SystemdCheck) submitSystemdState(sender sender.Sender, conn *dbus.Conn)
 	if err != nil {
 		log.Debugf("err calling SystemState: %v", err)
 	} else {
-		serviceCheckStatus := metrics.ServiceCheckUnknown
+		serviceCheckStatus := servicecheck.ServiceCheckUnknown
 		systemState, ok := systemStateProp.Value.Value().(string)
 		if ok {
 			status, ok := systemdStatusMapping[systemState]
@@ -487,16 +487,16 @@ func getPropertyBool(properties map[string]interface{}, propertyName string) (bo
 }
 
 // getServiceCheckStatus returns a service check status for a given unit state (or substate) and a provided mapping
-func getServiceCheckStatus(state string, mapping map[string]string) metrics.ServiceCheckStatus {
+func getServiceCheckStatus(state string, mapping map[string]string) servicecheck.ServiceCheckStatus {
 	switch mapping[state] {
 	case "ok":
-		return metrics.ServiceCheckOK
+		return servicecheck.ServiceCheckOK
 	case "warning":
-		return metrics.ServiceCheckWarning
+		return servicecheck.ServiceCheckWarning
 	case "critical":
-		return metrics.ServiceCheckCritical
+		return servicecheck.ServiceCheckCritical
 	}
-	return metrics.ServiceCheckUnknown
+	return servicecheck.ServiceCheckUnknown
 }
 
 // isMonitored verifies if a unit should be monitored.

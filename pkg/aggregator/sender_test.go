@@ -19,12 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type senderWithChans struct {
 	itemChan                 chan senderItem
-	serviceCheckChan         chan metrics.ServiceCheck
+	serviceCheckChan         chan servicecheck.ServiceCheck
 	eventChan                chan event.Event
 	orchestratorChan         chan senderOrchestratorMetadata
 	orchestratorManifestChan chan senderOrchestratorManifest
@@ -34,7 +35,7 @@ type senderWithChans struct {
 
 func initSender(id id.ID, defaultHostname string) (s senderWithChans) {
 	s.itemChan = make(chan senderItem, 10)
-	s.serviceCheckChan = make(chan metrics.ServiceCheck, 10)
+	s.serviceCheckChan = make(chan servicecheck.ServiceCheck, 10)
 	s.eventChan = make(chan event.Event, 10)
 	s.orchestratorChan = make(chan senderOrchestratorMetadata, 10)
 	s.orchestratorManifestChan = make(chan senderOrchestratorManifest, 10)
@@ -173,7 +174,7 @@ func TestGetAndSetSender(t *testing.T) {
 	demux := testDemux(log)
 
 	itemChan := make(chan senderItem, 10)
-	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	serviceCheckChan := make(chan servicecheck.ServiceCheck, 10)
 	eventChan := make(chan event.Event, 10)
 	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
 	orchestratorManifestChan := make(chan senderOrchestratorManifest, 10)
@@ -243,7 +244,7 @@ func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 	// only tags added by the check
 	s.sender.SetCheckService("")
 	s.sender.FinalizeCheckServiceTag()
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
 	sc := <-s.serviceCheckChan
 	assert.Equal(t, checkTags, sc.Tags)
 
@@ -251,7 +252,7 @@ func TestGetSenderServiceTagServiceCheck(t *testing.T) {
 	s.sender.SetCheckService("service1")
 	s.sender.SetCheckService("service2")
 	s.sender.FinalizeCheckServiceTag()
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, append(checkTags, "service:service2"), sc.Tags)
 }
@@ -327,13 +328,13 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	s := initSender(checkID1, "")
 
 	// no custom tags
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", nil, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", nil, "test message")
 	sc := <-s.serviceCheckChan
 	assert.Nil(t, sc.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, checkTags, sc.Tags)
 
@@ -343,12 +344,12 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	assert.Len(t, s.sender.checkTags, 2)
 
 	// only tags coming from the configuration file
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", nil, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", nil, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, customTags, sc.Tags)
 
 	// tags added by the check + tags coming from the configuration file
-	s.sender.ServiceCheck("test", metrics.ServiceCheckOK, "testhostname", checkTags, "test message")
+	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", checkTags, "test message")
 	sc = <-s.serviceCheckChan
 	assert.Equal(t, append(checkTags, customTags...), sc.Tags)
 }
@@ -444,7 +445,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
 	s.sender.Commit()
-	s.sender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
+	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
 	s.sender.EventPlatformEvent([]byte("raw-event"), "dbm-sample")
 	submittedEvent := event.Event{
 		Title:          "Something happened",
@@ -512,7 +513,7 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	serviceCheck := <-s.serviceCheckChan
 	assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
-	assert.Equal(t, metrics.ServiceCheckOK, serviceCheck.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, serviceCheck.Status)
 	assert.Equal(t, "my-hostname", serviceCheck.Host)
 	assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
 	assert.Equal(t, "message", serviceCheck.Message)
@@ -564,7 +565,7 @@ func TestCheckSenderHostname(t *testing.T) {
 
 			s.sender.Gauge("my.metric", 1.0, tc.submittedHostname, []string{"foo", "bar"})
 			s.sender.Commit()
-			s.sender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, tc.submittedHostname, []string{"foo", "bar"}, "message")
+			s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, tc.submittedHostname, []string{"foo", "bar"}, "message")
 			submittedEvent := event.Event{
 				Title:          "Something happened",
 				Text:           "Description of the event",
@@ -586,7 +587,7 @@ func TestCheckSenderHostname(t *testing.T) {
 
 			serviceCheck := <-s.serviceCheckChan
 			assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
-			assert.Equal(t, metrics.ServiceCheckOK, serviceCheck.Status)
+			assert.Equal(t, servicecheck.ServiceCheckOK, serviceCheck.Status)
 			assert.Equal(t, tc.expectedHostname, serviceCheck.Host)
 			assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
 			assert.Equal(t, "message", serviceCheck.Message)

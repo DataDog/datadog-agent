@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 // #include <datadog_agent_rtloader.h>
@@ -135,7 +135,7 @@ func testSubmitServiceCheck(t *testing.T) {
 		C.CString("my_hostname"),
 		C.CString("my_message"))
 
-	sender.AssertServiceCheck(t, "service_name", metrics.ServiceCheckWarning, "my_hostname", []string{"tag1", "tag2"}, "my_message")
+	sender.AssertServiceCheck(t, "service_name", servicecheck.ServiceCheckWarning, "my_hostname", []string{"tag1", "tag2"}, "my_message")
 }
 
 func testSubmitServiceCheckEmptyTag(t *testing.T) {
@@ -150,7 +150,7 @@ func testSubmitServiceCheckEmptyTag(t *testing.T) {
 		C.CString("my_hostname"),
 		C.CString("my_message"))
 
-	sender.AssertServiceCheck(t, "service_name", metrics.ServiceCheckWarning, "my_hostname", nil, "my_message")
+	sender.AssertServiceCheck(t, "service_name", servicecheck.ServiceCheckWarning, "my_hostname", nil, "my_message")
 }
 
 func testSubmitServiceCheckEmptyHostame(t *testing.T) {
@@ -165,7 +165,7 @@ func testSubmitServiceCheckEmptyHostame(t *testing.T) {
 		nil,
 		C.CString("my_message"))
 
-	sender.AssertServiceCheck(t, "service_name", metrics.ServiceCheckWarning, "", nil, "my_message")
+	sender.AssertServiceCheck(t, "service_name", servicecheck.ServiceCheckWarning, "", nil, "my_message")
 }
 
 func testSubmitEvent(t *testing.T) {

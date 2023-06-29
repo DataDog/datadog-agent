@@ -7,7 +7,7 @@ package corechecks
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 // SafeSender implements sender.Sender, wrapping the methods to provide
@@ -80,7 +80,7 @@ func (ss *safeSender) Historate(metric string, value float64, hostname string, t
 }
 
 // ServiceCheck implememnts sender.Sender#ServiceCheck.
-func (ss *safeSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (ss *safeSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
 	ss.Sender.ServiceCheck(checkName, status, hostname, cloneTags(tags), message)
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -33,11 +34,11 @@ type batcher struct {
 	samplesWithTsCount int
 
 	events        []*event.Event
-	serviceChecks []*metrics.ServiceCheck
+	serviceChecks []*servicecheck.ServiceCheck
 
 	// output channels
 	choutEvents        chan<- []*event.Event
-	choutServiceChecks chan<- []*metrics.ServiceCheck
+	choutServiceChecks chan<- []*servicecheck.ServiceCheck
 
 	metricSamplePool *metrics.MetricSamplePool
 
@@ -73,7 +74,7 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
 	var e chan []*event.Event
-	var sc chan []*metrics.ServiceCheck
+	var sc chan []*servicecheck.ServiceCheck
 
 	// the Serverless Agent doesn't have to support service checks nor events so
 	// it doesn't run an Aggregator.
@@ -164,7 +165,7 @@ func (b *batcher) appendEvent(event *event.Event) {
 	b.events = append(b.events, event)
 }
 
-func (b *batcher) appendServiceCheck(serviceCheck *metrics.ServiceCheck) {
+func (b *batcher) appendServiceCheck(serviceCheck *servicecheck.ServiceCheck) {
 	b.serviceChecks = append(b.serviceChecks, serviceCheck)
 }
 
@@ -238,6 +239,6 @@ func (b *batcher) flush() {
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "service_checks")
 
-		b.serviceChecks = []*metrics.ServiceCheck{}
+		b.serviceChecks = []*servicecheck.ServiceCheck{}
 	}
 }

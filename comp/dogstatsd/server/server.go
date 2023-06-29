@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -730,7 +731,7 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 	return event, nil
 }
 
-func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*metrics.ServiceCheck, error) {
+func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*servicecheck.ServiceCheck, error) {
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)

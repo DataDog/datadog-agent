@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -193,11 +194,11 @@ func init() {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	bufferedServiceCheckIn chan []*metrics.ServiceCheck
+	bufferedServiceCheckIn chan []*servicecheck.ServiceCheck
 	bufferedEventIn        chan []*event.Event
 
 	eventIn        chan event.Event
-	serviceCheckIn chan metrics.ServiceCheck
+	serviceCheckIn chan servicecheck.ServiceCheck
 
 	checkItems             chan senderItem
 	orchestratorMetadataIn chan senderOrchestratorMetadata
@@ -210,7 +211,7 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[id.ID]*CheckSampler
-	serviceChecks          metrics.ServiceChecks
+	serviceChecks          servicecheck.ServiceChecks
 	events                 event.Events
 	manifests              []*senderOrchestratorManifest
 	flushInterval          time.Duration
@@ -267,10 +268,10 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
-		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
+		bufferedServiceCheckIn: make(chan []*servicecheck.ServiceCheck, bufferSize),
 		bufferedEventIn:        make(chan []*event.Event, bufferSize),
 
-		serviceCheckIn: make(chan metrics.ServiceCheck, bufferSize),
+		serviceCheckIn: make(chan servicecheck.ServiceCheck, bufferSize),
 		eventIn:        make(chan event.Event, bufferSize),
 
 		checkItems: make(chan senderItem, bufferSize),
@@ -362,7 +363,7 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 }
 
 // GetBufferedChannels returns a channel which can be subsequently used to send Event or ServiceCheck.
-func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan []*metrics.ServiceCheck) {
+func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck) {
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
@@ -429,7 +430,7 @@ func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatfor
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
-func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
+func (agg *BufferedAggregator) addServiceCheck(sc servicecheck.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
@@ -581,7 +582,7 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
-func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
+func (agg *BufferedAggregator) GetServiceChecks() servicecheck.ServiceChecks {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	// Clear the current service check slice
@@ -590,7 +591,7 @@ func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 	return serviceChecks
 }
 
-func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metrics.ServiceChecks) {
+func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks servicecheck.ServiceChecks) {
 	log.Debugf("Flushing %d service checks to the forwarder", len(serviceChecks))
 	state := stateOk
 	if err := agg.serializer.SendServiceChecks(serviceChecks); err != nil {
@@ -605,9 +606,9 @@ func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks 
 
 func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerializer bool) {
 	// Add a simple service check for the Agent status
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(servicecheck.ServiceCheck{
 		CheckName: fmt.Sprintf("datadog.%s.up", agg.agentName),
-		Status:    metrics.ServiceCheckOK,
+		Status:    servicecheck.ServiceCheckOK,
 		Tags:      agg.tags(false),
 		Host:      agg.hostname,
 	})

@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 type testCheck struct {
@@ -513,7 +513,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	mockSender.On(
 		"ServiceCheck",
 		serviceCheckStatusKey,
-		metrics.ServiceCheckOK,
+		servicecheck.ServiceCheckOK,
 		"myhost",
 		[]string{"check:goodcheck"},
 		"",
@@ -522,7 +522,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	mockSender.On(
 		"ServiceCheck",
 		serviceCheckStatusKey,
-		metrics.ServiceCheckWarning,
+		servicecheck.ServiceCheckWarning,
 		"myhost",
 		[]string{"check:check_withwarn"},
 		"",
@@ -531,7 +531,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	mockSender.On(
 		"ServiceCheck",
 		serviceCheckStatusKey,
-		metrics.ServiceCheckCritical,
+		servicecheck.ServiceCheckCritical,
 		"myhost",
 		[]string{"check:check_witherr"},
 		"",

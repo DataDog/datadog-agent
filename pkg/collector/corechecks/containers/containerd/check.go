@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -102,11 +102,11 @@ func (c *ContainerdCheck) Run() error {
 
 	// As we do not rely on a singleton, we ensure connectivity every check run.
 	if errHealth := c.client.CheckConnectivity(); errHealth != nil {
-		sender.ServiceCheck("containerd.health", coreMetrics.ServiceCheckCritical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
+		sender.ServiceCheck("containerd.health", servicecheck.ServiceCheckCritical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
 		log.Infof("Error ensuring connectivity with Containerd daemon %v", errHealth)
 		return errHealth
 	}
-	sender.ServiceCheck("containerd.health", coreMetrics.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck("containerd.health", servicecheck.ServiceCheckOK, "", nil, "")
 
 	if err := c.runProcessor(sender); err != nil {
 		_ = c.Warnf("Error collecting metrics: %s", err)

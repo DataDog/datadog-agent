@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -926,7 +926,7 @@ profiles:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
 }
 
 func TestServiceCheckFailures(t *testing.T) {
@@ -962,7 +962,7 @@ community_string: public
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0.0, "", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "snmp connection error: can't connect")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "snmp connection error: can't connect")
 }
 
 func TestCheckID(t *testing.T) {
@@ -1226,7 +1226,7 @@ namespace: '%s'
 			sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 			sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
-			sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, tt.expectedErr)
+			sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, tt.expectedErr)
 		})
 	}
 }
@@ -1274,7 +1274,7 @@ metrics:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
@@ -1567,7 +1567,7 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
@@ -1657,7 +1657,7 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
 }
 
 func TestDiscovery(t *testing.T) {

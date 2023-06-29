@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -272,7 +273,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	defer config.Datadog.Set("enable_service_checks_stream_payload_serialization", nil)
 
 	s := NewSerializer(f, nil)
-	err := s.SendServiceChecks(metrics.ServiceChecks{&metrics.ServiceCheck{}})
+	err := s.SendServiceChecks(servicecheck.ServiceChecks{&servicecheck.ServiceCheck{}})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
@@ -388,7 +389,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	s.SendEvents(make(event.Events, 0))
 	s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	s.SendSketch(metrics.NewSketchesSourceTest())
-	s.SendServiceChecks(make(metrics.ServiceChecks, 0))
+	s.SendServiceChecks(make(servicecheck.ServiceChecks, 0))
 	s.SendProcessesMetadata("test")
 
 	f.AssertNotCalled(t, "SubmitMetadata")

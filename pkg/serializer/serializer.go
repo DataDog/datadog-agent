@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
@@ -88,7 +89,7 @@ func initExtraHeaders() {
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
 type MetricSerializer interface {
 	SendEvents(e event.Events) error
-	SendServiceChecks(serviceChecks metrics.ServiceChecks) error
+	SendServiceChecks(serviceChecks servicecheck.ServiceChecks) error
 	SendIterableSeries(serieSource metrics.SerieSource) error
 	AreSeriesEnabled() bool
 	SendSketch(sketches metrics.SketchesSource) error
@@ -283,7 +284,7 @@ func (s *Serializer) SendEvents(events event.Events) error {
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *Serializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) error {
+func (s *Serializer) SendServiceChecks(serviceChecks servicecheck.ServiceChecks) error {
 	if !s.enableServiceChecks {
 		log.Debug("service_checks payloads are disabled: dropping it")
 		return nil

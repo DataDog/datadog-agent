@@ -7,8 +7,8 @@ package mocksender
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -58,7 +58,7 @@ func (m *MockSender) GaugeNoIndex(metric string, value float64, hostname string,
 }
 
 // ServiceCheck enables the service check mock call.
-func (m *MockSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (m *MockSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
 	m.Called(checkName, status, hostname, tags, message)
 }
 

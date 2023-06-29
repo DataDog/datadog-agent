@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -58,7 +59,7 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 	return enrichMetricSample(samples, parsed, "", conf), nil
 }
 
-func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*metrics.ServiceCheck, error) {
+func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
 	parser := newParser(cfg, newFloat64ListPool())
 	parsed, err := parser.parseServiceCheck(message)
@@ -374,7 +375,7 @@ func TestConvertServiceCheckMinimal(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "default-hostname", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "", sc.OriginFromClient)
@@ -420,7 +421,7 @@ func TestConvertServiceCheckMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "default-hostname", sc.Host)
 	assert.Equal(t, int64(21), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "", sc.OriginFromClient)
@@ -437,7 +438,7 @@ func TestConvertServiceCheckMetadataHostname(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "", sc.OriginFromClient)
@@ -454,7 +455,7 @@ func TestConvertServiceCheckMetadataHostnameInTag(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "", sc.OriginFromClient)
@@ -471,7 +472,7 @@ func TestConvertServiceCheckMetadataEmptyHostTag(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "", sc.OriginFromClient)
@@ -488,7 +489,7 @@ func TestConvertServiceCheckMetadataTags(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "default-hostname", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "", sc.OriginFromClient)
@@ -505,7 +506,7 @@ func TestConvertServiceCheckMetadataMessage(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "default-hostname", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "this is fine", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "", sc.OriginFromClient)
@@ -522,7 +523,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
 	assert.Equal(t, int64(21), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "this is fine", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "", sc.OriginFromClient)
@@ -534,7 +535,7 @@ func TestConvertServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost2", sc.Host)
 	assert.Equal(t, int64(22), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "", sc.OriginFromClient)
@@ -550,7 +551,7 @@ func TestServiceCheckOriginTag(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
 	assert.Equal(t, int64(21), sc.Ts)
-	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
+	assert.Equal(t, servicecheck.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "this is fine", sc.Message)
 	assert.Equal(t, "", sc.OriginFromUDS)
 	assert.Equal(t, "kubernetes_pod_uid://testID", sc.OriginFromClient)

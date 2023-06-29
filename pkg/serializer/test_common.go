@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -26,7 +27,7 @@ func (s *MockSerializer) SendEvents(events event.Events) error {
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
-func (s *MockSerializer) SendServiceChecks(serviceChecks metrics.ServiceChecks) error {
+func (s *MockSerializer) SendServiceChecks(serviceChecks servicecheck.ServiceChecks) error {
 	return s.Called(serviceChecks).Error(0)
 }
 

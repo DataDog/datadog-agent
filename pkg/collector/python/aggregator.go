@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,7 +74,7 @@ func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.
 	}
 
 	_name := C.GoString(scName)
-	_status := metrics.ServiceCheckStatus(status)
+	_status := servicecheck.ServiceCheckStatus(status)
 	_tags := cStringArrayToSlice(tags)
 	_hostname := C.GoString(hostname)
 	_message := C.GoString(message)

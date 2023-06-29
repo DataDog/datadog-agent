@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,7 +24,7 @@ import (
 // RawSender interface to submit samples to aggregator directly
 type RawSender interface {
 	SendRawMetricSample(sample *metrics.MetricSample)
-	SendRawServiceCheck(sc *metrics.ServiceCheck)
+	SendRawServiceCheck(sc *servicecheck.ServiceCheck)
 	Event(e event.Event)
 }
 
@@ -36,7 +37,7 @@ type checkSender struct {
 	priormetricStats        stats.SenderStats
 	statsLock               sync.RWMutex
 	itemsOut                chan<- senderItem
-	serviceCheckOut         chan<- metrics.ServiceCheck
+	serviceCheckOut         chan<- servicecheck.ServiceCheck
 	eventOut                chan<- event.Event
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
 	orchestratorManifestOut chan<- senderOrchestratorManifest
@@ -97,7 +98,7 @@ func newCheckSender(
 	id id.ID,
 	defaultHostname string,
 	itemsOut chan<- senderItem,
-	serviceCheckOut chan<- metrics.ServiceCheck,
+	serviceCheckOut chan<- servicecheck.ServiceCheck,
 	eventOut chan<- event.Event,
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata,
 	orchestratorManifestOut chan<- senderOrchestratorManifest,
@@ -336,14 +337,14 @@ func (s *checkSender) Historate(metric string, value float64, hostname string, t
 
 // SendRawServiceCheck sends the raw service check
 // Useful for testing - submitting precomputed service check.
-func (s *checkSender) SendRawServiceCheck(sc *metrics.ServiceCheck) {
+func (s *checkSender) SendRawServiceCheck(sc *servicecheck.ServiceCheck) {
 	s.serviceCheckOut <- *sc
 }
 
 // ServiceCheck submits a service check
-func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (s *checkSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
 	log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
-	serviceCheck := metrics.ServiceCheck{
+	serviceCheck := servicecheck.ServiceCheck{
 		CheckName: checkName,
 		Status:    status,
 		Host:      hostname,

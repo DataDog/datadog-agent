@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -230,7 +230,7 @@ func TestDockerCustomPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.volume.count", 10, "", []string{"volume_state:attached"})
 	mockSender.AssertMetric(t, "Gauge", "docker.volume.count", 2, "", []string{"volume_state:dangling"})
 
-	mockSender.AssertServiceCheck(t, DockerServiceUp, coreMetrics.ServiceCheckOK, "", nil, "")
+	mockSender.AssertServiceCheck(t, DockerServiceUp, servicecheck.ServiceCheckOK, "", nil, "")
 }
 
 func TestContainersRunning(t *testing.T) {

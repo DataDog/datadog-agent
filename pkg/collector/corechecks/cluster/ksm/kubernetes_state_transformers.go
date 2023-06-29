@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -79,7 +79,7 @@ func nodeConditionTransformer(s sender.Sender, name string, metric ksmstore.DDMe
 	}
 
 	serviceCheckName := ""
-	var eventStatus metrics.ServiceCheckStatus
+	var eventStatus servicecheck.ServiceCheckStatus
 	switch condition {
 	case "Ready":
 		serviceCheckName = ksmMetricPrefix + "node.ready"
@@ -114,26 +114,26 @@ func nodeConditionTransformer(s sender.Sender, name string, metric ksmstore.DDMe
 // statusForCondition returns the right service check status based on the KSM label 'status'
 // and the nature of the event whether a positive event or not
 // e.g Ready is a positive event while MemoryPressure is not
-func statusForCondition(status string, positiveEvent bool) metrics.ServiceCheckStatus {
+func statusForCondition(status string, positiveEvent bool) servicecheck.ServiceCheckStatus {
 	switch status {
 	case "true":
 		if positiveEvent {
-			return metrics.ServiceCheckOK
+			return servicecheck.ServiceCheckOK
 		}
-		return metrics.ServiceCheckCritical
+		return servicecheck.ServiceCheckCritical
 	case "false":
 		if positiveEvent {
-			return metrics.ServiceCheckCritical
+			return servicecheck.ServiceCheckCritical
 		}
-		return metrics.ServiceCheckOK
+		return servicecheck.ServiceCheckOK
 	case "unknown":
 		if positiveEvent {
-			return metrics.ServiceCheckWarning
+			return servicecheck.ServiceCheckWarning
 		}
-		return metrics.ServiceCheckUnknown
+		return servicecheck.ServiceCheckUnknown
 	default:
 		log.Tracef("Unknown 'status' label: '%s'", status)
-		return metrics.ServiceCheckUnknown
+		return servicecheck.ServiceCheckUnknown
 	}
 }
 
@@ -292,12 +292,12 @@ func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMe
 // cronJobNextScheduleTransformer sends a service check to alert if the cronjob's next schedule is in the past
 func cronJobNextScheduleTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	message := ""
-	var status metrics.ServiceCheckStatus
+	var status servicecheck.ServiceCheckStatus
 	timeDiff := int64(metric.Val) - currentTime.Unix()
 	if timeDiff >= 0 {
-		status = metrics.ServiceCheckOK
+		status = servicecheck.ServiceCheckOK
 	} else {
-		status = metrics.ServiceCheckCritical
+		status = servicecheck.ServiceCheckCritical
 		message = fmt.Sprintf("The cron job check scheduled at %s is %d seconds late", time.Unix(int64(metric.Val), 0).UTC(), -timeDiff)
 	}
 	s.ServiceCheck(ksmMetricPrefix+"cronjob.on_schedule_check", status, hostname, tags, message)
@@ -316,7 +316,7 @@ func jobCompleteTransformer(s sender.Sender, name string, metric ksmstore.DDMetr
 			break
 		}
 	}
-	jobServiceCheck(s, metric, metrics.ServiceCheckOK, hostname, tags)
+	jobServiceCheck(s, metric, servicecheck.ServiceCheckOK, hostname, tags)
 }
 
 // jobFailedTransformer sends a metric and a service check based on kube_job_failed
@@ -327,7 +327,7 @@ func jobFailedTransformer(s sender.Sender, name string, metric ksmstore.DDMetric
 			break
 		}
 	}
-	jobServiceCheck(s, metric, metrics.ServiceCheckCritical, hostname, tags)
+	jobServiceCheck(s, metric, servicecheck.ServiceCheckCritical, hostname, tags)
 }
 
 // jobTimestampPattern extracts the timestamp in the job name label
@@ -364,7 +364,7 @@ func validateJob(val float64, tags []string) ([]string, bool) {
 }
 
 // jobServiceCheck sends a service check for jobs
-func jobServiceCheck(s sender.Sender, metric ksmstore.DDMetric, status metrics.ServiceCheckStatus, hostname string, tags []string) {
+func jobServiceCheck(s sender.Sender, metric ksmstore.DDMetric, status servicecheck.ServiceCheckStatus, hostname string, tags []string) {
 	if strippedTags, valid := validateJob(metric.Val, tags); valid {
 		s.ServiceCheck(ksmMetricPrefix+"job.complete", status, hostname, strippedTags, "")
 	}

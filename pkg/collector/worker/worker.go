@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -151,19 +151,19 @@ func (w *Worker) Run() {
 			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 		}
 		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String())}
-		serviceCheckStatus := metrics.ServiceCheckOK
+		serviceCheckStatus := servicecheck.ServiceCheckOK
 
 		hname, _ := hostname.Get(context.TODO())
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))
-			serviceCheckStatus = metrics.ServiceCheckWarning
+			serviceCheckStatus = servicecheck.ServiceCheckWarning
 		}
 
 		if checkErr != nil {
 			checkLogger.Error(checkErr)
 			expvars.AddErrorsCount(1)
-			serviceCheckStatus = metrics.ServiceCheckCritical
+			serviceCheckStatus = servicecheck.ServiceCheckCritical
 		}
 
 		if sender != nil && !longRunning {

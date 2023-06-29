@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 // TestAgentDemultiplexer is an implementation of the Demultiplexer which is sending
@@ -29,7 +30,7 @@ type TestAgentDemultiplexer struct {
 	sync.Mutex
 
 	events        chan []*event.Event
-	serviceChecks chan []*metrics.ServiceCheck
+	serviceChecks chan []*servicecheck.ServiceCheck
 }
 
 // AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
@@ -52,7 +53,7 @@ func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventP
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
-func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*metrics.ServiceCheck) {
+func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck) {
 	return a.events, a.serviceChecks
 }
 
@@ -165,7 +166,7 @@ func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOption
 	testAgent := TestAgentDemultiplexer{
 		AgentDemultiplexer: demux,
 		events:             make(chan []*event.Event),
-		serviceChecks:      make(chan []*metrics.ServiceCheck),
+		serviceChecks:      make(chan []*servicecheck.ServiceCheck),
 	}
 	return &testAgent
 }

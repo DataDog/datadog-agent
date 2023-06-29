@@ -24,6 +24,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -153,16 +154,16 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
 
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
 		CheckName: "my_service.can_connect",
-		Status:    metrics.ServiceCheckOK,
+		Status:    servicecheck.ServiceCheckOK,
 		Tags:      []string{"bar", "foo", "bar"},
 		Message:   "message",
 	})
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(servicecheck.ServiceCheck{
 		CheckName: "my_service.can_connect",
-		Status:    metrics.ServiceCheckOK,
+		Status:    servicecheck.ServiceCheckOK,
 		Host:      "my-hostname",
 		Tags:      []string{"foo", "foo", "bar"},
 		Ts:        12345,
@@ -236,10 +237,10 @@ func TestDefaultData(t *testing.T) {
 	start := time.Now()
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
-	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
-		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
 		require.Equal(t, []string{}, m[0].Tags)
 		require.Equal(t, agg.hostname, m[0].Host)
 
@@ -467,10 +468,10 @@ func TestRecurrentSeries(t *testing.T) {
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
-	agentUpMatcher := mock.MatchedBy(func(m metrics.ServiceChecks) bool {
+	agentUpMatcher := mock.MatchedBy(func(m servicecheck.ServiceChecks) bool {
 		require.Equal(t, 1, len(m))
 		require.Equal(t, "datadog.agent.up", m[0].CheckName)
-		require.Equal(t, metrics.ServiceCheckOK, m[0].Status)
+		require.Equal(t, servicecheck.ServiceCheckOK, m[0].Status)
 		require.Equal(t, []string{}, m[0].Tags)
 		require.Equal(t, demux.Aggregator().hostname, m[0].Host)
 

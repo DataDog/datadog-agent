@@ -23,8 +23,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -312,7 +312,7 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 		}
 
 		for _, condition := range component.Conditions {
-			statusCheck := metrics.ServiceCheckUnknown
+			statusCheck := servicecheck.ServiceCheckUnknown
 			message := ""
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
@@ -324,10 +324,10 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 			// We only expect True, False and Unknown (default).
 			switch condition.Status {
 			case "True":
-				statusCheck = metrics.ServiceCheckOK
+				statusCheck = servicecheck.ServiceCheckOK
 				message = condition.Message
 			case "False":
-				statusCheck = metrics.ServiceCheckCritical
+				statusCheck = servicecheck.ServiceCheckCritical
 				message = condition.Error
 				if message == "" {
 					message = condition.Message
@@ -355,14 +355,14 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender
 
 	var (
 		msg    string
-		status metrics.ServiceCheckStatus
+		status servicecheck.ServiceCheckStatus
 	)
 
 	if ready {
 		msg = "ok"
-		status = metrics.ServiceCheckOK
+		status = servicecheck.ServiceCheckOK
 	} else {
-		status = metrics.ServiceCheckCritical
+		status = servicecheck.ServiceCheckCritical
 		if err != nil {
 			msg = err.Error()
 		} else {

@@ -7,8 +7,8 @@ package sender
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -24,7 +24,7 @@ type Sender interface {
 	Counter(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
 	Historate(metric string, value float64, hostname string, tags []string)
-	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
+	ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string)
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
 	Event(e event.Event)
 	EventPlatformEvent(rawEvent []byte, eventType string)

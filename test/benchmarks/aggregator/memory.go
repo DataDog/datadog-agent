@@ -74,13 +74,13 @@ func preAllocateEvents(n int) []*event.Event {
 	return events
 }
 
-func preAllocateServiceChecks(n int) []*metrics.ServiceCheck {
-	scs := make([]*metrics.ServiceCheck, n)
+func preAllocateServiceChecks(n int) []*servicecheck.ServiceCheck {
+	scs := make([]*servicecheck.ServiceCheck, n)
 
 	for i := range scs {
-		sc := &metrics.ServiceCheck{
+		sc := &servicecheck.ServiceCheck{
 			CheckName: "benchmark.sc." + RandomString(4),
-			Status:    metrics.ServiceCheckOK,
+			Status:    servicecheck.ServiceCheckOK,
 			Host:      "localhost",
 			Ts:        time.Now().Unix(),
 			Tags:      []string{"a", "b:21", "c"},

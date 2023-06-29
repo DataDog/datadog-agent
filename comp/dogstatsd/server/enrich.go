@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -260,24 +261,24 @@ func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metric
 	return enrichedEvent
 }
 
-func enrichServiceCheckStatus(status serviceCheckStatus) metrics.ServiceCheckStatus {
+func enrichServiceCheckStatus(status serviceCheckStatus) servicecheck.ServiceCheckStatus {
 	switch status {
 	case serviceCheckStatusUnknown:
-		return metrics.ServiceCheckUnknown
+		return servicecheck.ServiceCheckUnknown
 	case serviceCheckStatusOk:
-		return metrics.ServiceCheckOK
+		return servicecheck.ServiceCheckOK
 	case serviceCheckStatusWarning:
-		return metrics.ServiceCheckWarning
+		return servicecheck.ServiceCheckWarning
 	case serviceCheckStatusCritical:
-		return metrics.ServiceCheckCritical
+		return servicecheck.ServiceCheckCritical
 	}
-	return metrics.ServiceCheckUnknown
+	return servicecheck.ServiceCheckUnknown
 }
 
-func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, conf enrichConfig) *metrics.ServiceCheck {
+func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, conf enrichConfig) *servicecheck.ServiceCheck {
 	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(serviceCheck.tags, origin, serviceCheck.containerID, conf)
 
-	enrichedServiceCheck := &metrics.ServiceCheck{
+	enrichedServiceCheck := &servicecheck.ServiceCheck{
 		CheckName:        serviceCheck.name,
 		Ts:               serviceCheck.timestamp,
 		Status:           enrichServiceCheckStatus(serviceCheck.status),
