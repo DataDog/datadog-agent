@@ -212,7 +212,7 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	case "gauge":
 		ms.Gauge(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case "counter":
+	case "counter", "rate":
 		ms.Rate(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
 	case "percent":

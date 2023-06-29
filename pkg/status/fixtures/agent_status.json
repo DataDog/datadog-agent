@@ -685,7 +685,7 @@
 				"ReceiverSocket":"/var/run/datadog/apm.socket",
 				"ReceiverTimeout":0,
 				"RejectTags":null,
-				"RemoteSamplingClient":null,
+				"RemoteConfigClient":null,
 				"ReplaceTags":null,
 				"RequireTags":null,
 				"Site":"datadoghq.com",
