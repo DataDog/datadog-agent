@@ -145,4 +145,4 @@ new-e2e-containers-main:
   rules: !reference [.on_main]
   variables:
     TARGETS: ./containers
-    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:master-py3"
+    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:master-py3 -c ddagent:clusterAgentFullImagePath=datadog/cluster-agent-dev:master"

@@ -22,8 +22,8 @@ SYSCALL_KPROBE0(splice) {
     return 0;
 }
 
-SEC("kprobe/get_pipe_info")
-int kprobe_get_pipe_info(struct pt_regs *ctx) {
+HOOK_ENTRY("get_pipe_info")
+int hook_get_pipe_info(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SPLICE);
     if (!syscall) {
         return 0;
@@ -31,7 +31,7 @@ int kprobe_get_pipe_info(struct pt_regs *ctx) {
 
     // resolve the "in" file path
     if (!syscall->splice.file_found) {
-        struct file *f = (struct file*) PT_REGS_PARM1(ctx);
+        struct file *f = (struct file*) CTX_PARM1(ctx);
         syscall->splice.dentry = get_file_dentry(f);
         set_file_inode(syscall->splice.dentry, &syscall->splice.file, 0);
         syscall->splice.file.path_key.mount_id = get_file_mount_id(f);

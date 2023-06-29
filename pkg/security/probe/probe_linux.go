@@ -114,6 +114,8 @@ type PlatformProbe struct {
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
+
+	useFentry bool
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -225,7 +227,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewProbeLoader(p.Config.Probe, useSyscallWrapper, p.UseRingBuffers(), p.StatsdClient)
+	loader := ebpf.NewProbeLoader(p.Config.Probe, useSyscallWrapper, p.UseRingBuffers(), p.useFentry, p.StatsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -247,7 +249,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -1061,7 +1063,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	var activatedProbes []manager.ProbesSelector
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType() {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
 		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
@@ -1411,6 +1413,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			erpcRequest:               &erpc.ERPCRequest{},
 			isRuntimeDiscarded:        !opts.DontDiscardRuntime,
 			generatedAnomalyDetection: make(map[model.EventType]*atomic.Uint64),
+			useFentry:                 config.Probe.EventStreamUseFentry,
 		},
 	}
 
@@ -1440,7 +1443,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	useRingBuffers := p.UseRingBuffers()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
-	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers)
+	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
 
 	p.ensureConfigDefaults()
 

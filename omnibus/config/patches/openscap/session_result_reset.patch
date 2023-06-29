@@ -5,11 +5,11 @@
  OSCAP_API void xccdf_session_free(struct xccdf_session *session);
  
 +/**
-+ * Free xccdf_session results.
++ * Reset xccdf_session results.
 + * @memberof xccdf_session
-+ * @param session to free results from.
++ * @param session to reset results from.
 + */
-+OSCAP_API void xccdf_session_result_free(struct xccdf_session *session);
++OSCAP_API void xccdf_session_result_reset(struct xccdf_session *session);
 +
  /**
   * Retrieves the filename the session was created with
@@ -20,7 +20,7 @@
  	free(session);
  }
  
-+void xccdf_session_result_free(struct xccdf_session *session)
++void xccdf_session_result_reset(struct xccdf_session *session)
 +{
 +	if (session->xccdf.policy_model != NULL) {
 +		oscap_list_free(session->xccdf.policy_model->policies, (oscap_destruct_func) xccdf_policy_free);

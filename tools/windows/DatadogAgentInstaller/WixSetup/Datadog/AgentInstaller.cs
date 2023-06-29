@@ -303,8 +303,11 @@ namespace WixSetup.Datadog
         private Dir CreateProgramFilesFolder()
         {
             var targetBinFolder = CreateBinFolder();
-            var binFolder =
-                new Dir(new Id("PROJECTLOCATION"), "%ProgramFiles%\\Datadog\\Datadog Agent",
+            InstallDir installDir;
+            // careful, when Dir() is given a path with subdirs it returns the ROOT dir (ProgramFiles), not the last dir (Datadog),
+            // but all the files are added to the last dir
+            var programFilesDir = new Dir("%ProgramFiles%\\Datadog",
+                installDir = new InstallDir(new Id("PROJECTLOCATION"), "Datadog Agent",
                     targetBinFolder,
                     new Dir("LICENSES",
                         new Files($@"{InstallerSource}\LICENSES\*")
@@ -312,14 +315,17 @@ namespace WixSetup.Datadog
                     new DirFiles($@"{InstallerSource}\LICENSE"),
                     new DirFiles($@"{InstallerSource}\*.json"),
                     new DirFiles($@"{InstallerSource}\*.txt"),
-                    new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
-                );
+                    new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
+                    // Recursively delete/backup all files/folders in PROJECTLOCATION, they will be restored
+                    // on rollback. By default WindowsInstller only removes the files it tracks, and embedded3 isn't tracked
+                    new RemoveFolderEx { On=InstallEvent.uninstall, Property="PROJECTLOCATION"}
+                ));
             if (_agentPython.IncludePython2)
             {
-                binFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
+                installDir.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
             }
 
-            return binFolder;
+            return programFilesDir;
         }
 
         private static PermissionEx DefaultPermissions()

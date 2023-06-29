@@ -664,7 +664,7 @@ namespace Datadog.CustomActions.Native
                 return false;
             }
 
-            throw new Exception("unexpected error while looking account name");
+            throw new Exception("unexpected error while looking account name", new Win32Exception((int)err));
         }
 
         public bool GetComputerName(COMPUTER_NAME_FORMAT format, out string name)

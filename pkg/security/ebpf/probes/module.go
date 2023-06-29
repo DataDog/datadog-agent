@@ -26,13 +26,13 @@ var moduleProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_do_init_module",
+			EBPFFuncName: "hook_do_init_module",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_module_put",
+			EBPFFuncName: "hook_module_put",
 		},
 	},
 	{

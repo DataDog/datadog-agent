@@ -183,6 +183,20 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     )
     outfiles.append(syscall_wrapper_outfile)
 
+    # fentry + syscall wrapper
+    root, ext = os.path.splitext(outfile)
+    syscall_wrapper_outfile = f"{root}-fentry{ext}"
+    ninja_ebpf_program(
+        nw,
+        infile=infile,
+        outfile=syscall_wrapper_outfile,
+        variables={
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
+            "kheaders": kheaders,
+        },
+    )
+    outfiles.append(syscall_wrapper_outfile)
+
     # offset guesser
     offset_guesser_outfile = os.path.join(build_dir, "runtime-security-offset-guesser.o")
     ninja_ebpf_program(

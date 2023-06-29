@@ -40,7 +40,7 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
-  patch source: "session_result_free.patch", env: env # add a function to free results from session
+  patch source: "session_result_reset.patch", env: env # add a function to reset results from session
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
   patch source: "dpkginfo-init.patch", env: env # fix memory leak of pkgcache in dpkginfo probe
