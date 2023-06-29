@@ -8,7 +8,6 @@
 package cluster
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
@@ -34,7 +33,3 @@ func RunLeaderElection() (string, error) {
 	return leaderEngine.GetLeader(), nil
 }
 
-// GetTags returns the []string of tags configured in DD_TAGS
-func GetTags() []string {
-	return config.GetConfiguredTags(config.Datadog, false)
-}

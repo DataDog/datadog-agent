@@ -15,9 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // CheckBase provides default implementations for most of the check.Check
@@ -119,8 +119,8 @@ func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, 
 		var customTags []string
 
 		// Set tags configured in DD_TAGS
-		if len(cluster.GetTags()) > 0 {
-			customTags = cluster.GetTags()
+		if len(config.GetConfiguredTags(config.Datadog, false)) > 0 {
+			customTags = config.GetConfiguredTags(config.Datadog, false)
 		}
 
 		// Set custom tags configured for this check

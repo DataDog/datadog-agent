@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -43,8 +42,8 @@ func newDispatcher() *dispatcher {
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
-	// Tags configured in DD_TAGS
-	d.extraTags = append(config.Datadog.GetStringSlice("cluster_checks.extra_tags"), cluster.GetTags()...)
+	// Tags configured in EXTRA_TAGS and DD_TAGS
+	d.extraTags = append(config.Datadog.GetStringSlice("cluster_checks.extra_tags"), config.GetConfiguredTags(config.Datadog, false)...)
 	excludedChecks := config.Datadog.GetStringSlice("cluster_checks.exclude_checks")
 	// This option will almost always be empty
 	if len(excludedChecks) > 0 {

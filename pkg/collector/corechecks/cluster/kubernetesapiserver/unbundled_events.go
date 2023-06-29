@@ -12,12 +12,12 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func newUnbundledTransformer(clusterName string, taggerInstance tagger.Tagger, types []collectedEventType) eventTransformer {
@@ -80,7 +80,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, [
 
 		emittedEvents.Inc(involvedObject.Kind, ev.Type)
 
-		for _, t := range cluster.GetTags() {
+		for _, t := range config.GetConfiguredTags(config.Datadog, false) {
 			tagsAccumulator.Append(t)
 		}
 
