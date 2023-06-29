@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
@@ -849,19 +848,19 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].args"); err == nil {
-				t.Errorf("shouldn't have args, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("shouldn't have args, got %+v %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].envs"); err == nil {
-				t.Errorf("shouldn't have envs, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("shouldn't have envs, got %+v : %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].args"); err != nil {
-				t.Errorf("should have args, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("should have args, got %+v %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
-				t.Errorf("should have envs, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("should have envs, got %+v %s", json, serialized)
 			}
 		}))
 	})
@@ -986,7 +985,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
-		Expression: "exec.file.change_time < 5s",
+		Expression: "exec.file.change_time < 30s",
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})

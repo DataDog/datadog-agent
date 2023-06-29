@@ -71,6 +71,12 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 			f.debug(w, fmt.Sprintf("%s    -", prefix))
 		}
 	}
+	if len(pn.DNSNames) > 0 {
+		fmt.Fprintf(w, "%s  dns:\n", prefix)
+		for dnsName := range pn.DNSNames {
+			fmt.Fprintf(w, "%s    - %s\n", prefix, dnsName)
+		}
+	}
 	if len(pn.Children) > 0 {
 		fmt.Fprintf(w, "%s  children:\n", prefix)
 		for _, child := range pn.Children {
@@ -141,12 +147,16 @@ newSyscallLoop:
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool) bool {
+func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool, reducer *PathsReducer) bool {
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
 	} else {
 		filePath = fileEvent.PathnameStr
+	}
+
+	if reducer != nil {
+		filePath = reducer.ReducePath(filePath, fileEvent, pn)
 	}
 
 	parent, nextParentIndex := ExtractFirstParent(filePath)
@@ -156,22 +166,22 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 
 	child, ok := pn.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun)
+		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], generationType, stats, dryRun, filePath)
 	}
 
 	if !dryRun {
 		// create new child
 		if len(fileEvent.PathnameStr) <= nextParentIndex+1 {
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
-			node := NewFileNode(fileEvent, event, parent, generationType)
+			node := NewFileNode(fileEvent, event, parent, generationType, filePath)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
 			pn.Files[parent] = node
 		} else {
 			// This is an intermediary node in the branch that leads to the leaf we want to add. Create a node without the
 			// fileEvent context.
-			newChild := NewFileNode(nil, nil, parent, generationType)
-			newChild.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun)
+			newChild := NewFileNode(nil, nil, parent, generationType, filePath)
+			newChild.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun, filePath)
 			stats.FileNodes++
 			pn.Files[parent] = newChild
 		}

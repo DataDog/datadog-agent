@@ -68,8 +68,11 @@ type Store interface {
 	// the entity with kind KindKubernetesPod and the given ID.
 	GetKubernetesPod(id string) (*KubernetesPod, error)
 
-	// GetKubernetesPodForContainer searches all known KubernetesPod entities
-	// for one containing the given container.
+	// GetKubernetesPodForContainer retrieves the ownership information for the
+	// given container and returns the owner pod. This information might lag because
+	// the kubelet check sets the `Owner` field but a container can also be stored by CRI
+	// checks, which do not have ownership info. Thus, the function might return an error
+	// when the pod actually exists.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 
 	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches

@@ -293,7 +293,7 @@ func (ctr *realConntracker) run() error {
 func (ctr *realConntracker) compact() {
 	var removed int64
 	defer func() {
-		conntrackerTelemetry.unregistersTotal.Inc()
+		conntrackerTelemetry.unregistersTotal.Add(float64(removed))
 		log.Debugf("removed %d orphans", removed)
 	}()
 

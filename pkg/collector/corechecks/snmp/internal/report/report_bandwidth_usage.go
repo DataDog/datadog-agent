@@ -71,6 +71,7 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 		case "ifHCOutOctets":
 			ifSpeed = interfaceConfig.OutSpeed
 		}
+		tags = append(tags, interfaceConfig.Tags...)
 	}
 	if ifSpeed == 0 {
 		ifHighSpeed, err := ms.getIfHighSpeed(fullIndex, values)
@@ -120,6 +121,7 @@ func (ms *MetricSender) sendIfSpeedMetrics(symbol checkconfig.SymbolConfig, full
 		log.Tracef("continue with empty interfaceConfig: %s", err)
 		interfaceConfig = snmpintegration.InterfaceConfig{}
 	}
+	tags = append(tags, interfaceConfig.Tags...)
 
 	ifHighSpeed, err := ms.getIfHighSpeed(fullIndex, values)
 	if err != nil {

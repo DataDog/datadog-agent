@@ -16,7 +16,7 @@ import (
 )
 
 // RunJavaVersion run class under java version
-func RunJavaVersion(t testing.TB, version string, class string, waitForParam ...*regexp.Regexp) error {
+func RunJavaVersion(t testing.TB, version, class string, waitForParam ...*regexp.Regexp) error {
 	t.Helper()
 	var waitFor *regexp.Regexp
 	if len(waitForParam) == 0 {

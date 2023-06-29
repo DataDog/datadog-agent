@@ -55,6 +55,7 @@ def trigger_macos_test(
     release_version="nightly-a7",
     python_runtimes="3",
     destination=".",
+    version_cache=None,
 ):
     env = load_release_versions(ctx, release_version)
     github_action_ref = env["MACOS_BUILD_VERSION"]
@@ -64,6 +65,7 @@ def trigger_macos_test(
         github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
+        version_cache_file_content=version_cache,
     )
 
     workflow_conclusion = follow_workflow_run(run_id)

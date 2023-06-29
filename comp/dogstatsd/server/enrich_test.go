@@ -949,10 +949,10 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 
 	message := []byte("custom.metric.a:21|ms")
 	conf := enrichConfig{
-		metricBlocklist: []string{
+		metricBlocklist: newBlocklist([]string{
 			"custom.metric.a",
 			"custom.metric.b",
-		},
+		}, false),
 		defaultHostname: "default",
 	}
 
@@ -968,7 +968,6 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 
 func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	conf := enrichConfig{
-		metricBlocklist: []string{},
 		serverlessMode:  true,
 		defaultHostname: "default",
 	}
@@ -988,10 +987,10 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
 	conf := enrichConfig{
-		metricBlocklist: []string{
+		metricBlocklist: newBlocklist([]string{
 			"custom.metric.b",
 			"custom.metric.c",
-		},
+		}, false),
 		defaultHostname: "default",
 	}
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
