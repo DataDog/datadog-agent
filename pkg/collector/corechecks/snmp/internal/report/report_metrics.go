@@ -171,6 +171,9 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig checkconfig.MetricsConf
 func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	metricFullName := "snmp." + metricSample.symbol.Name
 	forcedType := metricSample.forcedType
+	if metricSample.symbol.MetricType != "" {
+		forcedType = metricSample.symbol.MetricType
+	}
 	if forcedType == "" {
 		if metricSample.value.SubmissionType != "" {
 			forcedType = metricSample.value.SubmissionType
