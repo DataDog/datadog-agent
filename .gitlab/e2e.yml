@@ -137,6 +137,7 @@ k8s-e2e-otlp-main:
   variables:
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_KEY_PAIR_NAME: datadog-agent-ci
   script:
     - inv -e new-e2e-tests.run --targets $TARGETS $CONFIGPARAMS
 
