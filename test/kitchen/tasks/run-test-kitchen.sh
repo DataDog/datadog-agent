@@ -177,7 +177,7 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   else
     if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}" ; then
       # if kitchen test failed and shouldn't be rerun, exit with 1
-      echo "Kitchen tests failed but it should not be an infrastructure problem"
+      echo "Kitchen tests failed and it should not be an infrastructure problem"
       exit 1
     else
       cp -R "${DD_AGENT_TESTING_DIR}"/.kitchen/logs "${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}"
