@@ -436,23 +436,14 @@ shared_examples_for 'Basic Agent behavior' do
   it_behaves_like 'an Agent with integrations'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
-end
-
-shared_examples_for 'Agent 7' do
-  it_behaves_like 'an Agent with Python 3'
-end
-
-shared_examples_for 'Agent 6' do
-  it_behaves_like 'an Agent with Python 2'
-  include_examples 'Agent 7'
+  it_behaves_like 'an Agent with Python'
 end
 
 shared_examples_for 'Agent behavior' do
   include_examples 'Basic Agent behavior'
   it_behaves_like 'a running Agent with APM'
   it_behaves_like 'a running Agent with APM manually disabled'
-  it_behaves_like 'an Agent with Python 2'
-  it_behaves_like 'an Agent with Python 3'
+  it_behaves_like 'an Agent with Python'
   if deploy_cws?
     it_behaves_like 'a running Agent with CWS enabled'
   end
@@ -708,7 +699,9 @@ shared_examples_for 'an Agent that restarts' do
   end
 end
 
-shared_examples_for 'an Agent with Python 3' do
+# Checks that the Agent can run Python 3.
+# If running on an Agent 6, also check that it can run Python 2.
+shared_examples_for 'an Agent with Python' do
   it 'restarts after python_version is set to 3' do
     conf_path = get_conf_file("datadog.yaml")
     f = File.read(conf_path)
@@ -728,9 +721,7 @@ shared_examples_for 'an Agent with Python 3' do
     end
     expect(result).to be_truthy
   end
-end
 
-shared_examples_for 'an Agent with Python 2' do
   it 'restarts after python_version is set to 2' do
     skip if info.include? "v7."
     conf_path = get_conf_file("datadog.yaml")
