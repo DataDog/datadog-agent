@@ -26,17 +26,21 @@ func NewLocalProfile() (Profile, error) {
 		return nil, err
 	}
 
+	awsAccount := "agent-sandbox"
 	var store parameters.Store
 	if configPath != "" {
 		configFileValueStore, err := parameters.NewConfigFileValueStore(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("error when reading the config file %v: %v", configPath, err)
 		}
+		if configFileValueStore.Config.ConfigParams.AWS.Account != "" {
+			awsAccount = configFileValueStore.Config.ConfigParams.AWS.Account
+		}
 		store = parameters.NewCascadingStore(envValueStore, configFileValueStore)
 	} else {
 		store = parameters.NewCascadingStore(envValueStore)
 	}
-	return localProfile{baseProfile: newProfile("e2elocal", []string{"aws/agent-sandbox"}, store, nil)}, nil
+	return localProfile{baseProfile: newProfile("e2elocal", []string{"aws/" + awsAccount}, store, nil)}, nil
 }
 
 func getConfigFilePath() (string, error) {
