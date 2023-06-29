@@ -17,7 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+
 	// we don't want to directly import that, use an interface here
+	"github.com/DataDog/datadog-agent/pkg/serverless/logsyncorchestrator"
 )
 
 // Pipeline processes and sends messages to the backend

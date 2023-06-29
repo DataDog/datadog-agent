@@ -23,7 +23,6 @@ import (
 
 	// we don't want to directly import that, use an interface here
 	"github.com/DataDog/datadog-agent/pkg/serverless/logsyncorchestrator"
-	"time"
 )
 
 // Note: Building the logs-agent for serverless separately removes the

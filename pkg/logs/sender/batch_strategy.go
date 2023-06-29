@@ -55,7 +55,7 @@ func NewBatchStrategy(inputChan chan *message.Message,
 func newBatchStrategyWithClock(inputChan chan *message.Message,
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
-	logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator
+	logSyncOrchestrator *logsyncorchestrator.LogSyncOrchestrator,
 	serializer Serializer,
 	batchWait time.Duration,
 	maxBatchSize int,
@@ -65,17 +65,17 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	contentEncoding ContentEncoding) Strategy {
 
 	return &batchStrategy{
-		inputChan:       inputChan,
-		outputChan:      outputChan,
-		flushChan:       flushChan,
+		inputChan:           inputChan,
+		outputChan:          outputChan,
+		flushChan:           flushChan,
 		logSyncOrchestrator: logSyncOrchestrator,
-		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
-		serializer:      serializer,
-		batchWait:       batchWait,
-		contentEncoding: contentEncoding,
-		stopChan:        make(chan struct{}),
-		pipelineName:    pipelineName,
-		clock:           clock,
+		buffer:              NewMessageBuffer(maxBatchSize, maxContentSize),
+		serializer:          serializer,
+		batchWait:           batchWait,
+		contentEncoding:     contentEncoding,
+		stopChan:            make(chan struct{}),
+		pipelineName:        pipelineName,
+		clock:               clock,
 	}
 }
 

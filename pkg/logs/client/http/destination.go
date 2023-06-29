@@ -113,7 +113,7 @@ func newDestination(endpoint config.Endpoint,
 	}
 
 	if endpoint.Origin == config.ServerlessIntakeOrigin {
-		shouldRetry = false
+		shouldRetry = true
 	}
 
 	expVars := &expvar.Map{}
