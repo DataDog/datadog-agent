@@ -241,11 +241,6 @@ func (dr *Resolver) cacheInode(key model.PathKey, path *PathEntry) error {
 		dr.cache[key.MountID] = entries
 	}
 
-	// release before in case of override
-	if prev, exists := entries.Get(key.Inode); exists {
-		dr.pathEntryPool.Put(prev)
-	}
-
 	entries.Add(key.Inode, path)
 
 	return nil
