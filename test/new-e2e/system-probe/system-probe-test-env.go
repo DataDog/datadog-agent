@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
+	commonConfig "github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/command"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
 	pulumiCommand "github.com/pulumi/pulumi-command/sdk/go/command"
 	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
@@ -137,12 +137,12 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	b = retry.WithMaxRetries(3, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-			awsEnvironment, err := aws.NewEnvironment(ctx)
+			commonEnv, err := commonConfig.NewCommonEnvironment(ctx)
 			if err != nil {
-				return fmt.Errorf("aws new environment: %w", err)
+				return fmt.Errorf("common environment: %w", err)
 			}
 
-			scenarioDone, err := microvms.RunAndReturnInstances(awsEnvironment)
+			scenarioDone, err := microvms.RunAndReturnInstances(commonEnv)
 			if err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
@@ -153,7 +153,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				return fmt.Errorf("failed to get command provider: %w", err)
 			}
 			for _, instance := range scenarioDone.Instances {
-				remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, command.RunnerArgs{
+				remoteRunner, err := command.NewRunner(commonEnv, command.RunnerArgs{
 					ConnectionName: "remote-runner-" + instance.Arch,
 					Connection:     instance.Connection,
 					ReadyFunc: func(r *command.Runner) (*remote.Command, error) {
