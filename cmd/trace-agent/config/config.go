@@ -88,11 +88,16 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	}
 	cfg.ConfigPath = path
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewGRPCClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+		client, err := remote.NewGRPCClient(
+			rcClientName,
+			version.AgentVersion,
+			[]data.Product{data.ProductAPMSampling, data.ProductAgentConfig},
+			rcClientPollInterval,
+		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
-			cfg.RemoteSamplingClient = client
+			cfg.RemoteConfigClient = client
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
@@ -717,6 +722,8 @@ func SetHandler() http.Handler {
 			value := html.UnescapeString(values[len(values)-1])
 			switch key {
 			case "log_level":
+				// Note: This endpoint is used by remote-config to set the log level dynamically
+				// Please make sure to reach out to this team before removing it.
 				lvl := strings.ToLower(value)
 				if lvl == "warning" {
 					lvl = "warn"
