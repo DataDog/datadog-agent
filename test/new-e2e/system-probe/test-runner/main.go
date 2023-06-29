@@ -37,7 +37,7 @@ const (
 	TestDirRoot = "/opt/system-probe-tests"
 	GoTestSum   = "/go/bin/gotestsum"
 
-	// The directroy format is <name>-<attempt>*
+	// The directory format is <name>-<attempt>*
 	XMLDir       = "junit-%d"
 	JSONDir      = "pkgjson-%d"
 	JSONOutDir   = "testjson-%d"
@@ -146,7 +146,7 @@ func concatenateJsons(indir, outdir string) error {
 		return fmt.Errorf("json glob: %s", err)
 	}
 
-	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
 		return fmt.Errorf("open %s: %s", testJsonFile, err)
 	}
@@ -182,7 +182,7 @@ func buildCIVisibilityDirs(attempt int) error {
 		if err := os.RemoveAll(d); err != nil {
 			return fmt.Errorf("failed to remove contents of %s: %w", d, err)
 		}
-		if err := os.MkdirAll(d, 0777); err != nil {
+		if err := os.MkdirAll(d, 0o777); err != nil {
 			return fmt.Errorf("failed to create directory %s", d)
 		}
 	}
@@ -275,8 +275,8 @@ func main() {
 
 func buildTestConfiguration() *TestConfig {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
-	packagesPtr := flag.String("include-packages", "", "Comma seperated list of packages to test")
-	excludePackagesPtr := flag.String("exclude-packages", "", "Comma seperated list of packages to exclude")
+	packagesPtr := flag.String("include-packages", "", "Comma separated list of packages to test")
+	excludePackagesPtr := flag.String("exclude-packages", "", "Comma separated list of packages to exclude")
 
 	flag.Parse()
 
@@ -321,7 +321,7 @@ func run() error {
 		return fmt.Errorf("failed to remove contents of %s: %w", CIVisibility, err)
 	}
 	if _, err := os.Stat(CIVisibility); errors.Is(err, fs.ErrNotExist) {
-		if err := os.MkdirAll(CIVisibility, 0777); err != nil {
+		if err := os.MkdirAll(CIVisibility, 0o777); err != nil {
 			return fmt.Errorf("failed to create directory %s", CIVisibility)
 		}
 	}

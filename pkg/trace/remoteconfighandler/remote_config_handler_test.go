@@ -7,12 +7,18 @@ package remoteconfighandler
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,14 +26,16 @@ import (
 func TestStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient}
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	remoteClient.EXPECT().Subscribe(state.ProductAPMSampling, gomock.Any()).Times(1)
+	remoteClient.EXPECT().Subscribe(state.ProductAgentConfig, gomock.Any()).Times(1)
 	remoteClient.EXPECT().Start().Times(1)
 
 	h.Start()
@@ -46,8 +54,9 @@ func TestPrioritySampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -76,8 +85,9 @@ func TestErrorsSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -106,8 +116,9 @@ func TestRareSampler(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -136,8 +147,9 @@ func TestEnvPrecedence(t *testing.T) {
 	prioritySampler := NewMockprioritySampler(ctrl)
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
+	pkglog.SetupLogger(seelog.Default, "debug")
 
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
+	agentConfig := config.AgentConfig{RemoteConfigClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
 	payload := apmsampling.SamplerConfig{
@@ -166,6 +178,48 @@ func TestEnvPrecedence(t *testing.T) {
 	rareSampler.EXPECT().SetEnabled(false).Times(1)
 
 	h.onUpdate(map[string]state.RawConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
+
+	ctrl.Finish()
+}
+
+func TestLogLevel(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	remoteClient := NewMockRemoteClient(ctrl)
+	prioritySampler := NewMockprioritySampler(ctrl)
+	errorsSampler := NewMockerrorsSampler(ctrl)
+	rareSampler := NewMockrareSampler(ctrl)
+
+	pkglog.SetupLogger(seelog.Default, "debug")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+	port, _ := strconv.Atoi(strings.Split(srv.URL, ":")[2])
+
+	agentConfig := config.AgentConfig{
+		RemoteConfigClient: remoteClient,
+		DefaultEnv:         "agent-env",
+		ReceiverHost:       "127.0.0.1",
+		ReceiverPort:       port,
+	}
+	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
+
+	layer := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": "debug"}}`)}
+	configOrder := state.RawConfig{Config: []byte(`{"internal_order": ["layer1", "layer2"]}`)}
+
+	remoteClient.EXPECT().UpdateApplyStatus(
+		"datadog/2/AGENT_CONFIG/layer1/configname",
+		state.ApplyStatus{State: state.ApplyStateAcknowledged},
+	)
+	remoteClient.EXPECT().UpdateApplyStatus(
+		"datadog/2/AGENT_CONFIG/configuration_order/configname",
+		state.ApplyStatus{State: state.ApplyStateAcknowledged},
+	)
+
+	h.onAgentConfigUpdate(map[string]state.RawConfig{
+		"datadog/2/AGENT_CONFIG/layer1/configname":              layer,
+		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
+	})
 
 	ctrl.Finish()
 }

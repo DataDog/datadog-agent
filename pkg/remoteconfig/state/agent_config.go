@@ -3,24 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package remote
+package state
 
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/pkg/errors"
 )
 
 const agentConfigOrderID = "configuration_order"
 
+var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/([^/]+)/[^/]+$`)
+
 // AgentConfig is a deserialized agent configuration file
 // along with the associated metadata
 type AgentConfig struct {
 	Config   agentConfigData
-	Metadata state.Metadata
+	Metadata Metadata
 }
 
 // ConfigContent contains the configurations set by remote-config
@@ -37,7 +38,7 @@ type agentConfigData struct {
 // along with the associated metadata
 type AgentConfigOrder struct {
 	Config   agentConfigOrderData
-	Metadata state.Metadata
+	Metadata Metadata
 }
 
 type agentConfigOrderData struct {
@@ -45,8 +46,14 @@ type agentConfigOrderData struct {
 	InternalOrder []string `json:"internal_order"`
 }
 
+// AgentConfigState contains the state of the config in case of fallback or override
+type AgentConfigState struct {
+	FallbackLogLevel string
+	LatestLogLevel   string
+}
+
 // parseConfigAgentConfig parses an agent task config
-func parseConfigAgentConfig(data []byte, metadata state.Metadata) (AgentConfig, error) {
+func parseConfigAgentConfig(data []byte, metadata Metadata) (AgentConfig, error) {
 	var d agentConfigData
 
 	err := json.Unmarshal(data, &d)
@@ -61,7 +68,7 @@ func parseConfigAgentConfig(data []byte, metadata state.Metadata) (AgentConfig, 
 }
 
 // parseConfigAgentConfig parses an agent task config
-func parseConfigAgentConfigOrder(data []byte, metadata state.Metadata) (AgentConfigOrder, error) {
+func parseConfigAgentConfigOrder(data []byte, metadata Metadata) (AgentConfigOrder, error) {
 	var d agentConfigOrderData
 
 	err := json.Unmarshal(data, &d)
@@ -78,33 +85,37 @@ func parseConfigAgentConfigOrder(data []byte, metadata state.Metadata) (AgentCon
 // MergeRCAgentConfig is the callback function called when there is an AGENT_CONFIG config update
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
-func MergeRCAgentConfig(client *Client, updates map[string]state.RawConfig) (ConfigContent, error) {
+func MergeRCAgentConfig(applyStatus func(cfgPath string, status ApplyStatus), updates map[string]RawConfig) (ConfigContent, error) {
 	var orderFile AgentConfigOrder
 	var hasError bool
 	var fullErr error
 	parsedLayers := map[string]AgentConfig{}
 
 	for configPath, c := range updates {
-		parsedConfigPath, err := data.ParseConfigPath(configPath)
-		if err != nil {
+		var err error
+		matched := datadogConfigIDRegexp.FindStringSubmatch(configPath)
+		if len(matched) != 2 {
+			err = fmt.Errorf("config file path '%s' has wrong format", configPath)
 			hasError = true
 			fullErr = errors.Wrap(fullErr, err.Error())
-			client.UpdateApplyStatus(configPath, state.ApplyStatus{
-				State: state.ApplyStateError,
+			applyStatus(configPath, ApplyStatus{
+				State: ApplyStateError,
 				Error: err.Error(),
 			})
 			// If a layer is wrong, fail later to parse the rest and check them all
 			continue
 		}
 
+		parsedConfigID := matched[1]
+
 		// Ignore the configuration order file
-		if parsedConfigPath.ConfigID == agentConfigOrderID {
+		if parsedConfigID == agentConfigOrderID {
 			orderFile, err = parseConfigAgentConfigOrder(c.Config, c.Metadata)
 			if err != nil {
 				hasError = true
 				fullErr = errors.Wrap(fullErr, err.Error())
-				client.UpdateApplyStatus(configPath, state.ApplyStatus{
-					State: state.ApplyStateError,
+				applyStatus(configPath, ApplyStatus{
+					State: ApplyStateError,
 					Error: err.Error(),
 				})
 				// If a layer is wrong, fail later to parse the rest and check them all
@@ -114,14 +125,14 @@ func MergeRCAgentConfig(client *Client, updates map[string]state.RawConfig) (Con
 			cfg, err := parseConfigAgentConfig(c.Config, c.Metadata)
 			if err != nil {
 				hasError = true
-				client.UpdateApplyStatus(configPath, state.ApplyStatus{
-					State: state.ApplyStateError,
+				applyStatus(configPath, ApplyStatus{
+					State: ApplyStateError,
 					Error: err.Error(),
 				})
 				// If a layer is wrong, fail later to parse the rest and check them all
 				continue
 			}
-			parsedLayers[parsedConfigPath.ConfigID] = cfg
+			parsedLayers[parsedConfigID] = cfg
 		}
 	}
 
