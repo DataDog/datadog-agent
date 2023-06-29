@@ -35,7 +35,7 @@ func (l *LogSyncOrchestrator) BlockIncomingRequest() {
 	l.wg.Add(1)
 }
 
-func (l *LogSyncOrchestrator) Wait(retryIdx int, ctx context.Context, logsFlushMutex *sync.Mutex, flush func(ctx context.Context)) {
+func (l *LogSyncOrchestrator) Wait(retryIdx int, ctx context.Context, flush func(ctx context.Context)) {
 	if retryIdx > MAX_RETRY_COUNT {
 		log.Error("LogSyncOrchestrator.Wait() failed, retryIdx > 20 (2)")
 	} else {
@@ -43,11 +43,9 @@ func (l *LogSyncOrchestrator) Wait(retryIdx int, ctx context.Context, logsFlushM
 		sent := l.nbMessageSent.Load()
 		if receivedCount != sent {
 			log.Debugf("logSync needs to wait (%v/%v)\n", receivedCount, sent)
-			logsFlushMutex.Lock()
 			flush(ctx)
-			logsFlushMutex.Unlock()
 			time.Sleep(100 * time.Millisecond)
-			l.Wait(retryIdx+1, ctx, logsFlushMutex, flush)
+			l.Wait(retryIdx+1, ctx, flush)
 		} else {
 			log.Debug("logSync is balanced")
 		}

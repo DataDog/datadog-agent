@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// SERVERLESS_BACKOFF_TIME_IN_MILLISECONDS is the backoff time for serverless mode
+const SERVERLESS_BACKOFF_TIME_IN_MILLISECONDS = 100
+
 // Policy contains parameters and logic necessary to implement an exponential backoff
 // strategy when handling errors.
 type Policy struct {
@@ -34,6 +37,9 @@ type Policy struct {
 
 	// MaxErrors derived value is the number of errors it will take to reach the maxBackoffTime.
 	MaxErrors int
+
+	// ServerlessMode is a flag to indicate if the backoff policy is used in serverless mode
+	ServerlessMode bool
 }
 
 const secondsFloat = float64(time.Second)
@@ -43,7 +49,7 @@ func randomBetween(min, max float64) float64 {
 }
 
 // NewPolicy constructs new Backoff object with given parameters
-func NewPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64, recoveryInterval int, recoveryReset bool) Policy {
+func NewPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64, recoveryInterval int, recoveryReset bool, serverlessMode bool) Policy {
 	maxErrors := int(math.Floor(math.Log2(maxBackoffTime/baseBackoffTime))) + 1
 
 	if recoveryReset {
@@ -56,27 +62,32 @@ func NewPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64, recove
 		MaxBackoffTime:   maxBackoffTime,
 		RecoveryInterval: recoveryInterval,
 		MaxErrors:        maxErrors,
+		ServerlessMode:   serverlessMode,
 	}
 }
 
 // GetBackoffDuration returns amount of time to sleep after numErrors error
-func (b *Policy) GetBackoffDuration(numErrors int) time.Duration {
+func (p *Policy) GetBackoffDuration(numErrors int) time.Duration {
+	// If we are in serverless mode, we want to use a constant backoff time
+	if p.ServerlessMode {
+		return time.Duration(SERVERLESS_BACKOFF_TIME_IN_MILLISECONDS * time.Millisecond)
+	}
+
 	var backoffTime float64
 
 	if numErrors > 0 {
-		backoffTime = b.BaseBackoffTime * math.Pow(2, float64(numErrors))
+		backoffTime = p.BaseBackoffTime * math.Pow(2, float64(numErrors))
 
-		if backoffTime > b.MaxBackoffTime {
-			backoffTime = b.MaxBackoffTime
+		if backoffTime > p.MaxBackoffTime {
+			backoffTime = p.MaxBackoffTime
 		} else {
-			min := backoffTime / b.MinBackoffFactor
-			max := math.Min(b.MaxBackoffTime, backoffTime)
+			min := backoffTime / p.MinBackoffFactor
+			max := math.Min(p.MaxBackoffTime, backoffTime)
 			backoffTime = randomBetween(min, max)
 		}
 	}
 
 	return time.Duration(backoffTime * secondsFloat)
-
 }
 
 // IncError increments the error counter up to MaxErrors

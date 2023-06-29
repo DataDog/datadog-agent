@@ -159,7 +159,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	// The following values mean each range will always be [pollInterval*2^<NumErrors-1>, min(maxBackoffTime, pollInterval*2^<NumErrors>)].
 	// Every success will cause numErrors to shrink by 2.
 	backoffPolicy := backoff.NewPolicy(minBackoffFactor, pollInterval.Seconds(),
-		maximalMaxBackoffTime.Seconds(), recoveryInterval, false)
+		maximalMaxBackoffTime.Seconds(), recoveryInterval, false, false)
 
 	// If we're the cluster agent, we want to report our cluster name and cluster ID in order to allow products
 	// relying on remote config to identify this RC client to be able to write predicates for config routing

@@ -129,6 +129,7 @@ func newDestination(endpoint config.Endpoint,
 		endpoint.BackoffMax,
 		endpoint.RecoveryInterval,
 		endpoint.RecoveryReset,
+		endpoint.Origin == config.ServerlessIntakeOrigin,
 	)
 
 	return &Destination{
@@ -212,8 +213,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		d.blockedUntil = time.Now().Add(backoffDuration)
 		if d.blockedUntil.After(time.Now()) {
 			log.Debugf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, d.blockedUntil, backoffDuration.String(), d.nbErrors)
-			// TODO need to implement a new policy type (serverless type)
-			time.Sleep(100 * time.Millisecond)
+			d.waitForBackoff()
 		}
 		d.retryLock.Unlock()
 

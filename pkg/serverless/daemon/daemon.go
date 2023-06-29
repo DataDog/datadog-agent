@@ -291,7 +291,7 @@ func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
 	flushStartTime := time.Now().Unix()
 	log.Debugf("Beginning logs flush at time %d", flushStartTime)
 	logs.Flush(ctx)
-	d.LogSyncOrchestrator.Wait(0, ctx, &d.logsFlushMutex, logs.Flush)
+	d.LogSyncOrchestrator.Wait(0, ctx, logs.Flush)
 	d.LogSyncOrchestrator.AllowIncomingRequest()
 	log.Debugf("Finished logs flush that was started at time %d", flushStartTime)
 	wg.Done()
