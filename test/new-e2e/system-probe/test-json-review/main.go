@@ -69,7 +69,7 @@ func main() {
 			log.Fatal(err)
 		}
 		if len(failedTests) > 0 {
-			fmt.Fprintf(os.Stderr, color.RedString(failedTests))
+			fmt.Fprint(os.Stderr, color.RedString(failedTests))
 		} else {
 			fmt.Println(color.GreenString(fmt.Sprintf("All tests cleared in attempt %d", i+1)))
 			return
