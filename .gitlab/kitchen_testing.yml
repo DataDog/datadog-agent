@@ -4,7 +4,7 @@
 
 include:
   - /.gitlab/kitchen_testing/amazonlinux.yml
-  - /.gitlab/kitchen_testing/centos.yml
+  - /.gitlab/kitchen_testing/redhat.yml
   - /.gitlab/kitchen_testing/debian.yml
   - /.gitlab/kitchen_testing/suse.yml
   - /.gitlab/kitchen_testing/ubuntu.yml

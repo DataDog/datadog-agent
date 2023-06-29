@@ -45,10 +45,10 @@ kitchen_test_security_agent_x64:
     - tasks/kitchen_setup.sh
   parallel:
     matrix:
-      - KITCHEN_PLATFORM: "centos"
+      - KITCHEN_PLATFORM: "redhat"
         KITCHEN_OSVERS: "centos-77"
         KITCHEN_CWS_PLATFORM: [host, docker]
-      - KITCHEN_PLATFORM: "centos"
+      - KITCHEN_PLATFORM: "redhat"
         KITCHEN_OSVERS: "rhel-85,rhel-91"
         KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
         KITCHEN_CI_ROOT_PATH: "/tmp/ci"

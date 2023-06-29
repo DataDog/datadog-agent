@@ -1,5 +1,5 @@
 {
-    "centos": {
+    "redhat": {
         "azure": {
             "x86_64": {
                 "centos-610": "urn,OpenLogic:CentOS:6.10:6.10.2020042900",

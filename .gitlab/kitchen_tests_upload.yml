@@ -11,25 +11,25 @@ kitchen_tests_upload_common:
     - kitchen_amazonlinux_install_script_agent-a6_x64
     - kitchen_amazonlinux_install_script_agent-a7_arm64
     - kitchen_amazonlinux_install_script_agent-a7_x64
-    - kitchen_centos_fips_install_script_agent-a6
-    - kitchen_centos_fips_install_script_agent-a7
-    - kitchen_centos_fips_install_script_dogstatsd-a7
-    - kitchen_centos_fips_install_script_iot_agent-a7
-    - kitchen_centos_fips_upgrade6_agent-a6
-    - kitchen_centos_fips_upgrade6_agent-a7
-    - kitchen_centos_fips_upgrade7_agent-a7
-    - kitchen_centos_fips_upgrade7_iot_agent-a7
-    - kitchen_centos_install_script_agent-a6
-    - kitchen_centos_install_script_agent-a7
-    - kitchen_centos_install_script_dogstatsd-a7
-    - kitchen_centos_install_script_iot_agent-a7
-    - kitchen_centos_process_agent-a7
-    - kitchen_centos_upgrade5_agent-a6
-    - kitchen_centos_upgrade5_agent-a7
-    - kitchen_centos_upgrade6_agent-a6
-    - kitchen_centos_upgrade6_agent-a7
-    - kitchen_centos_upgrade7_agent-a7
-    - kitchen_centos_upgrade7_iot_agent-a7
+    - kitchen_redhat_fips_install_script_agent-a6
+    - kitchen_redhat_fips_install_script_agent-a7
+    - kitchen_redhat_fips_install_script_dogstatsd-a7
+    - kitchen_redhat_fips_install_script_iot_agent-a7
+    - kitchen_redhat_fips_upgrade6_agent-a6
+    - kitchen_redhat_fips_upgrade6_agent-a7
+    - kitchen_redhat_fips_upgrade7_agent-a7
+    - kitchen_redhat_fips_upgrade7_iot_agent-a7
+    - kitchen_redhat_install_script_agent-a6
+    - kitchen_redhat_install_script_agent-a7
+    - kitchen_redhat_install_script_dogstatsd-a7
+    - kitchen_redhat_install_script_iot_agent-a7
+    - kitchen_redhat_process_agent-a7
+    - kitchen_redhat_upgrade5_agent-a6
+    - kitchen_redhat_upgrade5_agent-a7
+    - kitchen_redhat_upgrade6_agent-a6
+    - kitchen_redhat_upgrade6_agent-a7
+    - kitchen_redhat_upgrade7_agent-a7
+    - kitchen_redhat_upgrade7_iot_agent-a7
     - kitchen_debian_install_script_agent-a6_arm64
     - kitchen_debian_install_script_agent-a6_x64
     - kitchen_debian_install_script_dogstatsd-a7
