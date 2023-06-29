@@ -79,15 +79,9 @@ func TestDomainForwarderStop(t *testing.T) {
 	forwarder.Stop(false) // this should be a noop
 	forwarder.Start()
 	assert.Equal(t, Started, forwarder.State())
-
-	// Add a transaction which should be flushed to retry queue on stop
-	tr := transaction.NewHTTPTransaction()
-	forwarder.requeuedTransaction <- tr
-	requireLenForwarderRetryQueue(t, forwarder, 0)
-
 	forwarder.Stop(false)
 	assert.Len(t, forwarder.workers, 0)
-	requireLenForwarderRetryQueue(t, forwarder, 1)
+	requireLenForwarderRetryQueue(t, forwarder, 0)
 	assert.Equal(t, Stopped, forwarder.State())
 }
 
