@@ -40,7 +40,7 @@ func getTotalSwapKb() (uint64, error) {
 	}
 
 	xsw := (*xswUsage)(unsafe.Pointer(&value[0]))
-	return xsw.xsuTotal / 1024, nil // swapTotal is in bytes
+	return xsw.xsuTotal / 1024, nil // xsuTotal is in bytes
 }
 
 func (info *Info) fillMemoryInfo() {
