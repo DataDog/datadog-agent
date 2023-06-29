@@ -7,47 +7,29 @@ package telemetry
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
-
-func contains(want string, strings []string) bool {
-	for _, candidate := range strings {
-		if want == candidate {
-			return true
-		}
-	}
-	return false
-}
 
 // Example: given {"_opt3", "tag:a", "_opt2", "tag:b", "_opt1", "tag:c"}
 // The return value will be:
 // {"tag:a", "tag:b", "tag:c"}
 // {"_opt1", "_opt2", "_opt3"}
-func splitTagsAndOptions(all []string) (tags, opts []string) {
+func splitTagsAndOptions(all []string) (tags, opts sets.String) {
 	if len(all) == 0 {
 		return
 	}
-	tagSet := common.NewStringSet()
-	optSet := common.NewStringSet()
+	tags = sets.NewString()
+	opts = sets.NewString()
 
 	for _, s := range all {
 		if strings.HasPrefix(s, optPrefix) {
-			optSet.Add(s)
+			opts.Insert(s)
 		} else {
-			tagSet.Add(s)
+			tags.Insert(s)
 		}
 	}
-
-	tags = tagSet.GetAll()
-	opts = optSet.GetAll()
-
-	// we sort both tags and options so the order is always deterministic and
-	// comparison between different tag sets is more efficient (see `isEqual`)
-	sort.Strings(tags)
-	sort.Strings(opts)
 
 	return
 }

@@ -28,11 +28,13 @@ func ReportStatsd() {
 	previousValues := statsdDelta.GetState("")
 	for _, metric := range metrics {
 		v := previousValues.ValueFor(metric)
-		if contains(OptGauge, metric.tags) {
-			client.Gauge(statsdPrefix+metric.name, float64(v), metric.tags, 1.0) //nolint:errcheck
+		tags := metric.tags.List()
+		if metric.metricType == typeGauge {
+			client.Gauge(statsdPrefix+metric.name, float64(v), tags, 1.0) //nolint:errcheck
+			continue
 		}
 
-		client.Count(statsdPrefix+metric.name, v, metric.tags, 1.0) //nolint:errcheck
+		client.Count(statsdPrefix+metric.name, v, tags, 1.0) //nolint:errcheck
 	}
 }
 

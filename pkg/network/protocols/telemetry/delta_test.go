@@ -31,10 +31,10 @@ func TestMonotonicDeltas(t *testing.T) {
 		state := deltas.GetState("")
 		m := NewMetric("requests_processed")
 
-		m.Set(10)
+		m.Add(10)
 		assert.Equal(int64(10), state.ValueFor(m))
 		assert.Equal(int64(0), state.ValueFor(m))
-		m.Set(15)
+		m.Add(5)
 		assert.Equal(int64(5), state.ValueFor(m))
 	})
 
@@ -43,10 +43,10 @@ func TestMonotonicDeltas(t *testing.T) {
 		stateB := deltas.GetState("clientB")
 		m := NewMetric("connections_closed")
 
-		m.Set(10)
+		m.Add(10)
 		assert.Equal(int64(10), stateA.ValueFor(m))
 		assert.Equal(int64(0), stateA.ValueFor(m))
-		m.Set(15)
+		m.Add(5)
 		assert.Equal(int64(5), stateA.ValueFor(m))
 		assert.Equal(int64(15), stateB.ValueFor(m))
 	})

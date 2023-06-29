@@ -10,24 +10,36 @@ import (
 	"strings"
 
 	"go.uber.org/atomic"
+	"k8s.io/apimachinery/pkg/util/sets"
+)
+
+type metricType string
+
+const (
+	typeCounter = metricType("counter")
+	typeGauge   = metricType("gauge")
 )
 
 // Metric represents a named piece of telemetry
 type Metric struct {
-	name  string
-	tags  []string
-	opts  []string
-	value *atomic.Int64
+	name       string
+	metricType metricType
+	tags       sets.String
+	opts       sets.String
+	value      *atomic.Int64
 }
 
 // NewMetric returns a new `Metric` instance
 func NewMetric(name string, tagsAndOptions ...string) *Metric {
 	tags, opts := splitTagsAndOptions(tagsAndOptions)
+	mtype := parseMetricType(opts)
+
 	m := &Metric{
-		name:  name,
-		value: atomic.NewInt64(0),
-		tags:  tags,
-		opts:  opts,
+		name:       name,
+		metricType: mtype,
+		value:      atomic.NewInt64(0),
+		tags:       tags,
+		opts:       opts,
 	}
 
 	globalRegistry.Lock()
@@ -48,11 +60,15 @@ func NewMetric(name string, tagsAndOptions ...string) *Metric {
 
 // Name of the `Metric` (including tags)
 func (m *Metric) Name() string {
-	return strings.Join(append([]string{m.name}, m.tags...), ",")
+	return strings.Join(append([]string{m.name}, m.tags.List()...), ",")
 }
 
 // Set value atomically
 func (m *Metric) Set(v int64) {
+	if m.metricType != typeGauge {
+		return
+	}
+
 	m.value.Store(v)
 }
 
@@ -81,22 +97,25 @@ func (m *Metric) MarshalJSON() ([]byte, error) {
 		Opts []string
 	}{
 		Name: m.name,
-		Tags: m.tags,
-		Opts: m.opts,
+		Tags: m.tags.List(),
+		Opts: m.opts.List(),
 	})
 }
 
 func (m *Metric) isEqual(other *Metric) bool {
-	if m.name != other.name || len(m.tags) != len(other.tags) {
-		return false
+	return m.name == other.name && m.tags.Equal(other.tags)
+}
+
+func parseMetricType(opts sets.String) metricType {
+	defer func() {
+		// remove type parameters from the options set
+		opts.Delete(OptGauge)
+		opts.Delete(OptCounter)
+	}()
+
+	if opts.Has(OptGauge) {
+		return typeGauge
 	}
 
-	// Tags are always sorted
-	for i := range m.tags {
-		if m.tags[i] != other.tags[i] {
-			return false
-		}
-	}
-
-	return true
+	return typeCounter
 }

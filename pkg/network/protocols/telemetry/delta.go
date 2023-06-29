@@ -53,7 +53,7 @@ type clientState struct {
 }
 
 func (c *clientState) ValueFor(m *Metric) int64 {
-	if contains(OptGauge, m.opts) {
+	if m.metricType == typeGauge {
 		return m.Get()
 	}
 

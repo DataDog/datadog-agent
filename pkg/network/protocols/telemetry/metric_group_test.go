@@ -18,8 +18,8 @@ func TestMetricGroup(t *testing.T) {
 
 	// these metrics will be namespace under foo and will have share tag:abc
 	metricGroup := NewMetricGroup("foo", "tag:abc")
-	metricGroup.NewMetric("m1", "tag:foo").Set(10)
-	metricGroup.NewMetric("m2", "tag:bar").Set(20)
+	metricGroup.NewMetric("m1", "tag:foo", OptGauge).Set(10)
+	metricGroup.NewMetric("m2", "tag:bar", OptGauge).Set(20)
 
 	// since we're here using the full (namespaced) name and the full tag set,
 	// we should get the previously created metrics
@@ -39,8 +39,8 @@ func TestMetricGroupWithoutPrefix(t *testing.T) {
 
 	assert := assert.New(t)
 	metricGroup := NewMetricGroup("")
-	metricGroup.NewMetric("m1").Set(10)
-	metricGroup.NewMetric("m2").Set(20)
+	metricGroup.NewMetric("m1", OptGauge).Set(10)
+	metricGroup.NewMetric("m2", OptGauge).Set(20)
 
 	summary := metricGroup.Summary()
 	expected := map[string]int64{

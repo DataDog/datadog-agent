@@ -7,6 +7,8 @@ package telemetry
 
 import (
 	"sync"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 var globalRegistry *registry
@@ -16,25 +18,23 @@ type registry struct {
 	metrics []*Metric
 }
 
-// GetMetrics returns all metrics matching a certain set of tags
-func GetMetrics(tags ...string) []*Metric {
-	filterIndex := make(map[string]struct{}, len(tags))
-	for _, f := range tags {
-		filterIndex[f] = struct{}{}
-	}
+// GetMetrics returns all metrics matching a certain criteria
+func GetMetrics(params ...string) []*Metric {
+	filters := sets.NewString()
+	filters.Insert(params...)
 
 	globalRegistry.Lock()
 	defer globalRegistry.Unlock()
 
 	result := make([]*Metric, 0, len(globalRegistry.metrics))
-	if len(filterIndex) == 0 {
+	if filters.Len() == 0 {
 		// if no filters were provided we return all metrics
 		result = append(result, globalRegistry.metrics...)
 		return result
 	}
 
 	for _, m := range globalRegistry.metrics {
-		if matches(filterIndex, m) {
+		if m.opts.IsSuperset(filters) {
 			result = append(result, m)
 		}
 	}
@@ -48,22 +48,6 @@ func Clear() {
 	globalRegistry.Lock()
 	defer globalRegistry.Unlock()
 	globalRegistry.metrics = nil
-}
-
-func matches(filters map[string]struct{}, metric *Metric) bool {
-	var totalMatches int
-
-	for _, tag := range metric.opts {
-		if _, ok := filters[tag]; ok {
-			totalMatches++
-			if totalMatches == len(filters) {
-				return true
-			}
-
-		}
-	}
-
-	return false
 }
 
 func init() {
