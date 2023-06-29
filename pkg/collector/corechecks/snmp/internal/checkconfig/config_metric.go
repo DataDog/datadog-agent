@@ -28,6 +28,10 @@ type SymbolConfig struct {
 	Format           string  `yaml:"format"`
 	ConstantValueOne bool    `yaml:"constant_value_one"`
 
+	// `metric_type` is used for force the metric type
+	//   When empty, by default, the metric type is derived from SNMP OID value type.
+	//   Valid `metric_type` types: `gauge`, `rate`, `monotonic_count`, `monotonic_count_and_rate`
+	//   Deprecated types: `counter` (use `rate` instead), percent (use `scale_factor` instead)
 	MetricType string `yaml:"metric_type"`
 }
 
