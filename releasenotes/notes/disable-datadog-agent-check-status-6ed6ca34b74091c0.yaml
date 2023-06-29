@@ -8,5 +8,5 @@
 ---
 other:
   - |
-    ``datadog.agent.check_status`` is now disabled by default. It can be 
-    re-enabled with ``integration_check_status_enabled`` set to ``true``
+    ``datadog.agent.check_status`` is now disabled by default. To re-enable, 
+    set ``integration_check_status_enabled`` to ``true``.
