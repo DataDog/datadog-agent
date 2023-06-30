@@ -1108,6 +1108,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
+	// Remote process collector
+	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
+	bindEnvAndSetLogsConfigKeys(config, "workloadmeta.")
+
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")

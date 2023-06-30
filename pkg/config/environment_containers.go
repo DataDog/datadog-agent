@@ -190,7 +190,7 @@ func detectPodman(features FeatureMap) {
 }
 
 func detectRemoteProcessCollector(features FeatureMap) {
-	if Datadog.GetBool("process_config.language_detection.enabled") {
+	if Datadog.GetBool("workloadmeta.remote_process_collector.enabled") {
 		features[RemoteProcessCollector] = struct{}{}
 	}
 }
