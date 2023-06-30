@@ -122,7 +122,7 @@ k8s-e2e-otlp-main:
 
 .new_e2e_template:
   stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:a3bad1d37b5a
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
     # Setup AWS Credentials
@@ -137,12 +137,21 @@ k8s-e2e-otlp-main:
   variables:
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_KEY_PAIR_NAME: datadog-agent-ci
   script:
     - inv -e new-e2e-tests.run --targets $TARGETS $CONFIGPARAMS
+
+new-e2e-containers-dev:
+  extends: .new_e2e_template
+  rules: !reference [.on_dev_branch_manual]
+  needs: []
+  variables:
+    TARGETS: ./containers
+    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 -c ddagent:clusterAgentFullImagePath=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}"
 
 new-e2e-containers-main:
   extends: .new_e2e_template
   rules: !reference [.on_main]
   variables:
     TARGETS: ./containers
-    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:master-py3"
+    CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:master-py3 -c ddagent:clusterAgentFullImagePath=datadog/cluster-agent-dev:master"

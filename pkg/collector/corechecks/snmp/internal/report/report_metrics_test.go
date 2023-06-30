@@ -68,7 +68,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "gauge",
+				MetricType: "gauge",
 			},
 			expectedMethod:     "Gauge",
 			expectedMetricName: "snmp.my.metric",
@@ -82,7 +82,21 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "counter",
+				MetricType: "counter",
+			},
+			expectedMethod:     "Rate",
+			expectedMetricName: "snmp.my.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
+			caseName: "Forced rate metric case",
+			symbol:   checkconfig.SymbolConfig{Name: "my.metric"},
+			value:    valuestore.ResultValue{SubmissionType: "rate", Value: float64(10)},
+			tags:     []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "rate",
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric",
@@ -96,7 +110,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "monotonic_count",
+				MetricType: "monotonic_count",
 			},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
@@ -110,7 +124,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "monotonic_count_and_rate",
+				MetricType: "monotonic_count_and_rate",
 			},
 			expectedMethod:     "MonotonicCount",
 			expectedMetricName: "snmp.my.metric",
@@ -124,7 +138,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "monotonic_count_and_rate",
+				MetricType: "monotonic_count_and_rate",
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.my.metric.rate",
@@ -138,7 +152,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{Value: 0.5},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "percent",
+				MetricType: "percent",
 			},
 			expectedMethod:     "Rate",
 			expectedMetricName: "snmp.Rate.metric",
@@ -152,7 +166,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{Value: "1010"},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "flag_stream",
+				MetricType: "flag_stream",
 				Options:    checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "foo"},
 			},
 			expectedMethod:     "Gauge",
@@ -167,7 +181,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{Value: "1010"},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "flag_stream",
+				MetricType: "flag_stream",
 				Options:    checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "bar"},
 			},
 			expectedMethod:     "Gauge",
@@ -182,7 +196,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{Value: "1010"},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "flag_stream",
+				MetricType: "flag_stream",
 				Options:    checkconfig.MetricsConfigOption{Placement: 10, MetricSuffix: "none"},
 			},
 			expectedMethod:     "",
@@ -195,12 +209,24 @@ func TestSendMetric(t *testing.T) {
 			},
 		},
 		{
+			caseName:           "Forced monotonic_count via symbol config",
+			symbol:             checkconfig.SymbolConfig{Name: "my.metric", MetricType: "monotonic_count"},
+			value:              valuestore.ResultValue{SubmissionType: "counter", Value: float64(10)},
+			tags:               []string{},
+			metricConfig:       checkconfig.MetricsConfig{},
+			expectedMethod:     "MonotonicCount",
+			expectedMetricName: "snmp.my.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
 			caseName: "Error converting value",
 			symbol:   checkconfig.SymbolConfig{Name: "metric"},
 			value:    valuestore.ResultValue{Value: valuestore.ResultValue{}},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "flag_stream",
+				MetricType: "flag_stream",
 				Options:    checkconfig.MetricsConfigOption{Placement: 10, MetricSuffix: "ouch"},
 			},
 			expectedMethod:     "",
@@ -232,7 +258,7 @@ func TestSendMetric(t *testing.T) {
 			value:    valuestore.ResultValue{Value: "1"},
 			tags:     []string{},
 			metricConfig: checkconfig.MetricsConfig{
-				ForcedType: "invalidForceType",
+				MetricType: "invalidForceType",
 			},
 			expectedMethod:     "",
 			expectedMetricName: "",
@@ -288,7 +314,7 @@ func TestSendMetric(t *testing.T) {
 				value:      tt.value,
 				tags:       tt.tags,
 				symbol:     tt.symbol,
-				forcedType: tt.metricConfig.ForcedType,
+				forcedType: tt.metricConfig.MetricType,
 				options:    tt.metricConfig.Options,
 			}
 			metricSender.sendMetric(sample)

@@ -1,5 +1,5 @@
 {
-	"commit": "9c4502b672c4f27de01f4085cb3c786c97b0f8db",
+	"commit": "977506513b79e60337258d142bbb80b026fc7d85",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -29509,6 +29509,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1152-gcp",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1153-aws",
 			"cindex": 115
 		},
@@ -30028,6 +30035,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-212-generic",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-213-generic",
 			"cindex": 115
 		},
 		{

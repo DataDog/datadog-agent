@@ -394,6 +394,11 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 			if root.Matches(&entry.Process, at.differentiateArgs) {
 				return root, false, nil
 			}
+
+			// has root exec into one of its own children ?
+			if execChild := at.recursiveFindExecChild(root, entry); execChild != nil {
+				return execChild, false, nil
+			}
 		}
 
 		// we're about to add a root process node, make sure this root node passes the root node sanitizer
@@ -410,13 +415,17 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 		}
 
 	} else {
-
 		// if parentNode wasn't nil, then (at least) the parent is part of the activity dump. This means that we need
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
 			if child.Matches(&entry.Process, at.differentiateArgs) {
 				return child, false, nil
+			}
+
+			// has child exec into one of its own children ?
+			if execChild := at.recursiveFindExecChild(child, entry); execChild != nil {
+				return execChild, false, nil
 			}
 		}
 
@@ -437,6 +446,32 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 	}
 
 	return node, true, nil
+}
+
+func (at *ActivityTree) recursiveFindExecChild(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
+	// execedChild will be used if we don't find the node we're looking for and we detected that the parent process
+	// execed into one of its child without forking
+	var execedChild *ProcessNode
+
+	// look for an execed child
+	for _, node := range child.Children {
+		if !node.Process.ExecTime.IsZero() && node.Process.ExecTime.Equal(child.Process.ExitTime) {
+			// there should always be only one
+			execedChild = node
+			break
+		}
+	}
+	if execedChild == nil {
+		return nil
+	}
+
+	// does this execed child match the entry ?
+	if execedChild.Matches(&entry.Process, at.differentiateArgs) {
+		return execedChild
+	}
+
+	// look recursively for its children
+	return at.recursiveFindExecChild(execedChild, entry)
 }
 
 func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {

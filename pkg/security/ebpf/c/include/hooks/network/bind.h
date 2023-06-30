@@ -64,10 +64,10 @@ SYSCALL_KRETPROBE(bind) {
     return sys_bind_ret(ctx, retval);
 }
 
-SEC("kprobe/security_socket_bind")
-int kprobe_security_socket_bind(struct pt_regs *ctx) {
-    struct socket *sk = (struct socket *)PT_REGS_PARM1(ctx);
-    struct sockaddr *address = (struct sockaddr *)PT_REGS_PARM2(ctx);
+HOOK_ENTRY("security_socket_bind")
+int hook_security_socket_bind(ctx_t *ctx) {
+    struct socket *sk = (struct socket *)CTX_PARM1(ctx);
+    struct sockaddr *address = (struct sockaddr *)CTX_PARM2(ctx);
     struct pid_route_t key = {};
     u16 family = 0;
 

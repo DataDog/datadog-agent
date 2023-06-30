@@ -67,8 +67,8 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getOpenProbes()...)
 	allProbes = append(allProbes, getRenameProbes()...)
 	allProbes = append(allProbes, getRmdirProbe()...)
-	allProbes = append(allProbes, sharedProbes...)
-	allProbes = append(allProbes, iouringProbes...)
+	allProbes = append(allProbes, getSharedProbes(fentry)...)
+	allProbes = append(allProbes, getIouringProbes(fentry)...)
 	allProbes = append(allProbes, getUnlinkProbes()...)
 	allProbes = append(allProbes, getXattrProbes()...)
 	allProbes = append(allProbes, getIoctlProbes()...)
@@ -98,7 +98,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_security_inode_getattr",
+				EBPFFuncName: "hook_security_inode_getattr",
 			},
 		},
 	)

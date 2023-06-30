@@ -249,7 +249,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -339,7 +339,7 @@ func (p *Probe) PlaySnapshot() {
 }
 
 func (p *Probe) sendAnomalyDetection(event *model.Event) {
-	tags := p.GetEventTags(event)
+	tags := p.GetEventTags(event.ContainerContext.ID)
 	if service := p.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
