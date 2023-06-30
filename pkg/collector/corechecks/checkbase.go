@@ -93,7 +93,6 @@ func (c *CheckBase) Configure(integrationConfigDigest uint64, data integration.D
 // in order to setup common options (run interval, empty hostname)
 func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, instanceConfig integration.Data, source string) error {
 	handleConf := func(conf integration.Data, c *CheckBase) error {
-
 		commonOptions := integration.CommonInstanceConfig{}
 		err := yaml.Unmarshal(conf, &commonOptions)
 		if err != nil {
