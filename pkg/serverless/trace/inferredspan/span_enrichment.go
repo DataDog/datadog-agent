@@ -248,8 +248,8 @@ type TraceHeader struct {
 }
 
 type customMessageAttributeStruct struct {
-	Type  string `json:Type`
-	Value string `json:Value`
+	Type  string `json:"Type"`
+	Value string `json:"Value"`
 }
 type BodyStruct struct {
 	Message           string                                  `json:"Message"`
