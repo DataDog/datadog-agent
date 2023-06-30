@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 // MetricGroup provides a convenient constructor for a group with metrics
@@ -20,6 +21,10 @@ type MetricGroup struct {
 	namespace  string
 	commonTags []string
 	metrics    []*Metric
+
+	// used for the purposes of building the Summary() string
+	deltas deltaCalculator
+	then   time.Time
 }
 
 // NewMetricGroup returns a new `MetricGroup`
@@ -27,6 +32,7 @@ func NewMetricGroup(namespace string, commonTags ...string) *MetricGroup {
 	return &MetricGroup{
 		namespace:  namespace,
 		commonTags: commonTags,
+		then:       time.Now(),
 	}
 }
 
@@ -48,20 +54,34 @@ func (mg *MetricGroup) NewMetric(name string, tags ...string) *Metric {
 	return m
 }
 
-// Summary returns a map[string]int64 representing
-// a summary of all metrics belonging to this MetricGroup
-func (mg *MetricGroup) Summary() map[string]int64 {
+func (mg *MetricGroup) Summary() string {
 	mg.mux.Lock()
 	defer mg.mux.Unlock()
 
-	prefix := fmt.Sprintf("%s.", mg.namespace)
-	summary := make(map[string]int64, len(mg.metrics))
-	for _, m := range mg.metrics {
-		nameWithoutNS := strings.TrimPrefix(m.Name(), prefix)
-		summary[nameWithoutNS] = m.Get()
+	var (
+		now       = time.Now()
+		timeDelta = now.Sub(mg.then).Seconds()
+	)
+
+	// safeguard against division by zero
+	if timeDelta == 0 {
+		timeDelta = 1
 	}
 
-	return summary
+	valueDeltas := mg.deltas.GetState("")
+	var b strings.Builder
+	for _, m := range mg.metrics {
+		v := valueDeltas.ValueFor(m)
+		b.WriteString(fmt.Sprintf("%s=%d", m.Name(), v))
+
+		// If the metric is counter we also calculate the rate
+		if m.metricType == typeCounter {
+			b.WriteString(fmt.Sprintf("(%.2f/s)", float64(v)/timeDelta))
+		}
+		b.WriteByte(' ')
+	}
+	mg.then = now
+	return b.String()
 }
 
 // Clear all metrics belonging to this `MetricGroup`

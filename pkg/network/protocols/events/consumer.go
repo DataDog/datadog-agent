@@ -10,7 +10,6 @@ package events
 import (
 	"fmt"
 	"sync"
-	"time"
 	"unsafe"
 
 	"go.uber.org/atomic"
@@ -41,7 +40,7 @@ type Consumer struct {
 	stopped     bool
 
 	// telemetry
-	then             time.Time
+	metricGroup      *telemetry.MetricGroup
 	eventsCount      *telemetry.Metric
 	missesCount      *telemetry.Metric
 	kernelDropsCount *telemetry.Metric
@@ -97,6 +96,7 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 		batchReader: batchReader,
 
 		// telemetry
+		metricGroup:      metricGroup,
 		eventsCount:      eventsCount,
 		missesCount:      missesCount,
 		kernelDropsCount: kernelDropsCount,
@@ -106,7 +106,6 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 
 // Start consumption of eBPF events
 func (c *Consumer) Start() {
-	c.then = time.Now()
 	c.eventLoopWG.Add(1)
 	go func() {
 		defer c.eventLoopWG.Done()
@@ -135,7 +134,7 @@ func (c *Consumer) Start() {
 				c.batchReader.ReadAll(func(cpu int, b *batch) {
 					c.process(cpu, b, true)
 				})
-				c.log()
+				log.Infof("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
 				close(done)
 			}
 		}
@@ -187,29 +186,6 @@ func (c *Consumer) process(cpu int, b *batch, syncing bool) {
 	for data := iter.Next(); data != nil; data = iter.Next() {
 		c.callback(data)
 	}
-}
-
-func (c *Consumer) log() {
-	var (
-		now      = time.Now()
-		elapsed  = now.Sub(c.then).Seconds()
-		captured = c.eventsCount.Delta()
-		missed   = c.missesCount.Delta()
-	)
-
-	if elapsed == 0 {
-		return
-	}
-
-	log.Infof("usm events summary: name=%q events_captured=%d(%.2f/s) events_missed=%d(%.2f/s)",
-		c.proto,
-		captured,
-		float64(captured)/float64(elapsed),
-		missed,
-		float64(missed)/float64(elapsed),
-	)
-
-	c.then = now
 }
 
 func batchFromEventData(data []byte) *batch {
