@@ -15,16 +15,16 @@ package http
 */
 import "C"
 
-type HttpConnTuple = C.conn_tuple_t
+type ConnTuple = C.conn_tuple_t
 type SslSock C.ssl_sock_t
 type SslReadArgs C.ssl_read_args_t
 
-type EbpfHttpTx C.http_transaction_t
+type EbpfTx C.http_transaction_t
 
 type LibPath C.lib_path_t
 
 const (
-	HTTPBufferSize = C.HTTP_BUFFER_SIZE
+	BufferSize = C.HTTP_BUFFER_SIZE
 
 	libPathMaxSize = C.LIB_PATH_MAX_SIZE
 )

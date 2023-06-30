@@ -24,7 +24,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
 	tel := NewTelemetry()
-	sk := NewHTTPStatkeeper(cfg, tel)
+	sk := NewStatkeeper(cfg, tel)
 
 	srcString := "1.1.1.1"
 	dstString := "2.2.2.2"
@@ -70,7 +70,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
 	tel := NewTelemetry()
-	sk := NewHTTPStatkeeper(cfg, tel)
+	sk := NewStatkeeper(cfg, tel)
 	tx := generateIPv4HTTPTransaction(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
@@ -99,12 +99,12 @@ func TestPathProcessing(t *testing.T) {
 	)
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
-	setupStatKeeper := func(rules []*config.ReplaceRule) *HttpStatKeeper {
+	setupStatKeeper := func(rules []*config.ReplaceRule) *StatKeeper {
 		c := cfg
 		c.HTTPReplaceRules = rules
 
 		tel := NewTelemetry()
-		return NewHTTPStatkeeper(c, tel)
+		return NewStatkeeper(c, tel)
 	}
 
 	t.Run("reject rule", func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []HttpTX{
+		transactions := []Transaction{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/foobar", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/payment/123", statusCode, latency),
 		}
@@ -139,7 +139,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []HttpTX{
+		transactions := []Transaction{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/1", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/2", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/3", statusCode, latency),
@@ -171,7 +171,7 @@ func TestPathProcessing(t *testing.T) {
 		}
 
 		sk := setupStatKeeper(rules)
-		transactions := []HttpTX{
+		transactions := []Transaction{
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/ana/payment/123", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/bob/payment/456", statusCode, latency),
 		}
@@ -196,7 +196,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry()
-		sk := NewHTTPStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -220,7 +220,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry()
-		sk := NewHTTPStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -245,7 +245,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry()
-		sk := NewHTTPStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel)
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
