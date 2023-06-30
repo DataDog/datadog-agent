@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -55,7 +56,9 @@ func NewCustomTagKey(customTags []string) CustomTagKey {
 		tags = append(tags, strings.TrimSpace(tag))
 	}
 
-	return CustomTagKey(strings.Join(tags, " "))
+	sort.Strings(tags)
+
+	return CustomTagKey(strings.Join(tags, ","))
 }
 
 func getStatusCode(s *pb.Span) uint32 {
