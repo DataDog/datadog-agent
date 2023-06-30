@@ -308,7 +308,12 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
-	conns := make(map[netebpf.ConnTuple]*network.ConnectionStats)
+	// connsByTuple is used to detect whether we are iterating over
+	// a connection we have previously seen. This can happen when
+	// ebpf maps are being iterated over and deleted at the same time.
+	// The iteration can reset when that happens.
+	// See https://justin.azoff.dev/blog/bpf_map_get_next_key-pitfalls/
+	connsByTuple := make(map[netebpf.ConnTuple]*network.ConnectionStats)
 
 	// Cached objects
 	conn := new(network.ConnectionStats)
@@ -318,12 +323,10 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
 		populateConnStats(conn, key, stats, t.ch)
-		prev := conns[*key]
+		prev := connsByTuple[*key]
 		if prev != nil {
 			ConnTracerTelemetry.iterationDups.Inc()
-		}
-
-		if prev == nil {
+		} else {
 			isTCP := conn.Type == network.TCP
 			switch conn.Family {
 			case network.AFINET6:
@@ -359,7 +362,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 
 		c := buffer.Next()
 		*c = *conn
-		conns[*key] = c
+		connsByTuple[*key] = c
 	}
 
 	if err := entries.Err(); err != nil {
@@ -367,6 +370,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 			return fmt.Errorf("unable to iterate connection map: %s", err)
 		}
 
+		log.Warn("eBPF conn_stats map iteration aborted. Some connections may not be reported")
 		ConnTracerTelemetry.iterationAborts.Inc()
 	}
 
