@@ -58,6 +58,10 @@ func (agent *Agent) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+func (agent *Agent) Flare(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("flare", commandArgs...)
+}
+
 type Status struct {
 	Content string
 }
