@@ -91,6 +91,20 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 1,
 		},
 		{
+			caseName: "Forced rate metric case",
+			symbol:   checkconfig.SymbolConfig{Name: "my.metric"},
+			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeRate, Value: float64(10)},
+			tags:     []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				ForcedType: "rate",
+			},
+			expectedMethod:     "Rate",
+			expectedMetricName: "snmp.my.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
 			caseName: "Forced monotonic_count metric case",
 			symbol:   checkconfig.SymbolConfig{Name: "my.metric"},
 			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
