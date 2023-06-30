@@ -112,7 +112,7 @@ func (oc *OrchestratorConfig) Load() error {
 	oc.CollectorDiscoveryEnabled = config.Datadog.GetBool(key(orchestratorNS, "collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
 	// Tags configured by in extra_tags and DD_TAGS
-	oc.ExtraTags = append(config.Datadog.GetStringSlice(key(orchestratorNS, "extra_tags")), config.GetConfiguredTags(config.Datadog, false)...)
+	oc.ExtraTags = append(config.Datadog.GetStringSlice(key(orchestratorNS, "extra_tags")), config.GetGlobalConfiguredTags(false)...)
 	oc.IsManifestCollectionEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.enabled"))
 	oc.BufferedManifestEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.buffer_manifest"))
 	oc.ManifestBufferFlushInterval = config.Datadog.GetDuration(key(orchestratorNS, "manifest_collection.buffer_flush_interval"))
