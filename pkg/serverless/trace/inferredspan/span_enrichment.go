@@ -233,34 +233,34 @@ type DatadogAttribute struct {
 } */
 
 type DatadogPayload struct {
-	Type         string `json:"Type"`
-	Value        string `json:"Value"`
-	DataType     string `json:"dataType"`
-	BinaryValue  string `json:"binaryValue"`
-	StringValue  string `json:"stringValue"`
+	Type        string `json:"Type"`
+	Value       string `json:"Value"`
+	DataType    string `json:"dataType"`
+	BinaryValue string `json:"binaryValue"`
+	StringValue string `json:"stringValue"`
 }
 
 type TraceHeader struct {
-    TraceID          string `json:"x-datadog-trace-id"`
-    ParentID         string `json:"x-datadog-parent-id"`
-    SamplingPriority string `json:"x-datadog-sampling-priority"`
-    Sampled          string `json:"x-datadog-sampled"`
+	TraceID          string `json:"x-datadog-trace-id"`
+	ParentID         string `json:"x-datadog-parent-id"`
+	SamplingPriority string `json:"x-datadog-sampling-priority"`
+	Sampled          string `json:"x-datadog-sampled"`
 }
 
 type customMessageAttributeStruct struct {
-	Type	string	`json:Type`
-	Value	string	`json:Value`
+	Type  string `json:Type`
+	Value string `json:Value`
 }
 type BodyStruct struct {
-	Message           string                            `json:"Message"`
+	Message           string                                  `json:"Message"`
 	MessageAttributes map[string]customMessageAttributeStruct `json:"MessageAttributes"`
 }
 type CustomDatadogPayload struct {
-	Type         string `json:"Type"`
-	Value        string `json:"Value"`
-	DataType     string `json:"dataType"`
-	BinaryValue  string `json:"binaryValue"`
-	StringValue  string `json:"stringValue"`
+	Type        string `json:"Type"`
+	Value       string `json:"Value"`
+	DataType    string `json:"dataType"`
+	BinaryValue string `json:"binaryValue"`
+	StringValue string `json:"stringValue"`
 }
 
 func extractContextFromSNSSQSEvent(firstRecord events.SQSMessage) (string, string, string, error) {
@@ -293,7 +293,6 @@ func extractContextFromSNSSQSEvent(firstRecord events.SQSMessage) (string, strin
 	return traceData.TraceID, traceData.ParentID, traceData.SamplingPriority, nil
 }
 
-
 func extractContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribute) (string, string, string, error) {
 	var traceData TraceHeader
 	if ddPayloadValue.DataType == "String" {
@@ -305,7 +304,7 @@ func extractContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribute) (
 		return "", "", "", errors.New("unsupported DataType in _datadog payload")
 	}
 
-	return traceData.TraceID, traceData.ParentID, traceData.SamplingPriority, nil	
+	return traceData.TraceID, traceData.ParentID, traceData.SamplingPriority, nil
 }
 
 // EnrichInferredSpanWithSQSEvent uses the parsed event
@@ -345,7 +344,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
 	serviceName := DetermineServiceName(serviceMapping, parsedQueueName, "lambda_sqs", "sqs")
 
-
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sqs"
 	inferredSpan.Span.Service = serviceName
@@ -353,9 +351,9 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	inferredSpan.Span.Resource = parsedQueueName
 	inferredSpan.Span.TraceID = uint64TraceID
 	inferredSpan.Span.ParentID = uint64ParentID
-    inferredSpan.Span.Metrics = map[string]float64{
-        "_sampling_priority_v1":               samplingPriorityFloat64,
-    }	
+	inferredSpan.Span.Metrics = map[string]float64{
+		"_sampling_priority_v1": samplingPriorityFloat64,
+	}
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName:  "aws.sqs",
