@@ -328,7 +328,7 @@ func (p *Probe) PlaySnapshot() {
 }
 
 func (p *Probe) sendAnomalyDetection(event *model.Event) {
-	tags := p.GetEventTags(event)
+	tags := p.GetEventTags(event.ContainerContext.ID)
 	if service := p.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}

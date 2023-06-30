@@ -483,8 +483,9 @@ func (c *CWSConsumer) RuleMatch(rule *rules.Rule, event eval.Event) {
 	// which can be modified during queuing
 	service := c.probe.GetService(ev)
 
+	containerID := ev.ContainerContext.ID
 	extTagsCb := func() []string {
-		return c.probe.GetEventTags(ev)
+		return c.probe.GetEventTags(containerID)
 	}
 
 	// send if not selftest related events
