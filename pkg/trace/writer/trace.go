@@ -82,7 +82,7 @@ type TraceWriter struct {
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader, telemetryCollector telemetry.TelemetryCollector) *TraceWriter {
 	tw := &TraceWriter{
-		In:              make(chan *SampledChunks, 1000),
+		In:              make(chan *SampledChunks, 1),
 		prioritySampler: prioritySampler,
 		errorsSampler:   errorsSampler,
 		rareSampler:     rareSampler,
@@ -116,6 +116,8 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 	if s := cfg.TraceWriter.FlushPeriodSeconds; s != 0 {
 		tw.tick = time.Duration(s*1000) * time.Millisecond
 	}
+	qsize = 1
+	climit = 1
 	log.Debugf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector)
 	return tw
@@ -254,10 +256,8 @@ func (w *TraceWriter) flush() {
 
 	w.stats.BytesUncompressed.Add(int64(len(b)))
 
-	w.wg.Add(1)
-	go func() {
+	func() {
 		defer timing.Since("datadog.trace_agent.trace_writer.compress_ms", time.Now())
-		defer w.wg.Done()
 		p := newPayload(map[string]string{
 			"Content-Type":     "application/x-protobuf",
 			"Content-Encoding": "gzip",

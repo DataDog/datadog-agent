@@ -25,6 +25,7 @@ type measuredListener struct {
 	timedout *atomic.Uint32 // timedout connection count
 	errored  *atomic.Uint32 // errored connection count
 	exit     chan struct{}  // exit signal channel (on Close call)
+	sem      chan struct{}  // Used to limit active connections
 }
 
 // NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is
@@ -38,6 +39,7 @@ func NewMeasuredListener(ln net.Listener, name string) net.Listener {
 		timedout: atomic.NewUint32(0),
 		errored:  atomic.NewUint32(0),
 		exit:     make(chan struct{}),
+		sem:      make(chan struct{}, 10),
 	}
 	go ml.run()
 	return ml
@@ -69,8 +71,24 @@ func (ln *measuredListener) flushMetrics() {
 	}
 }
 
+type onCloseConn struct {
+	net.Conn
+	onClose func()
+}
+
+func (c *onCloseConn) Close() error {
+	err := c.Conn.Close()
+	c.onClose()
+	return err
+}
+
+func OnCloseConn(c net.Conn, onclose func()) net.Conn {
+	return &onCloseConn{c, onclose}
+}
+
 // Accept implements net.Listener and keeps counts on connection statuses.
 func (ln *measuredListener) Accept() (net.Conn, error) {
+	ln.sem <- struct{}{}
 	conn, err := ln.Listener.Accept()
 	if err != nil {
 		log.Debugf("Error connection named %q: %s", ln.name, err)
@@ -83,6 +101,9 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 		ln.accepted.Inc()
 		log.Tracef("Accepted connection named %q.", ln.name)
 	}
+	conn = OnCloseConn(conn, func() {
+		<-ln.sem
+	})
 	return conn, err
 }
 
