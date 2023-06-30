@@ -2,6 +2,7 @@ import glob
 import json
 import os
 import re
+import sys
 import traceback
 
 import requests
@@ -195,8 +196,7 @@ def invoke_unit_tests(ctx):
     for _, _, files in os.walk("tasks/unit-tests/"):
         for file in files:
             if file[-3:] == ".py" and file != "__init__.py":
-                res = ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}")
-                print("res", res)
+                ctx.run(f"{sys.executable} -m tasks.unit-tests.{file[:-3]}")
 
 
 def load_targets(_, targethash, selections, platform):
