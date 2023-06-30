@@ -249,7 +249,7 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
     if include is None:
         print("Warning: unrecognized build type, no build tags included.")
         include = set()
-    print("BUILD TAGS: " + str(include))
+
     return sorted(filter_incompatible_tags(include, arch=arch))
 
 
