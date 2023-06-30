@@ -2,8 +2,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.73 h1:fnCnAR+nWY+q//fBZSab4cDFFng0scPEfmLdl9ngmQY=
 github.com/DataDog/agent-payload/v5 v5.0.73/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
-github.com/DataDog/test-infra-definitions v0.0.0-20230629072331-ca7799ab15ca h1:In0LmW10UWRmzhDFXsrpvMykeuIsb9I+kZe/C8R68+g=
-github.com/DataDog/test-infra-definitions v0.0.0-20230629072331-ca7799ab15ca/go.mod h1:ooZpPM5wPJNEIjDQfrWdWLlw2waB0xB8bG+J5XRDVKk=
+github.com/DataDog/test-infra-definitions v0.0.0-20230630085306-7d82fca6b059 h1:FAU+V3SkX6WtIkJG1uDIPRCWjVQfEL733LuTsGjSkSk=
+github.com/DataDog/test-infra-definitions v0.0.0-20230630085306-7d82fca6b059/go.mod h1:ooZpPM5wPJNEIjDQfrWdWLlw2waB0xB8bG+J5XRDVKk=
 github.com/HdrHistogram/hdrhistogram-go v1.1.2 h1:5IcZpTvzydCQeHzK4Ef/D5rrSqwxob0t8PQPMybUNFM=
 github.com/Masterminds/semver v1.5.0 h1:H65muMkzWKEuNDnfl9d70GUjFniHKHRbFPGBuZ3QEww=
 github.com/Masterminds/semver v1.5.0/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
