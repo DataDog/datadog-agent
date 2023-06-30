@@ -109,7 +109,7 @@ def _fix_makesfxca_dll(path):
             # PE32+
             DataDirectory = OptionalHeader + 112
         else:
-            raise Exit("Invalid magic: {}".format(hex(magic)))
+            raise Exit(f"Invalid magic: {hex(magic)}")
         # calculate offset to the certificate table data directory entry
         ddentry_size = 8
         certificatetable_index = 4
@@ -120,9 +120,7 @@ def _fix_makesfxca_dll(path):
             # no change necessary
             return
         print(
-            "{}: zeroing out certificate table directory entry {:x},{:x} at offset {:x}".format(
-                path, ct_offset, ct_size, certificatetable
-            )
+            f"{path}: zeroing out certificate table directory entry {ct_offset:x},{ct_size:x} at offset {certificatetable:x}"
         )
         # zero out the certificate table data directory entry
         pe_data[certificatetable : certificatetable + ddentry_size] = b'\x00' * ddentry_size
