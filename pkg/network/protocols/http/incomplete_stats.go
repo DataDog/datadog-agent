@@ -49,14 +49,14 @@ type incompleteBuffer struct {
 }
 
 type txParts struct {
-	requests  []HttpTX
-	responses []HttpTX
+	requests  []Transaction
+	responses []Transaction
 }
 
 func newTXParts() *txParts {
 	return &txParts{
-		requests:  make([]HttpTX, 0, 5),
-		responses: make([]HttpTX, 0, 5),
+		requests:  make([]Transaction, 0, 5),
+		responses: make([]Transaction, 0, 5),
 	}
 }
 
@@ -69,7 +69,7 @@ func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuff
 	}
 }
 
-func (b *incompleteBuffer) Add(tx HttpTX) {
+func (b *incompleteBuffer) Add(tx Transaction) {
 	connTuple := tx.ConnTuple()
 	key := types.ConnectionKey{
 		SrcIPHigh: connTuple.SrcIPHigh,
@@ -90,13 +90,13 @@ func (b *incompleteBuffer) Add(tx HttpTX) {
 
 	// copy underlying httpTX value. this is now needed because these objects are
 	// now coming directly from pooled perf records
-	ebpfTX, ok := tx.(*EbpfHttpTx)
+	ebpfTX, ok := tx.(*EbpfTx)
 	if !ok {
 		// should never happen
 		return
 	}
 
-	ebpfTxCopy := new(EbpfHttpTx)
+	ebpfTxCopy := new(EbpfTx)
 	*ebpfTxCopy = *ebpfTX
 	tx = ebpfTxCopy
 
@@ -107,9 +107,9 @@ func (b *incompleteBuffer) Add(tx HttpTX) {
 	}
 }
 
-func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
+func (b *incompleteBuffer) Flush(now time.Time) []Transaction {
 	var (
-		joined   []HttpTX
+		joined   []Transaction
 		previous = b.data
 		nowUnix  = now.UnixNano()
 	)
@@ -156,12 +156,12 @@ func (b *incompleteBuffer) Flush(now time.Time) []HttpTX {
 	return joined
 }
 
-func (b *incompleteBuffer) shouldKeep(tx HttpTX, now int64) bool {
+func (b *incompleteBuffer) shouldKeep(tx Transaction, now int64) bool {
 	then := int64(tx.RequestStarted())
 	return (now - then) < b.minAgeNano
 }
 
-type byRequestTime []HttpTX
+type byRequestTime []Transaction
 
 func (rt byRequestTime) Len() int      { return len(rt) }
 func (rt byRequestTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
@@ -169,7 +169,7 @@ func (rt byRequestTime) Less(i, j int) bool {
 	return rt[i].RequestStarted() < rt[j].RequestStarted()
 }
 
-type byResponseTime []HttpTX
+type byResponseTime []Transaction
 
 func (rt byResponseTime) Len() int      { return len(rt) }
 func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }

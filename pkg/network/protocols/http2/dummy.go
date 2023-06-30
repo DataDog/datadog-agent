@@ -3,14 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build !linux_bpf
 
-package http
-
-import (
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-)
-
-func getPathBufferSize(c *config.Config) int {
-	return int(HTTPBufferSize)
-}
+// On Windows/mac the package his empty, so having a dummy file to ensure the package is not invalid on Windows/mac.
+package http2

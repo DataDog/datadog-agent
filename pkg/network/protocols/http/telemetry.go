@@ -20,7 +20,7 @@ type Telemetry struct {
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
 	totalHits    *libtelemetry.Metric
-	dropped      *libtelemetry.Metric // this happens when httpStatKeeper reaches capacity
+	dropped      *libtelemetry.Metric // this happens when statKeeper reaches capacity
 	rejected     *libtelemetry.Metric // this happens when an user-defined reject-filter matches a request
 	malformed    *libtelemetry.Metric // this happens when the request doesn't have the expected format
 	aggregations *libtelemetry.Metric
@@ -54,7 +54,7 @@ func NewTelemetry() *Telemetry {
 	return t
 }
 
-func (t *Telemetry) Count(tx HttpTX) {
+func (t *Telemetry) Count(tx Transaction) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
 	case 100:
