@@ -25,6 +25,6 @@ class JsonSchemaValidator:
         date_check = Draft7Validator.TYPE_CHECKER.redefine('datetime', self.is_datetime)
         CustomValidator = validators.extend(Draft7Validator, type_checker=date_check)
         validator = CustomValidator(self.schema_store[schema_filename], resolver=self.resolver)
-        
+
         # Validate the instance
         validator.validate(json_data)

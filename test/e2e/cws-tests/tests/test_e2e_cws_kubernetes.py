@@ -69,7 +69,6 @@ class TestE2EKubernetes(unittest.TestCase):
             )
 
         with Step(msg="select pod", emoji=":man_running:"):
-
             self.kubernetes_helper.select_pod_name("app=datadog-agent")
 
         with Step(msg="check security-agent start", emoji=":customs:"):
@@ -134,7 +133,7 @@ class TestE2EKubernetes(unittest.TestCase):
             else:
                 self.fail("check ruleset_loaded timeouted")
             self.app.check_for_ignored_policies(self, attributes)
-        
+
         with Step(msg="check self_tests", emoji=":test_tube:"):
             rule_id = "self_test"
             event = self.app.wait_app_log(f"rule_id:{rule_id}")
