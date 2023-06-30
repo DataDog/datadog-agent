@@ -2,7 +2,7 @@ import json
 import os
 from datetime import datetime
 
-from jsonschema import RefResolver, Draft7Validator, validators
+from jsonschema import Draft7Validator, RefResolver, validators
 
 
 class JsonSchemaValidator:
