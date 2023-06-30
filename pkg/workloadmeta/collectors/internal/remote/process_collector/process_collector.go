@@ -89,7 +89,7 @@ func (s *remoteProcessCollectorStreamHandler) HandleResponse(resp interface{}) (
 	}
 
 	if s.eventIdSet {
-		if response.EventID != s.lastEventID {
+		if response.EventID != s.lastEventID+1 {
 			// This edge case should not occur if the server does not skip any EventID which is not the case for 7.47.0 release
 			log.Warnf("remote process collector server is out of sync: expected id [%d], received id [%d]", s.lastEventID+1, response.EventID)
 			telemetry.RemoteProcessCollectorOutOfSync.Inc()
