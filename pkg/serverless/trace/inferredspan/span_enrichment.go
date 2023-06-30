@@ -8,6 +8,7 @@ package inferredspan
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -219,7 +220,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload eve
 	}
 }
 
-type BodyStruct struct {
+/* type BodyStruct struct {
 	MessageAttributes map[string]struct {
 		Type  string `json:"Type"`
 		Value string `json:"Value"`
@@ -229,54 +230,121 @@ type BodyStruct struct {
 type DatadogAttribute struct {
 	XDatadogTraceID  string `json:"x-datadog-trace-id"`
 	XDatadogParentID string `json:"x-datadog-parent-id"`
+} */
+
+type DatadogPayload struct {
+	Type         string `json:"Type"`
+	Value        string `json:"Value"`
+	DataType     string `json:"dataType"`
+	BinaryValue  string `json:"binaryValue"`
+	StringValue  string `json:"stringValue"`
+}
+
+type TraceHeader struct {
+    TraceID          string `json:"x-datadog-trace-id"`
+    ParentID         string `json:"x-datadog-parent-id"`
+    SamplingPriority string `json:"x-datadog-sampling-priority"`
+    Sampled          string `json:"x-datadog-sampled"`
+}
+
+type customMessageAttributeStruct struct {
+	Type	string	`json:Type`
+	Value	string	`json:Value`
+}
+type BodyStruct struct {
+	Message           string                            `json:"Message"`
+	MessageAttributes map[string]customMessageAttributeStruct `json:"MessageAttributes"`
+}
+type CustomDatadogPayload struct {
+	Type         string `json:"Type"`
+	Value        string `json:"Value"`
+	DataType     string `json:"dataType"`
+	BinaryValue  string `json:"binaryValue"`
+	StringValue  string `json:"stringValue"`
+}
+
+func extractContextFromSNSSQSEvent(firstRecord events.SQSMessage) (string, string, string, error) {
+	var bodyStruct BodyStruct
+	if err := json.Unmarshal([]byte(firstRecord.Body), &bodyStruct); err != nil {
+		log.Errorf("Failed to parse Body field")
+		return "", "", "", err
+	}
+	var ddCustomPayloadValue, ok = bodyStruct.MessageAttributes["_datadog"]
+	if !ok {
+		log.Errorf("Datadog Lambda Go only supports extracting trace context from String or Binary SQS/SNS message attributes")
+		return "", "", "", errors.New("no Datadog trace context found")
+	}
+
+	var traceData TraceHeader
+	if ddCustomPayloadValue.Type == "Binary" {
+		decodedBinary, err := base64.StdEncoding.DecodeString(string(ddCustomPayloadValue.Value))
+		if err != nil {
+			log.Errorf("Failed to decode datadog binary payload: %s", err)
+			return "", "", "", err
+		}
+		if err := json.Unmarshal(decodedBinary, &traceData); err != nil {
+			log.Errorf("Failed to unmarshal datadog binary payload: %s", err)
+			return "", "", "", err
+		}
+	} else {
+		return "", "", "", errors.New("unsupported DataType in _datadog payload")
+	}
+
+	return traceData.TraceID, traceData.ParentID, traceData.SamplingPriority, nil
+}
+
+
+func extractContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribute) (string, string, string, error) {
+	var traceData TraceHeader
+	if ddPayloadValue.DataType == "String" {
+		if err := json.Unmarshal([]byte(*ddPayloadValue.StringValue), &traceData); err != nil {
+			log.Errorf("Failed to unmarshal datadog string payload: %s", err)
+			return "", "", "", err
+		}
+	} else {
+		return "", "", "", errors.New("unsupported DataType in _datadog payload")
+	}
+
+	return traceData.TraceID, traceData.ParentID, traceData.SamplingPriority, nil	
 }
 
 // EnrichInferredSpanWithSQSEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an SQS event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload events.SQSEvent) {
+	var traceID, parentID, samplingPriority string
+	var err error
 	eventRecord := eventPayload.Records[0]
+	if ddMessageAttribute, ok := eventRecord.MessageAttributes["_datadog"]; ok {
+		traceID, parentID, samplingPriority, err = extractContextFromPureSqsEvent(ddMessageAttribute)
+		if err != nil {
+			log.Errorf("Failed to extract context: %v", err)
+		}
+	} else {
+		traceID, parentID, samplingPriority, err = extractContextFromSNSSQSEvent(eventRecord)
+		if err != nil {
+			log.Errorf("Failed to extract context: %v", err)
+		}
+	}
+
+	uint64TraceID, err := strconv.ParseUint(traceID, 10, 64)
+	if err != nil {
+		log.Errorf("Error converting x-datadog-trace-id: %v", err)
+	}
+
+	uint64ParentID, err := strconv.ParseUint(parentID, 10, 64)
+	if err != nil {
+		log.Errorf("Error converting x-datadog-parent-id: %v", err)
+	}
+	samplingPriorityFloat64, err := strconv.ParseFloat(samplingPriority, 64)
+	if err != nil {
+		log.Errorf("Error converting samplingPriority: %v", err)
+	}
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
 	parsedQueueName := splitArn[len(splitArn)-1]
 	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
 	serviceName := DetermineServiceName(serviceMapping, parsedQueueName, "lambda_sqs", "sqs")
 
-	body := eventRecord.Body
-	bodyStruct := new(BodyStruct)
-	err := json.Unmarshal([]byte(body), bodyStruct)
-	if err != nil {
-		log.Errorf("Error parsing body: %v", err)
-	}
-
-	// Get the _datadog attribute value
-	datadogAttrStr := bodyStruct.MessageAttributes["_datadog"].Value
-
-	// Base64 decode the _datadog attribute (if needed)
-	datadogAttrData, err := base64.StdEncoding.DecodeString(datadogAttrStr)
-	if err != nil {
-		log.Errorf("Error decoding _datadog attribute: %v", err)
-	}
-
-	// Parse _datadog attribute from JSON
-	datadogAttr := new(DatadogAttribute)
-	err = json.Unmarshal(datadogAttrData, datadogAttr)
-	if err != nil {
-		log.Errorf("Error parsing _datadog attribute: %v", err)
-	}
-
-	// Get the x-datadog-trace-id and x-datadog-parent-id
-	xDatadogTraceID := datadogAttr.XDatadogTraceID
-	xDatadogParentID := datadogAttr.XDatadogParentID
-
-	uint64TraceID, err := strconv.ParseUint(xDatadogTraceID, 10, 64)
-	if err != nil {
-		log.Errorf("Error converting x-datadog-trace-id: %v", err)
-	}
-
-	uint64ParentID, err := strconv.ParseUint(xDatadogParentID, 10, 64)
-	if err != nil {
-		log.Errorf("Error converting x-datadog-parent-id: %v", err)
-	}
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sqs"
@@ -285,6 +353,9 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	inferredSpan.Span.Resource = parsedQueueName
 	inferredSpan.Span.TraceID = uint64TraceID
 	inferredSpan.Span.ParentID = uint64ParentID
+    inferredSpan.Span.Metrics = map[string]float64{
+        "_sampling_priority_v1":               samplingPriorityFloat64,
+    }	
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName:  "aws.sqs",
