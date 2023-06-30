@@ -152,7 +152,7 @@ def is_ec2_ip_entry(entry):
 
 def ec2_instance_ids(ctx, ip_list):
     ip_addresses = ','.join(ip_list)
-    list_instances_cmd = "aws-vault exec sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={private_ips}\" \"Name=tag:Team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text".format(
+    list_instances_cmd = "aws-vault exec sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={private_ips}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text".format(
         private_ips=ip_addresses
     )
 
@@ -205,9 +205,11 @@ def destroy_stack_force(ctx, stack):
     conn.close()
 
     destroy_ec2_instances(ctx, stack)
+
     # Find a better solution for this
+    pulumi_stack_name = ctx.run(f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1", warn=True, hide=True).stdout.strip()
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {stack}", warn=True
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}", warn=True
     )
 
 
