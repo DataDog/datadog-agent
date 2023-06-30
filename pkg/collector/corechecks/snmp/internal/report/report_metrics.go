@@ -7,7 +7,6 @@ package report
 
 import (
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,7 +31,7 @@ type MetricSample struct {
 	value      valuestore.ResultValue
 	tags       []string
 	symbol     checkconfig.SymbolConfig
-	forcedType string
+	forcedType checkconfig.ProfileMetricType
 	options    checkconfig.MetricsConfigOption
 }
 
@@ -178,7 +177,7 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 		if metricSample.value.SubmissionType != "" {
 			forcedType = metricSample.value.SubmissionType
 		} else {
-			forcedType = "gauge"
+			forcedType = checkconfig.ProfileMetricTypeGauge
 		}
 	} else if forcedType == "flag_stream" {
 		strValue, err := metricSample.value.ToString()
@@ -194,7 +193,7 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 		}
 		metricFullName = metricFullName + "." + options.MetricSuffix
 		metricSample.value = valuestore.ResultValue{Value: floatValue}
-		forcedType = "gauge"
+		forcedType = checkconfig.ProfileMetricTypeGauge
 	}
 
 	floatValue, err := metricSample.value.ToFloat64()
@@ -209,19 +208,19 @@ func (ms *MetricSender) sendMetric(metricSample MetricSample) {
 	}
 
 	switch forcedType {
-	case "gauge":
+	case checkconfig.ProfileMetricTypeGauge:
 		ms.Gauge(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case "counter", "rate":
+	case checkconfig.ProfileMetricTypeCounter, checkconfig.ProfileMetricTypeRate:
 		ms.Rate(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case "percent":
+	case checkconfig.ProfileMetricTypePercent:
 		ms.Rate(metricFullName, floatValue*100, metricSample.tags)
 		ms.submittedMetrics++
-	case "monotonic_count":
+	case checkconfig.ProfileMetricTypeMonotonicCount:
 		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
 		ms.submittedMetrics++
-	case "monotonic_count_and_rate":
+	case checkconfig.ProfileMetricTypeMonotonicCountAndRate:
 		ms.MonotonicCount(metricFullName, floatValue, metricSample.tags)
 		ms.Rate(metricFullName+".rate", floatValue, metricSample.tags)
 		ms.submittedMetrics += 2
