@@ -10,10 +10,10 @@ from lib.config import gen_datadog_agent_config, gen_system_probe_config
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
 from lib.cws.app import App
 from lib.cws.policy import PolicyLoader
+from lib.cws.schemas import JsonSchemaValidator
 from lib.docker import DockerHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
-from lib.cws.schemas import JsonSchemaValidator
 
 
 class TestE2EDocker(unittest.TestCase):

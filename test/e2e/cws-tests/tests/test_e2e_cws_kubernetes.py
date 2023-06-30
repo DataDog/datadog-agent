@@ -11,10 +11,10 @@ import emoji
 from lib.const import SECURITY_START_LOG, SYS_PROBE_START_LOG
 from lib.cws.app import App
 from lib.cws.policy import PolicyLoader
+from lib.cws.schemas import JsonSchemaValidator
 from lib.kubernetes import KubernetesHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
-from lib.cws.schemas import JsonSchemaValidator
 
 
 class TestE2EKubernetes(unittest.TestCase):
