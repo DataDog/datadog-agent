@@ -15,6 +15,7 @@ from lib.log import wait_agent_log
 from lib.stepper import Step
 from lib.cws.schemas import JsonSchemaValidator
 
+
 class TestE2EDocker(unittest.TestCase):
     def setUp(self):
         warnings.simplefilter("ignore", category=ResourceWarning)

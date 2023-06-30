@@ -3,9 +3,10 @@ import os
 from jsonschema import RefResolver, Draft7Validator, validators
 from datetime import datetime
 
+
 class JsonSchemaValidator:
     def __init__(self):
-        self.schema_directory = os.path.join(os.path.dirname(__file__),"schemas")
+        self.schema_directory = os.path.join(os.path.dirname(__file__), "schemas")
         self.schema_store = {}
         for filename in os.listdir(self.schema_directory):
             if filename.endswith('.json'):
@@ -27,6 +28,3 @@ class JsonSchemaValidator:
         
         # Validate the instance
         validator.validate(json_data)
-
-        
-      

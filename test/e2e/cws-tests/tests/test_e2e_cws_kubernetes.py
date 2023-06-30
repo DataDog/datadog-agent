@@ -16,6 +16,7 @@ from lib.log import wait_agent_log
 from lib.stepper import Step
 from lib.cws.schemas import JsonSchemaValidator
 
+
 class TestE2EKubernetes(unittest.TestCase):
     namespace = "default"
     in_cluster = False
@@ -133,7 +134,7 @@ class TestE2EKubernetes(unittest.TestCase):
             else:
                 self.fail("check ruleset_loaded timeouted")
             self.app.check_for_ignored_policies(self, attributes)
-
+        
         with Step(msg="check self_tests", emoji=":test_tube:"):
             rule_id = "self_test"
             event = self.app.wait_app_log(f"rule_id:{rule_id}")
@@ -145,7 +146,7 @@ class TestE2EKubernetes(unittest.TestCase):
             )
 
             jsonSchemaValidator = JsonSchemaValidator()
-            jsonSchemaValidator.validate_json_data("self_test.json",attributes)
+            jsonSchemaValidator.validate_json_data("self_test.json", attributes)
 
         with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
             self.app.wait_for_metric("datadog.security_agent.runtime.running", host=TestE2EKubernetes.hostname)
