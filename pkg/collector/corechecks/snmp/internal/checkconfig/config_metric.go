@@ -22,9 +22,11 @@ const (
 	ProfileMetricTypeFlagStream            ProfileMetricType = "flag_stream"
 
 	// ProfileMetricTypeCounter is DEPRECATED
+	// `counter` is deprecated in favour of `rate`
 	ProfileMetricTypeCounter ProfileMetricType = "counter"
 
 	// ProfileMetricTypePercent is DEPRECATED
+	// `counter` is deprecated in favour of `scale_factor`
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
