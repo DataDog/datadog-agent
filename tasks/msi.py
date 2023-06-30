@@ -115,7 +115,7 @@ def _fix_makesfxca_dll(path):
         certificatetable_index = 4
         certificatetable = DataDirectory + certificatetable_index * ddentry_size
         ct_offset = dword(pe_data, certificatetable)
-        ct_size = dword(pe_data, certificatetable+4)
+        ct_size = dword(pe_data, certificatetable + 4)
         if ct_offset == 0 and ct_size == 0:
             # no change necessary
             return
