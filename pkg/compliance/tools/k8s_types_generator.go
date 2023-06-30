@@ -35,9 +35,10 @@ var (
 
 	// https://kubernetes.io/releases/
 	k8sVersions = []string{
-		"v1.26.3",
-		"v1.25.8",
-		"v1.24.12",
+		"v1.27.3",
+		"v1.26.6",
+		"v1.25.11",
+		"v1.24.15",
 		"v1.23.17",
 	}
 
