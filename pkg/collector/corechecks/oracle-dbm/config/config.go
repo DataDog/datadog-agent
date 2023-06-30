@@ -43,6 +43,10 @@ type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type SharedMemoryConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type ExecutionPlansConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
@@ -74,6 +78,7 @@ type InstanceConfig struct {
 	SysMetrics             SysMetricsConfig     `yaml:"sysmetrics"`
 	Tablespaces            TablespacesConfig    `yaml:"tablespaces"`
 	ProcessMemory          ProcessMemoryConfig  `yaml:"process_memory"`
+	SharedMemory           SharedMemoryConfig   `yaml:"shared_memory"`
 	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
 	AgentSQLTrace          AgentSQLTrace        `yaml:"agent_sql_trace"`
 }
@@ -110,6 +115,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
+	instance.SharedMemory.Enabled = true
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {

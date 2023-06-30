@@ -14,7 +14,7 @@ var pipeProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_mntget",
+			EBPFFuncName: "hook_mntget",
 		},
 	},
 }

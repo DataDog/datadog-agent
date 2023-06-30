@@ -20,7 +20,6 @@ import (
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images/archive"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/platforms"
 	refdocker "github.com/containerd/containerd/reference/docker"
 	api "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -33,6 +32,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+const CONTAINERD_COLLECTOR = "containerd"
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
 type familiarNamed string
@@ -62,7 +63,7 @@ func imageWriter(client *containerd.Client, img containerd.Image) imageSave {
 		}
 		imgOpts := archive.WithImage(client.ImageService(), ref[0])
 		manifestOpts := archive.WithManifest(img.Target())
-		platOpts := archive.WithPlatform(platforms.DefaultStrict())
+		platOpts := archive.WithPlatform(img.Platform())
 		pr, pw := io.Pipe()
 		go func() {
 			pw.CloseWithError(archive.Export(ctx, client.ContentStore(), pw, imgOpts, manifestOpts, platOpts))
@@ -93,7 +94,7 @@ func convertContainerdImage(ctx context.Context, client *containerd.Client, imgM
 
 	return &image{
 		name:    img.Name(),
-		opener:  imageOpener(ctx, ref.String(), f, imageWriter(client, img)),
+		opener:  imageOpener(ctx, CONTAINERD_COLLECTOR, ref.String(), f, imageWriter(client, img)),
 		inspect: insp,
 		history: history,
 	}, cleanup, nil

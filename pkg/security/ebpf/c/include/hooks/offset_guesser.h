@@ -2,10 +2,11 @@
 #define _HOOKS_OFFSET_GUESSER_H_
 
 #include "constants/macros.h"
+#include "constants/fentry_macro.h"
 
-SEC("kprobe/get_pid_task")
-int kprobe_get_pid_task_numbers(struct pt_regs *ctx) {
-    struct pid *pid = (struct pid *) PT_REGS_PARM1(ctx);
+HOOK_ENTRY("get_pid_task")
+int hook_get_pid_task_numbers(ctx_t *ctx) {
+    struct pid *pid = (struct pid *) CTX_PARM1(ctx);
     if (!pid) {
         return 0;
     }
@@ -39,9 +40,9 @@ int kprobe_get_pid_task_numbers(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/get_pid_task")
-int kprobe_get_pid_task_offset(struct pt_regs *ctx) {
-    u64 expected_pid_ptr = (u64)PT_REGS_PARM1(ctx);
+HOOK_ENTRY("get_pid_task")
+int hook_get_pid_task_offset(ctx_t *ctx) {
+    u64 expected_pid_ptr = (u64)CTX_PARM1(ctx);
     if (!expected_pid_ptr) {
         return 0;
     }

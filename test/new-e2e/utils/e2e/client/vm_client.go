@@ -35,10 +35,14 @@ func newVMClient(t *testing.T, sshKey string, connection *utils.Connection) (*vm
 
 // ExecuteWithError executes a command and returns an error if any.
 func (vmClient *vmClient) ExecuteWithError(command string) (string, error) {
-	return clients.ExecuteCommand(vmClient.client, command)
+	output, err := clients.ExecuteCommand(vmClient.client, command)
+	if err != nil {
+		return "", fmt.Errorf("%v: %v", output, err)
+	}
+	return output, nil
 }
 
-// Execute execute a command and asserts there is no error.
+// Execute executes a command and returns its output.
 func (vmClient *vmClient) Execute(command string) string {
 	output, err := vmClient.ExecuteWithError(command)
 	require.NoError(vmClient.t, err)

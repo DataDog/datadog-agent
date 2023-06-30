@@ -42,9 +42,9 @@ BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
 BPF_LRU_MAP(bpf_progs, u32, struct bpf_prog_t, 4096)
 BPF_LRU_MAP(tgid_fd_map_id, struct bpf_tgid_fd_t, u32, 4096)
 BPF_LRU_MAP(tgid_fd_prog_id, struct bpf_tgid_fd_t, u32, 4096)
-BPF_LRU_MAP(syscalls, u64, struct syscall_cache_t, 1024)
-BPF_LRU_MAP(proc_cache, u32, struct proc_cache_t, 16384)
-BPF_LRU_MAP(pid_cache, u32, struct pid_cache_t, 16384)
+BPF_LRU_MAP(syscalls, u64, struct syscall_cache_t, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(proc_cache, u32, struct proc_cache_t, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(pid_cache, u32, struct pid_cache_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_ignored, u32, u32, 16738)
 BPF_LRU_MAP(exec_pid_transfer, u32, u64, 512)
 BPF_LRU_MAP(netns_cache, u32, u32, 40960)

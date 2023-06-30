@@ -57,9 +57,7 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 	}, nil
 }
 
-// PushCurrentConfig pushes the current load controller config to kernel space
-func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
-	// push default load config values
+func (lc *ActivityDumpLoadController) getDefaultLoadConfig() *model.ActivityDumpLoadConfig {
 	defaults := NewActivityDumpLoadConfig(
 		lc.adm.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
 		lc.adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
@@ -69,7 +67,13 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 		lc.adm.timeResolver,
 	)
 	defaults.WaitListTimestampRaw = uint64(lc.adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout)
-	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {
+	return defaults
+}
+
+// PushCurrentConfig pushes the current load controller config to kernel space
+func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
+	// push default load config values
+	if err := lc.activityDumpConfigDefaults.Put(uint32(0), lc.getDefaultLoadConfig()); err != nil {
 		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}
 	return nil

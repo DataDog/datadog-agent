@@ -8,12 +8,12 @@
 package tracer
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/cihub/seelog"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -63,7 +63,7 @@ type processCache struct {
 	// match to a connection's timestamp
 	cacheByPid map[uint32]processList
 	// lru cache; keyed by (pid, start time)
-	cache *lru.Cache
+	cache *lru.Cache[processCacheKey, *process]
 	// filteredEnvs contains environment variable names
 	// that a process in the cache must have; empty filteredEnvs
 	// means no filter, and any process can be inserted the cache
@@ -92,8 +92,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	}
 
 	var err error
-	pc.cache, err = lru.NewWithEvict(maxProcs, func(key, value interface{}) {
-		p := value.(*process)
+	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *process) {
 		pl, _ := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
 			delete(pc.cacheByPid, p.Pid)
@@ -136,7 +135,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	return pc, nil
 }
 
-func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
+func (pc *processCache) handleProcessEvent(entry *smodel.ProcessContext) {
 
 	select {
 	case <-pc.stopped:
@@ -158,7 +157,7 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 	}
 }
 
-func (pc *processCache) processEvent(entry *smodel.ProcessCacheEntry) *process {
+func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 	var envs map[string]string
 	if entry.EnvsEntry != nil {
 		for _, v := range entry.EnvsEntry.Values {
@@ -208,9 +207,9 @@ func (pc *processCache) add(p *process) {
 	pc.Lock()
 	defer pc.Unlock()
 
-	log.TraceFunc(func() string {
-		return fmt.Sprintf("adding process %+v to process cache", p)
-	})
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("adding process %+v to process cache", p)
+	}
 
 	evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
 	pl, _ := pc.cacheByPid[p.Pid]

@@ -182,8 +182,8 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 
 	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
 	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
-	pkgconfig.Datadog.Set("sbom.enabled", "false")
-	pkgconfig.Datadog.Set("container_image_collection.sbom.enabled", "false")
+	pkgconfig.Datadog.Set("sbom.host.enabled", "false")
+	pkgconfig.Datadog.Set("sbom.container_image.enabled", "false")
 	pkgconfig.Datadog.Set("runtime_security_config.sbom.enabled", "false")
 
 	hostnameDetected, err := hostname.Get(context.TODO())
@@ -197,7 +197,7 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	opts.FlushInterval = 0
 	opts.UseNoopEventPlatformForwarder = true
 	opts.UseNoopOrchestratorForwarder = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hostnameDetected)
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
 	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())

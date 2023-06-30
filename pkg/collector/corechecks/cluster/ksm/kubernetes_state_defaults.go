@@ -38,6 +38,8 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_endpoint_address_not_ready":                                                          "endpoint.address_not_ready",
 		"kube_pod_container_status_terminated":                                                     "container.terminated",
 		"kube_pod_container_status_waiting":                                                        "container.waiting",
+		"kube_pod_init_container_status_waiting":                                                   "initcontainer.waiting",
+		"kube_pod_init_container_status_restarts_total":                                            "initcontainer.restarts",
 		"kube_persistentvolumeclaim_status_phase":                                                  "persistentvolumeclaim.status",
 		"kube_persistentvolumeclaim_access_mode":                                                   "persistentvolumeclaim.access_mode",
 		"kube_persistentvolumeclaim_resource_requests_storage_bytes":                               "persistentvolumeclaim.request_storage",

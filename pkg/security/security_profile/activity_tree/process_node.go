@@ -71,6 +71,12 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 			f.debug(w, fmt.Sprintf("%s    -", prefix))
 		}
 	}
+	if len(pn.DNSNames) > 0 {
+		fmt.Fprintf(w, "%s  dns:\n", prefix)
+		for dnsName := range pn.DNSNames {
+			fmt.Fprintf(w, "%s    - %s\n", prefix, dnsName)
+		}
+	}
 	if len(pn.Children) > 0 {
 		fmt.Fprintf(w, "%s  children:\n", prefix)
 		for _, child := range pn.Children {
@@ -141,12 +147,16 @@ newSyscallLoop:
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool) bool {
+func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool, reducer *PathsReducer) bool {
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
 	} else {
 		filePath = fileEvent.PathnameStr
+	}
+
+	if reducer != nil {
+		filePath = reducer.ReducePath(filePath, fileEvent, pn)
 	}
 
 	parent, nextParentIndex := ExtractFirstParent(filePath)
@@ -156,22 +166,22 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 
 	child, ok := pn.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun)
+		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], generationType, stats, dryRun, filePath)
 	}
 
 	if !dryRun {
 		// create new child
 		if len(fileEvent.PathnameStr) <= nextParentIndex+1 {
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
-			node := NewFileNode(fileEvent, event, parent, generationType)
+			node := NewFileNode(fileEvent, event, parent, generationType, filePath)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
 			pn.Files[parent] = node
 		} else {
 			// This is an intermediary node in the branch that leads to the leaf we want to add. Create a node without the
 			// fileEvent context.
-			newChild := NewFileNode(nil, nil, parent, generationType)
-			newChild.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun)
+			newChild := NewFileNode(nil, nil, parent, generationType, filePath)
+			newChild.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun, filePath)
 			stats.FileNodes++
 			pn.Files[parent] = newChild
 		}
@@ -179,17 +189,37 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	return true
 }
 
-// InsertDNSEvent inserts a DNS event in a process node
-func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, dryRun bool) bool {
-	if !dryRun {
-		DNSNames.Insert(evt.DNS.Name)
+func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType uint16) bool {
+	if DNSMatchMaxDepth == 0 {
+		_, ok := pn.DNSNames[DNSName]
+		return ok
 	}
 
-	if dnsNode, ok := pn.DNSNames[evt.DNS.Name]; ok {
-		// update matched rules
-		if !dryRun {
-			dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
+	toSearch := dnsFilterSubdomains(DNSName, DNSMatchMaxDepth)
+	for name, dnsNode := range pn.DNSNames {
+		if dnsFilterSubdomains(name, DNSMatchMaxDepth) == toSearch {
+			for _, req := range dnsNode.Requests {
+				if req.Type == DNSType {
+					return true
+				}
+			}
 		}
+	}
+	return false
+}
+
+// InsertDNSEvent inserts a DNS event in a process node
+func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
+	if dryRun {
+		// Use DNSMatchMaxDepth only when searching for a node, not when trying to insert
+		return !pn.findDNSNode(evt.DNS.Name, dnsMatchMaxDepth, evt.DNS.Type)
+	}
+
+	DNSNames.Insert(evt.DNS.Name)
+	dnsNode, ok := pn.DNSNames[evt.DNS.Name]
+	if ok {
+		// update matched rules
+		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
@@ -198,17 +228,13 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGener
 			}
 		}
 
-		if !dryRun {
-			// insert the new request
-			dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
-		}
+		// insert the new request
+		dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
 		return true
 	}
 
-	if !dryRun {
-		pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
-		stats.DNSNodes++
-	}
+	pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
+	stats.DNSNodes++
 	return true
 }
 

@@ -24,14 +24,14 @@ SYSCALL_KPROBE3(ptrace, u32, request, pid_t, pid, void *, addr) {
     return 0;
 }
 
-SEC("kprobe/ptrace_check_attach")
-int kprobe_ptrace_check_attach(struct pt_regs *ctx) {
+HOOK_ENTRY("ptrace_check_attach")
+int hook_ptrace_check_attach(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_PTRACE);
     if (!syscall) {
         return 0;
     }
 
-    struct task_struct *child = (struct task_struct *)PT_REGS_PARM1(ctx);
+    struct task_struct *child = (struct task_struct *)CTX_PARM1(ctx);
     if (!child) {
         return 0;
     }

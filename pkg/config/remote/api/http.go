@@ -29,9 +29,15 @@ const (
 )
 
 var (
-	// errUnauthorized is the error that will be logged for the customer to see in case of a 401. We make it as
+	// ErrUnauthorized is the error that will be logged for the customer to see in case of a 401. We make it as
 	// descriptive as possible (while not leaking data) to make RC onboarding easier
-	errUnauthorized = fmt.Errorf("unauthorized. Please make sure your API key is valid and has the Remote Config scope")
+	ErrUnauthorized = fmt.Errorf("unauthorized. Please make sure your API key is valid and has the Remote Config scope")
+	// ErrProxy is the error that will be logged if we suspect that there is a wrong proxy setup for remote-config.
+	// It is displayed for any 4XX status code except 401
+	ErrProxy = fmt.Errorf(
+		"4XX status code. This might be related to the proxy settings. " +
+			"Please make sure the agent can reach Remote Configuration with the proxy setup",
+	)
 )
 
 // API is the interface to implement for a configuration fetcher
@@ -112,7 +118,11 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	// we want to be descriptive about what can be done
 	// to fix this as the error is pretty common
 	if resp.StatusCode == 401 {
-		return nil, errUnauthorized
+		return nil, ErrUnauthorized
+	}
+
+	if resp.StatusCode >= 400 && resp.StatusCode <= 499 {
+		return nil, fmt.Errorf("%w: %d", ErrProxy, resp.StatusCode)
 	}
 
 	// Any other error will have a generic message
@@ -161,7 +171,11 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 	// we want to be descriptive about what can be done
 	// to fix this as the error is pretty common
 	if resp.StatusCode == 401 {
-		return nil, errUnauthorized
+		return nil, ErrUnauthorized
+	}
+
+	if resp.StatusCode >= 400 && resp.StatusCode <= 499 {
+		return nil, fmt.Errorf("%w: %d", ErrProxy, resp.StatusCode)
 	}
 
 	// Any other error will have a generic message

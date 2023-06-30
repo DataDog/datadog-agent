@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,15 +39,18 @@ type OpenNode struct {
 }
 
 // NewFileNode returns a new FileActivityNode instance
-func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, generationType NodeGenerationType) *FileNode {
+func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, generationType NodeGenerationType, reducedFilePath string) *FileNode {
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,
+		IsPattern:      strings.Contains(name, "*"),
 		Children:       make(map[string]*FileNode),
 	}
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
 		fan.File = &fileEventTmp
+		fan.File.PathnameStr = reducedFilePath
+		fan.File.BasenameStr = name
 	}
 	fan.enrichFromEvent(event)
 	return fan
@@ -109,7 +113,7 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool) bool {
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool, reducedPath string) bool {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false
@@ -134,12 +138,12 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		newEntry = true
 		if len(currentPath) <= nextParentIndex+1 {
 			if !dryRun {
-				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, generationType)
+				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, generationType, reducedPath)
 				stats.FileNodes++
 			}
 			break
 		} else {
-			newChild := NewFileNode(nil, nil, parent, generationType)
+			newChild := NewFileNode(nil, nil, parent, generationType, "")
 			if !dryRun {
 				currentFn.Children[parent] = newChild
 			}

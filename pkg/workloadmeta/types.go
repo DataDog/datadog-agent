@@ -68,9 +68,16 @@ type Store interface {
 	// the entity with kind KindKubernetesPod and the given ID.
 	GetKubernetesPod(id string) (*KubernetesPod, error)
 
-	// GetKubernetesPodForContainer searches all known KubernetesPod entities
-	// for one containing the given container.
+	// GetKubernetesPodForContainer retrieves the ownership information for the
+	// given container and returns the owner pod. This information might lag because
+	// the kubelet check sets the `Owner` field but a container can also be stored by CRI
+	// checks, which do not have ownership info. Thus, the function might return an error
+	// when the pod actually exists.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
+
+	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
+	// the entity with kind KindKubernetesNode and the given ID.
+	GetKubernetesNode(id string) (*KubernetesNode, error)
 
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
@@ -83,6 +90,18 @@ type Store interface {
 	// GetImage returns metadata about a container image. It fetches the entity
 	// with kind KindContainerImageMetadata and the given ID.
 	GetImage(id string) (*ContainerImageMetadata, error)
+
+	// GetProcess returns metadata about a process.  It fetches the entity
+	// with kind KindProcess and the given ID.
+	GetProcess(pid int32) (*Process, error)
+
+	// ListProcesses returns metadata about all known processes, equivalent
+	// to all entities with kind KindProcess.
+	ListProcesses() []*Process
+
+	// ListProcessesWithFilter returns all the processes for which the passed
+	// filter evaluates to true.
+	ListProcessesWithFilter(filterFunc ProcessFilterFunc) []*Process
 
 	// Notify notifies the store with a slice of events.  It should only be
 	// used by workloadmeta collectors.
@@ -108,8 +127,10 @@ type Kind string
 const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
+	KindKubernetesNode         Kind = "kubernetes_node"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
+	KindProcess                Kind = "process"
 )
 
 // Source is the source name of an entity.
@@ -512,6 +533,9 @@ var _ Entity = &Container{}
 // ContainerFilterFunc is a function used to filter containers.
 type ContainerFilterFunc func(container *Container) bool
 
+// ProcessFilterFunc is a function used to filter processes.
+type ProcessFilterFunc func(process *Process) bool
+
 // GetRunningContainers is a function that evaluates to true for running containers.
 var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
 
@@ -623,6 +647,47 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 	return sb.String()
 }
+
+// KubernetesNode is an Entity representing a Kubernetes Node.
+type KubernetesNode struct {
+	EntityID
+	EntityMeta
+}
+
+// GetID implements Entity#GetID.
+func (n *KubernetesNode) GetID() EntityID {
+	return n.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (n *KubernetesNode) Merge(e Entity) error {
+	nn, ok := e.(*KubernetesNode)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
+	}
+
+	return merge(n, nn)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (n KubernetesNode) DeepCopy() Entity {
+	cn := deepcopy.Copy(n).(KubernetesNode)
+	return &cn
+}
+
+// String implements Entity#String
+func (n KubernetesNode) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
+
+	return sb.String()
+}
+
+var _ Entity = &KubernetesNode{}
 
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {
@@ -803,6 +868,57 @@ func printHistory(out io.Writer, history v1.History) {
 }
 
 var _ Entity = &ContainerImageMetadata{}
+
+type Process struct {
+	EntityID // EntityID is the PID for now
+	EntityMeta
+
+	NsPid        int
+	ContainerId  string
+	CreationTime time.Time
+	Language     *string
+}
+
+var _ Entity = &Process{}
+
+// GetID implements Entity#GetID.
+func (p Process) GetID() EntityID {
+	return p.EntityID
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (p Process) DeepCopy() Entity {
+	cp := deepcopy.Copy(p).(Process)
+	return &cp
+}
+
+// Merge implements Entity#Merge.
+func (p *Process) Merge(e Entity) error {
+	otherProcess, ok := e.(*Process)
+	if !ok {
+		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
+	}
+
+	return merge(p, otherProcess)
+}
+
+// String implements Entity#String.
+func (p Process) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, p.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, p.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
+	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerId)
+	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
+	_, _ = fmt.Fprintln(&sb, "Language:", p.Language)
+
+	return sb.String()
+}
 
 // CollectorEvent is an event generated by a metadata collector, to be handled
 // by the metadata store.

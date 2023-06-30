@@ -8,9 +8,11 @@
 package activity_tree
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -84,8 +86,10 @@ type ActivityTree struct {
 
 	treeType          string
 	differentiateArgs bool
+	DNSMatchMaxDepth  int
 
-	validator ActivityTreeOwner
+	validator    ActivityTreeOwner
+	pathsReducer *PathsReducer
 
 	CookieToProcessNode map[uint32]*ProcessNode `json:"-"`
 	ProcessNodes        []*ProcessNode          `json:"-"`
@@ -96,10 +100,11 @@ type ActivityTree struct {
 }
 
 // NewActivityTree returns a new ActivityTree instance
-func NewActivityTree(validator ActivityTreeOwner, treeType string) *ActivityTree {
+func NewActivityTree(validator ActivityTreeOwner, pathsReducer *PathsReducer, treeType string) *ActivityTree {
 	at := &ActivityTree{
 		treeType:            treeType,
 		validator:           validator,
+		pathsReducer:        pathsReducer,
 		Stats:               NewActivityTreeNodeStats(),
 		CookieToProcessNode: make(map[uint32]*ProcessNode),
 		SyscallsMask:        make(map[int]int),
@@ -162,7 +167,7 @@ func (at *ActivityTree) IsEmpty() bool {
 }
 
 // nolint: unused
-func (at *ActivityTree) debug(w io.Writer) {
+func (at *ActivityTree) Debug(w io.Writer) {
 	for _, root := range at.ProcessNodes {
 		root.debug(w, "")
 	}
@@ -247,7 +252,7 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 	}
 	if node == nil {
 		// a process node couldn't be found or created for this event, ignore it
-		return false, err
+		return false, errors.New("a process node couldn't be found or created for this event")
 	}
 
 	// resolve fields
@@ -270,9 +275,9 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun), nil
+		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun, at.pathsReducer), nil
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun), nil
+		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
 	case model.BindEventType:
 		return node.InsertBindEvent(event, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
@@ -282,11 +287,70 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 	return false, nil
 }
 
+func isContainerRuntimePrefix(basename string) bool {
+	return strings.HasPrefix(basename, "runc") || strings.HasPrefix(basename, "containerd-shim")
+}
+
+// isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
+func isValidRootNode(entry *model.ProcessContext) bool {
+	// an ancestor is required
+	ancestor := GetNextAncestorBinaryOrArgv0(entry)
+	if ancestor == nil {
+		return false
+	}
+
+	if entry.FileEvent.IsFileless() {
+		// a fileless node is a valid root node only if not having runc as parent
+		// ex: runc -> exec(fileless) -> init.sh; exec(fileless) is not a valid root node
+		return !isContainerRuntimePrefix(ancestor.FileEvent.BasenameStr)
+	}
+
+	// container runtime prefixes are not valid root nodes
+	return !isContainerRuntimePrefix(entry.FileEvent.BasenameStr)
+}
+
+// GetNextAncestorBinaryOrArgv0 returns the first ancestor with a different binary, or a different argv0 in the case of busybox processes
+func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCacheEntry {
+	if entry == nil {
+		return nil
+	}
+	current := entry
+	ancestor := entry.Ancestor
+	for ancestor != nil {
+		if ancestor.FileEvent.Inode == 0 {
+			return nil
+		}
+		if current.FileEvent.Inode != ancestor.FileEvent.Inode {
+			return ancestor
+		}
+		if process.IsBusybox(current.FileEvent.PathnameStr) && process.IsBusybox(ancestor.FileEvent.PathnameStr) {
+			currentArgv0, _ := process.GetProcessArgv0(&current.Process)
+			if len(currentArgv0) == 0 {
+				return nil
+			}
+			ancestorArgv0, _ := process.GetProcessArgv0(&ancestor.Process)
+			if len(ancestorArgv0) == 0 {
+				return nil
+			}
+			if currentArgv0 != ancestorArgv0 {
+				return ancestor
+			}
+		}
+		current = &ancestor.ProcessContext
+		ancestor = ancestor.Ancestor
+	}
+	return nil
+}
+
 // CreateProcessNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool) (node *ProcessNode, newProcessNode bool, err error) {
 	if entry == nil {
 		return nil, false, nil
+	}
+
+	if !entry.HasCompleteLineage() {
+		return nil, false, errors.New("broken lineage")
 	}
 
 	// look for a ProcessActivityNode by process cookie
@@ -307,7 +371,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
-	parentNode, newProcessNode, err := at.CreateProcessNode(entry.GetNextAncestorBinary(), Snapshot, dryRun)
+	parentNode, newProcessNode, err := at.CreateProcessNode(GetNextAncestorBinaryOrArgv0(&entry.ProcessContext), Snapshot, dryRun)
 	if err != nil || (newProcessNode && dryRun) {
 		// Explanation of (newProcessNode && dryRun): when dryRun is on, we can return as soon as we
 		// see something new in the tree. Although `newProcessNode` and `err` seem to be tied (i.e. newProcessNode is
@@ -330,10 +394,15 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 			if root.Matches(&entry.Process, at.differentiateArgs) {
 				return root, false, nil
 			}
+
+			// has root exec into one of its own children ?
+			if execChild := at.recursiveFindExecChild(root, entry); execChild != nil {
+				return execChild, false, nil
+			}
 		}
 
-		// ignore non overlay fs node
-		if !entry.FileEvent.IsOverlayFS() {
+		// we're about to add a root process node, make sure this root node passes the root node sanitizer
+		if !isValidRootNode(&entry.ProcessContext) {
 			return nil, false, nil
 		}
 
@@ -346,13 +415,17 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 		}
 
 	} else {
-
 		// if parentNode wasn't nil, then (at least) the parent is part of the activity dump. This means that we need
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
 		// parent node and check if one of them matches the input ProcessCacheEntry.
 		for _, child := range parentNode.Children {
 			if child.Matches(&entry.Process, at.differentiateArgs) {
 				return child, false, nil
+			}
+
+			// has child exec into one of its own children ?
+			if execChild := at.recursiveFindExecChild(child, entry); execChild != nil {
+				return execChild, false, nil
 			}
 		}
 
@@ -375,6 +448,32 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 	return node, true, nil
 }
 
+func (at *ActivityTree) recursiveFindExecChild(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
+	// execedChild will be used if we don't find the node we're looking for and we detected that the parent process
+	// execed into one of its child without forking
+	var execedChild *ProcessNode
+
+	// look for an execed child
+	for _, node := range child.Children {
+		if !node.Process.ExecTime.IsZero() && node.Process.ExecTime.Equal(child.Process.ExitTime) {
+			// there should always be only one
+			execedChild = node
+			break
+		}
+	}
+	if execedChild == nil {
+		return nil
+	}
+
+	// does this execed child match the entry ?
+	if execedChild.Matches(&entry.Process, at.differentiateArgs) {
+		return execedChild
+	}
+
+	// look recursively for its children
+	return at.recursiveFindExecChild(execedChild, entry)
+}
+
 func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	var res []*ProcessNode
 	for _, node := range at.ProcessNodes {
@@ -386,15 +485,12 @@ func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 }
 
 // Snapshot uses procfs to snapshot the nodes of the tree
-func (at *ActivityTree) Snapshot(newEvent func() *model.Event) error {
+func (at *ActivityTree) Snapshot(newEvent func() *model.Event) {
 	for _, pn := range at.ProcessNodes {
-		if err := pn.snapshot(at.validator, at.Stats, newEvent); err != nil {
-			return err
-		}
+		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer)
 		// iterate slowly
 		time.Sleep(50 * time.Millisecond)
 	}
-	return nil
 }
 
 // SendStats sends the tree statistics

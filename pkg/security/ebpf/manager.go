@@ -48,9 +48,9 @@ func NewDefaultOptions() manager.Options {
 }
 
 // NewRuntimeSecurityManager returns a new instance of the runtime security module manager
-func NewRuntimeSecurityManager(supportsRingBuffers bool) *manager.Manager {
+func NewRuntimeSecurityManager(supportsRingBuffers, useFentry bool) *manager.Manager {
 	manager := &manager.Manager{
-		Probes: probes.AllProbes(),
+		Probes: probes.AllProbes(useFentry),
 		Maps:   probes.AllMaps(),
 	}
 	if supportsRingBuffers {

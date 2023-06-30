@@ -165,7 +165,8 @@ func (p *Processor) processContainer(sender aggregator.Sender, tags []string, co
 		p.sendMetric(sender.Gauge, "container.memory.cache", containerStats.Memory.Cache, tags)
 		p.sendMetric(sender.Gauge, "container.memory.swap", containerStats.Memory.Swap, tags)
 		p.sendMetric(sender.Gauge, "container.memory.oom_events", containerStats.Memory.OOMEvents, tags)
-		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.PrivateWorkingSet, tags)
+		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.WorkingSet, tags)        // Linux
+		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.PrivateWorkingSet, tags) // Windows
 		p.sendMetric(sender.Gauge, "container.memory.commit", containerStats.Memory.CommitBytes, tags)
 		p.sendMetric(sender.Gauge, "container.memory.commit.peak", containerStats.Memory.CommitPeakBytes, tags)
 		p.sendMetric(sender.Rate, "container.memory.partial_stall", containerStats.Memory.PartialStallTime, tags)

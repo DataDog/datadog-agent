@@ -62,8 +62,8 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			if tc.override {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
-			forwarders := newForwardersMock(t, mockConfig)
-			c, err := NewSubmitter(mockConfig, forwarders, testHostName)
+			deps := newSubmitterDepsWithConfig(t, mockConfig)
+			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
 			assert.Equal(t, tc.expectedQueueSize, c.podResults.MaxSize())
@@ -110,8 +110,8 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 			if tc.override {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
-			forwarders := newForwardersMock(t, mockConfig)
-			c, err := NewSubmitter(mockConfig, forwarders, testHostName)
+			deps := newSubmitterDepsWithConfig(t, mockConfig)
+			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
@@ -157,8 +157,8 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			if tc.override {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
-			forwarders := newForwardersMock(t, mockConfig)
-			s, err := NewSubmitter(mockConfig, forwarders, testHostName)
+			deps := newSubmitterDepsWithConfig(t, mockConfig)
+			s, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
 			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
@@ -169,7 +169,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {
 	deps := newSubmitterDeps(t)
-	submitter, err := NewSubmitter(deps.Config, deps.Forwarders, testHostName)
+	submitter, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
 	assert.NoError(t, err)
 
 	now := time.Now()
@@ -288,7 +288,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 
 func Test_getRequestID(t *testing.T) {
 	deps := newSubmitterDeps(t)
-	s, err := NewSubmitter(deps.Config, deps.Forwarders, testHostName)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
 	assert.NoError(t, err)
 
 	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)
@@ -319,6 +319,7 @@ func Test_getRequestID(t *testing.T) {
 type submitterDeps struct {
 	fx.In
 	Config     config.Component
+	Log        log.Component
 	Forwarders forwarders.Component
 }
 
@@ -326,9 +327,9 @@ func newSubmitterDeps(t *testing.T) submitterDeps {
 	return fxutil.Test[submitterDeps](t, getForwardersMockModules(nil))
 }
 
-func newForwardersMock(t *testing.T, config ddconfig.Config) forwarders.Component {
+func newSubmitterDepsWithConfig(t *testing.T, config ddconfig.Config) submitterDeps {
 	overrides := config.AllSettings()
-	return fxutil.Test[forwarders.Component](t, getForwardersMockModules(overrides))
+	return fxutil.Test[submitterDeps](t, getForwardersMockModules(overrides))
 }
 
 func getForwardersMockModules(configOverrides map[string]interface{}) fx.Option {

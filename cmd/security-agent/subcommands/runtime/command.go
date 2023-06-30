@@ -21,6 +21,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -42,7 +44,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -410,6 +411,7 @@ func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessag
 		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
 	}
 	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
+	printActivityTreeStats(prefix, msg.GetStats())
 	if len(msg.GetStorage()) > 0 {
 		fmt.Printf("%s  storage:\n", prefix)
 		for _, storage := range msg.GetStorage() {
@@ -659,11 +661,12 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 		return nil, nil
 	}
 
-	logProfiledWorkloads := config.GetBool("runtime_security_config.log_profiled_workloads")
-
 	// start/stop order is important, agent need to be stopped first and started after all the others
 	// components
-	agent, err := secagent.NewRuntimeSecurityAgent(hostname, logProfiledWorkloads)
+	agent, err := secagent.NewRuntimeSecurityAgent(hostname, secagent.RSAOptions{
+		LogProfiledWorkloads:    config.GetBool("runtime_security_config.log_profiled_workloads"),
+		IgnoreDDAgentContainers: config.GetBool("runtime_security_config.telemetry.ignore_dd_agent_containers"),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}
