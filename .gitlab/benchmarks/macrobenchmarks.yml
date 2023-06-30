@@ -32,16 +32,119 @@ variables:
   # benchmarks get changed to run on every PR)
   allow_failure: true
 
-trace-agent-endpoint-v04-macrobenchmarks:
+trace-agent-v04-4cpus-avg_load-fixed_sps-macrobenchmarks:
   extends: .benchmarks
   variables:
-    DD_BENCHMARKS_CONFIGURATION: trace-agent-endpoint-v04
-    DD_RELENV_CONFIGURATION: $DD_BENCHMARKS_CONFIGURATION
+    TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v04
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-4cpus-avg_load-fixed_sps
+    BENCHMARK_TARGETS: "avg_load.*sps"
 
-trace-agent-endpoint-v05-macrobenchmarks:
+trace-agent-v04-4cpus-avg_load-fixed_mbps-macrobenchmarks:
   extends: .benchmarks
   variables:
-    DD_BENCHMARKS_CONFIGURATION: trace-agent-endpoint-v05
-    DD_RELENV_CONFIGURATION: $DD_BENCHMARKS_CONFIGURATION
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v04
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-4cpus-avg_load-fixed_mbps
+    BENCHMARK_TARGETS: "avg_load.*Mbps"
+
+trace-agent-v04-4cpus-high_load-fixed_sps-macrobenchmarks:
+  extends: .benchmarks
+  when: manual
+  variables:
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v04
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-4cpus-high_load-fixed_sps
+    BENCHMARK_TARGETS: "high_load.*sps"
+
+trace-agent-v04-4cpus-high_load-fixed_mbps-macrobenchmarks:
+  extends: .benchmarks
+  when: manual
+  variables:
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v04
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-4cpus-high_load-fixed_mbps
+    BENCHMARK_TARGETS: "high_load.*Mbps"
+
+trace-agent-v04-4cpus-stress_load-fixed_sps-macrobenchmarks:
+  extends: .benchmarks
+  when: manual
+  variables:
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v04
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-4cpus-stress_load-fixed_sps
+    BENCHMARK_TARGETS: "stress_load.*sps"
+
+trace-agent-v04-4cpus-stress_load-fixed_mbps-macrobenchmarks:
+  extends: .benchmarks
+  when: manual
+  variables:
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v04
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v04-4cpus-stress_load-fixed_mbps
+    BENCHMARK_TARGETS: "stress_load.*Mbps"
+  
+trace-agent-v05-4cpus-avg_load-fixed_sps-macrobenchmarks:
+  extends: .benchmarks
+  variables:
+    TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v05
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-4cpus-avg_load-fixed_sps
+    BENCHMARK_TARGETS: "avg_load.*sps"
+
+trace-agent-v05-4cpus-avg_load-fixed_mbps-macrobenchmarks:
+  extends: .benchmarks
+  variables:
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v05
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-4cpus-avg_load-fixed_mbps
+    BENCHMARK_TARGETS: "avg_load.*Mbps"
+
+trace-agent-v05-4cpus-high_load-fixed_sps-macrobenchmarks:
+  extends: .benchmarks
+  when: manual
+  variables:
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v05
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-4cpus-high_load-fixed_sps
+    BENCHMARK_TARGETS: "high_load.*sps"
+
+trace-agent-v05-4cpus-high_load-fixed_mbps-macrobenchmarks:
+  extends: .benchmarks
+  when: manual
+  variables:
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v05
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-4cpus-high_load-fixed_mbps
+    BENCHMARK_TARGETS: "high_load.*Mbps"
+
+trace-agent-v05-4cpus-stress_load-fixed_sps-macrobenchmarks:
+  extends: .benchmarks
+  when: manual
+  variables:
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v05
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-4cpus-stress_load-fixed_sps
+    BENCHMARK_TARGETS: "stress_load.*sps"
+
+trace-agent-v05-4cpus-stress_load-fixed_mbps-macrobenchmarks:
+  extends: .benchmarks
+  when: manual
+  variables:
+    TRACE_AGENT_VERSION: main
+    TRACE_AGENT_ENDPOINT: v05
+    TRACE_AGENT_CPUS: 4
+    DD_BENCHMARKS_CONFIGURATION: trace-agent-v05-4cpus-stress_load-fixed_mbps
+    BENCHMARK_TARGETS: "stress_load.*Mbps"
+ 
