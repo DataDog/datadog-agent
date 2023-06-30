@@ -183,6 +183,20 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     )
     outfiles.append(syscall_wrapper_outfile)
 
+    # fentry + syscall wrapper
+    root, ext = os.path.splitext(outfile)
+    syscall_wrapper_outfile = f"{root}-fentry{ext}"
+    ninja_ebpf_program(
+        nw,
+        infile=infile,
+        outfile=syscall_wrapper_outfile,
+        variables={
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
+            "kheaders": kheaders,
+        },
+    )
+    outfiles.append(syscall_wrapper_outfile)
+
     # offset guesser
     offset_guesser_outfile = os.path.join(build_dir, "runtime-security-offset-guesser.o")
     ninja_ebpf_program(
@@ -336,14 +350,14 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
-            "pkg/network/protocols/http/http_types.go": [
+            "pkg/network/protocols/http/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",
                 "pkg/network/ebpf/c/protocols/tls/sowatcher-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
-            "pkg/network/protocols/http/http2_types.go": [
+            "pkg/network/protocols/http2/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],
@@ -1536,6 +1550,7 @@ def test_microvms(
     ssh_key_path=None,
     dependencies_dir=None,
     shutdown_period=320,
+    subnets=None,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1549,6 +1564,7 @@ def test_microvms(
         f"--infra-env {infra_env}",
         f"--shutdown-period {shutdown_period}",
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
+        f"--subnets {subnets}" if subnets else "",
         "--name kernel-matrix-testing-system",
     ]
 

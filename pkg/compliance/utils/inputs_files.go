@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package compliance
+package utils
 
 import (
 	"os"
@@ -14,7 +14,7 @@ import (
 	"syscall"
 )
 
-func getFileUser(fi os.FileInfo) string {
+func GetFileUser(fi os.FileInfo) string {
 	if statt, ok := fi.Sys().(*syscall.Stat_t); ok {
 		u := strconv.Itoa(int(statt.Uid))
 		if user, err := user.LookupId(u); err == nil {
@@ -24,7 +24,7 @@ func getFileUser(fi os.FileInfo) string {
 	return ""
 }
 
-func getFileGroup(fi os.FileInfo) string {
+func GetFileGroup(fi os.FileInfo) string {
 	if statt, ok := fi.Sys().(*syscall.Stat_t); ok {
 		g := strconv.Itoa(int(statt.Gid))
 		if group, err := user.LookupGroupId(g); err == nil {

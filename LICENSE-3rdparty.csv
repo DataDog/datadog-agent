@@ -1056,6 +1056,7 @@ core,github.com/knqyf263/go-rpmdb/pkg/sqlite3,MIT,Copyright (c) 2019 Teppei Fuku
 core,github.com/knqyf263/nested,MIT,Copyright (c) 2019 Teppei Fukuda
 core,github.com/liamg/jfather,MIT,Copyright (c) 2022 Liam Galvin
 core,github.com/libp2p/go-reuseport,ISC,Copyright (c) 2013 Conformal Systems LLC
+core,github.com/lorenzosaino/go-sysctl,BSD-3-Clause,"Copyright (c) 2018, Lorenzo Saino"
 core,github.com/lufia/plan9stats,BSD-3-Clause,"Copyright (c) 2019, KADOTA, Kyohei"
 core,github.com/lunixbochs/struc,MIT,Copyright (c) 2015 Ryan Hileman
 core,github.com/lxn/walk,BSD-3-Clause,Copyright (c) 2010 The Walk Authors. All rights reserved.
@@ -1695,6 +1696,9 @@ core,golang.org/x/crypto/ssh/terminal,BSD-3-Clause,Copyright (c) 2009 The Go Aut
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/slices,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
+core,golang.org/x/lint/golint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/net/bpf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/context,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/context/ctxhttp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1966,6 +1970,46 @@ core,gopkg.in/warnings.v0,BSD-2-Clause,Copyright (c) 2016 Péter Surányi
 core,gopkg.in/yaml.v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/yaml.v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,Copyright (c) 2013 by authors and contributors | Copyright 2013-2019 by authors and contributors
+core,honnef.co/go/tools/analysis/code,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/edit,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/deprecated,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/directives,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/generated,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/nilness,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/purity,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/tokenfile,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/typedness,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/lint,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/report,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/cmd/staticcheck,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/config,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/go/ast/astutil,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/go/buildid,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/go/ir,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2016 Dominik Honnef | Copyright (c) 2016 Dominik Honnef. All rights reserved
+core,honnef.co/go/tools/go/ir/irutil,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2016 Dominik Honnef | Copyright (c) 2016 Dominik Honnef. All rights reserved
+core,honnef.co/go/tools/go/loader,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/go/types/typeutil,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/passes/buildir,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/renameio,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/robustio,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/sharedcheck,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/sync,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/knowledge,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/lintcmd,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/lintcmd/cache,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/lintcmd/runner,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/lintcmd/version,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/pattern,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/printf,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/sarif,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/fakejson,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/fakereflect,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/fakexml,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/unused,MIT,Copyright (c) 2016 Dominik Honnef
 core,inet.af/netaddr,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
 core,k8s.io/api/admission/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admission/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
