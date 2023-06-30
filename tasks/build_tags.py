@@ -25,7 +25,6 @@ ALL_TAGS = {
     "etcd",
     "fargateprocess",
     "gce",
-    "heroku",
     "jmx",
     "jetson",
     "kubeapiserver",
@@ -33,6 +32,7 @@ ALL_TAGS = {
     "linux_bpf",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "npm",
+    "oracle",
     "orchestrator",
     "otlp",
     "podman",
@@ -63,6 +63,7 @@ AGENT_TAGS = {
     "kubeapiserver",
     "kubelet",
     "netcgo",
+    "oracle",
     "orchestrator",
     "otlp",
     "podman",
@@ -82,10 +83,10 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "cri",
         "docker",
         "ec2",
-        "heroku",
         "jetson",
         "kubeapiserver",
         "kubelet",
+        "oracle",
         "orchestrator",
         "podman",
         "systemd",
@@ -248,7 +249,7 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
     if include is None:
         print("Warning: unrecognized build type, no build tags included.")
         include = set()
-
+    print("BUILD TAGS: " + str(include))
     return sorted(filter_incompatible_tags(include, arch=arch))
 
 
