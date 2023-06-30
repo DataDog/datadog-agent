@@ -82,6 +82,8 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 
 	// First split then query because store state is shared and query mutates it
 	mr.retrieveMetricsValuesSlice(datadogMetrics)
+	
+	// Now test each metric query separately respecting its backoff retry duration elapse value. 
 	for _, metrics := range datadogMetricsErr {
 
 		shouldBackoff := shouldBackoff(&metrics, &backoffPolicy)
