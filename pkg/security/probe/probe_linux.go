@@ -1418,8 +1418,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 	}
 
-	p.event = NewEvent(p.fieldHandlers)
-
 	if err := p.detectKernelVersion(); err != nil {
 		// we need the kernel version to start, fail if we can't get it
 		return nil, err
@@ -1631,9 +1629,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	p.fieldHandlers = &FieldHandlers{resolvers: p.resolvers}
-
-	// be sure to zero the probe event before everything else
-	p.zeroEvent()
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)

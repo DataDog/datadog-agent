@@ -23,9 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var eventZero model.Event = model.Event{ContainerContext: &model.ContainerContext{}}
-var containerContextZero model.ContainerContext
-
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
 	HandleEvent(event *model.Event)
@@ -61,7 +58,6 @@ type Probe struct {
 	// internals
 	resolvers     *resolvers.Resolvers
 	fieldHandlers *FieldHandlers
-	event         *model.Event
 }
 
 // GetResolvers returns the resolvers of Probe
@@ -92,10 +88,10 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 }
 
 func (p *Probe) zeroEvent() *model.Event {
-	*p.event = eventZero
-	p.event.FieldHandlers = p.fieldHandlers
-	*p.event.ContainerContext = containerContextZero
-	return p.event
+	return &model.Event{
+		ContainerContext: &model.ContainerContext{},
+		FieldHandlers:    p.fieldHandlers,
+	}
 }
 
 func (p *Probe) StatsPollingInterval() time.Duration {

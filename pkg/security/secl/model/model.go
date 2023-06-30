@@ -190,6 +190,11 @@ type ContainerContext struct {
 	Resolved  bool     `field:"-"`
 }
 
+// IsNearlyZero returns true if ContainerContext is the zero value except ID
+func (cc *ContainerContext) IsNearlyZero() bool {
+	return cc.CreatedAt == 0 && len(cc.Tags) == 0
+}
+
 type Status uint32
 
 const (
