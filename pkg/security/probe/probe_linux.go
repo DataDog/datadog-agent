@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,6 +61,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+)
+
+var (
+	DatadogAgentImageNamePatterns = []string{
+		"gcr.io/datadoghq/agent",
+		"amazonaws.com/datadog-agent",
+	}
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -351,6 +359,16 @@ func (p *Probe) AddActivityDumpHandler(handler dump.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
 }
 
+// matchDatadogAgentPattern return true if the given image name match a datadog agent pattern
+func matchDatadogAgentPattern(imageName string) bool {
+	for _, pattern := range DatadogAgentImageNamePatterns {
+		if strings.Contains(imageName, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
@@ -374,10 +392,14 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		if event.IsKernelSpaceAnomalyDetectionEvent() {
-			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
+		// temporary: silent anomalies coming from datadog agent if the option is set
+		if !(p.Config.RuntimeSecurity.AnomalyDetectionSilentDatadogAgentWorkload == true &&
+			matchDatadogAgentPattern(event.SecurityProfileContext.Name)) {
+			if event.IsKernelSpaceAnomalyDetectionEvent() {
+				p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
+			}
+			p.sendAnomalyDetection(event)
 		}
-		p.sendAnomalyDetection(event)
 	} else if event.Error == nil {
 		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 		if p.profileManagers.activityDumpManager != nil {

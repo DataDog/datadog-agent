@@ -157,6 +157,8 @@ type RuntimeSecurityConfig struct {
 	// AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the
 	// rules they might have matched.
 	AnomalyDetectionTagRulesEnabled bool
+	// AnomalyDetectionSilentDatadogAgentWorkload defines if we silent anomalies coming from the datadog agent workload or not
+	AnomalyDetectionSilentDatadogAgentWorkload bool
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
@@ -293,6 +295,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
 		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
 		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
+		AnomalyDetectionSilentDatadogAgentWorkload:   coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.silent_datadog_agent_workload"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
