@@ -5,18 +5,20 @@
 
 //go:build linux_bpf
 
-package http
+package http2
 
 import (
 	"strings"
 
 	"golang.org/x/net/http2/hpack"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 // Path returns the URL from the request fragment captured in eBPF.
-func (tx *EbpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
+func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 	if tx.Path_size == 0 || int(tx.Path_size) > len(tx.Request_path[:tx.Path_size]) {
 		return nil, false
 	}
@@ -38,20 +40,20 @@ func (tx *EbpfHttp2Tx) Path(buffer []byte) ([]byte, bool) {
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
-func (tx *EbpfHttp2Tx) RequestLatency() float64 {
+func (tx *EbpfTx) RequestLatency() float64 {
 	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
 		return 0
 	}
-	return nsTimestampToFloat(tx.Response_last_seen - tx.Request_started)
+	return protocols.NSTimestampToFloat(tx.Response_last_seen - tx.Request_started)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
-func (tx *EbpfHttp2Tx) Incomplete() bool {
-	return tx.Request_started == 0 || tx.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Path_size == 0 || tx.Method() == MethodUnknown
+func (tx *EbpfTx) Incomplete() bool {
+	return tx.Request_started == 0 || tx.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Path_size == 0 || tx.Method() == http.MethodUnknown
 }
 
-func (tx *EbpfHttp2Tx) ConnTuple() types.ConnectionKey {
+func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
@@ -62,18 +64,18 @@ func (tx *EbpfHttp2Tx) ConnTuple() types.ConnectionKey {
 	}
 }
 
-func (tx *EbpfHttp2Tx) Method() Method {
+func (tx *EbpfTx) Method() http.Method {
 	switch tx.Request_method {
 	case GetValue:
-		return MethodGet
+		return http.MethodGet
 	case PostValue:
-		return MethodPost
+		return http.MethodPost
 	default:
-		return MethodUnknown
+		return http.MethodUnknown
 	}
 }
 
-func (tx *EbpfHttp2Tx) StatusCode() uint16 {
+func (tx *EbpfTx) StatusCode() uint16 {
 	switch tx.Response_status_code {
 	case uint16(K200Value):
 		return 200
@@ -90,38 +92,38 @@ func (tx *EbpfHttp2Tx) StatusCode() uint16 {
 	}
 }
 
-func (tx *EbpfHttp2Tx) SetStatusCode(code uint16) {
+func (tx *EbpfTx) SetStatusCode(code uint16) {
 	tx.Response_status_code = code
 }
 
-func (tx *EbpfHttp2Tx) ResponseLastSeen() uint64 {
+func (tx *EbpfTx) ResponseLastSeen() uint64 {
 	return tx.Response_last_seen
 }
 
-func (tx *EbpfHttp2Tx) SetResponseLastSeen(lastSeen uint64) {
+func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
 	tx.Response_last_seen = lastSeen
 
 }
-func (tx *EbpfHttp2Tx) RequestStarted() uint64 {
+func (tx *EbpfTx) RequestStarted() uint64 {
 	return tx.Request_started
 }
 
-func (tx *EbpfHttp2Tx) SetRequestMethod(m Method) {
+func (tx *EbpfTx) SetRequestMethod(m http.Method) {
 	tx.Request_method = uint32(m)
 }
 
-func (tx *EbpfHttp2Tx) StaticTags() uint64 {
+func (tx *EbpfTx) StaticTags() uint64 {
 	return 0
 }
 
-func (tx *EbpfHttp2Tx) DynamicTags() []string {
+func (tx *EbpfTx) DynamicTags() []string {
 	return nil
 }
 
-func (tx *EbpfHttp2Tx) String() string {
+func (tx *EbpfTx) String() string {
 	var output strings.Builder
-	output.WriteString("ebpfHttp2Tx{")
-	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
+	output.WriteString("http2.ebpfTx{")
+	output.WriteString("Method: '" + http.Method(tx.Request_method).String() + "', ")
 	buf := make([]byte, 0, tx.Path_size)
 	path, ok := tx.Path(buf)
 	if ok {

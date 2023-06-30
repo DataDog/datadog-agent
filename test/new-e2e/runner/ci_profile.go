@@ -59,7 +59,7 @@ func NewCIProfile() (Profile, error) {
 
 	return ciProfile{
 		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
-		ciUniqueID:  pipelineID + "-" + projectID,
+		ciUniqueID:  "ci-" + pipelineID + "-" + projectID,
 	}, nil
 }
 
