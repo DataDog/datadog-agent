@@ -80,7 +80,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, [
 
 		emittedEvents.Inc(involvedObject.Kind, ev.Type)
 
-		for _, t := range config.GetConfiguredTags(config.Datadog, false) {
+		for _, t := range config.GetGlobalConfiguredTags(false) {
 			tagsAccumulator.Append(t)
 		}
 
