@@ -1170,7 +1170,7 @@ func etwHttpServiceSummary() {
 	*/
 }
 
-func (hei *HttpEtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
+func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
 
 	// Total number of bytes transferred to kernel from HTTP.sys driver. 0x68 is ETW header size
 	transferedETWBytesTotal += (uint64(eventInfo.Event.UserDataLength) + 0x68)
@@ -1308,7 +1308,7 @@ func SetEnabledProtocols(http, https bool) {
 	captureHTTP = http
 	captureHTTPS = https
 }
-func (hei *HttpEtwInterface) OnStart() {
+func (hei *EtwInterface) OnStart() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true
 	var err error
@@ -1325,7 +1325,7 @@ func (hei *HttpEtwInterface) OnStart() {
 	}
 }
 
-func (hei *HttpEtwInterface) OnStop() {
+func (hei *EtwInterface) OnStop() {
 	httpServiceSubscribed = false
 	initializeEtwHttpServiceSubscription()
 	if iisConfig != nil {

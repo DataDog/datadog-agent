@@ -87,8 +87,10 @@ type MetricsConfig struct {
 	StaticTags []string            `yaml:"static_tags"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags"`
 
-	ForcedType string              `yaml:"forced_type"`
-	Options    MetricsConfigOption `yaml:"options"`
+	ForcedType string `yaml:"forced_type"` // deprecated in favour of metric_type
+	MetricType string `yaml:"metric_type"`
+
+	Options MetricsConfigOption `yaml:"options"`
 }
 
 // GetSymbolTags returns symbol tags

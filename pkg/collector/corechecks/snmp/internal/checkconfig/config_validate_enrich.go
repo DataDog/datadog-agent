@@ -85,6 +85,11 @@ func ValidateEnrichMetrics(metrics []MetricsConfig) []string {
 				errors = append(errors, validateEnrichMetricTag(metricTag)...)
 			}
 		}
+		// Setting forced_type value to metric_type value for backward compatibility
+		if metricConfig.MetricType == "" && metricConfig.ForcedType != "" {
+			metricConfig.MetricType = metricConfig.ForcedType
+		}
+		metricConfig.ForcedType = ""
 	}
 	return errors
 }
@@ -158,7 +163,7 @@ func validateEnrichSymbol(symbol *SymbolConfig, symbolContext SymbolContext) []s
 		errors = append(errors, fmt.Sprintf("`constant_value_one` cannot be used outside of tables"))
 	}
 	if symbolContext != ColumnSymbol && symbol.MetricType != "" {
-		errors = append(errors, fmt.Sprintf("`forced_type` cannot be used outside table symbols and metrics root"))
+		errors = append(errors, fmt.Sprintf("`metric_type` cannot be used outside table symbols and metrics root"))
 	}
 	return errors
 }
