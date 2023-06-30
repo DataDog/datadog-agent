@@ -264,7 +264,6 @@ namespace WixSetup.Datadog
             project.UI = WUI.WixUI_Common;
             project.CustomUI = _agentInstallerUi;
 
-            project.ResolveWildCards(pruneEmptyDirectories: true);
 
 #if DEBUG_PROPERTIES
             project.BeforeInstall += args =>
