@@ -50,6 +50,7 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
     return 0;
 }
 
+// fentry blocked by: parse args special bug
 SEC("kprobe/parse_args")
 int kprobe_parse_args(struct pt_regs *ctx){
     char *args = (char *) PT_REGS_PARM2(ctx);
@@ -64,12 +65,14 @@ int kprobe_parse_args(struct pt_regs *ctx){
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/security_kernel_module_from_file")
 int kprobe_security_kernel_module_from_file(struct pt_regs *ctx) {
     struct file *f = (struct file *)PT_REGS_PARM1(ctx);
     return trace_kernel_file(ctx, f);
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/security_kernel_read_file")
 int kprobe_security_kernel_read_file(struct pt_regs *ctx) {
     struct file *f = (struct file *)PT_REGS_PARM1(ctx);
@@ -86,15 +89,15 @@ int __attribute__((always_inline)) trace_module(struct module *mod) {
     return 0;
 }
 
-SEC("kprobe/do_init_module")
-int kprobe_do_init_module(struct pt_regs *ctx) {
-    struct module *mod = (struct module *)PT_REGS_PARM1(ctx);
+HOOK_ENTRY("do_init_module")
+int hook_do_init_module(ctx_t *ctx) {
+    struct module *mod = (struct module *)CTX_PARM1(ctx);
     return trace_module(mod);
 }
 
-SEC("kprobe/module_put")
-int kprobe_module_put(struct pt_regs *ctx) {
-    struct module *mod = (struct module *)PT_REGS_PARM1(ctx);
+HOOK_ENTRY("module_put")
+int hook_module_put(ctx_t *ctx) {
+    struct module *mod = (struct module *)CTX_PARM1(ctx);
     return trace_module(mod);
 }
 
@@ -109,7 +112,7 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
         .file = syscall->init_module.file,
         .loaded_from_memory = syscall->init_module.loaded_from_memory,
     };
-    
+
     bpf_probe_read_str(&event.args, sizeof(event.args), &syscall->init_module.args);
     event.args_truncated = syscall->init_module.args_truncated;
 

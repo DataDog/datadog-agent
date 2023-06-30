@@ -21,7 +21,7 @@
                     "image_source": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-amd64.qcow2"
                 }
             ],
-            "vcpu": [4],
+            "vcpu": [8],
             "memory": [4096]
         },
         {
@@ -45,7 +45,7 @@
                     "image_source": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-arm64.qcow2"
                 }
             ],
-            "vcpu": [4],
+            "vcpu": [8],
             "memory": [4096]
         }
    ]

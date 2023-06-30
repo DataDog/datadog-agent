@@ -336,18 +336,40 @@ func (f JSONFormatter) parseVariables(trapOID string, variables []gosnmp.SnmpPDU
 
 func formatType(variable gosnmp.SnmpPDU) string {
 	switch variable.Type {
+	case gosnmp.UnknownType:
+		return "unknown-type"
+	case gosnmp.Boolean:
+		return "boolean"
 	case gosnmp.Integer, gosnmp.Uinteger32:
 		return "integer"
 	case gosnmp.OctetString, gosnmp.BitString:
 		return "string"
+	case gosnmp.Null:
+		return "null"
 	case gosnmp.ObjectIdentifier:
 		return "oid"
+	case gosnmp.ObjectDescription:
+		return "object-description"
+	case gosnmp.IPAddress:
+		return "ip-address"
 	case gosnmp.Counter32:
 		return "counter32"
-	case gosnmp.Counter64:
-		return "counter64"
 	case gosnmp.Gauge32:
 		return "gauge32"
+	case gosnmp.TimeTicks:
+		return "time-ticks"
+	case gosnmp.Opaque, gosnmp.OpaqueFloat, gosnmp.OpaqueDouble:
+		return "opaque"
+	case gosnmp.NsapAddress:
+		return "nsap-address"
+	case gosnmp.Counter64:
+		return "counter64"
+	case gosnmp.NoSuchObject:
+		return "no-such-object"
+	case gosnmp.NoSuchInstance:
+		return "no-such-instance"
+	case gosnmp.EndOfMibView:
+		return "end-of-mib-view"
 	default:
 		return "other"
 	}

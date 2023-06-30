@@ -58,7 +58,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -115,6 +114,8 @@ type PlatformProbe struct {
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
+
+	useFentry bool
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -226,7 +227,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewProbeLoader(p.Config.Probe, useSyscallWrapper, p.UseRingBuffers(), p.StatsdClient)
+	loader := ebpf.NewProbeLoader(p.Config.Probe, useSyscallWrapper, p.UseRingBuffers(), p.useFentry, p.StatsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -248,7 +249,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -338,7 +339,7 @@ func (p *Probe) PlaySnapshot() {
 }
 
 func (p *Probe) sendAnomalyDetection(event *model.Event) {
-	tags := p.GetEventTags(event)
+	tags := p.GetEventTags(event.ContainerContext.ID)
 	if service := p.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -348,25 +349,6 @@ func (p *Probe) sendAnomalyDetection(event *model.Event) {
 		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 	)
 	p.generatedAnomalyDetection[event.GetEventType()].Inc()
-}
-
-func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
-	if !event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) {
-		return false
-	}
-
-	// first, check if the current event is a kernel generated anomaly detection event
-	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
-		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
-		// check if the profile can generate anomalies for the current event type
-	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
-		return false
-	} else if event.IsInProfile() {
-		return false
-	}
-
-	p.sendAnomalyDetection(event)
-	return true
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
@@ -395,13 +377,17 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
-	if !p.handleAnomalyDetection(event) && event.Error == nil {
-		// Process after evaluation because some monitors need the DentryResolver to have been called first.
+	// handle anomaly detections
+	if event.IsAnomalyDetectionEvent() {
+		if event.IsKernelSpaceAnomalyDetectionEvent() {
+			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
+		}
+		p.sendAnomalyDetection(event)
+	} else if event.Error == nil {
+		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 		if p.profileManagers.activityDumpManager != nil {
 			p.profileManagers.activityDumpManager.ProcessEvent(event)
 		}
-
 	}
 	p.monitor.ProcessEvent(event)
 }
@@ -453,6 +439,11 @@ func (p *Probe) SendStats() error {
 			}
 		}
 	}
+
+	if err := p.profileManagers.SendStats(); err != nil {
+		return err
+	}
+
 	return p.monitor.SendStats()
 }
 
@@ -1072,7 +1063,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	var activatedProbes []manager.ProbesSelector
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType() {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
 		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
@@ -1422,6 +1413,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			erpcRequest:               &erpc.ERPCRequest{},
 			isRuntimeDiscarded:        !opts.DontDiscardRuntime,
 			generatedAnomalyDetection: make(map[model.EventType]*atomic.Uint64),
+			useFentry:                 config.Probe.EventStreamUseFentry,
 		},
 	}
 
@@ -1451,7 +1443,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	useRingBuffers := p.UseRingBuffers()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
-	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers)
+	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
 
 	p.ensureConfigDefaults()
 

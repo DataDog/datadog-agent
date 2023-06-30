@@ -547,7 +547,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 
 	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
-	conn, err := net.ListenUDP("udp6", linkLocal)
+	conn, err := net.ListenUDP("udp6", linkLocal[0])
 	require.NoError(t, err)
 	defer conn.Close()
 	message := []byte("payload")

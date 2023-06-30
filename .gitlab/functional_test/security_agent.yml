@@ -47,7 +47,9 @@ kitchen_test_security_agent_x64:
         KITCHEN_OSVERS: "centos-77"
         KITCHEN_CWS_PLATFORM: [host, docker]
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "rhel-85"
+        KITCHEN_OSVERS: "rhel-85,rhel-91"
+        KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+        KITCHEN_CI_ROOT_PATH: "/tmp/ci"
         KITCHEN_CWS_PLATFORM: [host]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04-0,ubuntu-18-04,ubuntu-18-04-3"

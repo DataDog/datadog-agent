@@ -27,6 +27,7 @@ var (
 		"MESOS_TASK_ID",
 		"ECS_CONTAINER_METADATA_URI",
 		"ECS_CONTAINER_METADATA_URI_V4",
+		"DOCKER_DD_AGENT", // included to be able to detect agent containers
 		// Included to ease unit tests withtout requiring a mock
 		"TEST_ENV",
 	}

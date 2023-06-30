@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 	"github.com/cenkalti/backoff/v4"
@@ -38,7 +38,7 @@ func logsExampleStackDef(vmParams []ec2params.Option, agentParams ...agentparams
 				return nil, err
 			}
 
-			fakeintakeExporter, err := ecs.NewEcsFakeintake(vm.Infra)
+			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment())
 			if err != nil {
 				return nil, err
 			}
