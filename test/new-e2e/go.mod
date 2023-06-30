@@ -16,7 +16,7 @@ require (
 	// Commit sha matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20230630085306-7d82fca6b059
+	github.com/DataDog/test-infra-definitions v0.0.0-20230630151429-360b62bd7e05
 	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.27
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
