@@ -11,21 +11,12 @@ import (
 	"context"
 	"flag"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // main is the main application entry point
 func main() {
 	ctx, cancelFunc := context.WithCancel(context.Background())
-
-	// prepare go runtime
-	runtime.SetMaxProcs()
-	if err := runtime.SetGoMemLimit(config.IsContainerized()); err != nil {
-		log.Debugf("Couldn't set Go memory limit: %s", err)
-	}
 
 	// Handle stops properly
 	go func() {

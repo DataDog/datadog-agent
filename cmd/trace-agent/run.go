@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"time"
 
@@ -39,10 +40,48 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/containerd/cgroups"
+	"github.com/containerd/cgroups/v3/cgroup1"
+	"github.com/containerd/cgroups/v3/cgroup2"
+
+	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
+
+func CgroupMemory() (rmem int64, err error) {
+	if cgroups.Mode() == cgroups.Unified {
+		// TODO(knusbaum): Test cgroup 2 memory limit retrieval.
+		path, err := cgroup2.PidGroupPath(0)
+		// use cgroup2
+		m, err := cgroup2.Load(path)
+		if err != nil {
+			return 0, fmt.Errorf("Failed to load cgroup: %v\n", err)
+		}
+		stat, err := m.Stat()
+		if err != nil {
+			return 0, fmt.Errorf("Failed to get memory stats: %v\n", err)
+		}
+		if stat.Memory == nil {
+			return 0, fmt.Errorf("Memory stats is nil.\n")
+		}
+		return int64(stat.Memory.UsageLimit), nil
+	}
+	m, err := cgroup1.ParseCgroupFile("/proc/self/cgroup")
+	if err != nil {
+		return 0, fmt.Errorf("Failed to parse cgroup file: %v\n", err)
+	}
+	mem, err := cgroup1.Load(cgroup1.StaticPath(m["memory"]))
+	if err != nil {
+		return 0, fmt.Errorf("failed to load %v: %v\n", m["memory"], err)
+	}
+	mstat, err := mem.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get mem stats: %v\n", err)
+	}
+	return int64(mstat.Memory.Usage.Max), nil
+}
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
 DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
@@ -213,6 +252,48 @@ func Run(ctx context.Context) {
 			return cmdconfig.SetHandler()
 		},
 	})
+
+	// prepare go runtime
+	agentrt.SetMaxProcs()
+	procs := runtime.GOMAXPROCS(0)
+	if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
+		log.Infof("GOMAXPROCS manually set to %v", mp)
+	} else if cfg.MaxCPU > 0 {
+		allowedCores := int(cfg.MaxCPU / 100)
+		if allowedCores < 1 {
+			allowedCores = 1
+		}
+		if allowedCores < procs {
+			log.Infof("apm_config.max_cpu is less than current GOMAXPROCS. Setting GOMAXPROCS to (%v) %d\n", allowedCores, (allowedCores))
+			runtime.GOMAXPROCS(int(allowedCores))
+		}
+	} else {
+		log.Infof("apm_config.max_cpu is disabled. leaving GOMAXPROCS at current value.")
+	}
+	log.Infof("FINAL GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
+
+	var maxmem int64
+	cgmem, err := CgroupMemory()
+	if err != nil {
+		log.Errorf("Failed to load cgroup memory: %v", err)
+	} else {
+		log.Infof("CGroup Memory: %vMiB", cgmem/(1024*1024))
+		maxmem = cgmem
+	}
+
+	if cfg.MaxMemory > 0 && (maxmem == 0 || int64(cfg.MaxMemory) < maxmem) {
+		log.Infof("apm_config.max_memory: %vMiB", int64(cfg.MaxMemory)/(1024*1024))
+		maxmem = int64(cfg.MaxMemory)
+	}
+	if lim, ok := os.LookupEnv("GOMEMLIMIT"); ok {
+		log.Infof("GOMEMLIMIT manually set to: %v", lim)
+	} else if maxmem > 0 {
+		finalmem := int64(float64(maxmem) * 0.9) // leave some headroom
+		debug.SetMemoryLimit(int64(finalmem))
+		log.Infof("Maximum memory: %vMiB. Setting GOMEMLIMIT 90%% of max: %vMiB", maxmem/(1024*1024), finalmem/(1024*1024))
+	} else {
+		log.Infof("GOMEMLIMIT unconstrained.")
+	}
 
 	agnt := agent.NewAgent(ctx, cfg, telemetryCollector)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)

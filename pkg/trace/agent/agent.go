@@ -137,7 +137,12 @@ func (a *Agent) Run() {
 	go a.TraceWriter.Run()
 	go a.StatsWriter.Run()
 
-	for i := 0; i < runtime.NumCPU(); i++ {
+	workers := runtime.GOMAXPROCS(0) / 2
+	if workers < 1 {
+		workers = 1
+	}
+
+	for i := 0; i < workers; i++ {
 		go a.work()
 	}
 
@@ -210,11 +215,6 @@ func (a *Agent) loop() {
 func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
-
-	if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
-		rate := ratelimiter.RealRate()
-		sampler.SetPreSampleRate(root, rate)
-	}
 }
 
 // Process is the default work unit that receives a trace, transforms it and

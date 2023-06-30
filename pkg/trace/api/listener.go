@@ -39,7 +39,7 @@ func NewMeasuredListener(ln net.Listener, name string) net.Listener {
 		timedout: atomic.NewUint32(0),
 		errored:  atomic.NewUint32(0),
 		exit:     make(chan struct{}),
-		sem:      make(chan struct{}, 10),
+		sem:      make(chan struct{}, 1000),
 	}
 	go ml.run()
 	return ml

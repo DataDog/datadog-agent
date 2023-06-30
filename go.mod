@@ -578,6 +578,7 @@ require (
 
 require (
 	github.com/cloudflare/circl v1.1.0 // indirect
+	github.com/containerd/cgroups/v3 v3.0.2 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/google/s2a-go v0.1.2 // indirect
 	github.com/kr/text v0.2.0 // indirect

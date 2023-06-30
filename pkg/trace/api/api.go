@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
-	"math"
 	"mime"
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -63,8 +63,7 @@ func putBuffer(buffer *bytes.Buffer) {
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
-	Stats       *info.ReceiverStats
-	RateLimiter *rateLimiter
+	Stats *info.ReceiverStats
 
 	out                 chan *Payload
 	conf                *config.AgentConfig
@@ -81,6 +80,7 @@ type HTTPReceiver struct {
 	exit chan struct{}
 
 	recvsem chan struct{}
+	semsize int
 
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
@@ -92,9 +92,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
+	decoders := runtime.GOMAXPROCS(0) / 2
+	if decoders < 1 {
+		decoders = 1
+	}
 	return &HTTPReceiver{
-		Stats:       info.NewReceiverStats(),
-		RateLimiter: newRateLimiter(),
+		Stats: info.NewReceiverStats(),
 
 		out:                 out,
 		statsProcessor:      statsProcessor,
@@ -108,7 +111,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 
 		exit: make(chan struct{}),
 
-		recvsem: make(chan struct{}, 5),
+		recvsem: make(chan struct{}, 4),
 
 		outOfCPUCounter: atomic.NewUint32(0),
 	}
@@ -160,7 +163,7 @@ func (r *HTTPReceiver) Start() {
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:      r.buildMux(),
 		ConnContext:  connContext,
-		IdleTimeout:  1 * time.Second,
+		IdleTimeout:  5 * time.Second,
 	}
 
 	if r.conf.ReceiverPort > 0 {
@@ -217,8 +220,6 @@ func (r *HTTPReceiver) Start() {
 		log.Infof("Listening for traces on Windows pipe %q. Security descriptor is %q", pipepath, secdec)
 	}
 
-	go r.RateLimiter.Run()
-
 	go func() {
 		defer watchdog.LogOnPanic()
 		r.loop()
@@ -271,8 +272,6 @@ func (r *HTTPReceiver) Stop() error {
 	}
 	r.exit <- struct{}{}
 	<-r.exit
-
-	r.RateLimiter.Stop()
 
 	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
@@ -412,18 +411,6 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 	}
 }
 
-// rateLimited reports whether n number of traces should be rejected by the API.
-func (r *HTTPReceiver) rateLimited(n int64) bool {
-	if n == 0 {
-		return false
-	}
-	if r.conf.MaxMemory == 0 && r.conf.MaxCPU == 0 {
-		// rate limiting is off
-		return false
-	}
-	return !r.RateLimiter.Permits(n)
-}
-
 // StatsProcessor implementations are able to process incoming client stats.
 type StatsProcessor interface {
 	// ProcessStats takes a stats payload and consumes it. It is considered to be originating
@@ -456,32 +443,24 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
 	ts := r.tagStats(v, req.Header)
 	tracen, err := traceCount(req)
+	if err == errInvalidHeaderTraceCountValue {
+		log.Errorf("Failed to count traces: %s", err)
+	}
 	defer req.Body.Close()
+
 	select {
 	case r.recvsem <- struct{}{}:
 	case <-time.After(1 * time.Second):
 		// this payload can not be accepted
 		io.Copy(io.Discard, req.Body) //nolint:errcheck
-		w.WriteHeader(http.StatusRequestTimeout)
+		w.WriteHeader(http.StatusTooManyRequests)
 		r.replyOK(req, v, w)
 		ts.PayloadRefused.Inc()
 		return
 	}
-
 	defer func() {
 		<-r.recvsem
 	}()
-	if err == nil && r.rateLimited(tracen) {
-		// this payload can not be accepted
-		//io.Copy(io.Discard, req.Body) //nolint:errcheck
-		w.WriteHeader(r.rateLimiterResponse)
-		r.replyOK(req, v, w)
-		ts.PayloadRefused.Inc()
-		return
-	}
-	if err == errInvalidHeaderTraceCountValue {
-		log.Errorf("Failed to count traces: %s", err)
-	}
 
 	start := time.Now()
 	tp, ranHook, err := decodeTracerPayload(v, req, ts, r.containerIDProvider)
@@ -541,6 +520,26 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 
 	r.out <- payload
+	// select {
+	// case r.out <- payload:
+	// 	// ok
+	// default:
+	// 	// channel blocked, add a goroutine to ensure we never drop
+	// 	r.wg.Add(1)
+	// 	count := r.outOfCPUCounter.Inc()
+	// 	if (count-1)%outOfCPULogThreshold == 0 {
+	// 		// Log a warning on the first occurrence and every n+outOfCPULogThreshold occurrences.
+	// 		log.Warnf("The Agent is falling behind on processing traces, %d extra threads have been created since the Agent started. See https://docs.datadoghq.com/tracing/troubleshooting/agent_apm_resource_usage", count)
+	// 	}
+	// 	go func() {
+	// 		metrics.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
+	// 		defer func() {
+	// 			r.wg.Done()
+	// 			watchdog.LogOnPanic()
+	// 		}()
+	// 		r.out <- payload
+	// 	}()
+	// }
 }
 
 // runMetaHook runs the pb.MetaHook on all spans from traces.
@@ -641,52 +640,25 @@ var killProcess = func(format string, a ...interface{}) {
 // the configuration MaxMemory and MaxCPU. If these values are 0, all limits are disabled and the rate
 // limiter will accept everything.
 func (r *HTTPReceiver) watchdog(now time.Time) {
-	cpu, cpuErr := watchdog.CPU(now)
+	cpu, _ := watchdog.CPU(now)
 	wi := watchdog.Info{
 		Mem: watchdog.Mem(),
 		CPU: cpu,
 	}
-	rateMem := 1.0
 	if r.conf.MaxMemory > 0 {
 		if current, allowed := float64(wi.Mem.Alloc), r.conf.MaxMemory*1.5; current > allowed {
-			if r.RateLimiter.TargetRate() > 0 {
-				// Reject all payloads and give the agent a chance to catch up.
-				rateMem = 0
-			} else {
-				// This is a safety mechanism: if the agent is using more than 1.5x max. memory, there
-				// is likely a leak somewhere; we'll kill the process to avoid polluting host memory.
-				metrics.Count("datadog.trace_agent.receiver.oom_kill", 1, nil, 1)
-				metrics.Flush()
-				log.Criticalf("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
-				killProcess("OOM")
-			}
-		}
-		rateMem = computeRateLimitingRate(r.conf.MaxMemory, float64(wi.Mem.Alloc), r.RateLimiter.RealRate())
-		if rateMem < 1 {
-			log.Warnf("Memory threshold exceeded (apm_config.max_memory: %.0f bytes): %d", r.conf.MaxMemory, wi.Mem.Alloc)
+			// This is a safety mechanism: if the agent is using more than 1.5x max. memory, there
+			// is likely a leak somewhere; we'll kill the process to avoid polluting host memory.
+			metrics.Count("datadog.trace_agent.receiver.oom_kill", 1, nil, 1)
+			metrics.Flush()
+			log.Criticalf("Killing process. Memory threshold exceeded: %.2fM / %.2fM", current/1024/1024, allowed/1024/1024)
+			killProcess("OOM")
 		}
 	}
-	rateCPU := 1.0
-	if r.conf.MaxCPU > 0 {
-		if cpuErr != nil {
-			log.Errorf("Error retrieving current CPU usage: %v. Reusing previous value", cpuErr)
-		}
-		rateCPU = computeRateLimitingRate(r.conf.MaxCPU, wi.CPU.UserAvg, r.RateLimiter.RealRate())
-		if rateCPU < 1 {
-			log.Warnf("CPU threshold exceeded (apm_config.max_cpu_percent: %.0f): %.0f", r.conf.MaxCPU*100, wi.CPU.UserAvg*100)
-		}
-	}
-
-	r.RateLimiter.SetTargetRate(math.Min(rateCPU, rateMem))
-
-	stats := r.RateLimiter.Stats()
-
-	info.UpdateRateLimiter(*stats)
 	info.UpdateWatchdogInfo(wi)
 
 	metrics.Gauge("datadog.trace_agent.heap_alloc", float64(wi.Mem.Alloc), nil, 1)
 	metrics.Gauge("datadog.trace_agent.cpu_percent", wi.CPU.UserAvg*100, nil, 1)
-	metrics.Gauge("datadog.trace_agent.receiver.ratelimit", stats.TargetRate, nil, 1)
 }
 
 // Languages returns the list of the languages used in the traces the agent receives.
