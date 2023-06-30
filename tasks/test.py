@@ -314,6 +314,7 @@ def build_stdlib(
     Builds the stdlib with the same build flags as the tests.
     """
     args["go_build_tags"] = " ".join(build_tags)
+    env["GOEXPERIMENT"] = "nounified"
 
     print("GOCACHE size before")
     ctx.run("du -sch $(go env GOCACHE)", warn=True)
