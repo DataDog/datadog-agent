@@ -34,6 +34,7 @@ type client struct {
 }
 
 func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) {
+	log.Info("[remoteprocesscollector] starting a new stream")
 	c.parentCollector.eventIdSet = false // Can be removed when the remote workloadmeta guarantees to not skip any event
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
@@ -50,6 +51,7 @@ type stream struct {
 }
 
 func (s *stream) Recv() (interface{}, error) {
+	log.Trace("[remoteprocesscollector] calling stream recv")
 	return s.cl.Recv()
 }
 
@@ -75,14 +77,17 @@ func (s *remoteProcessCollectorStreamHandler) IsEnabled() error {
 	if !config.IsFeaturePresent(config.RemoteProcessCollector) {
 		return dderrors.NewDisabled(collectorID, "remote process collector not detected")
 	}
+	log.Trace("[remoteprocesscollector] feature is enabled")
 	return nil
 }
 
 func (s *remoteProcessCollectorStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
+	log.Trace("[remoteprocesscollector] creating grpc client")
 	return &client{cl: pb.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
 func (s *remoteProcessCollectorStreamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+	log.Trace("[remoteprocesscollector] handling response")
 	response, ok := resp.(*pb.ProcessStreamResponse)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
@@ -104,7 +109,7 @@ func (s *remoteProcessCollectorStreamHandler) HandleResponse(resp interface{}) (
 
 	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, protoutils.WorkloadmetaEventFromProcessEventUnset)
 	collectorEvents = handleEvents(collectorEvents, response.SetEvents, protoutils.WorkloadmetaEventFromProcessEventSet)
-
+	log.Tracef("[remoteprocesscollector] collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
 
@@ -112,7 +117,8 @@ func handleEvents[T any](collectorEvents []workloadmeta.CollectorEvent, setEvent
 	for _, protoEvent := range setEvents {
 		workloadmetaEvent, err := convertFunc(protoEvent)
 		if err != nil {
-			return collectorEvents
+			log.Warnf("error converting workloadmeta event: %v", err)
+			continue
 		}
 
 		collectorEvent := workloadmeta.CollectorEvent{
@@ -137,5 +143,6 @@ func (s *remoteProcessCollectorStreamHandler) HandleResync(store workloadmeta.St
 	// in the store, because when a client subscribes to the workloadmeta subscriber
 	// the first response is always a bundle of events with all the existing
 	// processes in the store.
+	log.Debugf("[remoteprocesscollector] resync, handling [%d] events", len(processes))
 	store.ResetProcesses(processes, workloadmeta.SourceRemoteProcessCollector)
 }
