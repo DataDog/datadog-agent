@@ -199,7 +199,6 @@ kernel_matrix_testing_upload_deps_arm64:
   stage: kernel_matrix_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
   tags: ["arch:amd64"]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -228,6 +227,7 @@ kernel_matrix_testing_upload_deps_arm64:
 kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
+  needs: ["kernel_matrix_testing_upload_deps_x64", "kernel_matrix_testing_setup_env"]
   variables:
     ARCH: "x86_64"
   parallel:
@@ -237,6 +237,7 @@ kernel_matrix_testing_run_tests_x64:
 kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
+  needs: ["kernel_matrix_testing_upload_deps_arm64", "kernel_matrix_testing_setup_env"]
   variables:
     ARCH: "arm64"
   parallel:
