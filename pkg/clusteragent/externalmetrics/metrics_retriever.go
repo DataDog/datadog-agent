@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	invalidMetricErrorMessage         string = "%v, query was: %s"
+	invalidMetricErrorMessage         string = "%v, query was: %s, will retry after %s."
 	invalidMetricOutdatedErrorMessage string = "Query returned outdated result, check MaxAge setting, query: %s"
 	invalidMetricNotFoundErrorMessage string = "Unexpected error, query data not found in result, query: %s"
-	invalidMetricGlobalErrorMessage   string = "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details"
+	invalidMetricGlobalErrorMessage   string = "Global error (all queries, batch size %d) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Will retry after %s."
 	metricRetrieverStoreID            string = "mr"
 )
 
@@ -82,30 +82,14 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 
 	// First split then query because store state is shared and query mutates it
 	mr.retrieveMetricsValuesSlice(datadogMetrics)
-	
-	// Now test each metric query separately respecting its backoff retry duration elapse value. 
+
+	// Now test each metric query separately respecting its backoff retry duration elapse value.
 	for _, metrics := range datadogMetricsErr {
-
-		shouldBackoff := shouldBackoff(&metrics, &backoffPolicy)
-
-		log.Info("EMDEBUGGING backoff",
-			"extMetricName", metrics.ExternalMetricName,
-			"retries", metrics.Retries,
-			"lastUpdate", metrics.UpdateTime,
-			"currentBackoff", backoffPolicy.GetBackoffDuration(metrics.Retries),
-			"shouldBackoff", shouldBackoff,
-		)
-		log.Info("EMDEBUGGING err metric", "full", metrics)
-
-		if !shouldBackoff {
+		if time.Now().After(metrics.RetryAfter) {
 			singleton := []model.DatadogMetricInternal{metrics}
 			mr.retrieveMetricsValuesSlice(singleton)
 		}
 	}
-}
-
-func shouldBackoff(metricsInternal *model.DatadogMetricInternal, backoffPolicy *backoff.Policy) bool {
-	return time.Now().Sub(metricsInternal.UpdateTime) < backoffPolicy.GetBackoffDuration(metricsInternal.Retries)
 }
 
 func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.DatadogMetricInternal) {
@@ -166,15 +150,14 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 				}
 			} else {
 				datadogMetricFromStore.Valid = false
-				datadogMetricFromStore.Retries++
-				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricErrorMessage, queryResult.Error, query)
+				incrementRetries(datadogMetricFromStore)
+				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricErrorMessage, queryResult.Error, query, datadogMetricFromStore.RetryAfter.Format(time.RFC3339))
 			}
 		} else {
-			log.Info("EMDEBUGGING.metrics_retriever.retrieveMetricsValues queryResult notfound", "query", query)
 			datadogMetricFromStore.Valid = false
 			if globalError {
-				datadogMetricFromStore.Retries++
-				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage)
+				incrementRetries(datadogMetricFromStore)
+				datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage, len(datadogMetrics), datadogMetricFromStore.RetryAfter.Format(time.RFC3339))
 			} else {
 				// This should never happen as `QueryExternalMetric` is filling all missing series
 				// if no global error.
@@ -185,6 +168,13 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 
 		mr.store.UnlockSet(datadogMetric.ID, *datadogMetricFromStore, metricRetrieverStoreID)
 	}
+}
+
+func incrementRetries(metricsInternal *model.DatadogMetricInternal) {
+	metricsInternal.Retries++
+	timeNow := time.Now().UTC()
+	backoffDuration := backoffPolicy.GetBackoffDuration(metricsInternal.Retries)
+	metricsInternal.RetryAfter = timeNow.Add(backoffDuration)
 }
 
 func MaybeAdjustTimeWindowForQuery(timeWindow time.Duration) time.Duration {

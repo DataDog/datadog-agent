@@ -48,6 +48,7 @@ type DatadogMetricInternal struct {
 	MaxAge               time.Duration
 	TimeWindow           time.Duration
 	Retries              int
+	RetryAfter           time.Time
 }
 
 // NewDatadogMetricInternal returns a `DatadogMetricInternal` object from a `DatadogMetric` CRD Object
@@ -156,6 +157,14 @@ func (d *DatadogMetricInternal) UpdateFrom(current datadoghq.DatadogMetric) {
 	if d.shouldResolveQuery(currentSpec) {
 		d.resolveQuery(currentSpec.Query)
 	}
+
+	if d.query != currentSpec.Query ||
+		d.MaxAge != currentSpec.MaxAge.Duration ||
+		d.TimeWindow != currentSpec.TimeWindow.Duration {
+		d.Retries = 0
+		d.RetryAfter = time.Time{}
+	}
+
 	d.query = currentSpec.Query
 	d.MaxAge = currentSpec.MaxAge.Duration
 	d.TimeWindow = currentSpec.TimeWindow.Duration

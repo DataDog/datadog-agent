@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +109,14 @@ func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 			alignedTime := time.Now().UTC()
 			expectedDatadogMetric.ddm.UpdateTime = alignedTime
 			datadogMetric.UpdateTime = alignedTime
+
+			// These will contain random element if Retries > 0
+			if expectedDatadogMetric.ddm.Retries > 0 {
+				expectedDatadogMetric.ddm.RetryAfter = datadogMetric.RetryAfter
+				// Align errors and verify prefix is expected
+				expectedDatadogMetric.ddm.Error = datadogMetric.Error
+				assert.True(t, strings.HasPrefix(datadogMetric.Error.Error(), expectedDatadogMetric.ddm.Error.Error()))
+			}
 		}
 
 		assert.Equal(t, &expectedDatadogMetric.ddm, datadogMetric)
@@ -429,7 +438,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    11.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricErrorMessage, errors.New("some err"), "query-metric1"),
+						Error:    fmt.Errorf(invalidMetricErrorMessage, errors.New("some err"), "query-metric1", ""),
 						Retries:  1,
 					},
 					query: "query-metric1",
@@ -474,7 +483,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    1.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricGlobalErrorMessage),
+						Error:    fmt.Errorf(invalidMetricGlobalErrorMessage, 2, ""),
 						Retries:  1,
 					},
 					query: "query-metric0",
@@ -486,7 +495,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricGlobalErrorMessage),
+						Error:    fmt.Errorf(invalidMetricGlobalErrorMessage, 2, ""),
 						Retries:  1,
 					},
 					query: "query-metric1",
@@ -560,7 +569,9 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
+			// if fixture.desc == "Test global error from backend, set Retries (all)" {
 			fixture.run(t, defaultTestTime)
+			// }
 		})
 	}
 }
@@ -1100,87 +1111,64 @@ func TestRetrieveMetricsBatchErrorCases(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			if fixture.desc == "Test split batch, error persists; increase Retries" {
-				fixture.run(t, defaultTestTime)
-			}
+			fixture.run(t, defaultTestTime)
 		})
 	}
 }
 
-func TestMetricsBackoffTiming(t *testing.T) {
+func TestRetryIncTiming(t *testing.T) {
 	// Current backoff policy in metrics retriever: backoff.NewPolicy(2, 30, 1800, 2, false)
 	// when retries > 5,  backoff capped at 1800sec
 	// when retries <= 5, backoff random(2^(retries-1) * 30, 2^retries * 30)
 
 	tests := []struct {
-		Name                     string
-		ElapseSinceLastUpdateSec int
-		Retries                  int
-		shouldBackoff            bool
+		Name                 string
+		CurrentRetries       int
+		NewRetries           int
+		RetryAfterMinFromNow int
+		RetryAfterMaxFromNow int
 	}{
 		{
-			Name:                     "0 retries, don't backoff",
-			ElapseSinceLastUpdateSec: 1,
-			Retries:                  0,
-			shouldBackoff:            false,
+			Name:                 "0->1",
+			CurrentRetries:       0,
+			NewRetries:           1,
+			RetryAfterMinFromNow: 30,
+			RetryAfterMaxFromNow: 60,
 		},
 		{
-			Name:                     "1 retry, below range, backoff",
-			ElapseSinceLastUpdateSec: 29, // < 30-60 range
-			Retries:                  1,
-			shouldBackoff:            true,
+			Name:                 "1->2",
+			CurrentRetries:       1,
+			NewRetries:           2,
+			RetryAfterMinFromNow: 60,
+			RetryAfterMaxFromNow: 120,
 		},
 		{
-			Name:                     "1 retry, above range, don't backoff",
-			ElapseSinceLastUpdateSec: 61, // > 30-60 range
-			Retries:                  1,
-			shouldBackoff:            false,
+			Name:                 "5->6",
+			CurrentRetries:       5,
+			NewRetries:           6,
+			RetryAfterMinFromNow: 1799,
+			RetryAfterMaxFromNow: 1801,
 		},
 		{
-			Name:                     "2 retries, below range, backoff",
-			ElapseSinceLastUpdateSec: 59, // < 60-120 range
-			Retries:                  2,
-			shouldBackoff:            true,
-		},
-		{
-			Name:                     "2 retries, above range, don't backoff",
-			ElapseSinceLastUpdateSec: 121, // > 60-120 range
-			Retries:                  2,
-			shouldBackoff:            false,
-		},
-		{
-			Name:                     "5 retries, below range, backoff",
-			ElapseSinceLastUpdateSec: 479, // < 480-960 range
-			Retries:                  5,
-			shouldBackoff:            true,
-		},
-		{
-			Name:                     "5 retries, above range, don't backoff",
-			ElapseSinceLastUpdateSec: 961, // > 480-960 range
-			Retries:                  5,
-			shouldBackoff:            false,
-		},
-		{
-			Name:                     ">5 retries, below MaxBackoff, backoff",
-			ElapseSinceLastUpdateSec: 1799, // > Max
-			Retries:                  10,
-			shouldBackoff:            true,
-		},
-		{
-			Name:                     ">5 retries, above MaxBackoff, don't backoff",
-			ElapseSinceLastUpdateSec: 1801, // > Max
-			Retries:                  10,
-			shouldBackoff:            false,
+			Name:                 "10->11",
+			CurrentRetries:       10,
+			NewRetries:           11,
+			RetryAfterMinFromNow: 1799,
+			RetryAfterMaxFromNow: 1801,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
 			ddMetricsInternal := model.DatadogMetricInternal{
-				UpdateTime: time.Now().Add(time.Duration(-tt.ElapseSinceLastUpdateSec) * time.Second),
-				Retries:    tt.Retries,
+				Retries: tt.CurrentRetries,
 			}
-			assert.Equal(t, tt.shouldBackoff, shouldBackoff(&ddMetricsInternal, &backoffPolicy))
+			retryTimeMin := time.Now().Add(time.Duration(tt.RetryAfterMinFromNow) * time.Second)
+			retryTimeMax := time.Now().Add(time.Duration(tt.RetryAfterMaxFromNow) * time.Second)
+			incrementRetries(&ddMetricsInternal)
+			assert.Equal(t, tt.NewRetries, ddMetricsInternal.Retries)
+			assert.True(t, ddMetricsInternal.RetryAfter.After(retryTimeMin))
+			assert.True(t, ddMetricsInternal.RetryAfter.Before(retryTimeMax))
 		})
 	}
 }
@@ -1202,11 +1190,10 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-1) * time.Second),
-						Error:      nil,
-						Retries:    0, // no error, no backoff: +1 query
+						ID:      "metric0",
+						Active:  true,
+						Error:   nil,
+						Retries: 0, // no error, no backoff: +1 query
 					},
 					query: "query-metric0",
 				},
@@ -1214,9 +1201,9 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 					ddm: model.DatadogMetricInternal{
 						ID:         "metric1",
 						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-29) * time.Second),
 						Error:      errors.New("some err"),
-						Retries:    1, // udpated 29<30 sec ago with error, backoff
+						RetryAfter: time.Now().Add(time.Duration(5) * time.Second),
+						Retries:    1, // backoff not expired: no change
 					},
 					query: "query-metric1",
 				},
@@ -1224,9 +1211,9 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 					ddm: model.DatadogMetricInternal{
 						ID:         "metric2",
 						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-61) * time.Second),
 						Error:      errors.New("some err"),
-						Retries:    1, // udpated 61>60 sec ago with error, don't backoff: +1 query
+						RetryAfter: time.Now().Add(time.Duration(-5) * time.Second),
+						Retries:    1, // backoff expired: +1 query
 					},
 					query: "query-metric2",
 				},
@@ -1234,9 +1221,9 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 					ddm: model.DatadogMetricInternal{
 						ID:         "metric3",
 						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-121) * time.Second),
 						Error:      errors.New("some err"),
-						Retries:    2, // udpated 121>120 sec ago with error, don't backoff: +1 query
+						RetryAfter: time.Now().Add(time.Duration(-5) * time.Second),
+						Retries:    2, // backoff expired: +1 query
 					},
 					query: "query-metric3",
 				},
@@ -1244,9 +1231,9 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 					ddm: model.DatadogMetricInternal{
 						ID:         "metric4",
 						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-59) * time.Second),
 						Error:      errors.New("some err"),
-						Retries:    2, // udpated 59<60 sec ago with error, backoff: no change
+						RetryAfter: time.Now().Add(time.Duration(5) * time.Second),
+						Retries:    2, // backoff not expired: no change
 					},
 					query: "query-metric4",
 				},
@@ -1270,31 +1257,28 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric0",
-						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-1) * time.Second),
-						Error:      nil,
-						Retries:    0, // no error, no backoff: +1 query for valid queries
+						ID:      "metric0",
+						Active:  true,
+						Error:   nil,
+						Retries: 0, // no error, no backoff: +1 query for valid queries
 					},
 					query: "query-metric0",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric1",
-						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-29) * time.Second),
-						Error:      nil,
-						Retries:    0, // no error, no backoff, same query as metric0
+						ID:      "metric1",
+						Active:  true,
+						Error:   nil,
+						Retries: 0, // no error, no backoff, same query as metric0
 					},
 					query: "query-metric1",
 				},
 				{
 					ddm: model.DatadogMetricInternal{
-						ID:         "metric2",
-						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-61) * time.Second),
-						Error:      nil,
-						Retries:    0, // no error, no backoff, same query as metric0
+						ID:      "metric2",
+						Active:  true,
+						Error:   nil,
+						Retries: 0, // no error, no backoff, same query as metric0
 					},
 					query: "query-metric2",
 				},
@@ -1302,9 +1286,9 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 					ddm: model.DatadogMetricInternal{
 						ID:         "metric3",
 						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-121) * time.Second),
 						Error:      errors.New("some err"),
-						Retries:    2, // udpated 70 sec ago with error, don't backoff: +1 query
+						RetryAfter: time.Now().Add(time.Duration(-5) * time.Second),
+						Retries:    2, // backoff expired: +1 query
 					},
 					query: "query-metric3",
 				},
@@ -1312,9 +1296,9 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 					ddm: model.DatadogMetricInternal{
 						ID:         "metric4",
 						Active:     true,
-						UpdateTime: time.Now().Add(time.Duration(-59) * time.Second),
 						Error:      errors.New("some err"),
-						Retries:    2, // udpated 130 sec ago with error, backoff: no change
+						RetryAfter: time.Now().Add(time.Duration(5) * time.Second),
+						Retries:    2, // backoff not expired: no change
 					},
 					query: "query-metric4",
 				},
@@ -1332,9 +1316,7 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			// if fixture.desc == "Test split batch, error persists; increase Retries" {
 			fixture.runQueryOnly(t)
-			// }
 		})
 	}
 }
