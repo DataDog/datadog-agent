@@ -165,7 +165,7 @@ def ec2_instance_ids(ctx, ip_list):
 
 
 def destroy_ec2_instances(ctx, stack):
-    stack_output = os.path.join(KMT_STACKS_DIR, stack, "stack.output")
+    stack_output = os.path.join(KMT_STACKS_DIR, stack, "stack.outputs")
     if not os.path.exists(stack_output):
         warn(f"[-] File {stack_output} not found")
         return

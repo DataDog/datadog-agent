@@ -91,7 +91,7 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             tmp.write("\n")
 
         ctx.run(f"cat {path}")
-        res = ctx.run(f"aria2c -i {path} -j $(nproc)")
+        res = ctx.run(f"aria2c -i {path} -x 16 -j $(len(to_download))")
         if not res.ok:
             if revert:
                 revert_rootfs(ctx, rootfs_dir, backup_dir)
