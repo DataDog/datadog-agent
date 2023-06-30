@@ -26,7 +26,7 @@ const (
 	ProfileMetricTypeCounter ProfileMetricType = "counter"
 
 	// ProfileMetricTypePercent is DEPRECATED
-	// `counter` is deprecated in favour of `scale_factor`
+	// `percent` is deprecated in favour of `scale_factor`
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
