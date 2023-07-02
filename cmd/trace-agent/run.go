@@ -40,50 +40,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/containerd/cgroups"
-	"github.com/containerd/cgroups/v3/cgroup1"
-	"github.com/containerd/cgroups/v3/cgroup2"
 
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
-
-func CgroupMemory() (rmem int64, err error) {
-	if cgroups.Mode() == cgroups.Unified {
-		// TODO(knusbaum): Test cgroup 2 memory limit retrieval.
-		path, err := cgroup2.PidGroupPath(0)
-		if err != nil {
-			return 0, fmt.Errorf("Failed to load cgroup: %v\n", err)
-		}
-		m, err := cgroup2.Load(path)
-		if err != nil {
-			return 0, fmt.Errorf("Failed to load cgroup: %v\n", err)
-		}
-		stat, err := m.Stat()
-		if err != nil {
-			return 0, fmt.Errorf("Failed to get memory stats: %v\n", err)
-		}
-		if stat.Memory == nil {
-			return 0, fmt.Errorf("Memory stats is nil.\n")
-		}
-		return int64(stat.Memory.UsageLimit), nil
-	}
-	m, err := cgroup1.ParseCgroupFile("/proc/self/cgroup")
-	if err != nil {
-		return 0, fmt.Errorf("Failed to parse cgroup file: %v\n", err)
-	}
-	mem, err := cgroup1.Load(cgroup1.StaticPath(m["memory"]))
-	if err != nil {
-		return 0, fmt.Errorf("failed to load %v: %v\n", m["memory"], err)
-	}
-	mstat, err := mem.Stat()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get mem stats: %v\n", err)
-	}
-	return int64(mstat.Memory.Usage.Max), nil
-}
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
 DD_APM_ENABLED=true or add "apm_config.enabled: true" entry
@@ -275,18 +237,9 @@ func Run(ctx context.Context) {
 	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
 
 	// prepare go runtime
-	log.Info("Setting go memory limit from core runtime.")
-	if err := agentrt.SetGoMemLimit(coreconfig.IsContainerized()); err != nil {
-		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
-	}
-	log.Info("DONE setting go memory limit from core runtime.")
-	var maxmem int64
-	cgmem, err := CgroupMemory()
+	maxmem, err := agentrt.SetGoMemLimit(coreconfig.IsContainerized())
 	if err != nil {
-		log.Errorf("Failed to load cgroup memory: %v", err)
-	} else {
-		log.Infof("CGroup Memory: %vMiB", cgmem/(1024*1024))
-		maxmem = cgmem
+		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
 	}
 
 	if cfg.MaxMemory > 0 && (maxmem == 0 || int64(cfg.MaxMemory) < maxmem) {
