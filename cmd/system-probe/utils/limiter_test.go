@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func TestWithConcurrencyLimit(t *testing.T) {
