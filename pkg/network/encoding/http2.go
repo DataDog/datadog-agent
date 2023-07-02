@@ -44,7 +44,8 @@ type http2Encoder struct {
 	// cached object
 	aggregations *model.HTTP2Aggregations
 
-	// list of *pointers* to maps so they can be returned to the pool
+	// A list of pointers to maps of the protobuf representation. We get the pointers from sync.Pool, and by the end
+	// of the operation, we put the objects back to the pool.
 	toRelease []*map[int32]*model.HTTPStats_Data
 }
 

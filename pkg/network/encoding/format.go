@@ -87,8 +87,8 @@ func FormatConnection(
 	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
 	c.HttpAggregations = httpStats
 
-	httpStats2, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
-	c.Http2Aggregations = httpStats2
+	http2Stats, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
+	c.Http2Aggregations = http2Stats
 
 	c.DataStreamsAggregations = kafkaEncoder.GetKafkaAggregations(conn)
 
