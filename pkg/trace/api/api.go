@@ -16,7 +16,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -79,8 +78,12 @@ type HTTPReceiver struct {
 	wg   sync.WaitGroup // waits for all requests to be processed
 	exit chan struct{}
 
+	// recvsem is a semaphore that controls the number goroutines that can
+	// be simultaneously deserializing incoming payloads.
+	// It is important to control this in order to prevent decoding incoming
+	// payloads faster than we can process them, and buffering them, resulting
+	// in memory limit issues.
 	recvsem chan struct{}
-	semsize int
 
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
@@ -91,10 +94,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	rateLimiterResponse := http.StatusOK
 	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
-	}
-	decoders := runtime.GOMAXPROCS(0) / 2
-	if decoders < 1 {
-		decoders = 1
 	}
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),
@@ -111,6 +110,12 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 
 		exit: make(chan struct{}),
 
+		// Based on experimentation, 4 simultaneous readers
+		// is enough to keep 16 threads busy proccessing the
+		// payloads, without overwhelming the available memory.
+		// This also works well with a smaller GOMAXPROCS, since
+		// the processor backpressure ensures we have at most
+		// 4 payloads waiting to be queued and processed.
 		recvsem: make(chan struct{}, 4),
 
 		outOfCPUCounter: atomic.NewUint32(0),
@@ -163,7 +168,6 @@ func (r *HTTPReceiver) Start() {
 		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
 		Handler:      r.buildMux(),
 		ConnContext:  connContext,
-		IdleTimeout:  5 * time.Second,
 	}
 
 	if r.conf.ReceiverPort > 0 {
@@ -520,26 +524,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 
 	r.out <- payload
-	// select {
-	// case r.out <- payload:
-	// 	// ok
-	// default:
-	// 	// channel blocked, add a goroutine to ensure we never drop
-	// 	r.wg.Add(1)
-	// 	count := r.outOfCPUCounter.Inc()
-	// 	if (count-1)%outOfCPULogThreshold == 0 {
-	// 		// Log a warning on the first occurrence and every n+outOfCPULogThreshold occurrences.
-	// 		log.Warnf("The Agent is falling behind on processing traces, %d extra threads have been created since the Agent started. See https://docs.datadoghq.com/tracing/troubleshooting/agent_apm_resource_usage", count)
-	// 	}
-	// 	go func() {
-	// 		metrics.Count("datadog.trace_agent.receiver.queued_send", 1, nil, 1)
-	// 		defer func() {
-	// 			r.wg.Done()
-	// 			watchdog.LogOnPanic()
-	// 		}()
-	// 		r.out <- payload
-	// 	}()
-	// }
 }
 
 // runMetaHook runs the pb.MetaHook on all spans from traces.

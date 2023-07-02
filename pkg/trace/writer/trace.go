@@ -53,8 +53,8 @@ type SampledChunks struct {
 type TraceWriter struct {
 	// In receives sampled spans to be processed by the trace writer.
 	// Channel should only be received from when testing.
-	In  chan *SampledChunks
-	Out chan *pb.AgentPayload
+	In        chan *SampledChunks
+	Serialize chan *pb.AgentPayload
 
 	prioritySampler samplerTPSReader
 	errorsSampler   samplerTPSReader
@@ -84,7 +84,7 @@ type TraceWriter struct {
 func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader, telemetryCollector telemetry.TelemetryCollector) *TraceWriter {
 	tw := &TraceWriter{
 		In:              make(chan *SampledChunks, 1),
-		Out:             make(chan *pb.AgentPayload, 1),
+		Serialize:       make(chan *pb.AgentPayload, 1),
 		prioritySampler: prioritySampler,
 		errorsSampler:   errorsSampler,
 		rareSampler:     rareSampler,
@@ -100,9 +100,6 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
-		// Default to 10% of the connection limit to outgoing sends.
-		// Since the connection limit was removed, keep this at 200
-		// as it was when we had it (2k).
 		climit = 100
 	}
 	if cfg.TraceWriter.QueueSize > 0 {
@@ -116,7 +113,7 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 	log.Warnf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector)
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		go tw.sendWorker()
+		go tw.serializer()
 	}
 	return tw
 }
@@ -141,7 +138,7 @@ func (w *TraceWriter) Run() {
 func (w *TraceWriter) runAsync() {
 	t := time.NewTicker(w.tick)
 	defer t.Stop()
-	defer close(w.Out)
+	defer close(w.Serialize)
 	defer close(w.stop)
 	for {
 		select {
@@ -158,7 +155,7 @@ func (w *TraceWriter) runAsync() {
 }
 
 func (w *TraceWriter) runSync() {
-	defer close(w.Out)
+	defer close(w.Serialize)
 	defer close(w.stop)
 	defer close(w.flushChan)
 	for {
@@ -249,11 +246,11 @@ func (w *TraceWriter) flush() {
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
-	w.Out <- &p
+	w.Serialize <- &p
 }
 
-func (w *TraceWriter) sendWorker() {
-	for pl := range w.Out {
+func (w *TraceWriter) serializer() {
+	for pl := range w.Serialize {
 		b, err := pl.MarshalVT()
 		if err != nil {
 			log.Errorf("Failed to serialize payload, data dropped: %v", err)

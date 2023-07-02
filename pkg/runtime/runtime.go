@@ -24,7 +24,7 @@ const (
 func SetMaxProcs() {
 
 	defer func() {
-		log.Infof("runtime: final GOMAXPROCS value is: %d", runtime.GOMAXPROCS(0))
+		log.Infof("runtime: set GOMAXPROCS to: %d", runtime.GOMAXPROCS(0))
 	}()
 
 	// This call will cause GOMAXPROCS to be set to the number of vCPUs allocated to the process

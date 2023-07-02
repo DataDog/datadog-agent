@@ -54,7 +54,6 @@ func CgroupMemory() (rmem int64, err error) {
 	if cgroups.Mode() == cgroups.Unified {
 		// TODO(knusbaum): Test cgroup 2 memory limit retrieval.
 		path, err := cgroup2.PidGroupPath(0)
-		// use cgroup2
 		m, err := cgroup2.Load(path)
 		if err != nil {
 			return 0, fmt.Errorf("Failed to load cgroup: %v\n", err)
@@ -270,7 +269,7 @@ func Run(ctx context.Context) {
 	} else {
 		log.Infof("apm_config.max_cpu is disabled. leaving GOMAXPROCS at current value.")
 	}
-	log.Infof("FINAL GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
+	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
 
 	var maxmem int64
 	cgmem, err := CgroupMemory()
@@ -290,7 +289,7 @@ func Run(ctx context.Context) {
 	} else if maxmem > 0 {
 		finalmem := int64(float64(maxmem) * 0.9) // leave some headroom
 		debug.SetMemoryLimit(int64(finalmem))
-		log.Infof("Maximum memory: %vMiB. Setting GOMEMLIMIT 90%% of max: %vMiB", maxmem/(1024*1024), finalmem/(1024*1024))
+		log.Infof("Maximum memory available: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", maxmem/(1024*1024), finalmem/(1024*1024))
 	} else {
 		log.Infof("GOMEMLIMIT unconstrained.")
 	}
