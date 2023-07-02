@@ -278,6 +278,25 @@ func TestTraceWriterSyncStop(t *testing.T) {
 	})
 }
 
+func TestTraceWriterSyncNoop(t *testing.T) {
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		SynchronousFlushing: false,
+	}
+	t.Run("ok", func(t *testing.T) {
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
+		err := tw.FlushSync()
+		assert.NotNil(t, err)
+	})
+}
+
 func TestTraceWriterAgentPayload(t *testing.T) {
 	srv := newTestServer()
 	defer srv.Close()
@@ -294,10 +313,9 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 
 	// helper function to send a chunk to the writer and force a synchronous flush
 	sendRandomSpanAndFlush := func(t *testing.T, tw *TraceWriter) {
-		tw.addSpans(randomSampledSpans(20, 8))
-		tw.flush()
-		tw.swg.Wait()
-		waitForSenders(tw.senders)
+		tw.In <- randomSampledSpans(20, 8)
+		err := tw.FlushSync()
+		assert.Nil(t, err)
 	}
 	// helper function to parse the received payload and inspect the TPS that were filled by the writer
 	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool) {
@@ -313,6 +331,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	t.Run("static TPS config", func(t *testing.T) {
 		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
 		go tw.Run()
+		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
 		assertExpectedTps(t, 5, 5, true)
 	})
@@ -324,6 +343,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 
 		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector())
 		go tw.Run()
+		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
 		assertExpectedTps(t, 5, 6, false)
 
