@@ -226,7 +226,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.25.5
 	k8s.io/apiextensions-apiserver v0.25.5
 	k8s.io/apimachinery v0.25.5
@@ -574,6 +573,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
 	github.com/sijms/go-ora/v2 v2.7.6
+	gotest.tools/v3 v3.3.0
 )
 
 require (
@@ -590,7 +590,6 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gotest.tools/v3 v3.3.0 // indirect
 	honnef.co/go/tools v0.3.2 // indirect
 	inet.af/netaddr v0.0.0-20220617031823-097006376321 // indirect
 )
