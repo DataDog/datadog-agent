@@ -7,7 +7,6 @@ package writer
 
 import (
 	"compress/gzip"
-	"errors"
 	"runtime"
 	"strings"
 	"sync"
@@ -55,6 +54,9 @@ type TraceWriter struct {
 	// Channel should only be received from when testing.
 	In        chan *SampledChunks
 	Serialize chan *pb.AgentPayload
+	// used to keep track of payloads currently being flushed
+	// only useful for tests
+	swg sync.WaitGroup
 
 	prioritySampler samplerTPSReader
 	errorsSampler   samplerTPSReader
@@ -71,10 +73,7 @@ type TraceWriter struct {
 
 	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
 	bufferedSize   int                 // estimated buffer size
-
-	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
-	syncMode  bool
-	flushChan chan chan struct{}
+	flushChan      chan chan struct{}
 
 	easylog *log.ThrottledLogger
 }
@@ -82,6 +81,10 @@ type TraceWriter struct {
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader, telemetryCollector telemetry.TelemetryCollector) *TraceWriter {
+	if cfg.SynchronousFlushing {
+		log.Warnf("apm_config.sync_flushing is deprecated and will not be respected.")
+	}
+
 	tw := &TraceWriter{
 		In:              make(chan *SampledChunks, 1),
 		Serialize:       make(chan *pb.AgentPayload, 1),
@@ -93,7 +96,6 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 		stats:           &info.TraceWriterInfo{},
 		stop:            make(chan struct{}),
 		flushChan:       make(chan chan struct{}),
-		syncMode:        cfg.SynchronousFlushing,
 		tick:            5 * time.Second,
 		agentVersion:    cfg.AgentVersion,
 		easylog:         log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
@@ -113,6 +115,7 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 	log.Warnf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector)
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
+		tw.wg.Add(1)
 		go tw.serializer()
 	}
 	return tw
@@ -123,16 +126,15 @@ func (w *TraceWriter) Stop() {
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
 	w.stop <- struct{}{}
 	<-w.stop
+	// Wait for encoding/compression to complete on each payload,
+	// and submission to senders
+	w.wg.Wait()
 	stopSenders(w.senders)
 }
 
 // Run starts the TraceWriter.
 func (w *TraceWriter) Run() {
-	if w.syncMode {
-		w.runSync()
-	} else {
-		w.runAsync()
-	}
+	w.runAsync()
 }
 
 func (w *TraceWriter) runAsync() {
@@ -152,37 +154,6 @@ func (w *TraceWriter) runAsync() {
 			w.flush()
 		}
 	}
-}
-
-func (w *TraceWriter) runSync() {
-	defer close(w.Serialize)
-	defer close(w.stop)
-	defer close(w.flushChan)
-	for {
-		select {
-		case pkg := <-w.In:
-			w.addSpans(pkg)
-		case notify := <-w.flushChan:
-			w.drainAndFlush()
-			notify <- struct{}{}
-		case <-w.stop:
-			w.drainAndFlush()
-			return
-		}
-	}
-}
-
-// FlushSync blocks and sends pending payloads when syncMode is true
-func (w *TraceWriter) FlushSync() error {
-	if !w.syncMode {
-		return errors.New("not flushing; sync mode not enabled")
-	}
-	defer w.report()
-
-	notify := make(chan struct{}, 1)
-	w.flushChan <- notify
-	<-notify
-	return nil
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledChunks) {
@@ -213,9 +184,6 @@ outer:
 		}
 	}
 	w.flush()
-	// Wait for encoding/compression to complete on each payload,
-	// and submission to senders
-	w.wg.Wait()
 }
 
 func (w *TraceWriter) resetBuffer() {
@@ -246,10 +214,12 @@ func (w *TraceWriter) flush() {
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
+	w.swg.Add(1)
 	w.Serialize <- &p
 }
 
 func (w *TraceWriter) serializer() {
+	defer w.wg.Done()
 	for pl := range w.Serialize {
 		b, err := pl.MarshalVT()
 		if err != nil {
@@ -276,7 +246,8 @@ func (w *TraceWriter) serializer() {
 		if err := gzipw.Close(); err != nil {
 			log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
 		}
-		sendPayloads(w.senders, p, w.syncMode)
+		sendPayloads(w.senders, p)
+		w.swg.Done()
 	}
 }
 

@@ -207,6 +207,12 @@ outer:
 
 // Push pushes p onto the sender's queue, to be written to the destination.
 func (s *sender) Push(p *payload) {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
+		return
+	}
+	s.mu.RUnlock()
 	select {
 	case s.queue <- p:
 	default:
@@ -435,10 +441,7 @@ func stopSenders(senders []*sender) {
 }
 
 // sendPayloads sends the payload p to all senders.
-func sendPayloads(senders []*sender, p *payload, syncMode bool) {
-	if syncMode {
-		defer waitForSenders(senders)
-	}
+func sendPayloads(senders []*sender, p *payload) {
 
 	if len(senders) == 1 {
 		// fast path

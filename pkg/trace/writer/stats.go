@@ -147,7 +147,7 @@ func (w *StatsWriter) SendPayload(p pb.StatsPayload) {
 		log.Errorf("Stats encoding error: %v", err)
 		return
 	}
-	sendPayloads(w.senders, req, w.syncMode)
+	sendPayloads(w.senders, req)
 }
 
 func (w *StatsWriter) sendPayloads() {
