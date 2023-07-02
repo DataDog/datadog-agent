@@ -570,6 +570,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.46.0-rc.2
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
+	github.com/containerd/cgroups/v3 v3.0.2
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
@@ -578,7 +579,6 @@ require (
 
 require (
 	github.com/cloudflare/circl v1.1.0 // indirect
-	github.com/containerd/cgroups/v3 v3.0.2 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/google/s2a-go v0.1.2 // indirect
 	github.com/kr/text v0.2.0 // indirect
