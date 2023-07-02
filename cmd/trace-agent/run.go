@@ -274,6 +274,12 @@ func Run(ctx context.Context) {
 	}
 	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
 
+	// prepare go runtime
+	log.Info("Setting go memory limit from core runtime.")
+	if err := agentrt.SetGoMemLimit(coreconfig.IsContainerized()); err != nil {
+		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
+	}
+	log.Info("DONE setting go memory limit from core runtime.")
 	var maxmem int64
 	cgmem, err := CgroupMemory()
 	if err != nil {

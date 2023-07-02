@@ -41,7 +41,7 @@ func SetGoMemLimit(isContainerized bool) error {
 		return err
 	}
 	if stats.Limit == nil {
-		log.Debug("Cgroup memory limit not found, doing nothing")
+		log.Info("Cgroup memory limit not found, doing nothing")
 		return nil
 	}
 	softLimit := int64(0.9 * float64(*stats.Limit))
