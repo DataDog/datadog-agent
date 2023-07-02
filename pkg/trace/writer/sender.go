@@ -441,7 +441,10 @@ func stopSenders(senders []*sender) {
 }
 
 // sendPayloads sends the payload p to all senders.
-func sendPayloads(senders []*sender, p *payload) {
+func sendPayloads(senders []*sender, p *payload, syncMode bool) {
+	if syncMode {
+		defer waitForSenders(senders)
+	}
 
 	if len(senders) == 1 {
 		// fast path

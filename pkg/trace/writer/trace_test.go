@@ -176,6 +176,39 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 	}
 }
 
+func TestTraceWriterFlushSync(t *testing.T) {
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		SynchronousFlushing: true,
+	}
+	t.Run("ok", func(t *testing.T) {
+		testSpans := []*SampledChunks{
+			randomSampledSpans(20, 8),
+			randomSampledSpans(10, 0),
+			randomSampledSpans(40, 5),
+		}
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector())
+		go tw.Run()
+		for _, ss := range testSpans {
+			tw.In <- ss
+		}
+
+		// No payloads should be sent before flushing
+		assert.Equal(t, 0, srv.Accepted())
+		tw.FlushSync()
+		// Now all trace payloads should be sent
+		assert.Equal(t, 1, srv.Accepted())
+		payloadsContain(t, srv.Payloads(), testSpans)
+	})
+}
+
 func TestResetBuffer(t *testing.T) {
 	srv := newTestServer()
 	cfg := &config.AgentConfig{

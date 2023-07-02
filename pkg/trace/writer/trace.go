@@ -7,6 +7,7 @@ package writer
 
 import (
 	"compress/gzip"
+	"errors"
 	"runtime"
 	"strings"
 	"sync"
@@ -73,7 +74,10 @@ type TraceWriter struct {
 
 	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
 	bufferedSize   int                 // estimated buffer size
-	flushChan      chan chan struct{}
+
+	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
+	syncMode  bool
+	flushChan chan chan struct{}
 
 	easylog *log.ThrottledLogger
 }
@@ -81,10 +85,6 @@ type TraceWriter struct {
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader, telemetryCollector telemetry.TelemetryCollector) *TraceWriter {
-	if cfg.SynchronousFlushing {
-		log.Warnf("apm_config.sync_flushing is deprecated and will not be respected.")
-	}
-
 	tw := &TraceWriter{
 		In:              make(chan *SampledChunks, 1),
 		Serialize:       make(chan *pb.AgentPayload, 1),
@@ -96,6 +96,7 @@ func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, e
 		stats:           &info.TraceWriterInfo{},
 		stop:            make(chan struct{}),
 		flushChan:       make(chan chan struct{}),
+		syncMode:        cfg.SynchronousFlushing,
 		tick:            5 * time.Second,
 		agentVersion:    cfg.AgentVersion,
 		easylog:         log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
@@ -134,7 +135,11 @@ func (w *TraceWriter) Stop() {
 
 // Run starts the TraceWriter.
 func (w *TraceWriter) Run() {
-	w.runAsync()
+	if w.syncMode {
+		w.runSync()
+	} else {
+		w.runAsync()
+	}
 }
 
 func (w *TraceWriter) runAsync() {
@@ -154,6 +159,37 @@ func (w *TraceWriter) runAsync() {
 			w.flush()
 		}
 	}
+}
+
+func (w *TraceWriter) runSync() {
+	defer close(w.Serialize)
+	defer close(w.stop)
+	defer close(w.flushChan)
+	for {
+		select {
+		case pkg := <-w.In:
+			w.addSpans(pkg)
+		case notify := <-w.flushChan:
+			w.drainAndFlush()
+			notify <- struct{}{}
+		case <-w.stop:
+			w.drainAndFlush()
+			return
+		}
+	}
+}
+
+// FlushSync blocks and sends pending payloads when syncMode is true
+func (w *TraceWriter) FlushSync() error {
+	if !w.syncMode {
+		return errors.New("not flushing; sync mode not enabled")
+	}
+	defer w.report()
+
+	notify := make(chan struct{}, 1)
+	w.flushChan <- notify
+	<-notify
+	return nil
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledChunks) {
@@ -184,6 +220,7 @@ outer:
 		}
 	}
 	w.flush()
+	w.swg.Wait()
 }
 
 func (w *TraceWriter) resetBuffer() {
@@ -221,33 +258,35 @@ func (w *TraceWriter) flush() {
 func (w *TraceWriter) serializer() {
 	defer w.wg.Done()
 	for pl := range w.Serialize {
-		b, err := pl.MarshalVT()
-		if err != nil {
-			log.Errorf("Failed to serialize payload, data dropped: %v", err)
-			return
-		}
+		func() {
+			defer w.swg.Done()
+			b, err := pl.MarshalVT()
+			if err != nil {
+				log.Errorf("Failed to serialize payload, data dropped: %v", err)
+				return
+			}
 
-		w.stats.BytesUncompressed.Add(int64(len(b)))
-		p := newPayload(map[string]string{
-			"Content-Type":     "application/x-protobuf",
-			"Content-Encoding": "gzip",
-			headerLanguages:    strings.Join(info.Languages(), "|"),
-		})
-		gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
-		if err != nil {
-			// it will never happen, unless an invalid compression is chosen;
-			// we know gzip.BestSpeed is valid.
-			log.Errorf("gzip.NewWriterLevel: %d", err)
-			return
-		}
-		if _, err := gzipw.Write(b); err != nil {
-			log.Errorf("Error gzipping trace payload: %v", err)
-		}
-		if err := gzipw.Close(); err != nil {
-			log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
-		}
-		sendPayloads(w.senders, p)
-		w.swg.Done()
+			w.stats.BytesUncompressed.Add(int64(len(b)))
+			p := newPayload(map[string]string{
+				"Content-Type":     "application/x-protobuf",
+				"Content-Encoding": "gzip",
+				headerLanguages:    strings.Join(info.Languages(), "|"),
+			})
+			gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+			if err != nil {
+				// it will never happen, unless an invalid compression is chosen;
+				// we know gzip.BestSpeed is valid.
+				log.Errorf("gzip.NewWriterLevel: %d", err)
+				return
+			}
+			if _, err := gzipw.Write(b); err != nil {
+				log.Errorf("Error gzipping trace payload: %v", err)
+			}
+			if err := gzipw.Close(); err != nil {
+				log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+			}
+			sendPayloads(w.senders, p, w.syncMode)
+		}()
 	}
 }
 
