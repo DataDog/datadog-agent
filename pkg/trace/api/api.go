@@ -38,11 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
-// outOfCPULogThreshold is used to throttle the out-of-cpu warnning logs
-// i.e we log the warning on every outOfCPULogThreshold occurrences.
-// The value 10 is based on load test experiments and can be revisited in the future.
-const outOfCPULogThreshold uint32 = 10
-
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Buffer)
@@ -111,7 +106,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		exit: make(chan struct{}),
 
 		// Based on experimentation, 4 simultaneous readers
-		// is enough to keep 16 threads busy proccessing the
+		// is enough to keep 16 threads busy processing the
 		// payloads, without overwhelming the available memory.
 		// This also works well with a smaller GOMAXPROCS, since
 		// the processor backpressure ensures we have at most

@@ -105,7 +105,6 @@ func TestSender(t *testing.T) {
 		assert.Equal(0, server.Failed(), "failed")
 	})
 
-
 	t.Run("failed", func(t *testing.T) {
 		assert := assert.New(t)
 		server := newTestServer()

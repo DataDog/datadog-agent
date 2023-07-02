@@ -777,22 +777,6 @@ func TestHandleTraces(t *testing.T) {
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
 }
 
-// chunkedReader is a reader which forces partial reads, this is required
-// to trigger some network related bugs, such as body not being read fully by server.
-// Without this, all the data could be read/written at once, not triggering the issue.
-type chunkedReader struct {
-	reader io.Reader
-}
-
-func (sr *chunkedReader) Read(p []byte) (n int, err error) {
-	size := 1024
-	if size > len(p) {
-		size = len(p)
-	}
-	buf := p[0:size]
-	return sr.reader.Read(buf)
-}
-
 func TestClientComputedTopLevel(t *testing.T) {
 	conf := newTestReceiverConfig()
 	rcv := newTestReceiverFromConfig(conf)
