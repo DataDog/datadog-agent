@@ -10,7 +10,7 @@ package events
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func TestOffsets(t *testing.T) {
