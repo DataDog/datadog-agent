@@ -15,7 +15,7 @@ import (
 	"unsafe"
 
 	"go.uber.org/atomic"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
