@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"

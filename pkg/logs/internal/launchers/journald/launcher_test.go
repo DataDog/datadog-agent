@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"gotest.tools/v3/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
@@ -20,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/coreos/go-systemd/sdjournal"
-	"gotest.tools/assert"
 )
 
 type MockJournal struct{}
