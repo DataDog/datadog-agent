@@ -54,6 +54,9 @@ func CgroupMemory() (rmem int64, err error) {
 	if cgroups.Mode() == cgroups.Unified {
 		// TODO(knusbaum): Test cgroup 2 memory limit retrieval.
 		path, err := cgroup2.PidGroupPath(0)
+		if err != nil {
+			return 0, fmt.Errorf("Failed to load cgroup: %v\n", err)
+		}
 		m, err := cgroup2.Load(path)
 		if err != nil {
 			return 0, fmt.Errorf("Failed to load cgroup: %v\n", err)
