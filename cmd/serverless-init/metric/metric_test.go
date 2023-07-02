@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func TestAdd(t *testing.T) {

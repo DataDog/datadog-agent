@@ -8,7 +8,7 @@ package cloudservice
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func TestGetCloudServiceType(t *testing.T) {
