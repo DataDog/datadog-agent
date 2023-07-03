@@ -117,9 +117,8 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 // SetMountRoot set the mount point information
 func (r *Resolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
 	var err error
-	pathKey := model.PathKey{MountID: e.RootMountID, Inode: e.RootInode, PathID: 0}
 
-	e.RootStr, err = r.dentryResolver.Resolve(pathKey, true)
+	e.RootStr, err = r.dentryResolver.Resolve(e.RootPathKey, true)
 	if err != nil {
 		return &ErrPathResolutionNotCritical{Err: err}
 	}
@@ -139,9 +138,8 @@ func (r *Resolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, er
 // SetMountPoint set the mount point information
 func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
 	var err error
-	pathKey := model.PathKey{MountID: e.ParentMountID, Inode: e.ParentInode, PathID: 0}
 
-	e.MountPointStr, err = r.dentryResolver.Resolve(pathKey, true)
+	e.MountPointStr, err = r.dentryResolver.Resolve(e.ParentPathKey, true)
 	if err != nil {
 		return &ErrPathResolutionNotCritical{Err: err}
 	}
