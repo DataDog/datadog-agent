@@ -21,9 +21,6 @@
     - inv -e install-tools
     - inv -e invoke-unit-tests
     - inv -e test $FLAVORS --skip-linters --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus 4 $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
-  after_script:
-    - mkdir junit
-    - tar -xfC "junit-${CI_JOB_NAME}.tgz" junit
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -31,7 +28,7 @@
       - test_output.json
       - junit-*.tgz
     reports:
-      junit: junit/*.xml
+      junit: junit-*.xml
 
 .linux_lint:
   stage: source_test

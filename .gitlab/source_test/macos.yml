@@ -19,8 +19,6 @@ tests_macos:
     - inv -e github.trigger-macos-test --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT"
   after_script:
     - inv -e junit-macos-repack --infile junit-tests_macos.tgz --outfile junit-tests_macos-repacked.tgz
-    - mkdir junit
-    - tar -xfC "junit-${CI_JOB_NAME}.tgz" junit
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -28,4 +26,4 @@ tests_macos:
       - test_output.json
       - junit-*-repacked.tgz
     reports:
-      junit: junit/*.xml
+      junit: junit-*.xml
