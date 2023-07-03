@@ -15,7 +15,7 @@ import (
 
 const (
 	defaultCISecretPrefix = "ci.datadog-agent."
-	defaultCIEnv          = "aws/agent-qa"
+	defaultCIEnvironments          = "aws/agent-qa"
 )
 
 type ciProfile struct {
