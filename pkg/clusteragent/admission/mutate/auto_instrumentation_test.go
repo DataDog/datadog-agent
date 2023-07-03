@@ -730,7 +730,7 @@ func injectAllEnvs() []corev1.EnvVar {
 		},
 		{
 			Name:  "JAVA_TOOL_OPTIONS",
-			Value: " -javaagent:/datadog-lib/dd-java-agent.jar",
+			Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
 		},
 		{
 			Name:  "DD_DOTNET_TRACER_HOME",
