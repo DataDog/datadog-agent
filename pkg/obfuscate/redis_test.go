@@ -423,6 +423,26 @@ func TestRemoveAllRedisArgs(t *testing.T) {
 			"BITFIELD secret key",
 			"BITFIELD ?",
 		},
+		{
+			"set key value",
+			"set ?",
+		},
+		{
+			"Get key",
+			"Get ?",
+		},
+		{
+			"config key",
+			"config ?",
+		},
+		{
+			"CONFIG get key",
+			"CONFIG get ?",
+		},
+		{
+			"bitfield key SET key value incrby 3",
+			"bitfield ? SET ? incrby ?",
+		},
 	} {
 		t.Run(strconv.Itoa(ti), func(t *testing.T) {
 			out := o.RemoveAllRedisArgs(tt.in)

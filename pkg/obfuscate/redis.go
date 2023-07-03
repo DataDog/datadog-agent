@@ -264,13 +264,15 @@ func (*Obfuscator) RemoveAllRedisArgs(rediscmd string) string {
 	switch strings.ToUpper(cmd) {
 	case "BITFIELD":
 		out.WriteString("?")
-		for _, arg := range args {
+		for _, a := range args {
+			arg := strings.ToUpper(a)
 			if arg == "SET" || arg == "GET" || arg == "INCRBY" {
-				out.WriteString(strings.Join([]string{"", arg, "?"}, " "))
+				out.WriteString(strings.Join([]string{"", a, "?"}, " "))
 			}
 		}
 	case "CONFIG":
-		if args[0] == "GET" || args[0] == "SET" || args[0] == "RESETSTAT" || args[0] == "REWRITE" {
+		arg := strings.ToUpper(args[0])
+		if arg == "GET" || arg == "SET" || arg == "RESETSTAT" || arg == "REWRITE" {
 			out.WriteString(strings.Join([]string{args[0], "?"}, " "))
 		} else {
 			out.WriteString("?")
