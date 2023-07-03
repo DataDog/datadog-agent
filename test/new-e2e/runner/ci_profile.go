@@ -15,7 +15,7 @@ import (
 
 const (
 	defaultCISecretPrefix = "ci.datadog-agent."
-	defaultCIEnvironments          = "aws/agent-qa"
+	defaultCIEnvironments = "aws/agent-qa"
 )
 
 type ciProfile struct {
@@ -53,7 +53,7 @@ func NewCIProfile() (Profile, error) {
 	store := parameters.NewEnvStore(EnvPrefix)
 
 	// get environments from store
-	environmentsStr, err := store.GetWithDefault(parameters.Environments, defaultCIEnv)
+	environmentsStr, err := store.GetWithDefault(parameters.Environments, defaultCIEnvironments)
 	if err != nil {
 		return nil, err
 	}
