@@ -41,7 +41,6 @@ type SystemProbeEnvOpts struct {
 	Provision             bool
 	ShutdownPeriod        int
 	FailOnMissing         bool
-	UploadDependencies    bool
 	DependenciesDirectory string
 	Subnets               string
 	VMConfigPath          string
