@@ -8,7 +8,7 @@ package docker
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 func init() {
