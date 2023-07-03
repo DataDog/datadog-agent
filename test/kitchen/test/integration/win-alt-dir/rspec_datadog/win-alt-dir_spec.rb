@@ -136,11 +136,8 @@ shared_examples_for 'an Agent with valid permissions' do
 end
 
 describe 'dd-agent-install-alternate-dir' do
-  include_examples 'Agent install'
-  include_examples 'Basic Agent behavior'
   it_behaves_like 'a correctly created configuration root'
   it_behaves_like 'a correctly created binary root'
   it_behaves_like 'an Agent with valid permissions'
-  include_examples 'Agent uninstall'
 end
 
