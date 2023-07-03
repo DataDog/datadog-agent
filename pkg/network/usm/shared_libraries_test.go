@@ -8,21 +8,25 @@
 package usm
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/atomic"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
-	"go.uber.org/atomic"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/gopsutil/process"
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -37,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func launchProcessMonitor(t *testing.T) {
@@ -733,4 +738,107 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 	})
 
 	return perfHandler
+}
+
+func BenchmarkScanSOWatcherNew(b *testing.B) {
+	w := newSOWatcher(nil,
+		soRule{
+			re: regexp.MustCompile(`libssl.so`),
+		},
+		soRule{
+			re: regexp.MustCompile(`libcrypto.so`),
+		},
+		soRule{
+			re: regexp.MustCompile(`libgnutls.so`),
+		},
+	)
+
+	f := func(pid int) error {
+		mapsPath := fmt.Sprintf("%s/%d/maps", w.procRoot, pid)
+		maps, err := os.Open(mapsPath)
+		if err != nil {
+			log.Debugf("process %d parsing failed %s", pid, err)
+			return nil
+		}
+		defer maps.Close()
+
+		scanner := bufio.NewScanner(bufio.NewReader(maps))
+
+		cache := make(map[string]struct{})
+		for scanner.Scan() {
+			line := scanner.Text()
+			cols := strings.Fields(line)
+
+			// Making sure the first word ends with `:` for safety, ensuring we have at least 6 elements in the line
+			// and the path (5th column) starts with `/` (indicates a path, and not anonymous path).
+			if len(cols) >= 6 && strings.HasPrefix(cols[5], "/") {
+				path := strings.Join(cols[5:], " ")
+				if _, exists := cache[path]; exists {
+					continue
+				}
+				cache[path] = struct{}{}
+				for _, r := range w.rules {
+					if r.re.MatchString(path) {
+						break
+					}
+				}
+			}
+		}
+
+		return nil
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		util.WithAllProcs(w.procRoot, f)
+	}
+}
+
+func BenchmarkScanSOWatcherOld(b *testing.B) {
+	w := newSOWatcher(nil,
+		soRule{
+			re: regexp.MustCompile(`libssl.so`),
+		},
+		soRule{
+			re: regexp.MustCompile(`libcrypto.so`),
+		},
+		soRule{
+			re: regexp.MustCompile(`libgnutls.so`),
+		},
+	)
+
+	f := func(testPid int) error {
+		// report silently parsing /proc error as this could happen
+		// just exit processes
+		proc, err := process.NewProcess(int32(testPid))
+		if err != nil {
+			log.Debugf("process %d parsing failed %s", testPid, err)
+			return nil
+		}
+
+		mmaps, err := proc.MemoryMaps(true)
+		if err != nil {
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("process %d maps parsing failed %s", testPid, err)
+			}
+			return nil
+		}
+
+		for _, m := range *mmaps {
+			for _, r := range w.rules {
+				if r.re.MatchString(m.Path) {
+					break
+				}
+			}
+		}
+
+		return nil
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		util.WithAllProcs(w.procRoot, f)
+	}
 }

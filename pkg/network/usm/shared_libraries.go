@@ -8,11 +8,13 @@
 package usm
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -20,7 +22,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/cihub/seelog"
 	"github.com/twmb/murmur3"
 	"golang.org/x/sys/unix"
@@ -249,27 +250,34 @@ func (w *soWatcher) Start() {
 			return nil
 		}
 
-		// report silently parsing /proc error as this could happen
-		// just exit processes
-		proc, err := process.NewProcess(int32(pid))
+		mapsPath := fmt.Sprintf("%s/%d/maps", w.procRoot, pid)
+		maps, err := os.Open(mapsPath)
 		if err != nil {
 			log.Debugf("process %d parsing failed %s", pid, err)
 			return nil
 		}
-		mmaps, err := proc.MemoryMaps(true)
-		if err != nil {
-			if log.ShouldLog(seelog.TraceLvl) {
-				log.Tracef("process %d maps parsing failed %s", pid, err)
-			}
-			return nil
-		}
+		defer maps.Close()
 
-		root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
-		for _, m := range *mmaps {
-			for _, r := range w.rules {
-				if r.re.MatchString(m.Path) {
-					w.registry.register(root, m.Path, uint32(pid), r)
-					break
+		scanner := bufio.NewScanner(bufio.NewReader(maps))
+
+		cache := make(map[string]struct{})
+		for scanner.Scan() {
+			line := scanner.Text()
+			cols := strings.Fields(line)
+			// ensuring we have at least 6 elements in the line and the path (6th column) starts with `/`
+			// (indicates a path, and not an anonymous path).
+			if len(cols) >= 6 && strings.HasPrefix(cols[5], "/") {
+				path := strings.Join(cols[5:], " ")
+				if _, exists := cache[path]; exists {
+					continue
+				}
+				cache[path] = struct{}{}
+				for _, r := range w.rules {
+					if r.re.MatchString(path) {
+						root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
+						w.registry.register(root, path, uint32(pid), r)
+						break
+					}
 				}
 			}
 		}
