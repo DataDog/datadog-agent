@@ -26,4 +26,5 @@ READ_CRASH_DUMP_ERROR readCrashDump(char *fname, void *ctx, long * extendedError
 #ifdef __cplusplus
 } // close the extern "C"
 #endif
+
 #endif /* DD_CRASHDUMP_H */

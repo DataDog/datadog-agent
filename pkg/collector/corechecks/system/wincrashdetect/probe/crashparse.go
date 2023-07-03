@@ -197,4 +197,5 @@ func parseCrashDump(wcs *WinCrashStatus) {
 		break
 	}
 	wcs.Success = true
+	return
 }

@@ -2041,6 +2041,19 @@ api_key:
     #
     #  enabled: true
 
+{{- if (eq .OS "windows")}}
+
+#####################################################
+## Datadog Agent Windows Crash Detection module
+#####################################################
+
+# windows_crash_detection:
+  ## @param enabled - boolean - optional - default: false
+  ## Enables the system probe module which supports the Windows crash detection check.
+  #
+  # enabled: false
+{{ end }}
+
 {{ end -}}
 {{ end -}}
 

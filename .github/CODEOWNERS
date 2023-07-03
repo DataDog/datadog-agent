@@ -274,6 +274,7 @@
 /pkg/collector/corechecks/system/                 @DataDog/agent-platform
 /pkg/collector/corechecks/system/wincrashdetect/  @DataDog/windows-kernel-integrations
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-platform @DataDog/windows-agent
+/pkg/collector/corechecks/system/wincrashdetect/         @DataDog/windows-kernel-integrations
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations

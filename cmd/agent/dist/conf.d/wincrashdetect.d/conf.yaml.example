@@ -1,0 +1,22 @@
+init_config:
+
+instances:
+
+    -
+
+    ## @param enabled - boolean - optional - default: true
+    ## Specify if the check should report Windows system crashes
+    ## This requires system-probe.
+    ## And this requires the enabled flag in the windows_crash_detection section
+    ## of system-probe.yaml to be set to true.
+    #
+    # enabled: true
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
