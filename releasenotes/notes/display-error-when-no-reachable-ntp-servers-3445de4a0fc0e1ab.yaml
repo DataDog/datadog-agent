@@ -1,5 +1,5 @@
 
 fixes:
   - |
-    Fixes Agent status displaying OK when all NTP servers are unreachable
+    Fixes Agent status displaying OK when all NTP servers are unreachable, if no NTP servers are reachable `datadog-agent status` will display NTP check in an `ERROR` state
 
