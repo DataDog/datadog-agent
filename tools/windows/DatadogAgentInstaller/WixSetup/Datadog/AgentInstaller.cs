@@ -264,7 +264,6 @@ namespace WixSetup.Datadog
             project.UI = WUI.WixUI_Common;
             project.CustomUI = _agentInstallerUi;
 
-            project.ResolveWildCards(pruneEmptyDirectories: true);
 
 #if DEBUG_PROPERTIES
             project.BeforeInstall += args =>
@@ -302,27 +301,25 @@ namespace WixSetup.Datadog
 
         private Dir CreateProgramFilesFolder()
         {
-            var targetBinFolder = CreateBinFolder();
-            var binFolder =
-                new Dir(new Id("PROJECTLOCATION"), "%ProgramFiles%\\Datadog\\Datadog Agent",
-                    targetBinFolder,
-                    new Dir("LICENSES",
-                        new Files($@"{InstallerSource}\LICENSES\*")
-                    ),
-                    new DirFiles($@"{InstallerSource}\LICENSE"),
-                    new DirFiles($@"{InstallerSource}\*.json"),
-                    new DirFiles($@"{InstallerSource}\*.txt"),
-                    new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
-                    // Recursively delete/backup all files/folders in PROJECTLOCATION, they will be restored
-                    // on rollback. By default WindowsInstller only removes the files it tracks, and embedded3 isn't tracked
-                    new RemoveFolderEx { On=InstallEvent.uninstall, Property="PROJECTLOCATION"}
-                );
+            var datadogAgentFolder = new InstallDir(new Id("PROJECTLOCATION"), "Datadog Agent",
+                CreateBinFolder(),
+                new Dir("LICENSES",
+                    new Files($@"{InstallerSource}\LICENSES\*")
+                ),
+                new DirFiles($@"{InstallerSource}\LICENSE"),
+                new DirFiles($@"{InstallerSource}\*.json"),
+                new DirFiles($@"{InstallerSource}\*.txt"),
+                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
+                // Recursively delete/backup all files/folders in PROJECTLOCATION, they will be restored
+                // on rollback. By default WindowsInstller only removes the files it tracks, and embedded3 isn't tracked
+                new RemoveFolderEx { On = InstallEvent.uninstall, Property = "PROJECTLOCATION" }
+            );
             if (_agentPython.IncludePython2)
             {
-                binFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
+                datadogAgentFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
             }
 
-            return binFolder;
+            return new Dir("%ProgramFiles%\\Datadog", datadogAgentFolder);
         }
 
         private static PermissionEx DefaultPermissions()
@@ -490,6 +487,7 @@ namespace WixSetup.Datadog
             var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
                 new DirFiles($@"{EtcSource}\*.yaml.example"),
                 new Dir("checks.d"),
+                new Dir("run"),
                 new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
                     new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
                 ));

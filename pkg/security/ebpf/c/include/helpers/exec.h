@@ -18,7 +18,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
 
     syscall->exec.file.path_key.ino = get_inode_ino(inode);
     syscall->exec.file.path_key.mount_id = mount_id;
-    syscall->exec.file.path_key.path_id = get_path_id(0);
+    syscall->exec.file.path_key.path_id = get_path_id(mount_id, 0);
 
     // resolve dentry
     syscall->resolver.key = syscall->exec.file.path_key;
