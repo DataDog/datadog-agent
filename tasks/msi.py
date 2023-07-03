@@ -93,7 +93,10 @@ def _build(
     # source into the container, build on the container FS, then copy the output
     # back to the mount.
     try:
-        ctx.run(f'robocopy {SOURCE_ROOT_DIR} {BUILD_SOURCE_DIR} /MIR /XF packages embedded3.COMPRESSED', hide=True)
+        ctx.run(
+            f'robocopy {SOURCE_ROOT_DIR} {BUILD_SOURCE_DIR} /MIR /XF cabcache packages embedded2.COMPRESSED embedded3.COMPRESSED',
+            hide=True,
+        )
     except UnexpectedExit as e:
         # robocopy can return non-zero success codes
         # Per https://ss64.com/nt/robocopy-exit.html

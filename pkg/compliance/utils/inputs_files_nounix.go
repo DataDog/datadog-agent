@@ -5,14 +5,14 @@
 
 //go:build windows
 
-package compliance
+package utils
 
 import "os"
 
-func getFileUser(fi os.FileInfo) string {
+func GetFileUser(fi os.FileInfo) string {
 	return ""
 }
 
-func getFileGroup(fi os.FileInfo) string {
+func GetFileGroup(fi os.FileInfo) string {
 	return ""
 }

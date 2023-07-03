@@ -116,7 +116,7 @@
 +
 +	if (xccdf_session_evaluate(session) != 0) {
 +		fprintf(stderr, "error: xccdf_session_evaluate: %s\n", oscap_err_get_full_error());
-+		xccdf_session_result_free(session);
++		xccdf_session_result_reset(session);
 +		return 1;
 +	}
 +
@@ -163,7 +163,7 @@
 +		dprintf("rule %s returned failures or errors\n", rule);
 +	}
 +
-+	xccdf_session_result_free(session);
++	xccdf_session_result_reset(session);
 +
 +	return 0;
 +}

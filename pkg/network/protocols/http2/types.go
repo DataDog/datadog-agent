@@ -5,7 +5,7 @@
 
 //go:build ignore
 
-package http
+package http2
 
 /*
 #include "../../ebpf/c/conn_tuple.h"
@@ -13,8 +13,8 @@ package http
 */
 import "C"
 
-type http2ConnTuple = C.conn_tuple_t
-type EbpfHttp2Tx C.http2_stream_t
+type connTuple = C.conn_tuple_t
+type EbpfTx C.http2_stream_t
 
 type StaticTableEnumKey = C.static_table_key_t
 

@@ -49,7 +49,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
 
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, &file->f_path);
-    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(0);
+    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
 #ifdef DEBUG
     bpf_printk("interpreter file: %llx\n", file);
@@ -329,6 +329,7 @@ int hook_security_bprm_check(ctx_t *ctx) {
     return fill_exec_context();
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/get_envs_offset")
 int kprobe_get_envs_offset(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -446,6 +447,7 @@ void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct 
     }
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/parse_args_envs_split")
 int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -475,6 +477,7 @@ int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/parse_args_envs")
 int kprobe_parse_args_envs(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -530,12 +533,14 @@ int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct
     return handle_interpreted_exec_event(ctx, syscall, interpreter);
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/setup_new_exec")
 int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
     struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
     return fetch_interpreter(ctx, bprm);
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/setup_new_exec")
 int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -576,6 +581,7 @@ int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/setup_arg_pages")
 int kprobe_setup_arg_pages(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
