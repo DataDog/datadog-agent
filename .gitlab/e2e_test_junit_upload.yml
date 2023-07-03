@@ -1,4 +1,4 @@
-source_test_junit_upload:
+e2e_test_junit_upload:
   rules:
     !reference [.on_main]
   when: always
