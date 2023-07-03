@@ -155,7 +155,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("[grpc] found %d conns with the grpc server\n", len(conns.Conns))
+		fmt.Printf("[slavin] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
 
 	} else {
 		req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
@@ -185,6 +185,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 		if err != nil {
 			return nil, err
 		}
+		fmt.Printf("[slavin] we are in the http mode, found %d conns with the grpc server\n", len(conns.Conns))
 	}
 
 	return conns, nil
