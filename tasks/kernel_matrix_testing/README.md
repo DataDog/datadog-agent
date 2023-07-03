@@ -68,7 +68,7 @@ inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-d
 ### Launch stack
 This will bring up all the VMs previously configured.
 ```bash
-# SSH key name for the key to use for launchine remote machine in sandbox
+# SSH key name for the key to use for launching remobe machine in sandbox
 # The tasks will automatically look for the key in ~/.ssh
 inv -e kmt.launch-stack --stack=demo-stack --ssh-key=<ssh-key>
 ```
@@ -166,7 +166,7 @@ inv -e kmt.launch-stack --branch --ssh-key=<ssh-key-name>
 The vms list is a comma separated list of vm entries. These are the VMs to launch in the stack.   
 Each entry comprises of three elemets seperate by a `-` (dash).
 1. Recipe. This is either `custom` or `distro`. `distro` is to be specified for distribution images and `custom` for custom kernels.
-2. Arch. Architecture is either `x86_64` or `arm64`
+2. Arch. Architecture is either `x86_64`, `arm64` or `local`.
 3. Version. This is either the distribution version for recipe `distro` or kernel version for recipe `custom`.
 
 The vm entry is parsed in a fuzzy manner. Therefore each element can be inexact. Furthermore the order of the elements is not important either. The entry is only required to consist of `<recipe>-<arch|local>-<version>` in some order.
