@@ -264,7 +264,7 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
 		dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
 		if testConfig.retryOnlyFailedTests {
-			for pkg, _ := range retryLs {
+			for pkg := range retryLs {
 				if dir == pkg {
 					return true
 				}
