@@ -150,7 +150,7 @@ kernel_matrix_testing_setup_env:
     # Without the newline ssh silently fails and moves on to try other auth methods
     - echo "" >> $AWS_EC2_SSH_KEY_FILE
     - chmod 600 $AWS_EC2_SSH_KEY_FILE
-    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --subnets=$SUBNETS
+    - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --subnets=$SUBNETS
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
   artifacts:

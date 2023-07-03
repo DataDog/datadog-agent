@@ -4,7 +4,11 @@ from glob import glob
 import filecmp
 import platform
 import os
-import requests
+
+try:
+    import requests
+except ImportError:
+    requests = None
 
 url_base = "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/"
 rootfs_amd64 = {
