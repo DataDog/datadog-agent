@@ -32,10 +32,10 @@ func init() {
 }
 
 type TestConfig struct {
-	retry               int
-	retryOnlyFailedPkgs bool
-	includePackages     []string
-	excludePackages     []string
+	retryCount           int
+	retryOnlyFailedTests bool
+	includePackages      []string
+	excludePackages      []string
 }
 
 const (
@@ -110,7 +110,16 @@ func generatePackageName(file string) string {
 	return pkg
 }
 
-func buildCommandArgs(junitPath string, jsonPath string, file string) []string {
+func testsToRunArg(pkg string, failedTests map[string][]string) string {
+	if _, ok := failedTests[pkg]; !ok {
+		return ""
+	}
+
+	testLs := failedTests[pkg]
+	return fmt.Sprintf("-test.run=%s", strings.Join(testLs, ","))
+}
+
+func buildCommandArgs(junitPath string, jsonPath string, file string, failedTests map[string][]string) []string {
 	pkg := generatePackageName(file)
 	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 	xmlpath := filepath.Join(
@@ -121,12 +130,14 @@ func buildCommandArgs(junitPath string, jsonPath string, file string) []string {
 		jsonPath,
 		fmt.Sprintf("%s.json", junitfilePrefix),
 	)
+
+	rerun := testsToRunArg(file, failedTests)
 	args := []string{
 		"--format", "dots",
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
 		"--raw-command", "--",
-		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
+		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(), rerun,
 	}
 
 	return args
@@ -205,7 +216,7 @@ type testEvent struct {
 	Output  string
 }
 
-func buildRetryList(attempt int) ([]string, error) {
+func buildRetryList(attempt int) (map[string][]string, error) {
 	outdir := getCIVisibilityDir(JSONOutDir, attempt-1)
 	testJsonFile := filepath.Join(outdir, "out.json")
 
@@ -214,7 +225,7 @@ func buildRetryList(attempt int) ([]string, error) {
 		return nil, fmt.Errorf("open %s: %s", testJsonFile, err)
 	}
 
-	retry := make(map[string]bool)
+	retry := make(map[string][]string)
 	scanner := bufio.NewScanner(jf)
 	for scanner.Scan() {
 		var ev testEvent
@@ -223,8 +234,11 @@ func buildRetryList(attempt int) ([]string, error) {
 			return nil, fmt.Errorf("json unmarshal `%s`: %s", string(data), err)
 		}
 		if ev.Action == "fail" && ev.Test != "" {
-			if present, _ := retry[ev.Package]; !present {
-				retry[ev.Package] = true
+			if _, ok := retry[ev.Package]; !ok {
+				retry[ev.Package] = []string{ev.Test}
+			} else {
+				testLs := retry[ev.Package]
+				testLs = append(testLs, ev.Test)
 			}
 		}
 	}
@@ -232,31 +246,27 @@ func buildRetryList(attempt int) ([]string, error) {
 		return nil, fmt.Errorf("json line scan: %s", err)
 	}
 
-	keys := make([]string, 0, len(retry))
-	for k, _ := range retry {
-		keys = append(keys, k)
-	}
-	return keys, nil
+	return retry, nil
 }
 
 func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 	var retry bool
 	var err error
 
-	retryPkgsLs := []string{}
-	if testConfig.retryOnlyFailedPkgs && attempt > 1 {
-		retryPkgsLs, err = buildRetryList(attempt)
+	var retryLs map[string][]string
+	if testConfig.retryOnlyFailedTests && attempt > 1 {
+		retryLs, err = buildRetryList(attempt)
 		if err != nil {
 			return false, err
 		}
 	}
 
+	fmt.Println(retryLs)
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
 		dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
-
-		if testConfig.retryOnlyFailedPkgs {
-			for _, p := range retryPkgsLs {
-				if dir == p {
+		if testConfig.retryOnlyFailedTests {
+			for pkg, _ := range retryLs {
+				if dir == pkg {
 					return true
 				}
 			}
@@ -296,6 +306,7 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 			getCIVisibilityDir(XMLDir, attempt),
 			getCIVisibilityDir(JSONDir, attempt),
 			file,
+			retryLs,
 		)
 		cmd := exec.Command(GoTestSum, args...)
 
@@ -348,7 +359,7 @@ func buildTestConfiguration() *TestConfig {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
 	packagesPtr := flag.String("include-packages", "", "Comma separated list of packages to test")
 	excludePackagesPtr := flag.String("exclude-packages", "", "Comma separated list of packages to exclude")
-	retryOnlyFailedPkgs := flag.Bool("retry-only-failed-pkgs", false, "Retry only failed packages")
+	retryOnlyFailedTests := flag.Bool("retry-only-failed", false, "Retry only failed tests")
 
 	flag.Parse()
 
@@ -363,10 +374,10 @@ func buildTestConfiguration() *TestConfig {
 	}
 
 	return &TestConfig{
-		retry:               *retryPtr,
-		includePackages:     packagesLs,
-		excludePackages:     excludeLs,
-		retryOnlyFailedPkgs: *retryOnlyFailedPkgs,
+		retryCount:           *retryPtr,
+		includePackages:      packagesLs,
+		excludePackages:      excludeLs,
+		retryOnlyFailedTests: *retryOnlyFailedTests,
 	}
 }
 
@@ -399,7 +410,7 @@ func run() error {
 		}
 	}
 
-	for i := 1; i <= testConfig.retry; i++ {
+	for i := 1; i <= testConfig.retryCount; i++ {
 		printHeader(fmt.Sprintf("Test attempt %d", i))
 		retry, err := testPass(testConfig, i)
 		if !retry || err != nil {
