@@ -30,9 +30,6 @@ const (
 	TaskFlare TaskType = "flare"
 )
 
-// RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
-type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, error)
-
 type rcClient struct {
 	client        *remote.Client
 	m             *sync.Mutex
@@ -185,11 +182,4 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 			}
 		}
 	}
-}
-
-// ListenerProvider defines component that can receive RC updates
-type ListenerProvider struct {
-	fx.Out
-
-	Listener RCAgentTaskListener `group:"rCAgentTaskListener"`
 }

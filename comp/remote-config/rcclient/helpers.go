@@ -6,7 +6,7 @@
 package rcclient
 
 import (
-	"fmt"
+	"go.uber.org/fx"
 )
 
 // RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
