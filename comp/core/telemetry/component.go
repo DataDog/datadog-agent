@@ -23,8 +23,8 @@ type Component interface {
 	Handler() http.Handler
 	// Reset resets all tracked telemetry
 	Reset()
-	// NewMeter returns a new OTEL meter
-	NewMeter(name string, options ...metric.MeterOption) metric.Meter
+	// Meter returns a new OTEL meter
+	Meter(name string, opts ...metric.MeterOption) metric.Meter
 
 	// NewCounter creates a Counter with default options for telemetry purpose.
 	NewCounter(subsystem, name string, tags []string, help string) Counter

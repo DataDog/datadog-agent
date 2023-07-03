@@ -141,7 +141,7 @@ func TestMeterProvider(t *testing.T) {
 
 	telemetry := newMock().(*telemetryImpl)
 
-	counter, _ := telemetry.NewMeter("foo").Int64Counter("bar")
+	counter, _ := telemetry.Meter("foo").Int64Counter("bar")
 	counter.Add(context.TODO(), 123)
 
 	_ = telemetry.meterProvider.ForceFlush(context.TODO())

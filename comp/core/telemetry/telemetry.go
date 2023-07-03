@@ -78,8 +78,8 @@ func (t *telemetryImpl) Reset() {
 	t.registry = registry
 }
 
-func (t *telemetryImpl) NewMeter(name string, options ...metric.MeterOption) metric.Meter {
-	return t.meterProvider.Meter(name, options...)
+func (t *telemetryImpl) Meter(name string, opts ...metric.MeterOption) metric.Meter {
+	return t.meterProvider.Meter(name, opts...)
 }
 
 func (t *telemetryImpl) NewCounter(subsystem, name string, tags []string, help string) Counter {
