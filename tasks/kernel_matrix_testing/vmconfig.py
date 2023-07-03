@@ -5,10 +5,15 @@ import platform
 import math
 import json
 import itertools
-from thefuzz import process
-from thefuzz import fuzz
 import os
 from .tool import Exit, ask, warn, info
+
+try:
+    from thefuzz import process
+    from thefuzz import fuzz
+except ImportError:
+    process = None
+    fuzz = None
 
 kernels = [
     "5.0",

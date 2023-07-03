@@ -1,4 +1,8 @@
-from termcolor import colored
+try
+    from termcolor import colored
+except ImportError:
+    colored = None
+
 import invoke.exceptions as ie
 
 

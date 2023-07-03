@@ -4,7 +4,11 @@ import json
 import os
 from .tool import Exit, info, ask, error, warn
 import getpass
-import libvirt
+
+try:
+    import libvirt
+except ImportError
+    libvirt = None
 
 X86_INSTANCE_TYPE = "m5.metal"
 ARM_INSTANCE_TYPE = "m6g.metal"
