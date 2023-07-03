@@ -81,17 +81,17 @@ func spansToTraceChunk(spans []*pb.Span) *pb.TraceChunk {
 
 // assertCountsEqual is a test utility function to assert expected == actual for count aggregations.
 func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []pb.ClientGroupedStats) {
-	expectedM := make(map[string]pb.ClientGroupedStats)
-	actualM := make(map[string]pb.ClientGroupedStats)
+	expectedM := make(map[BucketsAggregationKey]pb.ClientGroupedStats)
+	actualM := make(map[BucketsAggregationKey]pb.ClientGroupedStats)
 	for _, e := range expected {
 		e.ErrorSummary = nil
 		e.OkSummary = nil
-		expectedM[e.Service+e.Resource] = e
+		expectedM[NewAggregationFromGroup(e).BucketsAggregationKey] = e
 	}
 	for _, a := range actual {
 		a.ErrorSummary = nil
 		a.OkSummary = nil
-		actualM[a.Service+a.Resource] = a
+		actualM[NewAggregationFromGroup(a).BucketsAggregationKey] = a
 	}
 	assert.Equal(t, expectedM, actualM)
 }
