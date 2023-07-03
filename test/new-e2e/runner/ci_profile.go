@@ -58,7 +58,7 @@ func NewCIProfile() (Profile, error) {
 		return nil, err
 	}
 
-	// TODO can be removed using E2E_ENVIRONMENTS variable
+	// TODO can be removed using E2E_ENV variable
 	ciEnvNames := os.Getenv("CI_ENV_NAMES")
 	if len(ciEnvNames) > 0 {
 		environmentsStr = ciEnvNames
