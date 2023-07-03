@@ -21,32 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
-func assertSetEvent(t *testing.T, expected, actual *pbgo.ProcessEventSet) {
-	t.Helper()
-
-	assert.Equal(t, expected.Pid, actual.Pid)
-	assert.Equal(t, expected.Nspid, actual.Nspid)
-	assert.Equal(t, expected.ContainerId, actual.ContainerId)
-	assert.Equal(t, expected.CreationTime, actual.CreationTime)
-	if expected.Language != nil {
-		assert.Equal(t, expected.Language.Name, actual.Language.Name)
-	}
-}
-
-func assertUnsetEvent(t *testing.T, expected, actual *pbgo.ProcessEventUnset) {
-	t.Helper()
-
-	assert.Equal(t, expected.Pid, actual.Pid)
-}
-
-func toEventSet(proc *procutil.Process) *pbgo.ProcessEventSet {
-	return &pbgo.ProcessEventSet{Pid: proc.Pid}
-}
-
-func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
-	return &pbgo.ProcessEventUnset{Pid: proc.Pid}
-}
-
 func TestGetGRPCStreamPort(t *testing.T) {
 	t.Run("invalid port", func(t *testing.T) {
 		cfg := config.Mock(t)
@@ -78,9 +52,19 @@ func TestStartStop(t *testing.T) {
 	err := srv.Start()
 	assert.NoError(t, err)
 
-	assertEventuallyReturns(t, func() {
+	stopped := make(chan struct{})
+	go func() {
 		srv.Stop()
-	}, time.Second*5)
+		stopped <- struct{}{}
+	}()
+	assert.Eventually(t, func() bool {
+		select {
+		case <-stopped:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestStreamServer(t *testing.T) {
@@ -226,25 +210,6 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	}, msg)
 }
 
-func assertEventuallyReturns(t *testing.T, f func(), maximumWait time.Duration) {
-	t.Helper()
-
-	returnChan := make(chan struct{})
-	go func() {
-		f()
-		returnChan <- struct{}{}
-	}()
-
-	tick := time.NewTicker(maximumWait)
-	defer tick.Stop()
-
-	select {
-	case <-returnChan:
-	case <-tick.C:
-		t.Fail()
-	}
-}
-
 func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.ProcessStreamResponse) {
 	t.Helper()
 
@@ -268,4 +233,30 @@ func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.Proc
 		actualSet := expected.UnsetEvents[i]
 		assertUnsetEvent(t, expectedUnset, actualSet)
 	}
+}
+
+func assertSetEvent(t *testing.T, expected, actual *pbgo.ProcessEventSet) {
+	t.Helper()
+
+	assert.Equal(t, expected.Pid, actual.Pid)
+	assert.Equal(t, expected.Nspid, actual.Nspid)
+	assert.Equal(t, expected.ContainerId, actual.ContainerId)
+	assert.Equal(t, expected.CreationTime, actual.CreationTime)
+	if expected.Language != nil {
+		assert.Equal(t, expected.Language.Name, actual.Language.Name)
+	}
+}
+
+func assertUnsetEvent(t *testing.T, expected, actual *pbgo.ProcessEventUnset) {
+	t.Helper()
+
+	assert.Equal(t, expected.Pid, actual.Pid)
+}
+
+func toEventSet(proc *procutil.Process) *pbgo.ProcessEventSet {
+	return &pbgo.ProcessEventSet{Pid: proc.Pid}
+}
+
+func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
+	return &pbgo.ProcessEventUnset{Pid: proc.Pid}
 }
