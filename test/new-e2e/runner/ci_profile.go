@@ -15,7 +15,7 @@ import (
 
 const defaultCISecretPrefix = "ci.datadog-agent."
 
-var defaultCIEnvs = []string{"aws/agent-qa"}
+var defaultCIEnvs = "aws/agent-qa"
 
 type ciProfile struct {
 	baseProfile
@@ -51,11 +51,19 @@ func NewCIProfile() (Profile, error) {
 
 	store := parameters.NewEnvStore(EnvPrefix)
 
-	ciEnvironments := defaultCIEnvs
-	ciEnvironmentsStr := os.Getenv("CI_ENV_NAMES")
-	if len(ciEnvironmentsStr) > 0 {
-		ciEnvironments = strings.Split(ciEnvironmentsStr, " ")
+	// get environments from store
+	environmentsStr, err := store.GetWithDefault(parameters.Environments, defaultCIEnvs)
+	if err != nil {
+		return nil, err
 	}
+
+	// TODO can be removed using E2E_ENVIRONMENTS variable
+	ciEnvNames := os.Getenv("CI_ENV_NAMES")
+	if len(ciEnvNames) > 0 {
+		environmentsStr = ciEnvNames
+	}
+
+	ciEnvironments := strings.Split(environmentsStr, " ")
 
 	return ciProfile{
 		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
