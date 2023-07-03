@@ -312,11 +312,13 @@ def build_stdlib(
 ):
     """
     Builds the stdlib with the same build flags as the tests.
+
+    Since Go 1.20, standard library is not pre-compiled anymore but is built as needed and cached in the build cache.
+    To avoid a perfomance overhead when running tests, we pre-compile the standard library and cache it.
+    We must use the same build flags as the one we are using when compiling tests to not invalidate the cache.
     """
     args["go_build_tags"] = " ".join(build_tags)
 
-    print("GOCACHE size before")
-    ctx.run("du -sch $(go env GOCACHE)", warn=True)
     ctx.run(
         cmd.format(
             **args
@@ -325,8 +327,6 @@ def build_stdlib(
         out_stream=test_profiler,
         warn=True,
     )
-    print("GOCACHE size after")
-    ctx.run("du -sch $(go env GOCACHE)", warn=True)
 
 
 def test_flavor(
