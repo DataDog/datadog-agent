@@ -74,4 +74,4 @@ package_dependencies*             @DataDog/ebpf-platform
 kernel_matrix_testing*            @DataDog/ebpf-platform
 
 # Single machine performance
-single_machine_performance*       @datadog/single-machine-performanc
+single_machine_performance*       @DataDog/single-machine-performance
