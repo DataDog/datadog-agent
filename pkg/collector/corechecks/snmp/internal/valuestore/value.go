@@ -11,12 +11,14 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 )
 
 // ResultValue represent a snmp value
 type ResultValue struct {
-	SubmissionType string      `json:"sub_type,omitempty"` // used when sending the metric
-	Value          interface{} `json:"value"`              // might be a `string`, `[]byte` or `float64` type
+	SubmissionType checkconfig.ProfileMetricType `json:"sub_type,omitempty"` // used when sending the metric
+	Value          interface{}                   `json:"value"`              // might be a `string`, `[]byte` or `float64` type
 }
 
 // ToFloat64 converts value to float64

@@ -6,14 +6,14 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-SEC("kprobe/mnt_want_write")
-int kprobe_mnt_want_write(struct pt_regs *ctx) {
+HOOK_ENTRY("mnt_want_write")
+int hook_mnt_want_write(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_predicate);
     if (!syscall) {
         return 0;
     }
 
-    struct vfsmount *mnt = (struct vfsmount *)PT_REGS_PARM1(ctx);
+    struct vfsmount *mnt = (struct vfsmount *)CTX_PARM1(ctx);
 
     switch (syscall->type) {
     case EVENT_UTIME:
@@ -69,13 +69,13 @@ int kprobe_mnt_want_write(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ctx) {
+int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(mnt_want_write_file_predicate);
     if (!syscall) {
         return 0;
     }
 
-    struct file *file = (struct file *)PT_REGS_PARM1(ctx);
+    struct file *file = (struct file *)CTX_PARM1(ctx);
     struct vfsmount *mnt;
     bpf_probe_read(&mnt, sizeof(mnt), &file->f_path.mnt);
 
@@ -102,16 +102,18 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(struct pt_regs *ct
     return 0;
 }
 
-SEC("kprobe/mnt_want_write_file")
-int kprobe_mnt_want_write_file(struct pt_regs *ctx) {
+HOOK_ENTRY("mnt_want_write_file")
+int hook_mnt_want_write_file(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
 
+#ifndef USE_FENTRY
 // mnt_want_write_file_path was used on old kernels (RHEL 7)
-SEC("kprobe/mnt_want_write_file_path")
-int kprobe_mnt_want_write_file_path(struct pt_regs *ctx) {
+HOOK_ENTRY("mnt_want_write_file_path")
+int hook_mnt_want_write_file_path(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
+#endif
 
 SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const char*, fstype) {
     struct syscall_cache_t syscall = {
@@ -141,6 +143,7 @@ SYSCALL_KPROBE1(unshare, unsigned long, flags) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/attach_mnt")
 int kprobe_attach_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -157,6 +160,7 @@ int kprobe_attach_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/__attach_mnt")
 int kprobe___attach_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -179,6 +183,7 @@ int kprobe___attach_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/mnt_set_mountpoint")
 int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -202,6 +207,7 @@ int kprobe_mnt_set_mountpoint(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_one_callback")
 int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -225,6 +231,7 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(st
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_unshare_mntns_stage_two_callback")
 int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
@@ -234,7 +241,6 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(st
 
     struct unshare_mntns_event_t event = {
         .mountfields.mount_id = get_mount_mount_id(syscall->unshare_mntns.mnt),
-        .mountfields.group_id = get_mount_peer_group_id(syscall->unshare_mntns.mnt),
         .mountfields.device = get_mount_dev(syscall->unshare_mntns.mnt),
         .mountfields.parent_mount_id = syscall->unshare_mntns.path_key.mount_id,
         .mountfields.parent_inode = syscall->unshare_mntns.path_key.ino,
@@ -253,6 +259,7 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(st
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/clone_mnt")
 int kprobe_clone_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
@@ -281,6 +288,7 @@ int kprobe_clone_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/attach_recursive_mnt")
 int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
@@ -312,6 +320,7 @@ int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/propagate_mnt")
 int kprobe_propagate_mnt(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MOUNT);
@@ -393,7 +402,6 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
     struct mount_event_t event = {
         .syscall.retval = retval,
         .mountfields.mount_id = get_mount_mount_id(syscall->mount.src_mnt),
-        .mountfields.group_id = get_mount_peer_group_id(syscall->mount.src_mnt),
         .mountfields.device = get_mount_dev(syscall->mount.src_mnt),
         .mountfields.parent_mount_id = syscall->mount.path_key.mount_id,
         .mountfields.parent_inode = syscall->mount.path_key.ino,
@@ -416,6 +424,7 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_mount_callback")
 int __attribute__((always_inline)) kprobe_dr_mount_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);

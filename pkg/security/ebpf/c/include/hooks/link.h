@@ -32,8 +32,8 @@ SYSCALL_KPROBE0(linkat) {
     return trace__sys_link(SYNC_SYSCALL);
 }
 
-SEC("kprobe/do_linkat")
-int kprobe_do_linkat(struct pt_regs *ctx) {
+HOOK_ENTRY("do_linkat")
+int hook_do_linkat(ctx_t *ctx) {
     struct syscall_cache_t* syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return trace__sys_link(ASYNC_SYSCALL);
@@ -41,6 +41,7 @@ int kprobe_do_linkat(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/vfs_link")
 int kprobe_vfs_link(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -66,7 +67,9 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     // this is a hard link, source and target dentries are on the same filesystem & mount point
     // target_path was set by kprobe/filename_create before we reach this point.
     syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.target_path);
-    set_file_inode(src_dentry, &syscall->link.src_file, 0);
+
+    // force a new path id to force path resolution
+    set_file_inode(src_dentry, &syscall->link.src_file, 1);
 
     if (filter_syscall(syscall, link_approvers)) {
         return mark_as_discarded(syscall);
@@ -93,6 +96,7 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_link_src_callback")
 int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -122,8 +126,8 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
 
     // invalidate user space inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
-        // for hardlink we need to invalidate the cache as the nlink counter in now > 1
-        invalidate_inode(ctx, syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino, !pass_to_userspace);
+        // for hardlink we need to invalidate the discarders as the nlink counter in now > 1
+        expire_inode_discarders(syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino);
     }
 
     if (pass_to_userspace) {
@@ -194,6 +198,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_link_dst_callback")
 int __attribute__((always_inline)) kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);

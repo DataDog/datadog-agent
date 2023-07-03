@@ -37,7 +37,7 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
     for target in targets:
         print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-        tags_arg = " ".join(tags)
+        tags_arg = " ".join(set(tags))
         result = ctx.run(
             f'golangci-lint run --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
             env=env,

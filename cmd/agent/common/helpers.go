@@ -21,12 +21,6 @@ import (
 	"github.com/DataDog/viper"
 )
 
-// SetupConfig fires up the configuration system
-func SetupConfig(confFilePath string) error {
-	_, err := SetupConfigWithWarnings(confFilePath, "")
-	return err
-}
-
 // SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
 func SetupConfigWithWarnings(confFilePath, configName string) (*config.Warnings, error) {
 	return setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, false, true, config.SystemProbe.GetEnvVars())
@@ -54,7 +48,7 @@ func setupConfig(cfg config.Config, origin string, confFilePath string, configNa
 	}
 	cfg.AddConfigPath(path.DefaultConfPath)
 	// load the configuration
-	warnings, err := config.LoadDatadogCustom(cfg, origin, !withoutSecrets)
+	warnings, err := config.LoadDatadogCustom(cfg, origin, !withoutSecrets, nil)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {

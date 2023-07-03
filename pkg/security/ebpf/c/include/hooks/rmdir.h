@@ -23,8 +23,8 @@ SYSCALL_KPROBE0(rmdir) {
     return trace__sys_rmdir(SYNC_SYSCALL, 0);
 }
 
-SEC("kprobe/do_rmdir")
-int kprobe_do_rmdir(struct pt_regs *ctx) {
+HOOK_ENTRY("do_rmdir")
+int hook_do_rmdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return trace__sys_rmdir(ASYNC_SYSCALL, 0);
@@ -33,6 +33,7 @@ int kprobe_do_rmdir(struct pt_regs *ctx) {
 }
 
 // security_inode_rmdir is shared between rmdir and unlink syscalls
+// fentry blocked by: tail call
 SEC("kprobe/security_inode_rmdir")
 int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
@@ -104,6 +105,7 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_security_inode_rmdir_callback")
 int __attribute__((always_inline)) kprobe_dr_security_inode_rmdir_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
@@ -144,7 +146,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     }
 
     if (retval >= 0) {
-        invalidate_inode(ctx, syscall->rmdir.file.path_key.mount_id, syscall->rmdir.file.path_key.ino, !pass_to_userspace);
+        expire_inode_discarders(syscall->rmdir.file.path_key.mount_id, syscall->rmdir.file.path_key.ino);
     }
 
     return 0;

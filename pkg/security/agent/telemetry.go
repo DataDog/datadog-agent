@@ -25,7 +25,7 @@ type telemetry struct {
 	logProfiledWorkloads  bool
 }
 
-func newTelemetry(logProfiledWorkloads bool) (*telemetry, error) {
+func newTelemetry(logProfiledWorkloads, ignoreDDAgentContainers bool) (*telemetry, error) {
 	runtimeSecurityClient, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
@@ -35,6 +35,7 @@ func newTelemetry(logProfiledWorkloads bool) (*telemetry, error) {
 	if err != nil {
 		return nil, err
 	}
+	containersTelemetry.IgnoreDDAgent = ignoreDDAgentContainers
 
 	return &telemetry{
 		containers:            containersTelemetry,

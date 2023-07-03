@@ -11,21 +11,12 @@
 #include "dentry_resolver.h"
 #include "discarders.h"
 
-void __attribute__((always_inline)) invalidate_inode(struct pt_regs *ctx, u32 mount_id, u64 inode, int send_invalidate_event) {
-    if (!inode || !mount_id) {
-        return;
-    }
+static __attribute__((always_inline)) void bump_path_id() {
+    u32 key = 0;
 
-    expire_inode_discarders(mount_id, inode);
-
-    if (send_invalidate_event) {
-        // invalidate dentry
-        struct invalidate_dentry_event_t event = {
-            .inode = inode,
-            .mount_id = mount_id,
-        };
-
-        send_event(ctx, EVENT_INVALIDATE_DENTRY, event);
+    u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
+    if (prev_id) {
+        __sync_fetch_and_add(prev_id, 1);
     }
 }
 
@@ -59,7 +50,7 @@ static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
     }
 }
 
-static __attribute__((always_inline)) void dec_mount_ref(struct pt_regs *ctx, u32 mount_id) {
+static __attribute__((always_inline)) void dec_mount_ref(ctx_t *ctx, u32 mount_id) {
     u32 key = mount_id;
     struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
     if (ref) {
@@ -73,6 +64,7 @@ static __attribute__((always_inline)) void dec_mount_ref(struct pt_regs *ctx, u3
     }
 
     bump_mount_discarder_revision(mount_id);
+    bump_path_id();
 
     struct mount_released_event_t event = {
         .mount_id = mount_id,
@@ -94,6 +86,7 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
     }
 
     bump_mount_discarder_revision(mount_id);
+    bump_path_id();
 
     struct mount_released_event_t event = {
         .mount_id = mount_id,

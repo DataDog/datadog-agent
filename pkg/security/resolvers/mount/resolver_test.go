@@ -46,7 +46,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       27,
-								GroupID:       0,
 								Device:        1,
 								ParentInode:   0,
 								RootMountID:   0,
@@ -77,7 +76,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       27,
-								GroupID:       0,
 								Device:        1,
 								ParentInode:   0,
 								RootMountID:   0,
@@ -108,7 +106,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       127,
-								GroupID:       71,
 								Device:        52,
 								ParentInode:   0,
 								RootMountID:   0,
@@ -169,7 +166,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       27,
-								GroupID:       0,
 								Device:        1,
 								ParentInode:   0,
 								RootMountID:   0,
@@ -186,7 +182,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       22,
-								GroupID:       0,
 								Device:        21,
 								ParentInode:   0,
 								RootMountID:   0,
@@ -203,7 +198,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       31,
-								GroupID:       0,
 								Device:        26,
 								ParentInode:   0,
 								RootMountID:   0,
@@ -274,7 +268,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       27,
-								GroupID:       0,
 								Device:        1,
 								ParentInode:   0,
 								RootMountID:   0,
@@ -291,7 +284,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       176,
-								GroupID:       71,
 								Device:        52,
 								ParentInode:   0,
 								RootMountID:   0,
@@ -308,7 +300,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       638,
-								GroupID:       71,
 								Device:        52,
 								ParentInode:   0,
 								RootMountID:   0,
@@ -325,7 +316,6 @@ func TestMountResolver(t *testing.T) {
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
 								MountID:       639,
-								GroupID:       0,
 								Device:        54,
 								ParentInode:   0,
 								RootMountID:   0,
