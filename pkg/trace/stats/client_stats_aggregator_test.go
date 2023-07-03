@@ -12,9 +12,11 @@ import (
 
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/runtime/protoiface"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/util/proto"
 )
 
 var fuzzer = fuzz.NewWithSeed(1)
@@ -28,18 +30,6 @@ func newTestAggregator() *ClientStatsAggregator {
 	a.Start()
 	a.flushTicker.Stop()
 	return a
-}
-
-func pbToStringSlice(s []*pb.ClientGroupedStats) []string {
-	slice := []string{}
-	for _, s := range s {
-		if s == nil {
-			continue
-		}
-		slice = append(slice, s.String())
-	}
-
-	return slice
 }
 
 func wrapPayload(p *pb.ClientStatsPayload) *pb.StatsPayload {
@@ -271,10 +261,17 @@ func TestFuzzCountFields(t *testing.T) {
 		expectedAggCounts := wrapPayload(agg2Counts(insertionTime, merge1))
 
 		// map gives random orders post aggregation
-		expected := pbToStringSlice(expectedAggCounts.Stats[0].Stats[0].Stats)
-		actual := pbToStringSlice(aggCounts.Stats[0].Stats[0].Stats)
 
-		assert.ElementsMatch(actual, expected)
+		actual := []protoiface.MessageV1{}
+		expected := []protoiface.MessageV1{}
+		for _, s := range expectedAggCounts.Stats[0].Stats[0].Stats {
+			actual = append(actual, s)
+		}
+		for _, s := range aggCounts.Stats[0].Stats[0].Stats {
+			expected = append(expected, s)
+		}
+
+		assert.ElementsMatch(proto.PbToStringSlice(expected), proto.PbToStringSlice(actual))
 		aggCounts.Stats[0].Stats[0].Stats = nil
 		expectedAggCounts.Stats[0].Stats[0].Stats = nil
 		assert.Equal(expectedAggCounts, aggCounts)

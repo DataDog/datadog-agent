@@ -12,7 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test/testsuite/testdata"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/util/proto"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/runtime/protoiface"
 )
 
 func TestClientStats(t *testing.T) {
@@ -52,7 +54,15 @@ func TestClientStats(t *testing.T) {
 						continue
 					}
 					assert.Equalf(t, len(res), len(tt.Out), "res had so many elements: %d\ntt has:%d", len(res), len(tt.Out))
-					assert.ElementsMatch(t, res, tt.Out)
+					actual := []protoiface.MessageV1{}
+					expected := []protoiface.MessageV1{}
+					for _, msg := range res {
+						actual = append(actual, msg)
+					}
+					for _, msg := range tt.Out {
+						expected = append(expected, msg)
+					}
+					assert.ElementsMatch(t, proto.PbToStringSlice(actual), proto.PbToStringSlice(expected))
 					return
 				case <-timeout:
 					t.Fatalf("timed out, log was:\n%s", r.AgentLog())

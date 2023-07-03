@@ -146,6 +146,7 @@ func (a *ClientStatsAggregator) flush(p []*pb.ClientStatsPayload) {
 	if len(p) == 0 {
 		return
 	}
+
 	a.out <- &pb.StatsPayload{
 		Stats:          p,
 		AgentEnv:       a.agentEnv,
@@ -179,7 +180,20 @@ type bucket struct {
 func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool) []*pb.ClientStatsPayload {
 	b.n++
 	if b.n == 1 {
-		b.first = p
+		b.first = &pb.ClientStatsPayload{
+			Hostname:         p.GetHostname(),
+			Env:              p.GetEnv(),
+			Version:          p.GetVersion(),
+			Stats:            p.GetStats(),
+			Lang:             p.GetLang(),
+			TracerVersion:    p.GetTracerVersion(),
+			RuntimeID:        p.GetRuntimeID(),
+			Sequence:         p.GetSequence(),
+			AgentAggregation: p.GetAgentAggregation(),
+			Service:          p.GetService(),
+			ContainerID:      p.GetContainerID(),
+			Tags:             p.GetTags(),
+		}
 		return nil
 	}
 	// if it's the second payload we flush the first payload with counts trimmed
