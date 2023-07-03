@@ -149,7 +149,7 @@ def test_core(
     """
     modules_results = []
     print(f"--- Flavor {flavor.name}: {operation_name}")
-    for module in modules:
+    for module in reversed(modules):
         module_result = None
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
