@@ -47,7 +47,7 @@ type Agent struct {
 var _ valueStore = &configFileValueStore{}
 
 type configFileValueStore struct {
-	Config          Config
+	config          Config
 	stackParamsJson string
 }
 
@@ -64,13 +64,13 @@ func NewConfigFileValueStore(path string) (configFileValueStore, error) {
 }
 
 func (s *configFileValueStore) parseConfigFileContent(content []byte) error {
-	err := yaml.Unmarshal(content, &s.Config)
+	err := yaml.Unmarshal(content, &s.config)
 	if err != nil {
 		return err
 	}
 	// parse StackParams to json string
 	stackParams := map[string]string{}
-	for namespace, submap := range s.Config.StackParams {
+	for namespace, submap := range s.config.StackParams {
 		for key, value := range submap {
 			stackParams[namespace+":"+key] = value
 		}
@@ -89,18 +89,18 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 
 	switch key {
 	case APIKey:
-		value = s.Config.ConfigParams.Agent.APIKey
+		value = s.config.ConfigParams.Agent.APIKey
 	case APPKey:
-		value = s.Config.ConfigParams.Agent.APPKey
+		value = s.config.ConfigParams.Agent.APPKey
 	case KeyPairName:
-		value = s.Config.ConfigParams.AWS.KeyPairName
+		value = s.config.ConfigParams.AWS.KeyPairName
 	case PublicKeyPath:
-		value = s.Config.ConfigParams.AWS.PublicKeyPath
+		value = s.config.ConfigParams.AWS.PublicKeyPath
 	case StackParameters:
 		value = s.stackParamsJson
 	case Environments:
-		if s.Config.ConfigParams.AWS.Account != "" {
-			value = "aws/" + s.Config.ConfigParams.AWS.Account
+		if s.config.ConfigParams.AWS.Account != "" {
+			value = "aws/" + s.config.ConfigParams.AWS.Account
 		}
 	}
 
