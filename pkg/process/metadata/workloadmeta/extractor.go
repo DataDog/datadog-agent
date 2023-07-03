@@ -110,7 +110,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	case w.diffChan <- diff:
 		break
 	default:
-		log.Debug("Dropping newer process diff in WorkloadMetaExtractor")
+		log.Error("Dropping newer process diff in WorkloadMetaExtractor")
 	}
 }
 
