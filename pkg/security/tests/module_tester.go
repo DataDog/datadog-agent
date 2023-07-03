@@ -921,9 +921,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
 		ProbeOpts: probe.Opts{
-			StatsdClient:          statsdClient,
-			DontDiscardRuntime:    true,
-			PathResolutionEnabled: true,
+			StatsdClient:              statsdClient,
+			DontDiscardRuntime:        true,
+			PathResolutionEnabled:     true,
+			SyscallsMapMonitorEnabled: true,
 		},
 	}
 	if opts.tagsResolver != nil {

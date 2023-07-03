@@ -56,7 +56,7 @@ func (d *SyscallsMonitor) SendStats() error {
 
 		if d.collected[eventType] {
 			value := float64(int32(inflight) - int32(d.prevStats[eventType]))
-			if value != 0 {
+			if value > 0 {
 				_ = d.statsdClient.Gauge(metrics.MetricSyscallsInFlight, value, tagsEvents, 1.0)
 			}
 		}

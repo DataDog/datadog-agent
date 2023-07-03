@@ -9,6 +9,13 @@
 #include "span.h"
 
 void __attribute__((always_inline)) monitor_syscalls(u64 event_type, int delta) {
+    u64 enabled;
+    LOAD_CONSTANT("monitor_syscalls_map_enabled", enabled);
+
+    if (!enabled) {
+        return;
+    }
+
     u32 key = event_type;
     u32 *value = bpf_map_lookup_elem(&syscalls_stats, &key);
     if (value == NULL) {

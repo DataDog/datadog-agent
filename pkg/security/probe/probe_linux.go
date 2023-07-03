@@ -1561,6 +1561,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Name:  "anomaly_syscalls",
 			Value: utils.BoolTouint64(slices.Contains(p.Config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
 		},
+		manager.ConstantEditor{
+			Name:  "monitor_syscalls_map_enabled",
+			Value: utils.BoolTouint64(opts.SyscallsMapMonitorEnabled),
+		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
