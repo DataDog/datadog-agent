@@ -264,18 +264,17 @@ func (w *soWatcher) Start() {
 		for scanner.Scan() {
 			line := scanner.Text()
 			cols := strings.Fields(line)
-			// ensuring we have at least 6 elements in the line and the path (6th column) starts with `/`
-			// (indicates a path, and not an anonymous path).
-			if len(cols) >= 6 && strings.HasPrefix(cols[5], "/") {
-				path := strings.Join(cols[5:], " ")
-				if _, exists := cache[path]; exists {
+			// ensuring we have exactly 6 elements in the line and 4th element (length) is not zero (indicates it is a
+			// path, and not an anonymous path).
+			if len(cols) == 6 && cols[4] != "0" {
+				if _, exists := cache[cols[5]]; exists {
 					continue
 				}
-				cache[path] = struct{}{}
+				cache[cols[5]] = struct{}{}
 				for _, r := range w.rules {
-					if r.re.MatchString(path) {
+					if r.re.MatchString(cols[5]) {
 						root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
-						w.registry.register(root, path, uint32(pid), r)
+						w.registry.register(root, cols[5], uint32(pid), r)
 						break
 					}
 				}

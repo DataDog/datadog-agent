@@ -11,9 +11,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/suite"
-	"go.uber.org/atomic"
 	"math"
 	"os"
 	"os/exec"
@@ -29,6 +26,8 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -41,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -769,16 +769,15 @@ func BenchmarkScanSOWatcherNew(b *testing.B) {
 			line := scanner.Text()
 			cols := strings.Fields(line)
 
-			// Making sure the first word ends with `:` for safety, ensuring we have at least 6 elements in the line
-			// and the path (5th column) starts with `/` (indicates a path, and not anonymous path).
-			if len(cols) >= 6 && strings.HasPrefix(cols[5], "/") {
-				path := strings.Join(cols[5:], " ")
-				if _, exists := cache[path]; exists {
+			// ensuring we have exactly 6 elements in the line and 4th element (length) is not zero (indicates it is a
+			// path, and not an anonymous path).
+			if len(cols) == 6 && cols[4] != "0" {
+				if _, exists := cache[cols[5]]; exists {
 					continue
 				}
-				cache[path] = struct{}{}
+				cache[cols[5]] = struct{}{}
 				for _, r := range w.rules {
-					if r.re.MatchString(path) {
+					if r.re.MatchString(cols[5]) {
 						break
 					}
 				}
