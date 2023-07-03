@@ -95,6 +95,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	select {
 	case <-w.diffChan:
 		// drop message
+		log.Debug("Dropping old process diff in WorkloadMetaExtractor")
 		break
 	default:
 	}
