@@ -882,7 +882,12 @@ func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode json file: %w", err)
 	}
 
-	protoToActivityDump(ad, ad.adm.pathsReducer, inter)
+	var reducer *activity_tree.PathsReducer
+	if ad.adm != nil {
+		reducer = ad.adm.pathsReducer
+	}
+
+	protoToActivityDump(ad, reducer, inter)
 
 	return nil
 }

@@ -661,10 +661,10 @@ collect_topology: false
 
 	expectedMetrics := []checkconfig.MetricsConfig{
 		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
 		{
-			ForcedType: "monotonic_count",
+			MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
 			Symbols: []checkconfig.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
@@ -676,7 +676,7 @@ collect_topology: false
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: checkconfig.ProfileMetricTypeGauge},
 	}
 
 	expectedMetricTags := []checkconfig.MetricTagConfig{
@@ -1241,10 +1241,10 @@ community_string: public
 	expectedMetricsConfigs := []checkconfig.MetricsConfig{
 		{
 			Symbol:     checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
-			ForcedType: "gauge",
+			MetricType: checkconfig.ProfileMetricTypeGauge,
 		},
 		{
-			ForcedType: "monotonic_count",
+			MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
 			Symbols: []checkconfig.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},

@@ -17,13 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type HttpStatKeeper struct {
-	mux                             sync.Mutex
-	stats                           map[Key]*RequestStats
-	incomplete                      *incompleteBuffer
-	maxEntries                      int
-	telemetry                       *Telemetry
-	enableHTTPStatusCodeAggregation bool
+type StatKeeper struct {
+	mux                         sync.Mutex
+	stats                       map[Key]*RequestStats
+	incomplete                  *incompleteBuffer
+	maxEntries                  int
+	telemetry                   *Telemetry
+	enableStatusCodeAggregation bool
 
 	// replace rules for HTTP path
 	replaceRules []*config.ReplaceRule
@@ -38,21 +38,21 @@ type HttpStatKeeper struct {
 	oversizedLogLimit *util.LogLimit
 }
 
-func NewHTTPStatkeeper(c *config.Config, telemetry *Telemetry) *HttpStatKeeper {
-	return &HttpStatKeeper{
-		stats:                           make(map[Key]*RequestStats),
-		incomplete:                      newIncompleteBuffer(c, telemetry),
-		maxEntries:                      c.MaxHTTPStatsBuffered,
-		replaceRules:                    c.HTTPReplaceRules,
-		enableHTTPStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
-		buffer:                          make([]byte, getPathBufferSize(c)),
-		interned:                        make(map[string]string),
-		telemetry:                       telemetry,
-		oversizedLogLimit:               util.NewLogLimit(10, time.Minute*10),
+func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
+	return &StatKeeper{
+		stats:                       make(map[Key]*RequestStats),
+		incomplete:                  newIncompleteBuffer(c, telemetry),
+		maxEntries:                  c.MaxHTTPStatsBuffered,
+		replaceRules:                c.HTTPReplaceRules,
+		enableStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
+		buffer:                      make([]byte, getPathBufferSize(c)),
+		interned:                    make(map[string]string),
+		telemetry:                   telemetry,
+		oversizedLogLimit:           util.NewLogLimit(10, time.Minute*10),
 	}
 }
 
-func (h *HttpStatKeeper) Process(tx HttpTX) {
+func (h *StatKeeper) Process(tx Transaction) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
@@ -64,7 +64,7 @@ func (h *HttpStatKeeper) Process(tx HttpTX) {
 	h.add(tx)
 }
 
-func (h *HttpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
+func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
@@ -78,11 +78,11 @@ func (h *HttpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-func (h *HttpStatKeeper) Close() {
+func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
 }
 
-func (h *HttpStatKeeper) add(tx HttpTX) {
+func (h *StatKeeper) add(tx Transaction) {
 	rawPath, fullPath := tx.Path(h.buffer)
 	if rawPath == nil {
 		h.telemetry.malformed.Add(1)
@@ -118,14 +118,14 @@ func (h *HttpStatKeeper) add(tx HttpTX) {
 			return
 		}
 		h.telemetry.aggregations.Add(1)
-		stats = NewRequestStats(h.enableHTTPStatusCodeAggregation)
+		stats = NewRequestStats(h.enableStatusCodeAggregation)
 		h.stats[key] = stats
 	}
 
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *HttpStatKeeper) newKey(tx HttpTX, path string, fullPath bool) Key {
+func (h *StatKeeper) newKey(tx Transaction, path string, fullPath bool) Key {
 	return Key{
 		ConnectionKey: tx.ConnTuple(),
 		Path: Path{
@@ -145,7 +145,7 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *HttpStatKeeper) processHTTPPath(tx HttpTX, path []byte) (pathStr string, rejected bool) {
+func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr string, rejected bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
@@ -172,7 +172,7 @@ func (h *HttpStatKeeper) processHTTPPath(tx HttpTX, path []byte) (pathStr string
 	return h.intern(path), false
 }
 
-func (h *HttpStatKeeper) intern(b []byte) string {
+func (h *StatKeeper) intern(b []byte) string {
 	v, ok := h.interned[string(b)]
 	if !ok {
 		v = string(b)
