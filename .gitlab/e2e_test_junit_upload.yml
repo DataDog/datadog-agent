@@ -8,6 +8,8 @@ e2e_test_junit_upload:
   allow_failure: true
   variables:
     DD_ENV: ci
+  dependencies:
+    - new-e2e-containers-main
   script:
     - set +x
     - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
