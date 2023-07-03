@@ -45,7 +45,7 @@ dev_branch*                            @DataDog/container-integrations
 dev_master*                            @DataDog/container-integrations
 dev_nightly*                           @DataDog/container-integrations
 
-# Internmasterge deploy
+# Internal image deploy
 docker_trigger_internal*               @DataDog/container-integrations
 docker_trigger_cluster_agent_internal* @DataDog/container-integrations
 
