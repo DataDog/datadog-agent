@@ -15,19 +15,19 @@ $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Py
 
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
 
-$result = & inv -e invoke-unit-tests
+& inv -e invoke-unit-tests
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[Error]: Some unit tests failed: `n$result"
+    Write-Host "[Error]: Some unit tests failed"
     exit $LASTEXITCODE
 }
 
 & pushd "test\kitchen"
 
-$result = & inv -e kitchen.invoke-unit-tests
+& inv -e kitchen.invoke-unit-tests
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[Error]: Some kitchen unit tests failed: `n$result"
+    Write-Host "[Error]: Some kitchen unit tests failed"
     exit $LASTEXITCODE
 }
 
