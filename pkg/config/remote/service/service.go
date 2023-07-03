@@ -46,6 +46,7 @@ const (
 	defaultCacheBypassLimit = 5
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
+	orgStatusPollInterval   = 5 * time.Minute
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -251,6 +252,17 @@ func (s *Service) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	go func() {
+		s.pollOrgStatus()
+		for {
+			select {
+			case <-s.clock.After(orgStatusPollInterval):
+				s.pollOrgStatus()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
 		defer cancel()
 
 		err := s.refresh()
@@ -290,6 +302,25 @@ func (s *Service) Stop() error {
 	}
 
 	return s.db.Close()
+}
+
+func (s *Service) pollOrgStatus() {
+	response, err := s.api.FetchOrgStatus(context.Background())
+	if err != nil {
+		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
+		// and it limits the error log.
+		if !errors.Is(err, api.ErrUnauthorized) && !errors.Is(err, api.ErrProxy) {
+			log.Errorf("Could not refresh Remote Config: %v", err)
+		}
+		return
+	}
+
+	if !response.Enabled {
+		log.Infof("This org does not have Remote Configuration enabled, please follow the documentation to enable it.")
+	}
+	if !response.Authorized {
+		log.Infof("Your API key does not have Remote Config scope attached. Please attach the scope to be able to use Remote Config.")
+	}
 }
 
 func (s *Service) calculateRefreshInterval() time.Duration {
