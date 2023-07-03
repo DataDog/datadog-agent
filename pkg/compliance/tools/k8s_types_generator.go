@@ -6,8 +6,10 @@
 package main
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"log"
@@ -35,9 +37,10 @@ var (
 
 	// https://kubernetes.io/releases/
 	k8sVersions = []string{
-		"v1.26.3",
-		"v1.25.8",
-		"v1.24.12",
+		"v1.27.3",
+		"v1.26.6",
+		"v1.25.11",
+		"v1.24.15",
 		"v1.23.17",
 	}
 
@@ -433,16 +436,47 @@ func printKomponentCode(komp *komponent) string {
 }
 
 func downloadEtcdAndExtractFlags(componentVersion string) *komponent {
-	componentName := "etcd"
+	const componentName = "etcd"
 	componentBin := path.Join(bindir, fmt.Sprintf("%s-%s", componentName, componentVersion))
+	componentTar := path.Join(bindir, fmt.Sprintf("%s-%s.tar.gz", componentName, componentVersion))
 	componentUrl := fmt.Sprintf("https://github.com/etcd-io/etcd/releases/download/%s/etcd-%s-linux-%s.tar.gz",
 		componentVersion, componentVersion, arch)
-
 	if _, err := os.Stat(componentBin); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "downloading %s into %s", componentUrl, componentBin)
-		if err := download(componentUrl, componentBin); err != nil {
+		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentUrl, componentBin)
+		if err := download(componentUrl, componentTar); err != nil {
 			log.Fatal(err)
 		}
+		t, err := os.Open(componentTar)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer t.Close()
+		g, err := gzip.NewReader(t)
+		if err != nil {
+			log.Fatal(err)
+		}
+		r := tar.NewReader(g)
+		for true {
+			header, err := r.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatal(err)
+			}
+			if header.Typeflag == tar.TypeReg && strings.HasSuffix(header.Name, "/etcd") {
+				outFile, err := os.Create(componentBin)
+				if err != nil {
+					log.Fatal(err)
+				}
+				if _, err := io.Copy(outFile, r); err != nil {
+					log.Fatal(err)
+				}
+				outFile.Close()
+			}
+
+		}
+		fmt.Fprintf(os.Stderr, "ok\n")
 	}
 
 	if err := os.Chmod(componentBin, 0770); err != nil {
@@ -477,10 +511,11 @@ func downloadKubeComponentAndExtractFlags(componentName, componentVersion string
 	componentUrl := fmt.Sprintf("https://dl.k8s.io/%s/bin/linux/%s/%s",
 		componentVersion, arch, componentName)
 	if _, err := os.Stat(componentBin); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "downloading %s into %s", componentUrl, componentBin)
+		fmt.Fprintf(os.Stderr, "downloading %s into %s...", componentUrl, componentBin)
 		if err := download(componentUrl, componentBin); err != nil {
 			log.Fatal(err)
 		}
+		fmt.Fprintf(os.Stderr, "ok\n")
 	}
 
 	if err := os.Chmod(componentBin, 0770); err != nil {

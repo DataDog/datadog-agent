@@ -10,6 +10,7 @@ package http
 import (
 	"bytes"
 	"encoding/hex"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"strconv"
 	"strings"
 
@@ -20,7 +21,7 @@ import (
 // GET variables excluded.
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *EbpfHttpTx) Path(buffer []byte) ([]byte, bool) {
+func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 	bLen := bytes.IndexByte(tx.Request_fragment[:], 0)
 	if bLen == -1 {
 		bLen = len(tx.Request_fragment)
@@ -47,20 +48,20 @@ func (tx *EbpfHttpTx) Path(buffer []byte) ([]byte, bool) {
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
-func (tx *EbpfHttpTx) RequestLatency() float64 {
+func (tx *EbpfTx) RequestLatency() float64 {
 	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
 		return 0
 	}
-	return nsTimestampToFloat(tx.Response_last_seen - tx.Request_started)
+	return protocols.NSTimestampToFloat(tx.Response_last_seen - tx.Request_started)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
-func (tx *EbpfHttpTx) Incomplete() bool {
+func (tx *EbpfTx) Incomplete() bool {
 	return tx.Request_started == 0 || tx.Response_status_code == 0
 }
 
-func (tx *EbpfHttpTx) ConnTuple() types.ConnectionKey {
+func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
 		SrcIPLow:  tx.Tup.Saddr_l,
@@ -71,47 +72,47 @@ func (tx *EbpfHttpTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
-func (tx *EbpfHttpTx) Method() Method {
+func (tx *EbpfTx) Method() Method {
 	return Method(tx.Request_method)
 }
 
-func (tx *EbpfHttpTx) StatusCode() uint16 {
+func (tx *EbpfTx) StatusCode() uint16 {
 	return tx.Response_status_code
 }
 
-func (tx *EbpfHttpTx) SetStatusCode(code uint16) {
+func (tx *EbpfTx) SetStatusCode(code uint16) {
 	tx.Response_status_code = code
 }
 
-func (tx *EbpfHttpTx) ResponseLastSeen() uint64 {
+func (tx *EbpfTx) ResponseLastSeen() uint64 {
 	return tx.Response_last_seen
 }
 
-func (tx *EbpfHttpTx) SetResponseLastSeen(lastSeen uint64) {
+func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
 	tx.Response_last_seen = lastSeen
 
 }
-func (tx *EbpfHttpTx) RequestStarted() uint64 {
+func (tx *EbpfTx) RequestStarted() uint64 {
 	return tx.Request_started
 }
 
-func (tx *EbpfHttpTx) SetRequestMethod(m Method) {
+func (tx *EbpfTx) SetRequestMethod(m Method) {
 	tx.Request_method = uint8(m)
 }
 
 // StaticTags returns an uint64 representing the tags bitfields
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
-func (tx *EbpfHttpTx) StaticTags() uint64 {
+func (tx *EbpfTx) StaticTags() uint64 {
 	return tx.Tags
 }
 
-func (tx *EbpfHttpTx) DynamicTags() []string {
+func (tx *EbpfTx) DynamicTags() []string {
 	return nil
 }
 
-func (tx *EbpfHttpTx) String() string {
+func (tx *EbpfTx) String() string {
 	var output strings.Builder
-	output.WriteString("ebpfHttpTx{")
+	output.WriteString("ebpfTx{")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(tx.Tags, 16) + "', ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(tx.Request_fragment[:]) + "', ")
@@ -119,25 +120,11 @@ func (tx *EbpfHttpTx) String() string {
 	return output.String()
 }
 
-// below is copied from pkg/trace/stats/statsraw.go
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask uint64 = 1 << 10
-
-// nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
-func nsTimestampToFloat(ns uint64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
+func requestFragment(fragment []byte) [BufferSize]byte {
+	if len(fragment) >= BufferSize {
+		return *(*[BufferSize]byte)(fragment)
 	}
-	return float64(ns << shift)
-}
-
-func requestFragment(fragment []byte) [HTTPBufferSize]byte {
-	if len(fragment) >= HTTPBufferSize {
-		return *(*[HTTPBufferSize]byte)(fragment)
-	}
-	var b [HTTPBufferSize]byte
+	var b [BufferSize]byte
 	copy(b[:], fragment)
 	return b
 }

@@ -13,10 +13,10 @@ require (
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
 	// You should bump the image version at the `image` field in `.new_e2e_template` job
 	// in .gitlab/e2e.yml to 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:<commit_sha>
-	// Commit sha matches the first 8 digits of the commit sha in the module version
+	// Commit sha matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
-	// => image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:01234567
-	github.com/DataDog/test-infra-definitions v0.0.0-20230627141421-3416c0ea5335
+	// => image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:0123456789AB
+	github.com/DataDog/test-infra-definitions v0.0.0-20230630154552-dd71020f100d
 	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.27
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4

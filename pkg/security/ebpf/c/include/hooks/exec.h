@@ -49,7 +49,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
 
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, &file->f_path);
-    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(0);
+    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
 #ifdef DEBUG
     bpf_printk("interpreter file: %llx\n", file);
