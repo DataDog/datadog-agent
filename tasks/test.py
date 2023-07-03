@@ -302,6 +302,7 @@ def lint_flavor(
 
     return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
 
+
 def build_stdlib(
     ctx,
     build_tags: List[str],
@@ -320,9 +321,7 @@ def build_stdlib(
     args["go_build_tags"] = " ".join(build_tags)
 
     ctx.run(
-        cmd.format(
-            **args
-        ),
+        cmd.format(**args),
         env=env,
         out_stream=test_profiler,
         warn=True,
