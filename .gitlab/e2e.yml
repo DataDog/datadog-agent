@@ -132,6 +132,12 @@ k8s-e2e-otlp-main:
     # Now all `aws` commands target the agent-qa profile
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_public_key --with-decryption --query "Parameter.Value" --out text > $E2E_PUBLIC_KEY_PATH
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key --with-decryption --query "Parameter.Value" --out text > $E2E_PRIVATE_KEY_PATH
+    # Run ssh-agent (inside the build environment)
+    - eval $(ssh-agent -s)
+    # Give the right permissions, otherwise ssh-add will refuse to add files
+    - chmod 400 "$E2E_PRIVATE_KEY_PATH"
+    ## Add the SSH key stored in SSH_PRIVATE_KEY file type CI/CD variable to the agent store
+    - ssh-add "$E2E_PRIVATE_KEY_PATH"
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   variables:
