@@ -1,4 +1,4 @@
-try
+try:
     from termcolor import colored
 except ImportError:
     colored = None

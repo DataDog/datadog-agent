@@ -7,7 +7,7 @@ import getpass
 
 try:
     import libvirt
-except ImportError
+except ImportError:
     libvirt = None
 
 X86_INSTANCE_TYPE = "m5.metal"
