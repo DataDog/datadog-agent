@@ -7,13 +7,12 @@ package workloadmeta
 
 import (
 	"fmt"
-	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -33,9 +32,7 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 }
 
 func TestExtractor(t *testing.T) {
-	extractor := NewWorkloadMetaExtractor()
-	mockGrpcListener := new(mockGrpcListener)
-	extractor.grpcListener = mockGrpcListener
+	extractor := NewWorkloadMetaExtractor(config.Mock(t))
 
 	var (
 		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
@@ -43,21 +40,15 @@ func TestExtractor(t *testing.T) {
 		proc3 = testProc(Pid3, []string{"corrina", "--at-her-best"})
 	)
 
-	// Assert that we write all procs on first run
-	writeEvents := mockGrpcListener.On("writeEvents", []*ProcessEntity{}, []*ProcessEntity{
-		{
-			pid:      proc1.Pid,
-			language: &languagemodels.Language{Name: languagemodels.Java},
-		},
-		{
-			pid:      proc2.Pid,
-			language: &languagemodels.Language{Name: languagemodels.Python},
-		},
-	})
+	// Assert that first run generates creation events for all processes
 	extractor.Extract(map[int32]*procutil.Process{
 		Pid1: proc1,
 		Pid2: proc2,
 	})
+
+	// Extractor cache should have all processes
+	procs, cacheVersion := extractor.GetAllProcessEntities()
+	assert.Equal(t, int32(1), cacheVersion)
 	assert.Equal(t, map[string]*ProcessEntity{
 		hashProcess(Pid1, proc1.Stats.CreateTime): {
 			pid:      proc1.Pid,
@@ -67,16 +58,32 @@ func TestExtractor(t *testing.T) {
 			pid:      proc2.Pid,
 			language: &languagemodels.Language{Name: languagemodels.Python},
 		},
-	}, extractor.cache)
-	mockGrpcListener.AssertExpectations(t)
-	writeEvents.Unset()
+	}, procs)
 
-	// Assert that we write no duplicates
-	writeEvents = mockGrpcListener.On("writeEvents", []*ProcessEntity{}, []*ProcessEntity{})
+	// Diff should have creation events for all processes and 0 deletion event
+	diff := <-extractor.ProcessCacheDiff()
+	assert.Equal(t, int32(1), diff.cacheVersion)
+	// Events are generated through map range which doesn't have a deterministic order
+	assert.ElementsMatch(t, []*ProcessEntity{
+		{
+			pid:      proc1.Pid,
+			language: &languagemodels.Language{Name: languagemodels.Java},
+		},
+		{
+			pid:      proc2.Pid,
+			language: &languagemodels.Language{Name: languagemodels.Python},
+		},
+	}, diff.creation)
+	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
+
+	// Assert that duplicates generate an empty diff
 	extractor.Extract(map[int32]*procutil.Process{
 		Pid1: proc1,
 		Pid2: proc2,
 	})
+
+	procs, cacheVersion = extractor.GetAllProcessEntities()
+	assert.Equal(t, int32(2), cacheVersion)
 	assert.Equal(t, map[string]*ProcessEntity{
 		hashProcess(Pid1, proc1.Stats.CreateTime): {
 			pid:      proc1.Pid,
@@ -86,26 +93,21 @@ func TestExtractor(t *testing.T) {
 			pid:      proc2.Pid,
 			language: &languagemodels.Language{Name: languagemodels.Python},
 		},
-	}, extractor.cache)
-	mockGrpcListener.AssertExpectations(t)
-	writeEvents.Unset()
+	}, procs)
 
-	// Assert that old events are evicted from the cache
-	writeEvents = mockGrpcListener.On("writeEvents", []*ProcessEntity{
-		{
-			pid:      Pid1,
-			language: &languagemodels.Language{Name: languagemodels.Java},
-		},
-	}, []*ProcessEntity{
-		{
-			pid:      Pid3,
-			language: &languagemodels.Language{Name: languagemodels.Unknown},
-		},
-	})
+	diff = <-extractor.ProcessCacheDiff()
+	assert.Equal(t, int32(2), diff.cacheVersion)
+	assert.ElementsMatch(t, []*ProcessEntity{}, diff.creation)
+	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
+
+	// Assert that old events are evicted from the cache and generate diff with deletion
 	extractor.Extract(map[int32]*procutil.Process{
 		Pid2: proc2,
 		Pid3: proc3,
 	})
+
+	procs, cacheVersion = extractor.GetAllProcessEntities()
+	assert.Equal(t, int32(3), cacheVersion)
 	assert.Equal(t, map[string]*ProcessEntity{
 		hashProcess(Pid2, proc2.Stats.CreateTime): {
 			pid:      proc2.Pid,
@@ -115,27 +117,22 @@ func TestExtractor(t *testing.T) {
 			pid:      proc3.Pid,
 			language: &languagemodels.Language{Name: languagemodels.Unknown},
 		},
-	}, extractor.cache)
-	mockGrpcListener.AssertExpectations(t)
-	writeEvents.Unset()
-}
+	}, procs)
 
-var _ mockableGrpcListener = (*mockGrpcListener)(nil)
-
-type mockGrpcListener struct {
-	mock.Mock
-}
-
-func (m *mockGrpcListener) writeEvents(procsToDelete, procsToAdd []*ProcessEntity) {
-	// Sometimes the arguments come out of order. This is okay. Sort them so we can assert on their values.
-	sort.SliceStable(procsToDelete, func(i, j int) bool {
-		return procsToDelete[i].pid < procsToDelete[j].pid
-	})
-	sort.SliceStable(procsToAdd, func(i, j int) bool {
-		return procsToAdd[i].pid < procsToAdd[j].pid
-	})
-
-	m.Called(procsToDelete, procsToAdd)
+	diff = <-extractor.ProcessCacheDiff()
+	assert.Equal(t, int32(3), diff.cacheVersion)
+	assert.ElementsMatch(t, []*ProcessEntity{
+		{
+			pid:      Pid3,
+			language: &languagemodels.Language{Name: languagemodels.Unknown},
+		},
+	}, diff.creation)
+	assert.ElementsMatch(t, []*ProcessEntity{
+		{
+			pid:      Pid1,
+			language: &languagemodels.Language{Name: languagemodels.Java},
+		},
+	}, diff.deletion)
 }
 
 func BenchmarkHashProcess(b *testing.B) {
