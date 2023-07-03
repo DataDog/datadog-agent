@@ -605,7 +605,7 @@ replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompat
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
 replace github.com/golang/glog v1.1.0 => github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1
 
-replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c
+replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20230703150631-f11d5ab05838
 
 // Replace kube-state-metrics repo until https://github.com/kubernetes/kube-state-metrics/pull/1994 is merged and cherry-pick on v2.7.1
 // Else we will need to wait v2.9.0 release.
