@@ -237,8 +237,7 @@ func buildRetryList(attempt int) (map[string][]string, error) {
 			if _, ok := retry[ev.Package]; !ok {
 				retry[ev.Package] = []string{ev.Test}
 			} else {
-				testLs := retry[ev.Package]
-				testLs = append(testLs, ev.Test)
+				retry[ev.Package] = append(retry[ev.Package], ev.Test)
 			}
 		}
 	}
