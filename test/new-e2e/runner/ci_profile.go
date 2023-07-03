@@ -13,9 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 )
 
-const defaultCISecretPrefix = "ci.datadog-agent."
-
-var defaultCIEnvs = "aws/agent-qa"
+const (
+	defaultCISecretPrefix = "ci.datadog-agent."
+	defaultCIEnv          = "aws/agent-qa"
+)
 
 type ciProfile struct {
 	baseProfile
@@ -52,7 +53,7 @@ func NewCIProfile() (Profile, error) {
 	store := parameters.NewEnvStore(EnvPrefix)
 
 	// get environments from store
-	environmentsStr, err := store.GetWithDefault(parameters.Environments, defaultCIEnvs)
+	environmentsStr, err := store.GetWithDefault(parameters.Environments, defaultCIEnv)
 	if err != nil {
 		return nil, err
 	}
