@@ -14,6 +14,7 @@ import (
 
 	"github.com/beevik/ntp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -121,13 +122,20 @@ func TestNTPError(t *testing.T) {
 	ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender.On("ServiceCheck",
+		"ntp.in_sync",
+		metrics.ServiceCheckUnknown,
+		"",
+		[]string(nil),
+		mock.AnythingOfType("string")).Return().Times(1)
 
+	mockSender.On("Commit").Return().Times(1)
 	err := ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
-	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
-	mockSender.AssertNumberOfCalls(t, "Commit", 0)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
 }
 
@@ -142,13 +150,20 @@ func TestNTPInvalid(t *testing.T) {
 	ntpCheck.Configure(integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSender(ntpCheck.ID())
+	mockSender.On("ServiceCheck",
+		"ntp.in_sync",
+		metrics.ServiceCheckUnknown,
+		"",
+		[]string(nil),
+		mock.AnythingOfType("string")).Return().Times(1)
 
+	mockSender.On("Commit").Return().Times(1)
 	err := ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
-	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
-	mockSender.AssertNumberOfCalls(t, "Commit", 0)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
 }
 

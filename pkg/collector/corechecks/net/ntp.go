@@ -172,6 +172,11 @@ func (c *NTPCheck) Run() error {
 	clockOffset, err := c.queryOffset()
 	if err != nil {
 		log.Error(err)
+
+		sender.ServiceCheck("ntp.in_sync", metrics.ServiceCheckUnknown, "", nil, serviceCheckMessage)
+		c.lastCollection = time.Now()
+		sender.Commit()
+
 		return err
 	}
 	if int(math.Abs(clockOffset)) > offsetThreshold {
