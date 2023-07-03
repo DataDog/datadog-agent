@@ -219,6 +219,7 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_one_callback(st
 
     syscall->unshare_mntns.path_key.mount_id = get_mount_mount_id(syscall->unshare_mntns.parent);
     syscall->unshare_mntns.path_key.ino = get_dentry_ino(mp_dentry);
+    update_path_id(&syscall->unshare_mntns.path_key, 0);
 
     syscall->resolver.key = syscall->unshare_mntns.path_key;
     syscall->resolver.dentry = mp_dentry;
@@ -242,10 +243,12 @@ int __attribute__((always_inline)) kprobe_dr_unshare_mntns_stage_two_callback(st
     struct unshare_mntns_event_t event = {
         .mountfields.mount_id = get_mount_mount_id(syscall->unshare_mntns.mnt),
         .mountfields.device = get_mount_dev(syscall->unshare_mntns.mnt),
-        .mountfields.parent_mount_id = syscall->unshare_mntns.path_key.mount_id,
-        .mountfields.parent_inode = syscall->unshare_mntns.path_key.ino,
-        .mountfields.root_inode = syscall->unshare_mntns.root_key.ino,
-        .mountfields.root_mount_id = syscall->unshare_mntns.root_key.mount_id,
+        .mountfields.parent_key.mount_id = syscall->unshare_mntns.path_key.mount_id,
+        .mountfields.parent_key.ino= syscall->unshare_mntns.path_key.ino,
+        .mountfields.parent_key.path_id = syscall->unshare_mntns.path_key.path_id,
+        .mountfields.root_key.mount_id = syscall->unshare_mntns.root_key.mount_id,
+        .mountfields.root_key.ino = syscall->unshare_mntns.root_key.ino,
+        .mountfields.root_key.path_id = syscall->unshare_mntns.root_key.path_id,
         .mountfields.bind_src_mount_id = 0, // do not consider mnt ns copies as bind mounts
     };
     bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void*) syscall->unshare_mntns.fstype);
@@ -276,6 +279,7 @@ int kprobe_clone_mnt(struct pt_regs *ctx) {
     syscall->mount.bind_src_key.mount_id = get_mount_mount_id(syscall->mount.bind_src_mnt);
     struct dentry *mount_dentry = get_mount_mountpoint_dentry(syscall->mount.bind_src_mnt);
     syscall->mount.bind_src_key.ino = get_dentry_ino(mount_dentry);
+    update_path_id(&syscall->mount.bind_src_key, 0);
 
     syscall->resolver.key = syscall->mount.bind_src_key;
     syscall->resolver.dentry = mount_dentry;
@@ -304,6 +308,7 @@ int kprobe_attach_recursive_mnt(struct pt_regs *ctx) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
+    update_path_id(&syscall->mount.root_key, 0);
 
     struct super_block *sb = get_dentry_sb(dentry);
     struct file_system_type *s_type = get_super_block_fs(sb);
@@ -336,6 +341,7 @@ int kprobe_propagate_mnt(struct pt_regs *ctx) {
     struct dentry *dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.src_mnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.src_mnt);
     syscall->mount.root_key.ino = get_dentry_ino(dentry);
+    update_path_id(&syscall->mount.root_key, 0);
 
     struct super_block *sb = get_dentry_sb(dentry);
     struct file_system_type *s_type = get_super_block_fs(sb);
@@ -362,10 +368,13 @@ int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_t
         return 0;
     }
 
+    u32 mount_id = get_mount_mount_id(syscall->mount.dest_mnt);
+
     struct dentry *dentry = get_mountpoint_dentry(syscall->mount.dest_mountpoint);
     struct path_key_t path_key = {
-        .mount_id = get_mount_mount_id(syscall->mount.dest_mnt),
+        .mount_id = mount_id,
         .ino = get_dentry_ino(dentry),
+        .path_id = get_path_id(mount_id, 0),
     };
     syscall->mount.path_key = path_key;
 
@@ -403,10 +412,12 @@ int __attribute__((always_inline)) dr_mount_callback(void *ctx, int retval) {
         .syscall.retval = retval,
         .mountfields.mount_id = get_mount_mount_id(syscall->mount.src_mnt),
         .mountfields.device = get_mount_dev(syscall->mount.src_mnt),
-        .mountfields.parent_mount_id = syscall->mount.path_key.mount_id,
-        .mountfields.parent_inode = syscall->mount.path_key.ino,
-        .mountfields.root_inode = syscall->mount.root_key.ino,
-        .mountfields.root_mount_id = syscall->mount.root_key.mount_id,
+        .mountfields.parent_key.mount_id = syscall->mount.path_key.mount_id,
+        .mountfields.parent_key.ino = syscall->mount.path_key.ino,
+        .mountfields.parent_key.path_id = syscall->mount.path_key.path_id,
+        .mountfields.root_key.mount_id = syscall->mount.root_key.mount_id,
+        .mountfields.root_key.ino = syscall->mount.root_key.ino,
+        .mountfields.root_key.path_id = syscall->mount.root_key.path_id,
         .mountfields.bind_src_mount_id = syscall->mount.bind_src_key.mount_id,
     };
     bpf_probe_read_str(&event.mountfields.fstype, FSTYPE_LEN, (void*) syscall->mount.fstype);

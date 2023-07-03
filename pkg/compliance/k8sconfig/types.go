@@ -103,6 +103,9 @@ type K8sCertFileMeta struct {
 	User        string `json:"user,omitempty"`
 	Group       string `json:"group,omitempty"`
 	Mode        uint32 `json:"mode,omitempty"`
+	DirUser     string `json:"dirUser,omitempty"`
+	DirGroup    string `json:"dirGroup,omitempty"`
+	DirMode     uint32 `json:"dirMode,omitempty"`
 	Certificate struct {
 		Fingerprint    string    `json:"fingerprint"`
 		SerialNumber   string    `json:"serialNumber,omitempty"`
