@@ -313,7 +313,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	// ebpf maps are being iterated over and deleted at the same time.
 	// The iteration can reset when that happens.
 	// See https://justin.azoff.dev/blog/bpf_map_get_next_key-pitfalls/
-	connsByTuple := make(map[netebpf.ConnTuple]*network.ConnectionStats)
+	connsByTuple := make(map[netebpf.ConnTuple]struct{})
 
 	// Cached objects
 	conn := new(network.ConnectionStats)
@@ -322,25 +322,29 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		populateConnStats(conn, key, stats, t.ch)
-		prev := connsByTuple[*key]
-		if prev != nil {
+		if _, exists := connsByTuple[*key]; exists {
+			// already seen the connection in current batch processing,
+			// due to race between the iterator and bpf_map_delete
 			ConnTracerTelemetry.iterationDups.Inc()
-		} else {
-			isTCP := conn.Type == network.TCP
-			switch conn.Family {
-			case network.AFINET6:
-				if isTCP {
-					tcp6++
-				} else {
-					udp6++
-				}
-			case network.AFINET:
-				if isTCP {
-					tcp4++
-				} else {
-					udp4++
-				}
+			continue
+		}
+
+		populateConnStats(conn, key, stats, t.ch)
+		connsByTuple[*key] = struct{}{}
+
+		isTCP := conn.Type == network.TCP
+		switch conn.Family {
+		case network.AFINET6:
+			if isTCP {
+				tcp6++
+			} else {
+				udp6++
+			}
+		case network.AFINET:
+			if isTCP {
+				tcp4++
+			} else {
+				udp4++
 			}
 		}
 
@@ -352,17 +356,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 			updateTCPStats(conn, tcp)
 		}
 
-		if prev != nil && prev.Cookie == conn.Cookie {
-			// iteration reset because of map delete in ebpf
-			// assume this version is more updated from last
-			// one and update
-			*prev = *conn
-			continue
-		}
-
-		c := buffer.Next()
-		*c = *conn
-		connsByTuple[*key] = c
+		*buffer.Next() = *conn
 	}
 
 	if err := entries.Err(); err != nil {
