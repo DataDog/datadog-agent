@@ -10,6 +10,7 @@ type StoreKey string
 const (
 	APIKey              StoreKey = "api_key"
 	APPKey              StoreKey = "app_key"
+	Environments        StoreKey = "env"
 	KeyPairName         StoreKey = "key_pair_name"
 	PrivateKeyPath      StoreKey = "private_key_path"
 	Profile             StoreKey = "profile"

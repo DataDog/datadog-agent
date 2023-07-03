@@ -98,6 +98,10 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.Config.ConfigParams.AWS.PublicKeyPath
 	case StackParameters:
 		value = s.stackParamsJson
+	case Environments:
+		if s.Config.ConfigParams.AWS.Account != "" {
+			value = "aws/" + s.Config.ConfigParams.AWS.Account
+		}
 	}
 
 	if value == "" {
