@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/protocolbuffers/protoscope"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -205,14 +206,20 @@ func createJSONBytesPayloadMatcher(prefix string) interface{} {
 	})
 }
 
-func createProtoPayloadMatcher(content []byte) interface{} {
+func createProtoscopeMatcher(protoscopeDef string) interface{} {
 	return mock.MatchedBy(func(payloads transaction.BytesPayloads) bool {
 		for _, compressedPayload := range payloads {
 			if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 				return false
 			} else {
-				if reflect.DeepEqual(content, payload) {
+				res, err := protoscope.NewScanner(protoscopeDef).Exec()
+				if err != nil {
+					return false
+				}
+				if reflect.DeepEqual(res, payload) {
 					return true
+				} else {
+					fmt.Printf("Did not match. Payload was\n%x and protoscope compilation was\n%x\n", payload, res)
 				}
 			}
 		}
@@ -295,7 +302,10 @@ func TestSendV1Series(t *testing.T) {
 
 func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	matcher := createProtoPayloadMatcher([]byte{0xa, 0xa, 0xa, 0x6, 0xa, 0x4, 0x68, 0x6f, 0x73, 0x74, 0x28, 0x3})
+	matcher := createProtoscopeMatcher(`1: {
+		1: { 1: {"host"} }
+		5: 3
+	  }`)
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.series", true) // default value, but just to be sure
 
@@ -309,7 +319,7 @@ func TestSendSeries(t *testing.T) {
 func TestSendSketch(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 
-	matcher := createProtoPayloadMatcher([]byte{18, 0})
+	matcher := createProtoscopeMatcher(`2: {}`)
 	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f, nil)
