@@ -238,6 +238,40 @@ func (w *soWatcher) Stop() {
 	w.wg.Wait()
 }
 
+type parseMapsFileCB func(path string)
+
+// parseMapsFile takes in a bufio.Scanner representing a memory mapping of /proc/<PID>/maps file, and a callback to be
+// applied on the paths extracted from the file. We're extracting only actual paths on the file system, and ignoring
+// anonymous memory regions.
+//
+// Example for entries in the `maps` file:
+// 7f135146b000-7f135147a000 r--p 00000000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
+// 7f135147a000-7f1351521000 r-xp 0000f000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
+// 7f1351521000-7f13515b8000 r--p 000b6000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
+// 7f13515b8000-7f13515b9000 r--p 0014c000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
+func parseMapsFile(scanner *bufio.Scanner, callback parseMapsFileCB) {
+	// The maps file can have multiple entries of the same loaded file, the cache is meant to ensure, we're not wasting
+	// time and memory on "duplicated" hooking.
+	cache := make(map[string]struct{})
+	for scanner.Scan() {
+		line := scanner.Text()
+		cols := strings.Fields(line)
+		// ensuring we have exactly 6 elements in the line and 4th element (length) is not zero (indicates it is a
+		// path, and not an anonymous path).
+		if len(cols) == 6 && cols[4] != "0" {
+			// Check if we've seen the same path before, if so, continue to the next.
+			if _, exists := cache[cols[5]]; exists {
+				continue
+			}
+			// We didn't process the path, so cache it to avoid future re-processing.
+			cache[cols[5]] = struct{}{}
+
+			// Apply the given callback on the path.
+			callback(cols[5])
+		}
+	}
+}
+
 // Start consuming shared-library events
 func (w *soWatcher) Start() {
 	thisPID, err := util.GetRootNSPID()
@@ -258,29 +292,20 @@ func (w *soWatcher) Start() {
 		}
 		defer maps.Close()
 
-		scanner := bufio.NewScanner(bufio.NewReader(maps))
-
-		cache := make(map[string]struct{})
-		for scanner.Scan() {
-			line := scanner.Text()
-			cols := strings.Fields(line)
-			// ensuring we have exactly 6 elements in the line and 4th element (length) is not zero (indicates it is a
-			// path, and not an anonymous path).
-			if len(cols) == 6 && cols[4] != "0" {
-				if _, exists := cache[cols[5]]; exists {
-					continue
-				}
-				cache[cols[5]] = struct{}{}
-				for _, r := range w.rules {
-					if r.re.MatchString(cols[5]) {
-						root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
-						w.registry.register(root, cols[5], uint32(pid), r)
-						break
-					}
+		// Creating a callback to be applied on the paths extracted from the `maps` file.
+		// We're creating the callback here, as we need the pid (which varies between iterations).
+		parseMapsFileCallback := func(path string) {
+			// Iterate over the rule, and look for a match.
+			for _, r := range w.rules {
+				if r.re.MatchString(path) {
+					root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
+					w.registry.register(root, path, uint32(pid), r)
+					break
 				}
 			}
 		}
-
+		scanner := bufio.NewScanner(bufio.NewReader(maps))
+		parseMapsFile(scanner, parseMapsFileCallback)
 		return nil
 	})
 
