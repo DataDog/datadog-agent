@@ -74,6 +74,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")
 	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")
+	config.BindEnv("apm_config.trace_buffer", "DD_APM_TRACE_BUFFER")
 	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")
 	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")
 	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")

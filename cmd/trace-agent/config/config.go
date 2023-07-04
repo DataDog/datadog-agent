@@ -249,6 +249,10 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if k := "apm_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
 		c.MaxRequestBytes = coreconfig.Datadog.GetInt64(k)
 	}
+	if coreconfig.Datadog.IsSet("apm_config.trace_buffer") {
+		c.TraceBuffer = coreconfig.Datadog.GetInt("apm_config.trace_buffer")
+	}
+
 	if k := "apm_config.replace_tags"; coreconfig.Datadog.IsSet(k) {
 		rt := make([]*config.ReplaceRule, 0)
 		if err := coreconfig.Datadog.UnmarshalKey(k, &rt); err != nil {

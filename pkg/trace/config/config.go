@@ -337,6 +337,7 @@ type AgentConfig struct {
 	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
 	ReceiverTimeout int
 	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer     int
 
 	WindowsPipeName        string
 	PipeBufferSize         int

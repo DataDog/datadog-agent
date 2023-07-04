@@ -86,7 +86,8 @@ type Agent struct {
 // which may be cancelled in order to gracefully stop the agent.
 func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	dynConf := sampler.NewDynamicConfig()
-	in := make(chan *api.Payload, 1)
+	log.Infof("TRACE BUFFER SET TO %d", conf.TraceBuffer)
+	in := make(chan *api.Payload, conf.TraceBuffer)
 	statsChan := make(chan pb.StatsPayload, 1)
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {

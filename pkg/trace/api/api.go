@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -111,7 +112,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		// This also works well with a smaller GOMAXPROCS, since
 		// the processor backpressure ensures we have at most
 		// 4 payloads waiting to be queued and processed.
-		recvsem: make(chan struct{}, 4),
+		recvsem: make(chan struct{}, runtime.GOMAXPROCS(0)),
 
 		outOfCPUCounter: atomic.NewUint32(0),
 	}
@@ -517,7 +518,6 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ClientComputedStats:    req.Header.Get(header.ComputedStats) != "",
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
 	}
-
 	r.out <- payload
 }
 
