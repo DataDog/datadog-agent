@@ -6,6 +6,7 @@
 package tests
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +33,23 @@ func (s *StatsdClient) Get(key string) int64 {
 	s.RLock()
 	defer s.RUnlock()
 	return s.counts[key]
+}
+
+// GetByPrefix return the count
+func (s *StatsdClient) GetByPrefix(prefix string) map[string]int64 {
+	result := make(map[string]int64)
+
+	s.RLock()
+	defer s.RUnlock()
+
+	for key, value := range s.counts {
+		if strings.HasPrefix(key, prefix) {
+			k := strings.Replace(key, prefix, "", -1)
+			result[k] = value
+		}
+	}
+
+	return result
 }
 
 // Gauge does nothing and returns nil
