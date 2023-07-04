@@ -46,10 +46,13 @@ suites:
       dd-agent-upgrade-rspec:
         # Used by the rspec test to know the version to which the agent should be upgraded
         agent_expected_version: "<%= ENV['LAST_STABLE_VERSION'] %>"
+
+        ## for the rollback test, always skip the signature test.  Whatever the previous version
+        ## is would have been tested for signature at the time it was released.  And checking
+        ## for signature here gets us caught inbetween if the test is run across certificate
+        ## renewal boundary (the old binary signed with old cert, the new with new)
+        skip_windows_signing_test: &skip_windows_signing_test true
       dd-agent-rspec:
-        # skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
-        # The MSI signature changed and there is no way to specify a has per version currently
-        # so simply don't check the signature for the upgrade test. TODO: re-enable after 7.47
         skip_windows_signing_test: &skip_windows_signing_test true
 
   - name: win-installopts

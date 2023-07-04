@@ -86,6 +86,13 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 		}
 		s.gosnmpInst.Community = config.CommunityString
 	} else if config.User != "" {
+		if config.AuthKey != "" && config.AuthProtocol == "" {
+			config.AuthProtocol = "md5"
+		}
+		if config.PrivKey != "" && config.PrivProtocol == "" {
+			config.PrivProtocol = "des"
+		}
+
 		authProtocol, err := gosnmplib.GetAuthProtocol(config.AuthProtocol)
 		if err != nil {
 			return nil, err

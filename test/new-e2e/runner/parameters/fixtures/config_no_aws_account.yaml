@@ -1,8 +1,6 @@
 # Environments configuration, validated and passed to Pulumi
 configParams:
   aws:
-    # aws account where resources will be created on
-    account: "kiki"
     # aws key pair name
     # must be available in aws account
     # required to configure EC2 instances
