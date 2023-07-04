@@ -194,7 +194,7 @@ func Run(ctx context.Context) {
 		}
 	}()
 
-	if coreconfig.IsRemoteConfigEnabled() {
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
 		// Auth tokens are handled by the rcClient
 		rcClient, err := rc.NewAgentGRPCConfigFetcher()
 		if err != nil {

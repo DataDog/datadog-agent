@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -54,7 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func state(cliParams *cliParams, config config.Component) error {
-	if !config.GetBool("remote_configuration.enabled") {
+	if !pkgconfig.IsRemoteConfigEnabled(config) {
 		return fmt.Errorf("Remote configuration is not enabled")
 	}
 	fmt.Println("Fetching the configuration and director repos state..")
