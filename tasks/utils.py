@@ -3,10 +3,12 @@ Miscellaneous functions, no tasks here
 """
 
 
+import contextlib
 import json
 import os
 import re
 import sys
+import time
 from subprocess import check_output
 
 from invoke import task
@@ -554,3 +556,15 @@ def check_upstream_branch(github, branch):
 
     # Return True if the branch exists
     return github_branch and github_branch.get('name', False)
+
+
+@contextlib.contextmanager
+def timed(name=""):
+    """Context manager that prints how long it took"""
+    start = time.time()
+    print(f"{name}")
+    try:
+        yield
+    finally:
+        end = time.time()
+        print(f"{name} completed in {end-start:.2f}s")

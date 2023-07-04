@@ -66,6 +66,10 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 				// nothing to do
 				return
 			}
+			if a.conf.Obfuscation.Redis.RemoveAllArgs {
+				span.Meta[tagRedisRawCommand] = o.RemoveAllRedisArgs(span.Meta[tagRedisRawCommand])
+				return
+			}
 			span.Meta[tagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[tagRedisRawCommand])
 		}
 	case "memcached":
