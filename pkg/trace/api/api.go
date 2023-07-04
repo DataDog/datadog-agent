@@ -93,7 +93,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	}
 	semcount := conf.Decoders
 	if semcount == 0 {
-		semcount = runtime.GOMAXPROCS(0)
+		semcount = runtime.GOMAXPROCS(0) / 2
 	}
 	log.Infof("Receiver configured with %d decoders.", semcount)
 	return &HTTPReceiver{
