@@ -252,6 +252,14 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.trace_buffer") {
 		c.TraceBuffer = coreconfig.Datadog.GetInt("apm_config.trace_buffer")
 	}
+	if coreconfig.Datadog.IsSet("apm_config.decoders") {
+		c.Decoders = coreconfig.Datadog.GetInt("apm_config.decoders")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.max_connections") {
+		c.MaxConnections = coreconfig.Datadog.GetInt("apm_config.max_connections")
+	} else {
+		c.MaxConnections = 50
+	}
 
 	if k := "apm_config.replace_tags"; coreconfig.Datadog.IsSet(k) {
 		rt := make([]*config.ReplaceRule, 0)

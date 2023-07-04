@@ -91,6 +91,11 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if conf.HasFeature("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
+	semcount := conf.Decoders
+	if semcount == 0 {
+		semcount = runtime.GOMAXPROCS(0)
+	}
+	log.Infof("Receiver configured with %d decoders.", semcount)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),
 
@@ -112,7 +117,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		// This also works well with a smaller GOMAXPROCS, since
 		// the processor backpressure ensures we have at most
 		// 4 payloads waiting to be queued and processed.
-		recvsem: make(chan struct{}, runtime.GOMAXPROCS(0)),
+		recvsem: make(chan struct{}, semcount),
 
 		outOfCPUCounter: atomic.NewUint32(0),
 	}
@@ -245,7 +250,7 @@ func (r *HTTPReceiver) listenUnix(path string) (net.Listener, error) {
 	if err := os.Chmod(path, 0o722); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
-	return NewMeasuredListener(ln, "uds_connections"), err
+	return NewMeasuredListener(ln, "uds_connections", r.conf.MaxConnections), err
 }
 
 // listenTCP creates a new net.Listener on the provided TCP address.
@@ -262,7 +267,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 		}()
 		return ln, err
 	}
-	return NewMeasuredListener(tcpln, "tcp_connections"), err
+	return NewMeasuredListener(tcpln, "tcp_connections", r.conf.MaxConnections), err
 }
 
 // Stop stops the receiver and shuts down the HTTP server.

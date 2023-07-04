@@ -31,7 +31,8 @@ type measuredListener struct {
 // NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is
 // datadog.trace_agent.receiver.<name>. Additionally, a "status" tag will be added with
 // potential values "accepted", "timedout" or "errored".
-func NewMeasuredListener(ln net.Listener, name string) net.Listener {
+func NewMeasuredListener(ln net.Listener, name string, maxConn int) net.Listener {
+	log.Infof("Listener started with %d maximum connections.", maxConn)
 	ml := &measuredListener{
 		Listener: ln,
 		name:     "datadog.trace_agent.receiver." + name,
@@ -39,7 +40,7 @@ func NewMeasuredListener(ln net.Listener, name string) net.Listener {
 		timedout: atomic.NewUint32(0),
 		errored:  atomic.NewUint32(0),
 		exit:     make(chan struct{}),
-		sem:      make(chan struct{}, 50),
+		sem:      make(chan struct{}, maxConn),
 	}
 	go ml.run()
 	return ml
