@@ -16,7 +16,7 @@ require (
 	// Commit sha matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20230630154552-dd71020f100d
+	github.com/DataDog/test-infra-definitions v0.0.0-20230704121652-e8357180c2b4
 	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.27
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
@@ -24,7 +24,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/fatih/color v1.13.0
 	github.com/pulumi/pulumi-command/sdk v0.7.2 // indirect
-	github.com/pulumi/pulumi/sdk/v3 v3.72.2
+	github.com/pulumi/pulumi/sdk/v3 v3.73.0
 	github.com/samber/lo v1.38.1
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.8.4
@@ -115,9 +115,13 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/pulumi-aws/sdk/v5 v5.41.0 // indirect
 	github.com/pulumi/pulumi-awsx/sdk v1.0.2 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk v1.103.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute v1.103.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice v1.103.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network v1.103.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk v1.0.1 // indirect
-	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.29.1 // indirect
+	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.2 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
