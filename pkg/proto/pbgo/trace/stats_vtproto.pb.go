@@ -305,6 +305,13 @@ func (m *ClientGroupedStats) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.SpanKind) > 0 {
+		i -= len(m.SpanKind)
+		copy(dAtA[i:], m.SpanKind)
+		i = encodeVarint(dAtA, i, uint64(len(m.SpanKind)))
+		i--
+		dAtA[i] = 0x7a
+	}
 	if len(m.PeerService) > 0 {
 		i -= len(m.PeerService)
 		copy(dAtA[i:], m.PeerService)
@@ -569,6 +576,10 @@ func (m *ClientGroupedStats) SizeVT() (n int) {
 		n += 1 + sov(uint64(m.TopLevelHits))
 	}
 	l = len(m.PeerService)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.SpanKind)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -1746,6 +1757,38 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.PeerService = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SpanKind", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SpanKind = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
