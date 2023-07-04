@@ -88,7 +88,8 @@ suites:
 
   - name: win-all-subservices
     run_list:
-      - "recipe[dd-agent-install::_install_windows_base]"
+      - "recipe[dd-agent-system-files-check::list-files-before-install]"
+      - "recipe[dd-agent-install]"
     attributes:
       datadog:
         <% dd_agent_config.each do |key, value| %>
