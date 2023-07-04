@@ -49,7 +49,7 @@ type K8sConfigFileMeta struct {
 	User    string      `json:"user"`
 	Group   string      `json:"group"`
 	Mode    uint32      `json:"mode"`
-	Content interface{} `json:"content"`
+	Content interface{} `json:"content" jsonschema:"type=object"`
 }
 
 type K8sTokenFileMeta struct {
