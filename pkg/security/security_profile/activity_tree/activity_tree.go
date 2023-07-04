@@ -282,6 +282,10 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 		return node.InsertBindEvent(event, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, at.SyscallsMask), nil
+	case model.ExitEventType:
+		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
+		// execed children)
+		node.Process.ExitTime = event.Timestamp
 	}
 
 	return false, nil
@@ -442,7 +446,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 func (at *ActivityTree) findBranchInChildrenNodes(tree *[]*ProcessNode, branch []*model.ProcessCacheEntry, dryRun bool, generationType NodeGenerationType) (*ProcessNode, bool) {
 	for i, branchCursor := range branch {
 
-		// look for eventExecChild in the tree
+		// look for branchCursor in the tree
 		treeNodeToRebase, treeNodeToRebaseIndex := at.findProcessCacheEntryInChildrenNodes(tree, branchCursor)
 
 		// if found, append the input process sequence and rebase the tree
@@ -493,7 +497,7 @@ func (at *ActivityTree) findBranchInChildrenNodes(tree *[]*ProcessNode, branch [
 			// We didn't find the current entry anywhere, has it execed into something else ? (i.e. are we missing something
 			// in the profile ?)
 			if i+1 < len(branch) {
-				if !branchCursor.ExitTime.IsZero() && branch[i+1].ExecTime.Equal(branchCursor.ExitTime) {
+				if branch[i+1].IsExecChild() {
 					continue
 				}
 			}
@@ -514,7 +518,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildrenNodes(tree *[]*ProcessNod
 			return child, i
 		}
 
-		// has root exec into one of its own children ?
+		// has the parent execed into one of its own children ?
 		if execChild := at.findProcessCacheEntryInChildExecedNodes(child, entry); execChild != nil {
 			return execChild, i
 		}
@@ -525,30 +529,28 @@ func (at *ActivityTree) findProcessCacheEntryInChildrenNodes(tree *[]*ProcessNod
 // findProcessCacheEntryInChildExecedNodes look for entry in the execed nodes of child
 func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
 	// children is used to iterate over the tree below child
-	cursor := child
+	execChildren := []*ProcessNode{child}
 
-	for cursor != nil {
-		// execedChild will be used if we didn't find the node we're looking for and we detected that the parent process
-		// execed into one of its child without forking
-		var execedChild *ProcessNode
+	for len(execChildren) > 0 {
+		cursor := execChildren[0]
+		execChildren = execChildren[1:]
 
 		// look for an execed child
 		for _, node := range cursor.Children {
-			if !node.Process.ExecTime.IsZero() && node.Process.ExecTime.Equal(cursor.Process.ExitTime) {
+			if node.IsExecChild {
 				// there should always be only one
-				execedChild = node
-				break
+				execChildren = append(execChildren, node)
 			}
 		}
-		if execedChild == nil {
-			return nil
+
+		if len(execChildren) == 0 {
+			break
 		}
 
 		// does this execed child match the entry ?
-		if execedChild.Matches(&entry.Process, at.differentiateArgs) {
-			return execedChild
+		if execChildren[0].Matches(&entry.Process, at.differentiateArgs) {
+			return execChildren[0]
 		}
-		cursor = execedChild
 	}
 
 	// not found
