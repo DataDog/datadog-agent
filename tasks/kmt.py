@@ -21,6 +21,9 @@ try:
 except ImportError:
     tabulate = None
 
+X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
+ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
+
 @task
 def create_stack(ctx, stack=None, branch=False):
     stacks.create_stack(ctx, stack, branch)
@@ -43,7 +46,7 @@ def gen_config(ctx, stack=None, branch=False, vms="", init_stack=False, vcpu="4"
 
 @task
 def launch_stack(
-    ctx, stack=None, branch=False, ssh_key="", x86_ami="ami-0ea4588b47bb10aac", arm_ami="ami-0f7cd5e8852bde813"
+    ctx, stack=None, branch=False, ssh_key="", x86_ami=X86_AMI_ID_SANDBOX, arm_ami=ARM_AMI_ID_SANDBOX
 ):
     stacks.launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami)
 
