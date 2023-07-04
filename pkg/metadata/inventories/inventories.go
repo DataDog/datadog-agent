@@ -68,40 +68,53 @@ type AgentMetadataName string
 // pkg/metadata/inventories/README.md and any additions should
 // be updated there as well.
 const (
-	AgentHostnameSource                 AgentMetadataName = "hostname_source"
-	AgentVersion                        AgentMetadataName = "agent_version"
-	AgentFlavor                         AgentMetadataName = "flavor"
-	AgentConfigAPMDDURL                 AgentMetadataName = "config_apm_dd_url"
-	AgentConfigDDURL                    AgentMetadataName = "config_dd_url"
-	AgentConfigSite                     AgentMetadataName = "config_site"
-	AgentConfigLogsDDURL                AgentMetadataName = "config_logs_dd_url"
-	AgentConfigLogsSocks5ProxyAddress   AgentMetadataName = "config_logs_socks5_proxy_address"
-	AgentConfigNoProxy                  AgentMetadataName = "config_no_proxy"
-	AgentConfigProcessDDURL             AgentMetadataName = "config_process_dd_url"
-	AgentConfigProxyHTTP                AgentMetadataName = "config_proxy_http"
-	AgentConfigProxyHTTPS               AgentMetadataName = "config_proxy_https"
-	AgentInstallMethodInstallerVersion  AgentMetadataName = "install_method_installer_version"
-	AgentInstallMethodTool              AgentMetadataName = "install_method_tool"
-	AgentInstallMethodToolVersion       AgentMetadataName = "install_method_tool_version"
-	AgentLogsTransport                  AgentMetadataName = "logs_transport"
-	AgentCWSEnabled                     AgentMetadataName = "feature_cws_enabled"
-	AgentOTLPEnabled                    AgentMetadataName = "feature_otlp_enabled"
-	AgentProcessEnabled                 AgentMetadataName = "feature_process_enabled"
-	AgentProcessesContainerEnabled      AgentMetadataName = "feature_processes_container_enabled"
-	AgentNetworksEnabled                AgentMetadataName = "feature_networks_enabled"
-	AgentNetworksHTTPEnabled            AgentMetadataName = "feature_networks_http_enabled"
-	AgentNetworksHTTPSEnabled           AgentMetadataName = "feature_networks_https_enabled"
-	AgentRemoteConfigEnabled            AgentMetadataName = "feature_remote_configuration_enabled"
-	AgentUSMKafkaEnabled                AgentMetadataName = "feature_usm_kafka_enabled"
-	AgentUSMJavaTLSEnabled              AgentMetadataName = "feature_usm_java_tls_enabled"
-	AgentUSMHTTP2Enabled                AgentMetadataName = "feature_usm_http2_enabled"
-	AgentUSMEnableHTTPStatsByStatusCode AgentMetadataName = "feature_enable_http_stats_by_status_code"
-	AgentUSMGoTLSEnabled                AgentMetadataName = "feature_usm_go_tls_enabled"
-	AgentDIEnabled                      AgentMetadataName = "feature_dynamic_instrumentation_enabled"
-	AgentLogsEnabled                    AgentMetadataName = "feature_logs_enabled"
-	AgentCSPMEnabled                    AgentMetadataName = "feature_cspm_enabled"
-	AgentAPMEnabled                     AgentMetadataName = "feature_apm_enabled"
-	AgentIMDSv2Enabled                  AgentMetadataName = "feature_imdsv2_enabled"
+	AgentHostnameSource                  AgentMetadataName = "hostname_source"
+	AgentVersion                         AgentMetadataName = "agent_version"
+	AgentFlavor                          AgentMetadataName = "flavor"
+	AgentConfigAPMDDURL                  AgentMetadataName = "config_apm_dd_url"
+	AgentConfigDDURL                     AgentMetadataName = "config_dd_url"
+	AgentConfigSite                      AgentMetadataName = "config_site"
+	AgentConfigLogsDDURL                 AgentMetadataName = "config_logs_dd_url"
+	AgentConfigLogsSocks5ProxyAddress    AgentMetadataName = "config_logs_socks5_proxy_address"
+	AgentConfigNoProxy                   AgentMetadataName = "config_no_proxy"
+	AgentConfigProcessDDURL              AgentMetadataName = "config_process_dd_url"
+	AgentConfigProxyHTTP                 AgentMetadataName = "config_proxy_http"
+	AgentConfigProxyHTTPS                AgentMetadataName = "config_proxy_https"
+	AgentInstallMethodInstallerVersion   AgentMetadataName = "install_method_installer_version"
+	AgentInstallMethodTool               AgentMetadataName = "install_method_tool"
+	AgentInstallMethodToolVersion        AgentMetadataName = "install_method_tool_version"
+	AgentLogsTransport                   AgentMetadataName = "logs_transport"
+	AgentCWSEnabled                      AgentMetadataName = "feature_cws_enabled"
+	AgentCWSNetworkEnabled               AgentMetadataName = "feature_cws_network_enabled"
+	AgentCWSSecurityProfilesEnabled      AgentMetadataName = "feature_cws_security_profiles_enabled"
+	AgentCWSRemoteConfigEnabled          AgentMetadataName = "feature_cws_remote_config_enabled"
+	AgentOTLPEnabled                     AgentMetadataName = "feature_otlp_enabled"
+	AgentProcessEnabled                  AgentMetadataName = "feature_process_enabled"
+	AgentProcessesContainerEnabled       AgentMetadataName = "feature_processes_container_enabled"
+	AgentNetworksEnabled                 AgentMetadataName = "feature_networks_enabled"
+	AgentNetworksHTTPEnabled             AgentMetadataName = "feature_networks_http_enabled"
+	AgentNetworksHTTPSEnabled            AgentMetadataName = "feature_networks_https_enabled"
+	AgentRemoteConfigEnabled             AgentMetadataName = "feature_remote_configuration_enabled"
+	AgentUSMKafkaEnabled                 AgentMetadataName = "feature_usm_kafka_enabled"
+	AgentUSMJavaTLSEnabled               AgentMetadataName = "feature_usm_java_tls_enabled"
+	AgentUSMHTTP2Enabled                 AgentMetadataName = "feature_usm_http2_enabled"
+	AgentUSMHTTPStatsByStatusCodeEnabled AgentMetadataName = "feature_usm_http_by_status_code_enabled"
+	AgentUSMGoTLSEnabled                 AgentMetadataName = "feature_usm_go_tls_enabled"
+	AgentDIEnabled                       AgentMetadataName = "feature_dynamic_instrumentation_enabled"
+	AgentLogsEnabled                     AgentMetadataName = "feature_logs_enabled"
+	AgentCSPMEnabled                     AgentMetadataName = "feature_cspm_enabled"
+	AgentAPMEnabled                      AgentMetadataName = "feature_apm_enabled"
+	AgentIMDSv2Enabled                   AgentMetadataName = "feature_imdsv2_enabled"
+
+	// System Probe general config values
+	AgentSPOOMKillEnabled               AgentMetadataName = "feature_oom_kill_enabled"
+	AgentSPTCPQueueLengthEnabled        AgentMetadataName = "feature_tcp_queue_length_enabled"
+	AgentSPTelemetryEnabled             AgentMetadataName = "system_probe_telemetry_enabled"
+	AgentSPCOREEnabled                  AgentMetadataName = "system_probe_core_enabled"
+	AgentSPRuntimeCompilationEnabled    AgentMetadataName = "system_probe_runtime_compilation_enabled"
+	AgentSPKernelHeadersDownloadEnabled AgentMetadataName = "system_probe_kernel_headers_download_enabled"
+	AgentSPPrebuiltFallbackEnabled      AgentMetadataName = "system_probe_prebuilt_fallback_enabled"
+	AgentSPMaxConnectionPerMessage      AgentMetadataName = "system_probe_max_connections_per_message"
 
 	// Those are reserved fields for the agentMetadata payload.
 	agentProvidedConf AgentMetadataName = "provided_configuration"
@@ -423,6 +436,9 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
 	SetAgentMetadata(AgentCWSEnabled, config.SystemProbe.GetBool("runtime_security_config.enabled"))
+	SetAgentMetadata(AgentCWSNetworkEnabled, config.SystemProbe.GetBool("event_monitoring_config.network.enabled"))
+	SetAgentMetadata(AgentCWSSecurityProfilesEnabled, config.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"))
+	SetAgentMetadata(AgentCWSRemoteConfigEnabled, config.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"))
 	SetAgentMetadata(AgentProcessEnabled, config.Datadog.GetBool("process_config.process_collection.enabled"))
 	SetAgentMetadata(AgentProcessesContainerEnabled, config.Datadog.GetBool("process_config.container_collection.enabled"))
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
@@ -432,7 +448,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentRemoteConfigEnabled, config.Datadog.GetBool("remote_configuration.enabled"))
 	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
-	SetAgentMetadata(AgentUSMEnableHTTPStatsByStatusCode, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))
+	SetAgentMetadata(AgentUSMHTTPStatsByStatusCodeEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code"))
 	SetAgentMetadata(AgentUSMGoTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_go_tls_support"))
 	SetAgentMetadata(AgentDIEnabled, config.SystemProbe.GetBool("dynamic_instrumentation.enabled"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
@@ -442,4 +458,15 @@ func initializeConfig(cfg config.Config) {
 	// NOTE: until otlp config stabilizes, we set AgentOTLPEnabled in cmd/agent/app/run.go
 	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
 	// case like that, we should move otlp.IsEnabled to pkg/config/otlp
+
+	// SystemProbe module level configuration,
+	// configuration knobs for specific products running in SystemProbe (USM, NPM, CWS, etc...) are NOT included
+	SetAgentMetadata(AgentSPTCPQueueLengthEnabled, config.SystemProbe.GetBool("system_probe_config.enable_tcp_queue_length"))
+	SetAgentMetadata(AgentSPOOMKillEnabled, config.SystemProbe.GetBool("system_probe_config.enable_oom_kill"))
+	SetAgentMetadata(AgentSPCOREEnabled, config.SystemProbe.GetBool("system_probe_config.enable_co_re"))
+	SetAgentMetadata(AgentSPRuntimeCompilationEnabled, config.SystemProbe.GetBool("system_probe_config.enable_runtime_compiler"))
+	SetAgentMetadata(AgentSPKernelHeadersDownloadEnabled, config.SystemProbe.GetBool("system_probe_config.enable_kernel_header_download"))
+	SetAgentMetadata(AgentSPPrebuiltFallbackEnabled, config.SystemProbe.GetBool("system_probe_config.allow_precompiled_fallback"))
+	SetAgentMetadata(AgentSPTelemetryEnabled, config.SystemProbe.GetBool("system_probe_config.telemetry_enabled"))
+	SetAgentMetadata(AgentSPMaxConnectionPerMessage, config.SystemProbe.GetInt("system_probe_config.max_conns_per_message"))
 }

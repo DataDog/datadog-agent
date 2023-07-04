@@ -62,5 +62,6 @@ func (tf *TrapForwarder) sendTrap(packet *SnmpPacket) {
 		return
 	}
 	log.Tracef("send trap payload: %s", string(data))
+	tf.sender.Count("datadog.snmp_traps.forwarded", 1, "", packet.getTags())
 	tf.sender.EventPlatformEvent(data, epforwarder.EventTypeSnmpTraps)
 }

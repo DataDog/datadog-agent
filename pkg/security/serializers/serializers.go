@@ -246,6 +246,21 @@ type FileEventSerializer struct {
 	FSType string `json:"fstype,omitempty"`
 }
 
+// MatchedRuleSerializer serializes a rule
+// easyjson:json
+type MatchedRuleSerializer struct {
+	// ID of the rule
+	ID string `json:"id,omitempty"`
+	// Version of the rule
+	Version string `json:"version,omitempty"`
+	// Tags of the rule
+	Tags []string `json:"tags,omitempty"`
+	// Name of the policy that introduced the rule
+	PolicyName string `json:"policy_name,omitempty"`
+	// Version of the policy that introduced the rule
+	PolicyVersion string `json:"policy_version,omitempty"`
+}
+
 // EventContextSerializer serializes an event context to JSON
 // easyjson:json
 type EventContextSerializer struct {
@@ -257,6 +272,8 @@ type EventContextSerializer struct {
 	Outcome string `json:"outcome,omitempty"`
 	// True if the event was asynchronous
 	Async bool `json:"async,omitempty"`
+	// The list of rules that the event matched (only valid in the context of an anomaly)
+	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -582,6 +599,21 @@ func newAnomalyDetectionSyscallEventSerializer(e *model.AnomalyDetectionSyscallE
 	return &AnomalyDetectionSyscallEventSerializer{
 		Syscall: e.SyscallID.String(),
 	}
+}
+
+func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
+	mrs := MatchedRuleSerializer{
+		ID:            r.RuleID,
+		Version:       r.RuleVersion,
+		PolicyName:    r.PolicyName,
+		PolicyVersion: r.PolicyVersion,
+		Tags:          make([]string, 0, len(r.RuleTags)),
+	}
+
+	for tagName, tagValue := range r.RuleTags {
+		mrs.Tags = append(mrs.Tags, tagName+":"+tagValue)
+	}
+	return mrs
 }
 
 func getInUpperLayer(f *model.FileFields) *bool {
@@ -1002,16 +1034,16 @@ func newMountEventSerializer(e *model.Event, resolvers *resolvers.Resolvers) *Mo
 	mountSerializer := &MountEventSerializer{
 		MountPoint: &FileSerializer{
 			Path:    dst,
-			MountID: &e.Mount.ParentMountID,
-			Inode:   &e.Mount.ParentInode,
+			MountID: &e.Mount.ParentPathKey.MountID,
+			Inode:   &e.Mount.ParentPathKey.Inode,
 		},
 		Root: &FileSerializer{
 			Path:    src,
-			MountID: &e.Mount.RootMountID,
-			Inode:   &e.Mount.RootInode,
+			MountID: &e.Mount.RootPathKey.MountID,
+			Inode:   &e.Mount.RootPathKey.Inode,
 		},
 		MountID:         e.Mount.MountID,
-		ParentMountID:   e.Mount.ParentMountID,
+		ParentMountID:   e.Mount.ParentPathKey.MountID,
 		BindSrcMountID:  e.Mount.BindSrcMountID,
 		Device:          e.Mount.Device,
 		FSType:          e.Mount.GetFSType(),
@@ -1078,6 +1110,13 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
 		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),
+	}
+
+	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
+		s.EventContextSerializer.MatchedRules = make([]MatchedRuleSerializer, 0, len(event.Rules))
+		for _, r := range event.Rules {
+			s.EventContextSerializer.MatchedRules = append(s.EventContextSerializer.MatchedRules, newMatchedRulesSerializer(r))
+		}
 	}
 
 	if id := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); id != "" {

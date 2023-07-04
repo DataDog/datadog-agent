@@ -174,9 +174,9 @@ func (s *StatsTracker) Info() []string {
 	RecentPeakLatency := s.MovingPeak() / int64(time.Millisecond)
 
 	return []string{
-		fmt.Sprintf("Average Latency (ms): %d", RecentAvgLatency),
-		fmt.Sprintf("24h Average Latency (ms): %d", AllTimeAvgLatency),
-		fmt.Sprintf("Peak Latency (ms): %d", RecentPeakLatency),
-		fmt.Sprintf("24h Peak Latency (ms): %d", AllTimePeakLatency),
+		fmt.Sprintf("Average Latency (ms): %d", AllTimeAvgLatency),
+		fmt.Sprintf("24h Average Latency (ms): %d", RecentAvgLatency),
+		fmt.Sprintf("Peak Latency (ms): %d", AllTimePeakLatency),
+		fmt.Sprintf("24h Peak Latency (ms): %d", RecentPeakLatency),
 	}
 }

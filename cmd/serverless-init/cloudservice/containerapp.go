@@ -52,6 +52,10 @@ func (c *ContainerApp) GetTags() map[string]string {
 		tags["resource_group"] = c.ResourceGroup
 	}
 
+	if c.SubscriptionId != "" && c.ResourceGroup != "" {
+		tags["resource_id"] = fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", c.SubscriptionId, c.ResourceGroup, strings.ToLower(appName))
+	}
+
 	return tags
 }
 
@@ -80,7 +84,7 @@ func (c *ContainerApp) Init() error {
 	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
 	// and DD_AZURE_RESOURCE_GROUP.
 	// These environment variables are optional for now. Once we go GA,
-	// return `false` if these are not set.
+	// return an error if these are not set.
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
 		c.SubscriptionId = subscriptionId
 	} else {

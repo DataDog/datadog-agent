@@ -73,6 +73,8 @@ func (e *kafkaEncoder) Close() {
 }
 
 func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStat]) []byte {
+	e.reset()
+
 	for _, kv := range connectionData.Data {
 		key := kv.Key
 		stats := kv.Value

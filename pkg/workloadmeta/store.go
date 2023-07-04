@@ -318,21 +318,35 @@ func (s *store) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
 
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
 func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
-	entities, ok := s.store[KindKubernetesPod]
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	containerEntities, ok := s.store[KindContainer]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	for _, e := range entities {
-		pod := e.cached.(*KubernetesPod)
-		for _, podContainer := range pod.Containers {
-			if podContainer.ID == containerID {
-				return pod, nil
-			}
-		}
+	containerEntity, ok := containerEntities[containerID]
+	if !ok {
+		return nil, errors.NewNotFound(containerID)
 	}
 
-	return nil, errors.NewNotFound(containerID)
+	container := containerEntity.cached.(*Container)
+	if container.Owner == nil || container.Owner.Kind != KindKubernetesPod {
+		return nil, errors.NewNotFound(containerID)
+	}
+
+	podEntities, ok := s.store[KindKubernetesPod]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	pod, ok := podEntities[container.Owner.ID]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	return pod.cached.(*KubernetesPod), nil
 }
 
 // GetKubernetesNode implements Store#GetKubernetesNode

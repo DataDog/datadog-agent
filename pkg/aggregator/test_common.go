@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -18,6 +19,6 @@ func (s *senders) PeekSender(cid check.ID) (Sender, error) {
 	return s.senderPool.getSender(cid)
 }
 
-func NewForwarderTest() defaultforwarder.Forwarder {
-	return defaultforwarder.NewDefaultForwarder(config.Datadog, defaultforwarder.NewOptions(config.Datadog, nil))
+func NewForwarderTest(log log.Component) defaultforwarder.Forwarder {
+	return defaultforwarder.NewDefaultForwarder(config.Datadog, log, defaultforwarder.NewOptions(config.Datadog, log, nil))
 }

@@ -8,6 +8,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
+// fentry blocked by: tail call
 SEC("kprobe/security_inode_setattr")
 int kprobe_security_inode_setattr(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
@@ -89,6 +90,7 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_setattr_callback")
 int __attribute__((always_inline)) kprobe_dr_setattr_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);

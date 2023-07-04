@@ -28,6 +28,9 @@ import (
 const (
 	// OverlayFS overlay filesystem
 	OverlayFS = "overlay"
+	// TmpFS tmpfs
+	TmpFS = "tmpfs"
+	// UnknownFS unknow filesystem
 	UnknownFS = "unknown"
 )
 
@@ -366,9 +369,32 @@ func (e *Event) IsActivityDumpSample() bool {
 	return e.Flags&EventFlagsActivityDumpSample > 0
 }
 
-// IsInProfile return true if the event was fount in the profile
+// IsInProfile return true if the event was found in the profile
 func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
+}
+
+// IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
+func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
+	return AnomalyDetectionSyscallEventType == e.GetEventType()
+}
+
+// IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
+func (e *Event) IsAnomalyDetectionEvent() bool {
+	if !e.SecurityProfileContext.Status.IsEnabled(AnomalyDetection) {
+		return false
+	}
+
+	// first, check if the current event is a kernel generated anomaly detection event
+	if e.IsKernelSpaceAnomalyDetectionEvent() {
+		return true
+	} else if !e.SecurityProfileContext.CanGenerateAnomaliesFor(e.GetEventType()) {
+		// the profile can't generate anomalies for the current event type
+		return false
+	} else if e.IsInProfile() {
+		return false
+	}
+	return true
 }
 
 // AddToFlags adds a flag to the event
@@ -770,17 +796,15 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID        uint32 `field:"-"`
-	Device         uint32 `field:"-"`
-	ParentMountID  uint32 `field:"-"`
-	ParentInode    uint64 `field:"-"`
-	RootMountID    uint32 `field:"-"`
-	RootInode      uint64 `field:"-"`
-	BindSrcMountID uint32 `field:"-"`
-	FSType         string `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
-	MountPointStr  string `field:"-"`
-	RootStr        string `field:"-"`
-	Path           string `field:"-"`
+	MountID        uint32  `field:"-"`
+	Device         uint32  `field:"-"`
+	ParentPathKey  PathKey `field:"-"`
+	RootPathKey    PathKey `field:"-"`
+	BindSrcMountID uint32  `field:"-"`
+	FSType         string  `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
+	MountPointStr  string  `field:"-"`
+	RootStr        string  `field:"-"`
+	Path           string  `field:"-"`
 }
 
 // MountEvent represents a mount event
@@ -856,13 +880,15 @@ const (
 	ProcessCacheEntryFromEvent
 	ProcessCacheEntryFromKernelMap
 	ProcessCacheEntryFromProcFS
+	ProcessCacheEntryFromSnapshot
 )
 
 var ProcessSources = [...]string{
 	"unknown",
 	"event",
 	"map",
-	"procfs",
+	"procfs_fallback",
+	"procfs_snapshot",
 }
 
 func ProcessSourceToString(source uint64) string {

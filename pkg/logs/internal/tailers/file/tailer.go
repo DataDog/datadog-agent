@@ -116,6 +116,16 @@ type Tailer struct {
 	bytesRead *status.CountInfo
 }
 
+// TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
+type TailerOptions struct {
+	OutputChan    chan *message.Message // Required
+	File          *File                 // Required
+	SleepDuration time.Duration         // Required
+	Decoder       *decoder.Decoder      // Required
+	Info          *status.InfoRegistry  // Required
+	Rotated       bool                  // Optional
+}
+
 // NewTailer returns an initialized Tailer, read to be started.
 //
 // The resulting Tailer will read from the given `file`, decode the content
@@ -125,11 +135,10 @@ type Tailer struct {
 //
 // The Tailer must poll for content in the file.  The `sleepDuration` parameter
 // specifies how long the tailer should wait between polls.
-func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.Duration, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
-
+func NewTailer(opts *TailerOptions) *Tailer {
 	var tagProvider tag.Provider
-	if file.Source.Config().Identifier != "" {
-		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(file.Source.Config().Identifier))
+	if opts.File.Source.Config().Identifier != "" {
+		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier))
 	} else {
 		tagProvider = tag.NewLocalProvider([]string{})
 	}
@@ -139,16 +148,17 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 	windowsOpenFileTimeout := coreConfig.Datadog.GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
-	info.Register(bytesRead)
+	fileRotated := opts.Rotated
+	opts.Info.Register(bytesRead)
 
-	return &Tailer{
-		file:                   file,
-		outputChan:             outputChan,
-		decoder:                decoder,
+	t := &Tailer{
+		file:                   opts.File,
+		outputChan:             opts.OutputChan,
+		decoder:                opts.Decoder,
 		tagProvider:            tagProvider,
 		lastReadOffset:         atomic.NewInt64(0),
 		decodedOffset:          atomic.NewInt64(0),
-		sleepDuration:          sleepDuration,
+		sleepDuration:          opts.SleepDuration,
 		closeTimeout:           closeTimeout,
 		windowsOpenFileTimeout: windowsOpenFileTimeout,
 		stop:                   make(chan struct{}, 1),
@@ -157,15 +167,37 @@ func NewTailer(outputChan chan *message.Message, file *File, sleepDuration time.
 		stopForward:            stopForward,
 		isFinished:             atomic.NewBool(false),
 		didFileRotate:          atomic.NewBool(false),
-		info:                   info,
+		info:                   opts.Info,
 		bytesRead:              bytesRead,
 	}
+
+	if fileRotated {
+		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
+	}
+
+	return t
+}
+
+// addToTailerInfo add a NewMappedInfo with a key value(message) pair into the tailer-info for displaying
+func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
+	newInfo := status.NewMappedInfo(k)
+	newInfo.SetMessage(k, m)
+	tailerInfo.Register(newInfo)
 }
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
 // messages to the same channel but using an updated file and decoder.
 func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
-	return NewTailer(t.outputChan, file, t.sleepDuration, decoder, info)
+	options := &TailerOptions{
+		OutputChan:    t.outputChan,
+		File:          file,
+		SleepDuration: t.sleepDuration,
+		Decoder:       decoder,
+		Info:          info,
+		Rotated:       true,
+	}
+
+	return NewTailer(options)
 }
 
 // Identifier returns a string that identifies this tailer in the registry.
@@ -316,6 +348,15 @@ func (t *Tailer) forwardMessages() {
 		case <-t.forwardContext.Done():
 		}
 	}
+}
+
+// getFormattedTime return readable timestamp
+func getFormattedTime() string {
+	now := time.Now()
+	local := now.Format("2006-01-02 15:04:05 MST")
+	utc := now.UTC().Format("2006-01-02 15:04:05 UTC")
+	milliseconds := now.UnixNano() / 1e6
+	return fmt.Sprintf("%s / %s (%d)", local, utc, milliseconds)
 }
 
 // GetDetectedPattern returns the decoder's detected pattern.

@@ -133,11 +133,6 @@ func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode
 	// TODO: debounce and regenerate profile filters & programs
 }
 
-// IsAnomalyDetectionEvent returns true if the provided event type is a kernel generated anomaly detection event type
-func IsAnomalyDetectionEvent(eventType model.EventType) bool {
-	return model.AnomalyDetectionSyscallEventType == eventType
-}
-
 func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 	f, err := os.Open(filepath)
 	if err != nil {

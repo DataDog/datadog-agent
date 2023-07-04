@@ -84,6 +84,12 @@ func handleSignals(cloudService cloudservice.CloudService, process *os.Process, 
 			if sig != syscall.SIGCHLD {
 				if process != nil {
 					_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
+					_, err := process.Wait()
+					if err != nil {
+						serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
+					} else {
+						serverlessLog.Write(config, []byte("[datadog init process] exiting successfully"), false)
+					}
 				}
 			}
 			if sig == syscall.SIGTERM {

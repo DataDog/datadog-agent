@@ -365,8 +365,8 @@ func (ad *ActivityDump) NewProcessNodeCallback(p *activity_tree.ProcessNode) {
 // enable (thread unsafe) assuming the current dump is properly initialized, "enable" pushes kernel space filters so that events can start
 // flowing in from kernel space
 func (ad *ActivityDump) enable() error {
-	// insert load config now (it might already exist, do not update in that case)
-	if err := ad.adm.activityDumpsConfigMap.Update(ad.LoadConfigCookie, ad.LoadConfig, ebpf.UpdateNoExist); err != nil {
+	// insert load config now (it might already exist when starting a new partial dump, update it in that case)
+	if err := ad.adm.activityDumpsConfigMap.Update(ad.LoadConfigCookie, ad.LoadConfig, ebpf.UpdateAny); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("couldn't push activity dump load config: %w", err)
 		}
@@ -882,7 +882,12 @@ func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 		return fmt.Errorf("couldn't decode json file: %w", err)
 	}
 
-	protoToActivityDump(ad, ad.adm.pathsReducer, inter)
+	var reducer *activity_tree.PathsReducer
+	if ad.adm != nil {
+		reducer = ad.adm.pathsReducer
+	}
+
+	protoToActivityDump(ad, reducer, inter)
 
 	return nil
 }
