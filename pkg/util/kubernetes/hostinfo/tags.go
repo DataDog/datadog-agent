@@ -14,27 +14,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
-
-type kubeUtilGetter func() (k.KubeUtilInterface, error)
-
-var kubeUtilGet kubeUtilGetter = k.GetKubeUtil
 
 // GetTags gets the tags from the kubernetes apiserver and the kubelet
 func GetTags(ctx context.Context) (tags []string, err error) {
 	labelsToTags := getLabelsToTags()
 
-	if len(labelsToTags) > 0 {
+	nodeInfo, e := NewNodeInfo()
+	if e != nil {
+		err = e
+	}
+	nodeName, e := nodeInfo.GetNodeName(ctx)
+	if e == nil && nodeName != "" {
+		tags = append(tags, "kube_node:"+nodeName)
+	}
+
+	if len(labelsToTags) > 0 && err == nil {
 		var nodeLabels map[string]string
-		nodeInfo, e := NewNodeInfo()
+		nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
 		if e != nil {
 			err = e
-		} else {
-			nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
-			if e != nil {
-				err = e
-			}
 		}
 
 		if len(nodeLabels) > 0 {
@@ -51,15 +50,6 @@ func GetTags(ctx context.Context) (tags []string, err error) {
 		} else {
 			tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
 		}
-	}
-
-	ku, err := kubeUtilGet()
-	if err != nil {
-		return
-	}
-	nodeName, err := ku.GetNodename(ctx)
-	if err == nil && nodeName != "" {
-		tags = append(tags, "kube_node:"+nodeName)
 	}
 
 	return
