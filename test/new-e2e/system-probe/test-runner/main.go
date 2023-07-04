@@ -110,6 +110,11 @@ func generatePackageName(file string) string {
 	return pkg
 }
 
+func pathToPackage(path string) string {
+	dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
+	return dir
+}
+
 func testsToRunArg(pkg string, failedTests map[string][]string) string {
 	if _, ok := failedTests[pkg]; !ok {
 		return ""
@@ -131,7 +136,7 @@ func buildCommandArgs(junitPath string, jsonPath string, file string, failedTest
 		fmt.Sprintf("%s.json", junitfilePrefix),
 	)
 
-	rerun := testsToRunArg(file, failedTests)
+	rerun := testsToRunArg(pathToPackage(file), failedTests)
 	args := []string{
 		"--format", "dots",
 		"--junitfile", xmlpath,
@@ -260,9 +265,8 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 		}
 	}
 
-	fmt.Println(retryLs)
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
-		dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
+		dir := pathToPackage(path)
 		if testConfig.retryOnlyFailedTests {
 			for pkg := range retryLs {
 				if dir == pkg {
