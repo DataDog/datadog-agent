@@ -116,12 +116,30 @@ func pathToPackage(path string) string {
 }
 
 func testsToRunArg(pkg string, failedTests map[string][]string) string {
+	var subTests []string
 	if _, ok := failedTests[pkg]; !ok {
 		return ""
 	}
 
 	testLs := failedTests[pkg]
-	return fmt.Sprintf("-test.run=%s", strings.Join(testLs, ","))
+	// We only want to run the subtests which actually failed.
+	for _, test := range testLs {
+		hasSubtest := false
+		for _, t := range testLs {
+			if test == t {
+				continue
+			}
+			if strings.HasPrefix(t, test) {
+				hasSubtest = true
+				break
+			}
+		}
+		if !hasSubtest {
+			subTests = append(subTests, test)
+		}
+	}
+
+	return fmt.Sprintf("-test.run=%s", strings.Join(subTests, ","))
 }
 
 func buildCommandArgs(junitPath string, jsonPath string, file string, failedTests map[string][]string) []string {
