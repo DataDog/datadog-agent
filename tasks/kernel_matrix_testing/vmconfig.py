@@ -94,7 +94,26 @@ images_name = {
     "amzn_5.15": "amzn2-kvm-2.0-{arch}-5.15.qcow2",
 }
 
+TICK = "\u2713"
+CROSS = "\u2718"
+table = [["Image", "x86_64", "arm64"], ["ubuntu-18 (bionic)", TICK, CROSS], ["ubuntu-20 (focal)", TICK, TICK], ["ubuntu-22 (jammy)", TICK, TICK], ["amazon linux 2 - 4.14", TICK, TICK], ["amazon linux 2 - 5.4", TICK, TICK], ["amazon linux 2 - 5.10", TICK, TICK], ["amazon linux 2 - 5.15", TICK, CROSS]]
+
 consoles = {"x86_64": "ttyS0", "arm64": "ttyAMA0"}
+
+def get_image_list(distro, custom):
+    custom_kernels = list()
+    for k in kernels:
+        if lte_414(k):
+            custom_kernels.append([f"custom kernel v{k}", TICK, CROSS])
+        else:
+            custom_kernels.append([f"custom kernel v{k}", TICK, TICK])
+
+    if (not (distro or custom)) or (distro and custom):
+        return table + custom_kernels
+    if distro:
+        return table
+    if custom:
+        return custom_kernels
 
 
 def power_log_str(x):

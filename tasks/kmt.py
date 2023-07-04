@@ -16,6 +16,10 @@ from .kernel_matrix_testing.tool import info, warn, ask, Exit
 from .kernel_matrix_testing.download import update_kernel_packages, update_rootfs, revert_kernel_packages, revert_rootfs
 from .kernel_matrix_testing.init_kmt import check_and_get_stack
 
+try:
+    from tabulate import tabulate
+except ImportError:
+    tabulate = None
 
 @task
 def create_stack(ctx, stack=None, branch=False):
@@ -60,12 +64,19 @@ def resume_stack(ctx, stack=None, branch=False):
 
 
 @task
-def ls(ctx, stack=None, branch=False):
+def stack(ctx, stack=None, branch=False):
     stack = check_and_get_stack(stack, branch)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.outputs")
+    if ips:
+        ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.outputs")
+
+
+
+@task
+def ls(ctx, distro=False, custom=False):
+    print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 
 @task

@@ -118,6 +118,17 @@ inv -e kmt.create-stack [--stack=<name>|--branch]
 ```
 The developer needs to provide a name to associate with the `stack`, or specify the `--branch` argument to generate the name from the current branch.
 
+### Listing possible VMs
+Possible VMs can be listed with
+```bash
+inv -e kmt.ls
+```
+
+The arguments to this are:
+- `distro`: Only list distribution images.
+- `custom`: Only list custom kernels.
+- No argument will list everything.
+
 ### Configuring the stack
 Configuring the stack involves generating a configuration file which specifies the the VMs to launch. Henceforth, this file will be referred to as the `vmsets` file.
 
@@ -222,6 +233,9 @@ If you are launching local VMs, you will be queried for you password. This is re
 
 ### List the stack
 Prints information about the stack.
+```bash
+inv -e kmt.stack [--stack=<name>|--branch]
+```
 
 > At the moment this just prints the running VMs and their IP addresses. This information will be enriched in later versions of the tool.
 
