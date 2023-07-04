@@ -5,6 +5,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -output accessors_unix.go -field-handlers-tags unix -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -output accessors_windows.go -field-handlers-tags windows -field-handlers field_handlers_windows.go
+//go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
 
 package model
 
@@ -716,11 +717,11 @@ func (f *FileFields) GetInUpperLayer() bool {
 }
 
 // HashState is used to prevent the hash resolver from retrying to hash a file
-type HashSate int
+type HashState int
 
 const (
 	// NoHash means that computing a hash hasn't been attempted
-	NoHash HashSate = iota
+	NoHash HashState = iota
 	// Done means that the hashes were already computed
 	Done
 	// FileNotFound means that the underlying file is not longer available to compute the hash
@@ -738,27 +739,6 @@ const (
 	// MaxHashState is used for initializations
 	MaxHashState
 )
-
-func (hs HashSate) String() string {
-	switch hs {
-	case NoHash:
-		return "no_hash"
-	case Done:
-		return "done"
-	case FileNotFound:
-		return "file_not_found"
-	case PathnameResolutionError:
-		return "pathname_resolution_error"
-	case FileTooBig:
-		return "file_too_big"
-	case EventTypeNotConfigured:
-		return "event_type_not_configured"
-	case HashWasRateLimited:
-		return "hash_was_rate_limited"
-	default:
-		return "unknown_hash_error"
-	}
-}
 
 // HashAlgorithm is used to configure the hash algorithms of the hash resolver
 type HashAlgorithm int
@@ -801,8 +781,8 @@ type FileEvent struct {
 	PkgVersion    string `field:"package.version,handler:ResolvePackageVersion"`              // SECLDoc[package.version] Definition:`[Experimental] Full version of the package that provided this file`
 	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
 
-	HashState HashSate `field:"-" json:"hash_state"`
-	Hashes    []string `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad" json:"hashes"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
+	HashState HashState `field:"-"`
+	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
 
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`

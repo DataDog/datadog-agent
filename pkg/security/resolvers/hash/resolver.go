@@ -16,7 +16,6 @@ import (
 	"hash"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -77,7 +76,7 @@ type ResolverOpts struct {
 
 // LRUCacheEntry is the structure used to cache hashes
 type LRUCacheEntry struct {
-	state  model.HashSate
+	state  model.HashState
 	hashes []string
 }
 
@@ -92,7 +91,7 @@ type Resolver struct {
 
 	// stats
 	hashCount    map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64
-	hashMiss     map[model.EventType]map[model.HashSate]*atomic.Uint64
+	hashMiss     map[model.EventType]map[model.HashState]*atomic.Uint64
 	hashCacheHit map[model.EventType]*atomic.Uint64
 }
 
@@ -127,7 +126,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		limiter:        rate.NewLimiter(rate.Limit(c.HashResolverMaxHashRate), c.HashResolverMaxHashBurst),
 		cache:          cache,
 		hashCount:      make(map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64),
-		hashMiss:       make(map[model.EventType]map[model.HashSate]*atomic.Uint64),
+		hashMiss:       make(map[model.EventType]map[model.HashState]*atomic.Uint64),
 		hashCacheHit:   make(map[model.EventType]*atomic.Uint64),
 	}
 
@@ -138,8 +137,8 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 			r.hashCount[i][j] = atomic.NewUint64(0)
 		}
 
-		r.hashMiss[i] = make(map[model.HashSate]*atomic.Uint64, model.MaxHashState)
-		for j := model.HashSate(0); j < model.MaxHashState; j++ {
+		r.hashMiss[i] = make(map[model.HashState]*atomic.Uint64, model.MaxHashState)
+		for j := model.HashState(0); j < model.MaxHashState; j++ {
 			r.hashMiss[i][j] = atomic.NewUint64(0)
 		}
 
@@ -232,7 +231,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	var lastErr error
 	var f *os.File
 	for _, pidCandidate := range rootPIDs {
-		f, lastErr = os.Open(filepath.Join(utils.ProcRootPath(int32(pidCandidate)), file.PathnameStr))
+		f, lastErr = os.Open(utils.ProcRootFilePath(int32(pidCandidate), file.PathnameStr))
 		if lastErr == nil {
 			break
 		}
@@ -290,8 +289,8 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 
 	for i, algorithm := range resolver.opts.HashAlgorithms {
 		var hashStr string
-		if len(algorithm.String()) > 0 {
-			hashStr += algorithm.String() + ":"
+		if hashStr = algorithm.String(); len(hashStr) > 0 {
+			hashStr += ":"
 		}
 		hashStr += hex.EncodeToString(hashers[i].(hash.Hash).Sum(nil))
 

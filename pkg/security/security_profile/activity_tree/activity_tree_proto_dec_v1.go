@@ -160,7 +160,7 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 		PkgVersion:    fi.PackageVersion,
 		PkgSrcVersion: fi.PackageSrcversion,
 		Hashes:        make([]string, len(fi.Hashes)),
-		HashState:     model.HashSate(fi.HashState),
+		HashState:     model.HashState(fi.HashState),
 	}
 	copy(fe.Hashes, fi.Hashes)
 

@@ -53,7 +53,7 @@ type ActivityDumpManager struct {
 	emptyDropped           *atomic.Uint64
 	dropMaxDumpReached     *atomic.Uint64
 	newEvent               func() *model.Event
-	resolvers          *resolvers.Resolvers
+	resolvers              *resolvers.Resolvers
 	kernelVersion          *kernel.Version
 	manager                *manager.Manager
 	dumpHandler            ActivityDumpHandler
