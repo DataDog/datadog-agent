@@ -29,9 +29,13 @@ from .utils import REPO_PATH, get_git_commit
         'targets': 'Target packages (same as inv test)',
         'configparams': 'Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)',
         'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
+        'run': 'Only run tests matching the regular expression',
+        'skip': 'Only run tests not matching the regular expression',
     },
 )
-def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cache=False, junit_tar=""):  # noqa: B006
+def run(
+    ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, run="", skip="", cache=False, junit_tar=""
+):  # noqa: B006
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
@@ -63,7 +67,7 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '--packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip}'
     args = {
         "go_mod": "mod",
         "timeout": "4h",
@@ -71,6 +75,8 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
         "nocache": '-count=1' if not cache else '',
         "REPO_PATH": REPO_PATH,
         "commit": get_git_commit(),
+        "run": '-test.run ' + run if run else '',
+        "skip": '-test.skip ' + skip if skip else '',
     }
 
     test_res = test_flavor(

@@ -146,7 +146,7 @@ k8s-e2e-otlp-main:
     paths:
       - junit-*.tgz
     reports:
-      junit: junit/*.xml
+      junit: test/new-e2e/junit-*.xml
 
 new-e2e-containers-dev:
   extends: .new_e2e_template
