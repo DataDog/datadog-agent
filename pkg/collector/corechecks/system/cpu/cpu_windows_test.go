@@ -14,13 +14,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
-func CPUInfo() (map[string]string, error) {
-	return map[string]string{
-		"cpu_logical_processors": "1",
-	}, nil
+func CPUInfo() *gohaicpu.Info {
+	return &gohaicpu.Info{
+		CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
+	}
 }
 
 func TestCPUCheckWindows(t *testing.T) {

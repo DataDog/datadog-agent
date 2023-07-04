@@ -34,7 +34,7 @@ func GetPayload() *Payload {
 func getGohaiInfo() *gohai {
 	res := new(gohai)
 
-	cpuPayload, err := new(cpu.Cpu).Collect()
+	cpuPayload, _, err := cpu.CollectInfo().AsJSON()
 	if err == nil {
 		res.CPU = cpuPayload
 	} else {
