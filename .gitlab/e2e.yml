@@ -139,7 +139,7 @@ k8s-e2e-otlp-main:
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
     E2E_KEY_PAIR_NAME: datadog-agent-ci
   script:
-    - inv -e new-e2e-tests.run --targets $TARGETS $CONFIGPARAMS --junit-tar "junit-${CI_JOB_NAME}.tgz"
+    - inv -e new-e2e-tests.run --targets $TARGETS $CONFIGPARAMS --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -157,6 +157,12 @@ new-e2e-containers-dev:
   variables:
     TARGETS: ./containers
     CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 -c ddagent:clusterAgentFullImagePath=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG}"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestEKSSuite
+      - EXTRA_PARAMS: --run TestECSSuite
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS)Suite"
 
 new-e2e-containers-main:
   extends: .new_e2e_template
