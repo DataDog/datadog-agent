@@ -64,7 +64,7 @@ func getGohaiInfo() *gohai {
 		}
 	}
 
-	platformPayload, err := new(platform.Platform).Collect()
+	platformPayload, _, err := platform.CollectInfo().AsJSON()
 	if err == nil {
 		res.Platform = platformPayload
 	} else {

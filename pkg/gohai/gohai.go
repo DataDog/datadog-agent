@@ -68,7 +68,10 @@ var collectors = []Collector{
 		collect: memory.CollectInfo,
 	},
 	&network.Network{},
-	&platform.Platform{},
+	&CollectorV2[*platform.Info]{
+		name:    "platform",
+		collect: platform.CollectInfo,
+	},
 	&processes.Processes{},
 }
 

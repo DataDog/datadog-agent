@@ -14,6 +14,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -294,39 +295,19 @@ func getNativeArchInfo() string {
 	return nativearch
 }
 
-// GetArchInfo returns basic host architecture information
-func GetArchInfo() (map[string]string, error) {
-	// Initialize systemInfo with all fields to avoid missing a field which
-	// could be expected by the backend or by users
-	// TODO: make sure that the backend actually works with any subset of fields
-	systemInfo := map[string]string{
-		"hostname":       "",
-		"machine":        "",
-		"os":             "",
-		"kernel_release": "0.0.0",
-		"kernel_name":    "",
-		"family":         "",
-	}
+func (platformInfo *Info) fillPlatformInfo() {
+	platformInfo.KernelVersion = utils.NewErrorValue[string](utils.ErrNotCollectable)
+	platformInfo.Processor = utils.NewErrorValue[string](utils.ErrNotCollectable)
+	platformInfo.HardwarePlatform = utils.NewErrorValue[string](utils.ErrNotCollectable)
 
-	hostname, err := os.Hostname()
-	if err == nil {
-		systemInfo["hostname"] = hostname
-	}
-
-	systemInfo["machine"] = getNativeArchInfo()
-
-	osDescription, err := fetchOsDescription()
-	if err == nil {
-		systemInfo["os"] = osDescription
-	}
+	platformInfo.Hostname = utils.NewValueFrom(os.Hostname())
+	platformInfo.Machine = utils.NewValue(getNativeArchInfo())
+	platformInfo.OS = utils.NewValueFrom(fetchOsDescription())
 
 	maj, min, bld, err := fetchWindowsVersion()
-	if err == nil {
-		verstring := fmt.Sprintf("%d.%d.%d", maj, min, bld)
-		systemInfo["kernel_release"] = verstring
-	}
+	platformInfo.KernelRelease = utils.NewValueFrom(fmt.Sprintf("%d.%d.%d", maj, min, bld), err)
 
-	systemInfo["kernel_name"] = "Windows"
+	platformInfo.KernelName = utils.NewValue("Windows")
 
 	// do additional work so that we don't panic() when the library's
 	// not there (like in a container)
@@ -351,7 +332,5 @@ func GetArchInfo() (map[string]string, error) {
 			family = "Backup Domain Controller"
 		}
 	}
-	systemInfo["family"] = family
-
-	return systemInfo, nil
+	platformInfo.Family = utils.NewValue(family)
 }

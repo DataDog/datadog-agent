@@ -130,9 +130,9 @@ func getHostInfo() *InfoStat {
 
 	info.KernelArch = runtime.GOARCH
 
-	pi, _ := platform.GetArchInfo()
-	info.Platform = pi["os"]
-	info.PlatformFamily = pi["os"]
+	pi := platform.CollectInfo()
+	info.Platform, _ = pi.OS.Value()
+	info.PlatformFamily, _ = pi.OS.Value()
 
 	info.PlatformVersion, _ = winutil.GetWindowsBuildString()
 	info.HostID = common.GetUUID()

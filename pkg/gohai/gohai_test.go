@@ -67,21 +67,6 @@ type gohaiPayload struct {
 		Ipaddressv6 string `json:"ipaddressv6"`
 		Macaddress  string `json:"macaddress"`
 	} `json:"network"`
-	Platform struct {
-		Gooarch       string `json:"GOOARCH"`
-		Goos          string `json:"GOOS"`
-		GoV           string `json:"goV"`
-		Hostname      string `json:"hostname"`
-		KernelName    string `json:"kernel_name"`
-		KernelRelease string `json:"kernel_release"`
-		// KernelVersion is not reported on Windows
-		KernelVersion string `json:"kernel_version"`
-		Machine       string `json:"machine"`
-		Os            string `json:"os"`
-		Processor     string `json:"processor"`
-		// On Windows, we report additional fields
-		Family string `json:"family"`
-	} `json:"platform"`
 }
 
 func TestGohaiSerialization(t *testing.T) {
@@ -159,21 +144,4 @@ func TestGohaiSerialization(t *testing.T) {
 	// Ipaddressv6 *can* be empty
 	// assert.NotEmpty(t, payload.Network.Ipaddressv6)
 	assert.NotEmpty(t, payload.Network.Macaddress)
-
-	assert.NotEmpty(t, payload.Platform.Gooarch)
-	assert.NotEmpty(t, payload.Platform.Goos)
-	assert.NotEmpty(t, payload.Platform.GoV)
-	assert.NotEmpty(t, payload.Platform.Hostname)
-	assert.NotEmpty(t, payload.Platform.KernelName)
-	assert.NotEmpty(t, payload.Platform.KernelRelease)
-	assert.NotEmpty(t, payload.Platform.Machine)
-	assert.NotEmpty(t, payload.Platform.Os)
-	if runtime.GOOS != "windows" {
-		// Not reported on Windows
-		assert.NotEmpty(t, payload.Platform.KernelVersion)
-		assert.NotEmpty(t, payload.Platform.Processor)
-	} else {
-		// Additional fields that we report on Windows
-		assert.NotEmpty(t, payload.Platform.Family)
-	}
 }
