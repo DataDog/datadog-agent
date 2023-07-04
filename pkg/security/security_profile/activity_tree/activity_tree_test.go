@@ -59,7 +59,7 @@ func TestInsertFileEvent(t *testing.T) {
 			},
 			FieldHandlers: &model.DefaultFieldHandlers{},
 		}
-		pan.InsertFileEvent(&event.Open.File, event, Unknown, stats, false, nil)
+		pan.InsertFileEvent(&event.Open.File, event, Unknown, stats, false, nil, nil)
 	}
 
 	var builder strings.Builder
@@ -72,7 +72,7 @@ func TestInsertFileEvent(t *testing.T) {
 func TestActivityTree_InsertExecEvent(t *testing.T) {
 	for _, tt := range activityTreeInsertExecEventTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			node, newEntry, err := tt.tree.CreateProcessNode(tt.inputEvent.ProcessCacheEntry, nil, Runtime, false)
+			node, newEntry, err := tt.tree.CreateProcessNode(tt.inputEvent.ProcessCacheEntry, nil, Runtime, false, nil)
 			if tt.wantErr != nil {
 				if !tt.wantErr(t, err, fmt.Sprintf("unexpected error: %v", err)) {
 					return

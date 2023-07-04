@@ -253,6 +253,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "chmod.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "chmod.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -469,6 +478,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chown.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chown.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -941,6 +959,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "exec.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "exec.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -1217,6 +1247,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1699,6 +1741,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "exit.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "exit.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -1975,6 +2029,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2274,6 +2340,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "link.file.destination.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "link.file.destination.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -2436,6 +2511,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Link.Source.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "link.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2647,6 +2731,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.LoadModule.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "load_module.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2871,6 +2964,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "mkdir.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "mkdir.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -3051,6 +3153,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.MMap.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "mmap.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3406,6 +3517,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Open.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "open.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4039,6 +4159,32 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "process.ancestors.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					if !element.ProcessContext.Process.IsNotKworker() {
+						results = append(results, "")
+						value = iterator.Next()
+						continue
+					}
+					result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.FileEvent)
+					results = append(results, result...)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "process.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -4633,6 +4779,32 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := ev.FieldHandlers.ResolveFileFieldsGroup(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					if !element.ProcessContext.Process.HasInterpreter() {
+						results = append(results, "")
+						value = iterator.Next()
+						continue
+					}
+					result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					results = append(results, result...)
 					value = iterator.Next()
 				}
 				ctx.StringCache[field] = results
@@ -5389,6 +5561,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "process.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "process.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -5665,6 +5849,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.ProcessContext.Process.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6141,6 +6337,21 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "process.parent.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.ProcessContext.HasParent() {
+					return []string{}
+				}
+				if !ev.ProcessContext.Parent.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "process.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -6486,6 +6697,21 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.parent.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.ProcessContext.HasParent() {
+					return []string{}
+				}
+				if !ev.ProcessContext.Parent.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -7347,6 +7573,32 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "ptrace.tracee.ancestors.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					if !element.ProcessContext.Process.IsNotKworker() {
+						results = append(results, "")
+						value = iterator.Next()
+						continue
+					}
+					result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.FileEvent)
+					results = append(results, result...)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -7941,6 +8193,32 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := ev.FieldHandlers.ResolveFileFieldsGroup(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					if !element.ProcessContext.Process.HasInterpreter() {
+						results = append(results, "")
+						value = iterator.Next()
+						continue
+					}
+					result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					results = append(results, result...)
 					value = iterator.Next()
 				}
 				ctx.StringCache[field] = results
@@ -8697,6 +8975,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "ptrace.tracee.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -8973,6 +9263,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -9449,6 +9751,21 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "ptrace.tracee.parent.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return []string{}
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -9794,6 +10111,21 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.parent.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return []string{}
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -10219,6 +10551,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "removexattr.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "removexattr.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -10412,6 +10753,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "rename.file.destination.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "rename.file.destination.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -10574,6 +10924,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Rename.Old.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -10758,6 +11117,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Rmdir.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rmdir.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -11104,6 +11472,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.SetXAttr.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "setxattr.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -11746,6 +12123,32 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "signal.target.ancestors.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					if !element.ProcessContext.Process.IsNotKworker() {
+						results = append(results, "")
+						value = iterator.Next()
+						continue
+					}
+					result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.FileEvent)
+					results = append(results, result...)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
@@ -12340,6 +12743,32 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					}
 					result := ev.FieldHandlers.ResolveFileFieldsGroup(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					if !element.ProcessContext.Process.HasInterpreter() {
+						results = append(results, "")
+						value = iterator.Next()
+						continue
+					}
+					result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					results = append(results, result...)
 					value = iterator.Next()
 				}
 				ctx.StringCache[field] = results
@@ -13096,6 +13525,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "signal.target.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "signal.target.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -13372,6 +13813,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -13848,6 +14301,21 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "signal.target.parent.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return []string{}
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "signal.target.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -14193,6 +14661,21 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return ""
 				}
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.parent.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return []string{}
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -14609,6 +15092,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "splice.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "splice.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -14807,6 +15299,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Unlink.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "unlink.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -15022,6 +15523,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "utimes.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "utimes.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
@@ -15196,6 +15706,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"chmod.file.filesystem",
 		"chmod.file.gid",
 		"chmod.file.group",
+		"chmod.file.hashes",
 		"chmod.file.in_upper_layer",
 		"chmod.file.inode",
 		"chmod.file.mode",
@@ -15220,6 +15731,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.file.filesystem",
 		"chown.file.gid",
 		"chown.file.group",
+		"chown.file.hashes",
 		"chown.file.in_upper_layer",
 		"chown.file.inode",
 		"chown.file.mode",
@@ -15270,6 +15782,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.file.filesystem",
 		"exec.file.gid",
 		"exec.file.group",
+		"exec.file.hashes",
 		"exec.file.in_upper_layer",
 		"exec.file.inode",
 		"exec.file.mode",
@@ -15295,6 +15808,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.interpreter.file.filesystem",
 		"exec.interpreter.file.gid",
 		"exec.interpreter.file.group",
+		"exec.interpreter.file.hashes",
 		"exec.interpreter.file.in_upper_layer",
 		"exec.interpreter.file.inode",
 		"exec.interpreter.file.mode",
@@ -15342,6 +15856,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.file.filesystem",
 		"exit.file.gid",
 		"exit.file.group",
+		"exit.file.hashes",
 		"exit.file.in_upper_layer",
 		"exit.file.inode",
 		"exit.file.mode",
@@ -15367,6 +15882,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.interpreter.file.filesystem",
 		"exit.interpreter.file.gid",
 		"exit.interpreter.file.group",
+		"exit.interpreter.file.hashes",
 		"exit.interpreter.file.in_upper_layer",
 		"exit.interpreter.file.inode",
 		"exit.interpreter.file.mode",
@@ -15395,6 +15911,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.destination.filesystem",
 		"link.file.destination.gid",
 		"link.file.destination.group",
+		"link.file.destination.hashes",
 		"link.file.destination.in_upper_layer",
 		"link.file.destination.inode",
 		"link.file.destination.mode",
@@ -15413,6 +15930,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.filesystem",
 		"link.file.gid",
 		"link.file.group",
+		"link.file.hashes",
 		"link.file.in_upper_layer",
 		"link.file.inode",
 		"link.file.mode",
@@ -15436,6 +15954,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"load_module.file.filesystem",
 		"load_module.file.gid",
 		"load_module.file.group",
+		"load_module.file.hashes",
 		"load_module.file.in_upper_layer",
 		"load_module.file.inode",
 		"load_module.file.mode",
@@ -15460,6 +15979,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"mkdir.file.filesystem",
 		"mkdir.file.gid",
 		"mkdir.file.group",
+		"mkdir.file.hashes",
 		"mkdir.file.in_upper_layer",
 		"mkdir.file.inode",
 		"mkdir.file.mode",
@@ -15480,6 +16000,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"mmap.file.filesystem",
 		"mmap.file.gid",
 		"mmap.file.group",
+		"mmap.file.hashes",
 		"mmap.file.in_upper_layer",
 		"mmap.file.inode",
 		"mmap.file.mode",
@@ -15519,6 +16040,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"open.file.filesystem",
 		"open.file.gid",
 		"open.file.group",
+		"open.file.hashes",
 		"open.file.in_upper_layer",
 		"open.file.inode",
 		"open.file.mode",
@@ -15558,6 +16080,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.file.filesystem",
 		"process.ancestors.file.gid",
 		"process.ancestors.file.group",
+		"process.ancestors.file.hashes",
 		"process.ancestors.file.in_upper_layer",
 		"process.ancestors.file.inode",
 		"process.ancestors.file.mode",
@@ -15583,6 +16106,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.interpreter.file.filesystem",
 		"process.ancestors.interpreter.file.gid",
 		"process.ancestors.interpreter.file.group",
+		"process.ancestors.interpreter.file.hashes",
 		"process.ancestors.interpreter.file.in_upper_layer",
 		"process.ancestors.interpreter.file.inode",
 		"process.ancestors.interpreter.file.mode",
@@ -15628,6 +16152,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.file.filesystem",
 		"process.file.gid",
 		"process.file.group",
+		"process.file.hashes",
 		"process.file.in_upper_layer",
 		"process.file.inode",
 		"process.file.mode",
@@ -15653,6 +16178,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.interpreter.file.filesystem",
 		"process.interpreter.file.gid",
 		"process.interpreter.file.group",
+		"process.interpreter.file.hashes",
 		"process.interpreter.file.in_upper_layer",
 		"process.interpreter.file.inode",
 		"process.interpreter.file.mode",
@@ -15692,6 +16218,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.file.filesystem",
 		"process.parent.file.gid",
 		"process.parent.file.group",
+		"process.parent.file.hashes",
 		"process.parent.file.in_upper_layer",
 		"process.parent.file.inode",
 		"process.parent.file.mode",
@@ -15717,6 +16244,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.interpreter.file.filesystem",
 		"process.parent.interpreter.file.gid",
 		"process.parent.interpreter.file.group",
+		"process.parent.interpreter.file.hashes",
 		"process.parent.interpreter.file.in_upper_layer",
 		"process.parent.interpreter.file.inode",
 		"process.parent.interpreter.file.mode",
@@ -15770,6 +16298,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.file.filesystem",
 		"ptrace.tracee.ancestors.file.gid",
 		"ptrace.tracee.ancestors.file.group",
+		"ptrace.tracee.ancestors.file.hashes",
 		"ptrace.tracee.ancestors.file.in_upper_layer",
 		"ptrace.tracee.ancestors.file.inode",
 		"ptrace.tracee.ancestors.file.mode",
@@ -15795,6 +16324,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.interpreter.file.filesystem",
 		"ptrace.tracee.ancestors.interpreter.file.gid",
 		"ptrace.tracee.ancestors.interpreter.file.group",
+		"ptrace.tracee.ancestors.interpreter.file.hashes",
 		"ptrace.tracee.ancestors.interpreter.file.in_upper_layer",
 		"ptrace.tracee.ancestors.interpreter.file.inode",
 		"ptrace.tracee.ancestors.interpreter.file.mode",
@@ -15840,6 +16370,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.file.filesystem",
 		"ptrace.tracee.file.gid",
 		"ptrace.tracee.file.group",
+		"ptrace.tracee.file.hashes",
 		"ptrace.tracee.file.in_upper_layer",
 		"ptrace.tracee.file.inode",
 		"ptrace.tracee.file.mode",
@@ -15865,6 +16396,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.interpreter.file.filesystem",
 		"ptrace.tracee.interpreter.file.gid",
 		"ptrace.tracee.interpreter.file.group",
+		"ptrace.tracee.interpreter.file.hashes",
 		"ptrace.tracee.interpreter.file.in_upper_layer",
 		"ptrace.tracee.interpreter.file.inode",
 		"ptrace.tracee.interpreter.file.mode",
@@ -15904,6 +16436,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.file.filesystem",
 		"ptrace.tracee.parent.file.gid",
 		"ptrace.tracee.parent.file.group",
+		"ptrace.tracee.parent.file.hashes",
 		"ptrace.tracee.parent.file.in_upper_layer",
 		"ptrace.tracee.parent.file.inode",
 		"ptrace.tracee.parent.file.mode",
@@ -15929,6 +16462,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.interpreter.file.filesystem",
 		"ptrace.tracee.parent.interpreter.file.gid",
 		"ptrace.tracee.parent.interpreter.file.group",
+		"ptrace.tracee.parent.interpreter.file.hashes",
 		"ptrace.tracee.parent.interpreter.file.in_upper_layer",
 		"ptrace.tracee.parent.interpreter.file.inode",
 		"ptrace.tracee.parent.interpreter.file.mode",
@@ -15964,6 +16498,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"removexattr.file.filesystem",
 		"removexattr.file.gid",
 		"removexattr.file.group",
+		"removexattr.file.hashes",
 		"removexattr.file.in_upper_layer",
 		"removexattr.file.inode",
 		"removexattr.file.mode",
@@ -15985,6 +16520,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.destination.filesystem",
 		"rename.file.destination.gid",
 		"rename.file.destination.group",
+		"rename.file.destination.hashes",
 		"rename.file.destination.in_upper_layer",
 		"rename.file.destination.inode",
 		"rename.file.destination.mode",
@@ -16003,6 +16539,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.filesystem",
 		"rename.file.gid",
 		"rename.file.group",
+		"rename.file.hashes",
 		"rename.file.in_upper_layer",
 		"rename.file.inode",
 		"rename.file.mode",
@@ -16023,6 +16560,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"rmdir.file.filesystem",
 		"rmdir.file.gid",
 		"rmdir.file.group",
+		"rmdir.file.hashes",
 		"rmdir.file.in_upper_layer",
 		"rmdir.file.inode",
 		"rmdir.file.mode",
@@ -16061,6 +16599,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setxattr.file.filesystem",
 		"setxattr.file.gid",
 		"setxattr.file.group",
+		"setxattr.file.hashes",
 		"setxattr.file.in_upper_layer",
 		"setxattr.file.inode",
 		"setxattr.file.mode",
@@ -16101,6 +16640,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.file.filesystem",
 		"signal.target.ancestors.file.gid",
 		"signal.target.ancestors.file.group",
+		"signal.target.ancestors.file.hashes",
 		"signal.target.ancestors.file.in_upper_layer",
 		"signal.target.ancestors.file.inode",
 		"signal.target.ancestors.file.mode",
@@ -16126,6 +16666,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.interpreter.file.filesystem",
 		"signal.target.ancestors.interpreter.file.gid",
 		"signal.target.ancestors.interpreter.file.group",
+		"signal.target.ancestors.interpreter.file.hashes",
 		"signal.target.ancestors.interpreter.file.in_upper_layer",
 		"signal.target.ancestors.interpreter.file.inode",
 		"signal.target.ancestors.interpreter.file.mode",
@@ -16171,6 +16712,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.file.filesystem",
 		"signal.target.file.gid",
 		"signal.target.file.group",
+		"signal.target.file.hashes",
 		"signal.target.file.in_upper_layer",
 		"signal.target.file.inode",
 		"signal.target.file.mode",
@@ -16196,6 +16738,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.interpreter.file.filesystem",
 		"signal.target.interpreter.file.gid",
 		"signal.target.interpreter.file.group",
+		"signal.target.interpreter.file.hashes",
 		"signal.target.interpreter.file.in_upper_layer",
 		"signal.target.interpreter.file.inode",
 		"signal.target.interpreter.file.mode",
@@ -16235,6 +16778,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.file.filesystem",
 		"signal.target.parent.file.gid",
 		"signal.target.parent.file.group",
+		"signal.target.parent.file.hashes",
 		"signal.target.parent.file.in_upper_layer",
 		"signal.target.parent.file.inode",
 		"signal.target.parent.file.mode",
@@ -16260,6 +16804,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.interpreter.file.filesystem",
 		"signal.target.parent.interpreter.file.gid",
 		"signal.target.parent.interpreter.file.group",
+		"signal.target.parent.interpreter.file.hashes",
 		"signal.target.parent.interpreter.file.in_upper_layer",
 		"signal.target.parent.interpreter.file.inode",
 		"signal.target.parent.interpreter.file.mode",
@@ -16294,6 +16839,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"splice.file.filesystem",
 		"splice.file.gid",
 		"splice.file.group",
+		"splice.file.hashes",
 		"splice.file.in_upper_layer",
 		"splice.file.inode",
 		"splice.file.mode",
@@ -16316,6 +16862,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"unlink.file.filesystem",
 		"unlink.file.gid",
 		"unlink.file.group",
+		"unlink.file.hashes",
 		"unlink.file.in_upper_layer",
 		"unlink.file.inode",
 		"unlink.file.mode",
@@ -16339,6 +16886,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.file.filesystem",
 		"utimes.file.gid",
 		"utimes.file.group",
+		"utimes.file.hashes",
 		"utimes.file.in_upper_layer",
 		"utimes.file.inode",
 		"utimes.file.mode",
@@ -16405,6 +16953,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Chmod.File.FileFields.GID), nil
 	case "chmod.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chmod.File.FileFields), nil
+	case "chmod.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File), nil
 	case "chmod.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chmod.File.FileFields), nil
 	case "chmod.file.inode":
@@ -16453,6 +17003,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Chown.File.FileFields.GID), nil
 	case "chown.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chown.File.FileFields), nil
+	case "chown.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File), nil
 	case "chown.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chown.File.FileFields), nil
 	case "chown.file.inode":
@@ -16553,6 +17105,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exec.Process.FileEvent.FileFields.GID), nil
 	case "exec.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exec.Process.FileEvent.FileFields), nil
+	case "exec.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent), nil
 	case "exec.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exec.Process.FileEvent.FileFields), nil
 	case "exec.file.inode":
@@ -16603,6 +17157,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "exec.interpreter.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "exec.interpreter.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent), nil
 	case "exec.interpreter.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields), nil
 	case "exec.interpreter.file.inode":
@@ -16697,6 +17253,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exit.Process.FileEvent.FileFields.GID), nil
 	case "exit.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exit.Process.FileEvent.FileFields), nil
+	case "exit.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent), nil
 	case "exit.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exit.Process.FileEvent.FileFields), nil
 	case "exit.file.inode":
@@ -16747,6 +17305,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "exit.interpreter.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "exit.interpreter.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent), nil
 	case "exit.interpreter.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields), nil
 	case "exit.interpreter.file.inode":
@@ -16803,6 +17363,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Link.Target.FileFields.GID), nil
 	case "link.file.destination.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Link.Target.FileFields), nil
+	case "link.file.destination.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target), nil
 	case "link.file.destination.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Link.Target.FileFields), nil
 	case "link.file.destination.inode":
@@ -16839,6 +17401,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Link.Source.FileFields.GID), nil
 	case "link.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Link.Source.FileFields), nil
+	case "link.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source), nil
 	case "link.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Link.Source.FileFields), nil
 	case "link.file.inode":
@@ -16885,6 +17449,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.LoadModule.File.FileFields.GID), nil
 	case "load_module.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.LoadModule.File.FileFields), nil
+	case "load_module.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File), nil
 	case "load_module.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.LoadModule.File.FileFields), nil
 	case "load_module.file.inode":
@@ -16933,6 +17499,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Mkdir.File.FileFields.GID), nil
 	case "mkdir.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Mkdir.File.FileFields), nil
+	case "mkdir.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File), nil
 	case "mkdir.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Mkdir.File.FileFields), nil
 	case "mkdir.file.inode":
@@ -16973,6 +17541,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.MMap.File.FileFields.GID), nil
 	case "mmap.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.MMap.File.FileFields), nil
+	case "mmap.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File), nil
 	case "mmap.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.MMap.File.FileFields), nil
 	case "mmap.file.inode":
@@ -17051,6 +17621,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Open.File.FileFields.GID), nil
 	case "open.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Open.File.FileFields), nil
+	case "open.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File), nil
 	case "open.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Open.File.FileFields), nil
 	case "open.file.inode":
@@ -17346,6 +17918,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*ProcessCacheEntry)(ptr)
 			result := ev.FieldHandlers.ResolveFileFieldsGroup(ev, &element.ProcessContext.Process.FileEvent.FileFields)
 			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.file.hashes":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.FileEvent)
+			values = append(values, result...)
 			ptr = iterator.Next()
 		}
 		return values, nil
@@ -17646,6 +18230,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*ProcessCacheEntry)(ptr)
 			result := ev.FieldHandlers.ResolveFileFieldsGroup(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.hashes":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			values = append(values, result...)
 			ptr = iterator.Next()
 		}
 		return values, nil
@@ -17969,6 +18565,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.ProcessContext.Process.FileEvent.FileFields.GID), nil
 	case "process.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Process.FileEvent.FileFields), nil
+	case "process.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Process.FileEvent), nil
 	case "process.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Process.FileEvent.FileFields), nil
 	case "process.file.inode":
@@ -18019,6 +18617,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "process.interpreter.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "process.interpreter.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent), nil
 	case "process.interpreter.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields), nil
 	case "process.interpreter.file.inode":
@@ -18097,6 +18697,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.ProcessContext.Parent.FileEvent.FileFields.GID), nil
 	case "process.parent.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Parent.FileEvent.FileFields), nil
+	case "process.parent.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Parent.FileEvent), nil
 	case "process.parent.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Parent.FileEvent.FileFields), nil
 	case "process.parent.file.inode":
@@ -18147,6 +18749,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "process.parent.interpreter.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields), nil
+	case "process.parent.interpreter.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent), nil
 	case "process.parent.interpreter.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields), nil
 	case "process.parent.interpreter.file.inode":
@@ -18473,6 +19077,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "ptrace.tracee.ancestors.file.hashes":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.FileEvent)
+			values = append(values, result...)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		var values []bool
 		ctx := eval.NewContext(ev)
@@ -18770,6 +19386,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*ProcessCacheEntry)(ptr)
 			result := ev.FieldHandlers.ResolveFileFieldsGroup(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.hashes":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			values = append(values, result...)
 			ptr = iterator.Next()
 		}
 		return values, nil
@@ -19093,6 +19721,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.PTrace.Tracee.Process.FileEvent.FileFields.GID), nil
 	case "ptrace.tracee.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields), nil
+	case "ptrace.tracee.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent), nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields), nil
 	case "ptrace.tracee.file.inode":
@@ -19143,6 +19773,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "ptrace.tracee.interpreter.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "ptrace.tracee.interpreter.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent), nil
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields), nil
 	case "ptrace.tracee.interpreter.file.inode":
@@ -19221,6 +19853,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.PTrace.Tracee.Parent.FileEvent.FileFields.GID), nil
 	case "ptrace.tracee.parent.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Parent.FileEvent.FileFields), nil
+	case "ptrace.tracee.parent.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent), nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.PTrace.Tracee.Parent.FileEvent.FileFields), nil
 	case "ptrace.tracee.parent.file.inode":
@@ -19271,6 +19905,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "ptrace.tracee.parent.interpreter.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields), nil
+	case "ptrace.tracee.parent.interpreter.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent), nil
 	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields), nil
 	case "ptrace.tracee.parent.interpreter.file.inode":
@@ -19341,6 +19977,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.RemoveXAttr.File.FileFields.GID), nil
 	case "removexattr.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.RemoveXAttr.File.FileFields), nil
+	case "removexattr.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File), nil
 	case "removexattr.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.RemoveXAttr.File.FileFields), nil
 	case "removexattr.file.inode":
@@ -19383,6 +20021,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Rename.New.FileFields.GID), nil
 	case "rename.file.destination.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Rename.New.FileFields), nil
+	case "rename.file.destination.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New), nil
 	case "rename.file.destination.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Rename.New.FileFields), nil
 	case "rename.file.destination.inode":
@@ -19419,6 +20059,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Rename.Old.FileFields.GID), nil
 	case "rename.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Rename.Old.FileFields), nil
+	case "rename.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old), nil
 	case "rename.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Rename.Old.FileFields), nil
 	case "rename.file.inode":
@@ -19459,6 +20101,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Rmdir.File.FileFields.GID), nil
 	case "rmdir.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Rmdir.File.FileFields), nil
+	case "rmdir.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File), nil
 	case "rmdir.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Rmdir.File.FileFields), nil
 	case "rmdir.file.inode":
@@ -19535,6 +20179,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.SetXAttr.File.FileFields.GID), nil
 	case "setxattr.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.SetXAttr.File.FileFields), nil
+	case "setxattr.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File), nil
 	case "setxattr.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.SetXAttr.File.FileFields), nil
 	case "setxattr.file.inode":
@@ -19835,6 +20481,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "signal.target.ancestors.file.hashes":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.FileEvent)
+			values = append(values, result...)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		var values []bool
 		ctx := eval.NewContext(ev)
@@ -20132,6 +20790,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*ProcessCacheEntry)(ptr)
 			result := ev.FieldHandlers.ResolveFileFieldsGroup(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.hashes":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			values = append(values, result...)
 			ptr = iterator.Next()
 		}
 		return values, nil
@@ -20455,6 +21125,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Signal.Target.Process.FileEvent.FileFields.GID), nil
 	case "signal.target.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Process.FileEvent.FileFields), nil
+	case "signal.target.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent), nil
 	case "signal.target.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Signal.Target.Process.FileEvent.FileFields), nil
 	case "signal.target.file.inode":
@@ -20505,6 +21177,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "signal.target.interpreter.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields), nil
+	case "signal.target.interpreter.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent), nil
 	case "signal.target.interpreter.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields), nil
 	case "signal.target.interpreter.file.inode":
@@ -20583,6 +21257,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Signal.Target.Parent.FileEvent.FileFields.GID), nil
 	case "signal.target.parent.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Parent.FileEvent.FileFields), nil
+	case "signal.target.parent.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent), nil
 	case "signal.target.parent.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Signal.Target.Parent.FileEvent.FileFields), nil
 	case "signal.target.parent.file.inode":
@@ -20633,6 +21309,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.GID), nil
 	case "signal.target.parent.interpreter.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields), nil
+	case "signal.target.parent.interpreter.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent), nil
 	case "signal.target.parent.interpreter.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields), nil
 	case "signal.target.parent.interpreter.file.inode":
@@ -20701,6 +21379,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Splice.File.FileFields.GID), nil
 	case "splice.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Splice.File.FileFields), nil
+	case "splice.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File), nil
 	case "splice.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Splice.File.FileFields), nil
 	case "splice.file.inode":
@@ -20745,6 +21425,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Unlink.File.FileFields.GID), nil
 	case "unlink.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Unlink.File.FileFields), nil
+	case "unlink.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File), nil
 	case "unlink.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Unlink.File.FileFields), nil
 	case "unlink.file.inode":
@@ -20791,6 +21473,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Utimes.File.FileFields.GID), nil
 	case "utimes.file.group":
 		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Utimes.File.FileFields), nil
+	case "utimes.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File), nil
 	case "utimes.file.in_upper_layer":
 		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Utimes.File.FileFields), nil
 	case "utimes.file.inode":
@@ -20870,6 +21554,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chmod", nil
 	case "chmod.file.group":
 		return "chmod", nil
+	case "chmod.file.hashes":
+		return "chmod", nil
 	case "chmod.file.in_upper_layer":
 		return "chmod", nil
 	case "chmod.file.inode":
@@ -20917,6 +21603,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "chown.file.gid":
 		return "chown", nil
 	case "chown.file.group":
+		return "chown", nil
+	case "chown.file.hashes":
 		return "chown", nil
 	case "chown.file.in_upper_layer":
 		return "chown", nil
@@ -21018,6 +21706,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.file.group":
 		return "exec", nil
+	case "exec.file.hashes":
+		return "exec", nil
 	case "exec.file.in_upper_layer":
 		return "exec", nil
 	case "exec.file.inode":
@@ -21067,6 +21757,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.interpreter.file.gid":
 		return "exec", nil
 	case "exec.interpreter.file.group":
+		return "exec", nil
+	case "exec.interpreter.file.hashes":
 		return "exec", nil
 	case "exec.interpreter.file.in_upper_layer":
 		return "exec", nil
@@ -21162,6 +21854,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.file.group":
 		return "exit", nil
+	case "exit.file.hashes":
+		return "exit", nil
 	case "exit.file.in_upper_layer":
 		return "exit", nil
 	case "exit.file.inode":
@@ -21211,6 +21905,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.interpreter.file.gid":
 		return "exit", nil
 	case "exit.interpreter.file.group":
+		return "exit", nil
+	case "exit.interpreter.file.hashes":
 		return "exit", nil
 	case "exit.interpreter.file.in_upper_layer":
 		return "exit", nil
@@ -21268,6 +21964,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 	case "link.file.destination.group":
 		return "link", nil
+	case "link.file.destination.hashes":
+		return "link", nil
 	case "link.file.destination.in_upper_layer":
 		return "link", nil
 	case "link.file.destination.inode":
@@ -21303,6 +22001,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "link.file.gid":
 		return "link", nil
 	case "link.file.group":
+		return "link", nil
+	case "link.file.hashes":
 		return "link", nil
 	case "link.file.in_upper_layer":
 		return "link", nil
@@ -21349,6 +22049,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "load_module.file.gid":
 		return "load_module", nil
 	case "load_module.file.group":
+		return "load_module", nil
+	case "load_module.file.hashes":
 		return "load_module", nil
 	case "load_module.file.in_upper_layer":
 		return "load_module", nil
@@ -21398,6 +22100,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mkdir", nil
 	case "mkdir.file.group":
 		return "mkdir", nil
+	case "mkdir.file.hashes":
+		return "mkdir", nil
 	case "mkdir.file.in_upper_layer":
 		return "mkdir", nil
 	case "mkdir.file.inode":
@@ -21437,6 +22141,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mmap.file.gid":
 		return "mmap", nil
 	case "mmap.file.group":
+		return "mmap", nil
+	case "mmap.file.hashes":
 		return "mmap", nil
 	case "mmap.file.in_upper_layer":
 		return "mmap", nil
@@ -21516,6 +22222,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "open", nil
 	case "open.file.group":
 		return "open", nil
+	case "open.file.hashes":
+		return "open", nil
 	case "open.file.in_upper_layer":
 		return "open", nil
 	case "open.file.inode":
@@ -21594,6 +22302,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.file.group":
 		return "*", nil
+	case "process.ancestors.file.hashes":
+		return "*", nil
 	case "process.ancestors.file.in_upper_layer":
 		return "*", nil
 	case "process.ancestors.file.inode":
@@ -21643,6 +22353,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.interpreter.file.gid":
 		return "*", nil
 	case "process.ancestors.interpreter.file.group":
+		return "*", nil
+	case "process.ancestors.interpreter.file.hashes":
 		return "*", nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		return "*", nil
@@ -21734,6 +22446,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.file.group":
 		return "*", nil
+	case "process.file.hashes":
+		return "*", nil
 	case "process.file.in_upper_layer":
 		return "*", nil
 	case "process.file.inode":
@@ -21783,6 +22497,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.interpreter.file.gid":
 		return "*", nil
 	case "process.interpreter.file.group":
+		return "*", nil
+	case "process.interpreter.file.hashes":
 		return "*", nil
 	case "process.interpreter.file.in_upper_layer":
 		return "*", nil
@@ -21862,6 +22578,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.parent.file.group":
 		return "*", nil
+	case "process.parent.file.hashes":
+		return "*", nil
 	case "process.parent.file.in_upper_layer":
 		return "*", nil
 	case "process.parent.file.inode":
@@ -21911,6 +22629,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.parent.interpreter.file.gid":
 		return "*", nil
 	case "process.parent.interpreter.file.group":
+		return "*", nil
+	case "process.parent.interpreter.file.hashes":
 		return "*", nil
 	case "process.parent.interpreter.file.in_upper_layer":
 		return "*", nil
@@ -22018,6 +22738,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.group":
 		return "ptrace", nil
+	case "ptrace.tracee.ancestors.file.hashes":
+		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.inode":
@@ -22067,6 +22789,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.interpreter.file.group":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.hashes":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
 		return "ptrace", nil
@@ -22158,6 +22882,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.file.group":
 		return "ptrace", nil
+	case "ptrace.tracee.file.hashes":
+		return "ptrace", nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return "ptrace", nil
 	case "ptrace.tracee.file.inode":
@@ -22207,6 +22933,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.interpreter.file.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.interpreter.file.group":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.hashes":
 		return "ptrace", nil
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
 		return "ptrace", nil
@@ -22286,6 +23014,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.parent.file.group":
 		return "ptrace", nil
+	case "ptrace.tracee.parent.file.hashes":
+		return "ptrace", nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.file.inode":
@@ -22335,6 +23065,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.parent.interpreter.file.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.interpreter.file.group":
+		return "ptrace", nil
+	case "ptrace.tracee.parent.interpreter.file.hashes":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
 		return "ptrace", nil
@@ -22406,6 +23138,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "removexattr", nil
 	case "removexattr.file.group":
 		return "removexattr", nil
+	case "removexattr.file.hashes":
+		return "removexattr", nil
 	case "removexattr.file.in_upper_layer":
 		return "removexattr", nil
 	case "removexattr.file.inode":
@@ -22448,6 +23182,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 	case "rename.file.destination.group":
 		return "rename", nil
+	case "rename.file.destination.hashes":
+		return "rename", nil
 	case "rename.file.destination.in_upper_layer":
 		return "rename", nil
 	case "rename.file.destination.inode":
@@ -22483,6 +23219,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rename.file.gid":
 		return "rename", nil
 	case "rename.file.group":
+		return "rename", nil
+	case "rename.file.hashes":
 		return "rename", nil
 	case "rename.file.in_upper_layer":
 		return "rename", nil
@@ -22523,6 +23261,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rmdir.file.gid":
 		return "rmdir", nil
 	case "rmdir.file.group":
+		return "rmdir", nil
+	case "rmdir.file.hashes":
 		return "rmdir", nil
 	case "rmdir.file.in_upper_layer":
 		return "rmdir", nil
@@ -22599,6 +23339,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "setxattr.file.gid":
 		return "setxattr", nil
 	case "setxattr.file.group":
+		return "setxattr", nil
+	case "setxattr.file.hashes":
 		return "setxattr", nil
 	case "setxattr.file.in_upper_layer":
 		return "setxattr", nil
@@ -22680,6 +23422,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.file.group":
 		return "signal", nil
+	case "signal.target.ancestors.file.hashes":
+		return "signal", nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		return "signal", nil
 	case "signal.target.ancestors.file.inode":
@@ -22729,6 +23473,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.ancestors.interpreter.file.gid":
 		return "signal", nil
 	case "signal.target.ancestors.interpreter.file.group":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.hashes":
 		return "signal", nil
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
 		return "signal", nil
@@ -22820,6 +23566,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.file.group":
 		return "signal", nil
+	case "signal.target.file.hashes":
+		return "signal", nil
 	case "signal.target.file.in_upper_layer":
 		return "signal", nil
 	case "signal.target.file.inode":
@@ -22869,6 +23617,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.interpreter.file.gid":
 		return "signal", nil
 	case "signal.target.interpreter.file.group":
+		return "signal", nil
+	case "signal.target.interpreter.file.hashes":
 		return "signal", nil
 	case "signal.target.interpreter.file.in_upper_layer":
 		return "signal", nil
@@ -22948,6 +23698,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.parent.file.group":
 		return "signal", nil
+	case "signal.target.parent.file.hashes":
+		return "signal", nil
 	case "signal.target.parent.file.in_upper_layer":
 		return "signal", nil
 	case "signal.target.parent.file.inode":
@@ -22997,6 +23749,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.parent.interpreter.file.gid":
 		return "signal", nil
 	case "signal.target.parent.interpreter.file.group":
+		return "signal", nil
+	case "signal.target.parent.interpreter.file.hashes":
 		return "signal", nil
 	case "signal.target.parent.interpreter.file.in_upper_layer":
 		return "signal", nil
@@ -23066,6 +23820,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "splice", nil
 	case "splice.file.group":
 		return "splice", nil
+	case "splice.file.hashes":
+		return "splice", nil
 	case "splice.file.in_upper_layer":
 		return "splice", nil
 	case "splice.file.inode":
@@ -23109,6 +23865,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "unlink.file.gid":
 		return "unlink", nil
 	case "unlink.file.group":
+		return "unlink", nil
+	case "unlink.file.hashes":
 		return "unlink", nil
 	case "unlink.file.in_upper_layer":
 		return "unlink", nil
@@ -23155,6 +23913,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "utimes.file.gid":
 		return "utimes", nil
 	case "utimes.file.group":
+		return "utimes", nil
+	case "utimes.file.hashes":
 		return "utimes", nil
 	case "utimes.file.in_upper_layer":
 		return "utimes", nil
@@ -23235,6 +23995,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "chmod.file.group":
 		return reflect.String, nil
+	case "chmod.file.hashes":
+		return reflect.String, nil
 	case "chmod.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "chmod.file.inode":
@@ -23282,6 +24044,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "chown.file.gid":
 		return reflect.Int, nil
 	case "chown.file.group":
+		return reflect.String, nil
+	case "chown.file.hashes":
 		return reflect.String, nil
 	case "chown.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -23383,6 +24147,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.file.group":
 		return reflect.String, nil
+	case "exec.file.hashes":
+		return reflect.String, nil
 	case "exec.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "exec.file.inode":
@@ -23432,6 +24198,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exec.interpreter.file.gid":
 		return reflect.Int, nil
 	case "exec.interpreter.file.group":
+		return reflect.String, nil
+	case "exec.interpreter.file.hashes":
 		return reflect.String, nil
 	case "exec.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -23527,6 +24295,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.file.group":
 		return reflect.String, nil
+	case "exit.file.hashes":
+		return reflect.String, nil
 	case "exit.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "exit.file.inode":
@@ -23576,6 +24346,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exit.interpreter.file.gid":
 		return reflect.Int, nil
 	case "exit.interpreter.file.group":
+		return reflect.String, nil
+	case "exit.interpreter.file.hashes":
 		return reflect.String, nil
 	case "exit.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -23633,6 +24405,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "link.file.destination.group":
 		return reflect.String, nil
+	case "link.file.destination.hashes":
+		return reflect.String, nil
 	case "link.file.destination.in_upper_layer":
 		return reflect.Bool, nil
 	case "link.file.destination.inode":
@@ -23668,6 +24442,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "link.file.gid":
 		return reflect.Int, nil
 	case "link.file.group":
+		return reflect.String, nil
+	case "link.file.hashes":
 		return reflect.String, nil
 	case "link.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -23714,6 +24490,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "load_module.file.gid":
 		return reflect.Int, nil
 	case "load_module.file.group":
+		return reflect.String, nil
+	case "load_module.file.hashes":
 		return reflect.String, nil
 	case "load_module.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -23763,6 +24541,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "mkdir.file.group":
 		return reflect.String, nil
+	case "mkdir.file.hashes":
+		return reflect.String, nil
 	case "mkdir.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "mkdir.file.inode":
@@ -23802,6 +24582,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "mmap.file.gid":
 		return reflect.Int, nil
 	case "mmap.file.group":
+		return reflect.String, nil
+	case "mmap.file.hashes":
 		return reflect.String, nil
 	case "mmap.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -23881,6 +24663,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "open.file.group":
 		return reflect.String, nil
+	case "open.file.hashes":
+		return reflect.String, nil
 	case "open.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "open.file.inode":
@@ -23959,6 +24743,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.file.group":
 		return reflect.String, nil
+	case "process.ancestors.file.hashes":
+		return reflect.String, nil
 	case "process.ancestors.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "process.ancestors.file.inode":
@@ -24008,6 +24794,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.ancestors.interpreter.file.gid":
 		return reflect.Int, nil
 	case "process.ancestors.interpreter.file.group":
+		return reflect.String, nil
+	case "process.ancestors.interpreter.file.hashes":
 		return reflect.String, nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -24099,6 +24887,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.file.group":
 		return reflect.String, nil
+	case "process.file.hashes":
+		return reflect.String, nil
 	case "process.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "process.file.inode":
@@ -24148,6 +24938,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.interpreter.file.gid":
 		return reflect.Int, nil
 	case "process.interpreter.file.group":
+		return reflect.String, nil
+	case "process.interpreter.file.hashes":
 		return reflect.String, nil
 	case "process.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -24227,6 +25019,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.parent.file.group":
 		return reflect.String, nil
+	case "process.parent.file.hashes":
+		return reflect.String, nil
 	case "process.parent.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "process.parent.file.inode":
@@ -24276,6 +25070,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.parent.interpreter.file.gid":
 		return reflect.Int, nil
 	case "process.parent.interpreter.file.group":
+		return reflect.String, nil
+	case "process.parent.interpreter.file.hashes":
 		return reflect.String, nil
 	case "process.parent.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -24383,6 +25179,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.group":
 		return reflect.String, nil
+	case "ptrace.tracee.ancestors.file.hashes":
+		return reflect.String, nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "ptrace.tracee.ancestors.file.inode":
@@ -24432,6 +25230,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.interpreter.file.group":
+		return reflect.String, nil
+	case "ptrace.tracee.ancestors.interpreter.file.hashes":
 		return reflect.String, nil
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -24523,6 +25323,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.file.group":
 		return reflect.String, nil
+	case "ptrace.tracee.file.hashes":
+		return reflect.String, nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "ptrace.tracee.file.inode":
@@ -24572,6 +25374,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "ptrace.tracee.interpreter.file.gid":
 		return reflect.Int, nil
 	case "ptrace.tracee.interpreter.file.group":
+		return reflect.String, nil
+	case "ptrace.tracee.interpreter.file.hashes":
 		return reflect.String, nil
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -24651,6 +25455,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.parent.file.group":
 		return reflect.String, nil
+	case "ptrace.tracee.parent.file.hashes":
+		return reflect.String, nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "ptrace.tracee.parent.file.inode":
@@ -24700,6 +25506,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "ptrace.tracee.parent.interpreter.file.gid":
 		return reflect.Int, nil
 	case "ptrace.tracee.parent.interpreter.file.group":
+		return reflect.String, nil
+	case "ptrace.tracee.parent.interpreter.file.hashes":
 		return reflect.String, nil
 	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -24771,6 +25579,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "removexattr.file.group":
 		return reflect.String, nil
+	case "removexattr.file.hashes":
+		return reflect.String, nil
 	case "removexattr.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "removexattr.file.inode":
@@ -24813,6 +25623,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "rename.file.destination.group":
 		return reflect.String, nil
+	case "rename.file.destination.hashes":
+		return reflect.String, nil
 	case "rename.file.destination.in_upper_layer":
 		return reflect.Bool, nil
 	case "rename.file.destination.inode":
@@ -24848,6 +25660,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "rename.file.gid":
 		return reflect.Int, nil
 	case "rename.file.group":
+		return reflect.String, nil
+	case "rename.file.hashes":
 		return reflect.String, nil
 	case "rename.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -24888,6 +25702,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "rmdir.file.gid":
 		return reflect.Int, nil
 	case "rmdir.file.group":
+		return reflect.String, nil
+	case "rmdir.file.hashes":
 		return reflect.String, nil
 	case "rmdir.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -24964,6 +25780,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "setxattr.file.gid":
 		return reflect.Int, nil
 	case "setxattr.file.group":
+		return reflect.String, nil
+	case "setxattr.file.hashes":
 		return reflect.String, nil
 	case "setxattr.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -25045,6 +25863,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.file.group":
 		return reflect.String, nil
+	case "signal.target.ancestors.file.hashes":
+		return reflect.String, nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "signal.target.ancestors.file.inode":
@@ -25094,6 +25914,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "signal.target.ancestors.interpreter.file.gid":
 		return reflect.Int, nil
 	case "signal.target.ancestors.interpreter.file.group":
+		return reflect.String, nil
+	case "signal.target.ancestors.interpreter.file.hashes":
 		return reflect.String, nil
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -25185,6 +26007,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.file.group":
 		return reflect.String, nil
+	case "signal.target.file.hashes":
+		return reflect.String, nil
 	case "signal.target.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "signal.target.file.inode":
@@ -25234,6 +26058,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "signal.target.interpreter.file.gid":
 		return reflect.Int, nil
 	case "signal.target.interpreter.file.group":
+		return reflect.String, nil
+	case "signal.target.interpreter.file.hashes":
 		return reflect.String, nil
 	case "signal.target.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -25313,6 +26139,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.parent.file.group":
 		return reflect.String, nil
+	case "signal.target.parent.file.hashes":
+		return reflect.String, nil
 	case "signal.target.parent.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "signal.target.parent.file.inode":
@@ -25362,6 +26190,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "signal.target.parent.interpreter.file.gid":
 		return reflect.Int, nil
 	case "signal.target.parent.interpreter.file.group":
+		return reflect.String, nil
+	case "signal.target.parent.interpreter.file.hashes":
 		return reflect.String, nil
 	case "signal.target.parent.interpreter.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -25431,6 +26261,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "splice.file.group":
 		return reflect.String, nil
+	case "splice.file.hashes":
+		return reflect.String, nil
 	case "splice.file.in_upper_layer":
 		return reflect.Bool, nil
 	case "splice.file.inode":
@@ -25474,6 +26306,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "unlink.file.gid":
 		return reflect.Int, nil
 	case "unlink.file.group":
+		return reflect.String, nil
+	case "unlink.file.hashes":
 		return reflect.String, nil
 	case "unlink.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -25520,6 +26354,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "utimes.file.gid":
 		return reflect.Int, nil
 	case "utimes.file.group":
+		return reflect.String, nil
+	case "utimes.file.hashes":
 		return reflect.String, nil
 	case "utimes.file.in_upper_layer":
 		return reflect.Bool, nil
@@ -25710,6 +26546,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Chmod.File.FileFields.Group = rv
 		return nil
+	case "chmod.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Chmod.File.Hashes = append(ev.Chmod.File.Hashes, rv)
+		case []string:
+			ev.Chmod.File.Hashes = append(ev.Chmod.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.Hashes"}
+		}
+		return nil
 	case "chmod.file.in_upper_layer":
 		rv, ok := value.(bool)
 		if !ok {
@@ -25867,6 +26713,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Group"}
 		}
 		ev.Chown.File.FileFields.Group = rv
+		return nil
+	case "chown.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Chown.File.Hashes = append(ev.Chown.File.Hashes, rv)
+		case []string:
+			ev.Chown.File.Hashes = append(ev.Chown.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Chown.File.Hashes"}
+		}
 		return nil
 	case "chown.file.in_upper_layer":
 		rv, ok := value.(bool)
@@ -26296,6 +27152,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.FileEvent.FileFields.Group = rv
 		return nil
+	case "exec.file.hashes":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Exec.Process.FileEvent.Hashes = append(ev.Exec.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.Exec.Process.FileEvent.Hashes = append(ev.Exec.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.Hashes"}
+		}
+		return nil
 	case "exec.file.in_upper_layer":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
@@ -26535,6 +27404,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "exec.interpreter.file.hashes":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Exec.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Exec.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.Exec.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Exec.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "exec.interpreter.file.in_upper_layer":
 		if ev.Exec.Process == nil {
@@ -27005,6 +27887,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Process.FileEvent.FileFields.Group = rv
 		return nil
+	case "exit.file.hashes":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Exit.Process.FileEvent.Hashes = append(ev.Exit.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.Exit.Process.FileEvent.Hashes = append(ev.Exit.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.Hashes"}
+		}
+		return nil
 	case "exit.file.in_upper_layer":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -27244,6 +28139,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "exit.interpreter.file.hashes":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Exit.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Exit.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.Exit.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Exit.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "exit.interpreter.file.in_upper_layer":
 		if ev.Exit.Process == nil {
@@ -27500,6 +28408,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Link.Target.FileFields.Group = rv
 		return nil
+	case "link.file.destination.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Link.Target.Hashes = append(ev.Link.Target.Hashes, rv)
+		case []string:
+			ev.Link.Target.Hashes = append(ev.Link.Target.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Link.Target.Hashes"}
+		}
+		return nil
 	case "link.file.destination.in_upper_layer":
 		rv, ok := value.(bool)
 		if !ok {
@@ -27615,6 +28533,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Group"}
 		}
 		ev.Link.Source.FileFields.Group = rv
+		return nil
+	case "link.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Link.Source.Hashes = append(ev.Link.Source.Hashes, rv)
+		case []string:
+			ev.Link.Source.Hashes = append(ev.Link.Source.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Link.Source.Hashes"}
+		}
 		return nil
 	case "link.file.in_upper_layer":
 		rv, ok := value.(bool)
@@ -27769,6 +28697,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Group"}
 		}
 		ev.LoadModule.File.FileFields.Group = rv
+		return nil
+	case "load_module.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.LoadModule.File.Hashes = append(ev.LoadModule.File.Hashes, rv)
+		case []string:
+			ev.LoadModule.File.Hashes = append(ev.LoadModule.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.Hashes"}
+		}
 		return nil
 	case "load_module.file.in_upper_layer":
 		rv, ok := value.(bool)
@@ -27928,6 +28866,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Mkdir.File.FileFields.Group = rv
 		return nil
+	case "mkdir.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Mkdir.File.Hashes = append(ev.Mkdir.File.Hashes, rv)
+		case []string:
+			ev.Mkdir.File.Hashes = append(ev.Mkdir.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.Hashes"}
+		}
+		return nil
 	case "mkdir.file.in_upper_layer":
 		rv, ok := value.(bool)
 		if !ok {
@@ -28057,6 +29005,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Group"}
 		}
 		ev.MMap.File.FileFields.Group = rv
+		return nil
+	case "mmap.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.MMap.File.Hashes = append(ev.MMap.File.Hashes, rv)
+		case []string:
+			ev.MMap.File.Hashes = append(ev.MMap.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "MMap.File.Hashes"}
+		}
 		return nil
 	case "mmap.file.in_upper_layer":
 		rv, ok := value.(bool)
@@ -28320,6 +29278,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Group"}
 		}
 		ev.Open.File.FileFields.Group = rv
+		return nil
+	case "open.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Open.File.Hashes = append(ev.Open.File.Hashes, rv)
+		case []string:
+			ev.Open.File.Hashes = append(ev.Open.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Open.File.Hashes"}
+		}
 		return nil
 	case "open.file.in_upper_layer":
 		rv, ok := value.(bool)
@@ -28731,6 +29699,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = rv
 		return nil
+	case "process.ancestors.file.hashes":
+		if ev.ProcessContext == nil {
+			ev.ProcessContext = &ProcessContext{}
+		}
+		if ev.ProcessContext.Ancestor == nil {
+			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Hashes"}
+		}
+		return nil
 	case "process.ancestors.file.in_upper_layer":
 		if ev.ProcessContext == nil {
 			ev.ProcessContext = &ProcessContext{}
@@ -29045,6 +30029,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "process.ancestors.interpreter.file.hashes":
+		if ev.ProcessContext == nil {
+			ev.ProcessContext = &ProcessContext{}
+		}
+		if ev.ProcessContext.Ancestor == nil {
+			ev.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		if ev.ProcessContext == nil {
@@ -29570,6 +30570,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.ProcessContext.Process.FileEvent.FileFields.Group = rv
 		return nil
+	case "process.file.hashes":
+		if ev.ProcessContext == nil {
+			ev.ProcessContext = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.ProcessContext.Process.FileEvent.Hashes = append(ev.ProcessContext.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.ProcessContext.Process.FileEvent.Hashes = append(ev.ProcessContext.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.FileEvent.Hashes"}
+		}
+		return nil
 	case "process.file.in_upper_layer":
 		if ev.ProcessContext == nil {
 			ev.ProcessContext = &ProcessContext{}
@@ -29809,6 +30822,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "process.interpreter.file.hashes":
+		if ev.ProcessContext == nil {
+			ev.ProcessContext = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "process.interpreter.file.in_upper_layer":
 		if ev.ProcessContext == nil {
@@ -30271,6 +31297,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.ProcessContext.Parent.FileEvent.FileFields.Group = rv
 		return nil
+	case "process.parent.file.hashes":
+		if ev.ProcessContext == nil {
+			ev.ProcessContext = &ProcessContext{}
+		}
+		if ev.ProcessContext.Parent == nil {
+			ev.ProcessContext.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.ProcessContext.Parent.FileEvent.Hashes = append(ev.ProcessContext.Parent.FileEvent.Hashes, rv)
+		case []string:
+			ev.ProcessContext.Parent.FileEvent.Hashes = append(ev.ProcessContext.Parent.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.Hashes"}
+		}
+		return nil
 	case "process.parent.file.in_upper_layer":
 		if ev.ProcessContext == nil {
 			ev.ProcessContext = &ProcessContext{}
@@ -30585,6 +31627,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "process.parent.interpreter.file.hashes":
+		if ev.ProcessContext == nil {
+			ev.ProcessContext = &ProcessContext{}
+		}
+		if ev.ProcessContext.Parent == nil {
+			ev.ProcessContext.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "process.parent.interpreter.file.in_upper_layer":
 		if ev.ProcessContext == nil {
@@ -31250,6 +32308,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = rv
 		return nil
+	case "ptrace.tracee.ancestors.file.hashes":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Hashes"}
+		}
+		return nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -31564,6 +32638,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.hashes":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
 		if ev.PTrace.Tracee == nil {
@@ -32089,6 +33179,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Process.FileEvent.FileFields.Group = rv
 		return nil
+	case "ptrace.tracee.file.hashes":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Process.FileEvent.Hashes = append(ev.PTrace.Tracee.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.PTrace.Tracee.Process.FileEvent.Hashes = append(ev.PTrace.Tracee.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.Hashes"}
+		}
+		return nil
 	case "ptrace.tracee.file.in_upper_layer":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -32328,6 +33431,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "ptrace.tracee.interpreter.file.hashes":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.Hashes = append(ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.Hashes = append(ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
 		if ev.PTrace.Tracee == nil {
@@ -32790,6 +33906,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Parent.FileEvent.FileFields.Group = rv
 		return nil
+	case "ptrace.tracee.parent.file.hashes":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Parent.FileEvent.Hashes = append(ev.PTrace.Tracee.Parent.FileEvent.Hashes, rv)
+		case []string:
+			ev.PTrace.Tracee.Parent.FileEvent.Hashes = append(ev.PTrace.Tracee.Parent.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.Hashes"}
+		}
+		return nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -33104,6 +34236,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "ptrace.tracee.parent.interpreter.file.hashes":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
 		if ev.PTrace.Tracee == nil {
@@ -33496,6 +34644,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.RemoveXAttr.File.FileFields.Group = rv
 		return nil
+	case "removexattr.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.RemoveXAttr.File.Hashes = append(ev.RemoveXAttr.File.Hashes, rv)
+		case []string:
+			ev.RemoveXAttr.File.Hashes = append(ev.RemoveXAttr.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.Hashes"}
+		}
+		return nil
 	case "removexattr.file.in_upper_layer":
 		rv, ok := value.(bool)
 		if !ok {
@@ -33633,6 +34791,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Rename.New.FileFields.Group = rv
 		return nil
+	case "rename.file.destination.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Rename.New.Hashes = append(ev.Rename.New.Hashes, rv)
+		case []string:
+			ev.Rename.New.Hashes = append(ev.Rename.New.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Rename.New.Hashes"}
+		}
+		return nil
 	case "rename.file.destination.in_upper_layer":
 		rv, ok := value.(bool)
 		if !ok {
@@ -33748,6 +34916,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Group"}
 		}
 		ev.Rename.Old.FileFields.Group = rv
+		return nil
+	case "rename.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Rename.Old.Hashes = append(ev.Rename.Old.Hashes, rv)
+		case []string:
+			ev.Rename.Old.Hashes = append(ev.Rename.Old.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.Hashes"}
+		}
 		return nil
 	case "rename.file.in_upper_layer":
 		rv, ok := value.(bool)
@@ -33878,6 +35056,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Group"}
 		}
 		ev.Rmdir.File.FileFields.Group = rv
+		return nil
+	case "rmdir.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Rmdir.File.Hashes = append(ev.Rmdir.File.Hashes, rv)
+		case []string:
+			ev.Rmdir.File.Hashes = append(ev.Rmdir.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.Hashes"}
+		}
 		return nil
 	case "rmdir.file.in_upper_layer":
 		rv, ok := value.(bool)
@@ -34134,6 +35322,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Group"}
 		}
 		ev.SetXAttr.File.FileFields.Group = rv
+		return nil
+	case "setxattr.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.SetXAttr.File.Hashes = append(ev.SetXAttr.File.Hashes, rv)
+		case []string:
+			ev.SetXAttr.File.Hashes = append(ev.SetXAttr.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.Hashes"}
+		}
 		return nil
 	case "setxattr.file.in_upper_layer":
 		rv, ok := value.(bool)
@@ -34552,6 +35750,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = rv
 		return nil
+	case "signal.target.ancestors.file.hashes":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Hashes"}
+		}
+		return nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -34866,6 +36080,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "signal.target.ancestors.interpreter.file.hashes":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
 		if ev.Signal.Target == nil {
@@ -35391,6 +36621,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Process.FileEvent.FileFields.Group = rv
 		return nil
+	case "signal.target.file.hashes":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Process.FileEvent.Hashes = append(ev.Signal.Target.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.Signal.Target.Process.FileEvent.Hashes = append(ev.Signal.Target.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.Hashes"}
+		}
+		return nil
 	case "signal.target.file.in_upper_layer":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -35630,6 +36873,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "signal.target.interpreter.file.hashes":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Signal.Target.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.Signal.Target.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Signal.Target.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "signal.target.interpreter.file.in_upper_layer":
 		if ev.Signal.Target == nil {
@@ -36092,6 +37348,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Parent.FileEvent.FileFields.Group = rv
 		return nil
+	case "signal.target.parent.file.hashes":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Parent.FileEvent.Hashes = append(ev.Signal.Target.Parent.FileEvent.Hashes, rv)
+		case []string:
+			ev.Signal.Target.Parent.FileEvent.Hashes = append(ev.Signal.Target.Parent.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.Hashes"}
+		}
+		return nil
 	case "signal.target.parent.file.in_upper_layer":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -36406,6 +37678,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
 		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "signal.target.parent.interpreter.file.hashes":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.Signal.Target.Parent.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.Signal.Target.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.Signal.Target.Parent.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.Hashes"}
+		}
 		return nil
 	case "signal.target.parent.interpreter.file.in_upper_layer":
 		if ev.Signal.Target == nil {
@@ -36791,6 +38079,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Splice.File.FileFields.Group = rv
 		return nil
+	case "splice.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Splice.File.Hashes = append(ev.Splice.File.Hashes, rv)
+		case []string:
+			ev.Splice.File.Hashes = append(ev.Splice.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Splice.File.Hashes"}
+		}
+		return nil
 	case "splice.file.in_upper_layer":
 		rv, ok := value.(bool)
 		if !ok {
@@ -36934,6 +38232,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Group"}
 		}
 		ev.Unlink.File.FileFields.Group = rv
+		return nil
+	case "unlink.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Unlink.File.Hashes = append(ev.Unlink.File.Hashes, rv)
+		case []string:
+			ev.Unlink.File.Hashes = append(ev.Unlink.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.Hashes"}
+		}
 		return nil
 	case "unlink.file.in_upper_layer":
 		rv, ok := value.(bool)
@@ -37085,6 +38393,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Group"}
 		}
 		ev.Utimes.File.FileFields.Group = rv
+		return nil
+	case "utimes.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Utimes.File.Hashes = append(ev.Utimes.File.Hashes, rv)
+		case []string:
+			ev.Utimes.File.Hashes = append(ev.Utimes.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.Hashes"}
+		}
 		return nil
 	case "utimes.file.in_upper_layer":
 		rv, ok := value.(bool)
