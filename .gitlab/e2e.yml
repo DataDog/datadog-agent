@@ -144,6 +144,8 @@ k8s-e2e-otlp-main:
     expire_in: 2 weeks
     when: always
     paths:
+      # This file will be consumed by the `e2e_test_junit_upload` job in next stage to push the report to datadog.
+      # If you create a new job from this template, do not forget to update the `dependencies` of the `e2e_test_junit_upload` job.
       - junit-*.tgz
     reports:
       junit: test/new-e2e/junit-*.xml
@@ -162,3 +164,7 @@ new-e2e-containers-main:
   variables:
     TARGETS: ./containers
     CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:master-py3 -c ddagent:clusterAgentFullImagePath=datadog/cluster-agent-dev:master"
+
+#   ^    If you create a new job here that extends `.new_e2e_template`,
+#  /!\   do not forget to add it in the `dependencies` statement of the
+# /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
