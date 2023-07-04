@@ -796,8 +796,6 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 		return nil
 	}
 
-	lastPid := pc.Pid
-
 	ps := ProcessContextSerializer{
 		ProcessSerializer: newProcessSerializer(&pc.Process, e, resolvers),
 	}
@@ -814,7 +812,6 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
-		lastPid = pce.Pid
 
 		s := newProcessSerializer(&pce.Process, e, resolvers)
 		ps.Ancestors = append(ps.Ancestors, s)
@@ -834,10 +831,6 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 		prev = s
 
 		ptr = it.Next()
-	}
-
-	if lastPid != 1 {
-		resolvers.ProcessResolver.CountBrokenLineage()
 	}
 
 	return &ps
