@@ -85,9 +85,9 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             for f in to_download:
                 info(f"[+] {f} needs to be downloaded")
                 # download package entry
-                tmp.write(url_base + f + "\n")
+                tmp.write(url_base + f"{f}.tar.gz" + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
-                tmp.write(f" out={f}\n")
+                tmp.write(f" out={f}.tar.gz\n")
                 # download sum entry
                 tmp.write(url_base + f"{f}.sum\n")
                 tmp.write(f" dir={rootfs_dir}\n")
@@ -95,7 +95,7 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             tmp.write("\n")
 
         ctx.run(f"cat {path}")
-        res = ctx.run(f"aria2c -i {path} -x 16 -j {len(to_download)}")
+        res = ctx.run(f"aria2c -i {path} -j {len(to_download)}")
         if not res.ok:
             if revert:
                 revert_rootfs(ctx, rootfs_dir, backup_dir)
