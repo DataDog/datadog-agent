@@ -254,10 +254,11 @@ kernel_matrix_testing_run_tests_arm64:
     matrix:
       - TAG: ["focal", "jammy"]
 
-.kernel_matrix_testing_cleanup:
+kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
+  when: always
   tags: ["arch:amd64"]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
@@ -276,14 +277,3 @@ kernel_matrix_testing_run_tests_arm64:
       if [ $(echo $INSTANCE_IDS | wc -w) != "0" ]; then
         aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
       fi
-
-kernel_matrix_testing_cleanup_success:
-  extends:
-    - .kernel_matrix_testing_cleanup
-  when: on_success
-
-
-kernel_matrix_testing_cleanup_failure:
-  extends:
-    - .kernel_matrix_testing_cleanup
-  when: on_failure
