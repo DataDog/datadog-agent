@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The kube node name is now a host tag ``kube_node``
+    (was already a host alias)

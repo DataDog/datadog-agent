@@ -58,7 +58,7 @@ func GetTags(ctx context.Context) (tags []string, err error) {
 		return
 	}
 	nodeName, err := ku.GetNodename(ctx)
-	if err == nil {
+	if err == nil && nodeName != "" {
 		tags = append(tags, "kube_node:"+nodeName)
 	}
 
