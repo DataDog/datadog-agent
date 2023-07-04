@@ -14,9 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// GetTags gets the tags from the kubernetes apiserver
+type kubeUtilGetter func() (k.KubeUtilInterface, error)
+
+var kubeUtilGet kubeUtilGetter = k.GetKubeUtil
+
+// GetTags gets the tags from the kubernetes apiserver and the kubelet
 func GetTags(ctx context.Context) (tags []string, err error) {
 	labelsToTags := getLabelsToTags()
 
@@ -46,6 +51,15 @@ func GetTags(ctx context.Context) (tags []string, err error) {
 		} else {
 			tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
 		}
+	}
+
+	ku, err := kubeUtilGet()
+	if err != nil {
+		return
+	}
+	nodeName, err := ku.GetNodename(ctx)
+	if err == nil {
+		tags = append(tags, "kube_node:"+nodeName)
 	}
 
 	return
