@@ -11,6 +11,8 @@ configParams:
     # use the public key you registered on aws account
     # required to configure Windows EC2 instances
     publicKeyPath: "/Users/totoro/.ssh/id_rsa.pub"
+    # team tag labeling all resources
+    teamTag: "miyazaki"
   agent:
     apiKey: "00000000000000000000000000000000"
 # invoke task configuration
