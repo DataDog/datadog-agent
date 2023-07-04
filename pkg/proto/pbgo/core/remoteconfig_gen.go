@@ -2783,6 +2783,67 @@ func (z OrgDataResponse) Msgsize() (s int) {
 }
 
 // MarshalMsg implements msgp.Marshaler
+func (z OrgStatusResponse) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 2
+	// string "Enabled"
+	o = append(o, 0x82, 0xa7, 0x45, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x64)
+	o = msgp.AppendBool(o, z.Enabled)
+	// string "Authorized"
+	o = append(o, 0xaa, 0x41, 0x75, 0x74, 0x68, 0x6f, 0x72, 0x69, 0x7a, 0x65, 0x64)
+	o = msgp.AppendBool(o, z.Authorized)
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *OrgStatusResponse) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "Enabled":
+			z.Enabled, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Enabled")
+				return
+			}
+		case "Authorized":
+			z.Authorized, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Authorized")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z OrgStatusResponse) Msgsize() (s int) {
+	s = 1 + 8 + msgp.BoolSize + 11 + msgp.BoolSize
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
 func (z TargetFileHash) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// map header, size 2
