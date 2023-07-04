@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test/testsuite/testdata"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/util/proto"
+	protoutil "github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/runtime/protoiface"
 )
@@ -62,7 +62,7 @@ func TestClientStats(t *testing.T) {
 					for _, msg := range tt.Out {
 						expected = append(expected, msg)
 					}
-					assert.ElementsMatch(t, proto.PbToStringSlice(actual), proto.PbToStringSlice(expected))
+					assert.ElementsMatch(t, protoutil.PbToStringSlice(actual), protoutil.PbToStringSlice(expected))
 					return
 				case <-timeout:
 					t.Fatalf("timed out, log was:\n%s", r.AgentLog())
