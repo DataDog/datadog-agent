@@ -115,10 +115,10 @@ func pathToPackage(path string) string {
 	return dir
 }
 
-func testsToRunArg(pkg string, failedTests map[string][]string) string {
+func testsToRunArg(pkg string, failedTests map[string][]string) (string, int) {
 	var subTests []string
 	if _, ok := failedTests[pkg]; !ok {
-		return ""
+		return "", 0
 	}
 
 	testLs := failedTests[pkg]
@@ -139,7 +139,7 @@ func testsToRunArg(pkg string, failedTests map[string][]string) string {
 		}
 	}
 
-	return fmt.Sprintf("-test.run=%s", strings.Join(subTests, ","))
+	return fmt.Sprintf("-test.run=%s", strings.Join(subTests, ",")), len(subTests)
 }
 
 func buildCommandArgs(junitPath string, jsonPath string, file string, failedTests map[string][]string) []string {
@@ -154,7 +154,10 @@ func buildCommandArgs(junitPath string, jsonPath string, file string, failedTest
 		fmt.Sprintf("%s.json", junitfilePrefix),
 	)
 
-	rerun := testsToRunArg(pathToPackage(file), failedTests)
+	rerun, cnt := testsToRunArg(pathToPackage(file), failedTests)
+	if cnt != 0 {
+		fmt.Println(color.YellowString("Rerunning %d failed tests [%s]", cnt, rerun))
+	}
 	args := []string{
 		"--format", "dots",
 		"--junitfile", xmlpath,
