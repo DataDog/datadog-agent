@@ -226,6 +226,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
 
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
+		AuthSocket:           coreconfig.SystemProbe.GetBool("runtime_security_config.auth_socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention: coreconfig.SystemProbe.GetDuration("runtime_security_config.event_server.retention"),
