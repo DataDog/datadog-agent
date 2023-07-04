@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func TestGetGRPCStreamPort(t *testing.T) {
@@ -46,7 +47,9 @@ func TestStartStop(t *testing.T) {
 	cfg := config.Mock(t)
 
 	extractor := NewWorkloadMetaExtractor(cfg)
-	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+
+	port := testutil.FreeTCPPort(t)
+	cfg.Set("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(config.Mock(t), extractor)
 
 	err := srv.Start()
@@ -77,7 +80,8 @@ func TestStreamServer(t *testing.T) {
 	cfg := config.Mock(t)
 	extractor := NewWorkloadMetaExtractor(cfg)
 
-	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+	port := testutil.FreeTCPPort(t)
+	cfg.Set("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(cfg, extractor)
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
@@ -155,7 +159,8 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	cfg := config.Mock(t)
 	extractor := NewWorkloadMetaExtractor(cfg)
 
-	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+	port := testutil.FreeTCPPort(t)
+	cfg.Set("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(cfg, extractor)
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
