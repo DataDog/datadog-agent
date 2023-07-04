@@ -265,11 +265,19 @@ func TestFuzzCountFields(t *testing.T) {
 		actual := []protoiface.MessageV1{}
 		expected := []protoiface.MessageV1{}
 		for _, s := range expectedAggCounts.Stats[0].Stats[0].Stats {
+			if s == nil {
+				continue
+			}
 			actual = append(actual, s)
 		}
 		for _, s := range aggCounts.Stats[0].Stats[0].Stats {
+			if s == nil {
+				continue
+			}
 			expected = append(expected, s)
 		}
+		fmt.Printf("length actual: %v\n", len(actual))
+		fmt.Printf("length expected: %v\n", len(expected))
 
 		assert.ElementsMatch(pb.PbToStringSlice(expected), pb.PbToStringSlice(actual))
 		aggCounts.Stats[0].Stats[0].Stats = nil
@@ -522,7 +530,6 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 	if s == nil {
 		return nil
 	}
-	fmt.Printf("COPYING (%v) GROUPED STATS: %v\n", len(s), s)
 	new := make([]*proto.ClientGroupedStats, len(s))
 	for i, b := range s {
 		if b == nil {
@@ -543,6 +550,7 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 			Synthetics:     b.GetSynthetics(),
 			TopLevelHits:   b.GetTopLevelHits(),
 			PeerService:    b.GetPeerService(),
+			SpanKind:       b.GetSpanKind(),
 		}
 		if b.OkSummary != nil {
 			new[i].OkSummary = make([]byte, len(b.OkSummary))
