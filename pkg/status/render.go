@@ -96,6 +96,12 @@ func FormatStatus(data []byte) (string, error) {
 		}
 		return nil
 	}
+	remoteConfigFunc := func() error {
+		if config.Datadog.GetBool("remote_configuration.enabled") {
+			return RenderStatusTemplate(b, "/remoteconfig.tmpl", stats)
+		}
+		return nil
+	}
 	otlpFunc := func() error {
 		if otlp.IsDisplayed() {
 			return RenderStatusTemplate(b, "/otlp.tmpl", stats)
@@ -110,7 +116,7 @@ func FormatStatus(data []byte) (string, error) {
 	} else {
 		renderFuncs = []func() error{headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc,
 			logsAgentFunc, systemProbeFunc, processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc,
-			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc, otlpFunc}
+			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc, remoteConfigFunc, otlpFunc}
 	}
 	var errs []error
 	for _, f := range renderFuncs {

@@ -11,8 +11,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"path"
+	"strconv"
 	"sync"
 	"time"
 
@@ -98,6 +100,11 @@ type Service struct {
 
 	// Previous /status response
 	previousOrgStatus *pbgo.OrgStatusResponse
+
+	// Status expvar exported
+	exportedStatusOrgEnabled    *expvar.String
+	exportedStatusKeyAuthorized *expvar.String
+	exportedLastUpdateErr       *expvar.String
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -213,6 +220,15 @@ func NewService() (*Service, error) {
 		clientsCacheBypassLimit = defaultCacheBypassLimit
 	}
 
+	// Exported variable to get the state of remote-config
+	exportedMapStatus := expvar.NewMap("remoteConfigStatus")
+	exportedStatusOrgEnabled := new(expvar.String)
+	exportedMapStatus.Set("orgEnabled", exportedStatusOrgEnabled)
+	exportedStatusKeyAuthorized := new(expvar.String)
+	exportedMapStatus.Set("apiKeyScoped", exportedStatusKeyAuthorized)
+	exportedLastUpdateErr := new(expvar.String)
+	exportedMapStatus.Set("lastError", exportedLastUpdateErr)
+
 	return &Service{
 		firstUpdate:                    true,
 		defaultRefreshInterval:         refreshInterval,
@@ -239,6 +255,9 @@ func NewService() (*Service, error) {
 			capacity:       clientsCacheBypassLimit,
 			allowance:      clientsCacheBypassLimit,
 		},
+		exportedStatusOrgEnabled:    exportedStatusOrgEnabled,
+		exportedStatusKeyAuthorized: exportedStatusKeyAuthorized,
+		exportedLastUpdateErr:       exportedLastUpdateErr,
 	}, nil
 }
 
@@ -292,6 +311,7 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 
 			if err != nil {
+				s.exportedLastUpdateErr.Set(err.Error())
 				log.Errorf("Could not refresh Remote Config: %v", err)
 			}
 		}
@@ -337,6 +357,8 @@ func (s *Service) pollOrgStatus() {
 		Enabled:    response.Enabled,
 		Authorized: response.Authorized,
 	}
+	s.exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
+	s.exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
 func (s *Service) calculateRefreshInterval() time.Duration {
@@ -420,6 +442,8 @@ func (s *Service) refresh() error {
 	s.newProducts = make(map[rdata.Product]struct{})
 
 	s.backoffErrorCount = s.backoffPolicy.DecError(s.backoffErrorCount)
+
+	s.exportedLastUpdateErr.Set("")
 
 	return nil
 }

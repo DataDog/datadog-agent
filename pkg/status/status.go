@@ -98,6 +98,9 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 		stats["filterErrors"] = containers.GetFilterErrors()
 	}
 
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		stats["remoteConfiguration"] = getRemoteConfigStatus()
+	}
 	return stats, nil
 }
 
@@ -297,6 +300,18 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 	}
 
 	return endpointsInfos, nil
+}
+
+// getRemoteConfigStatus return the current status of remote config
+func getRemoteConfigStatus() map[string]interface{} {
+	status := make(map[string]interface{})
+
+	if expvar.Get("remoteConfigStatus") != nil {
+		remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
+		json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
+	}
+
+	return status
 }
 
 // getCommonStatus grabs the status from expvar and puts it into a map.

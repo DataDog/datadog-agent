@@ -496,6 +496,17 @@
   </div>
 
   <div class="stat">
+    <span class="stat_title">Remote Configuration</span>
+    <span class="stat_data">
+      {{ with .remoteConfiguration }}
+        API Key: {{ if .apiKeyScoped }}Authorized{{ else }}Not authorized{{ end }}
+        Feature: {{ if .orgEnabled }}Enabled{{ else }}Disabled{{ end }}
+        {{ if .lastError }}Last error: {{ .lastError }}{{ end }}
+      {{ end }}
+    </span>
+  </div>
+
+  <div class="stat">
     <span class="stat_title">OTLP</span>
     <span class="stat_data">
       {{ with .otlp }}
