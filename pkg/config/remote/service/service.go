@@ -63,6 +63,8 @@ const (
 	initialFetchErrorLog uint64 = 5
 )
 
+var exportedMapStatus = expvar.NewMap("remoteConfigStatus")
+
 // Service defines the remote config management service responsible for fetching, storing
 // and dispatching the configurations
 type Service struct {
@@ -221,7 +223,7 @@ func NewService() (*Service, error) {
 	}
 
 	// Exported variable to get the state of remote-config
-	exportedMapStatus := expvar.NewMap("remoteConfigStatus")
+	exportedMapStatus.Init()
 	exportedStatusOrgEnabled := new(expvar.String)
 	exportedMapStatus.Set("orgEnabled", exportedStatusOrgEnabled)
 	exportedStatusKeyAuthorized := new(expvar.String)
