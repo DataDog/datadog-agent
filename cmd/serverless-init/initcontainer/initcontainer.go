@@ -23,12 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/traceinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/spf13/afero"
 )
 
 // Run is the entrypoint of the init process. It will spawn the customer process
@@ -46,7 +46,8 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 	commandName, commandArgs := buildCommandParam(args)
 
 	// Add our tracer settings
-	traceinstrumentation.AutoInstrumentTracer()
+	fs := afero.NewOsFs()
+	AutoInstrumentTracer(fs)
 
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &serverlessLog.CustomWriter{

@@ -1,0 +1,72 @@
+package initcontainer
+
+import (
+	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/spf13/afero"
+)
+
+// Tracer holds a name, a path to the trace directory, and an
+// initialization function that automatically instruments the
+// tracer
+type Tracer struct {
+	FsPath string
+	InitFn func() error
+}
+
+func instrumentNode() error {
+	currNodePath := os.Getenv("NODE_PATH")
+	os.Setenv("NODE_PATH", addToString(currNodePath, ":", "/dd_tracer/node/"))
+
+	currNodeOptions := os.Getenv("NODE_OPTIONS")
+	os.Setenv("NODE_OPTIONS", addToString(currNodeOptions, " ", "--require dd-trace/init"))
+
+	return nil
+}
+
+func instrumentJava() error {
+	currJavaToolOptions := os.Getenv("JAVA_TOOL_OPTIONS")
+	os.Setenv("JAVA_TOOL_OPTIONS", addToString(currJavaToolOptions, " ", "-javaagent:/dd_tracer/java/dd-java-agent.jar"))
+
+	return nil
+}
+
+// AutoInstrumentTracer searches the filesystem for a trace library, and
+// automatically sets the correct environment variables.
+func AutoInstrumentTracer(fs afero.Fs) {
+	tracers := []Tracer{
+		{"/dd_tracer/node/", instrumentNode},
+		{"/dd_tracer/java/", instrumentJava},
+	}
+
+	for _, tracer := range tracers {
+		if ok, err := dirExists(fs, tracer.FsPath); ok {
+			log.Debugf("Found %v, automatically instrumenting tracer", tracer.FsPath)
+			os.Setenv("DD_TRACE_PROPAGATION_STYLE", "datadog")
+			tracer.InitFn()
+			return
+		} else if err != nil {
+			log.Debug("Error checking if directory exists: %v", err)
+		}
+	}
+}
+
+func dirExists(fs afero.Fs, path string) (bool, error) {
+	_, err := fs.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func addToString(path string, separator string, token string) string {
+	if path == "" {
+		return token
+	}
+
+	return path + separator + token
+}
