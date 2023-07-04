@@ -32,12 +32,22 @@ func instrumentJava() error {
 	return nil
 }
 
+func instrumentDotnet() error {
+	os.Setenv("CORECLR_ENABLE_PROFILING", "1")
+	os.Setenv("CORECLR_PROFILER", "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}")
+	os.Setenv("CORECLR_PROFILER_PATH", "/dd_tracer/dotnet/Datadog.Trace.ClrProfiler.Native.so")
+	os.Setenv("DD_DOTNET_TRACER_HOME", "/dd_tracer/dotnet/")
+
+	return nil
+}
+
 // AutoInstrumentTracer searches the filesystem for a trace library, and
 // automatically sets the correct environment variables.
 func AutoInstrumentTracer(fs afero.Fs) {
 	tracers := []Tracer{
 		{"/dd_tracer/node/", instrumentNode},
 		{"/dd_tracer/java/", instrumentJava},
+		{"/dd_tracer/dotnet/", instrumentDotnet},
 	}
 
 	for _, tracer := range tracers {
