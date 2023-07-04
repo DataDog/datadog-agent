@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -190,7 +190,7 @@ func (c *APMCheck) Interval() time.Duration {
 }
 
 // ID returns the name of the check since there should be only one instance running
-func (c *APMCheck) ID() id.ID {
+func (c *APMCheck) ID() checkid.ID {
 	return "APM_AGENT"
 }
 

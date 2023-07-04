@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,8 +23,8 @@ type stubCheck struct {
 	id string
 }
 
-func (c *stubCheck) ID() id.ID      { return id.ID(c.id) }
-func (c *stubCheck) String() string { return id.IDToCheckName(c.ID()) }
+func (c *stubCheck) ID() checkid.ID { return checkid.ID(c.id) }
+func (c *stubCheck) String() string { return checkid.IDToCheckName(c.ID()) }
 
 func newTestCheck(id string) *stubCheck {
 	return &stubCheck{id: id}
@@ -44,7 +44,7 @@ func TestShouldLogNewCheck(t *testing.T) {
 	setUp()
 
 	for idx := 0; idx < 10; idx++ {
-		fakeID := id.ID(fmt.Sprintf("testcheck %d", idx))
+		fakeID := checkid.ID(fmt.Sprintf("testcheck %d", idx))
 
 		shouldLog, lastVerboseLog := shouldLogCheck(fakeID)
 

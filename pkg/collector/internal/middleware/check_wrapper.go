@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 )
 
@@ -79,7 +79,7 @@ func (c *CheckWrapper) Interval() time.Duration {
 }
 
 // ID implements Check#ID
-func (c *CheckWrapper) ID() id.ID {
+func (c *CheckWrapper) ID() checkid.ID {
 	return c.inner.ID()
 }
 

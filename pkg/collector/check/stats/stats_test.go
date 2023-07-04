@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
@@ -21,14 +21,14 @@ import (
 type mockCheck struct {
 	StubCheck
 	cfgSource string
-	id        id.ID
+	id        checkid.ID
 	stringVal string
 	version   string
 }
 
 // Mock Check interface implementation
 func (mc *mockCheck) ConfigSource() string { return mc.cfgSource }
-func (mc *mockCheck) ID() id.ID            { return mc.id }
+func (mc *mockCheck) ID() checkid.ID       { return mc.id }
 func (mc *mockCheck) String() string       { return mc.stringVal }
 func (mc *mockCheck) Version() string      { return mc.version }
 
@@ -56,7 +56,7 @@ func getTelemetryData() (string, error) {
 func TestNewStats(t *testing.T) {
 	stats := NewStats(newMockCheck())
 
-	assert.Equal(t, stats.CheckID, id.ID("checkID"))
+	assert.Equal(t, stats.CheckID, checkid.ID("checkID"))
 	assert.Equal(t, stats.CheckName, "checkString")
 	assert.Equal(t, stats.CheckVersion, "checkVersion")
 	assert.Equal(t, stats.CheckVersion, "checkVersion")

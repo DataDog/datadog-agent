@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 var (
@@ -47,10 +47,10 @@ type Scheduler struct {
 	halted           chan bool                   // Used to internally communicate all queues are done
 	started          chan bool                   // Used to internally communicate the queues are up
 	jobQueues        map[time.Duration]*jobQueue // We have one scheduling queue for every interval
-	tlmTrackedChecks map[id.ID]string            // Keep track of the checks that are tracked with telemetry
+	tlmTrackedChecks map[checkid.ID]string       // Keep track of the checks that are tracked with telemetry
 	mu               sync.Mutex                  // To protect critical sections in struct's fields
 
-	checkToQueue map[id.ID]*jobQueue // Keep track of what is the queue for any Check
+	checkToQueue map[checkid.ID]*jobQueue // Keep track of what is the queue for any Check
 	// To protect checkToQueue. Using mu would create a deadlock when stopping the Scheduler. 'jobQueue' is calling
 	// 'IsCheckScheduled' right when then 'Stop' function is called and mu is already lock. for this reason we have
 	// to lock: one for the Scheduler and a dedicated one for the 'IsCheckScheduled' method. This way 'jobQueue' and
@@ -69,8 +69,8 @@ func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 		halted:           make(chan bool),
 		started:          make(chan bool),
 		jobQueues:        make(map[time.Duration]*jobQueue),
-		checkToQueue:     make(map[id.ID]*jobQueue),
-		tlmTrackedChecks: make(map[id.ID]string),
+		checkToQueue:     make(map[checkid.ID]*jobQueue),
+		tlmTrackedChecks: make(map[checkid.ID]string),
 		running:          atomic.NewBool(false),
 		cancelOneTime:    make(chan bool),
 		wgOneTime:        sync.WaitGroup{},
@@ -123,7 +123,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 
 // Cancel remove a Check from the scheduled queue. If the check is not
 // in the scheduler, this is a noop.
-func (s *Scheduler) Cancel(id id.ID) error {
+func (s *Scheduler) Cancel(id checkid.ID) error {
 	s.mu.Lock()
 	s.checkToQueueMutex.Lock()
 	defer s.mu.Unlock()
@@ -212,7 +212,7 @@ func (s *Scheduler) Stop() error {
 }
 
 // IsCheckScheduled returns whether a check is in the schedule or not
-func (s *Scheduler) IsCheckScheduled(id id.ID) bool {
+func (s *Scheduler) IsCheckScheduled(id checkid.ID) bool {
 	s.checkToQueueMutex.RLock()
 	defer s.checkToQueueMutex.RUnlock()
 

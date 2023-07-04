@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -1036,7 +1036,7 @@ unit_names:
 	err = check2.Configure(integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, id.ID("systemd:71ee0a4fef872b6d"), check1.ID())
-	assert.Equal(t, id.ID("systemd:b1fb7cdd591e17a1"), check2.ID())
+	assert.Equal(t, checkid.ID("systemd:71ee0a4fef872b6d"), check1.ID())
+	assert.Equal(t, checkid.ID("systemd:b1fb7cdd591e17a1"), check2.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }

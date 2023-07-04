@@ -13,13 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // NewMockSender initiates the aggregator and returns a
 // functional mocked Sender for testing
-func NewMockSender(id id.ID) *MockSender {
+func NewMockSender(id checkid.ID) *MockSender {
 	mockSender := new(MockSender)
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
@@ -35,7 +35,7 @@ func NewMockSender(id id.ID) *MockSender {
 }
 
 // SetSender sets passed sender with the passed ID.
-func SetSender(sender *MockSender, id id.ID) {
+func SetSender(sender *MockSender, id checkid.ID) {
 	aggregator.SetSender(sender, id) //nolint:errcheck
 }
 

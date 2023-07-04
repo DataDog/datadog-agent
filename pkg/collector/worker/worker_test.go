@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
@@ -35,12 +35,12 @@ type testCheck struct {
 	id          string
 	longRunning bool
 	t           *testing.T
-	runFunc     func(id id.ID)
+	runFunc     func(id checkid.ID)
 	runCount    *atomic.Uint64
 }
 
-func (c *testCheck) ID() id.ID      { return id.ID(c.id) }
-func (c *testCheck) String() string { return id.IDToCheckName(c.ID()) }
+func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
+func (c *testCheck) String() string { return checkid.IDToCheckName(c.ID()) }
 func (c *testCheck) RunCount() int  { return int(c.runCount.Load()) }
 
 func (c *testCheck) Interval() time.Duration {
@@ -97,7 +97,7 @@ func AssertAsyncWorkerCount(t *testing.T, count int) {
 	require.Equal(t, count, expvars.GetWorkerCount())
 }
 
-func newCheck(t *testing.T, id string, doErr bool, runFunc func(id.ID)) *testCheck {
+func newCheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *testCheck {
 	return &testCheck{
 		doErr:    doErr,
 		t:        t,
@@ -118,7 +118,7 @@ func assertErrorCount(t *testing.T, c check.Check, count int) {
 func TestWorkerInit(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	_, err := NewWorker(1, 2, nil, checksTracker, mockShouldAddStatsFunc)
 	require.NotNil(t, err)
@@ -137,7 +137,7 @@ func TestWorkerInit(t *testing.T) {
 func TestWorkerInitExpvarStats(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	var wg sync.WaitGroup
 
@@ -166,7 +166,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 func TestWorkerName(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	for _, id := range []int{1, 100, 500} {
 		expectedName := fmt.Sprintf("worker_%d", id)
@@ -186,7 +186,7 @@ func TestWorker(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	testCheck1 := newCheck(t, "testing:123", false, nil)
 	testCheck2 := newCheck(t, "testing2:234", false, nil)
@@ -194,7 +194,7 @@ func TestWorker(t *testing.T) {
 	upperTimeStatLimit := time.Now().Add(-1 * time.Second)
 
 	// This closure ensures that the mid-run worker state is correct too
-	observerAssertFunc := func(id id.ID) {
+	observerAssertFunc := func(id checkid.ID) {
 		assert.Equal(t, 2, testCheck1.RunCount())
 		assert.Equal(t, 1, testCheck2.RunCount())
 
@@ -262,7 +262,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	blockingCheck := newCheck(t, "testing:123", false, nil)
 	longRunningCheck := &testCheck{
@@ -332,7 +332,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	config.Datadog.Set("hostname", "myhost")
 
@@ -385,7 +385,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	config.Datadog.Set("hostname", "myhost")
 
@@ -415,7 +415,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
 
-	shouldAddStatsFunc := func(id id.ID) bool {
+	shouldAddStatsFunc := func(id checkid.ID) bool {
 		if string(id) == "squelched:123" {
 			return false
 		}
@@ -478,7 +478,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	goodCheck := newCheck(t, "goodcheck:123", false, nil)
 	checkWithError := newCheck(t, "check_witherr:123", true, nil)
@@ -561,7 +561,7 @@ func TestWorkerSenderNil(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	pendingChecksChan <- newCheck(t, "goodcheck:123", false, nil)
 	close(pendingChecksChan)
@@ -592,7 +592,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id id.ID) bool { return true }
+	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
 	longRunningCheck := &testCheck{
 		t:           t,

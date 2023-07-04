@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -130,8 +130,8 @@ func GetCheckStatusJSON(c check.Check, cs *checkstats.Stats) ([]byte, error) {
 		return nil, err
 	}
 	checks := s["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
-	checks[c.String()] = make(map[id.ID]interface{})
-	checks[c.String()].(map[id.ID]interface{})[c.ID()] = cs
+	checks[c.String()] = make(map[checkid.ID]interface{})
+	checks[c.String()].(map[checkid.ID]interface{})[c.ID()] = cs
 
 	statusJSON, err := json.Marshal(s)
 	if err != nil {

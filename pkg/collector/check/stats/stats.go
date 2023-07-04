@@ -11,7 +11,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -82,7 +82,7 @@ type Stats struct {
 	CheckName                string
 	CheckVersion             string
 	CheckConfigSource        string
-	CheckID                  id.ID
+	CheckID                  checkid.ID
 	TotalRuns                uint64
 	TotalErrors              uint64
 	TotalWarnings            uint64
@@ -111,7 +111,7 @@ type StatsCheck interface {
 	// String provides a printable version of the check name
 	String() string
 	// ID provides a unique identifier for every check instance
-	ID() id.ID
+	ID() checkid.ID
 	// Version returns the version of the check if available
 	Version() string
 	// ConfigSource returns the configuration source of the check

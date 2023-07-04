@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
@@ -37,12 +37,12 @@ type testCheck struct {
 	doWarn      bool
 	id          string
 	t           *testing.T
-	runFunc     func(id id.ID)
+	runFunc     func(id checkid.ID)
 	startedChan chan struct{}
 }
 
-func (c *testCheck) ID() id.ID      { return id.ID(c.id) }
-func (c *testCheck) String() string { return id.IDToCheckName(c.ID()) }
+func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
+func (c *testCheck) String() string { return checkid.IDToCheckName(c.ID()) }
 func (c *testCheck) RunCount() int  { return int(c.runCount.Load()) }
 func (c *testCheck) Stop() {
 	c.StopLock.Lock()
@@ -92,7 +92,7 @@ func (c *testCheck) Run() error {
 
 // Helpers
 
-func newCheck(t *testing.T, id string, doErr bool, runFunc func(id.ID)) *testCheck {
+func newCheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *testCheck {
 	return &testCheck{
 		runCount: atomic.NewUint64(0),
 		stopped:  atomic.NewBool(false),
@@ -384,7 +384,7 @@ func TestRunnerStopCheck(t *testing.T) {
 	require.False(t, testCheck.IsStopped())
 	require.False(t, blockedCheck.IsStopped())
 
-	err := r.StopCheck(id.ID("missingid"))
+	err := r.StopCheck(checkid.ID("missingid"))
 	require.Nil(t, err)
 
 	err = r.StopCheck(testCheck.ID())

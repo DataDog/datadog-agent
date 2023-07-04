@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // senders are the sender used and provided by the Demultiplexer for checks
@@ -26,27 +26,27 @@ func newSenders(aggregator *BufferedAggregator) *senders {
 		agg: aggregator,
 		senderPool: &checkSenderPool{
 			agg:     aggregator,
-			senders: make(map[id.ID]sender.Sender),
+			senders: make(map[checkid.ID]sender.Sender),
 		},
 	}
 }
 
 // SetSender returns the passed sender with the passed ID.
 // This is largely for testing purposes
-func (s *senders) SetSender(sender sender.Sender, id id.ID) error {
+func (s *senders) SetSender(sender sender.Sender, id checkid.ID) error {
 	return s.senderPool.setSender(sender, id)
 }
 
 // cleanSenders cleans the senders list, used in unit tests.
 func (s *senders) cleanSenders() {
-	s.senderPool.senders = make(map[id.ID]sender.Sender)
+	s.senderPool.senders = make(map[checkid.ID]sender.Sender)
 	s.senderInit = sync.Once{}
 }
 
 // GetSender returns a sender.Sender with passed ID, properly registered with the aggregator
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore
-func (s *senders) GetSender(cid id.ID) (sender.Sender, error) {
+func (s *senders) GetSender(cid checkid.ID) (sender.Sender, error) {
 	sender, err := s.senderPool.getSender(cid)
 	if err != nil {
 		sender, err = s.senderPool.mkSender(cid)
@@ -57,14 +57,14 @@ func (s *senders) GetSender(cid id.ID) (sender.Sender, error) {
 // DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
 // Should be called when no sender with this ID is used anymore
 // The metrics of this (these) sender(s) that haven't been flushed yet will be lost
-func (s *senders) DestroySender(id id.ID) {
+func (s *senders) DestroySender(id checkid.ID) {
 	s.senderPool.removeSender(id)
 }
 
 // getDefaultSender returns a default sender.
 func (s *senders) GetDefaultSender() (sender.Sender, error) {
 	s.senderInit.Do(func() {
-		var defaultCheckID id.ID             // the default value is the zero value
+		var defaultCheckID checkid.ID        // the default value is the zero value
 		s.agg.registerSender(defaultCheckID) //nolint:errcheck
 		s.defaultSender = newCheckSender(defaultCheckID,
 			s.agg.hostname,

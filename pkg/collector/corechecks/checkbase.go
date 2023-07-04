@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,7 +41,7 @@ import (
 // be automatically appended to each send done by this check.
 type CheckBase struct {
 	checkName      string
-	checkID        id.ID
+	checkID        checkid.ID
 	latestWarnings []error
 	checkInterval  time.Duration
 	source         string
@@ -59,7 +59,7 @@ func NewCheckBase(name string) CheckBase {
 func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckBase {
 	return CheckBase{
 		checkName:     name,
-		checkID:       id.ID(name),
+		checkID:       checkid.ID(name),
 		checkInterval: defaultInterval,
 		telemetry:     telemetry_utils.IsCheckEnabled(name),
 	}
@@ -68,7 +68,7 @@ func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckB
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
 func (c *CheckBase) BuildID(integrationConfigDigest uint64, instance, initConfig integration.Data) {
-	c.checkID = id.BuildID(c.checkName, integrationConfigDigest, instance, initConfig)
+	c.checkID = checkid.BuildID(c.checkName, integrationConfigDigest, instance, initConfig)
 }
 
 // Configure is provided for checks that require no config. If overridden,
@@ -224,7 +224,7 @@ func (c *CheckBase) InstanceConfig() string {
 // For checks that only support one instance, the default value is
 // the check name. Regular checks must call BuildID() from Config()
 // to build their ID.
-func (c *CheckBase) ID() id.ID {
+func (c *CheckBase) ID() checkid.ID {
 	return c.checkID
 }
 
