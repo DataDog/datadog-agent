@@ -1730,6 +1730,12 @@ api_key:
   ## The full path to the location of the unix socket where system probes are accessed.
   #
   # sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
+
+  ## @param sysprobe_auth_socket - boolean - optional - default: false
+  ## @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_AUTH_SOCKET - boolean - optional - default: false
+  ## Set to true to enable the socket authentification via dd-agent user
+  #
+  # sysprobe_auth_socket: false
 {{ end }}
   ## @param log_file - string - optional - default: /var/log/datadog/system-probe.log
   ## @env DD_SYSTEM_PROBE_CONFIG_LOG_FILE - string - optional - default: /var/log/datadog/system-probe.log
@@ -1871,6 +1877,12 @@ api_key:
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
   # socket: /opt/datadog-agent/run/runtime-security.sock
+
+  ## @param auth_socket - boolean - optional - default: false
+  ## @env DD_RUNTIME_SECURITY_CONFIG_AUTH_SOCKET - boolean - optional - default: false
+  ## Set to true to enable the socket authentification via dd-agent user
+  #
+  # auth_socket: false
 
   ## @param policies - custom object - optional
   ## Policy files
