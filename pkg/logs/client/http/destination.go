@@ -114,7 +114,7 @@ func newDestination(endpoint config.Endpoint,
 	var policy backoff.Policy
 	if endpoint.Origin == config.ServerlessIntakeOrigin {
 		policy = backoff.NewConstantBackoffPolicy(
-			time.Duration(200 * time.Millisecond),
+			backoff.ServerlessDefaultBackoffInterval,
 		)
 	} else {
 		policy = backoff.NewExpBackoffPolicy(

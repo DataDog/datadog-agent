@@ -36,6 +36,10 @@ type ExpBackoffPolicy struct {
 	MaxErrors int
 }
 
+// ServerlessDefaultBackoffFactor is the default value for the serverless backoff delay
+const ServerlessDefaultBackoffInterval = 100 * time.Millisecond
+
+// ConstantBackoffPolicy contains a constant backoff duration
 type ConstantBackoffPolicy struct {
 	backoffTime time.Duration
 }
@@ -53,7 +57,7 @@ func NewConstantBackoffPolicy(backoffTime time.Duration) Policy {
 	}
 }
 
-// NewPolicy constructs new Backoff object with given parameters
+// NewExpBackoffPolicy constructs new Backoff object with given parameters
 func NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime, maxBackoffTime float64, recoveryInterval int, recoveryReset bool) Policy {
 	maxErrors := int(math.Floor(math.Log2(maxBackoffTime/baseBackoffTime))) + 1
 
