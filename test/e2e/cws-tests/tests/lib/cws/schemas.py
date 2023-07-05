@@ -19,7 +19,8 @@ class JsonSchemaValidator:
         # Create a resolver that uses the schema store for resolving references
         self.resolver = RefResolver(base_uri='', referrer=None, store=self.schema_store)
 
-    def is_datetime(self, inst):
+    def is_datetime(self,checker, inst):
+        print(checker)
         return isinstance(inst, datetime)
 
     def validate_json_data(self, schema_filename, json_data):
