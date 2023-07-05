@@ -9,7 +9,7 @@ go 1.18
 replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 
 require (
-	github.com/DataDog/datadog-agent/test/fakeintake v0.46.0-rc.4
+	github.com/DataDog/datadog-agent/test/fakeintake v0.46.0
 	github.com/DataDog/test-infra-definitions v0.0.0-20230526143644-ed785d3a20d5
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
