@@ -43,7 +43,7 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, profile string, ch chan
 		pid = myPid
 	}
 
-	m, err := ReadKprobeProfile(profile)
+	m, err := readKprobeProfile(profile)
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
 		return

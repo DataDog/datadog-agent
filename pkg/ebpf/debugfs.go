@@ -53,7 +53,7 @@ func getProbeStats(pid int, profile string) map[string]uint64 {
 		pid = myPid
 	}
 
-	m, err := ReadKprobeProfile(profile)
+	m, err := readKprobeProfile(profile)
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
 		return map[string]uint64{}
@@ -90,7 +90,7 @@ func GetProbeTotals() KprobeStats {
 		return stats
 	}
 
-	m, err := ReadKprobeProfile(filepath.Join(root, "kprobe_profile"))
+	m, err := readKprobeProfile(filepath.Join(root, "kprobe_profile"))
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
 		return stats
@@ -104,7 +104,7 @@ func GetProbeTotals() KprobeStats {
 }
 
 // ReadKprobeProfile reads a /sys/kernel/[debug/]tracing/kprobe_profile file and returns a map of probe -> stats
-func ReadKprobeProfile(path string) (map[string]KprobeStats, error) {
+func readKprobeProfile(path string) (map[string]KprobeStats, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening kprobe profile file at: %s: %w", path, err)
