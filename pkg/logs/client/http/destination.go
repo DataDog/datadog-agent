@@ -111,9 +111,19 @@ func newDestination(endpoint config.Endpoint,
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
 	}
-
+	var policy backoff.Policy
 	if endpoint.Origin == config.ServerlessIntakeOrigin {
-		shouldRetry = false
+		policy = backoff.NewConstantBackoffPolicy(
+			time.Duration(200 * time.Millisecond),
+		)
+	} else {
+		policy = backoff.NewExpBackoffPolicy(
+			endpoint.BackoffFactor,
+			endpoint.BackoffBase,
+			endpoint.BackoffMax,
+			endpoint.RecoveryInterval,
+			endpoint.RecoveryReset,
+		)
 	}
 
 	expVars := &expvar.Map{}
@@ -122,14 +132,6 @@ func newDestination(endpoint config.Endpoint,
 	if telemetryName != "" {
 		metrics.DestinationExpVars.Set(telemetryName, expVars)
 	}
-
-	policy := backoff.NewPolicy(
-		endpoint.BackoffFactor,
-		endpoint.BackoffBase,
-		endpoint.BackoffMax,
-		endpoint.RecoveryInterval,
-		endpoint.RecoveryReset,
-	)
 
 	return &Destination{
 		host:                endpoint.Host,
