@@ -32,6 +32,9 @@ type measuredListener struct {
 // datadog.trace_agent.receiver.<name>. Additionally, a "status" tag will be added with
 // potential values "accepted", "timedout" or "errored".
 func NewMeasuredListener(ln net.Listener, name string, maxConn int) net.Listener {
+	if maxConn == 0 {
+		maxConn = 1
+	}
 	log.Infof("Listener started with %d maximum connections.", maxConn)
 	ml := &measuredListener{
 		Listener: ln,
