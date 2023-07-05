@@ -20,17 +20,10 @@ import (
 	"github.com/fatih/color"
 )
 
-const CIVisibility = "/ci-visibility"
 const TestJSON = "/ci-visibility/testjson"
 
 func init() {
 	color.NoColor = false
-}
-
-func printHeader(str string) {
-	magentaString := color.New(color.FgMagenta, color.Bold).Add(color.Underline)
-	fmt.Println()
-	magentaString.Println(str)
 }
 
 func main() {
