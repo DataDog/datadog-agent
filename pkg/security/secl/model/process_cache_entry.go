@@ -217,7 +217,7 @@ func (p *EnvsEntry) Get(key string) string {
 func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 	if p == o {
 		return true
-	} else if o == nil {
+	} else if p == nil || o == nil {
 		return false
 	}
 

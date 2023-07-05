@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -105,9 +105,9 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run the check intance(s) once, as a test
-	stats := []*check.Stats{}
+	stats := []*checkstats.Stats{}
 	for _, ch := range instances {
-		s := check.NewStats(ch)
+		s := checkstats.NewStats(ch)
 
 		t0 := time.Now()
 		err := ch.Run()

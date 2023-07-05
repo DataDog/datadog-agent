@@ -164,7 +164,11 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 				// Check if the task was processed at least once
 				processed = oneProcessed || processed
 				if oneErr != nil {
-					err = errors.Wrap(err, oneErr.Error())
+					if err == nil {
+						err = oneErr
+					} else {
+						err = errors.Wrap(oneErr, err.Error())
+					}
 				}
 			}
 			if processed && err != nil {

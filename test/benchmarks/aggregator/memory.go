@@ -52,18 +52,18 @@ func preAllocateMetrics(n int) map[string][]*metrics.MetricSample {
 	return metricMap
 }
 
-func preAllocateEvents(n int) []*metrics.Event {
-	events := make([]*metrics.Event, n)
+func preAllocateEvents(n int) []*event.Event {
+	events := make([]*event.Event, n)
 
 	for i := range events {
-		event := &metrics.Event{
+		event := &event.Event{
 			Title:          "Event title",
 			Text:           "some text",
 			Ts:             21,
-			Priority:       metrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			Host:           "localhost",
 			Tags:           []string{"a", "b:21", "c"},
-			AlertType:      metrics.EventAlertTypeWarning,
+			AlertType:      event.EventAlertTypeWarning,
 			AggregationKey: "",
 			SourceTypeName: "",
 			EventType:      "",
@@ -74,13 +74,13 @@ func preAllocateEvents(n int) []*metrics.Event {
 	return events
 }
 
-func preAllocateServiceChecks(n int) []*metrics.ServiceCheck {
-	scs := make([]*metrics.ServiceCheck, n)
+func preAllocateServiceChecks(n int) []*servicecheck.ServiceCheck {
+	scs := make([]*servicecheck.ServiceCheck, n)
 
 	for i := range scs {
-		sc := &metrics.ServiceCheck{
+		sc := &servicecheck.ServiceCheck{
 			CheckName: "benchmark.sc." + RandomString(4),
-			Status:    metrics.ServiceCheckOK,
+			Status:    servicecheck.ServiceCheckOK,
 			Host:      "localhost",
 			Ts:        time.Now().Unix(),
 			Tags:      []string{"a", "b:21", "c"},
@@ -92,7 +92,7 @@ func preAllocateServiceChecks(n int) []*metrics.ServiceCheck {
 	return scs
 }
 
-func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sender, series, points []int,
+func benchmarkMemory(agg *aggregator.BufferedAggregator, sender sender.Sender, series, points []int,
 	ips, dur int, branchName string) []datadog.Metric {
 
 	results := []datadog.Metric{}

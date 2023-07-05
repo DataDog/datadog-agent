@@ -101,6 +101,9 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
         syscall->resolver.ret = 0;
 
         resolve_dentry(ctx, DR_KPROBE);
+
+        // if the tail call fails, we need to pop the syscall cache entry
+        pop_syscall_with(rmdir_predicate);
     }
     return 0;
 }

@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package check
+package stats
 
 import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // StubCheck stubs a check, should only be used in tests
@@ -39,7 +40,7 @@ func (c *StubCheck) Interval() time.Duration { return 1 * time.Second }
 func (c *StubCheck) Run() error { return nil }
 
 // ID returns the check name
-func (c *StubCheck) ID() ID { return ID(c.String()) }
+func (c *StubCheck) ID() checkid.ID { return checkid.ID(c.String()) }
 
 // GetWarnings returns an empty slice
 func (c *StubCheck) GetWarnings() []error { return []error{} }

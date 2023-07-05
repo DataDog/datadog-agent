@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 )
 
@@ -67,7 +67,7 @@ func TestNTPOK(t *testing.T) {
 	mockSender.On("Gauge", "ntp.offset", float64(21), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
-		metrics.ServiceCheckOK,
+		servicecheck.ServiceCheckOK,
 		"",
 		[]string(nil),
 		"").Return().Times(1)
@@ -97,7 +97,7 @@ func TestNTPCritical(t *testing.T) {
 	mockSender.On("Gauge", "ntp.offset", float64(100), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
-		metrics.ServiceCheckCritical,
+		servicecheck.ServiceCheckCritical,
 		"",
 		[]string(nil),
 		"Offset 100 is higher than offset threshold (60 secs)").Return().Times(1)
@@ -125,7 +125,7 @@ func TestNTPError(t *testing.T) {
 
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
-		metrics.ServiceCheckUnknown,
+		servicecheck.ServiceCheckUnknown,
 		"",
 		[]string(nil),
 		mock.AnythingOfType("string")).Return().Times(1)
@@ -153,7 +153,7 @@ func TestNTPInvalid(t *testing.T) {
 
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
-		metrics.ServiceCheckUnknown,
+		servicecheck.ServiceCheckUnknown,
 		"",
 		[]string(nil),
 		mock.AnythingOfType("string")).Return().Times(1)
@@ -183,7 +183,7 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	mockSender.On("Gauge", "ntp.offset", float64(-100), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
-		metrics.ServiceCheckCritical,
+		servicecheck.ServiceCheckCritical,
 		"",
 		[]string(nil),
 		"Offset -100 is higher than offset threshold (60 secs)").Return().Times(1)
@@ -224,7 +224,7 @@ hosts:
 	mockSender.On("Gauge", "ntp.offset", float64(2), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
-		metrics.ServiceCheckOK,
+		servicecheck.ServiceCheckOK,
 		"",
 		[]string(nil),
 		"").Return().Times(1)
@@ -265,7 +265,7 @@ hosts:
 	mockSender.On("Gauge", "ntp.offset", float64(400), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
-		metrics.ServiceCheckCritical,
+		servicecheck.ServiceCheckCritical,
 		"",
 		[]string(nil),
 		"Offset 400 is higher than offset threshold (60 secs)").Return().Times(1)

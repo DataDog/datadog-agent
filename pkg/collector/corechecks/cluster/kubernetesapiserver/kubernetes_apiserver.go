@@ -17,13 +17,14 @@ import (
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -90,7 +91,7 @@ type collectedEventType struct {
 }
 
 type eventTransformer interface {
-	Transform([]*v1.Event) ([]metrics.Event, []error)
+	Transform([]*v1.Event) ([]event.Event, []error)
 }
 
 type eventCollection struct {
@@ -251,7 +252,7 @@ func (k *KubeASCheck) Run() error {
 	return nil
 }
 
-func (k *KubeASCheck) eventCollectionCheck() ([]metrics.Event, error) {
+func (k *KubeASCheck) eventCollectionCheck() ([]event.Event, error) {
 	resVer, lastTime, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
 	if err != nil {
 		return nil, err
@@ -300,7 +301,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]metrics.Event, error) {
 	return events, nil
 }
 
-func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
+func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatus *v1.ComponentStatusList) error {
 	for _, component := range componentsStatus.Items {
 		if component.ObjectMeta.Name == "" {
 			return errors.New("metadata structure has changed. Not collecting API Server's Components status")
@@ -311,7 +312,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 		}
 
 		for _, condition := range component.Conditions {
-			statusCheck := metrics.ServiceCheckUnknown
+			statusCheck := servicecheck.ServiceCheckUnknown
 			message := ""
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
@@ -323,10 +324,10 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			// We only expect True, False and Unknown (default).
 			switch condition.Status {
 			case "True":
-				statusCheck = metrics.ServiceCheckOK
+				statusCheck = servicecheck.ServiceCheckOK
 				message = condition.Message
 			case "False":
-				statusCheck = metrics.ServiceCheckCritical
+				statusCheck = servicecheck.ServiceCheckCritical
 				message = condition.Error
 				if message == "" {
 					message = condition.Message
@@ -340,7 +341,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 	return nil
 }
 
-func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
+func (k *KubeASCheck) componentStatusCheck(sender sender.Sender) error {
 	componentsStatus, err := k.ac.ComponentStatuses()
 	if err != nil {
 		return err
@@ -349,19 +350,19 @@ func (k *KubeASCheck) componentStatusCheck(sender aggregator.Sender) error {
 	return k.parseComponentStatus(sender, componentsStatus)
 }
 
-func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender aggregator.Sender) error {
+func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender.Sender) error {
 	ready, err := k.ac.IsAPIServerReady(ctx)
 
 	var (
 		msg    string
-		status metrics.ServiceCheckStatus
+		status servicecheck.ServiceCheckStatus
 	)
 
 	if ready {
 		msg = "ok"
-		status = metrics.ServiceCheckOK
+		status = servicecheck.ServiceCheckOK
 	} else {
-		status = metrics.ServiceCheckCritical
+		status = servicecheck.ServiceCheckCritical
 		if err != nil {
 			msg = err.Error()
 		} else {

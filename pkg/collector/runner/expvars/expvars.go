@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,7 +37,7 @@ var (
 
 // expCheckStats holds the stats from the running checks
 type expCheckStats struct {
-	stats     map[string]map[check.ID]*check.Stats
+	stats     map[string]map[checkid.ID]*checkstats.Stats
 	statsLock sync.RWMutex
 }
 
@@ -49,7 +51,7 @@ func init() {
 	newWorkersExpvar(runnerStats)
 
 	checkStats = &expCheckStats{
-		stats: make(map[string]map[check.ID]*check.Stats),
+		stats: make(map[string]map[checkid.ID]*checkstats.Stats),
 	}
 }
 
@@ -90,17 +92,17 @@ func Reset() {
 // Functions relating to check run stats (`checkStats`)
 
 // GetCheckStats returns the check stats map
-func GetCheckStats() map[string]map[check.ID]*check.Stats {
+func GetCheckStats() map[string]map[checkid.ID]*checkstats.Stats {
 	checkStats.statsLock.RLock()
 	defer checkStats.statsLock.RUnlock()
 
 	// Because the returned maps will be used after the lock is released, and
 	// thus when they might be further modified, we must clone them here.  The
-	// map values (`check.Stats`) are threadsafe and need not be cloned.
+	// map values (`stats.Stats`) are threadsafe and need not be cloned.
 
-	cloned := make(map[string]map[check.ID]*check.Stats)
+	cloned := make(map[string]map[checkid.ID]*checkstats.Stats)
 	for k, v := range checkStats.stats {
-		innerCloned := make(map[check.ID]*check.Stats)
+		innerCloned := make(map[checkid.ID]*checkstats.Stats)
 		for innerK, innerV := range v {
 			innerCloned[innerK] = innerV
 		}
@@ -116,26 +118,26 @@ func AddCheckStats(
 	execTime time.Duration,
 	err error,
 	warnings []error,
-	mStats check.SenderStats,
+	mStats checkstats.SenderStats,
 ) {
 
-	var s *check.Stats
+	var s *checkstats.Stats
 
 	checkStats.statsLock.Lock()
 	defer checkStats.statsLock.Unlock()
 
 	log.Tracef("Adding stats for %s", string(c.ID()))
 
-	checkName := check.IDToCheckName(c.ID())
+	checkName := checkid.IDToCheckName(c.ID())
 	stats, found := checkStats.stats[checkName]
 	if !found {
-		stats = make(map[check.ID]*check.Stats)
+		stats = make(map[checkid.ID]*checkstats.Stats)
 		checkStats.stats[checkName] = stats
 	}
 
 	s, found = stats[c.ID()]
 	if !found {
-		s = check.NewStats(c)
+		s = checkstats.NewStats(c)
 		stats[c.ID()] = s
 	}
 
@@ -143,13 +145,13 @@ func AddCheckStats(
 }
 
 // RemoveCheckStats removes a check from the check stats map
-func RemoveCheckStats(checkID check.ID) {
+func RemoveCheckStats(checkID checkid.ID) {
 	checkStats.statsLock.Lock()
 	defer checkStats.statsLock.Unlock()
 
 	log.Debugf("Removing stats for %s", string(checkID))
 
-	checkName := check.IDToCheckName(checkID)
+	checkName := checkid.IDToCheckName(checkID)
 	stats, found := checkStats.stats[checkName]
 
 	if !found {
@@ -165,11 +167,11 @@ func RemoveCheckStats(checkID check.ID) {
 }
 
 // CheckStats returns the check stats of a check, if they can be found
-func CheckStats(id check.ID) (*check.Stats, bool) {
+func CheckStats(id checkid.ID) (*checkstats.Stats, bool) {
 	checkStats.statsLock.RLock()
 	defer checkStats.statsLock.RUnlock()
 
-	checkName := check.IDToCheckName(id)
+	checkName := checkid.IDToCheckName(id)
 	stats, nameFound := checkStats.stats[checkName]
 
 	if !nameFound {
@@ -187,12 +189,12 @@ func CheckStats(id check.ID) (*check.Stats, bool) {
 // Functions relating to running checks state map (`runningChecksStats`)
 
 // SetRunningStats sets the start time of a running check
-func SetRunningStats(id check.ID, t time.Time) {
+func SetRunningStats(id checkid.ID, t time.Time) {
 	runningChecksStats.Set(string(id), timestamp(t))
 }
 
 // GetRunningStats gets the start time of a running check
-func GetRunningStats(id check.ID) time.Time {
+func GetRunningStats(id checkid.ID) time.Time {
 	startTimeExpvar := runningChecksStats.Get(string(id))
 	if startTimeExpvar == nil {
 		// "Zero" time
@@ -202,7 +204,7 @@ func GetRunningStats(id check.ID) time.Time {
 }
 
 // DeleteRunningStats clears the start time of a check when it's complete
-func DeleteRunningStats(id check.ID) {
+func DeleteRunningStats(id checkid.ID) {
 	runningChecksStats.Delete(string(id))
 }
 

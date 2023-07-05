@@ -57,12 +57,12 @@
     - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
-      -m 8192M
+      -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
-      -e SIGN_WINDOWS=true
+      -e SIGN_WINDOWS_DD_WCS=true
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
