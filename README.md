@@ -102,7 +102,6 @@ invoke test --targets=./pkg/collector/python --skip-linters
 
 ## Run
 
-
 You can run the agent with:
 ```
 ./bin/agent/agent run -c bin/agent/dist/datadog.yaml
