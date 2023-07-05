@@ -72,10 +72,7 @@ def stack(ctx, stack=None, branch=False):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    if ips:
-        ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.outputs")
-
-
+    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.outputs")
 
 @task
 def ls(ctx, distro=False, custom=False):
@@ -103,14 +100,14 @@ def update_resources(ctx):
 @task
 def revert_resources(ctx):
     warn("Reverting resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to revert to backups? (y/n)") != "y":
+    if ask("are you sure you want to revert to backups? (Y/n)") != "Y":
         raise Exit("[-] Revert aborted")
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
         destroy_stack(ctx, stack=stack, force=True)
 
-    revert_kernel_packages(ctx)
-    revert_rootfs(ctx)
+    revert_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_BACKUP_DIR)
+    revert_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
 
     info("[+] Reverted successfully")
 

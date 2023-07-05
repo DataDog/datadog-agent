@@ -50,6 +50,10 @@ def requires_update(rootfs_dir, image):
     sum_url = url_base + image + ".sum"
     r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
+
+    if not os.path.exists(f"{image}.sum"):
+        return True
+
     with open(os.path.join(rootfs_dir, f"{image}.sum")) as f:
         original_sum = f.read().rstrip().split(' ')[0]
         debug(f"[debug] original_sum: {original_sum}")
@@ -127,10 +131,8 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
 
 def revert_kernel_packages(ctx, kernel_packages_dir, backup_dir):
     arch = archs_mapping[platform.machine()]
-    kernel_packages_sum = f"kernel-packages-{arch}.sum"
     kernel_packages_tar = f"kernel-packages-{arch}.tar"
-    ctx.run(f"rm -f {kernel_packages_dir}/*")
-    ctx.run(f"mv {backup_dir}/{kernel_packages_sum} {kernel_packages_dir}")
+    ctx.run(f"rm -rf {kernel_packages_dir}/*")
     ctx.run(f"mv {backup_dir}/{kernel_packages_tar} {kernel_packages_dir}")
     ctx.run(f"tar xvf {kernel_packages_dir}/{kernel_packages_tar} | xargs -i tar xzf {{}}")
 
@@ -199,8 +201,9 @@ def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_
     )
 
     current_sum_file = f"{kernel_packages_dir}/{kernel_packages_sum}"
-    if filecmp.cmp(current_sum_file, f"/tmp/{kernel_packages_sum}"):
+    if os.path.exists(current_sum_file) and filecmp.cmp(current_sum_file, f"/tmp/{kernel_packages_sum}"):
         warn("[-] No update required for custom kernel packages")
+        return
 
     # backup kernel-packges
     karch = karch_mapping[archs_mapping[platform.machine()]]
@@ -209,11 +212,10 @@ def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_
     )
     ctx.run(f"cd {kernel_packages_dir} && tar -cf {kernel_packages_tar} -T /tmp/package.ls")
     ctx.run(f"cp {kernel_packages_dir}/{kernel_packages_tar} {backup_dir}")
-    ctx.run(f"cp {current_sum_file} {backup_dir}")
-    info("[+] Backed up current packages")
+    info("[+] Backed up current kernel packages")
 
     # clean kernel packages directory
-    ctx.run(f"rm -f {kernel_packages_dir}/*")
+    ctx.run(f"rm -rf {kernel_packages_dir}/*")
 
     download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, revert=True)
 
@@ -222,30 +224,13 @@ def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_
 
 def revert_rootfs(ctx, rootfs_dir, backup_dir):
     ctx.run(f"rm -f {rootfs_dir}/*")
-    ctx.run(f"mv {backup_dir}/rootfs.tar.gz {rootfs_dir}")
-    ctx.run(f"tar xzvf {rootfs_dir}/rootfs.tar.gz")
+    ctx.run(f"find {backup_dir} -name *qcow2 -type f -exec mv {{}} {rootfs_dir}/ \\;")
 
 
 def update_rootfs(ctx, rootfs_dir, backup_dir):
-    arch = archs_mapping[platform.machine()]
-    if arch == "x86_64":
-        rootfs = "rootfs-amd64"
-    elif arch == "arm64":
-        rootfs = "rootfs-arm64"
-    else:
-        Exit(f"Unsupported arch detected {arch}")
-
-    ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{rootfs}.sum -O /tmp/{rootfs}.sum"
-    )
-
     # backup rootfs
-    ctx.run("cd {rootfs_dir} && tar czvf rootfs.tar.gz *.qcow2")
-    ctx.run("mv {rootfs_dir}/rootfs.tar.gz {backup_dir}")
-    warn("[+] Backed up rootfs")
-
-    # clean rootfs directory
-    # ctx.run(f"rm -f {KMT_ROOTFS_DIR}/*")
+    ctx.run(f"find {rootfs_dir} -name *qcow2 -type f -exec cp {{}} {backup_dir}/ \\;")
+    info("[+] Backed up rootfs")
 
     download_rootfs(ctx, rootfs_dir, backup_dir, revert=True)
 
