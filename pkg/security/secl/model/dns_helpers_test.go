@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDnsHelpers_sanatizeDNSName(t *testing.T) {
+func TestDnsHelpers_validateDNSName(t *testing.T) {
 	type test struct {
 		testName string
 		dnsName  string
@@ -101,7 +101,7 @@ func TestDnsHelpers_sanatizeDNSName(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			err := sanitizeDNSName(test.dnsName)
+			err := validateDNSName(test.dnsName)
 			assert.Equal(t, test.isValid, err == nil)
 		})
 	}

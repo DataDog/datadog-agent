@@ -79,7 +79,7 @@ LOOP:
 	return rep.String(), err
 }
 
-func sanitizeDNSName(dns string) error {
+func validateDNSName(dns string) error {
 	if len(dns) < 3 { // check the minimun length, ie "a.b"
 		return ErrDNSNameMalformatted
 	} else if len(dns) > 253 { // check the max full domain name length

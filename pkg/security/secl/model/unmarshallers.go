@@ -984,7 +984,7 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if err = sanitizeDNSName(e.Name); err != nil {
+	if err = validateDNSName(e.Name); err != nil {
 		return 0, err
 	}
 	return len(data), nil
