@@ -9,12 +9,14 @@ package module
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
 	"os/user"
-	"strconv"
 	"testing"
 	"time"
 
@@ -23,7 +25,20 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-func installGoGRPCClient(t *testing.T) string {
+func sigFile(fpath string) string {
+	f, err := os.Open(fpath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func installGoGRPCClient(t *testing.T) (string, string) {
 	// grpcurl is installed by inv -e install-tools
 	t.Helper()
 	gp := os.Getenv("GOPATH")
@@ -31,18 +46,29 @@ func installGoGRPCClient(t *testing.T) string {
 		gp = os.Getenv("HOME") + "/go"
 	}
 	binPath := gp + "/bin/grpcurl"
-	tmpDir := t.TempDir()
-	err := os.Chmod(tmpDir, 0777)
+
+	// if failed it's probably because test is executed via go test -exec sudo but grpcurl is unavailable in root gopath
+	_, err := exec.LookPath(binPath)
+	if err != nil {
+		exec.Command("go", "install", "github.com/fullstorydev/grpcurl/cmd/grpcurl@latest").Run()
+	}
+
+	tmpDir, err := os.MkdirTemp("", "testgrpcurl-*")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir)
+	})
+	err = os.Chmod(tmpDir, 0777)
 	require.NoError(t, err)
 	binPathDst := tmpDir + "/grpcurl"
 	d, err := ioutil.ReadFile(binPath)
 	require.NoError(t, err)
 	err = ioutil.WriteFile(binPathDst, d, 0755)
 	require.NoError(t, err)
-	return binPathDst
+	return binPathDst, sigFile(binPathDst)
 }
 
-func testGRPCServe(t *testing.T, shouldFailed bool, prefixCmd []string, auth bool, uid int, gid int) {
+func testGRPCServe(t *testing.T, shouldFailed bool, grpcurl string, prefixCmd []string, auth bool, sig string) {
 	dir := t.TempDir()
 	err := os.Chmod(dir, 0777)
 	require.NoError(t, err)
@@ -52,7 +78,7 @@ func testGRPCServe(t *testing.T, shouldFailed bool, prefixCmd []string, auth boo
 	socketPath := dir + "/test.http.sock"
 	var grpcOpts []grpc.ServerOption
 	if auth {
-		grpcOpts = append(grpcOpts, GRPCWithCredOptions(uid, gid))
+		grpcOpts = append(grpcOpts, GRPCWithCredOptions(sig))
 	}
 	server := NewGRPCServer(socketPath, grpcOpts...)
 	reflection.Register(server.server) // enable services reflection for grpcurl list
@@ -64,7 +90,6 @@ func testGRPCServe(t *testing.T, shouldFailed bool, prefixCmd []string, auth boo
 	err = os.Chmod(socketPath, 0777)
 	require.NoError(t, err)
 
-	grpcurl := installGoGRPCClient(t)
 	// wait grpc server to start
 	require.Eventually(t, func() bool {
 		d := net.Dialer{Timeout: 200 * time.Millisecond}
@@ -87,20 +112,20 @@ func testGRPCServe(t *testing.T, shouldFailed bool, prefixCmd []string, auth boo
 	}
 }
 
-func lookupUser(t *testing.T, name string) (usrID int, grpID int, usrIDstr string, grpIDstr string) {
+func lookupUser(t *testing.T, name string) (usrIDstr string, grpIDstr string) {
 	usr, err := user.Lookup(name)
-	require.NoError(t, err)
-
-	usrID, err = strconv.Atoi(usr.Uid)
-	require.NoError(t, err)
-
-	grpID, err = strconv.Atoi(usr.Gid)
 	require.NoError(t, err)
 
 	grp, err := user.LookupGroupId(usr.Gid)
 	require.NoError(t, err)
 
-	return usrID, grpID, usr.Username, grp.Name
+	return usr.Username, grp.Name
+}
+
+func checkIfRoot(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skipf("this test need to be run as root as we need to scan /proc/pid/exe content")
+	}
 }
 
 func checkIfSudoExistAndNotInteractive(t *testing.T) {
@@ -112,26 +137,38 @@ func checkIfSudoExistAndNotInteractive(t *testing.T) {
 }
 
 func TestGRPCServerAuth(t *testing.T) {
+	checkIfRoot(t)
 	checkIfSudoExistAndNotInteractive(t)
 
-	auth := true
-	uid, gid, uidStr, gidStr := lookupUser(t, "nobody")
+	grpcurl, sigGrpcurl := installGoGRPCClient(t)
 
-	t.Run("root always valid", func(t *testing.T) {
-		testGRPCServe(t, false, []string{"sudo"}, auth, uid, gid)
+	auth := true
+	uidStr, gidStr := lookupUser(t, "nobody")
+
+	t.Run("root is valid", func(t *testing.T) {
+		testGRPCServe(t, false, grpcurl, []string{}, auth, sigGrpcurl)
+	})
+	t.Run("root no access", func(t *testing.T) {
+		testGRPCServe(t, true, grpcurl, []string{}, auth, "bad sig")
+	})
+	t.Run("sudo is valid", func(t *testing.T) {
+		testGRPCServe(t, false, grpcurl, []string{"sudo"}, auth, sigGrpcurl)
+	})
+	t.Run("sudo no access", func(t *testing.T) {
+		testGRPCServe(t, true, grpcurl, []string{"sudo"}, auth, "bad sig")
 	})
 	t.Run("nobody:nogroup is valid", func(t *testing.T) {
-		testGRPCServe(t, false, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, uid, gid)
+		testGRPCServe(t, false, grpcurl, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, sigGrpcurl)
 	})
 	t.Run("nobody:nogroup no access", func(t *testing.T) {
-		testGRPCServe(t, true, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, 0, 0)
+		testGRPCServe(t, true, grpcurl, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, "bad sig")
 	})
 
 	auth = false
 	t.Run("root always valid auth socket disabled", func(t *testing.T) {
-		testGRPCServe(t, false, []string{"sudo"}, auth, uid, gid)
+		testGRPCServe(t, false, grpcurl, []string{"sudo"}, auth, sigGrpcurl)
 	})
 	t.Run("nobody:nogroup access auth socket disabled", func(t *testing.T) {
-		testGRPCServe(t, false, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, 0, 0)
+		testGRPCServe(t, false, grpcurl, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, "bad sig must be ok")
 	})
 }

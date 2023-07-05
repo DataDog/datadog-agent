@@ -9,16 +9,19 @@ package net
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/user"
-	"strconv"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -87,7 +90,48 @@ func (f *fakeHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(200)
 }
 
-func testHttpServe(t *testing.T, shouldFailed bool, f *fakeHandler, prefixCmd []string, auth bool, uid int, gid int) (err error) {
+func sigFile(fpath string) string {
+	f, err := os.Open(fpath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func almostACopyOfHttpServe(l net.Listener, handler http.Handler, authSocket bool, sig string) error {
+	srv := &http.Server{Handler: handler}
+	if authSocket {
+		srv.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
+			var unixConn *net.UnixConn
+			var ok bool
+			if unixConn, ok = c.(*net.UnixConn); !ok {
+				return ctx
+			}
+			valid, err := IsUnixNetConnValid(unixConn, sig)
+			if err != nil || !valid {
+				if err != nil {
+					log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
+				} else if !valid {
+					log.Errorf("unix socket %s -> %s closing connection, rejected. Client accessing this socket require to be a signed binary", unixConn.LocalAddr(), unixConn.RemoteAddr())
+				}
+				// reject the connection
+				newCtx, cancelCtx := context.WithCancel(ctx)
+				ctx = newCtx
+				cancelCtx()
+				c.Close()
+			}
+			return ctx
+		}
+	}
+	return srv.Serve(l)
+}
+
+func testHttpServe(t *testing.T, shouldFailed bool, f *fakeHandler, prefixCmd []string, auth bool, sig string) (err error) {
 	dir := t.TempDir()
 	err = os.Chmod(dir, 0777)
 	require.NoError(t, err)
@@ -115,23 +159,23 @@ func testHttpServe(t *testing.T, shouldFailed bool, f *fakeHandler, prefixCmd []
 		}
 	}()
 
-	return HttpServe(conn, f, auth, uid, gid)
+	return almostACopyOfHttpServe(conn, f, auth, sig)
 }
 
-func lookupUser(t *testing.T, name string) (usrID int, grpID int, usrIDstr string, grpIDstr string) {
+func lookupUser(t *testing.T, name string) (usrIDstr string, grpIDstr string) {
 	usr, err := user.Lookup(name)
-	require.NoError(t, err)
-
-	usrID, err = strconv.Atoi(usr.Uid)
-	require.NoError(t, err)
-
-	grpID, err = strconv.Atoi(usr.Gid)
 	require.NoError(t, err)
 
 	grp, err := user.LookupGroupId(usr.Gid)
 	require.NoError(t, err)
 
-	return usrID, grpID, usr.Username, grp.Name
+	return usr.Username, grp.Name
+}
+
+func checkIfRoot(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skipf("this test need to be run as root as we need to scan /proc/pid/exe content")
+	}
 }
 
 func checkIfSudoExistAndNotInteractive(t *testing.T) {
@@ -143,32 +187,42 @@ func checkIfSudoExistAndNotInteractive(t *testing.T) {
 }
 
 func TestHttpServe(t *testing.T) {
+	checkIfRoot(t)
 	checkIfSudoExistAndNotInteractive(t)
 
-	auth := true
-	uid, gid, uidStr, gidStr := lookupUser(t, "nobody")
+	curl, err := exec.LookPath("curl")
+	require.NoError(t, err)
+	curlSig := sigFile(curl)
+	uidStr, gidStr := lookupUser(t, "nobody")
 
-	t.Run("root always valid", func(t *testing.T) {
+	auth := true
+	t.Run("root is valid", func(t *testing.T) {
 		f := &fakeHandler{t: t}
-		err := testHttpServe(t, false, f, []string{"sudo"}, auth, uid, gid)
+		err := testHttpServe(t, false, f, []string{"sudo"}, auth, curlSig)
 		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
 			require.NoError(t, err)
 		}
 		require.Equal(t, "/test", f.request)
 	})
-
 	t.Run("nobody:nogroup is valid", func(t *testing.T) {
 		f := &fakeHandler{t: t}
-		err := testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, uid, gid)
+		err := testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, curlSig)
 		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
 			require.NoError(t, err)
 		}
 		require.Equal(t, "/test", f.request)
 	})
-
+	t.Run("root no access", func(t *testing.T) {
+		f := &fakeHandler{t: t}
+		err := testHttpServe(t, true, f, []string{"sudo"}, auth, "bad sig")
+		if errors.Is(err, net.ErrClosed) || err == http.ErrServerClosed {
+			require.Error(t, err)
+		}
+		require.Equal(t, "", f.request)
+	})
 	t.Run("nobody:nogroup no access", func(t *testing.T) {
 		f := &fakeHandler{t: t}
-		err := testHttpServe(t, true, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, 0, 0)
+		err := testHttpServe(t, true, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, "bad sig")
 		if errors.Is(err, net.ErrClosed) || err == http.ErrServerClosed {
 			require.Error(t, err)
 		}
@@ -176,22 +230,20 @@ func TestHttpServe(t *testing.T) {
 	})
 
 	auth = false
-	t.Run("root always valid (auth socket disabled)", func(t *testing.T) {
+	t.Run("root is valid (auth disabled)", func(t *testing.T) {
 		f := &fakeHandler{t: t}
-		err := testHttpServe(t, false, f, []string{"sudo"}, auth, uid, gid)
+		err := testHttpServe(t, false, f, []string{"sudo"}, auth, "always access")
 		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
 			require.NoError(t, err)
 		}
 		require.Equal(t, "/test", f.request)
 	})
-
-	t.Run("nobody:nogroup access (auth socket disabled)", func(t *testing.T) {
+	t.Run("nobody:nogroup is valid (auth disabled)", func(t *testing.T) {
 		f := &fakeHandler{t: t}
-		err := testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, 0, 0)
+		err := testHttpServe(t, false, f, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, "always access")
 		if !errors.Is(err, net.ErrClosed) && err != http.ErrServerClosed {
 			require.NoError(t, err)
 		}
 		require.Equal(t, "/test", f.request)
 	})
-
 }

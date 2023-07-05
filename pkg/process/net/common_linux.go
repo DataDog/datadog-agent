@@ -8,12 +8,16 @@
 package net
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"strconv"
 	"syscall"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const (
@@ -37,9 +41,9 @@ func CheckPath(path string) error {
 	return nil
 }
 
-// IsUnixNetConnValid return true id the connection is an unix socket
-// and client of the connection is root:root or allowedUsrID:allowedGrpID
-func IsUnixNetConnValid(unixConn *net.UnixConn, allowedUsrID int, allowedGrpID int) (bool, error) {
+// IsUnixNetConnValid return true if the connection is an unix socket
+// and client binary sha256 match with sig (use client pid as source of truth)
+func IsUnixNetConnValid(unixConn *net.UnixConn, sig string) (bool, error) {
 	sysConn, err := unixConn.SyscallConn()
 	if err != nil {
 		return false, err
@@ -55,9 +59,19 @@ func IsUnixNetConnValid(unixConn *net.UnixConn, allowedUsrID int, allowedGrpID i
 	if ucredErr != nil {
 		return false, ucredErr
 	}
-	if (ucred.Uid == 0 && ucred.Gid == 0) ||
-		(ucred.Uid == uint32(allowedUsrID) && ucred.Gid == uint32(allowedGrpID)) {
+
+	f, err := os.Open(util.HostProc(strconv.FormatUint(uint64(ucred.Pid), 10), "exe"))
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return false, err
+	}
+	if fmt.Sprintf("%x", h.Sum(nil)) == sig {
 		return true, nil
 	}
+
 	return false, nil
 }

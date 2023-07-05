@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const udsProcessAgentSig = "UDS_PROCESS_AGENT_SIG-6df08279acf372b0fe1c624369059fe2d6ade65d05"
+
 // UDSListener (Unix Domain Socket Listener)
 type UDSListener struct {
 	conn       net.Listener
@@ -25,9 +27,8 @@ type UDSListener struct {
 }
 
 // HttpServe is equivalent to http.Serve()
-// but will check credential if authSocket is true
-// (root:root or allowedUsrID:allowedGrpID) are allowed to access the unix socket
-func HttpServe(l net.Listener, handler http.Handler, authSocket bool, allowedUsrID int, allowedGrpID int) error {
+// but will check credential if authSocket is true by verifying the client pid binary signature
+func HttpServe(l net.Listener, handler http.Handler, authSocket bool) error {
 	srv := &http.Server{Handler: handler}
 	if authSocket {
 		srv.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
@@ -36,12 +37,12 @@ func HttpServe(l net.Listener, handler http.Handler, authSocket bool, allowedUsr
 			if unixConn, ok = c.(*net.UnixConn); !ok {
 				return ctx
 			}
-			valid, err := IsUnixNetConnValid(unixConn, allowedUsrID, allowedGrpID)
+			valid, err := IsUnixNetConnValid(unixConn, udsProcessAgentSig)
 			if err != nil || !valid {
 				if err != nil {
 					log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
 				} else if !valid {
-					log.Errorf("unix socket %s -> %s closing connection, rejected. User accessing this socket require to be root or %d/%d (uid/gid)", unixConn.LocalAddr(), unixConn.RemoteAddr(), allowedUsrID, allowedGrpID)
+					log.Errorf("unix socket %s -> %s closing connection, rejected. Client accessing this socket require a signed binary", unixConn.LocalAddr(), unixConn.RemoteAddr())
 				}
 				// reject the connection
 				newCtx, cancelCtx := context.WithCancel(ctx)

@@ -3,6 +3,8 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 
+require 'digest'
+
 name 'system-probe'
 
 source path: '..'
@@ -20,6 +22,13 @@ build do
   copy 'pkg/network/protocols/tls/java/agent-usm.jar', "#{install_dir}/embedded/share/system-probe/java/"
 
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
+    # update binary signature for unix socket connection when system_probe.auth_socket is true
+    sigProcessAgent = Digest::SHA256.hexdigest File.read "#{install_dir}/embedded/bin/process-agent"
+    command "sed -i s|UDS_PROCESS_AGENT_SIG-6df08279acf372b0fe1c624369059fe2d6ade65d05|#{sigProcessAgent}|g #{ENV['SYSTEM_PROBE_BIN']}/system-probe"
+    # update binary signature for unix socket connection when runtime_security.auth_socket is true
+    sigSecurityAgent = Digest::SHA256.hexdigest File.read "#{install_dir}/embedded/bin/security-agent"
+    command "sed -i s|UDS_SECURITY_AGENT_SIG-4ce7aa6ef3c376b3d80ac1ec5f2b50fcd5d65e896|#{sigSecurityAgent}|g #{ENV['SYSTEM_PROBE_BIN']}/system-probe"
+
     copy "#{ENV['SYSTEM_PROBE_BIN']}/system-probe", "#{install_dir}/embedded/bin/system-probe"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/usm.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/usm-debug.o", "#{install_dir}/embedded/share/system-probe/ebpf/"

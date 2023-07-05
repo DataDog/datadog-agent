@@ -27,8 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
+
+const udsSecurityAgent = "UDS_SECURITY_AGENT_SIG-4ce7aa6ef3c376b3d80ac1ec5f2b50fcd5d65e896"
 
 // CWSConsumer represents the system-probe module for the runtime security agent
 type CWSConsumer struct {
@@ -61,13 +62,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, config *config.RuntimeSecuri
 
 	var grpcOpts []grpc.ServerOption
 	if config.AuthSocket {
-		allowedUsrID, allowedGrpID, err := filesystem.UserDDAgent()
-		if err != nil {
-			// if user dd-agent doesn't exist, map to root
-			allowedUsrID = 0
-			allowedGrpID = 0
-		}
-		grpcOpts = append(grpcOpts, GRPCWithCredOptions(allowedUsrID, allowedGrpID))
+		grpcOpts = append(grpcOpts, GRPCWithCredOptions(udsSecurityAgent))
 	}
 
 	c := &CWSConsumer{

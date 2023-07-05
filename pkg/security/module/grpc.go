@@ -39,8 +39,7 @@ func (info) AuthType() string {
 }
 
 type grpcUnixSocketTransportCredential struct {
-	allowedUsrID int
-	allowedGrpID int
+	sig string
 }
 
 func (gustc grpcUnixSocketTransportCredential) ClientHandshake(ctx context.Context, authority string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
@@ -52,12 +51,12 @@ func (gustc grpcUnixSocketTransportCredential) ServerHandshake(conn net.Conn) (n
 	if !ok {
 		return conn, info{credentials.CommonAuthInfo{SecurityLevel: credentials.NoSecurity}}, nil
 	}
-	valid, err := processnet.IsUnixNetConnValid(unixConn, gustc.allowedUsrID, gustc.allowedGrpID)
+	valid, err := processnet.IsUnixNetConnValid(unixConn, gustc.sig)
 	if err != nil || !valid {
 		if err != nil {
 			log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
 		} else if !valid {
-			log.Errorf("unix socket %s -> %s closing connection, rejected. User accessing this socket require to be root or %d/%d (uid/gid)", unixConn.LocalAddr(), unixConn.RemoteAddr(), gustc.allowedUsrID, gustc.allowedGrpID)
+			log.Errorf("unix socket %s -> %s closing connection, rejected. Client accessing this socket require a signed binary", unixConn.LocalAddr(), unixConn.RemoteAddr())
 		}
 		// reject the connection
 		conn.Close()
@@ -70,17 +69,15 @@ func (gustc grpcUnixSocketTransportCredential) Info() credentials.ProtocolInfo {
 }
 
 func (gustc grpcUnixSocketTransportCredential) Clone() credentials.TransportCredentials {
-	return grpcUnixSocketTransportCredential{gustc.allowedUsrID, gustc.allowedGrpID}
+	return grpcUnixSocketTransportCredential{sig: gustc.sig}
 }
 
 func (gustc grpcUnixSocketTransportCredential) OverrideServerName(string) error {
 	return nil
 }
 
-func GRPCWithCredOptions(allowedUsrID, allowedGrpID int) grpc.ServerOption {
-	return grpc.Creds(grpcUnixSocketTransportCredential{
-		allowedUsrID: allowedUsrID,
-		allowedGrpID: allowedGrpID})
+func GRPCWithCredOptions(sig string) grpc.ServerOption {
+	return grpc.Creds(grpcUnixSocketTransportCredential{sig: sig})
 }
 
 func NewGRPCServer(socketPath string, opts ...grpc.ServerOption) *GRPCServer {

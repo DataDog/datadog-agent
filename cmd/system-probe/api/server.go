@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,20 +49,13 @@ func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 
-	allowedUsrID := 0
-	allowedGrpID := 0
 	// only linux supports unix socket credential
-	if runtime.GOOS == "linux" && cfg.AuthSocket {
-		allowedUsrID, allowedGrpID, err = filesystem.UserDDAgent()
-		if err != nil {
-			// if user dd-agent doesn't exist, map to root
-			allowedUsrID = 0
-			allowedGrpID = 0
-		}
+	if runtime.GOOS != "linux" {
+		cfg.AuthSocket = false
 	}
 
 	go func() {
-		err := net.HttpServe(conn.GetListener(), mux, cfg.AuthSocket, allowedUsrID, allowedGrpID)
+		err := net.HttpServe(conn.GetListener(), mux, cfg.AuthSocket)
 		if err != nil && err != http.ErrServerClosed {
 			log.Errorf("error creating HTTP server: %s", err)
 		}
