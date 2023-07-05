@@ -9,6 +9,12 @@ kitchen_tests_upload_common:
       artifacts: true
     - job : kitchen_debian_install_script_agent-a7_x64
       artifacts: true
+    - job : kitchen_ubuntu_install_script_agent-a7_x64
+      artifacts: true
+    - job : kitchen_suse_install_script_agent-a7
+      artifacts: true
+    - job : kitchen_amazonlinux_install_script_agent-a7_x64
+      artifacts: true
   variables:
     DD_ENV: ci
   script:
