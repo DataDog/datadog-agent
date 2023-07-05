@@ -83,6 +83,8 @@ func (e *ebpfProgram) Init() error {
 		ConstantEditors:           constantEditors,
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	})
-	ebpfcheck.AddNameMappings(e.Manager)
+	if err == nil {
+		ebpfcheck.AddNameMappings(e.Manager)
+	}
 	return err
 }
