@@ -343,9 +343,9 @@ require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
-	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
-	github.com/go-git/go-billy/v5 v5.4.1 // indirect
-	github.com/go-git/go-git/v5 v5.7.0 // indirect
+	github.com/go-git/gcfg v1.5.0 // indirect
+	github.com/go-git/go-billy/v5 v5.3.1 // indirect
+	github.com/go-git/go-git/v5 v5.4.2 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/go-logr/logr v1.2.4 // indirect
@@ -584,11 +584,9 @@ require (
 	github.com/google/s2a-go v0.1.2 // indirect
 	github.com/hashicorp/hcl/v2 v2.17.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/zerolog v1.29.1 // indirect
 	github.com/sigstore/rekor v1.0.1 // indirect
-	github.com/skeema/knownhosts v1.1.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/zclconf/go-cty v1.13.2 // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
