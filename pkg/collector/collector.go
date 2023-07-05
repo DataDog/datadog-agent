@@ -13,6 +13,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
@@ -37,7 +38,7 @@ type Collector struct {
 
 	scheduler *scheduler.Scheduler
 	runner    *runner.Runner
-	checks    map[check.ID]*middleware.CheckWrapper
+	checks    map[checkid.ID]*middleware.CheckWrapper
 
 	m sync.RWMutex
 }
@@ -45,7 +46,7 @@ type Collector struct {
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
 	c := &Collector{
-		checks:         make(map[check.ID]*middleware.CheckWrapper),
+		checks:         make(map[checkid.ID]*middleware.CheckWrapper),
 		state:          atomic.NewUint32(stopped),
 		checkInstances: int64(0),
 	}
@@ -110,13 +111,13 @@ func (c *Collector) Stop() {
 }
 
 // RunCheck sends a Check in the execution queue
-func (c *Collector) RunCheck(inner check.Check) (check.ID, error) {
+func (c *Collector) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
 	ch := middleware.NewCheckWrapper(inner)
 
-	var emptyID check.ID
+	var emptyID checkid.ID
 
 	if c.state.Load() != started {
 		return emptyID, fmt.Errorf("the collector is not running")
@@ -149,7 +150,7 @@ func (c *Collector) RunCheck(inner check.Check) (check.ID, error) {
 }
 
 // StopCheck halts a check and remove the instance
-func (c *Collector) StopCheck(id check.ID) error {
+func (c *Collector) StopCheck(id checkid.ID) error {
 	if !c.started() {
 		return fmt.Errorf("the collector is not running")
 	}
@@ -204,7 +205,7 @@ func (c *Collector) cancelCheck(ch check.Check, timeout time.Duration) error {
 	}
 }
 
-func (c *Collector) get(id check.ID) (check.Check, bool) {
+func (c *Collector) get(id checkid.ID) (check.Check, bool) {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
@@ -213,7 +214,7 @@ func (c *Collector) get(id check.ID) (check.Check, bool) {
 }
 
 // remove the check from the list
-func (c *Collector) delete(id check.ID) {
+func (c *Collector) delete(id checkid.ID) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -238,11 +239,11 @@ func (c *Collector) MapOverChecks(cb func([]check.Info)) {
 }
 
 // GetAllInstanceIDs returns the ID's of all instances of a check
-func (c *Collector) GetAllInstanceIDs(checkName string) []check.ID {
+func (c *Collector) GetAllInstanceIDs(checkName string) []checkid.ID {
 	c.m.RLock()
 	defer c.m.RUnlock()
 
-	instances := []check.ID{}
+	instances := []checkid.ID{}
 	for id, check := range c.checks {
 		if check.String() == checkName {
 			instances = append(instances, id)
@@ -253,7 +254,7 @@ func (c *Collector) GetAllInstanceIDs(checkName string) []check.ID {
 }
 
 // ReloadAllCheckInstances completely restarts a check with a new configuration
-func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]check.ID, error) {
+func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error) {
 	if !c.started() {
 		return nil, fmt.Errorf("The collector is not running")
 	}

@@ -25,7 +25,7 @@ type K8sNodeConfig struct {
 	} `json:"components"`
 	Manifests struct {
 		Etcd                 *K8sConfigFileMeta `json:"etcd,omitempty"`
-		KubeContollerManager *K8sConfigFileMeta `json:"kubeContollerManager,omitempty"`
+		KubeContollerManager *K8sConfigFileMeta `json:"kubeControllerManager,omitempty"`
 		KubeApiserver        *K8sConfigFileMeta `json:"kubeApiserver,omitempty"`
 		KubeScheduler        *K8sConfigFileMeta `json:"kubeScheduler,omitempty"`
 	} `json:"manifests"`
@@ -49,7 +49,7 @@ type K8sConfigFileMeta struct {
 	User    string      `json:"user"`
 	Group   string      `json:"group"`
 	Mode    uint32      `json:"mode"`
-	Content interface{} `json:"content"`
+	Content interface{} `json:"content" jsonschema:"type=object"`
 }
 
 type K8sTokenFileMeta struct {
@@ -103,6 +103,9 @@ type K8sCertFileMeta struct {
 	User        string `json:"user,omitempty"`
 	Group       string `json:"group,omitempty"`
 	Mode        uint32 `json:"mode,omitempty"`
+	DirUser     string `json:"dirUser,omitempty"`
+	DirGroup    string `json:"dirGroup,omitempty"`
+	DirMode     uint32 `json:"dirMode,omitempty"`
 	Certificate struct {
 		Fingerprint    string    `json:"fingerprint"`
 		SerialNumber   string    `json:"serialNumber,omitempty"`

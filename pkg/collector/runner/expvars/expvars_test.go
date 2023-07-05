@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 )
 
 // Helper methods
@@ -41,7 +42,7 @@ func getRunningChecksExpvarMap(t require.TestingT) *expvar.Map {
 	return runningChecksExpvar.(*expvar.Map)
 }
 
-func getCheckStatsExpvarMap(t require.TestingT) map[string]map[check.ID]*check.Stats {
+func getCheckStatsExpvarMap(t require.TestingT) map[string]map[checkid.ID]*stats.Stats {
 	runnerMap := getRunnerExpvarMap(t)
 
 	checkStatsExpvar := runnerMap.Get("Checks")
@@ -51,7 +52,7 @@ func getCheckStatsExpvarMap(t require.TestingT) map[string]map[check.ID]*check.S
 	// other than chain conversion unless we wanted to do a plain string
 	// comparisons. We do `expvar.Var` -> `expvar.Func` -> `expvarRunnerCheckStats`
 	// via `Func.Value()`.
-	return checkStatsExpvar.(expvar.Func).Value().(map[string]map[check.ID]*check.Stats)
+	return checkStatsExpvar.(expvar.Func).Value().(map[string]map[checkid.ID]*stats.Stats)
 }
 
 func getExpvarMapKeys(m *expvar.Map) []string {
@@ -118,12 +119,12 @@ func changeAndAssertExpvarValue(
 }
 
 type testCheck struct {
-	check.StubCheck
+	stats.StubCheck
 	id string
 }
 
-func (c *testCheck) ID() check.ID   { return check.ID(c.id) }
-func (c *testCheck) String() string { return check.IDToCheckName(c.ID()) }
+func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
+func (c *testCheck) String() string { return checkid.IDToCheckName(c.ID()) }
 
 func newTestCheck(id string) *testCheck {
 	return &testCheck{id: id}
@@ -167,7 +168,7 @@ func TestExpvarsReset(t *testing.T) {
 			testCheck := newTestCheck(checkID)
 
 			for runIdx := 0; runIdx < numCheckRuns; runIdx++ {
-				AddCheckStats(testCheck, 12345, nil, []error{}, check.SenderStats{})
+				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{})
 			}
 		}
 	}
@@ -235,7 +236,7 @@ func TestExpvarsCheckStats(t *testing.T) {
 						fmt.Errorf("warning %d", runIdx),
 						fmt.Errorf("warning2 %d", runIdx),
 					}
-					expectedStats := check.SenderStats{}
+					expectedStats := stats.SenderStats{}
 
 					<-start
 
@@ -271,7 +272,7 @@ func TestExpvarsCheckStats(t *testing.T) {
 		assert.Equal(t, numCheckInstances, len(getCheckStatsExpvarMap(t)[checkName]))
 
 		for checkIDIdx := 0; checkIDIdx < numCheckInstances; checkIDIdx++ {
-			checkID := check.ID(fmt.Sprintf("%s:%d", checkName, checkIDIdx))
+			checkID := checkid.ID(fmt.Sprintf("%s:%d", checkName, checkIDIdx))
 			actualStats, _ := CheckStats(checkID)
 
 			// Assert that the published expvars use the same values as internal ones
@@ -293,7 +294,7 @@ func TestExpvarsCheckStats(t *testing.T) {
 			assert.Equal(t, numCheckInstances-checkIDIdx, len(GetCheckStats()[checkName]))
 			assert.Equal(t, numCheckInstances-checkIDIdx, len(getCheckStatsExpvarMap(t)[checkName]))
 
-			checkID := check.ID(fmt.Sprintf("%s:%d", checkName, checkIDIdx))
+			checkID := checkid.ID(fmt.Sprintf("%s:%d", checkName, checkIDIdx))
 			RemoveCheckStats(checkID)
 
 			assert.Equal(t, numCheckInstances-checkIDIdx-1, len(GetCheckStats()[checkName]))
@@ -315,7 +316,7 @@ func TestExpvarsGetChecksStatsClone(t *testing.T) {
 			testCheck := newTestCheck(checkID)
 
 			for runIdx := 0; runIdx < numCheckRuns; runIdx++ {
-				AddCheckStats(testCheck, 12345, nil, []error{}, check.SenderStats{})
+				AddCheckStats(testCheck, 12345, nil, []error{}, stats.SenderStats{})
 			}
 		}
 	}
@@ -325,7 +326,7 @@ func TestExpvarsGetChecksStatsClone(t *testing.T) {
 	assert.Equal(t, numCheckInstances, len(GetCheckStats()["testcheck1"]))
 	assert.Equal(t, numCheckInstances, len(getCheckStatsExpvarMap(t)["testcheck1"]))
 
-	GetCheckStats()["testcheckx"] = make(map[check.ID]*check.Stats)
+	GetCheckStats()["testcheckx"] = make(map[checkid.ID]*stats.Stats)
 	GetCheckStats()["testcheck1"]["abc"] = GetCheckStats()["testcheck3"]["testcheck3:1"]
 
 	assert.Equal(t, numCheckNames, len(GetCheckStats()))
@@ -345,9 +346,9 @@ func TestExpvarsRunningStats(t *testing.T) {
 		checkName := fmt.Sprintf("mycheck %d", idx)
 		expectedTimestamp := time.Unix(int64(1234567890+idx), 0).In(loc)
 
-		SetRunningStats(check.ID(checkName), expectedTimestamp)
+		SetRunningStats(checkid.ID(checkName), expectedTimestamp)
 
-		actualInternalTimestamp := GetRunningStats(check.ID(checkName))
+		actualInternalTimestamp := GetRunningStats(checkid.ID(checkName))
 		assert.Equal(t, expectedTimestamp, actualInternalTimestamp)
 
 		actualExpvarTimestamp := runningChecksMap.Get(checkName)
@@ -359,12 +360,12 @@ func TestExpvarsRunningStats(t *testing.T) {
 	for idx := 0; idx < 10; idx++ {
 		checkName := fmt.Sprintf("mycheck %d", idx)
 
-		DeleteRunningStats(check.ID(checkName))
+		DeleteRunningStats(checkid.ID(checkName))
 
 		actualExpvarTimestamp := runningChecksMap.Get(checkName)
 		require.Nil(t, actualExpvarTimestamp)
 
-		actualInternalTimestamp := GetRunningStats(check.ID(checkName))
+		actualInternalTimestamp := GetRunningStats(checkid.ID(checkName))
 		assert.True(t, actualInternalTimestamp.IsZero())
 
 		assert.Equal(t, 10-idx-1, len(getExpvarMapKeys(runningChecksMap)))

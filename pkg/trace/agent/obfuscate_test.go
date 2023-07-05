@@ -141,7 +141,18 @@ func TestObfuscateConfig(t *testing.T) {
 		"redis.raw_command",
 		"SET key val",
 		"SET key ?",
-		&config.ObfuscationConfig{Redis: config.Enablable{Enabled: true}},
+		&config.ObfuscationConfig{Redis: config.RedisObfuscationConfig{Enabled: true}},
+	))
+
+	t.Run("redis/remove_all_args", testConfig(
+		"redis",
+		"redis.raw_command",
+		"SET key val",
+		"SET ?",
+		&config.ObfuscationConfig{Redis: config.RedisObfuscationConfig{
+			Enabled:       true,
+			RemoveAllArgs: true,
+		}},
 	))
 
 	t.Run("redis/disabled", testConfig(
