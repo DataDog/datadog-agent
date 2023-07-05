@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -286,14 +285,14 @@ func detectLeases(client discovery.DiscoveryInterface) (bool, error) {
 // CanUseLeases returns if leases can be used for leader election. If the resource is defined in the config
 // It uses it. Otherwise it uses the discovery client for leader election.
 func CanUseLeases(client discovery.DiscoveryInterface) (bool, error) {
-	config := config.Datadog.GetString("leader_election_default_resource")
-	if strings.Contains(config, "lease") {
+	resourceType := config.Datadog.GetString("leader_election_default_resource")
+	if resourceType == "lease" || resourceType == "leases" {
 		return true, nil
-	} else if strings.Contains(config, "configmap") {
+	} else if resourceType == "configmap" || resourceType == "configmaps" {
 		return false, nil
 	}
 
-	if config != "" {
+	if resourceType != "" {
 		log.Warnf("Unknown resource lock for leader election [%s]. Using the discovery client to select the lock", config)
 	}
 
