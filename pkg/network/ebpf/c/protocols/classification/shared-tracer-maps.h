@@ -48,11 +48,11 @@ __maybe_unused static __always_inline void delete_protocol_stack(conn_tuple_t* n
     }
 
     if (!(stack->flags&FLAG_USM_ENABLED) || !(stack->flags&FLAG_NPM_ENABLED)) {
-        // If either USM is disabled or NPM is disabled, we cant move rightaway
+        // If either USM is disabled or NPM is disabled, we can move right away
         // to the deletion code since there is no chance of race between the two
         // programs.
         //
-        // There are two expectected scenarios where just one of the two programs
+        // There are two expected scenarios where just one of the two programs
         // is enabled:
         //
         // 1) When one of the programs is disabled by choice (via configuration);
