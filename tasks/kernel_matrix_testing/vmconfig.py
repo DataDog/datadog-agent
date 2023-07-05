@@ -71,7 +71,7 @@ distributions = {
     "amzn_5.15": "amzn_5.15",
 }
 distro_arch_mapping = {"x86_64": "amd64", "arm64": "arm64"}
-images_path_ami = {
+images_path_local = {
     "bionic": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-{arch}.qcow2",
     "focal": "file:///home/kernel-version-testing/rootfs/focal-server-cloudimg-{arch}.qcow2",
     "jammy": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-{arch}.qcow2",
@@ -123,7 +123,10 @@ table = [
 consoles = {"x86_64": "ttyS0", "arm64": "ttyAMA0"}
 
 
-def get_image_path(img, arch):
+def get_image_path(img, arch, local):
+    if local:
+        return images_path_local[img].format(arch=arch)
+
     return images_path_s3[img].format(arch=arch, url_base=url_base)
 
 
@@ -258,13 +261,15 @@ def get_custom_kernel_config(version, arch):
 
 
 def get_distro_image_config(version, arch):
+    local = False
     if arch == "local":
+        local = True
         arch = archs_mapping[platform.machine()]
 
     return {
         "dir": images_name[version].format(arch=distro_arch_mapping[arch]),
         "tag": version,
-        "image_source": get_image_path(version, distro_arch_mapping[arch]),
+        "image_source": get_image_path(version, distro_arch_mapping[arch], local),
     }
 
 
@@ -275,7 +280,9 @@ def build_new_vmset(set_id, kernels):
     recipe, arch, version = set_id
     vmset = dict()
 
+    local = False
     if arch == "local":
+        local = True
         platform_arch = archs_mapping[platform.machine()]
     else:
         platform_arch = arch
@@ -285,12 +292,12 @@ def build_new_vmset(set_id, kernels):
         if version == "lte_414":
             vmset["image"] = {
                 "image_path": f"buster.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_source": get_image_path("buster", distro_arch_mapping[platform_arch]),
+                "image_source": get_image_path("buster", distro_arch_mapping[platform_arch], local),
             }
         else:
             vmset["image"] = {
                 "image_path": f"bullseye.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_source": get_image_path("bullseye", distro_arch_mapping[platform_arch]),
+                "image_source": get_image_path("bullseye", distro_arch_mapping[platform_arch], local),
             }
     elif recipe == "distro":
         vmset = {"name": vmset_name_from_id(set_id), "recipe": f"distro-{arch}", "arch": arch, "kernels": kernels}
@@ -394,6 +401,8 @@ def generate_vm_config(vm_config, vms, vcpu, memory):
         if vmset["arch"] == "arm64":
             arm64_ec2 = True
 
+    print()
+    warn("[!] Please review configuration")
     if arm64_ec2:
         info(f"[*] Configuration will launch 1 arm64 {ARM_INSTANCE_TYPE} EC2 instance")
     if amd64_ec2:
