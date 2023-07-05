@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -213,7 +213,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
-			nettelemetry.NewDebugFsStatCollector()
+			ebpf.NewDebugFsStatCollector()
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{

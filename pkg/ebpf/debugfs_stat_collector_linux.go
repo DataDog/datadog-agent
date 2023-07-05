@@ -3,33 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build linux_bpf
 
-package telemetry
+package ebpf
 
 import (
-	"regexp"
-
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/ebpf-manager/tracefs"
-
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const kProbeTelemetryName = "ebpf__kprobes"
-
-// event name format is p|r_<funcname>_<uid>_<pid>
-var eventRegexp = regexp.MustCompile(`^((?:p|r)_.+?)_([^_]*)_([^_]*)$`)
-
-var myPid int
 
 func init() {
 	myPid = manager.Getpid()
@@ -52,7 +43,7 @@ func (collector *DebugFsStatCollector) updateProbeStats(pid int, profile string,
 		pid = myPid
 	}
 
-	m, err := ebpf.ReadKprobeProfile(profile)
+	m, err := ReadKprobeProfile(profile)
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
 		return

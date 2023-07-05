@@ -17,12 +17,11 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/atomic"
-
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/twmb/murmur3"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
