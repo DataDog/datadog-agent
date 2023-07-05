@@ -128,6 +128,7 @@ func buildCommandArgs(junitPath string, jsonPath string, file string, retryCnt i
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
 		fmt.Sprintf("--rerun-fails=%d", retryCnt),
+		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
 		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
 	}
@@ -308,7 +309,6 @@ func run() error {
 	var uname unix.Utsname
 
 	testConfig := buildTestConfiguration()
-
 	if err := unix.Uname(&uname); err != nil {
 		return fmt.Errorf("error calling uname: %w", err)
 	}
