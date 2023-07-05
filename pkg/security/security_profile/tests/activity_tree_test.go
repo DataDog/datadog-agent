@@ -590,7 +590,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			resultNodeShouldBeNil: false,
 			resultNewProcessNode:  true,
 			resultErr:             nil,
-			resultTree:            map[string][]string{"/bin/bar": []string{}},
+			resultTree:            map[string][]string{"/bin/bar": {}},
 		},
 
 		// try insert fileless runc as root node
@@ -605,7 +605,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			resultNodeShouldBeNil: false,
 			resultNewProcessNode:  true,
 			resultErr:             nil,
-			resultTree:            map[string][]string{"/bin/bar": []string{}},
+			resultTree:            map[string][]string{"/bin/bar": {}},
 		},
 
 		// try insert a fileless node with a runc parent
@@ -635,7 +635,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			resultNodeShouldBeNil: false,
 			resultNewProcessNode:  true,
 			resultErr:             nil,
-			resultTree:            map[string][]string{"/bin/foo": []string{}},
+			resultTree:            map[string][]string{"/bin/foo": {}},
 		},
 	}
 
