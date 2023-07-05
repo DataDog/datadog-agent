@@ -146,6 +146,7 @@ func testHttpServe(t *testing.T, shouldFailed bool, f *fakeHandler, prefixCmd []
 	require.NoError(t, err)
 
 	go func() {
+		time.Sleep(500 * time.Millisecond)
 		cmd := append(prefixCmd, "curl", "-s", "--unix-socket", socketPath, "http://unix/test")
 		o, err := exec.Command(cmd[0], cmd[1:]...).CombinedOutput()
 		conn.Close() // closing the server
