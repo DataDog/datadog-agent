@@ -74,12 +74,13 @@ func (platformInfo *Info) fillPlatformInfo() {
 	if unameErr == nil {
 		updateUnameInfo(platformInfo, &uname)
 	} else {
-		platformInfo.KernelName = utils.NewErrorValue[string](unameErr)
-		platformInfo.Hostname = utils.NewErrorValue[string](unameErr)
-		platformInfo.KernelRelease = utils.NewErrorValue[string](unameErr)
-		platformInfo.Machine = utils.NewErrorValue[string](unameErr)
-		platformInfo.OS = utils.NewErrorValue[string](unameErr)
-		platformInfo.KernelVersion = utils.NewErrorValue[string](unameErr)
+		failedFields := []*utils.Value[string]{
+			&platformInfo.KernelName, &platformInfo.Hostname, &platformInfo.KernelRelease,
+			&platformInfo.Machine, &platformInfo.OS, &platformInfo.KernelVersion,
+		}
+		for _, field := range failedFields {
+			(*field) = utils.NewErrorValue[string](unameErr)
+		}
 	}
 
 	if isTranslated, err := processIsTranslated(); err == nil && isTranslated {

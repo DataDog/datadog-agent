@@ -9,13 +9,12 @@
 package platform
 
 func (platformInfo *Info) fillPlatformInfo() {
-	platformInfo.KernelName = utils.NewErrorValue[string](utils.ErrNotCollectable)
-	platformInfo.KernelRelease = utils.NewErrorValue[string](utils.ErrNotCollectable)
-	platformInfo.Hostname = utils.NewErrorValue[string](utils.ErrNotCollectable)
-	platformInfo.Machine = utils.NewErrorValue[string](utils.ErrNotCollectable)
-	platformInfo.OS = utils.NewErrorValue[string](utils.ErrNotCollectable)
-	platformInfo.Family = utils.NewErrorValue[string](utils.ErrNotCollectable)
-	platformInfo.KernelVersion = utils.NewErrorValue[string](utils.ErrNotCollectable)
-	platformInfo.Processor = utils.NewErrorValue[string](utils.ErrNotCollectable)
-	platformInfo.HardwarePlatform = utils.NewErrorValue[string](utils.ErrNotCollectable)
+	failedFields := []*utils.Value[string]{
+		&platformInfo.KernelName, &platformInfo.KernelRelease, &platformInfo.Hostname,
+		&platformInfo.Machine, &platformInfo.OS, &platformInfo.Family,
+		&platformInfo.KernelVersion, &platformInfo.Processor, &platformInfo.HardwarePlatform,
+	}
+	for _, field := range failedFields {
+		(*field) = utils.NewErrorValue[string](utils.ErrNotCollectable)
+	}
 }

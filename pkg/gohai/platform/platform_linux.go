@@ -79,25 +79,25 @@ func updateUnameInfo(platformInfo *Info, uname *unix.Utsname) {
 	platformInfo.Machine = utils.NewValue(machine)
 	platformInfo.Processor = utils.NewValue(getProcessorType(machine))
 	platformInfo.HardwarePlatform = utils.NewValue(getHardwarePlatform(machine))
-	platformInfo.OS = utils.NewValue(getOperatingSystem())
 	platformInfo.KernelVersion = utils.NewValue(utils.StringFromBytes(uname.Version[:]))
 }
 
 func (platformInfo *Info) fillPlatformInfo() {
 	platformInfo.Family = utils.NewErrorValue[string](utils.ErrNotCollectable)
+	platformInfo.OS = utils.NewValue(getOperatingSystem())
 
 	var uname unix.Utsname
 	unameErr := unix.Uname(&uname)
 	if unameErr == nil {
 		updateUnameInfo(platformInfo, &uname)
 	} else {
-		platformInfo.KernelName = utils.NewErrorValue[string](utils.ErrNotCollectable)
-		platformInfo.Hostname = utils.NewErrorValue[string](utils.ErrNotCollectable)
-		platformInfo.KernelRelease = utils.NewErrorValue[string](utils.ErrNotCollectable)
-		platformInfo.Machine = utils.NewErrorValue[string](utils.ErrNotCollectable)
-		platformInfo.Processor = utils.NewErrorValue[string](utils.ErrNotCollectable)
-		platformInfo.HardwarePlatform = utils.NewErrorValue[string](utils.ErrNotCollectable)
-		platformInfo.OS = utils.NewErrorValue[string](utils.ErrNotCollectable)
-		platformInfo.KernelVersion = utils.NewErrorValue[string](utils.ErrNotCollectable)
+		failedFields := []*utils.Value[string]{
+			&platformInfo.KernelName, &platformInfo.Hostname, &platformInfo.KernelRelease,
+			&platformInfo.Machine, &platformInfo.Processor, &platformInfo.HardwarePlatform,
+			&platformInfo.KernelVersion,
+		}
+		for _, field := range failedFields {
+			(*field) = utils.NewErrorValue[string](unameErr)
+		}
 	}
 }
