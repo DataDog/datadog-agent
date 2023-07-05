@@ -1,5 +1,5 @@
 from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
-from .download import archs_mapping, karch_mapping, url_base
+from .download import archs_mapping, karch_mapping
 from .stacks import stack_exists, create_stack, X86_INSTANCE_TYPE, ARM_INSTANCE_TYPE
 import platform
 import math
