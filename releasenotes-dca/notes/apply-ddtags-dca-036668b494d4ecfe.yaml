@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    All data emitted by DCA have tags configured in DD_TAGS

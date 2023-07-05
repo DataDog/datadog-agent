@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -114,14 +115,27 @@ func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, 
 			s.DisableDefaultHostname(true)
 		}
 
+		var customTags []string
+
+		// Set tags configured in DD_TAGS
+		ddtags := config.GetConfiguredTags(config.Datadog, false)
+		if len(ddtags) > 0 {
+			customTags = ddtags
+		}
+
 		// Set custom tags configured for this check
 		if len(commonOptions.Tags) > 0 {
+			customTags = append(customTags, commonOptions.Tags...)
+		}
+
+		// Set custom tags to sender
+		if len(customTags) > 0 {
 			s, err := c.GetSender()
 			if err != nil {
 				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
 				return err
 			}
-			s.SetCheckCustomTags(commonOptions.Tags)
+			s.SetCheckCustomTags(customTags)
 		}
 
 		// Set configured service for this check, overriding the one possibly defined globally

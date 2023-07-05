@@ -42,8 +42,8 @@ func newDispatcher() *dispatcher {
 		store: newClusterStore(),
 	}
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
-	d.extraTags = config.Datadog.GetStringSlice("cluster_checks.extra_tags")
-
+	// Tags configured in EXTRA_TAGS and DD_TAGS
+	d.extraTags = append(config.Datadog.GetStringSlice("cluster_checks.extra_tags"), config.GetGlobalConfiguredTags(false)...)
 	excludedChecks := config.Datadog.GetStringSlice("cluster_checks.exclude_checks")
 	// This option will almost always be empty
 	if len(excludedChecks) > 0 {

@@ -957,3 +957,9 @@ func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	testConfig = SetupConfFromYAML("")
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }
+
+func TestGetConfiguredTags(t *testing.T) {
+	t.Setenv("DD_TAGS", "team:infra foo:bar")
+	testConfig := SetupConfFromYAML("")
+	assert.Equal(t, []string{"team:infra", "foo:bar"}, GetConfiguredTags(testConfig, false))
+}
