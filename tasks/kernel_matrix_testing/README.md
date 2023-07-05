@@ -108,8 +108,37 @@ Tear down the stack
 inv -e kmt.destroy-stack --stack=demo-stack
 ```
 
-
 ## Tasks
+
+### Initializing environment
+```bash
+inv -e kmt.init
+```
+
+If you only want to initialize the directory structure, you may do a 'lite' setup as follows:
+```bash
+inv -e kmt.init --lite
+```
+
+### Updating resources
+In order to update the resources for launching VMs run:
+```bash
+inv -e kmt.update-resources
+```
+
+Updating will first destroy all running stacks, and then use checksums to decide which packages need to be updated from S3.   
+If there is an error during update, original packages are restored from backup.
+
+
+### Revert resources
+During the update process, all packages are first backed-up, incase there is an error during the update.   
+This backup may be resotred manually if there is a problem with the new resources.
+
+```bash
+inv -e kmt.revert-resources
+```
+
+Reverting will destroy all running stacks before restoring from backup.
 
 ### Creating a stack
 A stack can be created as follows:
@@ -125,8 +154,8 @@ inv -e kmt.ls
 ```
 
 The arguments to this are:
-- `distro`: Only list distribution images.
-- `custom`: Only list custom kernels.
+- `--distro`: Only list distribution images.
+- `--custom`: Only list custom kernels.
 - No argument will list everything.
 
 ### Configuring the stack
