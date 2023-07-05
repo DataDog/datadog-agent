@@ -20,14 +20,14 @@ import (
 	"github.com/fatih/color"
 )
 
-const TestJSON = "/ci-visibility/testjson"
+const TestJSONOut = "/ci-visibility/testjson/out.json"
 
 func init() {
 	color.NoColor = false
 }
 
 func main() {
-	failedTests, err := reviewTests(TestJSON)
+	failedTests, err := reviewTests(TestJSONOut)
 	if err != nil {
 		log.Fatal(err)
 	}
