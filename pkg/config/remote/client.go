@@ -270,6 +270,7 @@ func (c *Client) pollLoop() {
 					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
 				}
 			} else {
+				c.lastUpdateError = nil
 				c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
 		}
