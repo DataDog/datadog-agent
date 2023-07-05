@@ -90,6 +90,15 @@ type ActivityTreeOwner interface {
 	NewProcessNodeCallback(p *ProcessNode)
 }
 
+type cookieSelector struct {
+	execTime int64
+	cookie   uint32
+}
+
+func (cs *cookieSelector) isSet() bool {
+	return cs.execTime != 0 && cs.cookie != 0
+}
+
 // ActivityTree contains a process tree and its activities. This structure has no locks.
 type ActivityTree struct {
 	Stats *ActivityTreeStats
@@ -101,8 +110,8 @@ type ActivityTree struct {
 	validator    ActivityTreeOwner
 	pathsReducer *PathsReducer
 
-	CookieToProcessNode map[uint32]*ProcessNode `json:"-"`
-	ProcessNodes        []*ProcessNode          `json:"-"`
+	CookieToProcessNode map[cookieSelector]*ProcessNode
+	ProcessNodes        []*ProcessNode `json:"-"`
 
 	// top level lists used to summarize the content of the tree
 	DNSNames     *utils.StringKeys
@@ -116,7 +125,7 @@ func NewActivityTree(validator ActivityTreeOwner, pathsReducer *PathsReducer, tr
 		validator:           validator,
 		pathsReducer:        pathsReducer,
 		Stats:               NewActivityTreeNodeStats(),
-		CookieToProcessNode: make(map[uint32]*ProcessNode),
+		CookieToProcessNode: make(map[cookieSelector]*ProcessNode),
 		SyscallsMask:        make(map[int]int),
 		DNSNames:            utils.NewStringKeys(nil),
 	}
@@ -356,6 +365,10 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 	return nil
 }
 
+func eventHaveValidCookie(entry *model.ProcessCacheEntry) bool {
+	return !entry.ExecTime.IsZero() && entry.Cookie != 0
+}
+
 // CreateProcessNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch []*model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.Resolvers) (node *ProcessNode, newProcessNode bool, err error) {
@@ -368,9 +381,14 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 	}
 
 	// look for a ProcessActivityNode by process cookie
-	if entry.Cookie > 0 {
+	cs := cookieSelector{}
+	if eventHaveValidCookie(entry) {
+		cs = cookieSelector{
+			execTime: entry.ExecTime.UnixNano(),
+			cookie:   entry.Cookie,
+		}
 		var found bool
-		node, found = at.CookieToProcessNode[entry.Cookie]
+		node, found = at.CookieToProcessNode[cs]
 		if found {
 			return node, false, nil
 		}
@@ -378,8 +396,8 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 
 	defer func() {
 		// if a node was found, and if the entry has a valid cookie, insert a cookie shortcut
-		if entry.Cookie > 0 && node != nil {
-			at.CookieToProcessNode[entry.Cookie] = node
+		if cs.isSet() && node != nil {
+			at.CookieToProcessNode[cs] = node
 		}
 	}()
 
