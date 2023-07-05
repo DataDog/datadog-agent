@@ -5,7 +5,7 @@
 
 //go:build serverless
 
-package serializer
+package types
 
 import "google.golang.org/protobuf/reflect/protoreflect"
 

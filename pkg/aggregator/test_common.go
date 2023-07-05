@@ -10,12 +10,13 @@ package aggregator
 import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // PeekSender returns a Sender with passed ID or an error if the sender is not registered
-func (s *senders) PeekSender(cid check.ID) (Sender, error) {
+func (s *senders) PeekSender(cid checkid.ID) (sender.Sender, error) {
 	return s.senderPool.getSender(cid)
 }
 

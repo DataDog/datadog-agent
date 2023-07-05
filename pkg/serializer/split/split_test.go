@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -172,7 +174,7 @@ func TestSplitPayloadsEvents(t *testing.T) {
 func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 	testEvent := metricsserializer.Events{}
 	for i := 0; i < numPoints; i++ {
-		event := metrics.Event{
+		event := event.Event{
 			Title:          "test title",
 			Text:           "test text",
 			Ts:             12345,
@@ -238,11 +240,11 @@ func TestSplitPayloadsServiceChecks(t *testing.T) {
 func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
 	testServiceChecks := metricsserializer.ServiceChecks{}
 	for i := 0; i < numPoints; i++ {
-		sc := metrics.ServiceCheck{
+		sc := servicecheck.ServiceCheck{
 			CheckName: "test.check",
 			Host:      "test.localhost",
 			Ts:        1000,
-			Status:    metrics.ServiceCheckOK,
+			Status:    servicecheck.ServiceCheckOK,
 			Message:   "this is fine",
 			Tags:      []string{"tag1", "tag2:yes"},
 		}

@@ -12,14 +12,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // JMXCheck represents a JMXFetch check
 type JMXCheck struct {
-	id             check.ID
+	id             checkid.ID
 	name           string
 	config         integration.Config
 	stop           chan struct{}
@@ -35,7 +36,7 @@ func newJMXCheck(config integration.Config, source string) *JMXCheck {
 		config:    config,
 		stop:      make(chan struct{}),
 		name:      config.Name,
-		id:        check.ID(fmt.Sprintf("%v_%x", config.Name, digest)),
+		id:        checkid.ID(fmt.Sprintf("%v_%x", config.Name, digest)),
 		source:    source,
 		telemetry: telemetry_utils.IsCheckEnabled("jmx"),
 	}
@@ -109,7 +110,7 @@ func (c *JMXCheck) Interval() time.Duration {
 }
 
 // ID provides a unique identifier for this JMXCheck instance
-func (c *JMXCheck) ID() check.ID {
+func (c *JMXCheck) ID() checkid.ID {
 	return c.id
 }
 
@@ -124,6 +125,6 @@ func (c *JMXCheck) GetWarnings() []error {
 }
 
 // GetSenderStats returns the stats from the last run of this JMXCheck
-func (c *JMXCheck) GetSenderStats() (check.SenderStats, error) {
-	return check.NewSenderStats(), nil
+func (c *JMXCheck) GetSenderStats() (stats.SenderStats, error) {
+	return stats.NewSenderStats(), nil
 }
