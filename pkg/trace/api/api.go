@@ -210,7 +210,7 @@ func (r *HTTPReceiver) Start() {
 		pipepath := `\\.\pipe\` + path
 		bufferSize := r.conf.PipeBufferSize
 		secdec := r.conf.PipeSecurityDescriptor
-		ln, err := listenPipe(pipepath, secdec, bufferSize)
+		ln, err := listenPipe(pipepath, secdec, bufferSize, r.conf.MaxConnections)
 		if err != nil {
 			r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
