@@ -34,8 +34,17 @@ from .utils import REPO_PATH, get_git_commit
     },
 )
 def run(
-    ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, run="", skip="", cache=False, junit_tar=""
-):  # noqa: B006
+    ctx,
+    profile="",
+    tags=[],  # noqa: B006
+    targets=[],  # noqa: B006
+    configparams=[],  # noqa: B006
+    verbose=True,
+    run="",
+    skip="",
+    cache=False,
+    junit_tar="",
+):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
