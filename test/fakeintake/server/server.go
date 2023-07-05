@@ -178,6 +178,14 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
+	if req.Method == http.MethodHead && req.URL.Path == "/support/flare" {
+		writeHttpResponse(w, httpResponse{
+			statusCode: http.StatusOK,
+		})
+		return
+	}
+
 	// from now on accept only POST requests
 	if req.Method != http.MethodPost {
 		response := buildPostResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
@@ -198,8 +206,23 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 	}
 
 	fi.safeAppendPayload(req.URL.Path, payload, req.Header.Get("Content-Encoding"))
-	response := buildPostResponse(nil)
+
+	var response httpResponse
+	if req.URL.Path == "/support/flare" {
+		response = buildFlareResponse()
+	} else {
+		response = buildPostResponse(nil)
+	}
 	writeHttpResponse(w, response)
+}
+
+func buildFlareResponse() httpResponse {
+	body, _ := json.Marshal(map[string]any{"case_id": 0, "error": nil})
+	return httpResponse{
+		statusCode:  http.StatusOK,
+		contentType: "application/json",
+		body:        body,
+	}
 }
 
 func (fi *Server) handleFlushPayloads(w http.ResponseWriter, req *http.Request) {
