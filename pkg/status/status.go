@@ -98,9 +98,7 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 		stats["filterErrors"] = containers.GetFilterErrors()
 	}
 
-	if config.Datadog.GetBool("remote_configuration.enabled") {
-		stats["remoteConfiguration"] = getRemoteConfigStatus()
-	}
+	stats["remoteConfiguration"] = getRemoteConfigStatus()
 	return stats, nil
 }
 

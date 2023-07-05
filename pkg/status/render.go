@@ -97,10 +97,7 @@ func FormatStatus(data []byte) (string, error) {
 		return nil
 	}
 	remoteConfigFunc := func() error {
-		if config.Datadog.GetBool("remote_configuration.enabled") {
-			return RenderStatusTemplate(b, "/remoteconfig.tmpl", stats)
-		}
-		return nil
+		return RenderStatusTemplate(b, "/remoteconfig.tmpl", stats)
 	}
 	otlpFunc := func() error {
 		if otlp.IsDisplayed() {

@@ -8,7 +8,7 @@ Remote Configuration
     {{ with .remoteConfiguration }}
     API Key: {{ if .apiKeyScoped }}Authorized{{ else }}Not authorized{{ end }}
     Feature: {{ if .orgEnabled }}Enabled{{ else }}Disabled{{ end }}
-    {{- if .lastError }}
-    Last error: {{ .lastError }}
-    {{- end }}
+    Last error: {{ if .lastError }}{{ .lastError }}{{ else }}None{{ end }}
+    {{ else }}
+    Remote Configuration is disabled
     {{ end }}
