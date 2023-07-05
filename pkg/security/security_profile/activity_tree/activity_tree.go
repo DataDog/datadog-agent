@@ -86,6 +86,13 @@ type cookieSelector struct {
 	cookie   uint32
 }
 
+func (cs *cookieSelector) isSet() bool {
+	if cs.execTime != 0 && cs.cookie != 0 {
+		return true
+	}
+	return false
+}
+
 // ActivityTree contains a process tree and its activities. This structure has no locks.
 type ActivityTree struct {
 	Stats *ActivityTreeStats
@@ -97,8 +104,8 @@ type ActivityTree struct {
 	validator    ActivityTreeOwner
 	pathsReducer *PathsReducer
 
-	CookieToProcessNode map[cookieSelector]*ProcessNode `json:"-"`
-	ProcessNodes        []*ProcessNode                  `json:"-"`
+	CookieToProcessNode map[cookieSelector]*ProcessNode
+	ProcessNodes        []*ProcessNode `json:"-"`
 
 	// top level lists used to summarize the content of the tree
 	DNSNames     *utils.StringKeys
@@ -352,6 +359,13 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 	return nil
 }
 
+func eventHaveValidCookie(entry *model.ProcessCacheEntry) bool {
+	if !entry.ExecTime.IsZero() && entry.Cookie != 0 {
+		return true
+	}
+	return false
+}
+
 // CreateProcessNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch []*model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.Resolvers) (node *ProcessNode, newProcessNode bool, err error) {
@@ -365,7 +379,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 
 	// look for a ProcessActivityNode by process cookie
 	cs := cookieSelector{}
-	if entry.ExecTime.UnixNano() != 0 && entry.Cookie != 0 {
+	if eventHaveValidCookie(entry) {
 		cs = cookieSelector{
 			execTime: entry.ExecTime.UnixNano(),
 			cookie:   entry.Cookie,
@@ -379,7 +393,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 
 	defer func() {
 		// if a node was found, and if the entry has a valid cookie, insert a cookie shortcut
-		if cs.cookie != 0 && node != nil {
+		if cs.isSet() && node != nil {
 			at.CookieToProcessNode[cs] = node
 		}
 	}()
