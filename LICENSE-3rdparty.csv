@@ -1055,9 +1055,9 @@ core,github.com/klauspost/compress/zip,BSD-3-Clause,Copyright (c) 2011 The Snapp
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/pgzip,MIT,Copyright (c) 2014 Klaus Post
-core,github.com/knadh/koanf,MIT,"Copyright (c) 2019, Kailash Nadh. https://github.com/knadh"
 core,github.com/knadh/koanf/maps,MIT,"Copyright (c) 2019, Kailash Nadh. https://github.com/knadh"
 core,github.com/knadh/koanf/providers/confmap,MIT,"Copyright (c) 2019, Kailash Nadh. https://github.com/knadh"
+core,github.com/knadh/koanf/v2,MIT,"Copyright (c) 2019, Kailash Nadh. https://github.com/knadh"
 core,github.com/knqyf263/go-apk-version,Apache-2.0,Copyright (c) 2020 Teppei Fukuda (knqyf263)
 core,github.com/knqyf263/go-deb-version,MIT,Copyright (c) 2017 Teppei Fukuda
 core,github.com/knqyf263/go-rpm-version,MIT,Copyright (c) 2017 Teppei Fukuda
