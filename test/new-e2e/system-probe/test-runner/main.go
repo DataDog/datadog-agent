@@ -111,36 +111,6 @@ func pathToPackage(path string) string {
 	return dir
 }
 
-func testsToRunArg(pkg string, failedTests map[string][]string) string {
-	var subTests []string
-	if _, ok := failedTests[pkg]; !ok {
-		return ""
-	}
-
-	testLs := failedTests[pkg]
-	// We only want to run the subtests which actually failed.
-	for _, test := range testLs {
-		hasSubtest := false
-		for _, t := range testLs {
-			if test == t {
-				continue
-			}
-			if strings.HasPrefix(t, test) {
-				hasSubtest = true
-				break
-			}
-		}
-		if !hasSubtest {
-			subTests = append(subTests, test)
-		}
-	}
-
-	commaSeperatedLs := strings.Join(subTests, ",")
-	fmt.Println(color.YellowString("Rerunning %d failed tests [%s]", len(subTests), commaSeperatedLs))
-
-	return fmt.Sprintf("-test.run=%s", commaSeperatedLs)
-}
-
 func buildCommandArgs(junitPath string, jsonPath string, file string, retryCnt int) []string {
 	pkg := generatePackageName(file)
 	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
@@ -230,8 +200,6 @@ func buildCIVisibilityDirs() error {
 }
 
 func testPass(testConfig *TestConfig) error {
-	var err error
-
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
 		dir := pathToPackage(path)
 		for _, p := range testConfig.excludePackages {
