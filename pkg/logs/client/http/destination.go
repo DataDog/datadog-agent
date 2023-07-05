@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
@@ -114,7 +115,7 @@ func newDestination(endpoint config.Endpoint,
 	var policy backoff.Policy
 	if endpoint.Origin == config.ServerlessIntakeOrigin {
 		policy = backoff.NewConstantBackoffPolicy(
-			backoff.ServerlessDefaultBackoffInterval,
+			coreConfig.Datadog.GetDuration("serverless.constant_backoff_interval"),
 		)
 	} else {
 		policy = backoff.NewExpBackoffPolicy(
