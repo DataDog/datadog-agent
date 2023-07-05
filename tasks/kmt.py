@@ -1,20 +1,21 @@
-from invoke import task
 import re
 from glob import glob
+
+from invoke import task
+
+from .kernel_matrix_testing import stacks, vmconfig
+from .kernel_matrix_testing.download import revert_kernel_packages, revert_rootfs, update_kernel_packages, update_rootfs
 from .kernel_matrix_testing.init_kmt import (
-    KMT_DIR,
-    KMT_STACKS_DIR,
-    KMT_PACKAGES_DIR,
-    KMT_KHEADERS_DIR,
     KMT_BACKUP_DIR,
+    KMT_DIR,
+    KMT_KHEADERS_DIR,
+    KMT_PACKAGES_DIR,
     KMT_ROOTFS_DIR,
+    KMT_STACKS_DIR,
+    check_and_get_stack,
     init_kernel_matrix_testing_system,
 )
-from .kernel_matrix_testing import vmconfig
-from .kernel_matrix_testing import stacks
-from .kernel_matrix_testing.tool import info, warn, ask, Exit
-from .kernel_matrix_testing.download import update_kernel_packages, update_rootfs, revert_kernel_packages, revert_rootfs
-from .kernel_matrix_testing.init_kmt import check_and_get_stack
+from .kernel_matrix_testing.tool import Exit, ask, info, warn
 
 try:
     from tabulate import tabulate

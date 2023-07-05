@@ -1,16 +1,16 @@
-from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
-from .download import archs_mapping, karch_mapping, url_base
-from .stacks import stack_exists, create_stack, X86_INSTANCE_TYPE, ARM_INSTANCE_TYPE
-import platform
-import math
-import json
 import itertools
+import json
+import math
 import os
-from .tool import Exit, ask, warn, info
+import platform
+
+from .download import archs_mapping, karch_mapping, url_base
+from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
+from .stacks import ARM_INSTANCE_TYPE, X86_INSTANCE_TYPE, create_stack, stack_exists
+from .tool import Exit, ask, info, warn
 
 try:
-    from thefuzz import process
-    from thefuzz import fuzz
+    from thefuzz import fuzz, process
 except ImportError:
     process = None
     fuzz = None

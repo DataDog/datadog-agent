@@ -1,9 +1,10 @@
-from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
-from .libvirt import delete_domains, delete_volumes, delete_pools, delete_networks, pause_domains, resume_domains
+import getpass
 import json
 import os
-from .tool import Exit, info, ask, error, warn
-import getpass
+
+from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
+from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains
+from .tool import Exit, ask, error, info, warn
 
 try:
     import libvirt

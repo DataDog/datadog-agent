@@ -1,9 +1,10 @@
-from .tool import Exit, info, debug, warn
+import filecmp
+import os
+import platform
 import tempfile
 from glob import glob
-import filecmp
-import platform
-import os
+
+from .tool import Exit, debug, info, warn
 
 try:
     import requests
