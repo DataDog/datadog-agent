@@ -65,6 +65,7 @@ type oscapIO struct {
 	RuleCh   chan *oscapIORule
 	ResultCh chan *oscapIOResult
 	ErrorCh  chan error
+	DoneCh   chan bool
 }
 
 // From pkg/collector/corechecks/embed/process_agent.go.
@@ -83,6 +84,7 @@ func newOSCAPIO(file string) *oscapIO {
 		RuleCh:   make(chan *oscapIORule, 0),
 		ResultCh: make(chan *oscapIOResult, 0),
 		ErrorCh:  make(chan error, 0),
+		DoneCh:   make(chan bool, 0),
 	}
 }
 
@@ -223,9 +225,8 @@ func (p *oscapIO) Stop() {
 	oscapIOsMu.Lock()
 	defer oscapIOsMu.Unlock()
 	oscapIOs[p.File] = nil
-	close(p.RuleCh)
 	close(p.ResultCh)
-	close(p.ErrorCh)
+	close(p.DoneCh)
 }
 
 func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {
@@ -265,6 +266,13 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 	for _, req := range reqs {
 		select {
 		case <-ctx.Done():
+			return nil
+		case <-p.DoneCh:
+			// The oscap-io process has been terminated.
+			for _, req := range reqs {
+				log.Warnf("dropping rule '%s %s'", req.Profile, req.Rule)
+			}
+			close(p.RuleCh)
 			return nil
 		case p.RuleCh <- req:
 		}
