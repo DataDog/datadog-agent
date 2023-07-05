@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux_bpf
 
 package net
 
@@ -173,9 +173,9 @@ func lookupUser(t *testing.T, name string) (usrIDstr string, grpIDstr string) {
 	return usr.Username, grp.Name
 }
 
-func checkIfRoot(t *testing.T) {
-	if os.Geteuid() != 0 {
-		t.Skipf("this test need to be run as root as we need to scan /proc/pid/exe content")
+func checkIfHostProc(t *testing.T) {
+	if os.Getenv("HOST_PROC") == "" && os.Geteuid() == 0 {
+		t.Skipf("this test need to be run as root with HOST_PROC as we need to scan sudo -u nobody -g nogroup /proc/pid/exe content")
 	}
 }
 
@@ -187,8 +187,8 @@ func checkIfSudoExistAndNotInteractive(t *testing.T) {
 	}
 }
 
-func TestHttpServe(t *testing.T) {
-	checkIfRoot(t)
+func TestHttpServeAuth(t *testing.T) {
+	checkIfHostProc(t)
 	checkIfSudoExistAndNotInteractive(t)
 
 	curl, err := exec.LookPath("curl")
@@ -229,8 +229,14 @@ func TestHttpServe(t *testing.T) {
 		}
 		require.Equal(t, "", f.request)
 	})
+}
 
-	auth = false
+func TestHttpServeNoAuth(t *testing.T) {
+	checkIfSudoExistAndNotInteractive(t)
+
+	uidStr, gidStr := lookupUser(t, "nobody")
+
+	auth := false
 	t.Run("root is valid (auth disabled)", func(t *testing.T) {
 		f := &fakeHandler{t: t}
 		err := testHttpServe(t, false, f, []string{"sudo"}, auth, "always access")

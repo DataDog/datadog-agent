@@ -122,9 +122,9 @@ func lookupUser(t *testing.T, name string) (usrIDstr string, grpIDstr string) {
 	return usr.Username, grp.Name
 }
 
-func checkIfRoot(t *testing.T) {
-	if os.Geteuid() != 0 {
-		t.Skipf("this test need to be run as root as we need to scan /proc/pid/exe content")
+func checkIfHostProc(t *testing.T) {
+	if os.Getenv("HOST_PROC") == "" && os.Geteuid() == 0 {
+		t.Skipf("this test need to be run as root with HOST_PROC as we need to scan sudo -u nobody -g nogroup /proc/pid/exe content")
 	}
 }
 
@@ -137,7 +137,7 @@ func checkIfSudoExistAndNotInteractive(t *testing.T) {
 }
 
 func TestGRPCServerAuth(t *testing.T) {
-	checkIfRoot(t)
+	checkIfHostProc(t)
 	checkIfSudoExistAndNotInteractive(t)
 
 	grpcurl, sigGrpcurl := installGoGRPCClient(t)
@@ -163,10 +163,17 @@ func TestGRPCServerAuth(t *testing.T) {
 	t.Run("nobody:nogroup no access", func(t *testing.T) {
 		testGRPCServe(t, true, grpcurl, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, "bad sig")
 	})
+}
 
-	auth = false
+func TestGRPCServerNoAuth(t *testing.T) {
+	checkIfSudoExistAndNotInteractive(t)
+
+	grpcurl, _ := installGoGRPCClient(t)
+	uidStr, gidStr := lookupUser(t, "nobody")
+
+	auth := false
 	t.Run("root always valid auth socket disabled", func(t *testing.T) {
-		testGRPCServe(t, false, grpcurl, []string{"sudo"}, auth, sigGrpcurl)
+		testGRPCServe(t, false, grpcurl, []string{"sudo"}, auth, "bad sig must be ok")
 	})
 	t.Run("nobody:nogroup access auth socket disabled", func(t *testing.T) {
 		testGRPCServe(t, false, grpcurl, []string{"sudo", "-u", uidStr, "-g", gidStr}, auth, "bad sig must be ok")

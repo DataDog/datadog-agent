@@ -1733,7 +1733,8 @@ api_key:
 
   ## @param sysprobe_auth_socket - boolean - optional - default: false
   ## @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_AUTH_SOCKET - boolean - optional - default: false
-  ## Set to true to enable the socket authentification via dd-agent user
+  ## Set to true to enable the socket authentication through the client
+  ## binary signature
   #
   # sysprobe_auth_socket: false
 {{ end }}
@@ -1880,7 +1881,8 @@ api_key:
 
   ## @param auth_socket - boolean - optional - default: false
   ## @env DD_RUNTIME_SECURITY_CONFIG_AUTH_SOCKET - boolean - optional - default: false
-  ## Set to true to enable the socket authentification via dd-agent user
+  ## Set to true to enable the socket authentication through the client
+  ## binary signature
   #
   # auth_socket: false
 
