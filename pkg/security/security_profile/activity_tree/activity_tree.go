@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -216,8 +217,8 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 }
 
 // Insert inserts the event in the activity tree
-func (at *ActivityTree) Insert(event *model.Event, generationType NodeGenerationType) (bool, error) {
-	newEntry, err := at.insert(event, false, generationType)
+func (at *ActivityTree) Insert(event *model.Event, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
+	newEntry, err := at.insert(event, false, generationType, resolvers)
 	if newEntry {
 		// this doesn't count the exec events which are counted separately
 		at.Stats.addedCount[event.GetEventType()][generationType].Inc()
@@ -226,13 +227,13 @@ func (at *ActivityTree) Insert(event *model.Event, generationType NodeGeneration
 }
 
 // Contains looks up the event in the activity tree
-func (at *ActivityTree) Contains(event *model.Event, generationType NodeGenerationType) (bool, error) {
-	newEntry, err := at.insert(event, true, generationType)
+func (at *ActivityTree) Contains(event *model.Event, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
+	newEntry, err := at.insert(event, true, generationType, resolvers)
 	return !newEntry, err
 }
 
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
-func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType NodeGenerationType) (bool, error) {
+func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
 	// sanity check
 	if generationType == Unknown || generationType > MaxNodeGenerationType {
 		return false, fmt.Errorf("invalid generation type: %v", generationType)
@@ -243,7 +244,7 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 		return false, fmt.Errorf("invalid event: %s", err)
 	}
 
-	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, nil, generationType, dryRun)
+	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, nil, generationType, dryRun, resolvers)
 	if err != nil {
 		return false, err
 	}
@@ -275,7 +276,7 @@ func (at *ActivityTree) insert(event *model.Event, dryRun bool, generationType N
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 		return newProcessNode, nil
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun, at.pathsReducer), nil
+		return node.InsertFileEvent(&event.Open.File, event, generationType, at.Stats, dryRun, at.pathsReducer, resolvers), nil
 	case model.DNSEventType:
 		return node.InsertDNSEvent(event, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
 	case model.BindEventType:
@@ -348,7 +349,7 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 
 // CreateProcessNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
-func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch []*model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool) (node *ProcessNode, newProcessNode bool, err error) {
+func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch []*model.ProcessCacheEntry, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.Resolvers) (node *ProcessNode, newProcessNode bool, err error) {
 	if entry == nil {
 		return nil, false, nil
 	}
@@ -377,7 +378,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
-	parentNode, newProcessNode, err := at.CreateProcessNode(GetNextAncestorBinaryOrArgv0(&entry.ProcessContext), branch, Snapshot, dryRun)
+	parentNode, newProcessNode, err := at.CreateProcessNode(GetNextAncestorBinaryOrArgv0(&entry.ProcessContext), branch, Snapshot, dryRun, resolvers)
 	if err != nil || (newProcessNode && dryRun) {
 		// Explanation of (newProcessNode && dryRun): when dryRun is on, we can return as soon as we
 		// see something new in the tree. Although `newProcessNode` and `err` seem to be tied (i.e. newProcessNode is
@@ -396,7 +397,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 		}
 
 		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
-		if branchRoot, newChildNode := at.findBranchInChildrenNodes(&at.ProcessNodes, branch, dryRun, generationType); branchRoot != nil {
+		if branchRoot, newChildNode := at.findBranchInChildrenNodes(&at.ProcessNodes, branch, dryRun, generationType, resolvers); branchRoot != nil {
 			return branchRoot, newChildNode, nil
 		}
 
@@ -407,7 +408,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
 		if !dryRun {
-			node = NewProcessNode(entry, generationType)
+			node = NewProcessNode(entry, generationType, resolvers)
 			// insert in the list of root entries
 			at.ProcessNodes = append(at.ProcessNodes, node)
 			at.Stats.ProcessNodes++
@@ -417,14 +418,14 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 		// if parentNode wasn't nil, then (at least) the parent is part of the activity dump. This means that we need
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
 		// parent node and check if one of them matches the input ProcessCacheEntry.
-		branchRoot, newChildNode := at.findBranchInChildrenNodes(&parentNode.Children, branch, dryRun, generationType)
+		branchRoot, newChildNode := at.findBranchInChildrenNodes(&parentNode.Children, branch, dryRun, generationType, resolvers)
 		if branchRoot != nil {
 			return branchRoot, newChildNode || newProcessNode, nil
 		}
 
 		// we haven't found anything, create a new ProcessActivityNode for the input processCacheEntry
 		if !dryRun {
-			node = NewProcessNode(entry, generationType)
+			node = NewProcessNode(entry, generationType, resolvers)
 			// insert in the list of children
 			parentNode.Children = append(parentNode.Children, node)
 			at.Stats.ProcessNodes++
@@ -443,7 +444,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 
 // findBranchInChildrenNodes looks for the provided branch in the list of children. Returns the node that matches the
 // first node of the branch and true if a new entry was inserted.
-func (at *ActivityTree) findBranchInChildrenNodes(tree *[]*ProcessNode, branch []*model.ProcessCacheEntry, dryRun bool, generationType NodeGenerationType) (*ProcessNode, bool) {
+func (at *ActivityTree) findBranchInChildrenNodes(tree *[]*ProcessNode, branch []*model.ProcessCacheEntry, dryRun bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (*ProcessNode, bool) {
 	for i, branchCursor := range branch {
 
 		// look for branchCursor in the tree
@@ -467,7 +468,7 @@ func (at *ActivityTree) findBranchInChildrenNodes(tree *[]*ProcessNode, branch [
 			//   parentNode (owner of tree) -> children[0] -> children[i-1] -> treeNodeToRebase
 
 			// start by appending the entry
-			newNodesRoot := NewProcessNode(branch[0], generationType)
+			newNodesRoot := NewProcessNode(branch[0], generationType, resolvers)
 			*tree = append(*tree, newNodesRoot)
 			at.Stats.ProcessNodes++
 			at.Stats.addedCount[model.ExecEventType][generationType].Inc()
@@ -475,7 +476,7 @@ func (at *ActivityTree) findBranchInChildrenNodes(tree *[]*ProcessNode, branch [
 			// now add the children
 			childrenCursor := newNodesRoot
 			for _, eventExecChildTmp := range branch[1:i] {
-				n := NewProcessNode(eventExecChildTmp, generationType)
+				n := NewProcessNode(eventExecChildTmp, generationType, resolvers)
 				childrenCursor.Children = append(childrenCursor.Children, n)
 				at.Stats.ProcessNodes++
 				at.Stats.addedCount[model.ExecEventType][generationType].Inc()
