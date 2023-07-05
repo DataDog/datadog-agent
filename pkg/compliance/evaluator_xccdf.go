@@ -21,11 +21,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
+	"github.com/DataDog/datadog-agent/pkg/compliance/scap"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
+)
+
+const (
+	enableSysChar = false
 )
 
 const (
@@ -46,6 +51,7 @@ type oscapIORule struct {
 type oscapIOResult struct {
 	Rule   string
 	Result int
+	Data   map[string]interface{}
 }
 
 var (
@@ -94,6 +100,9 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	}
 
 	args := []string{}
+	if enableSysChar {
+		args = append(args, "-syschar")
+	}
 	args = append(args, p.File)
 
 	binPath, err := getOSCAPIODefaultBinPath()
@@ -129,13 +138,27 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		return err
 	}
 
-	scanner := bufio.NewScanner(stdout)
+	r := bufio.NewReader(stdout)
 	go func() {
-		for scanner.Scan() {
-			log.Debugf("<- %s", scanner.Text())
-			line := strings.Split(scanner.Text(), " ")
+		for {
+			s, err := r.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				p.ErrorCh <- fmt.Errorf("error reading line: '%v'", s)
+				continue
+			}
+			s = strings.TrimRight(s, "\n")
+
+			if s == "" {
+				continue
+			}
+
+			log.Debugf("<- %s", s)
+			line := strings.Split(s, " ")
 			if len(line) != 2 {
-				p.ErrorCh <- fmt.Errorf("invalid output: %v", line)
+				p.ErrorCh <- fmt.Errorf("invalid output: '%v'", line)
 				continue
 			}
 			result, err := strconv.Atoi(line[1])
@@ -143,7 +166,26 @@ func (p *oscapIO) Run(ctx context.Context) error {
 				p.ErrorCh <- fmt.Errorf("strconv.Atoi '%s': %v", line[1], err)
 				continue
 			}
-			p.ResultCh <- &oscapIOResult{Rule: line[0], Result: result}
+
+			data := make(map[string]interface{}, 0)
+
+			if enableSysChar {
+				doc, err := scap.ReadDocument(r)
+				if err != nil {
+					p.ErrorCh <- fmt.Errorf("scap.ReadDocument: %v", err)
+					continue
+				}
+
+				syschar, err := scap.SysChar(doc)
+				if err != nil {
+					p.ErrorCh <- fmt.Errorf("scap.SysChar: %v", err)
+					continue
+				}
+
+				data["system_characteristics"] = syschar
+			}
+
+			p.ResultCh <- &oscapIOResult{Rule: line[0], Result: result, Data: data}
 		}
 	}()
 
@@ -246,9 +288,9 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 			var event *CheckEvent
 			switch ruleResult.Result {
 			case XCCDF_RESULT_PASS:
-				event = NewCheckEvent(XCCDFEvaluator, CheckPassed, nil, hostname, "host", rule, benchmark)
+				event = NewCheckEvent(XCCDFEvaluator, CheckPassed, ruleResult.Data, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_FAIL:
-				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, nil, hostname, "host", rule, benchmark)
+				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, ruleResult.Data, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
 				errReason := fmt.Errorf("XCCDF_RESULT_ERROR")
 				event = NewCheckError(XCCDFEvaluator, errReason, hostname, "host", rule, benchmark)
