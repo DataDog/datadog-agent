@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -147,7 +148,7 @@ func (le *LeaderEngine) init() error {
 	le.coreClient = apiClient.Cl.CoreV1()
 	le.coordClient = apiClient.Cl.CoordinationV1()
 
-	usingLease, err := CanUseLease(apiClient.DiscoveryCl)
+	usingLease, err := CanUseLeases(apiClient.DiscoveryCl)
 	if err != nil {
 		log.Errorf("Unable to retrieve available resources: %v", err)
 		return err
@@ -265,7 +266,7 @@ func (le *LeaderEngine) Subscribe() <-chan struct{} {
 	return c
 }
 
-func CanUseLease(client discovery.DiscoveryInterface) (bool, error) {
+func detectLeases(client discovery.DiscoveryInterface) (bool, error) {
 	resourceList, err := client.ServerResourcesForGroupVersion("coordination.k8s.io/v1")
 	if kerrors.IsNotFound(err) {
 		return false, nil
@@ -280,6 +281,23 @@ func CanUseLease(client discovery.DiscoveryInterface) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// CanUseLeases returns if leases can be used for leader election. If the resource is defined in the config
+// It uses it. Otherwise it uses the discovery client for leader election.
+func CanUseLeases(client discovery.DiscoveryInterface) (bool, error) {
+	config := config.Datadog.GetString("leader_election_default_resource")
+	if strings.Contains(config, "lease") {
+		return true, nil
+	} else if strings.Contains(config, "configmap") {
+		return false, nil
+	}
+
+	if config != "" {
+		log.Warnf("Unknown resource lock for leader election [%s]. Using the discovery client to select the lock", config)
+	}
+
+	return detectLeases(client)
 }
 
 func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface) (rl.LeaderElectionRecord, error) {
@@ -318,7 +336,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	if err != nil {
 		return led, err
 	}
-	usingLease, err := CanUseLease(client.DiscoveryCl)
+	usingLease, err := CanUseLeases(client.DiscoveryCl)
 	if err != nil {
 		return led, err
 	}

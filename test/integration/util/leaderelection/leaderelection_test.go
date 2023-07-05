@@ -222,7 +222,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	}
 
 	c, err := apiserver.GetAPIClient()
-	usingLease, err := leaderelection.CanUseLease(c.DiscoveryCl)
+	usingLease, err := leaderelection.CanUseLeases(c.DiscoveryCl)
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), usingLease, suite.usingLease)
 
