@@ -33,6 +33,6 @@ func CheckPath(path string) error {
 }
 
 // IsUnixNetConnValid is always return true, as there are no support of SO_PEERCRED socket option on this platform
-func IsUnixNetConnValid(unixConn *net.UnixConn, allowedUsrID int, allowedGrpID int) (bool, error) {
+func IsUnixNetConnValid(unixConn *net.UnixConn, sig string) (bool, error) {
 	return true, nil
 }

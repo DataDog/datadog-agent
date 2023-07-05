@@ -35,7 +35,7 @@ func (wp *WindowsPipeListener) Stop() {
 }
 
 // HttpServe is equivalent to http.Serve()
-// authSocket, allowedUsrID, allowedGrpID are unused, as windows doesn't support credential
-func HttpServe(l net.Listener, handler http.Handler, authSocket bool, allowedUsrID int, allowedGrpID int) error {
+// authSocket are unused, as windows doesn't support credential
+func HttpServe(l net.Listener, handler http.Handler, authSocket bool) error {
 	return http.Serve(l, handler)
 }
