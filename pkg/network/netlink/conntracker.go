@@ -96,8 +96,8 @@ var conntrackerTelemetry = struct {
 	telemetry.NewCounter(telemetryModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the map"),
 	telemetry.NewCounter(telemetryModuleName, "evicts_total", []string{}, "Counter measuring the number of evictions from the conntrack cache"),
 	telemetry.NewCounter(telemetryModuleName, "registers_dropped", []string{}, "Counter measuring the number of skipped registers due to a non-NAT connection"),
-	prometheus.NewDesc(telemetryModuleName+".state_size", "Gauge measuring the current size of the conntrack cache", nil, nil),
-	prometheus.NewDesc(telemetryModuleName+".orphan_size", "Gauge measuring the number of orphaned items in the conntrack cache", nil, nil),
+	prometheus.NewDesc(telemetryModuleName+"__state_size", "Gauge measuring the current size of the conntrack cache", nil, nil),
+	prometheus.NewDesc(telemetryModuleName+"__orphan_size", "Gauge measuring the number of orphaned items in the conntrack cache", nil, nil),
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size

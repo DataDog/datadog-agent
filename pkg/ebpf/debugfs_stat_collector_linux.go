@@ -14,7 +14,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
-
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,18 +26,19 @@ func init() {
 }
 
 type DebugFsStatCollector struct {
-	hits   *prometheus.Desc
-	misses *prometheus.Desc
+	hits           *prometheus.Desc
+	misses         *prometheus.Desc
+	lastProbeStats map[string]int
 }
 
 func NewDebugFsStatCollector() *DebugFsStatCollector {
 	return &DebugFsStatCollector{
-		hits:   prometheus.NewDesc(kProbeTelemetryName+".hits", "Gauge tracking number of kprobe hits", nil, nil),
-		misses: prometheus.NewDesc(kProbeTelemetryName+".misses", "Gauge tracking number of kprobe misses", nil, nil),
+		hits:   prometheus.NewDesc(kProbeTelemetryName+"__hits", "Gauge tracking number of kprobe hits", []string{"name"}, nil),
+		misses: prometheus.NewDesc(kProbeTelemetryName+"__misses", "Gauge tracking number of kprobe misses", []string{"name"}, nil),
 	}
 }
 
-func (collector *DebugFsStatCollector) updateProbeStats(pid int, profile string, ch chan<- prometheus.Metric) {
+func (c *DebugFsStatCollector) updateProbeStats(pid int, profile string, ch chan<- prometheus.Metric) {
 	if pid == 0 {
 		pid = myPid
 	}
@@ -63,17 +63,21 @@ func (collector *DebugFsStatCollector) updateProbeStats(pid int, profile string,
 			event = parts[1]
 		}
 		event = strings.ToLower(event)
-		ch <- prometheus.MustNewConstMetric(collector.hits, prometheus.GaugeValue, float64(st.Hits), event)
-		ch <- prometheus.MustNewConstMetric(collector.misses, prometheus.GaugeValue, float64(st.Misses), event)
+		hitsKey := "h_" + event
+		missesKey := "m_" + event
+		ch <- prometheus.MustNewConstMetric(c.hits, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[hitsKey]), event)
+		c.lastProbeStats[hitsKey] = int(st.Hits)
+		ch <- prometheus.MustNewConstMetric(c.misses, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[missesKey]), event)
+		c.lastProbeStats[missesKey] = int(st.Misses)
 	}
 }
 
-func (collector *DebugFsStatCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- collector.hits
-	ch <- collector.misses
+func (c *DebugFsStatCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.hits
+	ch <- c.misses
 }
 
-func (collector *DebugFsStatCollector) Collect(ch chan<- prometheus.Metric) {
+func (c *DebugFsStatCollector) Collect(ch chan<- prometheus.Metric) {
 
 	root, err := tracefs.Root()
 	if err != nil {
@@ -81,6 +85,6 @@ func (collector *DebugFsStatCollector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	collector.updateProbeStats(0, filepath.Join(root, "kprobe_profile"), ch)
-	collector.updateProbeStats(0, filepath.Join(root, "uprobe_profile"), ch)
+	c.updateProbeStats(0, filepath.Join(root, "kprobe_profile"), ch)
+	c.updateProbeStats(0, filepath.Join(root, "uprobe_profile"), ch)
 }
