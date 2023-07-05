@@ -149,7 +149,7 @@ def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backu
     )
     if not res.ok:
         if revert:
-            revert_kernel_packages(ctx)
+            revert_kernel_packages(ctx, kernel_packages_dir, backup_dir)
         raise Exit("Failed to download kernel pacakges")
 
     res = ctx.run(
@@ -158,14 +158,14 @@ def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backu
     )
     if not res.ok:
         if revert:
-            revert_kernel_packages(ctx)
+            revert_kernel_packages(ctx, kernel_packages_dir, backup_dir)
         raise Exit("Failed to download kernel pacakges checksum")
 
     # extract pacakges
     res = ctx.run(f"cd {kernel_packages_dir} && tar xvf {kernel_packages_tar} | xargs -i tar xzf {{}}")
     if not res.ok:
         if revert:
-            revert_kernel_packages(ctx)
+            revert_kernel_packages(ctx, kernel_packages_dir, backup_dir)
         raise Exit("Failed to extract kernel packages")
 
     # set permissions
@@ -187,7 +187,7 @@ def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backu
     )
     if not res.ok:
         if revert:
-            revert_kernel_packages(ctx)
+            revert_kernel_packages(ctx, kernel_packages_dir, backup_dir)
         raise Exit(f"failed to copy kernel headers to shared dir {kernel_headers_dir}")
 
 

@@ -56,13 +56,13 @@ def destroy_stack(ctx, stack=None, branch=False, force=False, ssh_key=""):
 
 
 @task
-def pause_stack(ctx, stack=None, branch=False):
-    stacks.pause_stack(ctx, stack, branch)
+def pause_stack(stack=None, branch=False):
+    stacks.pause_stack(stack, branch)
 
 
 @task
-def resume_stack(ctx, stack=None, branch=False):
-    stacks.resume_stack(ctx, stack, branch)
+def resume_stack(stack=None, branch=False):
+    stacks.resume_stack(stack, branch)
 
 
 @task
@@ -75,7 +75,7 @@ def stack(ctx, stack=None, branch=False):
 
 
 @task
-def ls(ctx, distro=False, custom=False):
+def ls(_, distro=False, custom=False):
     print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 

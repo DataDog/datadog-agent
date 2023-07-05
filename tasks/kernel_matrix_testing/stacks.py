@@ -156,9 +156,7 @@ def is_ec2_ip_entry(entry):
 
 def ec2_instance_ids(ctx, ip_list):
     ip_addresses = ','.join(ip_list)
-    list_instances_cmd = "aws-vault exec sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={private_ips}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text".format(
-        private_ips=ip_addresses
-    )
+    list_instances_cmd = f"aws-vault exec sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
 
     res = ctx.run(list_instances_cmd, warn=True)
     if not res.ok:
@@ -236,7 +234,7 @@ def destroy_stack(ctx, stack, branch, force, ssh_key):
     ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
 
 
-def pause_stack(ctx, stack=None, branch=False):
+def pause_stack(stack=None, branch=False):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -245,7 +243,7 @@ def pause_stack(ctx, stack=None, branch=False):
     conn.close()
 
 
-def resume_stack(ctx, stack=None, branch=False):
+def resume_stack(stack=None, branch=False):
     stack = check_and_get_stack(stack, branch)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
