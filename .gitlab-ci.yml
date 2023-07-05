@@ -859,6 +859,9 @@ workflow:
       - .gitlab/kernel_version_testing/system_probe.yml
       - test/new-e2e/system-probe/**/*
       - test/new-e2e/scenarios/system-probe/**/*
+      - test/new-e2e/runner/**/*
+      - test/new-e2e-utils/**/*
+      - test/new-e2e/go.mod
     when: on_success
   - when: manual
     allow_failure: true
