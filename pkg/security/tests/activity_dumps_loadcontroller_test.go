@@ -33,7 +33,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	}
 
 	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
+
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
 	opts := testOpts{
@@ -96,7 +96,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	}
 
 	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
+
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
@@ -172,10 +172,6 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 }
 
 func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
-	if os.Getenv("CI") == "true" {
-		t.Skip("Flaky test, skip it")
-	}
-
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -188,7 +184,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	}
 
 	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
+
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{

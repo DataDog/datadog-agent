@@ -280,7 +280,9 @@ func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
 	values, err := model.UnmarshalStringArray(data)
 	if err != nil || len(data) == model.MaxArgEnvSize {
-		values[len(values)-1] += "..."
+		if len(values) > 0 {
+			values[len(values)-1] += "..."
+		}
 		truncated = true
 	}
 	return values, truncated
@@ -1268,14 +1270,6 @@ func (p *Resolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 	for _, entry := range p.entryCache {
 		callback(entry)
 	}
-}
-
-// HasCompleteLineage returns whether the lineage is complete
-func (p *Resolver) HasCompleteLineage(entry *model.ProcessCacheEntry) bool {
-	p.RLock()
-	defer p.RUnlock()
-
-	return entry.HasCompleteLineage()
 }
 
 // NewResolver returns a new process resolver

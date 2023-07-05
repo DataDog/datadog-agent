@@ -516,3 +516,13 @@ func (fh *FieldHandlers) ResolveModuleArgs(ev *model.Event, module *model.LoadMo
 	}
 	return module.Args
 }
+
+// ResolveHashesFromEvent resolves the hashes of the requested event
+func (fh *FieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+}
+
+// ResolveHashes resolves the hashes of the requested file event
+func (fh *FieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+}

@@ -78,21 +78,39 @@ func TestNormalizeTag(t *testing.T) {
 	}
 }
 
-func benchNormalizeTag(tag string) func(b *testing.B) {
+func benchNormalize(tag string, normFn func(string) string) func(b *testing.B) {
 	return func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			NormalizeTag(tag)
+			normFn(tag)
 		}
 	}
 }
 
+type benchCase struct {
+	caseName string
+	caseVal  string
+}
+
+var benchCases = []benchCase{
+	{caseName: "ok", caseVal: "good_tag"},
+	{caseName: "trim", caseVal: "___trim_left"},
+	{caseName: "trim-both", caseVal: "___trim_right@@#!"},
+	{caseName: "plenty", caseVal: "fun:ky_ta@#g/1"},
+	{caseName: "more", caseVal: "fun:k####y_ta@#g/1_@@#"},
+}
+
 func BenchmarkNormalizeTag(b *testing.B) {
-	b.Run("ok", benchNormalizeTag("good_tag"))
-	b.Run("trim", benchNormalizeTag("___trim_left"))
-	b.Run("trim-both", benchNormalizeTag("___trim_right@@#!"))
-	b.Run("plenty", benchNormalizeTag("fun:ky_ta@#g/1"))
-	b.Run("more", benchNormalizeTag("fun:k####y_ta@#g/1_@@#"))
+	for _, c := range benchCases {
+		b.Run(c.caseName, benchNormalize(c.caseVal, NormalizeTag))
+	}
+}
+
+func BenchmarkNormalizeTagValue(b *testing.B) {
+	cases := append(benchCases, benchCase{caseName: "digit", caseVal: "1service-name"})
+	for _, c := range cases {
+		b.Run(c.caseName, benchNormalize(c.caseVal, NormalizeTagValue))
+	}
 }
 
 func TestNormalizeName(t *testing.T) {
@@ -128,70 +146,82 @@ func TestNormalizeName(t *testing.T) {
 		assert.Equal(t, testCase.err, err)
 	}
 }
+
+type serviceNormalizationCase struct {
+	service    string
+	normalized string
+	err        error
+}
+
+var svcNormCases = []serviceNormalizationCase{
+	{
+		service:    "good",
+		normalized: "good",
+		err:        nil,
+	},
+	{
+		service:    "127.0.0.1",
+		normalized: "127.0.0.1",
+		err:        nil,
+	},
+	{
+		service:    "127.site.platform-db-replica1",
+		normalized: "127.site.platform-db-replica1",
+		err:        nil,
+	},
+	{
+		service:    "hyphenated-service-name",
+		normalized: "hyphenated-service-name",
+		err:        nil,
+	},
+	{
+		service:    "🐨animal-db🐶",
+		normalized: "_animal-db",
+		err:        nil,
+	},
+	{
+		service:    "🐨1animal-db🐶",
+		normalized: "_1animal-db",
+		err:        nil,
+	},
+	{
+		service:    "1🐨1animal-db🐶",
+		normalized: "1_1animal-db",
+		err:        nil,
+	},
+	{
+		service:    "Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.",
+		normalized: "too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.",
+		err:        ErrTooLong,
+	},
+	{
+		service:    "bad$service",
+		normalized: "bad_service",
+		err:        nil,
+	},
+}
+
 func TestNormalizeService(t *testing.T) {
-	testCases := []struct {
-		service    string
-		lang       string
-		normalized string
-		err        error
-	}{
-		{
-			service:    "",
-			normalized: DefaultServiceName,
-			err:        ErrEmpty,
-		},
-		{
-			service:    "good",
-			normalized: "good",
-			err:        nil,
-		},
-		{
-			service:    "Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.",
-			normalized: "too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.",
-			err:        ErrTooLong,
-		},
-		{
-			service:    "bad$service",
-			normalized: "bad_service",
-			err:        nil,
-		},
-	}
-	for _, testCase := range testCases {
-		out, err := NormalizeService(testCase.service, testCase.lang)
+	cases := append(svcNormCases, serviceNormalizationCase{
+		service:    "",
+		normalized: DefaultServiceName,
+		err:        ErrEmpty,
+	})
+	for _, testCase := range cases {
+		out, err := NormalizeService(testCase.service, "")
 		assert.Equal(t, testCase.normalized, out)
 		assert.Equal(t, testCase.err, err)
 	}
 }
 
 func TestNormalizePeerService(t *testing.T) {
-	testCases := []struct {
-		peerService string
-		normalized  string
-		err         error
-	}{
-		{
-			peerService: "",
-			normalized:  "",
-			err:         nil,
-		},
-		{
-			peerService: "remote-service",
-			normalized:  "remote-service",
-			err:         nil,
-		},
-		{
-			peerService: "Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.Too$Long$.",
-			normalized:  "too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.too_long_.",
-			err:         ErrTooLong,
-		},
-		{
-			peerService: "bad$remote**service",
-			normalized:  "bad_remote_service",
-			err:         nil,
-		},
-	}
-	for _, testCase := range testCases {
-		out, err := NormalizePeerService(testCase.peerService)
+	cases := append(svcNormCases, serviceNormalizationCase{
+		service:    "",
+		normalized: "",
+		err:        nil,
+	})
+	for _, testCase := range cases {
+		out, err := NormalizePeerService(testCase.service)
 		assert.Equal(t, testCase.normalized, out)
 		assert.Equal(t, testCase.err, err)
 	}

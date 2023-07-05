@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -61,7 +62,7 @@ type Monitor struct {
 	http2Consumer   *events.Consumer
 	ebpfProgram     *ebpfProgram
 	http2Telemetry  *http.Telemetry
-	http2Statkeeper *http.HttpStatKeeper
+	http2Statkeeper *http.StatKeeper
 	processMonitor  *monitor.ProcessMonitor
 
 	http2Enabled   bool
@@ -84,7 +85,7 @@ type Monitor struct {
 // It is not possible to save the index by the key because we need to distinguish between the values attached to the key.
 type staticTableEntry struct {
 	Index uint64
-	Value http.StaticTableValue
+	Value http2.StaticTableValue
 }
 
 // NewMonitor returns a new Monitor instance
@@ -139,13 +140,13 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 
 	processMonitor := monitor.GetProcessMonitor()
 
-	var http2Statkeeper *http.HttpStatKeeper
+	var http2Statkeeper *http.StatKeeper
 	var http2Telemetry *http.Telemetry
 	if c.EnableHTTP2Monitoring {
 		http2Telemetry = http.NewTelemetry()
 
 		// for now the max HTTP2 entries would be taken from the maxHTTPEntries.
-		http2Statkeeper = http.NewHTTPStatkeeper(c, http2Telemetry)
+		http2Statkeeper = http.NewStatkeeper(c, http2Telemetry)
 	}
 
 	state = Running
@@ -382,7 +383,7 @@ func (m *Monitor) Stop() {
 }
 
 func (m *Monitor) processHTTP2(data []byte) {
-	tx := (*http.EbpfHttp2Tx)(unsafe.Pointer(&data[0]))
+	tx := (*http2.EbpfTx)(unsafe.Pointer(&data[0]))
 
 	m.http2Telemetry.Count(tx)
 	m.http2Statkeeper.Process(tx)
@@ -408,79 +409,79 @@ func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
 	staticTableEntries := []staticTableEntry{
 		{
 			Index: 2,
-			Value: http.StaticTableValue{
-				Key:   http.MethodKey,
-				Value: http.GetValue,
+			Value: http2.StaticTableValue{
+				Key:   http2.MethodKey,
+				Value: http2.GetValue,
 			},
 		},
 		{
 			Index: 3,
-			Value: http.StaticTableValue{
-				Key:   http.MethodKey,
-				Value: http.PostValue,
+			Value: http2.StaticTableValue{
+				Key:   http2.MethodKey,
+				Value: http2.PostValue,
 			},
 		},
 		{
 			Index: 4,
-			Value: http.StaticTableValue{
-				Key:   http.PathKey,
-				Value: http.EmptyPathValue,
+			Value: http2.StaticTableValue{
+				Key:   http2.PathKey,
+				Value: http2.EmptyPathValue,
 			},
 		},
 		{
 			Index: 5,
-			Value: http.StaticTableValue{
-				Key:   http.PathKey,
-				Value: http.IndexPathValue,
+			Value: http2.StaticTableValue{
+				Key:   http2.PathKey,
+				Value: http2.IndexPathValue,
 			},
 		},
 		{
 			Index: 8,
-			Value: http.StaticTableValue{
-				Key:   http.StatusKey,
-				Value: http.K200Value,
+			Value: http2.StaticTableValue{
+				Key:   http2.StatusKey,
+				Value: http2.K200Value,
 			},
 		},
 		{
 			Index: 9,
-			Value: http.StaticTableValue{
-				Key:   http.StatusKey,
-				Value: http.K204Value,
+			Value: http2.StaticTableValue{
+				Key:   http2.StatusKey,
+				Value: http2.K204Value,
 			},
 		},
 		{
 			Index: 10,
-			Value: http.StaticTableValue{
-				Key:   http.StatusKey,
-				Value: http.K206Value,
+			Value: http2.StaticTableValue{
+				Key:   http2.StatusKey,
+				Value: http2.K206Value,
 			},
 		},
 		{
 			Index: 11,
-			Value: http.StaticTableValue{
-				Key:   http.StatusKey,
-				Value: http.K304Value,
+			Value: http2.StaticTableValue{
+				Key:   http2.StatusKey,
+				Value: http2.K304Value,
 			},
 		},
 		{
 			Index: 12,
-			Value: http.StaticTableValue{
-				Key:   http.StatusKey,
-				Value: http.K400Value,
+			Value: http2.StaticTableValue{
+				Key:   http2.StatusKey,
+				Value: http2.K400Value,
 			},
 		},
 		{
 			Index: 13,
-			Value: http.StaticTableValue{
-				Key:   http.StatusKey,
-				Value: http.K404Value,
+			Value: http2.StaticTableValue{
+				Key:   http2.StatusKey,
+				Value: http2.K404Value,
 			},
 		},
 		{
 			Index: 14,
-			Value: http.StaticTableValue{
-				Key:   http.StatusKey,
-				Value: http.K500Value,
+			Value: http2.StaticTableValue{
+				Key:   http2.StatusKey,
+				Value: http2.K500Value,
 			},
 		},
 	}

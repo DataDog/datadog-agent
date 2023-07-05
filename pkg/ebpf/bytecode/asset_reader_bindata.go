@@ -16,6 +16,7 @@ import (
 
 //go:embed build/runtime-security.o
 //go:embed build/runtime-security-syscall-wrapper.o
+//go:embed build/runtime-security-fentry.o
 //go:embed build/runtime-security-offset-guesser.o
 var bindata embed.FS
 

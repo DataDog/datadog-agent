@@ -1,12 +1,14 @@
 # Environments configuration, validated and passed to Pulumi
 configParams:
   aws:
+    # aws account where resources will be created on
+    account: "kiki"
     # aws key pair name
-    # must be available in aws sandbox account
+    # must be available in aws account
     # required to configure EC2 instances
     keyPairName: "totoro"
     # local path to the public ssh key
-    # use the public key you registered on aws sandbox account
+    # use the public key you registered on aws account
     # required to configure Windows EC2 instances
     publicKeyPath: "/Users/totoro/.ssh/id_rsa.pub"
   agent:

@@ -9,30 +9,76 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
 )
 
+const CIVisibility = "/ci-visibility"
+
 func init() {
 	color.NoColor = false
 }
 
+func printHeader(str string) {
+	magentaString := color.New(color.FgMagenta, color.Bold).Add(color.Underline)
+	fmt.Println()
+	magentaString.Println(str)
+}
+
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatal("json file path required")
-	}
-	failedTests, err := reviewTests(os.Args[1])
+	var matches []string
+	err := filepath.WalkDir(CIVisibility, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !d.IsDir() {
+			return nil
+		}
+
+		present, err := regexp.Match("testjson-*", []byte(d.Name()))
+		if err != nil {
+			return fmt.Errorf("directory regex match: %s", err)
+		}
+
+		if !present {
+			return nil
+		}
+
+		matches = append(matches, path)
+
+		return nil
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	if len(failedTests) > 0 {
-		fmt.Fprintf(os.Stderr, color.RedString(failedTests))
-		os.Exit(1)
+	sort.Strings(matches)
+
+	for i, testjson := range matches {
+		printHeader(fmt.Sprintf("Reviewing attempt %d", i+1))
+		failedTests, err := reviewTests(filepath.Join(testjson, "out.json"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		if len(failedTests) > 0 {
+			fmt.Println(color.RedString(failedTests))
+		} else {
+			fmt.Println(color.GreenString(fmt.Sprintf("All tests cleared in attempt %d", i+1)))
+			return
+		}
 	}
+
+	// We want to make sure the exit code is correctly set to
+	// failed here, so that the CI job also fails.
+	os.Exit(1)
 }
 
 type testEvent struct {

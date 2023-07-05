@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 var testTimeout = 10 * time.Second
@@ -557,7 +557,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			mockedSender.AssertServiceCheck(
 				t,
 				"helm.release_state",
-				coreMetrics.ServiceCheckOK,
+				servicecheck.ServiceCheckOK,
 				"",
 				[]string{
 					"helm_release:my_datadog",
@@ -573,7 +573,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			mockedSender.AssertServiceCheck(
 				t,
 				"helm.release_state",
-				coreMetrics.ServiceCheckOK,
+				servicecheck.ServiceCheckOK,
 				"",
 				[]string{
 					"helm_release:my_app",
@@ -589,7 +589,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 			mockedSender.AssertServiceCheck(
 				t,
 				"helm.release_state",
-				coreMetrics.ServiceCheckCritical,
+				servicecheck.ServiceCheckCritical,
 				"",
 				[]string{
 					"helm_release:my_proxy",

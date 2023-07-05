@@ -11,13 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func createEvent(count int32, namespace, objname, objkind, objuid, component, hostname, reason, message, typ string, timestamp int64) *v1.Event {
@@ -57,7 +56,7 @@ func TestFormatEvent(t *testing.T) {
 		clusterName    string
 		hostProviderID string
 		events         []*v1.Event
-		expected       metrics.Event
+		expected       event.Event
 	}{
 		{
 			name: "basic event",
@@ -65,9 +64,9 @@ func TestFormatEvent(t *testing.T) {
 				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", nodeName, "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
 				createEvent(3, "default", podName, "Pod", objUID, "default-scheduler", nodeName, "Started", "Started container", "Normal", timestamp),
 			},
-			expected: metrics.Event{
+			expected: event.Event{
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
-				Priority:       metrics.EventPriorityNormal,
+				Priority:       event.EventPriorityNormal,
 				SourceTypeName: "kubernetes",
 				EventType:      kubernetesAPIServerCheckName,
 				Ts:             timestamp,
@@ -98,9 +97,9 @@ func TestFormatEvent(t *testing.T) {
 			events: []*v1.Event{
 				createEvent(1, "default", podName, "Pod", objUID, "default-scheduler", nodeName, "Failed", "Error: error response: filepath: ~file~", "Normal", timestamp),
 			},
-			expected: metrics.Event{
+			expected: event.Event{
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
-				Priority:       metrics.EventPriorityNormal,
+				Priority:       event.EventPriorityNormal,
 				SourceTypeName: "kubernetes",
 				EventType:      kubernetesAPIServerCheckName,
 				Ts:             timestamp,
@@ -133,9 +132,9 @@ func TestFormatEvent(t *testing.T) {
 				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
 				createEvent(3, "default", podName, "Pod", objUID, "default-scheduler", "machine-blue", "Started", "Started container", "Normal", timestamp),
 			},
-			expected: metrics.Event{
+			expected: event.Event{
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
-				Priority:       metrics.EventPriorityNormal,
+				Priority:       event.EventPriorityNormal,
 				SourceTypeName: "kubernetes",
 				EventType:      kubernetesAPIServerCheckName,
 				Ts:             timestamp,

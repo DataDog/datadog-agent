@@ -233,7 +233,8 @@ func Test_fillStatsFromSpec(t *testing.T) {
 			},
 			expected: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Ptr(100 * float64(system.HostCPUCount())),
+					Limit:          pointer.Ptr(100 * float64(system.HostCPUCount())),
+					DefaultedLimit: true,
 				},
 				Memory: &provider.ContainerMemStats{
 					Limit: pointer.Ptr(500.0),

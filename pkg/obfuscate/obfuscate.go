@@ -82,6 +82,9 @@ type Config struct {
 	// HTTP holds the obfuscation settings for HTTP URLs.
 	HTTP HTTPConfig
 
+	// Redis holds the obfuscation settings for Redis commands.
+	Redis RedisConfig
+
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
 
@@ -150,6 +153,16 @@ type HTTPConfig struct {
 
 	// RemovePathDigits determines digits in path segments to be obfuscated.
 	RemovePathDigits bool
+}
+
+// RedisConfig holds the configuration settings for Redis obfuscation
+type RedisConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool
+
+	// RemoveAllArgs specifies whether all arguments to a given Redis
+	// command should be obfuscated.
+	RemoveAllArgs bool
 }
 
 // JSONConfig holds the obfuscation configuration for sensitive

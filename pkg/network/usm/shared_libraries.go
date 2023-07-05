@@ -27,6 +27,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -112,18 +113,12 @@ type soWatcher struct {
 	registry       *soRegistry
 }
 
-type pathIdentifierSet = map[pathIdentifier]struct{}
-
-type soRegistry struct {
-	m     sync.RWMutex
-	byID  map[pathIdentifier]*soRegistration
-	byPID map[uint32]pathIdentifierSet
-
-	// if we can't register a uprobe we don't try more than once
-	blocklistByID pathIdentifierSet
-}
-
 func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
+	metricGroup := telemetry.NewMetricGroup(
+		"usm.so_watcher",
+		telemetry.OptMonotonic,
+		telemetry.OptPayloadTelemetry,
+	)
 	return &soWatcher{
 		wg:             sync.WaitGroup{},
 		done:           make(chan struct{}),
@@ -135,13 +130,79 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 			byID:          make(map[pathIdentifier]*soRegistration),
 			byPID:         make(map[uint32]pathIdentifierSet),
 			blocklistByID: make(pathIdentifierSet),
+
+			telemetry: soRegistryTelemetry{
+				libHookFailed:               metricGroup.NewMetric("hook_failed"),
+				libRegistered:               metricGroup.NewMetric("registered"),
+				libAlreadyRegistered:        metricGroup.NewMetric("already_registered"),
+				libBlocked:                  metricGroup.NewMetric("blocked"),
+				libUnregistered:             metricGroup.NewMetric("unregistered"),
+				libUnregisterNoCB:           metricGroup.NewMetric("unregister_no_callback"),
+				libUnregisterErrors:         metricGroup.NewMetric("unregister_errors"),
+				libUnregisterFailedCB:       metricGroup.NewMetric("unregister_failed_cb"),
+				libUnregisterPathIDNotFound: metricGroup.NewMetric("unregister_path_id_not_found"),
+				libHits:                     metricGroup.NewMetric("hits"),
+				libMatches:                  metricGroup.NewMetric("matches"),
+			},
 		},
 	}
+}
+
+type pathIdentifierSet = map[pathIdentifier]struct{}
+
+type soRegistryTelemetry struct {
+	// a library can be :
+	//  o Registered : it's a new library
+	//  o AlreadyRegistered : we have already hooked (uprobe) this library (unique by pathID)
+	//  o HookFailed : uprobe registration failed for one library
+	//  o Blocked : previous uprobe registration failed, so we block further call
+	//  o Unregistered : a library hook is unregistered, meaning there are no more refcount to the corresponding pathID
+	//  o UnregisterNoCB : unregister event has been done but the rule doesn't have an unregister callback
+	//  o UnregisterErrors : we encounter an error during the unregistration, looks at the logs for further details
+	//  o UnregisterFailedCB : we encounter an error during the callback unregistration, looks at the logs for further details
+	//  o UnregisterPathIDNotFound : we can't find the pathID registration, it's a bug, this value should be always 0
+	libRegistered               *telemetry.Metric
+	libAlreadyRegistered        *telemetry.Metric
+	libHookFailed               *telemetry.Metric
+	libBlocked                  *telemetry.Metric
+	libUnregistered             *telemetry.Metric
+	libUnregisterNoCB           *telemetry.Metric
+	libUnregisterErrors         *telemetry.Metric
+	libUnregisterFailedCB       *telemetry.Metric
+	libUnregisterPathIDNotFound *telemetry.Metric
+
+	// numbers of library events from the kernel filter (Hits) and matching (Matches) the registered rules
+	libHits    *telemetry.Metric
+	libMatches *telemetry.Metric
+}
+
+type soRegistry struct {
+	m     sync.RWMutex
+	byID  map[pathIdentifier]*soRegistration
+	byPID map[uint32]pathIdentifierSet
+
+	// if we can't register a uprobe we don't try more than once
+	blocklistByID pathIdentifierSet
+
+	telemetry soRegistryTelemetry
 }
 
 type soRegistration struct {
 	uniqueProcessesCount atomic.Int32
 	unregisterCB         func(pathIdentifier) error
+
+	// we are sharing the telemetry from soRegistry
+	telemetry *soRegistryTelemetry
+}
+
+func (r *soRegistry) newRegistration(unregister func(pathIdentifier) error) *soRegistration {
+	uniqueCounter := atomic.Int32{}
+	uniqueCounter.Store(int32(1))
+	return &soRegistration{
+		unregisterCB:         unregister,
+		uniqueProcessesCount: uniqueCounter,
+		telemetry:            &r.telemetry,
+	}
 }
 
 // unregister return true if there are no more reference to this registration
@@ -152,26 +213,23 @@ func (r *soRegistration) unregisterPath(pathID pathIdentifier) bool {
 	}
 	if currentUniqueProcessesCount < 0 {
 		log.Errorf("unregistered %+v too much (current counter %v)", pathID, currentUniqueProcessesCount)
+		r.telemetry.libUnregisterErrors.Add(1)
 		return true
 	}
+
 	// currentUniqueProcessesCount is 0, thus we should unregister.
 	if r.unregisterCB != nil {
 		if err := r.unregisterCB(pathID); err != nil {
 			// Even if we fail here, we have to return true, as best effort methodology.
 			// We cannot handle the failure, and thus we should continue.
-			log.Warnf("error while unregistering %s : %s", pathID.String(), err)
+			log.Errorf("error while unregistering %s : %s", pathID.String(), err)
+			r.telemetry.libUnregisterFailedCB.Add(1)
 		}
+	} else {
+		r.telemetry.libUnregisterNoCB.Add(1)
 	}
+	r.telemetry.libUnregistered.Add(1)
 	return true
-}
-
-func newRegistration(unregister func(pathIdentifier) error) *soRegistration {
-	uniqueCounter := atomic.Int32{}
-	uniqueCounter.Store(int32(1))
-	return &soRegistration{
-		unregisterCB:         unregister,
-		uniqueProcessesCount: uniqueCounter,
-	}
 }
 
 func (w *soWatcher) Stop() {
@@ -269,6 +327,7 @@ func (w *soWatcher) Start() {
 					continue
 				}
 
+				w.registry.telemetry.libHits.Add(1)
 				path := toBytes(&lib)
 				libPath := string(path)
 				procPid := fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
@@ -281,6 +340,7 @@ func (w *soWatcher) Start() {
 
 				for _, r := range w.rules {
 					if r.re.Match(path) {
+						w.registry.telemetry.libMatches.Add(1)
 						w.registry.register(root, libPath, lib.Pid, r)
 						break
 					}
@@ -321,6 +381,7 @@ func (r *soRegistry) unregister(pid int) {
 	for pathID := range paths {
 		reg, found := r.byID[pathID]
 		if !found {
+			r.telemetry.libUnregisterPathIDNotFound.Add(1)
 			continue
 		}
 		if reg.unregisterPath(pathID) {
@@ -348,6 +409,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 	r.m.Lock()
 	defer r.m.Unlock()
 	if _, found := r.blocklistByID[pathID]; found {
+		r.telemetry.libBlocked.Add(1)
 		return
 	}
 
@@ -360,6 +422,7 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 			}
 			r.byPID[pid][pathID] = struct{}{}
 		}
+		r.telemetry.libAlreadyRegistered.Add(1)
 		return
 	}
 
@@ -374,14 +437,16 @@ func (r *soRegistry) register(root, libPath string, pid uint32, rule soRule) {
 		// save sentinel value, so we don't attempt to re-register shared
 		// libraries that are problematic for some reason
 		r.blocklistByID[pathID] = struct{}{}
+		r.telemetry.libHookFailed.Add(1)
 		return
 	}
 
-	reg := newRegistration(rule.unregisterCB)
+	reg := r.newRegistration(rule.unregisterCB)
 	r.byID[pathID] = reg
 	if len(r.byPID[pid]) == 0 {
 		r.byPID[pid] = pathIdentifierSet{}
 	}
 	r.byPID[pid][pathID] = struct{}{}
 	log.Debugf("registering library %s path %s by pid %d", pathID.String(), hostLibPath, pid)
+	r.telemetry.libRegistered.Add(1)
 }
