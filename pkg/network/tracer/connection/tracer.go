@@ -11,13 +11,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/atomic"
 	"hash"
 	"math"
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/atomic"
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"

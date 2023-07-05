@@ -8,11 +8,12 @@
 package tracer
 
 import (
+	"strings"
+	"sync"
+
 	"github.com/cihub/seelog"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
-	"strings"
-	"sync"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"

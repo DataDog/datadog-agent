@@ -9,17 +9,19 @@ package telemetry
 
 import (
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
 	"hash/fnv"
 	"syscall"
 	"unsafe"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (

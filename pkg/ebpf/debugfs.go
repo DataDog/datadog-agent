@@ -10,13 +10,14 @@ package ebpf
 import (
 	"bufio"
 	"fmt"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

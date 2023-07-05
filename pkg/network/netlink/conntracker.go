@@ -11,12 +11,13 @@ import (
 	"container/list"
 	"context"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/sys/unix"
 	"net"
 	"net/netip"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
 
 	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"

@@ -8,15 +8,18 @@
 package telemetry
 
 import (
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/prometheus/client_golang/prometheus"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
+
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
