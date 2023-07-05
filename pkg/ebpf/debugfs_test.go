@@ -18,7 +18,7 @@ import (
 const testProfile = "./testdata/kprobe_profile"
 
 func TestReadKprobeProfile(t *testing.T) {
-	m, err := ReadKprobeProfile(testProfile)
+	m, err := readKprobeProfile(testProfile)
 	require.NoError(t, err)
 
 	expected := map[string]KprobeStats{
