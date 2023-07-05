@@ -113,6 +113,10 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpMaxDumpCountPerWorkload int
 	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:threat_score)
 	ActivityDumpTagRulesEnabled bool
+	// ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
+	ActivityDumpSilentWorkloadsDelay time.Duration
+	// ActivityDumpSilentWorkloadsTicker configures ticker that will check if a workload is silent and should be traced
+	ActivityDumpSilentWorkloadsTicker time.Duration
 
 	// # Dynamic configuration fields:
 	// ActivityDumpMaxDumpSize defines the maximum size of a dump
@@ -130,6 +134,8 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileMaxCount int
 	// SecurityProfileRCEnabled defines if remote-configuration is enabled
 	SecurityProfileRCEnabled bool
+	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
+	SecurityProfileDNSMatchMaxDepth int
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -146,15 +152,32 @@ type RuntimeSecurityConfig struct {
 	// AnomalyDetectionWorkloadWarmupPeriod defines the duration we ignore the anomaly detections for
 	// because of workload warm up
 	AnomalyDetectionWorkloadWarmupPeriod time.Duration
-
 	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
 	AnomalyDetectionRateLimiter time.Duration
+	// AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the
+	// rules they might have matched.
+	AnomalyDetectionTagRulesEnabled bool
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
 	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
 	// the SBOMs of short-lived and periodical workloads
 	SBOMResolverWorkloadsCacheSize int
+
+	// HashResolverEnabled defines if the hash resolver should be enabled
+	HashResolverEnabled bool
+	// HashResolverMaxFileSize defines the maximum size of the files that the hash resolver is allowed to hash
+	HashResolverMaxFileSize int64
+	// HashResolverMaxHashRate defines the rate at which the hash resolver may compute hashes
+	HashResolverMaxHashRate int
+	// HashResolverMaxHashBurst defines the burst of files for which the hash resolver may compute a hash
+	HashResolverMaxHashBurst int
+	// HashResolverHashAlgorithms defines the hashes that hash resolver needs to compute
+	HashResolverHashAlgorithms []model.HashAlgorithm
+	// HashResolverEventTypes defines the list of event which files may be hashed
+	HashResolverEventTypes []model.EventType
+	// HashResolverCacheSize defines the number of hashes to keep in cache
+	HashResolverCacheSize int
 }
 
 // Config defines a security config
@@ -185,9 +208,7 @@ func NewConfig() (*Config, error) {
 }
 
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
-	if !sysconfig.IsAdjusted(coreconfig.SystemProbe) {
-		sysconfig.Adjust(coreconfig.SystemProbe)
-	}
+	sysconfig.Adjust(coreconfig.SystemProbe)
 
 	rsConfig := &RuntimeSecurityConfig{
 		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
@@ -231,6 +252,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpSyscallMonitorPeriod:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.syscall_monitor.period"),
 		ActivityDumpMaxDumpCountPerWorkload:   coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
 		ActivityDumpTagRulesEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
+		ActivityDumpSilentWorkloadsDelay:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
+		ActivityDumpSilentWorkloadsTicker:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_size")
@@ -244,13 +267,23 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SBOMResolverEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
 
+		// Hash resolver
+		HashResolverEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.hash_resolver.enabled"),
+		HashResolverEventTypes:     model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.event_types")),
+		HashResolverMaxFileSize:    coreconfig.SystemProbe.GetInt64("runtime_security_config.hash_resolver.max_file_size"),
+		HashResolverHashAlgorithms: model.ParseHashAlgorithmStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
+		HashResolverMaxHashBurst:   coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
+		HashResolverMaxHashRate:    coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
+		HashResolverCacheSize:      coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.cache_size"),
+
 		// security profiles
-		SecurityProfileEnabled:   coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
-		SecurityProfileDir:       coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
-		SecurityProfileWatchDir:  coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
-		SecurityProfileCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
-		SecurityProfileMaxCount:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
-		SecurityProfileRCEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
+		SecurityProfileEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileDir:              coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
+		SecurityProfileWatchDir:         coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
+		SecurityProfileCacheSize:        coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileMaxCount:         coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
+		SecurityProfileRCEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
+		SecurityProfileDNSMatchMaxDepth: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
@@ -259,6 +292,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
 		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
+		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

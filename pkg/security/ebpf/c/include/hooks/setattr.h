@@ -2,11 +2,13 @@
 #define _HOOKS_SETATTR_H_
 
 #include "constants/syscall_macro.h"
+#include "constants/offsets/filesystem.h"
 #include "helpers/approvers.h"
 #include "helpers/events_predicates.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
+// fentry blocked by: tail call
 SEC("kprobe/security_inode_setattr")
 int kprobe_security_inode_setattr(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
@@ -14,10 +16,22 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct dentry *dentry = (struct dentry *)PT_REGS_PARM1(ctx);
+    u64 param1 = PT_REGS_PARM1(ctx);
+    u64 param2 = PT_REGS_PARM2(ctx);
+    u64 param3 = PT_REGS_PARM3(ctx);
+
+    struct dentry *dentry;
+    struct iattr *iattr;
+    if (security_have_usernamespace_first_arg()) {
+        dentry = (struct dentry *)param2;
+        iattr = (struct iattr *)param3;
+    } else {
+        dentry = (struct dentry *)param1;
+        iattr = (struct iattr *)param2;
+    }
+
     fill_file_metadata(dentry, &syscall->setattr.file.metadata);
 
-    struct iattr *iattr = (struct iattr *)PT_REGS_PARM2(ctx);
     if (iattr != NULL) {
         int valid;
         bpf_probe_read(&valid, sizeof(valid), &iattr->ia_valid);
@@ -73,9 +87,14 @@ int kprobe_security_inode_setattr(struct pt_regs *ctx) {
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall_with(security_inode_predicate);
+
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_setattr_callback")
 int __attribute__((always_inline)) kprobe_dr_setattr_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);

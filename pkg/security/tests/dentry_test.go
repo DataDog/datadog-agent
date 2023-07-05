@@ -23,18 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func validateResolution(test *testModule, event *model.Event, testFile string, pathFnc func(uint32, uint64, uint32, bool) (string, error), parentFnc func(uint32, uint64, uint32) (uint32, uint64, error), nameFnc func(uint32, uint64, uint32) (string, error)) {
+func validateResolution(test *testModule, event *model.Event, testFile string, pathFnc func(model.PathKey, bool) (string, error), parentFnc func(model.PathKey) (model.PathKey, error), nameFnc func(model.PathKey) (string, error)) {
 	basename := path.Base(testFile)
 
 	// Force an eRPC resolution to refresh the entry with the last generation as lost events may have invalidated the entry
-	res, err := pathFnc(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID, true)
+	res, err := pathFnc(event.Open.File.PathKey, true)
 	assert.Nil(test.t, err)
 	assert.Equal(test.t, basename, path.Base(res))
 
-	// there is a potential race here has a lost event can occur between the two resolutions
+	// there is a potential race here as a lost event can occur between the two resolutions
 
 	// check that the path is now available from the cache
-	res, err = test.probe.GetResolvers().DentryResolver.ResolveFromCache(event.Open.File.MountID, event.Open.File.Inode)
+	res, err = test.probe.GetResolvers().DentryResolver.ResolveFromCache(event.Open.File.PathKey)
 	assert.Nil(test.t, err)
 	assert.Equal(test.t, basename, path.Base(res))
 
@@ -45,27 +45,27 @@ func validateResolution(test *testModule, event *model.Event, testFile string, p
 	expectedInode := getInode(test.t, path.Dir(testFile))
 
 	// the previous path resolution should habe filled the cache
-	_, cacheInode, err := test.probe.GetResolvers().DentryResolver.ResolveParentFromCache(event.Open.File.MountID, event.Open.File.Inode)
+	pathKey, err := test.probe.GetResolvers().DentryResolver.ResolveParentFromCache(event.Open.File.PathKey)
 	assert.Nil(test.t, err)
-	assert.NotZero(test.t, cacheInode)
+	assert.NotZero(test.t, pathKey.Inode)
 
 	// on kernel < 5.0 the cache is populated with internal inode of overlayfs. The stat syscall returns the proper inode, that is why the inodes don't match.
 	if event.Open.File.Filesystem != model.OverlayFS || kv.Code > kernel.Kernel5_0 {
-		assert.Equal(test.t, expectedInode, cacheInode)
+		assert.Equal(test.t, expectedInode, pathKey.Inode)
 	}
 
-	_, inode, err := parentFnc(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+	parentKey, err := parentFnc(event.Open.File.PathKey)
 	assert.Nil(test.t, err)
-	assert.NotZero(test.t, inode)
-	assert.Equal(test.t, cacheInode, inode)
+	assert.NotZero(test.t, parentKey.Inode)
+	assert.Equal(test.t, pathKey.Inode, parentKey.Inode)
 
 	// Basename
 	// the previous path resolution should have filled the cache
-	expectedName, err := test.probe.GetResolvers().DentryResolver.ResolveNameFromCache(event.Open.File.MountID, event.Open.File.Inode)
+	expectedName, err := test.probe.GetResolvers().DentryResolver.ResolveNameFromCache(event.Open.File.PathKey)
 	assert.Nil(test.t, err)
 	assert.Equal(test.t, expectedName, basename)
 
-	expectedName, err = nameFnc(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+	expectedName, err = nameFnc(event.Open.File.PathKey)
 	assert.Nil(test.t, err)
 	assert.Equal(test.t, expectedName, basename)
 }
@@ -194,11 +194,8 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 
 	defer os.Remove(testFile)
 
-	var (
-		mountID uint32
-		inode   uint64
-		pathID  uint32
-	)
+	var pathKey model.PathKey
+
 	err = test.GetSignal(b, func() error {
 		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
 		if err != nil {
@@ -206,9 +203,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 		}
 		return syscall.Close(fd)
 	}, func(event *model.Event, _ *rules.Rule) {
-		mountID = event.Open.File.MountID
-		inode = event.Open.File.Inode
-		pathID = event.Open.File.PathID
+		pathKey = event.Open.File.PathKey
 	})
 	if err != nil {
 		b.Fatal(err)
@@ -223,7 +218,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	if err := resolver.Start(test.probe.Manager); err != nil {
 		b.Fatal(err)
 	}
-	name, err := resolver.ResolveNameFromERPC(mountID, inode, pathID)
+	name, err := resolver.ResolveNameFromERPC(pathKey)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -231,7 +226,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		name, err = resolver.ResolveNameFromERPC(mountID, inode, pathID)
+		name, err = resolver.ResolveNameFromERPC(pathKey)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -263,11 +258,8 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 
 	defer os.Remove(testFile)
 
-	var (
-		mountID uint32
-		inode   uint64
-		pathID  uint32
-	)
+	var pathKey model.PathKey
+
 	err = test.GetSignal(b, func() error {
 		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
 		if err != nil {
@@ -275,9 +267,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		}
 		return syscall.Close(fd)
 	}, func(event *model.Event, _ *rules.Rule) {
-		mountID = event.Open.File.MountID
-		inode = event.Open.File.Inode
-		pathID = event.Open.File.PathID
+		pathKey = event.Open.File.PathKey
 	})
 	if err != nil {
 		b.Fatal(err)
@@ -292,7 +282,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	if err := resolver.Start(test.probe.Manager); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromERPC(mountID, inode, pathID, true)
+	f, err := resolver.ResolveFromERPC(pathKey, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -300,7 +290,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromERPC(mountID, inode, pathID, true)
+		f, err := resolver.ResolveFromERPC(pathKey, true)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -332,11 +322,8 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 
 	defer os.Remove(testFile)
 
-	var (
-		mountID uint32
-		inode   uint64
-		pathID  uint32
-	)
+	var pathKey model.PathKey
+
 	err = test.GetSignal(b, func() error {
 		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
 		if err != nil {
@@ -344,9 +331,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		}
 		return syscall.Close(fd)
 	}, func(event *model.Event, _ *rules.Rule) {
-		mountID = event.Open.File.MountID
-		inode = event.Open.File.Inode
-		pathID = event.Open.File.PathID
+		pathKey = event.Open.File.PathKey
 	})
 	if err != nil {
 		b.Fatal(err)
@@ -361,7 +346,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	if err := resolver.Start(test.probe.Manager); err != nil {
 		b.Fatal(err)
 	}
-	name, err := resolver.ResolveNameFromMap(mountID, inode, pathID)
+	name, err := resolver.ResolveNameFromMap(pathKey)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -369,7 +354,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		name, err = resolver.ResolveNameFromMap(mountID, inode, pathID)
+		name, err = resolver.ResolveNameFromMap(pathKey)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -401,11 +386,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 
 	defer os.Remove(testFile)
 
-	var (
-		mountID uint32
-		inode   uint64
-		pathID  uint32
-	)
+	var pathKey model.PathKey
 	err = test.GetSignal(b, func() error {
 		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
 		if err != nil {
@@ -413,9 +394,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		}
 		return syscall.Close(fd)
 	}, func(event *model.Event, _ *rules.Rule) {
-		mountID = event.Open.File.MountID
-		inode = event.Open.File.Inode
-		pathID = event.Open.File.PathID
+		pathKey = event.Open.File.PathKey
 	})
 	if err != nil {
 		b.Fatal(err)
@@ -430,7 +409,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	if err := resolver.Start(test.probe.Manager); err != nil {
 		b.Fatal(err)
 	}
-	f, err := resolver.ResolveFromMap(mountID, inode, pathID, true)
+	f, err := resolver.ResolveFromMap(pathKey, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -438,7 +417,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		f, err := resolver.ResolveFromMap(mountID, inode, pathID, true)
+		f, err := resolver.ResolveFromMap(pathKey, true)
 		if err != nil {
 			b.Fatal(err)
 		}

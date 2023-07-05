@@ -71,6 +71,7 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 		case "ifHCOutOctets":
 			ifSpeed = interfaceConfig.OutSpeed
 		}
+		tags = append(tags, interfaceConfig.Tags...)
 	}
 	if ifSpeed == 0 {
 		ifHighSpeed, err := ms.getIfHighSpeed(fullIndex, values)
@@ -97,10 +98,10 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
 	sample := MetricSample{
-		value:      valuestore.ResultValue{SubmissionType: "counter", Value: usageValue},
+		value:      valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: usageValue},
 		tags:       tags,
 		symbol:     checkconfig.SymbolConfig{Name: usageName + ".rate"},
-		forcedType: "counter",
+		forcedType: checkconfig.ProfileMetricTypeCounter,
 		options:    checkconfig.MetricsConfigOption{},
 	}
 
@@ -120,6 +121,7 @@ func (ms *MetricSender) sendIfSpeedMetrics(symbol checkconfig.SymbolConfig, full
 		log.Tracef("continue with empty interfaceConfig: %s", err)
 		interfaceConfig = snmpintegration.InterfaceConfig{}
 	}
+	tags = append(tags, interfaceConfig.Tags...)
 
 	ifHighSpeed, err := ms.getIfHighSpeed(fullIndex, values)
 	if err != nil {
@@ -146,7 +148,7 @@ func (ms *MetricSender) sendIfSpeedMetric(symbolName string, customSpeed uint64,
 		value:      valuestore.ResultValue{Value: float64(ifSpeed)},
 		tags:       newTags,
 		symbol:     checkconfig.SymbolConfig{Name: symbolName},
-		forcedType: "gauge",
+		forcedType: checkconfig.ProfileMetricTypeGauge,
 		options:    checkconfig.MetricsConfigOption{},
 	})
 }

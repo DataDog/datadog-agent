@@ -8,6 +8,23 @@
 #include "activity_dump.h"
 #include "span.h"
 
+void __attribute__((always_inline)) monitor_syscalls(u64 event_type, int delta) {
+    u64 enabled;
+    LOAD_CONSTANT("monitor_syscalls_map_enabled", enabled);
+
+    if (!enabled) {
+        return;
+    }
+
+    u32 key = event_type;
+    u32 *value = bpf_map_lookup_elem(&syscalls_stats, &key);
+    if (value == NULL) {
+        return;
+    }
+
+    __sync_fetch_and_add(value, delta);
+}
+
 struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
     struct policy_t *policy = bpf_map_lookup_elem(&filter_policy, &event_type);
     if (policy) {
@@ -21,6 +38,8 @@ struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
 void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
     u64 key = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
+
+    monitor_syscalls(syscall->type, 1);
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid_tgid, u64 type) {
@@ -59,6 +78,8 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_syscall_with(int (*pr
     }
     if (predicate(syscall->type)) {
         bpf_map_delete_elem(&syscalls, &key);
+
+        monitor_syscalls(syscall->type, -1);
         return syscall;
     }
     return NULL;
@@ -71,6 +92,8 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_
     }
     if (!type || syscall->type == type) {
         bpf_map_delete_elem(&syscalls, &pid_tgid);
+
+        monitor_syscalls(type, -1);
         return syscall;
     }
     return NULL;
@@ -84,6 +107,7 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
 int __attribute__((always_inline)) discard_syscall(struct syscall_cache_t *syscall) {
     u64 key = bpf_get_current_pid_tgid();
     bpf_map_delete_elem(&syscalls, &key);
+    monitor_syscalls(syscall->type, -1);
     return 0;
 }
 
@@ -170,7 +194,7 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_impersonat
     return syscall;
 }
 
-int __attribute__((always_inline)) fill_exec_context(struct pt_regs *ctx) {
+int __attribute__((always_inline)) fill_exec_context() {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;

@@ -28,6 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+type EventTypeState struct {
+	lastAnomalyNano uint64
+	state           EventFilteringProfileState
+}
+
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
@@ -36,7 +41,8 @@ type SecurityProfile struct {
 	selector               cgroupModel.WorkloadSelector
 	profileCookie          uint64
 	anomalyDetectionEvents []model.EventType
-	lastAnomalyNano        map[model.EventType]uint64
+	eventTypeState         map[model.EventType]*EventTypeState
+	eventTypeStateLock     sync.Mutex
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -70,7 +76,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 	return &SecurityProfile{
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
-		lastAnomalyNano:        make(map[model.EventType]uint64),
+		eventTypeState:         make(map[model.EventType]*EventTypeState),
 	}
 }
 
@@ -79,7 +85,7 @@ func (p *SecurityProfile) reset() {
 	p.loadedInKernel = false
 	p.loadedNano = 0
 	p.profileCookie = 0
-	p.lastAnomalyNano = make(map[model.EventType]uint64)
+	p.eventTypeState = make(map[model.EventType]*EventTypeState)
 	p.Instances = nil
 }
 
@@ -125,11 +131,6 @@ func (p *SecurityProfile) IsEventTypeValid(evtType model.EventType) bool {
 // NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the activity tree
 func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode) {
 	// TODO: debounce and regenerate profile filters & programs
-}
-
-// IsAnomalyDetectionEvent returns true if the provided event type is a kernel generated anomaly detection event type
-func IsAnomalyDetectionEvent(eventType model.EventType) bool {
-	return model.AnomalyDetectionSyscallEventType == eventType
 }
 
 func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
@@ -193,8 +194,8 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 		msg.AnomalyDetectionEvents = append(msg.AnomalyDetectionEvents, evt.String())
 	}
 
-	for evt, ts := range p.lastAnomalyNano {
-		lastAnomaly := timeResolver.ResolveMonotonicTimestamp(ts)
+	for evt, state := range p.eventTypeState {
+		lastAnomaly := timeResolver.ResolveMonotonicTimestamp(state.lastAnomalyNano)
 		msg.LastAnomalies = append(msg.LastAnomalies, &api.LastAnomalyTimestampMessage{
 			EventType:         evt.String(),
 			Timestamp:         lastAnomaly.String(),

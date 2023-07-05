@@ -1267,3 +1267,22 @@ func resetNiceValues(procs map[int32]*Process) {
 		p.Stats.Nice = 0
 	}
 }
+
+func BenchmarkGetFDCount(b *testing.B) {
+	probe := getProbe()
+	defer probe.Close()
+
+	for i := 0; i < 100; i++ {
+		f, err := os.Open("/proc/self/comm")
+		if err != nil {
+			b.Fatal(err)
+		}
+		defer f.Close()
+	}
+
+	b.Run("self_proc", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_ = probe.getFDCount("/proc/self")
+		}
+	})
+}

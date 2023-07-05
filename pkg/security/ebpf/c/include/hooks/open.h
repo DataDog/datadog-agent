@@ -2,6 +2,7 @@
 #define _HOOKS_OPEN_H_
 
 #include "constants/syscall_macro.h"
+#include "constants/fentry_macro.h"
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
@@ -87,8 +88,8 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
     return 0;
 }
 
-SEC("kprobe/vfs_truncate")
-int kprobe_vfs_truncate(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_truncate")
+int hook_vfs_truncate(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
@@ -98,7 +99,7 @@ int kprobe_vfs_truncate(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+    struct path *path = (struct path *)CTX_PARM1(ctx);
     struct dentry *dentry = get_path_dentry(path);
 
     syscall->open.dentry = dentry;
@@ -113,21 +114,22 @@ int kprobe_vfs_truncate(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/vfs_open")
-int kprobe_vfs_open(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_open")
+int hook_vfs_open(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
     }
 
-    struct path *path = (struct path *)PT_REGS_PARM1(ctx);
-    struct file *file = (struct file *)PT_REGS_PARM2(ctx);
+    struct path *path = (struct path *)CTX_PARM1(ctx);
+    struct file *file = (struct file *)CTX_PARM2(ctx);
     struct dentry *dentry = get_path_dentry(path);
     struct inode *inode = get_dentry_inode(dentry);
 
     return handle_open_event(syscall, file, path, inode);
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/do_dentry_open")
 int kprobe_do_dentry_open(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
@@ -141,8 +143,8 @@ int kprobe_do_dentry_open(struct pt_regs *ctx) {
     return handle_exec_event(ctx, syscall, file, &file->f_path, inode);
 }
 
-int __attribute__((always_inline)) trace_io_openat(struct pt_regs *ctx) {
-    void *raw_req = (void *)PT_REGS_PARM1(ctx);
+int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {
+    void *raw_req = (void *)CTX_PARM1(ctx);
 
     struct io_open req;
     if (bpf_probe_read(&req, sizeof(req), raw_req)) {
@@ -162,18 +164,19 @@ int __attribute__((always_inline)) trace_io_openat(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/io_openat")
-int kprobe_io_openat(struct pt_regs *ctx) {
+HOOK_ENTRY("io_openat")
+int hook_io_openat(ctx_t *ctx) {
     return trace_io_openat(ctx);
 }
 
-SEC("kprobe/io_openat2")
-int kprobe_io_openat2(struct pt_regs *ctx) {
+HOOK_ENTRY("io_openat2")
+int hook_io_openat2(ctx_t *ctx) {
     return trace_io_openat(ctx);
 }
 
 int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall(EVENT_OPEN);
         return 0;
     }
 
@@ -185,6 +188,7 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
     // increase mount ref
     inc_mount_ref(syscall->open.file.path_key.mount_id);
     if (syscall->discarded) {
+        pop_syscall(EVENT_OPEN);
         return 0;
     }
 
@@ -244,9 +248,9 @@ int kretprobe_io_openat2(struct pt_regs *ctx) {
     return sys_open_ret(ctx, retval, DR_KPROBE);
 }
 
-SEC("kprobe/filp_close")
-int kprobe_filp_close(struct pt_regs *ctx) {
-    struct file *file = (struct file *) PT_REGS_PARM1(ctx);
+HOOK_ENTRY("filp_close")
+int hook_filp_close(ctx_t *ctx) {
+    struct file *file = (struct file *) CTX_PARM1(ctx);
     u32 mount_id = get_file_mount_id(file);
     if (mount_id) {
         dec_mount_ref(ctx, mount_id);
@@ -298,6 +302,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_open_callback")
 int __attribute__((always_inline)) kprobe_dr_open_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

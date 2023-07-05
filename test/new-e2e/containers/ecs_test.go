@@ -24,6 +24,8 @@ import (
 )
 
 func TestAgentOnECS(t *testing.T) {
+	t.Parallel()
+
 	// Creating the stack
 	stackConfig := runner.ConfigMap{
 		"ddinfra:aws/ecs/linuxECSOptimizedNodeGroup": auto.ConfigValue{Value: "false"},

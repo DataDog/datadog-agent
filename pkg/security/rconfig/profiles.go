@@ -47,7 +47,7 @@ func (r *RCProfileProvider) Stop() error {
 	return nil
 }
 
-func (r *RCProfileProvider) rcProfilesUpdateCallback(configs map[string]state.ConfigCWSProfiles) {
+func (r *RCProfileProvider) rcProfilesUpdateCallback(configs map[string]state.RawConfig) {
 	for _, config := range configs {
 		var profCfg ProfileConfig
 		if err := json.Unmarshal(config.Config, &profCfg); err != nil {
@@ -91,7 +91,7 @@ func (r *RCProfileProvider) Start(ctx context.Context) error {
 	log.Info("remote-config profile provider started")
 
 	r.client.Start()
-	r.client.RegisterCWSProfilesUpdate(r.rcProfilesUpdateCallback)
+	r.client.Subscribe(state.ProductCWSProfiles, r.rcProfilesUpdateCallback)
 
 	go func() {
 		<-ctx.Done()

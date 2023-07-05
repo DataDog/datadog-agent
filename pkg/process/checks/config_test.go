@@ -21,23 +21,28 @@ func TestEnsureValidMaxBatchSize(t *testing.T) {
 		expectedMaxBatchSize int
 	}{
 		{
-			name:                 "valid batch count",
+			name:                 "valid smaller batch count",
 			maxPerMessage:        50,
 			expectedMaxBatchSize: 50,
 		},
 		{
-			name:                 "negative batch count",
+			name:                 "valid larger batch count",
+			maxPerMessage:        200,
+			expectedMaxBatchSize: 200,
+		},
+		{
+			name:                 "invalid negative batch count",
 			maxPerMessage:        -1,
 			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
 		},
 		{
-			name:                 "0 max batch size",
+			name:                 "invalid 0 max batch size",
 			maxPerMessage:        0,
 			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
 		},
 		{
-			name:                 "big max batch size",
-			maxPerMessage:        2000,
+			name:                 "invalid big max batch size",
+			maxPerMessage:        20000,
 			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
 		},
 	}
@@ -57,23 +62,28 @@ func TestEnsureValidMaxBatchBytes(t *testing.T) {
 		expectedMaxBatchBytes int
 	}{
 		{
-			name:                  "valid batch size",
+			name:                  "valid smaller batch size",
 			maxMessageBytes:       100000,
 			expectedMaxBatchBytes: 100000,
 		},
 		{
-			name:                  "negative batch size",
+			name:                  "valid larger batch size",
+			maxMessageBytes:       2000000,
+			expectedMaxBatchBytes: 2000000,
+		},
+		{
+			name:                  "invalid negative batch size",
 			maxMessageBytes:       -1,
 			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
 		},
 		{
-			name:                  "0 max batch size",
+			name:                  "invalid 0 max batch size",
 			maxMessageBytes:       0,
 			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
 		},
 		{
-			name:                  "big max batch size",
-			maxMessageBytes:       2000000,
+			name:                  "invalid big max batch size",
+			maxMessageBytes:       20000000,
 			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
 		},
 	}

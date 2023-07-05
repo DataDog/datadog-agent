@@ -78,7 +78,7 @@ build do
                 link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
 
                 delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-3.8", "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-3.9", "#{install_dir}/embedded/bin/2to3"
             end
         end
 

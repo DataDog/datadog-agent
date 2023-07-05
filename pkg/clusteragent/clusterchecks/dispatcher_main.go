@@ -34,6 +34,7 @@ type dispatcher struct {
 	extraTags             []string
 	clcRunnersClient      clusteragent.CLCRunnerClientInterface
 	advancedDispatching   bool
+	excludedChecks        map[string]struct{}
 }
 
 func newDispatcher() *dispatcher {
@@ -42,6 +43,15 @@ func newDispatcher() *dispatcher {
 	}
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
 	d.extraTags = config.Datadog.GetStringSlice("cluster_checks.extra_tags")
+
+	excludedChecks := config.Datadog.GetStringSlice("cluster_checks.exclude_checks")
+	// This option will almost always be empty
+	if len(excludedChecks) > 0 {
+		d.excludedChecks = make(map[string]struct{}, len(excludedChecks))
+		for _, checkName := range excludedChecks {
+			d.excludedChecks[checkName] = struct{}{}
+		}
+	}
 
 	hname, _ := hostname.Get(context.TODO())
 	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
@@ -76,6 +86,11 @@ func (d *dispatcher) Stop() {
 // Schedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Schedule(configs []integration.Config) {
 	for _, c := range configs {
+		if _, found := d.excludedChecks[c.Name]; found {
+			log.Infof("Excluding check due to config: %s", c.Name)
+			continue
+		}
+
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}

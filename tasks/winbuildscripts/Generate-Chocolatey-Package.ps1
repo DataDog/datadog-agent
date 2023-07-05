@@ -61,7 +61,21 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/
 
 Write-Host "Generating Chocolatey $installMethod package version $agentVersion in $outputDirectory"
 
-if ([System.Net.WebRequest]::Create($url).GetResponse().StatusCode -ne 200) {
+Write-Host ("Downloading {0}" -f $url)
+$statusCode = -1
+try {
+    $req = [System.Net.WebRequest]::Create($url)
+    $rep = $req.GetResponse()
+    $statusCode = $rep.StatusCode
+}
+catch [System.Net.WebException] {
+    if ($_.Exception.Status -eq "ProtocolError") {
+        $statusCode = [int]$_.Exception.Response.StatusCode
+    }
+}
+Write-Host $statusCode
+
+if ($statusCode -ne 200) {
     Write-Warning "Package $($url) doesn't exists yet, make sure it exists before publishing the Chocolatey package !"
 }
 
@@ -74,7 +88,11 @@ if ($installMethod -eq "online") {
     (Get-Content $installScript).replace('$__url_from_ci__', '"' +  $url  + '"') | Set-Content $installScript
 }
 
-choco pack --out=$outputDirectory $nuspecFile package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
+Write-Host "Generated nupsec file:"
+Write-Host (Get-Content $installScript | Out-String)
+
+Write-Host choco pack --out=$outputDirectory $nuspecFile --version $agentVersion release_notes=$releaseNotes copyright=$copyright
+choco pack --out=$outputDirectory $nuspecFile --version $agentVersion release_notes=$releaseNotes copyright=$copyright
 
 # restore installScript (useful for local testing/deployment)
 git checkout $installScript

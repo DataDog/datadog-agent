@@ -18,7 +18,7 @@ func NewNullReverseDNS() ReverseDNS {
 
 type nullReverseDNS struct{}
 
-func (nullReverseDNS) Resolve(_ []util.Address) map[util.Address][]Hostname {
+func (nullReverseDNS) Resolve(_ map[util.Address]struct{}) map[util.Address][]Hostname {
 	return nil
 }
 

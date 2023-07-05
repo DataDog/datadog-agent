@@ -45,7 +45,7 @@ const (
 	ExecEventType
 	// ExitEventType Exit event
 	ExitEventType
-	// InvalidateDentryEventType Dentry invalidated event
+	// InvalidateDentryEventType Dentry invalidated event (DEPRECATED)
 	InvalidateDentryEventType
 	// SetuidEventType setuid event
 	SetuidEventType
@@ -115,8 +115,6 @@ const (
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
 	CustomRulesetLoadedEventType
-	// CustomNoisyProcessEventType is the custom event used to report the detection of a noisy process
-	CustomNoisyProcessEventType
 	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
@@ -214,8 +212,6 @@ func (t EventType) String() string {
 		return "lost_events_write"
 	case CustomRulesetLoadedEventType:
 		return "ruleset_loaded"
-	case CustomNoisyProcessEventType:
-		return "noisy_process"
 	case CustomForkBombEventType:
 		return "fork_bomb"
 	case CustomTruncatedParentsEventType:
@@ -251,12 +247,26 @@ func init() {
 	}
 }
 
-// ParseEventTypeStringSlice converts a list
+// ParseEventTypeStringSlice converts a string list to a list of event types
 func ParseEventTypeStringSlice(eventTypes []string) []EventType {
 	var output []EventType
 	for _, eventTypeStr := range eventTypes {
 		if eventType := eventTypeStrings[eventTypeStr]; eventType != UnknownEventType {
 			output = append(output, eventType)
+		}
+	}
+	return output
+}
+
+// ParseHashAlgorithmStringSlice converts a string list to a list of hash algorithms
+func ParseHashAlgorithmStringSlice(algorithms []string) []HashAlgorithm {
+	var output []HashAlgorithm
+	for _, hashAlgorithm := range algorithms {
+		for i := HashAlgorithm(0); i < MaxHashAlgorithm; i++ {
+			if i.String() == hashAlgorithm {
+				output = append(output, i)
+				break
+			}
 		}
 	}
 	return output

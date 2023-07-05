@@ -31,7 +31,6 @@ const (
 	NetworkTracerModule          ModuleName = "network_tracer"
 	OOMKillProbeModule           ModuleName = "oom_kill_probe"
 	TCPQueueLengthTracerModule   ModuleName = "tcp_queue_length_tracer"
-	SecurityRuntimeModule        ModuleName = "security_runtime"
 	ProcessModule                ModuleName = "process"
 	EventMonitorModule           ModuleName = "event_monitor"
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
@@ -176,7 +175,7 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		aconfig.Datadog.SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustomWithKnownEnvVars(aconfig.Datadog, "datadog.yaml", true, aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", true, aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {

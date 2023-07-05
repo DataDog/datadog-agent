@@ -6,9 +6,11 @@
 package memory
 
 import (
-	"strconv"
+	"fmt"
 	"syscall"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
 // MEMORYSTATUSEX is the type of the struct expected by GlobalMemoryStatusEx
@@ -26,28 +28,19 @@ type MEMORYSTATUSEX struct {
 	ulAvailExtendedVirtual uint64 // reserved (always zero)
 }
 
-func getMemoryInfo() (memoryInfo map[string]string, err error) {
-	memoryInfo = make(map[string]string)
-
-	mem, _, _, err := getMemoryInfoByte()
-	if err == nil {
-		memoryInfo["total"] = strconv.FormatUint(mem, 10)
-	}
-	return
-}
-
-func getMemoryInfoByte() (mem uint64, swap uint64, warnings []string, err error) {
+func (info *Info) fillMemoryInfo() {
 	var mod = syscall.NewLazyDLL("kernel32.dll")
 	var getMem = mod.NewProc("GlobalMemoryStatusEx")
 
 	var memStruct MEMORYSTATUSEX
-
 	memStruct.dwLength = uint32(unsafe.Sizeof(memStruct))
 
 	status, _, err := getMem.Call(uintptr(unsafe.Pointer(&memStruct)))
 	if status != 0 {
-		mem = memStruct.ulTotalPhys
-		err = nil
+		info.TotalBytes = utils.NewValue(memStruct.ulTotalPhys)
+	} else {
+		info.TotalBytes = utils.NewErrorValue[uint64](err)
 	}
-	return
+
+	info.SwapTotalKb = utils.NewErrorValue[uint64](fmt.Errorf("memory.SwapTotalKb: %w", utils.ErrNotCollectable))
 }

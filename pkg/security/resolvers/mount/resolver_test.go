@@ -45,13 +45,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       27,
-								GroupID:       0,
-								Device:        1,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 1,
+								MountID: 27,
+								Device:  1,
+								ParentPathKey: model.PathKey{
+									MountID: 1,
+								},
 								FSType:        "ext4",
 								MountPointStr: "/",
 								RootStr:       "",
@@ -76,13 +74,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       27,
-								GroupID:       0,
-								Device:        1,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 1,
+								MountID: 27,
+								Device:  1,
+								ParentPathKey: model.PathKey{
+									MountID: 1,
+								},
 								FSType:        "ext4",
 								MountPointStr: "/",
 								RootStr:       "",
@@ -107,13 +103,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       127,
-								GroupID:       71,
-								Device:        52,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 27,
+								MountID: 127,
+								Device:  52,
+								ParentPathKey: model.PathKey{
+									MountID: 27,
+								},
 								FSType:        "overlay",
 								MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 								RootStr:       "",
@@ -168,13 +162,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       27,
-								GroupID:       0,
-								Device:        1,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 1,
+								MountID: 27,
+								Device:  1,
+								ParentPathKey: model.PathKey{
+									MountID: 1,
+								},
 								FSType:        "ext4",
 								MountPointStr: "/",
 								RootStr:       "",
@@ -185,13 +177,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       22,
-								GroupID:       0,
-								Device:        21,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 27,
+								MountID: 22,
+								Device:  21,
+								ParentPathKey: model.PathKey{
+									MountID: 27,
+								},
 								FSType:        "sysfs",
 								MountPointStr: "/sys",
 								RootStr:       "",
@@ -202,13 +192,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       31,
-								GroupID:       0,
-								Device:        26,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 22,
+								MountID: 31,
+								Device:  26,
+								ParentPathKey: model.PathKey{
+									MountID: 22,
+								},
 								FSType:        "tmpfs",
 								MountPointStr: "/fs/cgroup",
 								RootStr:       "",
@@ -273,13 +261,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       27,
-								GroupID:       0,
-								Device:        1,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 1,
+								MountID: 27,
+								Device:  1,
+								ParentPathKey: model.PathKey{
+									MountID: 1,
+								},
 								FSType:        "ext4",
 								MountPointStr: "/",
 								RootStr:       "",
@@ -290,13 +276,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       176,
-								GroupID:       71,
-								Device:        52,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 27,
+								MountID: 176,
+								Device:  52,
+								ParentPathKey: model.PathKey{
+									MountID: 27,
+								},
 								FSType:        "overlay",
 								MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 								RootStr:       "",
@@ -307,13 +291,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       638,
-								GroupID:       71,
-								Device:        52,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 635,
+								MountID: 638,
+								Device:  52,
+								ParentPathKey: model.PathKey{
+									MountID: 635,
+								},
 								FSType:        "bind",
 								MountPointStr: "/",
 								RootStr:       "",
@@ -324,13 +306,11 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       639,
-								GroupID:       0,
-								Device:        54,
-								ParentInode:   0,
-								RootMountID:   0,
-								RootInode:     0,
-								ParentMountID: 638,
+								MountID: 639,
+								Device:  54,
+								ParentPathKey: model.PathKey{
+									MountID: 638,
+								},
 								FSType:        "proc",
 								MountPointStr: "proc",
 								RootStr:       "",
@@ -385,8 +365,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       32,
-								ParentMountID: 638,
+								MountID: 32,
+								ParentPathKey: model.PathKey{
+									MountID: 638,
+								},
 								MountPointStr: "/",
 							},
 						},
@@ -395,8 +377,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       41,
-								ParentMountID: 32,
+								MountID: 41,
+								ParentPathKey: model.PathKey{
+									MountID: 32,
+								},
 								MountPointStr: "/tmp",
 							},
 						},
@@ -405,8 +389,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							SyscallEvent: model.SyscallEvent{},
 							Mount: model.Mount{
-								MountID:       42,
-								ParentMountID: 41,
+								MountID: 42,
+								ParentPathKey: model.PathKey{
+									MountID: 41,
+								},
 								MountPointStr: "/tmp",
 							},
 						},
@@ -479,18 +465,24 @@ func TestMountGetParentPath(t *testing.T) {
 				MountPointStr: "/",
 			},
 			2: {
-				MountID:       2,
-				ParentMountID: 1,
+				MountID: 2,
+				ParentPathKey: model.PathKey{
+					MountID: 1,
+				},
 				MountPointStr: "/a",
 			},
 			3: {
-				MountID:       3,
-				ParentMountID: 2,
+				MountID: 3,
+				ParentPathKey: model.PathKey{
+					MountID: 2,
+				},
 				MountPointStr: "/b",
 			},
 			4: {
-				MountID:       4,
-				ParentMountID: 3,
+				MountID: 4,
+				ParentPathKey: model.PathKey{
+					MountID: 3,
+				},
 				MountPointStr: "/c",
 			},
 		},
@@ -509,18 +501,24 @@ func TestMountLoop(t *testing.T) {
 				MountPointStr: "/",
 			},
 			2: {
-				MountID:       2,
-				ParentMountID: 4,
+				MountID: 2,
+				ParentPathKey: model.PathKey{
+					MountID: 4,
+				},
 				MountPointStr: "/a",
 			},
 			3: {
-				MountID:       3,
-				ParentMountID: 2,
+				MountID: 3,
+				ParentPathKey: model.PathKey{
+					MountID: 2,
+				},
 				MountPointStr: "/b",
 			},
 			4: {
-				MountID:       4,
-				ParentMountID: 3,
+				MountID: 4,
+				ParentPathKey: model.PathKey{
+					MountID: 3,
+				},
 				MountPointStr: "/c",
 			},
 		},
@@ -543,8 +541,10 @@ func BenchmarkGetParentPath(b *testing.B) {
 
 	for i := uint32(1); i != 100; i++ {
 		mr.mounts[i+1] = &model.Mount{
-			MountID:       i + 1,
-			ParentMountID: i,
+			MountID: i + 1,
+			ParentPathKey: model.PathKey{
+				MountID: i,
+			},
 			MountPointStr: fmt.Sprintf("/%d", i+1),
 		}
 	}

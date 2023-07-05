@@ -31,8 +31,8 @@ SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
     return trace__sys_unlink(SYNC_SYSCALL, flags);
 }
 
-SEC("kprobe/do_unlinkat")
-int kprobe_do_unlinkat(struct pt_regs *ctx) {
+HOOK_ENTRY("do_unlinkat")
+int hook_do_unlinkat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
         return trace__sys_unlink(ASYNC_SYSCALL, 0);
@@ -40,6 +40,7 @@ int kprobe_do_unlinkat(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/vfs_unlink")
 int kprobe_vfs_unlink(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
@@ -81,9 +82,14 @@ int kprobe_vfs_unlink(struct pt_regs *ctx) {
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_UNLINK);
+
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_unlink_callback")
 int __attribute__((always_inline)) kprobe_dr_unlink_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
@@ -148,7 +154,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     }
 
     if (retval >= 0) {
-        invalidate_inode(ctx, syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino, !pass_to_userspace);
+        expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
     }
 
     return 0;

@@ -222,8 +222,8 @@ build do
           end
         # In any case we add the lib to the requirements files to avoid inconsistency in the installed versions
         # For example if aerospike has dependency A>1.2.3 and a package in the big requirements file has A<1.2.3, the install process would succeed but the integration wouldn't work.
-        requirements.push(line)
         end
+        requirements.push(line)
       end
     end
 
@@ -349,7 +349,7 @@ build do
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows? then '"c:\Program files\python38\scripts\aws"' else 'aws' end
+    awscli = if windows? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       command "inv -e agent.get-integrations-from-cache " \
@@ -432,9 +432,12 @@ build do
         end
 
         # Copy SNMP profiles
-        profiles = "#{check_dir}/datadog_checks/#{check}/data/profiles"
-        if File.exist? profiles
-          copy profiles, "#{check_conf_dir}/"
+        profile_folders = ['profiles', 'default_profiles']
+        profile_folders.each do |profile_folder|
+            folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
+            if File.exist? folder_path
+              copy folder_path, "#{check_conf_dir}/"
+            end
         end
 
         # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2

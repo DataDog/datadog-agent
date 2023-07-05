@@ -20,23 +20,24 @@ import (
 const Traces DataType = "traces"
 
 func setupAPM(config Config) {
-	config.SetKnown("apm_config.obfuscation.elasticsearch.enabled")
-	config.SetKnown("apm_config.obfuscation.elasticsearch.keep_values")
-	config.SetKnown("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
-	config.SetKnown("apm_config.obfuscation.mongodb.enabled")
-	config.SetKnown("apm_config.obfuscation.mongodb.keep_values")
-	config.SetKnown("apm_config.obfuscation.mongodb.obfuscate_sql_values")
-	config.SetKnown("apm_config.obfuscation.sql_exec_plan.enabled")
-	config.SetKnown("apm_config.obfuscation.sql_exec_plan.keep_values")
-	config.SetKnown("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
-	config.SetKnown("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
-	config.SetKnown("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
-	config.SetKnown("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
-	config.SetKnown("apm_config.obfuscation.http.remove_query_string")
-	config.SetKnown("apm_config.obfuscation.http.remove_paths_with_digits")
-	config.SetKnown("apm_config.obfuscation.remove_stack_traces")
-	config.SetKnown("apm_config.obfuscation.redis.enabled")
-	config.SetKnown("apm_config.obfuscation.memcached.enabled")
+	config.BindEnv("apm_config.obfuscation.elasticsearch.enabled", "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED")
+	config.BindEnv("apm_config.obfuscation.elasticsearch.keep_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES")
+	config.BindEnv("apm_config.obfuscation.elasticsearch.obfuscate_sql_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES")
+	config.BindEnv("apm_config.obfuscation.mongodb.enabled", "DD_APM_OBFUSCATION_MONGODB_ENABLED")
+	config.BindEnv("apm_config.obfuscation.mongodb.keep_values", "DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES")
+	config.BindEnv("apm_config.obfuscation.mongodb.obfuscate_sql_values", "DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES")
+	config.BindEnv("apm_config.obfuscation.sql_exec_plan.enabled", "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED")
+	config.BindEnv("apm_config.obfuscation.sql_exec_plan.keep_values", "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES")
+	config.BindEnv("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values", "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES")
+	config.BindEnv("apm_config.obfuscation.sql_exec_plan_normalize.enabled", "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED")
+	config.BindEnv("apm_config.obfuscation.sql_exec_plan_normalize.keep_values", "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES")
+	config.BindEnv("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values", "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES")
+	config.BindEnv("apm_config.obfuscation.http.remove_query_string", "DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING")
+	config.BindEnv("apm_config.obfuscation.http.remove_paths_with_digits", "DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS")
+	config.BindEnv("apm_config.obfuscation.remove_stack_traces", "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES")
+	config.BindEnv("apm_config.obfuscation.redis.enabled", "DD_APM_OBFUSCATION_REDIS_ENABLED")
+	config.BindEnv("apm_config.obfuscation.redis.remove_all_args", "DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS")
+	config.BindEnv("apm_config.obfuscation.memcached.enabled", "DD_APM_OBFUSCATION_MEMCACHED_ENABLED")
 	config.SetKnown("apm_config.filter_tags.require")
 	config.SetKnown("apm_config.filter_tags.reject")
 	config.SetKnown("apm_config.extra_sample_rate")
@@ -114,7 +115,21 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.obfuscation.credit_cards.luhn", "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
-	config.SetEnvKeyTransformer("apm_config.features", parseKVList("apm_config.features"))
+	config.SetEnvKeyTransformer("apm_config.features", func(s string) interface{} {
+		// Either commas or spaces can be used as separators.
+		// Comma takes precedence as it was the only supported separator in the past.
+		// Mixing separators is not supported.
+		var res []string
+		if strings.ContainsRune(s, ',') {
+			res = strings.Split(s, ",")
+		} else {
+			res = strings.Split(s, " ")
+		}
+		for i, v := range res {
+			res[i] = strings.TrimSpace(v)
+		}
+		return res
+	})
 
 	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
 		r, err := splitCSVString(in, ',')

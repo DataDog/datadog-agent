@@ -45,6 +45,8 @@ AGENT_TAG = "datadog/agent:master"
 AGENT_CORECHECKS = [
     "container",
     "containerd",
+    "container_image",
+    "container_lifecycle",
     "cpu",
     "cri",
     "snmp",
@@ -59,6 +61,7 @@ AGENT_CORECHECKS = [
     "ntp",
     "oom_kill",
     "oracle-dbm",
+    "sbom",
     "systemd",
     "tcp_queue_length",
     "uptime",
@@ -451,6 +454,9 @@ def get_omnibus_env(
 
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
+
+    if int(major_version) > 6:
+        env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
 
     integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
     # Only overrides the env var if the value is a non-empty string.

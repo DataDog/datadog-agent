@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
+	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
@@ -69,11 +70,11 @@ func cpuMock() (*cpu.Cpu, []string, error) {
 	}, nil, nil
 }
 
-func memoryMock() (*memory.Memory, []string, error) {
-	return &memory.Memory{
-		TotalBytes:     1234567890,
-		SwapTotalBytes: 1234567890,
-	}, nil, nil
+func memoryMock() *memory.Info {
+	return &memory.Info{
+		TotalBytes:  gohaiutils.NewValue[uint64](1234567890),
+		SwapTotalKb: gohaiutils.NewValue[uint64](1205632),
+	}
 }
 
 func networkMock() (*network.Network, []string, error) {
@@ -104,7 +105,7 @@ func platformMock() (*platform.Platform, []string, error) {
 func setupHostMetadataMock(t *testing.T) {
 	t.Cleanup(func() {
 		cpuGet = cpu.Get
-		memoryGet = memory.Get
+		memoryGet = memory.CollectInfo
 		networkGet = network.Get
 		platformGet = platform.Get
 
@@ -132,14 +133,14 @@ func TestGetHostMetadata(t *testing.T) {
 }
 
 func cpuErrorMock() (*cpu.Cpu, []string, error)                { return nil, nil, fmt.Errorf("err") }
-func memoryErrorMock() (*memory.Memory, []string, error)       { return nil, nil, fmt.Errorf("err") }
+func memoryErrorMock() *memory.Info                            { return &memory.Info{} }
 func networkErrorMock() (*network.Network, []string, error)    { return nil, nil, fmt.Errorf("err") }
 func platformErrorMock() (*platform.Platform, []string, error) { return nil, nil, fmt.Errorf("err") }
 
 func setupHostMetadataErrorMock(t *testing.T) {
 	t.Cleanup(func() {
 		cpuGet = cpu.Get
-		memoryGet = memory.Get
+		memoryGet = memory.CollectInfo
 		networkGet = network.Get
 		platformGet = platform.Get
 	})

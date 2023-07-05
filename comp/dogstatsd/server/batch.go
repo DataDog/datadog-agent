@@ -206,7 +206,6 @@ func (b *batcher) flushSamplesWithTs() {
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "late_metrics")
 
 		b.samplesWithTsCount = 0
-		b.metricSamplePool.PutBatch(b.samplesWithTs)
 		b.samplesWithTs = b.metricSamplePool.GetBatch()
 	}
 }
