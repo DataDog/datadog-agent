@@ -1,5 +1,5 @@
 from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
-from .download import archs_mapping, karch_mapping
+from .download import archs_mapping, karch_mapping, url_base
 from .stacks import stack_exists, create_stack, X86_INSTANCE_TYPE, ARM_INSTANCE_TYPE
 import platform
 import math
@@ -71,7 +71,7 @@ distributions = {
     "amzn_5.15": "amzn_5.15",
 }
 distro_arch_mapping = {"x86_64": "amd64", "arm64": "arm64"}
-images_path = {
+images_path_ami = {
     "bionic": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-{arch}.qcow2",
     "focal": "file:///home/kernel-version-testing/rootfs/focal-server-cloudimg-{arch}.qcow2",
     "jammy": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-{arch}.qcow2",
@@ -82,6 +82,19 @@ images_path = {
     "amzn_5.10": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.10.qcow2",
     "amzn_5.15": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.15.qcow2",
 }
+
+images_path_s3 = {
+    "bionic":   "{url_base}bionic-server-cloudimg-{arch}.qcow2",
+    "focal":    "{url_base}focal-server-cloudimg-{arch}.qcow2",
+    "jammy":    "{url_base}jammy-server-cloudimg-{arch}.qcow2",
+    "bullseye": "{url_base}bullseye.qcow2.{arch}-DEV.qcow2",
+    "buster":   "{url_base}buster.qcow2.{arch}-DEV.qcow2",
+    "amzn_4.14":"{url_base}amzn2-kvm-2.0-{arch}-4.14.qcow2",
+    "amzn_5.4": "{url_base}amzn2-kvm-2.0-{arch}-5.4.qcow2",
+    "amzn_5.10":"{url_base}amzn2-kvm-2.0-{arch}-5.10.qcow2",
+    "amzn_5.15":"{url_base}amzn2-kvm-2.0-{arch}-5.15.qcow2",
+}
+
 images_name = {
     "bionic": "bionic-server-cloudimg-{arch}.qcow2",
     "focal": "focal-server-cloudimg-{arch}.qcow2",
@@ -237,7 +250,7 @@ def get_distro_image_config(version, arch):
     return {
         "dir": images_name[version].format(arch=distro_arch_mapping[arch]),
         "tag": version,
-        "image_source": images_path[version].format(arch=distro_arch_mapping[arch]),
+        "image_source": images_path_s3[version].format(arch=distro_arch_mapping[arch], url_base=url_base),
     }
 
 
@@ -258,12 +271,12 @@ def build_new_vmset(set_id, kernels):
         if version == "lte_414":
             vmset["image"] = {
                 "image_path": f"buster.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_uri": images_path["buster"].format(arch=distro_arch_mapping[platform_arch]),
+                "image_uri": images_path_s3["buster"].format(arch=distro_arch_mapping[platform_arch], url_base=url_base),
             }
         else:
             vmset["image"] = {
                 "image_path": f"bullseye.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_uri": images_path["bullseye"].format(arch=distro_arch_mapping[platform_arch]),
+                "image_uri": images_path_s3["bullseye"].format(arch=distro_arch_mapping[platform_arch], url_base=url_base),
             }
     elif recipe == "distro":
         vmset = {"name": vmset_name_from_id(set_id), "recipe": f"distro-{arch}", "arch": arch, "kernels": kernels}
