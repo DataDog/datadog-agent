@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const kProbeTelemetryName = "ebpf__kprobes"
+const kProbeTelemetryName = "ebpf__probes"
 
 func init() {
 	myPid = manager.Getpid()
@@ -33,16 +33,22 @@ type DebugFsStatCollector struct {
 
 func NewDebugFsStatCollector() *DebugFsStatCollector {
 	return &DebugFsStatCollector{
-		hits:   prometheus.NewDesc(kProbeTelemetryName+"__hits", "Gauge tracking number of kprobe hits", []string{"name"}, nil),
-		misses: prometheus.NewDesc(kProbeTelemetryName+"__misses", "Gauge tracking number of kprobe misses", []string{"name"}, nil),
+		hits:   prometheus.NewDesc(kProbeTelemetryName+"__hits", "Gauge tracking number of kprobe hits", []string{"name", "probe_type"}, nil),
+		misses: prometheus.NewDesc(kProbeTelemetryName+"__misses", "Gauge tracking number of kprobe misses", []string{"name", "probe_type"}, nil),
 	}
 }
 
-func (c *DebugFsStatCollector) updateProbeStats(pid int, profile string, ch chan<- prometheus.Metric) {
+func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType string, ch chan<- prometheus.Metric) {
 	if pid == 0 {
 		pid = myPid
 	}
 
+	root, err := tracefs.Root()
+	if err != nil {
+		log.Debugf("error getting tracefs root path: %s", err)
+		return
+	}
+	profile := filepath.Join(root, probeType+"_profile")
 	m, err := readKprobeProfile(profile)
 	if err != nil {
 		log.Debugf("error retrieving probe stats: %s", err)
@@ -65,9 +71,9 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, profile string, ch chan
 		event = strings.ToLower(event)
 		hitsKey := "h_" + event
 		missesKey := "m_" + event
-		ch <- prometheus.MustNewConstMetric(c.hits, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[hitsKey]), event)
+		ch <- prometheus.MustNewConstMetric(c.hits, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[hitsKey]), event, probeType)
 		c.lastProbeStats[hitsKey] = int(st.Hits)
-		ch <- prometheus.MustNewConstMetric(c.misses, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[missesKey]), event)
+		ch <- prometheus.MustNewConstMetric(c.misses, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[missesKey]), event, probeType)
 		c.lastProbeStats[missesKey] = int(st.Misses)
 	}
 }
@@ -78,13 +84,6 @@ func (c *DebugFsStatCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *DebugFsStatCollector) Collect(ch chan<- prometheus.Metric) {
-
-	root, err := tracefs.Root()
-	if err != nil {
-		log.Debugf("error getting tracefs root path: %s", err)
-		return
-	}
-
-	c.updateProbeStats(0, filepath.Join(root, "kprobe_profile"), ch)
-	c.updateProbeStats(0, filepath.Join(root, "uprobe_profile"), ch)
+	c.updateProbeStats(0, "kprobe", ch)
+	c.updateProbeStats(0, "uprobe", ch)
 }
