@@ -18,7 +18,7 @@ import (
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"stream-ep", "--type", "foo"},
+		[]string{"stream-event-platform", "--type", "foo"},
 		streamEventPlatform,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, false, coreParams.ConfigLoadSecrets())

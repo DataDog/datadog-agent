@@ -37,7 +37,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	cmd := &cobra.Command{
-		Use:   "stream-ep",
+		Use:   "stream-event-platform",
 		Short: "Stream the event platform payloads being processed by a running agent",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {

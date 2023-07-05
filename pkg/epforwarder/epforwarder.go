@@ -204,7 +204,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	}
 
 	// Stream to console if debug mode is enabled
-	p.messageReceiver.HandleMessage(*e, eventType, nil)
+	p.diagnosticMessageReceiver.HandleMessage(*e, eventType, nil)
 
 	select {
 	case p.in <- e:
@@ -223,7 +223,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *messag
 	}
 
 	// Stream to console if debug mode is enabled
-	p.messageReceiver.HandleMessage(*e, eventType, nil)
+	p.diagnosticMessageReceiver.HandleMessage(*e, eventType, nil)
 
 	p.in <- e
 	return nil
@@ -278,11 +278,11 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender          *sender.Sender
-	strategy        sender.Strategy
-	in              chan *message.Message
-	auditor         auditor.Auditor
-	messageReceiver *diagnostic.BufferedMessageReceiver
+	sender                    *sender.Sender
+	strategy                  sender.Strategy
+	in                        chan *message.Message
+	auditor                   auditor.Auditor
+	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 }
 
 type passthroughPipelineDesc struct {
@@ -360,11 +360,11 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:          sender.NewSender(senderInput, a.Channel(), destinations, 10),
-		strategy:        strategy,
-		in:              inputChan,
-		auditor:         a,
-		messageReceiver: GetGlobalReceiver(),
+		sender:                    sender.NewSender(senderInput, a.Channel(), destinations, 10),
+		strategy:                  strategy,
+		in:                        inputChan,
+		auditor:                   a,
+		diagnosticMessageReceiver: GetGlobalReceiver(),
 	}, nil
 }
 

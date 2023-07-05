@@ -54,8 +54,8 @@ func SetupHandlers(r *mux.Router, flareComp flare.Component, server dogstatsdSer
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
-	r.HandleFunc("/stream-event-platform", streamEventPlatform).Methods("POST")
+	r.HandleFunc("/stream-logs", streamLogs()).Methods("POST")
+	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
@@ -192,134 +192,78 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-func streamLogs(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got a request for stream logs.")
-	w.Header().Set("Transfer-Encoding", "chunked")
-
-	logMessageReceiver := logs.GetMessageReceiver()
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		log.Errorf("Expected a Flusher type, got: %v", w)
-		return
-	}
-
-	if logMessageReceiver == nil {
-		http.Error(w, "The logs agent is not running", 405)
-		flusher.Flush()
-		log.Info("Logs agent is not running - can't stream logs")
-		return
-	}
-
-	if !logMessageReceiver.SetEnabled(true) {
-		http.Error(w, "Another client is already streaming logs.", 405)
-		flusher.Flush()
-		log.Info("Logs are already streaming. Dropping connection.")
-		return
-	}
-	defer logMessageReceiver.SetEnabled(false)
-
-	var filters diagnostic.Filters
-
-	if r.Body != http.NoBody {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
-			return
-		}
-
-		if err := json.Unmarshal(body, &filters); err != nil {
-			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-			return
-		}
-	}
-
-	// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-	conn := GetConnection(r)
-	_ = conn.SetDeadline(time.Time{})
-
-	done := make(chan struct{})
-	defer close(done)
-	logChan := logMessageReceiver.Filter(&filters, done)
-	flushTimer := time.NewTicker(time.Second)
-	for {
-		// Handlers for detecting a closed connection (from either the server or client)
-		select {
-		case <-w.(http.CloseNotifier).CloseNotify(): //nolint
-			return
-		case <-r.Context().Done():
-			return
-		case line := <-logChan:
-			fmt.Fprint(w, line)
-		case <-flushTimer.C:
-			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
-			flusher.Flush()
-		}
-	}
+func streamLogs() func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(logs.GetMessageReceiver, "logs", "logs agent")
 }
 
-func streamEventPlatform(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got a request for stream event platform.")
-	w.Header().Set("Transfer-Encoding", "chunked")
+func streamEventPlatform() func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(epforwarder.GetGlobalReceiver, "event platform payloads", "agent")
+}
 
-	epMessageReceiver := epforwarder.GetGlobalReceiver()
+func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Infof("Got a request to stream %s.", streamType)
+		w.Header().Set("Transfer-Encoding", "chunked")
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		log.Errorf("Expected a Flusher type, got: %v", w)
-		return
-	}
+		messageReceiver := messageReceiverFunc()
 
-	if epMessageReceiver == nil {
-		http.Error(w, "The agent is not running", 405)
-		flusher.Flush()
-		log.Info("Agent is not running - can't stream event platform")
-		return
-	}
-
-	if !epMessageReceiver.SetEnabled(true) {
-		http.Error(w, "Another client is already streaming event platform payloads.", 405)
-		flusher.Flush()
-		log.Info("Event platform payloads are already streaming. Dropping connection.")
-		return
-	}
-	defer epMessageReceiver.SetEnabled(false)
-
-	var filters diagnostic.Filters
-
-	if r.Body != http.NoBody {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			log.Errorf("Expected a Flusher type, got: %v", w)
 			return
 		}
 
-		if err := json.Unmarshal(body, &filters); err != nil {
-			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-			return
-		}
-	}
-
-	// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-	conn := GetConnection(r)
-	_ = conn.SetDeadline(time.Time{})
-
-	done := make(chan struct{})
-	defer close(done)
-	logChan := epMessageReceiver.Filter(&filters, done)
-	flushTimer := time.NewTicker(time.Second)
-	for {
-		// Handlers for detecting a closed connection (from either the server or client)
-		select {
-		case <-w.(http.CloseNotifier).CloseNotify(): //nolint
-			return
-		case <-r.Context().Done():
-			return
-		case line := <-logChan:
-			fmt.Fprint(w, line)
-		case <-flushTimer.C:
-			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+		if messageReceiver == nil {
+			http.Error(w, fmt.Sprintf("The %s is not running", agentType), 405)
 			flusher.Flush()
+			log.Infof("The %s is not running - can't stream %s", agentType, streamType)
+			return
+		}
+
+		if !messageReceiver.SetEnabled(true) {
+			http.Error(w, fmt.Sprintf("Another client is already streaming %s.", streamType), 405)
+			flusher.Flush()
+			log.Infof("%s are already streaming. Dropping connection.", streamType)
+			return
+		}
+		defer messageReceiver.SetEnabled(false)
+
+		var filters diagnostic.Filters
+
+		if r.Body != http.NoBody {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+				return
+			}
+
+			if err := json.Unmarshal(body, &filters); err != nil {
+				http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+				return
+			}
+		}
+
+		// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
+		conn := GetConnection(r)
+		_ = conn.SetDeadline(time.Time{})
+
+		done := make(chan struct{})
+		defer close(done)
+		logChan := messageReceiver.Filter(&filters, done)
+		flushTimer := time.NewTicker(time.Second)
+		for {
+			// Handlers for detecting a closed connection (from either the server or client)
+			select {
+			case <-w.(http.CloseNotifier).CloseNotify(): //nolint
+				return
+			case <-r.Context().Done():
+				return
+			case line := <-logChan:
+				fmt.Fprint(w, line)
+			case <-flushTimer.C:
+				// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+				flusher.Flush()
+			}
 		}
 	}
 }
