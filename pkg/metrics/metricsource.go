@@ -33,31 +33,3 @@ func (ms MetricSource) String() string {
 
 	}
 }
-
-func (ms MetricSource) OriginCategory() int32 {
-	// These constants map to specific fields in the 'OriginCategory' enum
-	switch ms {
-	case MetricSourceUnknown:
-		return 0
-	case MetricSourceDogstatsd:
-		return 10
-	case MetricSourceJmxCustom:
-		return 11
-	default:
-		return 0
-	}
-}
-
-func (ms MetricSource) OriginService() int32 {
-	// These constants map to specific fields in the 'OriginService' enum
-	switch ms {
-	case MetricSourceDogstatsd:
-		return 0
-	case MetricSourceJmxCustom:
-		return 9
-	case MetricSourceUnknown:
-		return 0
-	default:
-		return 0
-	}
-}
