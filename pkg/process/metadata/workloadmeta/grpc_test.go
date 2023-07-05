@@ -14,11 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func TestGetGRPCStreamPort(t *testing.T) {
@@ -210,6 +212,30 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	}, msg)
 }
 
+func TestStreamVersioning(t *testing.T) {
+	extractor, _, conn, stream := makeTestClientServer(t)
+	msg, err := stream.Recv()
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, msg.EventID)
+
+	extractor.diffChan <- &ProcessCacheDiff{cacheVersion: 1} // Simulate a cache update
+	msg, err = stream.Recv()
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, msg.EventID)
+
+	extractor.diffChan <- &ProcessCacheDiff{cacheVersion: 3} // Simulate a missing message
+	_, err = stream.Recv()
+	assert.ErrorContains(t, err, "received version = 3; expected = 2")
+	assert.Equal(t, conn.GetState(), connectivity.Ready) // Assert the underlying connection is still open
+
+	// Make sure we are able to create a new stream using the same connection
+	stream, err = pbgo.NewProcessEntityStreamClient(conn).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	require.NoError(t, err)
+	msg, err = stream.Recv()
+	assert.EqualValues(t, 0, msg.EventID)
+	require.NoError(t, err)
+}
+
 func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.ProcessStreamResponse) {
 	t.Helper()
 
@@ -259,4 +285,31 @@ func toEventSet(proc *procutil.Process) *pbgo.ProcessEventSet {
 
 func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
 	return &pbgo.ProcessEventUnset{Pid: proc.Pid}
+}
+
+// makeTestClientServer a test extractor, server, and client connection.
+// Cleanup is handled automatically via T.Cleanup().
+func makeTestClientServer(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.ClientConn, pbgo.ProcessEntityStream_StreamEntitiesClient) {
+	cfg := config.Mock(t)
+	port, err := testutil.FindTCPPort()
+	require.NoError(t, err)
+	cfg.Set("process_config.language_detection.grpc_port", port) // Tell the os to choose a port for us to reduce flakiness
+	extractor := NewWorkloadMetaExtractor(cfg)
+
+	grpcServer := NewGRPCServer(cfg, extractor)
+	err = grpcServer.Start()
+	require.NoError(t, err)
+	t.Cleanup(grpcServer.Stop)
+
+	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := cc.Close()
+		require.NoError(t, err)
+	})
+
+	stream, err := pbgo.NewProcessEntityStreamClient(cc).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	require.NoError(t, err)
+
+	return extractor, grpcServer, cc, stream
 }
