@@ -13,26 +13,25 @@ import (
 )
 
 const (
-	aasInstanceID      = "aas.environment.instance_id"
-	aasInstanceName    = "aas.environment.instance_name"
-	aasOperatingSystem = "aas.environment.os"
-	aasRuntime         = "aas.environment.runtime"
-	aasResourceGroup   = "aas.resource.group"
-	aasResourceID      = "aas.resource.id"
-	aasSiteKind        = "aas.site.kind"
-	aasSiteName        = "aas.site.name"
-	aasSiteType        = "aas.site.type"
-	aasSubscriptionID  = "aas.subscription.id"
+	aasInstanceID       = "aas.environment.instance_id"
+	aasInstanceName     = "aas.environment.instance_name"
+	aasOperatingSystem  = "aas.environment.os"
+	aasRuntime          = "aas.environment.runtime"
+	aasExtensionVersion = "aas.environment.extension_version"
+	aasResourceGroup    = "aas.resource.group"
+	aasResourceID       = "aas.resource.id"
+	aasSiteKind         = "aas.site.kind"
+	aasSiteName         = "aas.site.name"
+	aasSiteType         = "aas.site.type"
+	aasSubscriptionID   = "aas.subscription.id"
 
 	// this value matches the runtime value set in the Azure Windows Extension
 	dotnetFramework = ".NET"
-	dotnetRuntime   = "dotnet"
 	nodeFramework   = "Node.js"
-	nodeRuntime     = "node"
+	javaFramework   = "Java"
 	unknown         = "unknown"
 
 	appService = "app"
-	ddRuntime  = "DD_RUNTIME"
 )
 
 var appServicesTags map[string]string
@@ -51,6 +50,7 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	instanceID := getEnvOrUnknown("WEBSITE_INSTANCE_ID", getenv)
 	computerName := getEnvOrUnknown("COMPUTERNAME", getenv)
 	currentRuntime := getRuntime(getenv)
+	extensionVersion := getenv("DD_AAS_EXTENSION_VERSION")
 
 	// Windows and linux environments provide the OS differently
 	// We should grab it from GO's builtin runtime pkg
@@ -59,7 +59,7 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	subscriptionID := parseAzureSubscriptionID(ownerName)
 	resourceID := compileAzureResourceID(subscriptionID, resourceGroup, siteName)
 
-	return map[string]string{
+	tags := map[string]string{
 		aasInstanceID:      instanceID,
 		aasInstanceName:    computerName,
 		aasOperatingSystem: websiteOS,
@@ -71,27 +71,46 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 		aasSiteType:        appService,
 		aasSubscriptionID:  subscriptionID,
 	}
+
+	// Remove the Java and .NET logic once non-universal extensions are deprecated
+	if websiteOS == "windows" {
+		if len(extensionVersion) > 0 {
+			tags[aasExtensionVersion] = extensionVersion
+		} else if hasEnv("DD_AAS_JAVA_EXTENSION_VERSION", getenv) {
+			tags[aasExtensionVersion] = getenv("DD_AAS_JAVA_EXTENSION_VERSION")
+		} else if hasEnv("DD_AAS_DOTNET_EXTENSION_VERSION", getenv) {
+			tags[aasExtensionVersion] = getenv("DD_AAS_DOTNET_EXTENSION_VERSION")
+		}
+	}
+
+	return tags
 }
 
 func getEnvOrUnknown(env string, getenv func(string) string) string {
 	val := getenv(env)
-	if len(env) == 0 {
+	if len(val) == 0 {
 		val = unknown
 	}
 	return val
 }
 
 func getRuntime(getenv func(string) string) (rt string) {
-	env := getenv(ddRuntime)
-	switch env {
-	case dotnetRuntime:
-		rt = dotnetFramework
-	case nodeRuntime:
+	rt = unknown
+
+	env := getenv("WEBSITE_STACK")
+	if env == "JAVA" {
+		rt = javaFramework
+	} else if env == "NODE" || hasEnv("WEBSITE_NODE_DEFAULT_VERSION", getenv) {
 		rt = nodeFramework
-	default:
-		rt = unknown
+	} else if hasEnv("DOTNET_CLI_TELEMETRY_PROFILE", getenv) {
+		rt = dotnetFramework
 	}
-	return
+
+	return rt
+}
+
+func hasEnv(env string, getenv func(string) string) bool {
+	return len(getenv(env)) != 0
 }
 
 func parseAzureSubscriptionID(subID string) (id string) {

@@ -66,7 +66,6 @@ func mockAzureAppServiceMetadata() map[string]string {
 	aasMetadata["WEBSITE_RESOURCE_GROUP"] = "test-resource-group"
 	aasMetadata["WEBSITE_INSTANCE_ID"] = "1234abcd"
 	aasMetadata["COMPUTERNAME"] = "test-instance"
-	aasMetadata["DD_RUNTIME"] = "node"
 
 	return aasMetadata
 }
