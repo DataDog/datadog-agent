@@ -46,6 +46,7 @@ const (
 	defaultCacheBypassLimit = 5
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
+	orgStatusPollInterval   = 5 * time.Minute
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -94,6 +95,9 @@ type Service struct {
 	// Used to rate limit the 4XX error logs
 	fetchErrorCount    uint64
 	lastFetchErrorType error
+
+	// Previous /status response
+	previousOrgStatus *pbgo.OrgStatusResponse
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -251,6 +255,17 @@ func (s *Service) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	go func() {
+		s.pollOrgStatus()
+		for {
+			select {
+			case <-s.clock.After(orgStatusPollInterval):
+				s.pollOrgStatus()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
 		defer cancel()
 
 		err := s.refresh()
@@ -290,6 +305,38 @@ func (s *Service) Stop() error {
 	}
 
 	return s.db.Close()
+}
+
+func (s *Service) pollOrgStatus() {
+	response, err := s.api.FetchOrgStatus(context.Background())
+	if err != nil {
+		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
+		// and it limits the error log.
+		if !errors.Is(err, api.ErrUnauthorized) && !errors.Is(err, api.ErrProxy) {
+			log.Errorf("Could not refresh Remote Config: %v", err)
+		}
+		return
+	}
+
+	// Print info log when the new status is different from the previous one, or if it's the first run
+	if s.previousOrgStatus == nil || s.previousOrgStatus.Enabled != response.Enabled {
+		if !response.Enabled {
+			log.Infof("Remote Configuration isn't enabled, please follow the documentation to enable it.")
+		} else {
+			log.Infof("Remote Configuration is enabled.")
+		}
+	}
+	if s.previousOrgStatus == nil || s.previousOrgStatus.Authorized != response.Authorized {
+		if !response.Authorized {
+			log.Infof("Your API key does not have Remote Config scope attached. Please attach the scope to be able to use Remote Config.")
+		} else {
+			log.Infof("The API key is allowed to query Remote Config.")
+		}
+	}
+	s.previousOrgStatus = &pbgo.OrgStatusResponse{
+		Enabled:    response.Enabled,
+		Authorized: response.Authorized,
+	}
 }
 
 func (s *Service) calculateRefreshInterval() time.Duration {

@@ -30,6 +30,7 @@ func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessNo
 	ppan := &ProcessNode{
 		Process:        protoDecodeProcessNode(pan.Process),
 		GenerationType: NodeGenerationType(pan.GenerationType),
+		IsExecChild:    pan.IsExecChild,
 		MatchedRules:   make([]*model.MatchedRule, 0, len(pan.MatchedRules)),
 		Children:       make([]*ProcessNode, 0, len(pan.Children)),
 		Files:          make(map[string]*FileNode, len(pan.Files)),
@@ -137,7 +138,7 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 		return nil
 	}
 
-	return &model.FileEvent{
+	fe := &model.FileEvent{
 		FileFields: model.FileFields{
 			UID:   fi.Uid,
 			User:  fi.User,
@@ -158,7 +159,12 @@ func protoDecodeFileEvent(fi *adproto.FileInfo) *model.FileEvent {
 		PkgName:       fi.PackageName,
 		PkgVersion:    fi.PackageVersion,
 		PkgSrcVersion: fi.PackageSrcversion,
+		Hashes:        make([]string, len(fi.Hashes)),
+		HashState:     model.HashState(fi.HashState),
 	}
+	copy(fe.Hashes, fi.Hashes)
+
+	return fe
 }
 
 func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {

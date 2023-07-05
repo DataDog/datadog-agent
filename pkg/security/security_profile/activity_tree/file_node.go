@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -39,7 +40,12 @@ type OpenNode struct {
 }
 
 // NewFileNode returns a new FileActivityNode instance
-func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, generationType NodeGenerationType, reducedFilePath string) *FileNode {
+func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.Resolvers) *FileNode {
+	// call resolver. Safeguard: the process context might be empty if from a snapshot.
+	if resolvers != nil && fileEvent != nil && event.ProcessContext != nil {
+		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent)
+	}
+
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,
@@ -63,7 +69,13 @@ func (fn *FileNode) getNodeLabel() string {
 	}
 	if fn.File != nil {
 		if len(fn.File.PkgName) != 0 {
-			label += fmt.Sprintf(" \\{%s %s\\}", fn.File.PkgName, fn.File.PkgVersion)
+			label += fmt.Sprintf("|%s:%s}", fn.File.PkgName, fn.File.PkgVersion)
+		}
+		// add hashes
+		if len(fn.File.Hashes) > 0 {
+			label += fmt.Sprintf("|%v", strings.Join(fn.File.Hashes, "|"))
+		} else {
+			label += fmt.Sprintf("|(%s)", fn.File.HashState)
 		}
 	}
 	return label
@@ -113,7 +125,7 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool, reducedPath string) bool {
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool, reducedPath string, resolvers *resolvers.Resolvers) bool {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false
@@ -138,12 +150,12 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		newEntry = true
 		if len(currentPath) <= nextParentIndex+1 {
 			if !dryRun {
-				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, generationType, reducedPath)
+				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, generationType, reducedPath, resolvers)
 				stats.FileNodes++
 			}
 			break
 		} else {
-			newChild := NewFileNode(nil, nil, parent, generationType, "")
+			newChild := NewFileNode(nil, nil, parent, generationType, "", resolvers)
 			if !dryRun {
 				currentFn.Children[parent] = newChild
 			}

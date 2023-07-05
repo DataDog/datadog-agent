@@ -356,6 +356,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.enabled") {
 			c.Obfuscation.Redis.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.enabled")
 		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.remove_all_args") {
+			c.Obfuscation.Redis.RemoveAllArgs = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.remove_all_args")
+		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.remove_stack_traces") {
 			c.Obfuscation.RemoveStackTraces = coreconfig.Datadog.GetBool("apm_config.obfuscation.remove_stack_traces")
 		}

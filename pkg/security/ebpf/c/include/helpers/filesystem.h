@@ -39,6 +39,10 @@ static __attribute__((always_inline)) u32 get_path_id(u32 mount_id, int invalida
     return id;
 }
 
+static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int invalidate) {
+    path_key->path_id = get_path_id(path_key->mount_id, invalidate);
+}
+
 static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
     u32 key = mount_id;
     struct mount_ref_t zero = {};
@@ -112,6 +116,9 @@ void __attribute__((always_inline)) fill_resolver_mnt(struct pt_regs *ctx, struc
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(syscall->type);
 }
 
 int __attribute__((always_inline)) get_pipefs_mount_id(void) {
