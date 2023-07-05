@@ -54,7 +54,7 @@ func AutoInstrumentTracer(fs afero.Fs) {
 		{"/dd_tracer/node/", instrumentNode},
 		{"/dd_tracer/java/", instrumentJava},
 		{"/dd_tracer/dotnet/", instrumentDotnet},
-		{"/dd_tracer/python", instrumentPython},
+		{"/dd_tracer/python/", instrumentPython},
 	}
 
 	for _, tracer := range tracers {
