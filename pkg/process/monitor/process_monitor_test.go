@@ -18,13 +18,17 @@ import (
 	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	procutils "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 func getProcessMonitor(t *testing.T) *ProcessMonitor {
 	pm := GetProcessMonitor()
-	t.Cleanup(pm.Stop)
+	t.Cleanup(func() {
+		pm.Stop()
+		telemetry.Clear()
+	})
 	return pm
 }
 
@@ -75,6 +79,21 @@ func TestProcessMonitorSanity(t *testing.T) {
 		return numberOfExecs.Load() > 1
 	}, time.Second, time.Millisecond*200, "didn't capture exec events %d", numberOfExecs.Load())
 
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	telNotEqual := func(t *testing.T, expected int64, m string) {
+		require.NotEqual(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exec"], "process.monitor.exec")
+	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exit"], "process.monitor.exit")
+	telNotEqual(t, 0, "process.monitor.exec")
+	telNotEqual(t, 0, "process.monitor.exit")
+	telEqual(t, 0, "process.monitor.restart")
+	telEqual(t, 0, "process.monitor.reinitFailed")
+	telEqual(t, 0, "process.monitor.process_scan_failed")
+	require.GreaterOrEqual(t, tel["process.monitor.callback_called"], int64(1), "process.monitor.callback_called")
 }
 
 func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
@@ -126,6 +145,22 @@ func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
 		}
 		return true
 	}, time.Second, time.Millisecond*200, "at least of the callbacks didn't capture events")
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	telNotEqual := func(t *testing.T, expected int64, m string) {
+		require.NotEqual(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exec"], "process.monitor.exec")
+	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exit"], "process.monitor.exit")
+	telNotEqual(t, 0, "process.monitor.exec")
+	telNotEqual(t, 0, "process.monitor.exit")
+	telEqual(t, 0, "process.monitor.restart")
+	telEqual(t, 0, "process.monitor.reinit_failed")
+	telEqual(t, 0, "process.monitor.process_scan_failed")
+	require.GreaterOrEqual(t, tel["process.monitor.callback_called"], int64(1), "process.monitor.callback_called")
 }
 
 func TestProcessMonitorRefcount(t *testing.T) {
@@ -179,4 +214,20 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 		_, captured := execSet.Load(cmd.ProcessState.Pid())
 		return captured
 	}, time.Second, 200*time.Millisecond, "did not capture process EXEC from other namespace")
+
+	tel := telemetry.ReportPayloadTelemetry("1")
+	telEqual := func(t *testing.T, expected int64, m string) {
+		require.Equal(t, expected, tel[m], m)
+	}
+	telNotEqual := func(t *testing.T, expected int64, m string) {
+		require.NotEqual(t, expected, tel[m], m)
+	}
+	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exec"], "process.monitor.exec")
+	require.GreaterOrEqual(t, tel["process.monitor.events"], tel["process.monitor.exit"], "process.monitor.exit")
+	telNotEqual(t, 0, "process.monitor.exec")
+	telNotEqual(t, 0, "process.monitor.exit")
+	telEqual(t, 0, "process.monitor.restart")
+	telEqual(t, 0, "process.monitor.reinit_failed")
+	telEqual(t, 0, "process.monitor.process_scan_failed")
+	require.GreaterOrEqual(t, tel["process.monitor.callback_called"], int64(1), "process.monitor.callback_called")
 }

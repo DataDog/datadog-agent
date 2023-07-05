@@ -15,6 +15,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,6 +35,45 @@ var (
 		processExitCallbacks: make(map[*ProcessCallback]struct{}, 0),
 	}
 )
+
+// processMonitorTelemertry
+type processMonitorTelemertry struct {
+	// process monitor will process :
+	//  o events refer to netlink events received (not only exec and exit)
+	//  o exec process netlink events
+	//  o exit process netlink events
+	//  o restart the netlink connection
+	//
+	//  o events_channel_size is the queue length of netlink messages channel
+	//  o reinit_failed is the number of failed re-initialisation after a netlink restart due to an error
+	//  o process_scan_failed would be > 0 if initial process scan failed
+	//  o callback_called numbers of callback called
+	events  *telemetry.Metric
+	exec    *telemetry.Metric
+	exit    *telemetry.Metric
+	restart *telemetry.Metric
+
+	eventsChannelSize *telemetry.Metric
+	reinitFailed      *telemetry.Metric
+	processScanFailed *telemetry.Metric
+	callbackCalled    *telemetry.Metric
+}
+
+func (pmt *processMonitorTelemertry) initialize() {
+	metricGroup := telemetry.NewMetricGroup(
+		"process.monitor",
+		telemetry.OptPayloadTelemetry,
+	)
+	pmt.events = metricGroup.NewMetric("events", telemetry.OptMonotonic)
+	pmt.exec = metricGroup.NewMetric("exec", telemetry.OptMonotonic)
+	pmt.exit = metricGroup.NewMetric("exit", telemetry.OptMonotonic)
+	pmt.restart = metricGroup.NewMetric("restart", telemetry.OptMonotonic)
+
+	pmt.eventsChannelSize = metricGroup.NewMetric("events_channel_size", telemetry.OptGauge)
+	pmt.reinitFailed = metricGroup.NewMetric("reinit_failed", telemetry.OptMonotonic)
+	pmt.processScanFailed = metricGroup.NewMetric("process_scan_failed", telemetry.OptMonotonic)
+	pmt.callbackCalled = metricGroup.NewMetric("callback_called", telemetry.OptMonotonic)
+}
 
 // ProcessMonitor uses netlink process events like Exec and Exit and activate the registered callbacks for the relevant
 // events.
@@ -64,11 +104,7 @@ type ProcessMonitor struct {
 	processExitCallbacks      map[*ProcessCallback]struct{}
 	callbackRunner            chan func()
 
-	// monitor stats
-	eventCount     atomic.Uint32
-	execCount      atomic.Uint32
-	exitCount      atomic.Uint32
-	restartCounter atomic.Uint32
+	tel processMonitorTelemertry
 }
 
 type ProcessCallback func(pid uint32)
@@ -153,6 +189,7 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 			defer pm.callbackRunnersWG.Done()
 			for call := range pm.callbackRunner {
 				if call != nil {
+					pm.tel.callbackCalled.Add(1)
 					call()
 				}
 			}
@@ -185,11 +222,12 @@ func (pm *ProcessMonitor) mainEventLoop() {
 				return
 			}
 
-			pm.eventCount.Inc()
+			pm.tel.events.Add(1)
+			pm.tel.eventsChannelSize.Set(int64(len(pm.netlinkEventsChannel)))
 
 			switch ev := event.Msg.(type) {
 			case *netlink.ExecProcEvent:
-				pm.execCount.Inc()
+				pm.tel.exec.Add(1)
 				// handleProcessExec locks a mutex to access the exec callbacks array, if it is empty, then we're
 				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
 				// Checking an atomic boolean, is an atomic operation, hence much faster.
@@ -197,7 +235,7 @@ func (pm *ProcessMonitor) mainEventLoop() {
 					pm.handleProcessExec(ev.ProcessPid)
 				}
 			case *netlink.ExitProcEvent:
-				pm.exitCount.Inc()
+				pm.tel.exit.Add(1)
 				// handleProcessExit locks a mutex to access the exit callbacks array, if it is empty, then we're
 				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
 				// Checking an atomic boolean, is an atomic operation, hence much faster.
@@ -209,7 +247,7 @@ func (pm *ProcessMonitor) mainEventLoop() {
 			if !ok {
 				return
 			}
-			pm.restartCounter.Inc()
+			pm.tel.restart.Add(1)
 			log.Errorf("process monitor error: %s", err)
 			log.Info("re-initializing process monitor")
 			pm.netlinkDoneChannel <- struct{}{}
@@ -219,11 +257,18 @@ func (pm *ProcessMonitor) mainEventLoop() {
 			time.Sleep(50 * time.Millisecond)
 			if err := pm.initNetlinkProcessEventMonitor(); err != nil {
 				log.Errorf("failed re-initializing process monitor: %s", err)
+				pm.tel.reinitFailed.Add(1)
 				return
 			}
 		case <-logTicker.C:
+			tel := telemetry.ReportPayloadTelemetry("process_monitor")
 			log.Debugf("process monitor stats - total events: %d; exec events: %d; exit events: %d; Channel size: %d; restart counter: %d",
-				pm.eventCount.Swap(0), pm.execCount.Swap(0), pm.exitCount.Swap(0), len(pm.netlinkEventsChannel), pm.restartCounter.Load())
+				tel["process.monitor.events"],
+				tel["process.monitor.exec"],
+				tel["process.monitor.exit"],
+				tel["process.monitor.events_channel_size"],
+				tel["process.monitor.restart"],
+			)
 		}
 	}
 }
@@ -238,6 +283,7 @@ func (pm *ProcessMonitor) Initialize() error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
+			pm.tel.initialize()
 			pm.done = make(chan struct{})
 			pm.initCallbackRunner()
 
@@ -269,6 +315,7 @@ func (pm *ProcessMonitor) Initialize() error {
 				// Scanning already running processes
 				if err := util.WithAllProcs(util.GetProcRoot(), handleProcessExecWrapper); err != nil {
 					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
+					pm.tel.processScanFailed.Add(1)
 					return
 				}
 			}
