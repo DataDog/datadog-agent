@@ -211,9 +211,14 @@ def destroy_stack_force(ctx, stack):
     destroy_ec2_instances(ctx, stack)
 
     # Find a better solution for this
-    pulumi_stack_name = ctx.run(f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1", warn=True, hide=True).stdout.strip()
+    pulumi_stack_name = ctx.run(
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
+        warn=True,
+        hide=True,
+    ).stdout.strip()
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}", warn=True
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}",
+        warn=True,
     )
 
 

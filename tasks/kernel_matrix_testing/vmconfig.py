@@ -84,15 +84,15 @@ images_path_ami = {
 }
 
 images_path_s3 = {
-    "bionic":   "{url_base}bionic-server-cloudimg-{arch}.qcow2",
-    "focal":    "{url_base}focal-server-cloudimg-{arch}.qcow2",
-    "jammy":    "{url_base}jammy-server-cloudimg-{arch}.qcow2",
+    "bionic": "{url_base}bionic-server-cloudimg-{arch}.qcow2",
+    "focal": "{url_base}focal-server-cloudimg-{arch}.qcow2",
+    "jammy": "{url_base}jammy-server-cloudimg-{arch}.qcow2",
     "bullseye": "{url_base}bullseye.qcow2.{arch}-DEV.qcow2",
-    "buster":   "{url_base}buster.qcow2.{arch}-DEV.qcow2",
-    "amzn_4.14":"{url_base}amzn2-kvm-2.0-{arch}-4.14.qcow2",
+    "buster": "{url_base}buster.qcow2.{arch}-DEV.qcow2",
+    "amzn_4.14": "{url_base}amzn2-kvm-2.0-{arch}-4.14.qcow2",
     "amzn_5.4": "{url_base}amzn2-kvm-2.0-{arch}-5.4.qcow2",
-    "amzn_5.10":"{url_base}amzn2-kvm-2.0-{arch}-5.10.qcow2",
-    "amzn_5.15":"{url_base}amzn2-kvm-2.0-{arch}-5.15.qcow2",
+    "amzn_5.10": "{url_base}amzn2-kvm-2.0-{arch}-5.10.qcow2",
+    "amzn_5.15": "{url_base}amzn2-kvm-2.0-{arch}-5.15.qcow2",
 }
 
 images_name = {
@@ -109,12 +109,23 @@ images_name = {
 
 TICK = "\u2713"
 CROSS = "\u2718"
-table = [["Image", "x86_64", "arm64"], ["ubuntu-18 (bionic)", TICK, CROSS], ["ubuntu-20 (focal)", TICK, TICK], ["ubuntu-22 (jammy)", TICK, TICK], ["amazon linux 2 - 4.14", TICK, TICK], ["amazon linux 2 - 5.4", TICK, TICK], ["amazon linux 2 - 5.10", TICK, TICK], ["amazon linux 2 - 5.15", TICK, CROSS]]
+table = [
+    ["Image", "x86_64", "arm64"],
+    ["ubuntu-18 (bionic)", TICK, CROSS],
+    ["ubuntu-20 (focal)", TICK, TICK],
+    ["ubuntu-22 (jammy)", TICK, TICK],
+    ["amazon linux 2 - 4.14", TICK, TICK],
+    ["amazon linux 2 - 5.4", TICK, TICK],
+    ["amazon linux 2 - 5.10", TICK, TICK],
+    ["amazon linux 2 - 5.15", TICK, CROSS],
+]
 
 consoles = {"x86_64": "ttyS0", "arm64": "ttyAMA0"}
 
+
 def get_image_path(img, arch):
     return images_path_s3[img].format(arch=arch, url_base=url_base)
+
 
 def get_image_list(distro, custom):
     custom_kernels = list()
