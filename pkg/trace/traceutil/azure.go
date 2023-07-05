@@ -110,7 +110,7 @@ func getRuntime(getenv func(string) string) (rt string) {
 }
 
 func hasEnv(env string, getenv func(string) string) bool {
-	return len(getenv(env)) != 0
+	return len(getenv(env)) > 0
 }
 
 func parseAzureSubscriptionID(subID string) (id string) {

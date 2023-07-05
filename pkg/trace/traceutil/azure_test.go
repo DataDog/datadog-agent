@@ -36,10 +36,31 @@ func TestGetEnvOrUnknown(t *testing.T) {
 }
 
 func TestGetRuntime(t *testing.T) {
-	dotnet := getRuntime(func(s string) string { return "dotnet" })
-	node := getRuntime(func(s string) string { return "node" })
-	unknown := getRuntime(func(s string) string { return "hahaha" })
+	dotnet := getRuntime(func(s string) string {
+		if s == "DOTNET_CLI_TELEMETRY_PROFILE" {
+			return "AzureKudu"
+		}
+		return ""
+	})
+	java := getRuntime(func(s string) string {
+		if s == "WEBSITE_STACK" {
+			return "JAVA"
+		}
+		return ""
+	})
+	node := getRuntime(func(s string) string {
+		if s == "WEBSITE_STACK" {
+			return "NODE"
+		}
+		if s == "WEBSITE_NODE_DEFAULT_VERSION" {
+			return "~18"
+		}
+		return ""
+	})
+	unknown := getRuntime(func(s string) string { return "" })
+
 	assert.Equal(t, ".NET", dotnet)
+	assert.Equal(t, "Java", java)
 	assert.Equal(t, "Node.js", node)
 	assert.Equal(t, "unknown", unknown)
 }
@@ -66,6 +87,7 @@ func mockAzureAppServiceMetadata() map[string]string {
 	aasMetadata["WEBSITE_RESOURCE_GROUP"] = "test-resource-group"
 	aasMetadata["WEBSITE_INSTANCE_ID"] = "1234abcd"
 	aasMetadata["COMPUTERNAME"] = "test-instance"
+	aasMetadata["WEBSITE_STACK"] = "NODE"
 
 	return aasMetadata
 }
