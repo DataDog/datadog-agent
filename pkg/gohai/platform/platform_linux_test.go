@@ -31,7 +31,7 @@ model name	: Intel(R) Xeon(R) CPU E5-2686 v4 @ 2.30GHz`
 	require.False(t, isVendorAMD(reader))
 }
 
-func TestUpdateArchInfo(t *testing.T) {
+func TestUpdateUnameInfo(t *testing.T) {
 	uname := &unix.Utsname{}
 	sysname := "A"
 	copy(uname.Sysname[:], []byte(sysname))
@@ -51,7 +51,6 @@ func TestUpdateArchInfo(t *testing.T) {
 		Machine:          utils.NewValue(machine),
 		Processor:        utils.NewValue(getProcessorType(machine)),
 		HardwarePlatform: utils.NewValue(getHardwarePlatform(machine)),
-		OS:               utils.NewValue(getOperatingSystem()),
 		KernelVersion:    utils.NewValue(version),
 	}
 
