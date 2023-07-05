@@ -258,7 +258,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.max_connections") {
 		c.MaxConnections = coreconfig.Datadog.GetInt("apm_config.max_connections")
 	} else {
-		c.MaxConnections = 100
+		c.MaxConnections = 1000
 	}
 
 	if k := "apm_config.replace_tags"; coreconfig.Datadog.IsSet(k) {
