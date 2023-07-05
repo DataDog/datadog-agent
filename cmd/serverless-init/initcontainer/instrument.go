@@ -41,6 +41,12 @@ func instrumentDotnet() error {
 	return nil
 }
 
+func instrumentPython() error {
+	os.Setenv("PYTHONPATH", addToString(os.Getenv("PYTHONPATH"), ":", "/dd_tracer/python/"))
+
+	return nil
+}
+
 // AutoInstrumentTracer searches the filesystem for a trace library, and
 // automatically sets the correct environment variables.
 func AutoInstrumentTracer(fs afero.Fs) {
@@ -48,6 +54,7 @@ func AutoInstrumentTracer(fs afero.Fs) {
 		{"/dd_tracer/node/", instrumentNode},
 		{"/dd_tracer/java/", instrumentJava},
 		{"/dd_tracer/dotnet/", instrumentDotnet},
+		{"/dd_tracer/python", instrumentPython},
 	}
 
 	for _, tracer := range tracers {

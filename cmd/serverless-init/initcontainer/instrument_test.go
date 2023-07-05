@@ -26,3 +26,25 @@ func TestJavaTracerIsAutoInstrumented(t *testing.T) {
 
 	assert.Equal(t, "-javaagent:/dd_tracer/java/dd-java-agent.jar", os.Getenv("JAVA_TOOL_OPTIONS"))
 }
+
+func TestPythonTracerIsAutoInstrumented(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/python/")
+
+	t.Setenv("PYTHONPATH", "/path1:/path2")
+
+	AutoInstrumentTracer(fs)
+
+	assert.Equal(t, "/path1:/path2:/dd_tracer/python/", os.Getenv("PYTHONPATH"))
+}
+
+func TestAddToString(t *testing.T) {
+	oldStr := "123"
+	assert.Equal(t, "1234", addToString(oldStr, "", "4"))
+
+	oldStr = ""
+	assert.Equal(t, "", addToString(oldStr, "", ""))
+
+	oldStr = "0"
+	assert.Equal(t, "0:1", addToString(oldStr, ":", "1"))
+}
