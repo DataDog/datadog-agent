@@ -250,7 +250,7 @@ def get_distro_image_config(version, arch):
     return {
         "dir": images_name[version].format(arch=distro_arch_mapping[arch]),
         "tag": version,
-        "image_source": images_path_s3[version].format(arch=distro_arch_mapping[arch], url_base=url_base),
+        "image_source": images_path_ami[version].format(arch=distro_arch_mapping[arch]),
     }
 
 
@@ -271,12 +271,12 @@ def build_new_vmset(set_id, kernels):
         if version == "lte_414":
             vmset["image"] = {
                 "image_path": f"buster.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_uri": images_path_s3["buster"].format(arch=distro_arch_mapping[platform_arch], url_base=url_base),
+                "image_uri": images_path_ami["buster"].format(arch=distro_arch_mapping[platform_arch]),
             }
         else:
             vmset["image"] = {
                 "image_path": f"bullseye.qcow2.{distro_arch_mapping[platform_arch]}-DEV",
-                "image_uri": images_path_s3["bullseye"].format(arch=distro_arch_mapping[platform_arch], url_base=url_base),
+                "image_uri": images_path_ami["bullseye"].format(arch=distro_arch_mapping[platform_arch]),
             }
     elif recipe == "distro":
         vmset = {"name": vmset_name_from_id(set_id), "recipe": f"distro-{arch}", "arch": arch, "kernels": kernels}
