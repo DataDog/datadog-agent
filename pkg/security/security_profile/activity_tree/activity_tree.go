@@ -87,10 +87,7 @@ type cookieSelector struct {
 }
 
 func (cs *cookieSelector) isSet() bool {
-	if cs.execTime != 0 && cs.cookie != 0 {
-		return true
-	}
-	return false
+	return cs.execTime != 0 && cs.cookie != 0
 }
 
 // ActivityTree contains a process tree and its activities. This structure has no locks.
@@ -360,10 +357,7 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 }
 
 func eventHaveValidCookie(entry *model.ProcessCacheEntry) bool {
-	if !entry.ExecTime.IsZero() && entry.Cookie != 0 {
-		return true
-	}
-	return false
+	return !entry.ExecTime.IsZero() && entry.Cookie != 0
 }
 
 // CreateProcessNode finds or a create a new process activity node in the activity dump if the entry
