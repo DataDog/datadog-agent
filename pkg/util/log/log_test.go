@@ -461,3 +461,51 @@ func TestFuncVersions(t *testing.T) {
 	}
 
 }
+
+func TestParsef(t *testing.T) {
+	cases := []struct {
+		seelogLevel        seelog.LogLevel
+		strLogLevel        string
+		expectedToBeCalled bool
+	}{
+		{seelog.CriticalLvl, "debug", false},
+		{seelog.ErrorLvl, "debug", false},
+		{seelog.WarnLvl, "debug", false},
+		{seelog.InfoLvl, "debug", false},
+		{seelog.DebugLvl, "debug", true},
+		{seelog.TraceLvl, "debug", true},
+
+		{seelog.TraceLvl, "trace", true},
+		{seelog.InfoLvl, "trace", false},
+
+		{seelog.InfoLvl, "info", true},
+		{seelog.WarnLvl, "info", false},
+
+		{seelog.WarnLvl, "warn", true},
+		{seelog.ErrorLvl, "warn", false},
+
+		{seelog.ErrorLvl, "error", true},
+		{seelog.CriticalLvl, "error", false},
+
+		{seelog.CriticalLvl, "critical", true},
+	}
+
+	for _, tc := range cases {
+		var b bytes.Buffer
+		w := bufio.NewWriter(&b)
+
+		l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %FuncShort: %Msg")
+		SetupLogger(l, tc.seelogLevel.String())
+
+		Parsef("message %s", tc.strLogLevel, "hello")
+
+		w.Flush()
+
+		if tc.expectedToBeCalled {
+			assert.Equal(t, 1, strings.Count(b.String(), "hello"), tc)
+		} else {
+			assert.Equal(t, 0, strings.Count(b.String(), "hello"), tc)
+		}
+	}
+
+}

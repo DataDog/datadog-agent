@@ -692,6 +692,34 @@ func CriticalFunc(logFunc func() string) {
 	}
 }
 
+func Parsef(format string, lvl string, params ...interface{}) error {
+	m := fmt.Sprintf(format, params...)
+	currentLevel, _ := GetLogLevel()
+	sLvl, ok := seelog.LogLevelFromString(strings.ToLower(lvl))
+	if ok && currentLevel > sLvl {
+		return nil
+	}
+
+	switch strings.ToUpper(lvl) {
+	case "TRACE":
+		TracecStackDepth(m, 3, nil)
+	case "DEBUG":
+		DebugcStackDepth(m, 3, nil)
+	case "INFO":
+		InfocStackDepth(m, 3, nil)
+	case "WARN":
+		return WarncStackDepth(m, 3, nil)
+	case "ERROR":
+		return ErrorcStackDepth(m, 3, nil)
+	case "CRITICAL":
+		return CriticalcStackDepth(m, 3, nil)
+	default:
+		// do nothing
+	}
+
+	return nil
+}
+
 // InfoStackDepth logs at the info level and the current stack depth plus the additional given one
 func InfoStackDepth(depth int, v ...interface{}) {
 	Log(seelog.InfoLvl, func() { InfoStackDepth(depth, v...) }, func(s string) {

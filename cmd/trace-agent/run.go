@@ -251,45 +251,49 @@ func Run(ctx context.Context) {
 type corelogger struct{}
 
 // Trace implements Logger.
-func (corelogger) Trace(v ...interface{}) { log.Trace(v...) }
+func (corelogger) Trace(v ...interface{}) { log.TraceStackDepth(3, v...) }
 
 // Tracef implements Logger.
-func (corelogger) Tracef(format string, params ...interface{}) { log.Tracef(format, params...) }
+func (corelogger) Tracef(format string, params ...interface{}) {
+	log.Parsef(format, "TRACE", params...)
+}
 
 // Debug implements Logger.
-func (corelogger) Debug(v ...interface{}) { log.Debug(v...) }
+func (corelogger) Debug(v ...interface{}) { log.DebugStackDepth(3, v...) }
 
 // Debugf implements Logger.
-func (corelogger) Debugf(format string, params ...interface{}) { log.Debugf(format, params...) }
+func (corelogger) Debugf(format string, params ...interface{}) {
+	log.Parsef(format, "DEBUG", params...)
+}
 
 // Info implements Logger.
-func (corelogger) Info(v ...interface{}) { log.Info(v...) }
+func (corelogger) Info(v ...interface{}) { log.InfoStackDepth(3, v...) }
 
 // Infof implements Logger.
-func (corelogger) Infof(format string, params ...interface{}) { log.Infof(format, params...) }
+func (corelogger) Infof(format string, params ...interface{}) { log.Parsef(format, "INFO", params...) }
 
 // Warn implements Logger.
-func (corelogger) Warn(v ...interface{}) error { return log.Warn(v...) }
+func (corelogger) Warn(v ...interface{}) error { return log.WarnStackDepth(3, v...) }
 
 // Warnf implements Logger.
 func (corelogger) Warnf(format string, params ...interface{}) error {
-	return log.Warnf(format, params...)
+	return log.Parsef(format, "WARN", params...)
 }
 
 // Error implements Logger.
-func (corelogger) Error(v ...interface{}) error { return log.Error(v...) }
+func (corelogger) Error(v ...interface{}) error { return log.ErrorStackDepth(3, v...) }
 
 // Errorf implements Logger.
 func (corelogger) Errorf(format string, params ...interface{}) error {
-	return log.Errorf(format, params...)
+	return log.Parsef(format, "ERROR", params...)
 }
 
 // Critical implements Logger.
-func (corelogger) Critical(v ...interface{}) error { return log.Critical(v...) }
+func (corelogger) Critical(v ...interface{}) error { return log.CriticalStackDepth(3, v...) }
 
 // Criticalf implements Logger.
 func (corelogger) Criticalf(format string, params ...interface{}) error {
-	return log.Criticalf(format, params...)
+	return log.Parsef(format, "CRITICAL", params...)
 }
 
 // Flush implements Logger.
