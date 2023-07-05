@@ -9,8 +9,6 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -32,10 +30,9 @@ func init() {
 }
 
 type TestConfig struct {
-	retryCount           int
-	retryOnlyFailedTests bool
-	includePackages      []string
-	excludePackages      []string
+	retryCount      int
+	includePackages []string
+	excludePackages []string
 }
 
 const (
@@ -43,10 +40,9 @@ const (
 	TestDirRoot = "/opt/system-probe-tests"
 	GoTestSum   = "/go/bin/gotestsum"
 
-	// The directory format is <name>-<attempt>*
-	XMLDir       = "junit-%d"
-	JSONDir      = "pkgjson-%d"
-	JSONOutDir   = "testjson-%d"
+	XMLDir       = "junit"
+	JSONDir      = "pkgjson"
+	JSONOutDir   = "testjson"
 	CIVisibility = "/ci-visibility"
 )
 
@@ -145,7 +141,7 @@ func testsToRunArg(pkg string, failedTests map[string][]string) string {
 	return fmt.Sprintf("-test.run=%s", commaSeperatedLs)
 }
 
-func buildCommandArgs(junitPath string, jsonPath string, file string, failedTests map[string][]string) []string {
+func buildCommandArgs(junitPath string, jsonPath string, file string, retryCnt int) []string {
 	pkg := generatePackageName(file)
 	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 	xmlpath := filepath.Join(
@@ -157,13 +153,13 @@ func buildCommandArgs(junitPath string, jsonPath string, file string, failedTest
 		fmt.Sprintf("%s.json", junitfilePrefix),
 	)
 
-	rerun := testsToRunArg(pathToPackage(file), failedTests)
 	args := []string{
 		"--format", "dots",
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
+		fmt.Sprintf("--rerun-fails=%d", retryCnt),
 		"--raw-command", "--",
-		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(), rerun,
+		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
 	}
 
 	return args
@@ -210,15 +206,15 @@ func concatenateJsons(indir, outdir string) error {
 	return nil
 }
 
-func getCIVisibilityDir(dir string, attempt int) string {
-	return filepath.Join(CIVisibility, fmt.Sprintf(dir, attempt))
+func getCIVisibilityDir(dir string) string {
+	return filepath.Join(CIVisibility, dir)
 }
 
-func buildCIVisibilityDirs(attempt int) error {
+func buildCIVisibilityDirs() error {
 	dirs := []string{
-		getCIVisibilityDir(XMLDir, attempt),
-		getCIVisibilityDir(JSONDir, attempt),
-		getCIVisibilityDir(JSONOutDir, attempt),
+		getCIVisibilityDir(XMLDir),
+		getCIVisibilityDir(JSONDir),
+		getCIVisibilityDir(JSONOutDir),
 	}
 
 	for _, d := range dirs {
@@ -233,73 +229,11 @@ func buildCIVisibilityDirs(attempt int) error {
 	return nil
 }
 
-type testEvent struct {
-	Time    time.Time // encodes as an RFC3339-format string
-	Action  string
-	Package string
-	Test    string
-	Elapsed float64 // seconds
-	Output  string
-}
-
-func buildRetryList(attempt int) (map[string][]string, error) {
-	outdir := getCIVisibilityDir(JSONOutDir, attempt-1)
-	testJsonFile := filepath.Join(outdir, "out.json")
-
-	jf, err := os.Open(testJsonFile)
-	if err != nil {
-		return nil, fmt.Errorf("open %s: %s", testJsonFile, err)
-	}
-
-	retry := make(map[string][]string)
-	scanner := bufio.NewScanner(jf)
-	for scanner.Scan() {
-		var ev testEvent
-		data := scanner.Bytes()
-		if err := json.Unmarshal(data, &ev); err != nil {
-			return nil, fmt.Errorf("json unmarshal `%s`: %s", string(data), err)
-		}
-		if ev.Action == "fail" && ev.Test != "" {
-			if _, ok := retry[ev.Package]; !ok {
-				retry[ev.Package] = []string{ev.Test}
-			} else {
-				retry[ev.Package] = append(retry[ev.Package], ev.Test)
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("json line scan: %s", err)
-	}
-
-	return retry, nil
-}
-
-func testPass(testConfig *TestConfig, attempt int) (bool, error) {
-	var retry bool
+func testPass(testConfig *TestConfig) error {
 	var err error
-
-	var retryLs map[string][]string
-	if testConfig.retryOnlyFailedTests && attempt > 1 {
-		retryLs, err = buildRetryList(attempt)
-		if err != nil {
-			return false, err
-		}
-	}
 
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
 		dir := pathToPackage(path)
-		if testConfig.retryOnlyFailedTests {
-			for pkg := range retryLs {
-				if dir == pkg {
-					return true
-				}
-			}
-
-			if attempt > 1 {
-				return false
-			}
-		}
-
 		for _, p := range testConfig.excludePackages {
 			if dir == p {
 				return false
@@ -318,19 +252,19 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 		return true
 	})
 	if err != nil {
-		return false, fmt.Errorf("test glob: %s", err)
+		return fmt.Errorf("test glob: %s", err)
 	}
 
-	if err := buildCIVisibilityDirs(attempt); err != nil {
-		return false, err
+	if err := buildCIVisibilityDirs(); err != nil {
+		return err
 	}
 
 	for _, file := range matches {
 		args := buildCommandArgs(
-			getCIVisibilityDir(XMLDir, attempt),
-			getCIVisibilityDir(JSONDir, attempt),
+			getCIVisibilityDir(XMLDir),
+			getCIVisibilityDir(JSONDir),
 			file,
-			retryLs,
+			testConfig.retryCount,
 		)
 		cmd := exec.Command(GoTestSum, args...)
 
@@ -341,18 +275,17 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 
 		if err := cmd.Run(); err != nil {
 			// log but do not return error
-			retry = true
 			fmt.Fprintf(os.Stderr, "cmd run %s: %s", file, err)
 		}
 	}
 
 	if err := concatenateJsons(
-		getCIVisibilityDir(JSONDir, attempt),
-		getCIVisibilityDir(JSONOutDir, attempt),
+		getCIVisibilityDir(JSONDir),
+		getCIVisibilityDir(JSONOutDir),
 	); err != nil {
-		return false, fmt.Errorf("concat json: %s", err)
+		return fmt.Errorf("concat json: %s", err)
 	}
-	return retry, nil
+	return nil
 }
 
 func fixAssetPermissions() error {
@@ -383,7 +316,6 @@ func buildTestConfiguration() *TestConfig {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
 	packagesPtr := flag.String("include-packages", "", "Comma separated list of packages to test")
 	excludePackagesPtr := flag.String("exclude-packages", "", "Comma separated list of packages to exclude")
-	retryOnlyFailedTests := flag.Bool("retry-only-failed", false, "Retry only failed tests")
 
 	flag.Parse()
 
@@ -398,21 +330,13 @@ func buildTestConfiguration() *TestConfig {
 	}
 
 	return &TestConfig{
-		retryCount:           *retryPtr,
-		includePackages:      packagesLs,
-		excludePackages:      excludeLs,
-		retryOnlyFailedTests: *retryOnlyFailedTests,
+		retryCount:      *retryPtr,
+		includePackages: packagesLs,
+		excludePackages: excludeLs,
 	}
 }
 
-func printHeader(str string) {
-	magentaString := color.New(color.FgMagenta, color.Bold).Add(color.Underline)
-	fmt.Println()
-	magentaString.Println(str)
-}
-
 func run() error {
-	var err error
 	var uname unix.Utsname
 
 	testConfig := buildTestConfiguration()
@@ -434,13 +358,5 @@ func run() error {
 		}
 	}
 
-	for i := 1; i <= testConfig.retryCount; i++ {
-		printHeader(fmt.Sprintf("Test attempt %d", i))
-		retry, err := testPass(testConfig, i)
-		if !retry || err != nil {
-			break
-		}
-	}
-
-	return err
+	return testPass(testConfig)
 }
