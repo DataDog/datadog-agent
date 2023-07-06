@@ -34,7 +34,7 @@ func main() {
 	if failedTests != "" {
 		fmt.Println(color.RedString(failedTests))
 	} else {
-		fmt.Println(color.GreenString("All test passed."))
+		fmt.Println(color.GreenString("All tests passed."))
 		return
 	}
 
