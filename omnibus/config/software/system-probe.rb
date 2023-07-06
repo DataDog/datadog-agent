@@ -21,11 +21,39 @@ build do
 
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
     copy "#{ENV['SYSTEM_PROBE_BIN']}/system-probe", "#{install_dir}/embedded/bin/system-probe"
+
+    mkdir "#{install_dir}/.debug"
+    mkdir "#{install_dir}/.debug/embedded"
+    mkdir "#{install_dir}/.debug/embedded/bin"
     # Update binary signature for unix socket connection when system_probe_config.sysprobe_auth_socket is true
-    command "sha256sum -b #{install_dir}/embedded/bin/*"
-    command "sed -i \"s|UDS_PROCESS_AGENT_SIG-6df08279acf372b0fe1c624369059fe2d6ade65d05|$(sha256sum -b #{install_dir}/embedded/bin/process-agent | sed 's| .*||g')|g\" #{install_dir}/embedded/bin/system-probe"
+    bak = "#{install_dir}/embedded/bin/process-agent.bak"
+    source = "#{install_dir}/embedded/bin/process-agent"
+    target = "#{install_dir}/.debug/embedded/bin/process-agent.dbg"
+    copy "#{source}", "#{bak}"
+    command "objcopy --only-keep-debug #{source} #{target}"
+    command "strip --strip-debug --strip-unneeded #{source}"
+    command "objcopy --add-gnu-debuglink=#{target} #{source}"
+    command "sha256sum -b #{source}"
+    command "sed -i \"s|UDS_PROCESS_AGENT_SIG-6df08279acf372b0fe1c624369059fe2d6ade65d05|$(sha256sum -b #{source} | sed 's| .*||g')|g\" #{install_dir}/embedded/bin/system-probe"
+    delete "#{source}"
+    move "#{bak}", "#{source}"
+
     # Update binary signature for unix socket connection when runtime_security_config.auth_socket is true
-    command "sed -i \"s|UDS_SECURITY_AGENT_SIG-4ce7aa6ef3c376b3d80ac1ec5f2b50fcd5d65e896|$(sha256sum -b #{install_dir}/embedded/bin/security-agent | sed 's| .*||g')|g\" #{install_dir}/embedded/bin/system-probe"
+    bak = "#{install_dir}/embedded/bin/security-agent.bak"
+    source = "#{install_dir}/embedded/bin/security-agent"
+    target = "#{install_dir}/.debug/embedded/bin/security-agent.dbg"
+    copy "#{source}", "#{bak}"
+    command "objcopy --only-keep-debug #{source} #{target}"
+    command "strip --strip-debug --strip-unneeded #{source}"
+    command "objcopy --add-gnu-debuglink=#{target} #{source}"
+    command "sha256sum -b #{source}"
+    command "sed -i \"s|UDS_SECURITY_AGENT_SIG-4ce7aa6ef3c376b3d80ac1ec5f2b50fcd5d65e896|$(sha256sum -b #{source} | sed 's| .*||g')|g\" #{install_dir}/embedded/bin/system-probe"
+    delete "#{source}"
+    move "#{bak}", "#{source}"
+
+    command "sha256sum -b #{install_dir}/embedded/bin/*"
+    delete "#{install_dir}/.debug"
+
     copy "#{ENV['SYSTEM_PROBE_BIN']}/usm.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/usm-debug.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/dns.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
