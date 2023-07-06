@@ -39,6 +39,10 @@ var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
+	// Describe returns all descriptions of the collector
+	Describe(descs chan<- *prometheus.Desc)
+	// Collect returns the current state of all metrics of the collector
+	Collect(metrics chan<- prometheus.Metric)
 	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
 	DeleteTranslation(network.ConnectionStats)
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
@@ -177,13 +181,13 @@ func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 	return t.IPTranslation
 }
 
-// Describe returns all descriptions of the collector.
+// Describe returns all descriptions of the collector
 func (ctr *realConntracker) Describe(ch chan<- *prometheus.Desc) {
 	ch <- conntrackerTelemetry.stateSize
 	ch <- conntrackerTelemetry.orphanSize
 }
 
-// Collect returns the current state of all metrics of the collector.
+// Collect returns the current state of all metrics of the collector
 func (ctr *realConntracker) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.stateSize, prometheus.CounterValue, float64(ctr.cache.cache.Len()))
 	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(ctr.cache.orphans.Len()))

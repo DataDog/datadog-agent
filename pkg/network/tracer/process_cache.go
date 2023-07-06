@@ -30,12 +30,12 @@ const (
 	maxProcessQueueLen = 100
 	// maxProcessListSize is the max size of a processList
 	maxProcessListSize     = 3
-	processCacheModuleName = "network_tracer.process_cache"
+	processCacheModuleName = "network_tracer__process_cache"
 )
 
 var processCacheTelemetry = struct {
 	cacheEvicts   telemetry.Counter
-	cacheLength   *prometheus.Desc // Gauge type
+	cacheLength   *prometheus.Desc
 	eventsDropped telemetry.Counter
 	eventsSkipped telemetry.Counter
 }{

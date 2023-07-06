@@ -74,6 +74,11 @@ type Tracer interface {
 
 	Pause() error
 	Resume() error
+
+	// Describe returns all descriptions of the collector
+	Describe(descs chan<- *prometheus.Desc)
+	// Collect returns the current state of all metrics of the collector
+	Collect(metrics chan<- prometheus.Metric)
 }
 
 const (
@@ -445,12 +450,12 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	return telemetry
 }
 
-// Describe returns all descriptions of the collector.
+// Describe returns all descriptions of the collector
 func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ConnTracerTelemetry.UdpDroppedConns
 }
 
-// Collect returns the current state of all metrics of the collector.
+// Collect returns the current state of all metrics of the collector
 func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 	ebpfTelemetry := t.getEBPFTelemetry()
 	if ebpfTelemetry == nil {

@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -213,7 +214,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
-			ebpf.NewDebugFsStatCollector()
+			prometheus.MustRegister(ebpf.NewDebugFsStatCollector())
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{

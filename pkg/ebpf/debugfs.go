@@ -103,7 +103,7 @@ func GetProbeTotals() KprobeStats {
 	return stats
 }
 
-// ReadKprobeProfile reads a /sys/kernel/[debug/]tracing/kprobe_profile file and returns a map of probe -> stats
+// readKprobeProfile reads a /sys/kernel/[debug/]tracing/kprobe_profile file and returns a map of probe -> stats
 func readKprobeProfile(path string) (map[string]KprobeStats, error) {
 	f, err := os.Open(path)
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
@@ -163,6 +164,7 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 	if err != nil {
 		return nil, err
 	}
+	prometheus.MustRegister(ebpfTracer)
 
 	conntracker, err := newConntracker(cfg, bpfTelemetry)
 	if err != nil {
@@ -209,6 +211,7 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
+		prometheus.MustRegister(tr.processCache)
 
 		events.RegisterHandler(tr.processCache.handleProcessEvent)
 
@@ -259,6 +262,8 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		return netlink.NewNoOpConntracker(), nil
 	}
+
+	prometheus.MustRegister(c)
 
 	return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 }

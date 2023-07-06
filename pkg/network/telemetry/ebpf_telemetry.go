@@ -75,11 +75,13 @@ func (b *EBPFTelemetry) RegisterEBPFTelemetry(m *manager.Manager) error {
 	return nil
 }
 
+// Describe returns all descriptions of the collector
 func (b *EBPFTelemetry) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ebpfMapOpsErrorsGauge
 	ch <- ebpfHelperErrorsGauge
 }
 
+// Collect returns the current state of all metrics of the collector
 func (b *EBPFTelemetry) Collect(ch chan<- prometheus.Metric) {
 	b.GetHelperTelemetry(ch)
 	b.GetMapsTelemetry(ch)

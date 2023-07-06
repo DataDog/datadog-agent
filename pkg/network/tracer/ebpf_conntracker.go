@@ -390,12 +390,12 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 	return entries, nil
 }
 
-// Describe returns all descriptions of the collector.
+// Describe returns all descriptions of the collector
 func (e *ebpfConntracker) Describe(ch chan<- *prometheus.Desc) {
 	ch <- conntrackerTelemetry.registersTotal
 }
 
-// Collect returns the current state of all metrics of the collector.
+// Collect returns the current state of all metrics of the collector
 func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	ebpfTelemetry := &netebpf.ConntrackTelemetry{}
 	if err := e.telemetryMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(ebpfTelemetry)); err != nil {

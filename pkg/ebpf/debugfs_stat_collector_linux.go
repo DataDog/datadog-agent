@@ -73,11 +73,13 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType string, ch ch
 	}
 }
 
+// Describe returns all descriptions of the collector
 func (c *DebugFsStatCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.hits
 	ch <- c.misses
 }
 
+// Collect returns the current state of all metrics of the collector
 func (c *DebugFsStatCollector) Collect(ch chan<- prometheus.Metric) {
 	c.updateProbeStats(0, "kprobe", ch)
 	c.updateProbeStats(0, "uprobe", ch)
