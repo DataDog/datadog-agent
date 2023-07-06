@@ -204,11 +204,6 @@ func (k *EBPFProbe) GetAndFlush() (results EBPFStats) {
 
 func (k *EBPFProbe) getProgramStats(stats *EBPFStats) error {
 	var err error
-	tagToFunctions, err := kallsymsBPFPrograms()
-	if err != nil {
-		return fmt.Errorf("kallsyms bpf mapping: %s", err)
-	}
-
 	progid := ebpf.ProgramID(0)
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
 		pr, err := ebpf.NewProgramFromID(progid)
@@ -223,30 +218,23 @@ func (k *EBPFProbe) getProgramStats(stats *EBPFStats) error {
 		}
 
 		name := unix.ByteSliceToString(info.Name[:])
-		tag := hex.EncodeToString(info.Tag[:])
-		// lookup full name from cached /proc/kallsyms data, indexed by tag
-		if tag != "" {
-			if names, ok := tagToFunctions[tag]; ok {
-				if len(names) > 1 {
-					for _, n := range names {
-						if strings.HasPrefix(n, name) {
-							name = n
-							break
-						}
-					}
-				} else {
-					name = names[0]
-				}
-			}
+		if pn, ok := progNameMapping[uint32(progid)]; ok {
+			name = pn
 		}
 		// we require a name, so use program type for unnamed programs
 		if name == "" {
 			name = strings.ToLower(ebpf.ProgramType(info.Type).String())
 		}
+		module := "unknown"
+		if mod, ok := progModuleMapping[uint32(progid)]; ok {
+			module = mod
+		}
 
+		tag := hex.EncodeToString(info.Tag[:])
 		ps := EBPFProgramStats{
 			id:              uint32(progid),
 			Name:            name,
+			Module:          module,
 			Tag:             tag,
 			Type:            ebpf.ProgramType(info.Type),
 			XlatedProgLen:   info.XlatedProgLen,
@@ -297,7 +285,7 @@ func (k *EBPFProbe) getMapStats(stats *EBPFStats) error {
 		if name == "" {
 			name = info.Type.String()
 		}
-		module := "external"
+		module := "unknown"
 		if mod, ok := mapModuleMapping[uint32(mapid)]; ok {
 			module = mod
 		}

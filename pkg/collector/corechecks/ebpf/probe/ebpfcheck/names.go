@@ -15,6 +15,9 @@ import (
 var mapNameMapping = make(map[uint32]string)
 var mapModuleMapping = make(map[uint32]string)
 
+var progNameMapping = make(map[uint32]string)
+var progModuleMapping = make(map[uint32]string)
+
 // AddNameMappings adds the full name mappings for ebpf maps in the manager
 func AddNameMappings(mgr *manager.Manager, module string) {
 	maps, err := mgr.GetMaps()
@@ -25,6 +28,15 @@ func AddNameMappings(mgr *manager.Manager, module string) {
 		mapNameMapping[mapid] = name
 		mapModuleMapping[mapid] = module
 	})
+
+	progs, err := mgr.GetPrograms()
+	if err != nil {
+		return
+	}
+	iterateProgs(progs, func(progid uint32, name string) {
+		progNameMapping[progid] = name
+		progModuleMapping[progid] = module
+	})
 }
 
 // AddNameMappingsCollection adds the full name mappings for ebpf maps in the collection
@@ -32,6 +44,10 @@ func AddNameMappingsCollection(coll *ebpf.Collection, module string) {
 	iterateMaps(coll.Maps, func(mapid uint32, name string) {
 		mapNameMapping[mapid] = name
 		mapModuleMapping[mapid] = module
+	})
+	iterateProgs(coll.Programs, func(progid uint32, name string) {
+		progNameMapping[progid] = name
+		progModuleMapping[progid] = module
 	})
 }
 
@@ -45,6 +61,15 @@ func RemoveNameMappings(mgr *manager.Manager) {
 		delete(mapNameMapping, mapid)
 		delete(mapModuleMapping, mapid)
 	})
+
+	progs, err := mgr.GetPrograms()
+	if err != nil {
+		return
+	}
+	iterateProgs(progs, func(progid uint32, name string) {
+		delete(progNameMapping, progid)
+		delete(progModuleMapping, progid)
+	})
 }
 
 // RemoveNameMappingsCollection removes the full name mappings for ebpf maps in the collection
@@ -53,6 +78,10 @@ func RemoveNameMappingsCollection(coll *ebpf.Collection) {
 		delete(mapNameMapping, mapid)
 		delete(mapModuleMapping, mapid)
 	})
+	iterateProgs(coll.Programs, func(progid uint32, name string) {
+		delete(progNameMapping, progid)
+		delete(progModuleMapping, progid)
+	})
 }
 
 func iterateMaps(maps map[string]*ebpf.Map, mapFn func(mapid uint32, name string)) {
@@ -60,6 +89,16 @@ func iterateMaps(maps map[string]*ebpf.Map, mapFn func(mapid uint32, name string
 		if info, err := m.Info(); err == nil {
 			if mapid, ok := info.ID(); ok {
 				mapFn(uint32(mapid), name)
+			}
+		}
+	}
+}
+
+func iterateProgs(progs map[string]*ebpf.Program, mapFn func(progid uint32, name string)) {
+	for name, p := range progs {
+		if info, err := p.Info(); err == nil {
+			if progid, ok := info.ID(); ok {
+				mapFn(uint32(progid), name)
 			}
 		}
 	}

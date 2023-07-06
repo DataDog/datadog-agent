@@ -159,6 +159,7 @@ func (m *EBPFCheck) Run() error {
 		tags := []string{
 			"program_name:" + progInfo.Name,
 			"program_type:" + progInfo.Type.String(),
+			"module:" + progInfo.Module,
 		}
 		if progInfo.Tag != "" {
 			tags = append(tags, "program_tag:"+progInfo.Tag)

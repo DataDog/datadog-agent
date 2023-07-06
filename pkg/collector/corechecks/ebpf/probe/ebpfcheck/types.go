@@ -33,6 +33,7 @@ type EBPFMapStats struct {
 // EBPFProgramStats are the basic statistics for ebpf programs
 type EBPFProgramStats struct {
 	Name            string
+	Module          string
 	Tag             string
 	RSS             uint64
 	RunCount        uint64
