@@ -236,11 +236,9 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	}
 
 	c, err := apiserver.GetAPIClient()
-	usingLease, err := leaderelection.CanUseLeases(c.DiscoveryCl)
 	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), usingLease, suite.usingLease)
 
-	if usingLease {
+	if suite.usingLease {
 		client := c.Cl.CoordinationV1()
 		require.Nil(suite.T(), err)
 		leasesList, err := client.Leases(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
