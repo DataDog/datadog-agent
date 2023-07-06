@@ -155,8 +155,8 @@ github.com/DataDog/kubernetes-apiserver v0.0.0-20220531090536-be42650a25e5 h1:PB
 github.com/DataDog/kubernetes-apiserver v0.0.0-20220531090536-be42650a25e5/go.mod h1:N08z57XwD9yMwxPK3MD8oHtm63ogVSFXyoKOOrHathU=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c h1:w4mZkX45/iUyef4qUp+ryZ4ItuhmIpT6tWeZ0vBdvfo=
-github.com/DataDog/netlink v1.0.1-0.20220504230202-f7323aba1f6c/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
+github.com/DataDog/netlink v1.0.1-0.20230703150631-f11d5ab05838 h1:GNfmQQwU/MJmw/EzKOG6Ap2zHn+psQ/WeDakcPeLC+U=
+github.com/DataDog/netlink v1.0.1-0.20230703150631-f11d5ab05838/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
 github.com/DataDog/nikos v1.12.0 h1:B9seaiowtbMyH2MX3f3/EcEk1sznSFXaPBwTcBLdogU=
 github.com/DataDog/nikos v1.12.0/go.mod h1:vboQtY04KmE+Ua8m7gVheZJcnStQY+fIiSPY/6jJVrY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.2.3 h1:IznT4hQ24X3gOir+AVotp8h/ogYoXAmvU5jggBqOO8o=
