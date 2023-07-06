@@ -284,7 +284,7 @@ func (p *Probe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
-	ebpfcheck.AddNameMappings(p.Manager)
+	ebpfcheck.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 

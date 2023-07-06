@@ -13,22 +13,25 @@ import (
 )
 
 var mapNameMapping = make(map[uint32]string)
+var mapModuleMapping = make(map[uint32]string)
 
 // AddNameMappings adds the full name mappings for ebpf maps in the manager
-func AddNameMappings(mgr *manager.Manager) {
+func AddNameMappings(mgr *manager.Manager, module string) {
 	maps, err := mgr.GetMaps()
 	if err != nil {
 		return
 	}
 	iterateMaps(maps, func(mapid uint32, name string) {
 		mapNameMapping[mapid] = name
+		mapModuleMapping[mapid] = module
 	})
 }
 
 // AddNameMappingsCollection adds the full name mappings for ebpf maps in the collection
-func AddNameMappingsCollection(coll *ebpf.Collection) {
+func AddNameMappingsCollection(coll *ebpf.Collection, module string) {
 	iterateMaps(coll.Maps, func(mapid uint32, name string) {
 		mapNameMapping[mapid] = name
+		mapModuleMapping[mapid] = module
 	})
 }
 
@@ -40,6 +43,7 @@ func RemoveNameMappings(mgr *manager.Manager) {
 	}
 	iterateMaps(maps, func(mapid uint32, name string) {
 		delete(mapNameMapping, mapid)
+		delete(mapModuleMapping, mapid)
 	})
 }
 
@@ -47,6 +51,7 @@ func RemoveNameMappings(mgr *manager.Manager) {
 func RemoveNameMappingsCollection(coll *ebpf.Collection) {
 	iterateMaps(coll.Maps, func(mapid uint32, name string) {
 		delete(mapNameMapping, mapid)
+		delete(mapModuleMapping, mapid)
 	})
 }
 

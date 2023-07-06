@@ -187,7 +187,7 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		}
 		tracerType = TracerType(kprobeTracerType)
 	}
-	ebpfcheck.AddNameMappings(m)
+	ebpfcheck.AddNameMappings(m, "npm_tracer")
 
 	batchMgr, err := newConnBatchManager(m)
 	if err != nil {

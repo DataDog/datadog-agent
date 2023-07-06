@@ -119,7 +119,7 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*EBPFProbe,
 	p.perfBufferMap = p.coll.Maps["perf_buffers"]
 	p.ringBufferMap = p.coll.Maps["ring_buffers"]
 	p.pidMap = p.coll.Maps["map_pids"]
-	AddNameMappingsCollection(p.coll)
+	AddNameMappingsCollection(p.coll, "ebpf_check")
 
 	if err := p.attach(collSpec); err != nil {
 		return nil, err
@@ -297,10 +297,15 @@ func (k *EBPFProbe) getMapStats(stats *EBPFStats) error {
 		if name == "" {
 			name = info.Type.String()
 		}
+		module := "external"
+		if mod, ok := mapModuleMapping[uint32(mapid)]; ok {
+			module = mod
+		}
 
 		baseMapStats := EBPFMapStats{
 			id:         uint32(mapid),
 			Name:       name,
+			Module:     module,
 			Type:       info.Type,
 			MaxEntries: info.MaxEntries,
 		}

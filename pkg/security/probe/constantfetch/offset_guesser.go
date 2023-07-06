@@ -202,7 +202,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 	if err := og.manager.InitWithOptions(bytecodeReader, options); err != nil {
 		return og.res, err
 	}
-	ebpfcheck.AddNameMappings(og.manager)
+	ebpfcheck.AddNameMappings(og.manager, "cws_offsetguess")
 
 	if err := og.manager.Start(); err != nil {
 		ebpfcheck.RemoveNameMappings(og.manager)

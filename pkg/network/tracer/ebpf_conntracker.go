@@ -497,7 +497,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 	if err != nil {
 		return nil, err
 	}
-	ebpfcheck.AddNameMappings(mgr)
+	ebpfcheck.AddNameMappings(mgr, "npm_conntracker")
 	return mgr, nil
 }
 

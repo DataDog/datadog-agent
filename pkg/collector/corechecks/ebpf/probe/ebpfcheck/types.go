@@ -21,6 +21,7 @@ type EBPFStats struct {
 // EBPFMapStats are the basic statistics for ebpf maps
 type EBPFMapStats struct {
 	Name       string
+	Module     string
 	RSS        uint64
 	MaxSize    uint64
 	MaxEntries uint32

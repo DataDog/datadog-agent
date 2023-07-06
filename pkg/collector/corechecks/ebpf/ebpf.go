@@ -103,6 +103,7 @@ func (m *EBPFCheck) Run() error {
 		tags := []string{
 			"map_name:" + mapStats.Name,
 			"map_type:" + mapStats.Type.String(),
+			"module:" + mapStats.Module,
 		}
 		sender.Gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize), "", tags)
 		sender.Gauge("ebpf.maps.max_entries", float64(mapStats.MaxEntries), "", tags)
@@ -124,6 +125,7 @@ func (m *EBPFCheck) Run() error {
 			cputags := []string{
 				"map_name:" + pbInfo.Name,
 				"map_type:" + pbInfo.Type.String(),
+				"module:" + pbInfo.Module,
 				fmt.Sprintf("cpu_num:%d", cpub.CPU),
 			}
 			if cpub.RSS > 0 {

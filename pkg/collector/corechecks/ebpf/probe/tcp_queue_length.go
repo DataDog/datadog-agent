@@ -92,7 +92,7 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 	} else if !ok {
 		return nil, fmt.Errorf("failed to get map '%s'", statsMapName)
 	}
-	ebpfcheck.AddNameMappings(m)
+	ebpfcheck.AddNameMappings(m, "tcp_queue_length")
 
 	return &TCPQueueLengthTracer{
 		m:        m,

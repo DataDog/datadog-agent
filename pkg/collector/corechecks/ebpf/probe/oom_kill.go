@@ -128,7 +128,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 	} else if !ok {
 		return nil, fmt.Errorf("failed to get map '%s'", oomMapName)
 	}
-	ebpfcheck.AddNameMappings(m)
+	ebpfcheck.AddNameMappings(m, "oom_kill")
 
 	return &OOMKillProbe{
 		m:      m,

@@ -154,7 +154,7 @@ func setupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf byteco
 	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
 		return fmt.Errorf("could not load bpf module for offset guessing: %s", err)
 	}
-	ebpfcheck.AddNameMappings(offsetMgr)
+	ebpfcheck.AddNameMappings(offsetMgr, "npm_offsetguess")
 	if err := offsetMgr.Start(); err != nil {
 		return fmt.Errorf("could not start offset ebpf manager: %s", err)
 	}

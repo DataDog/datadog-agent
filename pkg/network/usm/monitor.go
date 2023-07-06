@@ -135,7 +135,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
-	ebpfcheck.AddNameMappings(mgr.Manager.Manager)
+	ebpfcheck.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {

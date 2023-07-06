@@ -84,7 +84,7 @@ func (e *ebpfProgram) Init() error {
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	})
 	if err == nil {
-		ebpfcheck.AddNameMappings(e.Manager)
+		ebpfcheck.AddNameMappings(e.Manager, "npm_dns")
 	}
 	return err
 }
