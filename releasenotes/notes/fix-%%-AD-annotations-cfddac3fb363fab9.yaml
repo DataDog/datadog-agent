@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixes a bug in auto-discovery annotations processing where two consecutive percent characters were wrongly altered even if they were not part of a ``%%var%%` template variable pattern.
+    Fixes a bug in auto-discovery annotations processing where two consecutive percent characters were wrongly altered even if they were not part of a ``%%var%%`` template variable pattern.
