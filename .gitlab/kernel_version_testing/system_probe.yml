@@ -41,7 +41,7 @@ pull_test_dockers_arm64:
     echo "Both Instances found"
     INSTANCE_IDS=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=${CI_PIPELINE_ID}" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
     aws ec2 wait instance-status-ok --instance-ids $INSTANCE_IDS
-    sleep 30
+    sleep 10
 
 .write_ssh_key_file:
     - set +x
@@ -106,7 +106,7 @@ upload_dependencies_arm64:
 .upload_system_probe_tests:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
@@ -174,7 +174,7 @@ upload_system_probe_tests_arm64:
 .upload_minimized_btfs:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  tags: ["runner:main"]
+  tags: ["arch:amd64"]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
