@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// configManager implememnts the logic of handling additions and removals of
+// configManager implements the logic of handling additions and removals of
 // configs (which may or may not be templates) and services, and reconciling
 // those together to resolve templates.
 //
