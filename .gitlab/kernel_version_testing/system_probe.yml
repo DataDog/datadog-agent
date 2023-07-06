@@ -106,6 +106,7 @@ upload_dependencies_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
+    - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
   script:
@@ -156,7 +157,7 @@ upload_dependencies_arm64:
 upload_system_probe_tests_x64:
   extends:
     - .upload_system_probe_tests
-  needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64"]
+  needs: ["go_deps", "prepare_ebpf_functional_tests_x64", "tests_ebpf_x64"]
   variables:
     ARCHIVE_NAME: tests-x86_64.tar.gz
     ARCH: x86_64
@@ -166,7 +167,7 @@ upload_system_probe_tests_x64:
 upload_system_probe_tests_arm64:
   extends:
     - .upload_system_probe_tests
-  needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
+  needs: ["go_deps", "prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
   variables:
     ARCHIVE_NAME: tests-arm64.tar.gz
     ARCH: arm64
