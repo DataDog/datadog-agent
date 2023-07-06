@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -20,10 +19,6 @@ import (
 )
 
 const kProbeTelemetryName = "ebpf__probes"
-
-func init() {
-	myPid = manager.Getpid()
-}
 
 type DebugFsStatCollector struct {
 	hits           *prometheus.Desc
