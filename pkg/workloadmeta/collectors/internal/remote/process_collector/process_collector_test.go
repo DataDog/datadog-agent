@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package processcollector
 
 import (
@@ -18,6 +20,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -231,6 +234,9 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Enable remote process collector
+			config.SetFeatures(t, config.RemoteProcessCollector)
+
 			// remote process collector server (process agent)
 			server := &mockServer{
 				responses:       test.serverResponses,
@@ -262,11 +268,15 @@ func TestCollection(t *testing.T) {
 
 			mockStore := workloadmeta.NewMockStore()
 			mockStore.Notify(test.preEvents)
-			err = collector.Collect(context.TODO(), mockStore)
+
+			// Start collection
+			err = collector.Start(context.TODO(), mockStore)
 			require.NoError(t, err)
 
+			// Wait for gRPC calls to be sent
 			time.Sleep(1 * time.Second)
 
+			// Verify final state
 			for i := range test.expectedProcesses {
 				pid, err := strconv.Atoi(test.expectedProcesses[i].ID)
 				require.NoError(t, err)

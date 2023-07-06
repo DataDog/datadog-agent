@@ -79,10 +79,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) 
 	if err := c.StreamHandler.IsEnabled(); err != nil {
 		return err
 	}
-	return c.Collect(ctx, store)
-}
 
-func (c *GenericCollector) Collect(ctx context.Context, store workloadmeta.Store) error {
 	c.store = store
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
