@@ -12,3 +12,9 @@ type DebugFsStatCollector struct{}
 func NewDebugFsStatCollector() *DebugFsStatCollector {
 	return &DebugFsStatCollector{}
 }
+
+// Describe returns all descriptions of the collector
+func (c *DebugFsStatCollector) Describe(ch chan<- *prometheus.Desc) {}
+
+// Collect returns the current state of all metrics of the collector
+func (c *DebugFsStatCollector) Collect(ch chan<- prometheus.Metric) {}
