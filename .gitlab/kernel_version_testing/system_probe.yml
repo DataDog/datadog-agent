@@ -29,6 +29,32 @@ pull_test_dockers_arm64:
   variables:
     ARCH: arm64
 
+.wait_for_instances:
+  - |
+    COUNTER=0
+    while [[ "$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' \"Name=tag:pipeline-id,Values=$CI_PIPELINE_ID\" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l )" != "2" && $COUNTER -le 40 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instances"; sleep 30; done
+    # check that 2 instances are ready, or fail
+    if [ $(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l) -ne "2" ]; then
+        echo "Both instances NOT found"
+        "false"
+    fi
+    echo "Both Instances found"
+    ARM_INSTANCE_IP=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-type,Values=m6g.metal' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress')
+    X86_INSTANCE_IP=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-type,Values=m5.metal' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress')
+    echo "x86_64-istance-ip" $ARM_INSTANCE_IP
+    echo "arm64-instance-ip" $X86_INSTANCE_IP
+    INSTANCE_IDS=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
+    aws ec2 wait instance-status-ok $INSTANCE_IDS
+    sleep 30
+
+.write_ssh_key_file:
+    - set +x
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key --with-decryption --query "Parameter.Value" --out text > $AWS_EC2_SSH_KEY_FILE
+    - set -x
+    # Without the newline ssh silently fails and moves on to try other auth methods
+    - echo "" >> $AWS_EC2_SSH_KEY_FILE
+    - chmod 600 $AWS_EC2_SSH_KEY_FILE
+
 .package_dependencies:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -44,9 +70,6 @@ pull_test_dockers_arm64:
     - cp $CLANG_BPF $EMBEDDED_BIN
     - cp $LLC_BPF $EMBEDDED_BIN
     - mkdir -p $EMBEDDED_INC
-    # download and copy btf files
-    - mkdir -p $BTF_DIR
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz $BTF_DIR/minimized-btfs.tar.xz
     # copy gotestsum and test2json
     - mkdir -p $GO_BIN
     - cp $GOTESTSUM $GO_BIN
@@ -54,24 +77,15 @@ pull_test_dockers_arm64:
     - mkdir junit
     - mkdir testjson
     - mkdir pkgjson
+    # copy micro-vm-init.sh
+    - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
     # copy over docker images
     - cp -R $KITCHEN_DOCKERS $DEPENDENCIES/kitchen-docker
-    # copy system probe tests
-    - mkdir -p $SYSTEM_PROBE_TESTS
-    - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
-    - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
-    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-runner $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/main.go
-    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-json-review $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review/main.go
-    - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
     - tar czvf ../$ARCHIVE_NAME dependencies
     - popd
-  artifacts:
-    when: always
-    paths:
-      - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
     CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
@@ -81,25 +95,143 @@ pull_test_dockers_arm64:
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
     EMBEDDED_BIN: opt/datadog-agent/embedded/bin
     EMBEDDED_INC: opt/datadog-agent/embedded/include
-    BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-    SYSTEM_PROBE_TESTS: opt/system-probe-tests
-    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
 
 package_dependencies_x64:
   extends:
     - .package_dependencies
-  needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64", "pull_test_dockers_x64", "generate_minimized_btfs_x64"]
+  needs: ["pull_test_dockers_x64"]
+  script:
+    # upload tests
+    - !reference[.write_ssh_key_file]
+    - !reference[.wait_for_instances]
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$X86_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
 
 package_dependencies_arm64:
   extends:
     - .package_dependencies
-  needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64", "pull_test_dockers_arm64", "generate_minimized_btfs_arm64"]
+  needs: ["pull_test_dockers_arm64"]
+  script:
+    # upload tests
+    - !reference[.write_ssh_key_file]
+    - !reference[.wait_for_instances]
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$ARM_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     ARCHIVE_NAME: dependencies-arm64.tar.gz
+    ARCH: arm64
+
+.upload_system_probe_tests:
+  stage: kernel_matrix_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    # Build dependencies directory
+    - mkdir -p $DEPENDENCIES
+    - pushd $DEPENDENCIES
+    # copy system probe tests
+    - mkdir -p $SYSTEM_PROBE_TESTS
+    - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
+    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-runner $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/main.go
+    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-json-review $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review/main.go
+    - popd
+    # package all the dependencies
+    - ls -la $DEPENDENCIES
+    - pushd $DD_AGENT_TESTING_DIR/$ARCH
+    - tar czvf ../$ARCHIVE_NAME tests
+    - popd
+  variables:
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/tests
+    SYSTEM_PROBE_TESTS: opt/system-probe-tests
+    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
+  artifacts:
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME
+
+upload_system_probe_tests_x64:
+  extends:
+    - .upload_system_probe_tests
+  needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64"]
+  script:
+    # upload tests
+    - !reference[.write_ssh_key_file]
+    - !reference[.wait_for_instances]
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$X86_INSTANCE_IP:/opt/kernel-version-testing/
+  variables:
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    ARCHIVE_NAME: tests-x86_64.tar.gz
+    ARCH: x86_64
+
+upload_system_probe_tests_arm64:
+  extends:
+    - .upload_system_probe_tests
+  needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
+  script:
+    # upload tests
+    - !reference[.write_ssh_key_file]
+    - !reference[.wait_for_instances]
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$ARM_INSTANCE_IP:/opt/kernel-version-testing/
+  variables:
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    ARCHIVE_NAME: tests-arm64.tar.gz
+    ARCH: arm64
+
+.upload_minimized_btfs:
+  stage: kernel_matrix_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    # Build dependencies directory
+    - mkdir -p $DEPENDENCIES
+    - pushd $DEPENDENCIES
+    # download and copy btf files
+    - mkdir -p $BTF_DIR
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz $BTF_DIR/minimized-btfs.tar.xz
+    # package all the dependencies
+    - ls -la $DEPENDENCIES
+    - pushd $DD_AGENT_TESTING_DIR/$ARCH
+    - tar czvf ../$ARCHIVE_NAME btfs
+    - popd
+    # upload tests
+    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing 
+  variables:
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
+    BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+
+upload_minimized_btfs_x64:
+  extends:
+    - .upload_minimized_btfs
+  needs: ["generate_minimized_btfs_x64"]
+  script:
+    # upload tests
+    - !reference[.write_ssh_key_file]
+    - !reference[.wait_for_instances]
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$X86_INSTANCE_IP:/opt/kernel-version-testing/
+  variables:
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    ARCHIVE_NAME: btfs-x86_64.tar.gz
+    ARCH: x86_64
+
+
+upload_minimized_btfs_arm64:
+  extends:
+    - .upload_minimized_btfs
+  needs: ["generate_minimized_btfs_arm64"]
+  script:
+    # upload tests
+    - !reference[.write_ssh_key_file]
+    - !reference[.wait_for_instances]
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$ARM_INSTANCE_IP:/opt/kernel-version-testing/
+  variables:
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    ARCHIVE_NAME: btfs-arm64.tar.gz
     ARCH: arm64
 
 .kernel_matrix_testing_new_profile:
@@ -141,12 +273,7 @@ kernel_matrix_testing_setup_env:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - set +x
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key --with-decryption --query "Parameter.Value" --out text > $AWS_EC2_SSH_KEY_FILE
-    - set -x
-    # Without the newline ssh silently fails and moves on to try other auth methods
-    - echo "" >> $AWS_EC2_SSH_KEY_FILE
-    - chmod 600 $AWS_EC2_SSH_KEY_FILE
+    - !reference[.write_ssh_key_file]
     - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
@@ -159,38 +286,6 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
       - $CI_PROJECT_DIR/stack.outputs
-      - $AWS_EC2_SSH_KEY_FILE
-
-.kernel_matrix_testing_upload_deps:
-  extends:
-    - .kitchen_ec2_location_us_east_1
-  stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
-  tags: ["arch:amd64"]
-  allow_failure: true
-  variables:
-    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
-  before_script:
-    - !reference [.kernel_matrix_testing_new_profile]
-  script:
-    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing
-
-kernel_matrix_testing_upload_deps_x64:
-  extends:
-    - .kernel_matrix_testing_upload_deps
-  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_x64"]
-  variables:
-    ARCHIVE_NAME: dependencies-x86_64.tar.gz
-    ARCH: "x86_64"
-
-kernel_matrix_testing_upload_deps_arm64:
-  extends:
-    - .kernel_matrix_testing_upload_deps
-  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_arm64"]
-  variables:
-    ARCHIVE_NAME: dependencies-arm64.tar.gz
-    ARCH: "arm64"
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
@@ -202,6 +297,7 @@ kernel_matrix_testing_upload_deps_arm64:
     RETRY: 2
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
+    - !reference[.write_ssh_key_file]
   script:
     - ALL_INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
     - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi" "Name=private-ip-address,Values=$ALL_INSTANCE_IPS" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l )
@@ -224,7 +320,7 @@ kernel_matrix_testing_upload_deps_arm64:
 kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
-  needs: ["kernel_matrix_testing_upload_deps_x64", "kernel_matrix_testing_setup_env"]
+  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_x64", "upload_system_probe_tests_x64", "upload_minimized_btfs_x64"]
   timeout: 3h
   variables:
     ARCH: "x86_64"
@@ -235,7 +331,7 @@ kernel_matrix_testing_run_tests_x64:
 kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
-  needs: ["kernel_matrix_testing_upload_deps_arm64", "kernel_matrix_testing_setup_env"]
+  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_arm64", "upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64"]
   timeout: 3h
   variables:
     ARCH: "arm64"
