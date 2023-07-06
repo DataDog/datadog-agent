@@ -89,16 +89,17 @@ int tp_bpf_exit(struct tracepoint_raw_syscalls_sys_exit_t *ctx) {
     if (!map_ptr) {
         return 0;
     }
-    bpf_map_delete_elem(&bpf_map_new_fd_args, &pid_tgid);
+
     log_debug("tp/bpf_exit: pid_tgid=%llx\n", pid_tgid);
     int fd = ctx->ret;
     if (fd <= 0) {
-        return 0;
+        goto cleanup;
     }
 
     struct bpf_map *map = *map_ptr;
     u32 map_id = BPF_CORE_READ(map, id);
     enum bpf_map_type mtype = BPF_CORE_READ(map, map_type);
+
     map_fd_t key = {};
     key.pid = pid_tgid >> 32;
     key.fd = fd;
@@ -117,6 +118,9 @@ int tp_bpf_exit(struct tracepoint_raw_syscalls_sys_exit_t *ctx) {
         // map_id -> pid
         bpf_map_update_elem(&map_pids, &map_id, &key.pid, BPF_ANY);
     }
+
+cleanup:
+    bpf_map_delete_elem(&bpf_map_new_fd_args, &pid_tgid);
     return 0;
 }
 
@@ -166,18 +170,20 @@ int tp_fcntl_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     if (!map_idp) {
         return 0;
     }
-    bpf_map_delete_elem(&fcntl_args, &pid_tgid);
+    int map_id = *map_idp;
     if (args->ret <= 0) {
-        return 0;
+        goto cleanup;
     }
 
     // store (duplicated) perf_event_fd+pid -> map_id association
-    int map_id = *map_idp;
     map_fd_t key = {};
     key.pid = pid_tgid >> 32;
     key.fd = (int)args->ret;
     log_debug("sys_exit_fcntl: fd dup new_fd=%d map_id=%d\n", key.fd, map_id);
     bpf_map_update_elem(&perf_buffer_fds, &key, &map_id, BPF_ANY);
+
+cleanup:
+    bpf_map_delete_elem(&fcntl_args, &pid_tgid);
     return 0;
 }
 
@@ -208,9 +214,8 @@ int tp_pe_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     if (!z) {
         return 0;
     }
-    bpf_map_delete_elem(&peo_args, &pid_tgid);
     if (args->ret <= 0) {
-        return 0;
+        goto cleanup;
     }
 
     // store perf_event_fd+pid -> mmap region (unpopulated at this point)
@@ -220,6 +225,9 @@ int tp_pe_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     key.pid = pid_tgid >> 32;
     log_debug("tracepoint_sys_exit_perf_event_open: fd=%d\n", key.fd);
     bpf_map_update_elem(&perf_event_mmap, &key, &val, BPF_ANY);
+
+cleanup:
+    bpf_map_delete_elem(&peo_args, &pid_tgid);
     return 0;
 }
 
@@ -267,7 +275,9 @@ int tp_mmap_enter(struct tracepoint_syscalls_sys_enter_mmap_t *args) {
     if (!ring_val) {
         return 0;
     }
-    // choose correct mmap sub-region
+    // choose correct mmap sub-region based on offset
+    // offset 0 = consumer sub-region
+    // offset x (size of consumer sub-region) = data sub-region
     if (args->offset == 0) {
         ring_val->consumer.len = args->len;
     } else {
@@ -287,9 +297,8 @@ int tp_mmap_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     if (!margs) {
         return 0;
     }
-    bpf_map_delete_elem(&mmap_args, &pid_tgid);
     if (args->ret <= 0) {
-        return 0;
+        goto cleanup;
     }
 
     // lookup mmap region we are dealing with
@@ -303,7 +312,7 @@ int tp_mmap_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     } else if (margs->map_id) {
         ring_mmap_t *ring_val = bpf_map_lookup_elem(&ring_buffers, &margs->map_id);
         if (!ring_val) {
-            return 0;
+            goto cleanup;
         }
         // choose correct sub-region for ring buffer
         if (margs->offset == 0) {
@@ -314,11 +323,14 @@ int tp_mmap_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     }
 
     if (!val) {
-        return 0;
+        goto cleanup;
     }
     // store address of mmap region
     val->addr = args->ret;
     log_debug("tracepoint_sys_exit_mmap: len=%d addr=%x\n", val->len, val->addr);
+
+cleanup:
+    bpf_map_delete_elem(&mmap_args, &pid_tgid);
     return 0;
 }
 
