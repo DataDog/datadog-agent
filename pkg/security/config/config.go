@@ -14,6 +14,7 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -241,7 +242,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpLoadControlPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.load_controller_period"),
 		ActivityDumpLoadControlMinDumpTimeout: coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.min_timeout"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
+		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.dump_duration"),
 		ActivityDumpRateLimiter:               coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.rate_limiter"),
 		ActivityDumpCgroupWaitListTimeout:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
@@ -269,9 +270,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// Hash resolver
 		HashResolverEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.hash_resolver.enabled"),
-		HashResolverEventTypes:     model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.event_types")),
+		HashResolverEventTypes:     parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.event_types")),
 		HashResolverMaxFileSize:    coreconfig.SystemProbe.GetInt64("runtime_security_config.hash_resolver.max_file_size"),
-		HashResolverHashAlgorithms: model.ParseHashAlgorithmStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
+		HashResolverHashAlgorithms: parseHashAlgorithmStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
 		HashResolverMaxHashBurst:   coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
 		HashResolverMaxHashRate:    coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
 		HashResolverCacheSize:      coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.cache_size"),
@@ -286,7 +287,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileDNSMatchMaxDepth: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 
 		// anomaly detection
-		AnomalyDetectionEventTypes:                   model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
+		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
 		AnomalyDetectionMinimumStablePeriod:          coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
 		AnomalyDetectionWorkloadWarmupPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
 		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
@@ -364,4 +365,53 @@ func ActivityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType l
 		seclog.Infof("activity dump remote storage endpoint: %v\n", status)
 	}
 	return endpoints, nil
+}
+
+// ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
+// the current algorithm is not efficient but allows us to reduce the number of conversion functions
+func ParseEvalEventType(eventType eval.EventType) model.EventType {
+	for i := uint64(0); i != uint64(model.MaxAllEventType); i++ {
+		if model.EventType(i).String() == eventType {
+			return model.EventType(i)
+		}
+	}
+
+	return model.UnknownEventType
+}
+
+// parseEventTypeStringSlice converts a string list to a list of event types
+func parseEventTypeStringSlice(eventTypes []string) []model.EventType {
+	var output []model.EventType
+	for _, eventTypeStr := range eventTypes {
+		if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
+			output = append(output, eventType)
+		}
+	}
+	return output
+}
+
+// parseHashAlgorithmStringSlice converts a string list to a list of hash algorithms
+func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
+	var output []model.HashAlgorithm
+	for _, hashAlgorithm := range algorithms {
+		for i := model.HashAlgorithm(0); i < model.MaxHashAlgorithm; i++ {
+			if i.String() == hashAlgorithm {
+				output = append(output, i)
+				break
+			}
+		}
+	}
+	return output
+}
+
+var (
+	eventTypeStrings = map[string]model.EventType{}
+)
+
+func init() {
+	var eventType model.EventType
+	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
+		eventType = model.EventType(i)
+		eventTypeStrings[eventType.String()] = eventType
+	}
 }
