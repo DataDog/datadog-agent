@@ -411,7 +411,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uin
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.fallbackLimiter.IsAllowed(mountID) {
+	if !mr.fallbackLimiter.Allow(mountID) {
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -466,7 +466,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.fallbackLimiter.IsAllowed(mountID) {
+	if !mr.fallbackLimiter.Allow(mountID) {
 		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 

@@ -598,7 +598,7 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *model
 		return nil
 	}
 
-	if p.procFallbackLimiter.IsAllowed(pid) {
+	if p.procFallbackLimiter.Allow(pid) {
 		p.procFallbackLimiter.Count(pid)
 
 		// fallback to /proc, the in-kernel LRU may have deleted the entry

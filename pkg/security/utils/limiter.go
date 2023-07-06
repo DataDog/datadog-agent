@@ -32,11 +32,11 @@ func NewLimiter[K comparable](size int, period time.Duration) (*Limiter[K], erro
 	}, nil
 }
 
-// IsAllowed returns whether an entry is allowed or not
-func (l *Limiter[K]) IsAllowed(k K) bool {
 	now := time.Now()
 	if ts, ok := l.cache.Get(k); ok {
 		if now.After(ts) {
+// Allow returns whether an entry is allowed or not
+func (l *Limiter[K]) Allow(k K) bool {
 			l.cache.Remove(k)
 		} else {
 			return false
