@@ -121,7 +121,7 @@ func credentials() (string, error) {
 	return password, nil
 }
 
-func getNextAZ(currentAZ string) (string, bool) {
+func getNextAZ(currentAZ string) string {
 	return nextAZ[currentAZ]
 }
 
