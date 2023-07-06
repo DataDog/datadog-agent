@@ -155,6 +155,7 @@ func (m *EBPFCheck) Run() error {
 	}
 
 	totalProgRSS := uint64(0)
+	moduleTotalProgRSS := make(map[string]uint64)
 	for _, progInfo := range stats.Programs {
 		tags := []string{
 			"program_name:" + progInfo.Name,
@@ -184,6 +185,7 @@ func (m *EBPFCheck) Run() error {
 			}
 		}
 		totalProgRSS += progInfo.RSS
+		moduleTotalProgRSS[progInfo.Module] += progInfo.RSS
 
 		monos := map[string]float64{
 			"runtime_ns":       float64(progInfo.Runtime.Nanoseconds()),
@@ -206,6 +208,9 @@ func (m *EBPFCheck) Run() error {
 	}
 	if totalProgRSS > 0 {
 		sender.Gauge("ebpf.programs.memory_rss_total", float64(totalProgRSS), "", nil)
+	}
+	for mod, rss := range moduleTotalProgRSS {
+		sender.Gauge("ebpf.programs.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
 	}
 
 	sender.Commit()
