@@ -340,7 +340,7 @@ func makeTestClientServer(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *g
 	cfg := config.Mock(t)
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
-	cfg.Set("process_config.language_detection.grpc_port", port) // Tell the os to choose a port for us to reduce flakiness
+	cfg.Set("process_config.language_detection.grpc_port", port)
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	grpcServer := NewGRPCServer(cfg, extractor)

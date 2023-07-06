@@ -118,6 +118,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			// The diff received from the channel should be 1 + the previous version. Otherwise, we have lost data,
 			// and we should signal the client to resync by closing the stream.
 			if diff.cacheVersion != expectedVersion {
+				log.Debug("[WorkloadMeta GRPCServer] missing cache diff - dropping stream")
 				return fmt.Errorf("missing cache diff: received version = %v; expected = %v", diff.cacheVersion, expectedVersion)
 			}
 			expectedVersion++
