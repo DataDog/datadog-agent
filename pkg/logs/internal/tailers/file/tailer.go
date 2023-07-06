@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -127,13 +128,15 @@ type TailerOptions struct {
 }
 
 type DataPoint struct {
-	Timestamp time.Time
-	Value     float64
+	Timestamp int64
+	Value     int64
 }
 
 type MovingSum struct {
-	DataPoints []DataPoint
-	Sum        float64
+	DataPoints   []*DataPoint
+	TimeWindow   int64
+	timeProvider func() int64
+	mu           *sync.Mutex
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -287,7 +290,10 @@ func (t *Tailer) readForever() {
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
 
-	ms := MovingSum{DataPoints: make([]DataPoint, 0)}
+	getCurrentTime := func() int64 {
+		return time.Now().Unix()
+	}
+	ms := NewMovingSum(86400, getCurrentTime)
 
 	for {
 		n, err := t.read()
@@ -295,9 +301,9 @@ func (t *Tailer) readForever() {
 			return
 		}
 		t.recordBytes(int64(n))
-		ms.AddDataPoint(float64(t.bytesRead.Get()))
-		sum := int(ms.Sum)
-		addToTailerInfo("Moving Sum", strconv.Itoa(sum), t.info)
+		ms.AddDataPoint(int64(n))
+		sum := ms.CalculateMovingSum()
+		addToTailerInfo("24h Bytes Sum", strconv.FormatInt(sum, 10), t.info)
 
 		select {
 		case <-t.stop:
@@ -374,24 +380,51 @@ func getFormattedTime() string {
 	return fmt.Sprintf("%s / %s (%d)", local, utc, milliseconds)
 }
 
-func (ms *MovingSum) AddDataPoint(value float64) {
-	now := time.Now()
-	newDataPoint := DataPoint{Timestamp: now, Value: value}
+// NewMovingSum initializes a new MovingSum.
+func NewMovingSum(timeWindow int64, getTimeFunc func() int64) *MovingSum {
+	return &MovingSum{
+		DataPoints:   make([]*DataPoint, 0),
+		TimeWindow:   timeWindow,
+		timeProvider: getTimeFunc,
+		mu:           &sync.Mutex{},
+	}
+}
 
-	// Add the new value to the sum and append it to the slice
-	ms.Sum += value
-	ms.DataPoints = append(ms.DataPoints, newDataPoint)
+// AddDataPoint adds a new data point to the moving sum.
+func (ms *MovingSum) AddDataPoint(value int64) {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
 
-	// Remove any values that are more than 24 hours old
-	for len(ms.DataPoints) > 0 {
-		firstDataPoint := ms.DataPoints[0]
-		if now.Sub(firstDataPoint.Timestamp) > 24*time.Hour {
-			ms.Sum -= firstDataPoint.Value
-			ms.DataPoints = ms.DataPoints[1:]
-		} else {
-			break
+	now := ms.timeProvider()
+	ms.DataPoints = append(ms.DataPoints, &DataPoint{
+		Timestamp: now,
+		Value:     value,
+	})
+}
+
+// CalculateMovingSum returns the moving sum.
+func (ms *MovingSum) CalculateMovingSum() int64 {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	sum := int64(0)
+	now := ms.timeProvider()
+	threshold := now - ms.TimeWindow
+
+	// Collect points that are recent enough to be in included in the sum
+	validDataPoints := make([]*DataPoint, 0)
+
+	for _, point := range ms.DataPoints {
+		if point.Timestamp > threshold { // Any data point with a Timestamp older than threshold is considered outdated and is not included in the sum.
+			sum += point.Value
+			validDataPoints = append(validDataPoints, point)
 		}
 	}
+
+	// Replace the old data points slice with the new one.
+	ms.DataPoints = validDataPoints
+
+	return sum
 }
 
 // GetDetectedPattern returns the decoder's detected pattern.
