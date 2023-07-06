@@ -62,6 +62,7 @@ func reviewTests(jsonFile string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open %s: %s", jsonFile, err)
 	}
+	defer jf.Close()
 
 	scanner := bufio.NewScanner(jf)
 	testResults := make(map[string]testEvent)
