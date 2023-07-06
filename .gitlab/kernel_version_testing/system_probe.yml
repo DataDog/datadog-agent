@@ -32,18 +32,18 @@ pull_test_dockers_arm64:
 .wait_for_instances:
   - |
     COUNTER=0
-    while [[ "$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' \"Name=tag:pipeline-id,Values=$CI_PIPELINE_ID\" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l )" != "2" && $COUNTER -le 40 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instances"; sleep 30; done
+    while [[ $(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=${CI_PIPELINE_ID}" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l ) != "2" && $COUNTER -le 40 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instances"; sleep 30; done
     # check that 2 instances are ready, or fail
-    if [ $(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l) -ne "2" ]; then
+    if [ $(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=${CI_PIPELINE_ID}" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l) -ne "2" ]; then
         echo "Both instances NOT found"
         "false"
     fi
     echo "Both Instances found"
-    ARM_INSTANCE_IP=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-type,Values=m6g.metal' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress')
-    X86_INSTANCE_IP=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-type,Values=m5.metal' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress')
+    ARM_INSTANCE_IP=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-type,Values=m6g.metal' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=${CI_PIPELINE_ID}" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress')
+    X86_INSTANCE_IP=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-type,Values=m5.metal' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=${CI_PIPELINE_ID}" --output text --query 'Reservations[*].Instances[*].PrivateIpAddress')
     echo "x86_64-istance-ip" $ARM_INSTANCE_IP
     echo "arm64-instance-ip" $X86_INSTANCE_IP
-    INSTANCE_IDS=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
+    INSTANCE_IDS=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=${CI_PIPELINE_ID}" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
     aws ec2 wait instance-status-ok $INSTANCE_IDS
     sleep 30
 
