@@ -305,7 +305,7 @@ kernel_matrix_testing_setup_env:
 kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
-  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_x64", "upload_system_probe_tests_x64", "upload_minimized_btfs_x64"]
+  needs: ["kernel_matrix_testing_setup_env", "upload_dependencies_x64", "upload_system_probe_tests_x64", "upload_minimized_btfs_x64"]
   timeout: 3h
   variables:
     ARCH: "x86_64"
@@ -316,7 +316,7 @@ kernel_matrix_testing_run_tests_x64:
 kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
-  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_arm64", "upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64"]
+  needs: ["kernel_matrix_testing_setup_env", "upload_dependencies_arm64", "upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64"]
   timeout: 3h
   variables:
     ARCH: "arm64"
