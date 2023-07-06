@@ -7,10 +7,9 @@
 #include "constants/enums.h"
 #include "structs/all.h"
 
-BPF_ARRAY_MAP(path_id, u32, 1)
+BPF_ARRAY_MAP(path_id, u32, PATH_ID_MAP_SIZE)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
 BPF_ARRAY_MAP(buffer_selector, u32, 4)
-BPF_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_ARRAY_MAP(dr_erpc_buffer, char[DR_ERPC_BUFFER_LENGTH*2], 1)
 BPF_ARRAY_MAP(inode_disc_revisions, u32, REVISION_ARRAY_SIZE)
 BPF_ARRAY_MAP(discarders_revision, u32, 1)
@@ -66,6 +65,8 @@ BPF_LRU_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // ma
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 
+BPF_PERCPU_ARRAY_MAP(dr_erpc_state, u32, struct dr_erpc_state_t, 1)
+BPF_PERCPU_ARRAY_MAP(syscalls_stats, u32, u32, EVENT_MAX)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, u32, struct cgroup_tracing_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
 BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)

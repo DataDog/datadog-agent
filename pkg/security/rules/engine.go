@@ -18,6 +18,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/hashicorp/go-multierror"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -30,9 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/hashicorp/go-multierror"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -329,7 +330,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
 
-	if ev.ContainerContext.ID != "" && e.config.ActivityDumpTagRulesEnabled {
+	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 	}
 	if val, ok := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
@@ -339,9 +340,9 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
-
+	containerID := ev.ContainerContext.ID
 	extTagsCb := func() []string {
-		return e.probe.GetEventTags(ev)
+		return e.probe.GetEventTags(containerID)
 	}
 
 	e.eventSender.SendEvent(rule, event, extTagsCb, service)

@@ -3,15 +3,22 @@ Running E2E Tests with infra based on Pulumi
 """
 
 import json
+import os
+import os.path
 import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import List
 
-from invoke import task
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from .flavor import AgentFlavor
 from .libs.junit_upload import produce_junit_tar
 from .modules import DEFAULT_MODULES
 from .test import test_flavor
+from .utils import REPO_PATH, get_git_commit
 
 
 @task(
@@ -56,14 +63,14 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += (
-        '--packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache}'
-    )
+    cmd += '--packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache}'
     args = {
         "go_mod": "mod",
         "timeout": "4h",
         "verbose": '-v' if verbose else '',
         "nocache": '-count=1' if not cache else '',
+        "REPO_PATH": REPO_PATH,
+        "commit": get_git_commit(),
     }
 
     test_res = test_flavor(
@@ -95,3 +102,95 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
     if some_test_failed:
         # Exit if any of the modules failed
         raise Exit(code=1)
+
+
+@task(
+    help={
+        'locks': 'Cleans up lock files, default True',
+        'stacks': 'Cleans up local stack state, default False',
+    },
+)
+def clean(_, locks=True, stacks=False):
+    """
+    Clean any environment created with invoke tasks or e2e tests
+    By default removes only lock files.
+    """
+    if not _is_local_state(_get_pulumi_about()):
+        print("Cleanup supported for local state only, run `pulumi login --local` to switch to local state")
+        return
+
+    if locks:
+        _clean_locks()
+
+    if stacks:
+        _clean_stacks()
+
+
+def _clean_locks():
+    print("🧹 Clean up lock files")
+    lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
+
+    for entry in os.listdir(Path(lock_dir)):
+        subdir = os.path.join(lock_dir, entry)
+        for filename in os.listdir(Path(subdir)):
+            file_path = os.path.join(subdir, filename)
+            if os.path.isfile(file_path) and filename.endswith(".json"):
+                os.remove(file_path)
+                print(f"🗑️ Deleted lock: {file_path}")
+
+
+def _clean_stacks():
+    print("🧹 Clean up stacks")
+    stacks = _get_existing_stacks()
+
+    for stack in stacks:
+        print(f"🗑️ Cleaning up stack {stack}")
+        _remove_stack(stack)
+
+
+def _get_existing_stacks() -> List[str]:
+    # ensure we deal with local stacks
+    output = subprocess.check_output(["pulumi", "stack", "ls", "--all"], cwd=tempfile.gettempdir())
+    output = output.decode("utf-8")
+    lines = output.splitlines()
+    lines = lines[1:]  # skip headers
+    e2e_stacks: List[str] = []
+    for line in lines:
+        stack_name = line.split(" ")[0]
+        e2e_stacks.append(stack_name)
+    return e2e_stacks
+
+
+def _remove_stack(stack_name: str):
+    subprocess.call(
+        [
+            "pulumi",
+            "stack",
+            "rm",
+            "--force",
+            stack_name,
+        ]
+    )
+
+
+def _get_pulumi_about() -> str:
+    return subprocess.getoutput("pulumi about")
+
+
+def _is_local_state(pulumi_about: str) -> bool:
+    # check output contains
+    # Backend
+    # Name           xxxxxxxxxx
+    # URL            file://xxx
+    # User           xxxxx.xxxxx
+    # Organizations
+    about_groups = pulumi_about.split("\n\n")
+
+    for about_group in about_groups:
+        lines = about_group.splitlines()
+        if not lines[0].startswith("Backend"):
+            continue
+        url_lines = [x for x in lines[1:] if x.startswith("URL")]
+        if len(url_lines) > 0 and "file://" in url_lines[0]:
+            return True
+        return False

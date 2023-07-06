@@ -16,7 +16,7 @@ import (
 
 	dockerTypes "github.com/docker/docker/api/types"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -64,11 +64,11 @@ type dockerNetworkExtension struct {
 	procPath                string
 	containerNetworkEntries map[string]*containerNetworkEntry
 	sender                  generic.SenderFunc
-	aggSender               aggregator.Sender
+	aggSender               sender.Sender
 }
 
 // PreProcess creates a new empty mapping for the upcoming check run
-func (dn *dockerNetworkExtension) PreProcess(sender generic.SenderFunc, aggSender aggregator.Sender) {
+func (dn *dockerNetworkExtension) PreProcess(sender generic.SenderFunc, aggSender sender.Sender) {
 	dn.sender = sender
 	dn.aggSender = aggSender
 	dn.containerNetworkEntries = make(map[string]*containerNetworkEntry)

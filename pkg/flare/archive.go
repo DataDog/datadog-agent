@@ -39,11 +39,6 @@ import (
 )
 
 var (
-	pprofURL = fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
-		config.Datadog.GetString("expvar_port"))
-	telemetryURL = fmt.Sprintf("http://127.0.0.1:%s/telemetry",
-		config.Datadog.GetString("expvar_port"))
-
 	// Match .yaml and .yml to ship configuration files in the flare.
 	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
 )
@@ -86,6 +81,9 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
 	}
 
+	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
+		config.Datadog.GetString("expvar_port"))
+
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
@@ -109,6 +107,8 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 	getWindowsData(fb)
 
 	if config.Datadog.GetBool("telemetry.enabled") {
+		telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry",
+			config.Datadog.GetString("expvar_port"))
 		fb.AddFileFromFunc("telemetry.log", func() ([]byte, error) { return getHTTPCallContent(telemetryURL) })
 	}
 

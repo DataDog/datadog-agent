@@ -32,8 +32,8 @@ SYSCALL_KPROBE0(linkat) {
     return trace__sys_link(SYNC_SYSCALL);
 }
 
-SEC("kprobe/do_linkat")
-int kprobe_do_linkat(struct pt_regs *ctx) {
+HOOK_ENTRY("do_linkat")
+int hook_do_linkat(ctx_t *ctx) {
     struct syscall_cache_t* syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return trace__sys_link(ASYNC_SYSCALL);
@@ -41,6 +41,7 @@ int kprobe_do_linkat(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/vfs_link")
 int kprobe_vfs_link(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -92,9 +93,14 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_LINK);
+
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_link_src_callback")
 int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -112,6 +118,7 @@ int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *c
 
 int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall(EVENT_LINK);
         return 0;
     }
 
@@ -196,6 +203,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_link_dst_callback")
 int __attribute__((always_inline)) kprobe_dr_link_dst_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);

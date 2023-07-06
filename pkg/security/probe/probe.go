@@ -103,8 +103,8 @@ func (p *Probe) StatsPollingInterval() time.Duration {
 }
 
 // GetEventTags returns the event tags
-func (p *Probe) GetEventTags(ev *model.Event) []string {
-	return p.GetResolvers().TagsResolver.Resolve(ev.ContainerContext.ID)
+func (p *Probe) GetEventTags(containerID string) []string {
+	return p.GetResolvers().TagsResolver.Resolve(containerID)
 }
 
 // GetService returns the service name from the process tree

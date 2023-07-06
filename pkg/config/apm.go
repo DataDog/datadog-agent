@@ -36,6 +36,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.obfuscation.http.remove_paths_with_digits", "DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS")
 	config.BindEnv("apm_config.obfuscation.remove_stack_traces", "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES")
 	config.BindEnv("apm_config.obfuscation.redis.enabled", "DD_APM_OBFUSCATION_REDIS_ENABLED")
+	config.BindEnv("apm_config.obfuscation.redis.remove_all_args", "DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS")
 	config.BindEnv("apm_config.obfuscation.memcached.enabled", "DD_APM_OBFUSCATION_MEMCACHED_ENABLED")
 	config.SetKnown("apm_config.filter_tags.require")
 	config.SetKnown("apm_config.filter_tags.reject")

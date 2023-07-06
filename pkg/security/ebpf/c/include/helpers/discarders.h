@@ -8,21 +8,19 @@
 #include "buffer_selector.h"
 #include "events.h"
 
-int __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
+void __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {
     struct bpf_map_def *discarder_stats = select_buffer(&fb_discarder_stats, &bb_discarder_stats, DISCARDER_MONITOR_KEY);
     if (discarder_stats == NULL) {
-        return 0;
+        return;
     }
 
     u32 key = event_type;
     struct discarder_stats_t *stats = bpf_map_lookup_elem(discarder_stats, &key);
     if (stats == NULL) {
-        return 0;
+        return;
     }
 
     __sync_fetch_and_add(&stats->discarders_added, 1);
-
-    return 0;
 }
 
 int __attribute__((always_inline)) monitor_discarded(u64 event_type) {

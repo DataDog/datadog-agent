@@ -43,7 +43,7 @@ func TestGoRoutines(t *testing.T) {
 }
 
 func TestIncludeSystemProbeConfig(t *testing.T) {
-	common.SetupConfig("./test/datadog-agent.yaml")
+	common.SetupConfigWithWarnings("./test/datadog-agent.yaml", "")
 	// create system-probe.yaml file because it's in .gitignore
 	_, err := os.Create("./test/system-probe.yaml")
 	require.NoError(t, err, "couldn't create system-probe.yaml")
@@ -57,7 +57,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 }
 
 func TestIncludeConfigFiles(t *testing.T) {
-	common.SetupConfig("./test")
+	common.SetupConfigWithWarnings("./test", "")
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"": "./test/confd"})
@@ -68,7 +68,7 @@ func TestIncludeConfigFiles(t *testing.T) {
 }
 
 func TestIncludeConfigFilesWithPrefix(t *testing.T) {
-	common.SetupConfig("./test")
+	common.SetupConfigWithWarnings("./test", "")
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getConfigFiles(mock.Fb, searchPaths{"prefix": "./test/confd"})

@@ -21,13 +21,13 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -465,15 +465,15 @@ func isLeader() (bool, error) {
 	return true, nil
 }
 
-func (hc *HelmCheck) sendServiceCheck(sender aggregator.Sender) {
+func (hc *HelmCheck) sendServiceCheck(sender sender.Sender) {
 	for _, storageDriver := range []helmStorage{k8sConfigmaps, k8sSecrets} {
 		for _, taggedRel := range hc.store.getLatestRevisions(storageDriver) {
 			tags := taggedRel.commonTags
 
 			if taggedRel.release.Info != nil && taggedRel.release.Info.Status == "failed" {
-				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckCritical, "", tags, "Release in \"failed\" state")
+				sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, "", tags, "Release in \"failed\" state")
 			} else {
-				sender.ServiceCheck(serviceCheckName, coreMetrics.ServiceCheckOK, "", tags, "")
+				sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, "", tags, "")
 			}
 		}
 	}
