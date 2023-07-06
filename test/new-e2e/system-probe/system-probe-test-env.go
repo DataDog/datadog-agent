@@ -146,7 +146,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		sudoPassword = ""
 	}
 
-	currentAZ = PrimaryAZ
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
 		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
@@ -165,7 +164,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
-		"ddinfra:aws/defaultSubnets":             auto.ConfigValue{Value: currentAZ},
 	}
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
 	if opts.SSHKeyPath != "" {
@@ -181,9 +179,13 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 	var upResult auto.UpResult
 	ctx := context.Background()
+	currentAZ = PrimaryAZ
 	b := retry.NewConstant(3 * time.Second)
 	b = retry.WithMaxRetries(3, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
+		// Set AZ in retry block so we can change if needed.
+		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: currentAZ}
+
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 			if err := microvms.Run(ctx); err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
