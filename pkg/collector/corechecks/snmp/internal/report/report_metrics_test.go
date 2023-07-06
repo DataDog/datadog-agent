@@ -221,6 +221,20 @@ func TestSendMetric(t *testing.T) {
 			expectedSubMetrics: 1,
 		},
 		{
+			caseName: "symbol metric_type has precedence over metric root metric_type",
+			symbol:   checkconfig.SymbolConfig{Name: "my.metric", MetricType: checkconfig.ProfileMetricTypeGauge},
+			value:    valuestore.ResultValue{SubmissionType: checkconfig.ProfileMetricTypeCounter, Value: float64(10)},
+			tags:     []string{},
+			metricConfig: checkconfig.MetricsConfig{
+				MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
+			},
+			expectedMethod:     "Gauge",
+			expectedMetricName: "snmp.my.metric",
+			expectedValue:      float64(10),
+			expectedTags:       []string{},
+			expectedSubMetrics: 1,
+		},
+		{
 			caseName: "Error converting value",
 			symbol:   checkconfig.SymbolConfig{Name: "metric"},
 			value:    valuestore.ResultValue{Value: valuestore.ResultValue{}},
