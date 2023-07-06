@@ -218,7 +218,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 }
 
 func TestStreamVersioning(t *testing.T) {
-	extractor, _, conn, stream := makeTestClientServer(t)
+	extractor, _, conn, stream := setupGRPCTest(t)
 	msg, err := stream.Recv()
 	require.NoError(t, err)
 	assert.EqualValues(t, 0, msg.EventID)
@@ -334,9 +334,9 @@ func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
 	return &pbgo.ProcessEventUnset{Pid: proc.Pid}
 }
 
-// makeTestClientServer a test extractor, server, and client connection.
+// setupGRPCTest a test extractor, server, and client connection.
 // Cleanup is handled automatically via T.Cleanup().
-func makeTestClientServer(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.ClientConn, pbgo.ProcessEntityStream_StreamEntitiesClient) {
+func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.ClientConn, pbgo.ProcessEntityStream_StreamEntitiesClient) {
 	cfg := config.Mock(t)
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
