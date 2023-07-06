@@ -7,14 +7,29 @@ kitchen_tests_upload_common:
   needs:
     - job : kitchen_centos_fips_install_script_agent-a7
       artifacts: true
+      optional: true
     - job : kitchen_debian_install_script_agent-a7_x64
       artifacts: true
+      optional: true
     - job : kitchen_ubuntu_install_script_agent-a7_x64
       artifacts: true
+      optional: true
     - job : kitchen_suse_install_script_agent-a7
       artifacts: true
+      optional: true
     - job : kitchen_amazonlinux_install_script_agent-a7_x64
       artifacts: true
+      optional: true
+    - job : kitchen_windows_chef_agent-a7
+      artifacts: true
+      optional: true
+    - job : kitchen_windows_installer_npm_driver-a7
+      artifacts: true
+      optional: true
+    - job : kitchen_windows_ng_installer_npm_driver-a7
+      artifacts: true
+      optional: true
+
   variables:
     DD_ENV: ci
   script:
