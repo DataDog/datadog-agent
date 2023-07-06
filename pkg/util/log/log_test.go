@@ -462,50 +462,29 @@ func TestFuncVersions(t *testing.T) {
 
 }
 
-func TestParsef(t *testing.T) {
-	cases := []struct {
-		seelogLevel        seelog.LogLevel
-		strLogLevel        string
-		expectedToBeCalled bool
-	}{
-		{seelog.CriticalLvl, "debug", false},
-		{seelog.ErrorLvl, "debug", false},
-		{seelog.WarnLvl, "debug", false},
-		{seelog.InfoLvl, "debug", false},
-		{seelog.DebugLvl, "debug", true},
-		{seelog.TraceLvl, "debug", true},
+func TestStackDepthfLogging(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
 
-		{seelog.TraceLvl, "trace", true},
-		{seelog.InfoLvl, "trace", false},
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg\n")
+	assert.Nil(t, err)
 
-		{seelog.InfoLvl, "info", true},
-		{seelog.WarnLvl, "info", false},
+	SetupLogger(l, "trace")
 
-		{seelog.WarnLvl, "warn", true},
-		{seelog.ErrorLvl, "warn", false},
+	TracefStackDepth("%s", 0, "foo")
+	DebugfStackDepth("%s", 0, "foo")
+	InfofStackDepth("%s", 0, "foo")
+	WarnfStackDepth("%s", 0, "foo")
+	ErrorfStackDepth("%s", 0, "foo")
+	CriticalfStackDepth("%s", 0, "foo")
+	w.Flush()
 
-		{seelog.ErrorLvl, "error", true},
-		{seelog.CriticalLvl, "error", false},
-
-		{seelog.CriticalLvl, "critical", true},
-	}
-
-	for _, tc := range cases {
-		var b bytes.Buffer
-		w := bufio.NewWriter(&b)
-
-		l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %FuncShort: %Msg")
-		SetupLogger(l, tc.seelogLevel.String())
-
-		Parsef("message %s", tc.strLogLevel, "hello")
-
-		w.Flush()
-
-		if tc.expectedToBeCalled {
-			assert.Equal(t, 1, strings.Count(b.String(), "hello"), tc)
-		} else {
-			assert.Equal(t, 0, strings.Count(b.String(), "hello"), tc)
-		}
-	}
-
+	assert.Subset(t, strings.Split(b.String(), "\n"), []string{
+		"[TRACE] TestStackDepthfLogging: foo",
+		"[DEBUG] TestStackDepthfLogging: foo",
+		"[INFO] TestStackDepthfLogging: foo",
+		"[WARN] TestStackDepthfLogging: foo",
+		"[ERROR] TestStackDepthfLogging: foo",
+		"[CRITICAL] TestStackDepthfLogging: foo",
+	})
 }

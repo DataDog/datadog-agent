@@ -255,7 +255,7 @@ func (corelogger) Trace(v ...interface{}) { log.TraceStackDepth(3, v...) }
 
 // Tracef implements Logger.
 func (corelogger) Tracef(format string, params ...interface{}) {
-	log.Parsef(format, "TRACE", params...)
+	log.TracefStackDepth(format, 3, params...)
 }
 
 // Debug implements Logger.
@@ -263,21 +263,23 @@ func (corelogger) Debug(v ...interface{}) { log.DebugStackDepth(3, v...) }
 
 // Debugf implements Logger.
 func (corelogger) Debugf(format string, params ...interface{}) {
-	log.Parsef(format, "DEBUG", params...)
+	log.DebugfStackDepth(format, 3, params...)
 }
 
 // Info implements Logger.
 func (corelogger) Info(v ...interface{}) { log.InfoStackDepth(3, v...) }
 
 // Infof implements Logger.
-func (corelogger) Infof(format string, params ...interface{}) { log.Parsef(format, "INFO", params...) }
+func (corelogger) Infof(format string, params ...interface{}) {
+	log.InfofStackDepth(format, 3, params...)
+}
 
 // Warn implements Logger.
 func (corelogger) Warn(v ...interface{}) error { return log.WarnStackDepth(3, v...) }
 
 // Warnf implements Logger.
 func (corelogger) Warnf(format string, params ...interface{}) error {
-	return log.Parsef(format, "WARN", params...)
+	return log.WarnfStackDepth(format, 3, params...)
 }
 
 // Error implements Logger.
@@ -285,7 +287,7 @@ func (corelogger) Error(v ...interface{}) error { return log.ErrorStackDepth(3, 
 
 // Errorf implements Logger.
 func (corelogger) Errorf(format string, params ...interface{}) error {
-	return log.Parsef(format, "ERROR", params...)
+	return log.ErrorfStackDepth(format, 3, params...)
 }
 
 // Critical implements Logger.
@@ -293,7 +295,7 @@ func (corelogger) Critical(v ...interface{}) error { return log.CriticalStackDep
 
 // Criticalf implements Logger.
 func (corelogger) Criticalf(format string, params ...interface{}) error {
-	return log.Parsef(format, "CRITICAL", params...)
+	return log.CriticalfStackDepth(format, 3, params...)
 }
 
 // Flush implements Logger.
