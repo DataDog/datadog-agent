@@ -175,12 +175,12 @@ func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
 func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
 	var labelValues [maxNumberOfAllowedLabels]string
 
-	for i, allowedLabel := range a.allowedLabels {
-		if allowedLabel == "" {
+	for i := range a.allowedLabels {
+		if a.allowedLabels[i] == "" {
 			break
 		}
 
-		labelValues[i] = metric.Labels[allowedLabel]
+		labelValues[i] = metric.Labels[a.allowedLabels[i]]
 	}
 
 	resource := metric.Labels["resource"]
