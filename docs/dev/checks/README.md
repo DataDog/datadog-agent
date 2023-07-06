@@ -3,6 +3,10 @@
 For more informations about what a Custom check is and whether they are a good
 fit for your use case, please [refer to the official documentation][custom-checks].
 
+## JMX-based checks
+JMX-based checks are executed by a component of the Agent called `jmxfetch`.
+Refer to [./jmxfetch.md](./jmxfetch.md) for more.
+
 ## Configuration
 
 Every check has its own YAML configuration file. The file has one mandatory key,
