@@ -215,12 +215,6 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 		rate := ratelimiter.RealRate()
 		sampler.SetPreSampleRate(root, rate)
 	}
-
-	if a.conf.InAzureAppServices {
-		for k, v := range traceutil.GetAppServicesTags() {
-			traceutil.SetMeta(root, k, v)
-		}
-	}
 }
 
 // Process is the default work unit that receives a trace, transforms it and
@@ -296,6 +290,15 @@ func (a *Agent) Process(p *api.Payload) {
 			}
 		}
 		a.Replacer.Replace(chunk.Spans)
+
+		// Set aas tags on all spans
+		if a.conf.InAzureAppServices {
+			for _, span := range chunk.Spans {
+				for k, v := range traceutil.GetAppServicesTags() {
+					traceutil.SetMeta(span, k, v)
+				}
+			}
+		}
 
 		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {
