@@ -103,8 +103,8 @@ package_dependencies_x64:
   needs: ["pull_test_dockers_x64"]
   script:
     # upload tests
-    - !reference[.write_ssh_key_file]
-    - !reference[.wait_for_instances]
+    - !reference [.write_ssh_key_file]
+    - !reference [.wait_for_instances]
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$X86_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -117,8 +117,8 @@ package_dependencies_arm64:
   needs: ["pull_test_dockers_arm64"]
   script:
     # upload tests
-    - !reference[.write_ssh_key_file]
-    - !reference[.wait_for_instances]
+    - !reference [.write_ssh_key_file]
+    - !reference [.wait_for_instances]
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$ARM_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -159,8 +159,8 @@ upload_system_probe_tests_x64:
   needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64"]
   script:
     # upload tests
-    - !reference[.write_ssh_key_file]
-    - !reference[.wait_for_instances]
+    - !reference [.write_ssh_key_file]
+    - !reference [.wait_for_instances]
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$X86_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -173,8 +173,8 @@ upload_system_probe_tests_arm64:
   needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
   script:
     # upload tests
-    - !reference[.write_ssh_key_file]
-    - !reference[.wait_for_instances]
+    - !reference [.write_ssh_key_file]
+    - !reference [.wait_for_instances]
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$ARM_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -211,8 +211,8 @@ upload_minimized_btfs_x64:
   needs: ["generate_minimized_btfs_x64"]
   script:
     # upload tests
-    - !reference[.write_ssh_key_file]
-    - !reference[.wait_for_instances]
+    - !reference [.write_ssh_key_file]
+    - !reference [.wait_for_instances]
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$X86_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -226,8 +226,8 @@ upload_minimized_btfs_arm64:
   needs: ["generate_minimized_btfs_arm64"]
   script:
     # upload tests
-    - !reference[.write_ssh_key_file]
-    - !reference[.wait_for_instances]
+    - !reference [.write_ssh_key_file]
+    - !reference [.wait_for_instances]
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$ARM_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -297,7 +297,7 @@ kernel_matrix_testing_setup_env:
     RETRY: 2
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
-    - !reference[.write_ssh_key_file]
+    - !reference [.write_ssh_key_file]
   script:
     - ALL_INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
     - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters "Name=tag:team,Values=ebpf-platform" "Name=tag:pipeline-id,Values=$CI_PIPELINE_ID" "Name=tag:managed-by,Values=pulumi" "Name=private-ip-address,Values=$ALL_INSTANCE_IPS" --output text --query 'Reservations[*].Instances[*].InstanceId' | wc -l )
