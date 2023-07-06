@@ -14,6 +14,7 @@ directory wrk_dir do
 end
 
 remote_file "#{wrk_dir}/install-script" do
+  sensitive true # to prevent displaying the full install_script in the logs
   source node['dd-agent-install-script']['install_script_url']
 end
 
