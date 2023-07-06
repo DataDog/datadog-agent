@@ -43,9 +43,9 @@
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    # Previously this job required only 8Gb of memory but since Go 1.20 it requires more to avoid OOM killed.
-    # Since Windows runners have 32Gb of memory and jobs are using either 8Gb or 16Gb of memory, we can allocate 16Gb on this job because
-    # even if we decided to allocate 10Gb for instance, it would leave 6Gb free but we could not fit another job with these 6Gb remaining.
+    # Previously this job required only 8Gb of memory but since Go 1.20 it requires more to avoid being OOM killed.
+    # Since Windows runners have 32Gb of memory and jobs are using either 8Gb or 16Gb of memory, we can limit memory to 16Gb on this job because
+    # even if we decided to limit to 10Gb for instance, it would leave 6Gb free but we could not fit another job with these 6Gb remaining.
     - >
       docker run --rm 
       -m 16384M 
