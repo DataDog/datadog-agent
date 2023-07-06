@@ -127,8 +127,8 @@ upload_dependencies_arm64:
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
-    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-runner $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/main.go
-    - GOOS=linux GOARCH=$ARCH go build -o $DEPENDENCIES/test-json-review $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review/main.go
+    - GOOS=linux GOARCH=$GOARCH go build -o $DEPENDENCIES/test-runner $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/main.go
+    - GOOS=linux GOARCH=$GOARCH go build -o $DEPENDENCIES/test-json-review $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review/main.go
     - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
@@ -160,6 +160,7 @@ upload_system_probe_tests_x64:
   variables:
     ARCHIVE_NAME: tests-x86_64.tar.gz
     ARCH: x86_64
+    GOARCH: amd64
     INSTANCE_TYPE: m5.metal
 
 upload_system_probe_tests_arm64:
@@ -169,6 +170,7 @@ upload_system_probe_tests_arm64:
   variables:
     ARCHIVE_NAME: tests-arm64.tar.gz
     ARCH: arm64
+    GOARCH: arm64
     INSTANCE_TYPE: m6g.metal
 
 .upload_minimized_btfs:
