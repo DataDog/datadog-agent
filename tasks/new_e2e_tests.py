@@ -110,7 +110,7 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
         'stacks': 'Cleans up local stack state, default False',
     },
 )
-def clean(ctx: Context, locks=True, stacks=False):
+def clean(ctx: Context, locks: bool = True, stacks: bool = False):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
