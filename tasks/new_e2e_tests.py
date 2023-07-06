@@ -153,7 +153,7 @@ def _clean_stacks(ctx: Context):
 def _get_existing_stacks(ctx: Context) -> List[str]:
     # ensure we deal with local stacks
     with ctx.cd('/tmp'):
-        output = ctx.run("pulumi stack ls --all")
+        output = ctx.run("pulumi stack ls --all", pty=True)
         if output is None or not output:
             return []
         lines = output.stdout.splitlines()
@@ -166,7 +166,7 @@ def _get_existing_stacks(ctx: Context) -> List[str]:
 
 
 def _remove_stack(ctx: Context, stack_name: str):
-    ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}")
+    ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
 
 
 def _get_pulumi_about() -> str:
