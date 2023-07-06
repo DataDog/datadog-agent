@@ -144,4 +144,12 @@ static __always_inline void merge_protocol_stacks(protocol_stack_t *this, protoc
     this->flags |= that->flags;
 }
 
+static __always_inline void set_protocol_flag(protocol_stack_t *stack, u8 flag) {
+    if (!stack) {
+        return;
+    }
+
+    stack->flags |= flag;
+}
+
 #endif
