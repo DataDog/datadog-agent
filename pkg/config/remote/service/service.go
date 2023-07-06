@@ -63,7 +63,13 @@ const (
 	initialFetchErrorLog uint64 = 5
 )
 
-var exportedMapStatus = expvar.NewMap("remoteConfigStatus")
+var (
+	exportedMapStatus = expvar.NewMap("remoteConfigStatus")
+	// Status expvar exported
+	exportedStatusOrgEnabled    = expvar.String{}
+	exportedStatusKeyAuthorized = expvar.String{}
+	exportedLastUpdateErr       = expvar.String{}
+)
 
 // Service defines the remote config management service responsible for fetching, storing
 // and dispatching the configurations
@@ -102,11 +108,6 @@ type Service struct {
 
 	// Previous /status response
 	previousOrgStatus *pbgo.OrgStatusResponse
-
-	// Status expvar exported
-	exportedStatusOrgEnabled    *expvar.String
-	exportedStatusKeyAuthorized *expvar.String
-	exportedLastUpdateErr       *expvar.String
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -120,6 +121,14 @@ type uptaneClient interface {
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
 	TUFVersionState() (uptane.TUFVersions, error)
+}
+
+func init() {
+	// Exported variable to get the state of remote-config
+	exportedMapStatus.Init()
+	exportedMapStatus.Set("orgEnabled", &exportedStatusOrgEnabled)
+	exportedMapStatus.Set("apiKeyScoped", &exportedStatusKeyAuthorized)
+	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -222,15 +231,6 @@ func NewService() (*Service, error) {
 		clientsCacheBypassLimit = defaultCacheBypassLimit
 	}
 
-	// Exported variable to get the state of remote-config
-	exportedMapStatus.Init()
-	exportedStatusOrgEnabled := new(expvar.String)
-	exportedMapStatus.Set("orgEnabled", exportedStatusOrgEnabled)
-	exportedStatusKeyAuthorized := new(expvar.String)
-	exportedMapStatus.Set("apiKeyScoped", exportedStatusKeyAuthorized)
-	exportedLastUpdateErr := new(expvar.String)
-	exportedMapStatus.Set("lastError", exportedLastUpdateErr)
-
 	return &Service{
 		firstUpdate:                    true,
 		defaultRefreshInterval:         refreshInterval,
@@ -257,9 +257,6 @@ func NewService() (*Service, error) {
 			capacity:       clientsCacheBypassLimit,
 			allowance:      clientsCacheBypassLimit,
 		},
-		exportedStatusOrgEnabled:    exportedStatusOrgEnabled,
-		exportedStatusKeyAuthorized: exportedStatusKeyAuthorized,
-		exportedLastUpdateErr:       exportedLastUpdateErr,
 	}, nil
 }
 
@@ -313,7 +310,7 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 
 			if err != nil {
-				s.exportedLastUpdateErr.Set(err.Error())
+				exportedLastUpdateErr.Set(err.Error())
 				log.Errorf("Could not refresh Remote Config: %v", err)
 			}
 		}
@@ -359,8 +356,8 @@ func (s *Service) pollOrgStatus() {
 		Enabled:    response.Enabled,
 		Authorized: response.Authorized,
 	}
-	s.exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
-	s.exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
+	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
+	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
 func (s *Service) calculateRefreshInterval() time.Duration {
@@ -445,7 +442,7 @@ func (s *Service) refresh() error {
 
 	s.backoffErrorCount = s.backoffPolicy.DecError(s.backoffErrorCount)
 
-	s.exportedLastUpdateErr.Set("")
+	exportedLastUpdateErr.Set("")
 
 	return nil
 }
