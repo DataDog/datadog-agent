@@ -37,7 +37,6 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType string, ch ch
 	if pid == 0 {
 		pid = myPid
 	}
-
 	root, err := tracefs.Root()
 	if err != nil {
 		log.Debugf("error getting tracefs root path: %s", err)
@@ -49,7 +48,6 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType string, ch ch
 		log.Debugf("error retrieving probe stats: %s", err)
 		return
 	}
-
 	for event, st := range m {
 		parts := eventRegexp.FindStringSubmatch(event)
 		if len(parts) > 2 {
@@ -64,8 +62,9 @@ func (c *DebugFsStatCollector) updateProbeStats(pid int, probeType string, ch ch
 			event = parts[1]
 		}
 		event = strings.ToLower(event)
-		hitsKey := "h_" + event
-		missesKey := "m_" + event
+		probeTypeKey := string(probeType[0]) + "_"
+		hitsKey := "h_" + probeTypeKey + event
+		missesKey := "m_" + probeTypeKey + event
 		ch <- prometheus.MustNewConstMetric(c.hits, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[hitsKey]), event, probeType)
 		c.lastProbeStats[hitsKey] = int(st.Hits)
 		ch <- prometheus.MustNewConstMetric(c.misses, prometheus.CounterValue, float64(int(st.Hits)-c.lastProbeStats[missesKey]), event, probeType)
