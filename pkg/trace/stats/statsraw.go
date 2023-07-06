@@ -8,7 +8,6 @@ package stats
 import (
 	"math/rand"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 
@@ -146,15 +145,12 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, conf *config.AgentConfig) {
+func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTags []string, customSpanNames []string) {
+
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-
-	customTagConfig := conf.CustomTags
-	customTagSpans := conf.SpanNamesForCustomTags
-
-	aggr := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg, customTagConfig, customTagSpans)
+	aggr := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg, customTags[:], customSpanNames[:])
 	sb.add(s, weight, isTop, aggr)
 }
 
