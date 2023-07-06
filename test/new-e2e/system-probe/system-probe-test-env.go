@@ -31,9 +31,17 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-var (
-	DependenciesPackage = "dependencies-%s.tar.gz"
+const (
+	PrimaryAZ   = "subnet-03061a1647c63c3c3"
+	SecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
+	BackupAZ    = "subnet-071213aedb0e1ae54"
 )
+
+var nextAZ = map[string]string{
+	PrimaryAZ:   SecondaryAZ,
+	SecondaryAZ: BackupAZ,
+	BackupAZ:    PrimaryAZ,
+}
 
 type SystemProbeEnvOpts struct {
 	X86AmiID              string
@@ -45,7 +53,6 @@ type SystemProbeEnvOpts struct {
 	ShutdownPeriod        int
 	FailOnMissing         bool
 	DependenciesDirectory string
-	Subnets               string
 	VMConfigPath          string
 	Local                 bool
 }
@@ -114,9 +121,14 @@ func credentials() (string, error) {
 	return password, nil
 }
 
+func getNextAZ(currentAZ string) (string, bool) {
+	return nextAZ[currentAZ]
+}
+
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	var err error
 	var sudoPassword string
+	var currentAZ string
 
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
@@ -134,6 +146,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		sudoPassword = ""
 	}
 
+	currentAZ = PrimaryAZ
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
 		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
@@ -152,6 +165,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
+		"ddinfra:aws/defaultSubnets":             auto.ConfigValue{Value: currentAZ},
 	}
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
 	if opts.SSHKeyPath != "" {
@@ -160,10 +174,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		config["ddinfra:aws/defaultPrivateKeyPath"] = auto.ConfigValue{Value: ""}
 	}
 
-	// Specify the subnets to use instead of default ones
-	if opts.Subnets != "" {
-		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: opts.Subnets}
-	}
 	if opts.ShutdownPeriod != 0 {
 		config["microvm:shutdownPeriod"] = auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)}
 		config["ddinfra:aws/defaultShutdownBehavior"] = auto.ConfigValue{Value: "terminate"}
@@ -186,7 +196,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		// The root cause of this is unknown. The problem usually fixes itself upon retry.
 		if err != nil {
 			if strings.Contains(err.Error(), "failed to dial libvirt") {
-				fmt.Printf("[Error] Failed to dial libvirt. Retrying stack.")
+				fmt.Println("[Error] Failed to dial libvirt. Retrying stack.")
+				return retry.RetryableError(err)
+			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
+				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack.", currentAZ)
+				currentAZ = getNextAZ(currentAZ)
 				return retry.RetryableError(err)
 			} else {
 				return err
