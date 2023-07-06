@@ -92,8 +92,8 @@ var ConnTracerTelemetry = struct {
 	UdpSendsMissed    *nettelemetry.StatCounterWrapper
 	UdpDroppedConns   *nettelemetry.StatCounterWrapper
 	PidCollisions     *nettelemetry.StatCounterWrapper
-	iterationDups     *nettelemetry.StatCounterWrapper
-	iterationAborts   *nettelemetry.StatCounterWrapper
+	iterationDups     telemetry.Counter
+	iterationAborts   telemetry.Counter
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_failed_connects", []string{}, "Counter measuring the number of failed TCP connections in the EBPF map"),
@@ -104,8 +104,8 @@ var ConnTracerTelemetry = struct {
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Counter measuring failures to process UDP sends in EBPF"),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_dropped_conns", []string{}, "Counter measuring the number of dropped UDP connections in the EBPF map"),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
+	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
 }
 
 type tracer struct {
