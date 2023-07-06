@@ -34,7 +34,7 @@ type client struct {
 }
 
 func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) {
-	log.Info("[remoteprocesscollector] starting a new stream")
+	log.Debug("[remoteprocesscollector] starting a new stream")
 	c.parentCollector.eventIdSet = false // Can be removed when the remote workloadmeta guarantees to not skip any event
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
@@ -72,17 +72,16 @@ func init() {
 	})
 }
 
-// For now, we do not use detectFeature to enable or disable the remote workloadmeta
 func (s *remoteProcessCollectorStreamHandler) IsEnabled() error {
 	if !config.IsFeaturePresent(config.RemoteProcessCollector) {
-		return dderrors.NewDisabled(collectorID, "remote process collector not detected")
+		return dderrors.NewDisabled(collectorID, "[remoteprocesscollector] is not enabled")
 	}
 	log.Trace("[remoteprocesscollector] feature is enabled")
 	return nil
 }
 
 func (s *remoteProcessCollectorStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
-	log.Trace("[remoteprocesscollector] creating grpc client")
+	log.Debug("[remoteprocesscollector] creating grpc client")
 	return &client{cl: pb.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
