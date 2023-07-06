@@ -161,6 +161,8 @@ build do
       "PIP_CONFIG_FILE" => "#{pip_config_file}",
       # Specify C99 standard explicitly to avoid issues while building some
       # wheels (eg. ddtrace)
+      "CC" => "/opt/gcc-10.4.0/bin/gcc",
+      "CXX" => "/opt/gcc-10.4.0/bin/g++",
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
