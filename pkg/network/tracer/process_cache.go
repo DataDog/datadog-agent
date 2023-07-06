@@ -31,6 +31,7 @@ const (
 	// maxProcessListSize is the max size of a processList
 	maxProcessListSize     = 3
 	processCacheModuleName = "network_tracer__process_cache"
+	defaultExpiry          = 2 * time.Minute
 )
 
 var processCacheTelemetry = struct {
@@ -50,6 +51,7 @@ type process struct {
 	Envs        map[string]string
 	ContainerID string
 	StartTime   int64
+	Expiry      int64
 }
 
 type processList []*process
@@ -93,6 +95,8 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *process) {
+		processCacheTelemetry.cacheEvicts.Inc()
+
 		pl, _ := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
 			delete(pc.cacheByPid, p.Pid)
@@ -107,10 +111,13 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	}
 
 	go func() {
+		trimTicker := time.NewTicker(30 * time.Second)
 		for {
 			select {
 			case <-pc.stopped:
 				return
+			case <-trimTicker.C:
+				pc.trim()
 			case p := <-pc.in:
 				pc.add(p)
 			}
@@ -191,6 +198,30 @@ func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 	}
 }
 
+func (pc *processCache) trim() {
+	if pc == nil {
+		return
+	}
+
+	pc.Lock()
+	defer pc.Unlock()
+
+	now := time.Now().Unix()
+	trimmed := 0
+	for _, v := range pc.cache.Values() {
+		if now > v.Expiry {
+			// Remove will call the evict callback which will
+			// delete from the cacheByPid map
+			pc.cache.Remove(processCacheKey{pid: v.Pid, startTime: v.StartTime})
+			trimmed++
+		}
+	}
+
+	if trimmed > 0 {
+		log.Debugf("Trimmed %d process cache entries", trimmed)
+	}
+}
+
 func (pc *processCache) Stop() {
 	if pc == nil {
 		return
@@ -211,13 +242,10 @@ func (pc *processCache) add(p *process) {
 		log.Tracef("adding process %+v to process cache", p)
 	}
 
-	evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
+	p.Expiry = time.Now().Add(defaultExpiry).Unix()
+	pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
 	pl, _ := pc.cacheByPid[p.Pid]
 	pc.cacheByPid[p.Pid] = pl.update(p)
-
-	if evicted {
-		processCacheTelemetry.cacheEvicts.Inc()
-	}
 }
 
 func (pc *processCache) Get(pid uint32, ts int64) (*process, bool) {
@@ -230,6 +258,7 @@ func (pc *processCache) Get(pid uint32, ts int64) (*process, bool) {
 
 	pl, _ := pc.cacheByPid[pid]
 	if closest := pl.closest(ts); closest != nil {
+		closest.Expiry = time.Now().Add(defaultExpiry).Unix()
 		pc.cache.Get(processCacheKey{pid: closest.Pid, startTime: closest.StartTime})
 		return closest, true
 	}
