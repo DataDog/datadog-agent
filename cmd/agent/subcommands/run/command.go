@@ -454,6 +454,7 @@ func startAgent(
 
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
+		// TODO: to be removed when default telemetry is enabled.
 		pkgTelemetry.RegisterStatsSender(sender)
 	}
 
