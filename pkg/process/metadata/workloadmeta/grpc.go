@@ -40,7 +40,7 @@ func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor)
 		extractor:           extractor,
 		server:              grpc.NewServer(),
 		invalidVersionError: telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that is from the future."),
-		streamServerError:   telemetry.NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent".),
+		streamServerError:   telemetry.NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent."),
 	}
 
 	pbgo.RegisterProcessEntityStreamServer(l.server, l)
