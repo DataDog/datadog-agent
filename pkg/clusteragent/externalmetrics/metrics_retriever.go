@@ -71,11 +71,14 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 	// We only update active DatadogMetrics
 	// We split metrics in two slices, those with errors and those without.
 	// Query first slice one by one, other as batch.
+	// TODO: consider implementing one-pass splitting in the store
 	datadogMetrics := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
 		return datadogMetric.Active && datadogMetric.Error == nil
 	})
 
-	// Do all errors warrant separate query?
+	// Do all errors warrant separate query? probably no, but we run them separately because:
+	// Backoff should be applied to each metrics separately.
+	// Only way to differentiate error from a global error is via comparing error strings.
 	datadogMetricsErr := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
 		return datadogMetric.Active && datadogMetric.Error != nil
 	})

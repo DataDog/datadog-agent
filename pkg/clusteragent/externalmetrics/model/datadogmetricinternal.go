@@ -158,6 +158,8 @@ func (d *DatadogMetricInternal) UpdateFrom(current datadoghq.DatadogMetric) {
 		d.resolveQuery(currentSpec.Query)
 	}
 
+	// Changing one of these fields may get `DatadogMetric` out of error state. To get query attempted
+	// right away we reset retry count and backoff.
 	if d.query != currentSpec.Query ||
 		d.MaxAge != currentSpec.MaxAge.Duration ||
 		d.TimeWindow != currentSpec.TimeWindow.Duration {
