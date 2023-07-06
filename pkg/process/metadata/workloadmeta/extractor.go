@@ -16,11 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ProcessEntity is a placeholder workloadmeta.ProcessEntity.
-// It does not contain all the fields that the final entity will contain.
+// ProcessEntity represents a process exposed by the WorkloadMeta extractor
 type ProcessEntity struct {
-	pid      int32
-	language *languagemodels.Language
+	Pid          int32
+	NsPid        int32
+	CreationTime int64
+	Language     *languagemodels.Language
 }
 
 // WorkloadMetaExtractor does these two things:
@@ -69,22 +70,36 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 		newProcs = append(newProcs, proc)
 	}
 
+	deadProcs := getDifference(w.cache, newCache)
+
+	// If no process has been created or terminated, there's no need to update the cache
+	// or generate a new diff
+	if len(newProcs) == 0 && len(deadProcs) == 0 {
+		return
+	}
+
 	newEntities := make([]*ProcessEntity, 0, len(newProcs))
 	languages := languagedetection.DetectLanguage(newProcs)
 	for i, lang := range languages {
 		pid := newProcs[i].Pid
 		proc := procs[pid]
+
+		var creationTime int64
+		if proc.Stats != nil {
+			creationTime = proc.Stats.CreateTime
+		}
+
 		entity := &ProcessEntity{
-			pid:      pid,
-			language: lang,
+			Pid:          pid,
+			NsPid:        proc.NsPid,
+			CreationTime: creationTime,
+			Language:     lang,
 		}
 		newEntities = append(newEntities, entity)
 		newCache[hashProcess(pid, proc.Stats.CreateTime)] = entity
 
 		log.Trace("detected language", lang.Name, "for pid", pid)
 	}
-
-	deadProcs := getDifference(w.cache, newCache)
 
 	w.cacheMutex.Lock()
 	w.cache = newCache

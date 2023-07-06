@@ -61,11 +61,11 @@ func Test_filterMapStringKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			options, err := newParseOptions(tt.excludeString)
+			filters, err := parseFilters(tt.excludeString)
 			if err != nil {
 				t.Errorf("newParseOptions() return an error %v", err)
 			}
-			if got := filterMapStringKey(tt.annotations, options.annotationsFilter); !reflect.DeepEqual(got, tt.want) {
+			if got := filterMapStringKey(tt.annotations, filters); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("filterPodAnnotations() = %v, want %v", got, tt.want)
 			}
 		})

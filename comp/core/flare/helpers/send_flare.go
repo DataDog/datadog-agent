@@ -222,5 +222,6 @@ func SendTo(archivePath, caseID, email, source, apiKey, url string) (string, err
 		return "", err
 	}
 
+	defer r.Body.Close()
 	return analyzeResponse(r, apiKey)
 }

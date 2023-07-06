@@ -154,6 +154,7 @@ jira_statuses = [
 ]
 github_team = "container-integrations"
 github_labels = ["team/containers"]
+exclude_members = ["vboulineau"]
 
 [teams."Container Ecosystems"]
 jira_project = "CONTECO"
@@ -165,7 +166,6 @@ jira_statuses = [
 ]
 github_team = "container-ecosystems"
 github_labels = ["team/container-ecosystems"]
-exclude_members = ["davidor"]
 
 [teams."Security And Compliance Agent"]
 jira_project = "SEC"

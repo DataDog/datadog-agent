@@ -16,6 +16,7 @@ from . import (
     dogstatsd,
     epforwarder,
     github,
+    kmt,
     msi,
     new_e2e_tests,
     package,
@@ -131,6 +132,7 @@ ns.add_collection(process_agent)
 ns.add_collection(security_agent)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
+ns.add_collection(kmt)
 ns.configure(
     {
         'run': {

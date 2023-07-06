@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"math"
@@ -15,16 +16,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
-	"go.uber.org/atomic"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/gopsutil/process"
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -37,6 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func launchProcessMonitor(t *testing.T) {
@@ -733,4 +738,142 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 	})
 
 	return perfHandler
+}
+
+func BenchmarkScanSOWatcherNew(b *testing.B) {
+	w := newSOWatcher(nil,
+		soRule{
+			re: regexp.MustCompile(`libssl.so`),
+		},
+		soRule{
+			re: regexp.MustCompile(`libcrypto.so`),
+		},
+		soRule{
+			re: regexp.MustCompile(`libgnutls.so`),
+		},
+	)
+
+	callback := func(path string) {
+		for _, r := range w.rules {
+			if r.re.MatchString(path) {
+				break
+			}
+		}
+	}
+
+	f := func(pid int) error {
+		mapsPath := fmt.Sprintf("%s/%d/maps", w.procRoot, pid)
+		maps, err := os.Open(mapsPath)
+		if err != nil {
+			log.Debugf("process %d parsing failed %s", pid, err)
+			return nil
+		}
+		defer maps.Close()
+
+		scanner := bufio.NewScanner(bufio.NewReader(maps))
+
+		parseMapsFile(scanner, callback)
+		return nil
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		util.WithAllProcs(w.procRoot, f)
+	}
+}
+
+func BenchmarkScanSOWatcherOld(b *testing.B) {
+	w := newSOWatcher(nil,
+		soRule{
+			re: regexp.MustCompile(`libssl.so`),
+		},
+		soRule{
+			re: regexp.MustCompile(`libcrypto.so`),
+		},
+		soRule{
+			re: regexp.MustCompile(`libgnutls.so`),
+		},
+	)
+
+	f := func(testPid int) error {
+		// report silently parsing /proc error as this could happen
+		// just exit processes
+		proc, err := process.NewProcess(int32(testPid))
+		if err != nil {
+			log.Debugf("process %d parsing failed %s", testPid, err)
+			return nil
+		}
+
+		mmaps, err := proc.MemoryMaps(true)
+		if err != nil {
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("process %d maps parsing failed %s", testPid, err)
+			}
+			return nil
+		}
+
+		for _, m := range *mmaps {
+			for _, r := range w.rules {
+				if r.re.MatchString(m.Path) {
+					break
+				}
+			}
+		}
+
+		return nil
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		util.WithAllProcs(w.procRoot, f)
+	}
+}
+
+var mapsFile = `
+7f178d0a6000-7f178d0cb000 r--p 00000000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
+7f178d0cb000-7f178d243000 r-xp 00025000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
+7f178d243000-7f178d28d000 r--p 0019d000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
+7f178d28d000-7f178d28e000 ---p 001e7000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
+7f178d28e000-7f178d291000 r--p 001e7000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
+7f178d291000-7f178d294000 rw-p 001ea000 fd:00 268741                     /usr/lib/x86_64-linux-gnu/libc-2.31.so
+7f178d294000-7f178d29a000 rw-p 00000000 00:00 0
+7f178d29a000-7f178d29b000 r--p 00000000 fd:00 262340                     /usr/lib/locale/C.UTF-8/LC_TELEPHONE
+7f178d29b000-7f178d29c000 r--p 00000000 fd:00 262333                     /usr/lib/locale/C.UTF-8/LC_MEASUREMENT
+7f178d29c000-7f178d2a3000 r--s 00000000 fd:00 269008                     /usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache
+7f178d2a3000-7f178d2a4000 r--p 00000000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
+7f178d2a4000-7f178d2c7000 r-xp 00001000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
+7f178d2c7000-7f178d2cf000 r--p 00024000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
+7f178d2cf000-7f178d2d0000 r--p 00000000 fd:00 262317                     /usr/lib/locale/C.UTF-8/LC_IDENTIFICATION
+7f178d2d0000-7f178d2d1000 r--p 0002c000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
+7f178d2d1000-7f178d2d2000 rw-p 0002d000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.31.so
+7f178d2d1000-7f178d2d2000 rw-p 0002d000 fd:00 268737                     /usr/lib/x86_64-linux-gnu/ld-2.2.so (deleted)
+7f178d2d1000-7f178d2d2000 rw-p 0002d000 fd:00 0		                     /usr/lib/x86_64-linux-gnu/ld-2.2.so (deleted)
+7f178d2d2000-7f178d2d3000 rw-p 00000000 00:00 0
+7ffe712a4000-7ffe712c5000 rw-p 00000000 00:00 0                          [stack]
+7ffe71317000-7ffe7131a000 r--p 00000000 00:00 0                          [vvar]
+7ffe7131a000-7ffe7131b000 r-xp 00000000 00:00 0                          [vdso]
+ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]
+`
+
+func Test_parseMapsFile(t *testing.T) {
+	scanner := bufio.NewScanner(strings.NewReader(mapsFile))
+
+	extractedEntries := make([]string, 0)
+	expectedEntries := []string{
+		"/usr/lib/x86_64-linux-gnu/libc-2.31.so",
+		"/usr/lib/locale/C.UTF-8/LC_TELEPHONE",
+		"/usr/lib/locale/C.UTF-8/LC_MEASUREMENT",
+		"/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache",
+		"/usr/lib/x86_64-linux-gnu/ld-2.31.so",
+		"/usr/lib/locale/C.UTF-8/LC_IDENTIFICATION",
+	}
+	testCallback := func(path string) {
+		extractedEntries = append(extractedEntries, path)
+	}
+
+	parseMapsFile(scanner, testCallback)
+
+	require.Equal(t, expectedEntries, extractedEntries)
 }
