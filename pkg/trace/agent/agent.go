@@ -215,6 +215,12 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 		rate := ratelimiter.RealRate()
 		sampler.SetPreSampleRate(root, rate)
 	}
+
+	if a.conf.InAzureAppServices {
+		for k, v := range traceutil.GetAppServicesTags() {
+			traceutil.SetMeta(root, k, v)
+		}
+	}
 }
 
 // Process is the default work unit that receives a trace, transforms it and
