@@ -64,18 +64,6 @@ pull_test_dockers_arm64:
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
     - pushd $DEPENDENCIES
-    # copy clang and llc bins
-    - mkdir -p $EMBEDDED_BIN
-    - cp $CLANG_BPF $EMBEDDED_BIN
-    - cp $LLC_BPF $EMBEDDED_BIN
-    - mkdir -p $EMBEDDED_INC
-    # copy gotestsum and test2json
-    - mkdir -p $GO_BIN
-    - cp $GOTESTSUM $GO_BIN
-    - cp $TEST2JSON $GO_BIN
-    - mkdir junit
-    - mkdir testjson
-    - mkdir pkgjson
     # copy micro-vm-init.sh
     - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
     # copy over docker images
@@ -92,17 +80,12 @@ pull_test_dockers_arm64:
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
-    CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
-    LLC_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/llc-bpf
-    GO_BIN: go/bin
-    GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/gotestsum
-    TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
     EMBEDDED_BIN: opt/datadog-agent/embedded/bin
     EMBEDDED_INC: opt/datadog-agent/embedded/include
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
-package_dependencies_x64:
+upload_dependencies_x64:
   extends:
     - .package_dependencies
   needs: ["pull_test_dockers_x64"]
@@ -111,7 +94,7 @@ package_dependencies_x64:
     ARCH: amd64
     INSTANCE_TYPE: m5.metal
 
-package_dependencies_arm64:
+upload_dependencies_arm64:
   extends:
     - .package_dependencies
   needs: ["pull_test_dockers_arm64"]
@@ -131,6 +114,18 @@ package_dependencies_arm64:
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
     - pushd $DEPENDENCIES
+    # copy clang and llc bins
+    - mkdir -p $EMBEDDED_BIN
+    - cp $CLANG_BPF $EMBEDDED_BIN
+    - cp $LLC_BPF $EMBEDDED_BIN
+    - mkdir -p $EMBEDDED_INC
+    # copy gotestsum and test2json
+    - mkdir -p $GO_BIN
+    - cp $GOTESTSUM $GO_BIN
+    - cp $TEST2JSON $GO_BIN
+    - mkdir junit
+    - mkdir testjson
+    - mkdir pkgjson
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
@@ -149,6 +144,11 @@ package_dependencies_arm64:
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/tests
+    CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
+    LLC_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/llc-bpf
+    GO_BIN: go/bin
+    GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/gotestsum
+    TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
     SYSTEM_PROBE_TESTS: opt/system-probe-tests
     KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
