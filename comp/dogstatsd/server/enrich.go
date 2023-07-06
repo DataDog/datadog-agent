@@ -22,6 +22,7 @@ var (
 	entityIDIgnoreValue = "none"
 	// CardinalityTagPrefix is used to set the dynamic cardinality
 	CardinalityTagPrefix = "dd.internal.card:"
+	jmxTagPrefix         = "jmx_domain:"
 )
 
 // enrichConfig contains static parameters used in various enrichment
@@ -65,9 +66,10 @@ type enrichConfig struct {
 // | none                   | not empty       || container prefix + originFromMsg    |
 //
 //	---------------------------------------------------------------------------------
-func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []byte, conf enrichConfig) ([]string, string, string, string, string) {
+func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []byte, conf enrichConfig) ([]string, string, string, string, string, metrics.MetricSource) {
 	host := conf.defaultHostname
 
+	metricSource := metrics.MetricSourceDogstatsd
 	n := 0
 	originFromTag, cardinality := "", ""
 	for _, tag := range tags {
@@ -77,6 +79,8 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 			originFromTag = tag[len(entityIDTagPrefix):]
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			cardinality = tag[len(CardinalityTagPrefix):]
+		} else if strings.HasPrefix(tag, jmxTagPrefix) {
+			metricSource = metrics.MetricSourceJmxCustom
 		} else {
 			tags[n] = tag
 			n++
@@ -114,7 +118,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 		cardinality = ""
 	}
 
-	return tags, host, udsOrigin, originFromClient, cardinality
+	return tags, host, udsOrigin, originFromClient, cardinality, metricSource
 }
 
 func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
@@ -157,7 +161,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 
 func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, conf enrichConfig) []metrics.MetricSample {
 	metricName := ddSample.name
-	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(ddSample.tags, origin, ddSample.containerID, conf)
+	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality, metricSource := extractTagsMetadata(ddSample.tags, origin, ddSample.containerID, conf)
 
 	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
 		metricName = conf.metricPrefix + metricName
@@ -191,6 +195,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 					OriginFromUDS:    udsOrigin,
 					OriginFromClient: clientOrigin,
 					Cardinality:      cardinality,
+					Source:           metricSource,
 				})
 		}
 		return dest
@@ -209,6 +214,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		OriginFromUDS:    udsOrigin,
 		OriginFromClient: clientOrigin,
 		Cardinality:      cardinality,
+		Source:           metricSource,
 	})
 }
 
@@ -237,7 +243,7 @@ func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.EventAlertT
 }
 
 func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metricsevent.Event {
-	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(event.tags, origin, event.containerID, conf)
+	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality, _ := extractTagsMetadata(event.tags, origin, event.containerID, conf)
 
 	enrichedEvent := &metricsevent.Event{
 		Title:            event.title,
@@ -276,7 +282,7 @@ func enrichServiceCheckStatus(status serviceCheckStatus) servicecheck.ServiceChe
 }
 
 func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, conf enrichConfig) *servicecheck.ServiceCheck {
-	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality := extractTagsMetadata(serviceCheck.tags, origin, serviceCheck.containerID, conf)
+	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality, _ := extractTagsMetadata(serviceCheck.tags, origin, serviceCheck.containerID, conf)
 
 	enrichedServiceCheck := &servicecheck.ServiceCheck{
 		CheckName:        serviceCheck.name,

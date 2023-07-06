@@ -171,21 +171,24 @@ func (c *NTPCheck) Run() error {
 
 	clockOffset, err := c.queryOffset()
 	if err != nil {
-		log.Info(err)
-		serviceCheckStatus = servicecheck.ServiceCheckUnknown
-	} else {
-		if int(math.Abs(clockOffset)) > offsetThreshold {
-			serviceCheckStatus = servicecheck.ServiceCheckCritical
-			serviceCheckMessage = fmt.Sprintf("Offset %v is higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
-		} else {
-			serviceCheckStatus = servicecheck.ServiceCheckOK
-		}
+		log.Error(err)
 
-		sender.Gauge("ntp.offset", clockOffset, "", nil)
-		ntpExpVar.Set(clockOffset)
-		tlmNtpOffset.Set(clockOffset)
+		sender.ServiceCheck("ntp.in_sync", servicecheck.ServiceCheckUnknown, "", nil, serviceCheckMessage)
+		c.lastCollection = time.Now()
+		sender.Commit()
+
+		return err
+	}
+	if int(math.Abs(clockOffset)) > offsetThreshold {
+		serviceCheckStatus = servicecheck.ServiceCheckCritical
+		serviceCheckMessage = fmt.Sprintf("Offset %v is higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
+	} else {
+		serviceCheckStatus = servicecheck.ServiceCheckOK
 	}
 
+	sender.Gauge("ntp.offset", clockOffset, "", nil)
+	ntpExpVar.Set(clockOffset)
+	tlmNtpOffset.Set(clockOffset)
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
 
 	c.lastCollection = time.Now()

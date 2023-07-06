@@ -198,17 +198,31 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Stop oscap-io process after 60 minutes of inactivity.
+	timeout := 60 * time.Minute
+
 	go func() {
+		t := time.NewTimer(timeout)
 		for {
-			rule := <-p.RuleCh
-			if rule == nil {
+			select {
+			case <-t.C:
+				log.Warnf("oscap-io has been inactive for %s; exiting", timeout)
+				err := p.Kill()
+				if err != nil {
+					log.Warnf("failed to kill process: %v", err)
+				}
 				return
-			}
-			log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
-			_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
-			if err != nil {
-				log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
-				return
+			case rule := <-p.RuleCh:
+				if rule == nil {
+					return
+				}
+				log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
+				_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
+				if err != nil {
+					log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
+					return
+				}
+				t.Reset(timeout)
 			}
 		}
 	}()
@@ -227,6 +241,13 @@ func (p *oscapIO) Stop() {
 	oscapIOs[p.File] = nil
 	close(p.ResultCh)
 	close(p.DoneCh)
+}
+
+func (p *oscapIO) Kill() error {
+	if err := p.cmd.Process.Kill(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {

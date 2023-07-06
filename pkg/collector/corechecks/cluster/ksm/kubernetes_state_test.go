@@ -386,6 +386,11 @@ func TestProcessMetrics(t *testing.T) {
 					tags:     []string{"node:nodename", "resource:cpu", "unit:core", "kube_region:europe-west1", "kube_zone:europe-west1-b"},
 					hostname: "nodename",
 				},
+				{
+					name: "kubernetes_state.node.cpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
 			},
 		},
 		{
@@ -418,6 +423,11 @@ func TestProcessMetrics(t *testing.T) {
 					val:      4,
 					tags:     []string{"node:nodename", "resource:cpu", "unit:core", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
 					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.cpu_capacity.total",
+					val:  4,
+					tags: []string{},
 				},
 			},
 		},
@@ -553,7 +563,7 @@ func TestProcessMetrics(t *testing.T) {
 			if len(test.expected) == 0 {
 				mocked.AssertNotCalled(t, "Gauge")
 			} else {
-				mocked.AssertNumberOfCalls(t, "Gauge", lenMetrics(test.metricsToProcess))
+				mocked.AssertNumberOfCalls(t, "Gauge", len(test.expected))
 			}
 		})
 	}
@@ -1419,16 +1429,6 @@ func TestCreationMetricsFiltering(t *testing.T) {
 		assert.True(t, allowDenyList.IsExcluded(metric))
 		assert.False(t, allowDenyList.IsIncluded(metric))
 	}
-}
-
-func lenMetrics(metricsToProcess map[string][]ksmstore.DDMetricsFam) int {
-	count := 0
-	for _, metricFamily := range metricsToProcess {
-		for _, metrics := range metricFamily {
-			count += len(metrics.ListMetrics)
-		}
-	}
-	return count
 }
 
 func TestKSMCheckInitTags(t *testing.T) {
