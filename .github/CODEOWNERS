@@ -427,5 +427,5 @@
 /tools/agent_QA/                        @DataDog/agent-metrics-logs
 
 /internal/tools/                        @DataDog/agent-platform
-/internal/third_party/client-go         @DataDog/DataDog/container-integrations
-/internal/third_party/kubernetes        @DataDog/DataDog/container-integrations
+/internal/third_party/client-go         @DataDog/container-integrations
+/internal/third_party/kubernetes        @DataDog/container-integrations
