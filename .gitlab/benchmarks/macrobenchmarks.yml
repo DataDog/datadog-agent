@@ -1,7 +1,7 @@
 variables:
   BENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:trace-agent
 
-.benchmarks:
+.trace_agent_benchmarks:
   stage: benchmarks
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   timeout: 1h
@@ -33,7 +33,7 @@ variables:
   allow_failure: true
 
 trace-agent-v04-4cpus-avg_load-fixed_sps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   variables:
     TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v04
@@ -42,7 +42,7 @@ trace-agent-v04-4cpus-avg_load-fixed_sps-macrobenchmarks:
     BENCHMARK_TARGETS: "avg_load.*sps"
 
 trace-agent-v04-4cpus-avg_load-fixed_mbps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   variables:
     TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v04
@@ -51,7 +51,7 @@ trace-agent-v04-4cpus-avg_load-fixed_mbps-macrobenchmarks:
     BENCHMARK_TARGETS: "avg_load.*Mbps"
 
 trace-agent-v04-4cpus-high_load-fixed_sps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   when: manual
   variables:
     TRACE_AGENT_VERSION: main
@@ -61,7 +61,7 @@ trace-agent-v04-4cpus-high_load-fixed_sps-macrobenchmarks:
     BENCHMARK_TARGETS: "high_load.*sps"
 
 trace-agent-v04-4cpus-high_load-fixed_mbps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   when: manual
   variables:
     TRACE_AGENT_VERSION: main
@@ -71,7 +71,7 @@ trace-agent-v04-4cpus-high_load-fixed_mbps-macrobenchmarks:
     BENCHMARK_TARGETS: "high_load.*Mbps"
 
 trace-agent-v04-4cpus-stress_load-fixed_sps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   when: manual
   variables:
     TRACE_AGENT_VERSION: main
@@ -81,7 +81,7 @@ trace-agent-v04-4cpus-stress_load-fixed_sps-macrobenchmarks:
     BENCHMARK_TARGETS: "stress_load.*sps"
 
 trace-agent-v04-4cpus-stress_load-fixed_mbps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   when: manual
   variables:
     TRACE_AGENT_VERSION: main
@@ -91,7 +91,7 @@ trace-agent-v04-4cpus-stress_load-fixed_mbps-macrobenchmarks:
     BENCHMARK_TARGETS: "stress_load.*Mbps"
   
 trace-agent-v05-4cpus-avg_load-fixed_sps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   variables:
     TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v05
@@ -100,7 +100,7 @@ trace-agent-v05-4cpus-avg_load-fixed_sps-macrobenchmarks:
     BENCHMARK_TARGETS: "avg_load.*sps"
 
 trace-agent-v05-4cpus-avg_load-fixed_mbps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   variables:
     TRACE_AGENT_VERSION: main
     TRACE_AGENT_ENDPOINT: v05
@@ -109,7 +109,7 @@ trace-agent-v05-4cpus-avg_load-fixed_mbps-macrobenchmarks:
     BENCHMARK_TARGETS: "avg_load.*Mbps"
 
 trace-agent-v05-4cpus-high_load-fixed_sps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   when: manual
   variables:
     TRACE_AGENT_VERSION: main
@@ -119,7 +119,7 @@ trace-agent-v05-4cpus-high_load-fixed_sps-macrobenchmarks:
     BENCHMARK_TARGETS: "high_load.*sps"
 
 trace-agent-v05-4cpus-high_load-fixed_mbps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   when: manual
   variables:
     TRACE_AGENT_VERSION: main
@@ -129,7 +129,7 @@ trace-agent-v05-4cpus-high_load-fixed_mbps-macrobenchmarks:
     BENCHMARK_TARGETS: "high_load.*Mbps"
 
 trace-agent-v05-4cpus-stress_load-fixed_sps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   when: manual
   variables:
     TRACE_AGENT_VERSION: main
@@ -139,7 +139,7 @@ trace-agent-v05-4cpus-stress_load-fixed_sps-macrobenchmarks:
     BENCHMARK_TARGETS: "stress_load.*sps"
 
 trace-agent-v05-4cpus-stress_load-fixed_mbps-macrobenchmarks:
-  extends: .benchmarks
+  extends: .trace_agent_benchmarks
   when: manual
   variables:
     TRACE_AGENT_VERSION: main
