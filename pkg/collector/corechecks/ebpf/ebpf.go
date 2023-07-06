@@ -99,6 +99,7 @@ func (m *EBPFCheck) Run() error {
 	}
 
 	totalMapMaxSize, totalMapRSS := uint64(0), uint64(0)
+	moduleTotalMapMaxSize, moduleTotalMapRSS := make(map[string]uint64), make(map[string]uint64)
 	reportBaseMap := func(mapStats ebpfcheck.EBPFMapStats) {
 		tags := []string{
 			"map_name:" + mapStats.Name,
@@ -112,6 +113,9 @@ func (m *EBPFCheck) Run() error {
 		}
 		totalMapMaxSize += mapStats.MaxSize
 		totalMapRSS += mapStats.RSS
+		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
+		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
+
 		log.Debugf("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
 	}
 
@@ -142,6 +146,12 @@ func (m *EBPFCheck) Run() error {
 	}
 	if totalMapRSS > 0 {
 		sender.Gauge("ebpf.maps.memory_rss_total", float64(totalMapRSS), "", nil)
+	}
+	for mod, max := range moduleTotalMapMaxSize {
+		sender.Gauge("ebpf.maps.memory_max_permodule_total", float64(max), "", []string{"module:" + mod})
+	}
+	for mod, rss := range moduleTotalMapRSS {
+		sender.Gauge("ebpf.maps.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
 	}
 
 	totalProgRSS := uint64(0)
