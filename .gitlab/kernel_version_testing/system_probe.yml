@@ -214,9 +214,11 @@ upload_minimized_btfs_x64:
   extends:
     - .upload_minimized_btfs
   needs: ["generate_minimized_btfs_x64"]
+  before_script:
+    - !reference [.kernel_matrix_testing_new_profile]
+    - !reference [.write_ssh_key_file]
   script:
     # upload tests
-    - !reference [.wait_for_instances]
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$X86_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -228,9 +230,11 @@ upload_minimized_btfs_arm64:
   extends:
     - .upload_minimized_btfs
   needs: ["generate_minimized_btfs_arm64"]
+  before_script:
+    - !reference [.kernel_matrix_testing_new_profile]
+    - !reference [.write_ssh_key_file]
   script:
     # upload tests
-    - !reference [.wait_for_instances]
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$ARM_INSTANCE_IP:/opt/kernel-version-testing/
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
