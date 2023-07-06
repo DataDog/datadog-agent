@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
-	"golang.org/x/mod/semver"
 )
 
 const setupTimeout = time.Second * 10
@@ -68,25 +67,39 @@ func generateApiserverCompose(version string) error {
 
 func TestSuiteAPIServer(t *testing.T) {
 	tests := []struct {
-		name    string
-		version string
+		name                          string
+		version                       string
+		usingLease                    bool
+		leaderElectionDefaultResource string
 	}{
 		{
 			"test version 1.18",
 			"v1.18.20",
+			true,
+			"",
 		},
 		{
 			"test version 1.13",
 			"v1.13.2",
+			false,
+			"",
+		},
+		{
+			"test version 1.18 with config set to configmap",
+			"v1.18.20",
+			false,
+			"configmap",
+		},
+		{
+			"test version 1.18 with config set to lease",
+			"v1.18.20",
+			false,
+			"lease",
 		},
 	}
 	for _, tt := range tests {
-		s := &apiserverSuite{}
-		require.True(t, semver.IsValid(tt.version))
-		if semver.Compare(tt.version, leaseMinVersion) < 0 {
-			s.usingLease = false
-		} else {
-			s.usingLease = true
+		s := &apiserverSuite{
+			usingLease: tt.usingLease,
 		}
 
 		err := generateApiserverCompose(tt.version)
@@ -97,6 +110,7 @@ func TestSuiteAPIServer(t *testing.T) {
 
 		mockConfig := config.Mock(t)
 		config.SetFeatures(t, config.Kubernetes)
+		mockConfig.Set("leader_election_default_resource", tt.leaderElectionDefaultResource)
 
 		// Start compose stack
 		compose := &utils.ComposeConf{
