@@ -256,8 +256,8 @@ func parseMapsFile(scanner *bufio.Scanner, callback parseMapsFileCB) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		cols := strings.Fields(line)
-		// ensuring we have exactly 6 elements in the line and 4th element (length) is not zero (indicates it is a
-		// path, and not an anonymous path).
+		// ensuring we have exactly 6 elements (skip '(deleted)' entries) in the line, and the 4th element (inode) is
+		// not zero (indicates it is a path, and not an anonymous path).
 		if len(cols) == 6 && cols[4] != "0" {
 			// Check if we've seen the same path before, if so, continue to the next.
 			if _, exists := cache[cols[5]]; exists {
@@ -295,10 +295,10 @@ func (w *soWatcher) Start() {
 		// Creating a callback to be applied on the paths extracted from the `maps` file.
 		// We're creating the callback here, as we need the pid (which varies between iterations).
 		parseMapsFileCallback := func(path string) {
+			root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
 			// Iterate over the rule, and look for a match.
 			for _, r := range w.rules {
 				if r.re.MatchString(path) {
-					root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
 					w.registry.register(root, path, uint32(pid), r)
 					break
 				}
