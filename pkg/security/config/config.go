@@ -140,10 +140,14 @@ type RuntimeSecurityConfig struct {
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
-	// AnomalyDetectionMinimumStablePeriod defines the minimum amount of time during which the events
+	// AnomalyDetectionDefaultMinimumStablePeriod defines the default minimum amount of time during which the events
 	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
 	// event.
-	AnomalyDetectionMinimumStablePeriod time.Duration
+	AnomalyDetectionDefaultMinimumStablePeriod time.Duration
+	// AnomalyDetectionMinimumStablePeriods defines the minimum amount of time per event type during which the events
+	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
+	// event.
+	AnomalyDetectionMinimumStablePeriods map[model.EventType]time.Duration
 	// AnomalyDetectionUnstableProfileTimeThreshold defines the maximum amount of time to wait until a profile that
 	// hasn't reached a stable state is considered as unstable.
 	AnomalyDetectionUnstableProfileTimeThreshold time.Duration
@@ -288,7 +292,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
-		AnomalyDetectionMinimumStablePeriod:          coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
+		AnomalyDetectionDefaultMinimumStablePeriod:   coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
+		AnomalyDetectionMinimumStablePeriods:         parseEventTypeDurations(coreconfig.SystemProbe, "runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
 		AnomalyDetectionWorkloadWarmupPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
 		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
@@ -306,6 +311,14 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
+}
+
+// GetAnomalyDetectionMinimumStablePeriod returns the minimum stable period for a given event type
+func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType model.EventType) time.Duration {
+	if minimumStablePeriod, found := c.AnomalyDetectionMinimumStablePeriods[eventType]; found {
+		return minimumStablePeriod
+	}
+	return c.AnomalyDetectionDefaultMinimumStablePeriod
 }
 
 // sanitize ensures that the configuration is properly setup
@@ -388,6 +401,16 @@ func parseEventTypeStringSlice(eventTypes []string) []model.EventType {
 		}
 	}
 	return output
+}
+
+// parseEventTypeDurations converts a map of durations indexed by event types
+func parseEventTypeDurations(cfg coreconfig.Config, prefix string) map[model.EventType]time.Duration {
+	eventTypeMap := cfg.GetStringMap(prefix)
+	eventTypeDurations := make(map[model.EventType]time.Duration, len(eventTypeMap))
+	for eventType := range eventTypeMap {
+		eventTypeDurations[ParseEvalEventType(eventType)] = cfg.GetDuration(prefix + "." + eventType)
+	}
+	return eventTypeDurations
 }
 
 // parseHashAlgorithmStringSlice converts a string list to a list of hash algorithms
