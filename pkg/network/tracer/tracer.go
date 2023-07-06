@@ -16,7 +16,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/ebpf-manager/tracefs"
@@ -164,7 +163,7 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 	if err != nil {
 		return nil, err
 	}
-	prometheus.MustRegister(ebpfTracer)
+	telemetry.RegisterCollector(ebpfTracer)
 
 	conntracker, err := newConntracker(cfg, bpfTelemetry)
 	if err != nil {
@@ -211,7 +210,7 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
-		prometheus.MustRegister(tr.processCache)
+		telemetry.RegisterCollector(tr.processCache)
 
 		events.RegisterHandler(tr.processCache.handleProcessEvent)
 
@@ -248,14 +247,14 @@ func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry
 	var c netlink.Conntracker
 	var err error
 	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
-		prometheus.MustRegister(c)
+		telemetry.RegisterCollector(c)
 		return c, nil
 	}
 
 	if cfg.AllowNetlinkConntrackerFallback {
 		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 		if c, err = netlink.NewConntracker(cfg); err == nil {
-			prometheus.MustRegister(c)
+			telemetry.RegisterCollector(c)
 			return c, nil
 		}
 	}
