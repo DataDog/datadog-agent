@@ -2,6 +2,7 @@ import glob
 import io
 import os
 import platform
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -91,6 +92,14 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
             "--tags",
             f"slack_channel:{slack_channel}",
         ]
+        if "upload_option.os_version_from_name" in additional_tags:
+            additional_tags.remove("upload_option.os_version_from_name")
+            args.append("--tags")
+            version_match = re.search("kitchen-rspec-([a-zA-Z0-9]+)-?([0-9-]*)-.*\.xml", owner+".xml")
+            exact_version = version_match.match(1)+version_match.match(2).replace("-",".")
+            args.append(f"version:{exact_version}")
+
+
         if additional_tags:
             args.extend(additional_tags)
         args.append(os.path.join(output_dir, owner + ".xml"))
