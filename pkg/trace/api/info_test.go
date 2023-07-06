@@ -228,7 +228,7 @@ func TestInfoHandler(t *testing.T) {
 			RemovePathDigits:  true,
 		},
 		RemoveStackTraces: false,
-		Redis:             config.Enablable{Enabled: true},
+		Redis:             config.RedisObfuscationConfig{Enabled: true},
 		Memcached:         config.Enablable{Enabled: false},
 	}
 	conf := &config.AgentConfig{

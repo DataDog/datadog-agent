@@ -1155,7 +1155,7 @@ func Test_getSubnetFromTags(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.0/30", subnet)
 
-	// make sure we don't panic if the subnet if empty
+	// make sure we don't panic if the subnet is empty
 	subnet, err = getSubnetFromTags([]string{"aa", "autodiscovery_subnet:", "bb"})
 	assert.NoError(t, err)
 	assert.Equal(t, "", subnet)

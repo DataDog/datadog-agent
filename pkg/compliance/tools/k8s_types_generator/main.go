@@ -163,7 +163,7 @@ type komponent struct {
 	confs   []*conf
 }
 
-// go run ./pkg/compliance/tools/k8s_types_generator.go ./pkg/compliance/tools/bin | gofmt > ./pkg/compliance/k8sconfig/types_generated.go
+// go run ./pkg/compliance/tools/k8s_types_generator/main.go ./pkg/compliance/tools/bin | gofmt > ./pkg/compliance/k8sconfig/types_generated.go
 func main() {
 	dir, _ := os.Getwd()
 	if len(os.Args) < 2 {

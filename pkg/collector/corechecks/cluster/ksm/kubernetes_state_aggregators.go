@@ -8,16 +8,16 @@
 package ksm
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type metricAggregator interface {
 	accumulate(ksmstore.DDMetric)
-	flush(aggregator.Sender, *KSMCheck, *labelJoiner)
+	flush(sender.Sender, *KSMCheck, *labelJoiner)
 }
 
 // maxNumberOfAllowedLabels contains the maximum number of labels that can be used to aggregate metrics.
@@ -50,7 +50,7 @@ type cronJob struct {
 
 type cronJobState struct {
 	id    int
-	state metrics.ServiceCheckStatus
+	state servicecheck.ServiceCheckStatus
 }
 
 type lastCronJobAggregator struct {
@@ -136,14 +136,14 @@ func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
 }
 
 func (a *lastCronJobCompleteAggregator) accumulate(metric ksmstore.DDMetric) {
-	a.aggregator.accumulate(metric, metrics.ServiceCheckOK)
+	a.aggregator.accumulate(metric, servicecheck.ServiceCheckOK)
 }
 
 func (a *lastCronJobFailedAggregator) accumulate(metric ksmstore.DDMetric) {
-	a.aggregator.accumulate(metric, metrics.ServiceCheckCritical)
+	a.aggregator.accumulate(metric, servicecheck.ServiceCheckCritical)
 }
 
-func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state metrics.ServiceCheckStatus) {
+func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servicecheck.ServiceCheckStatus) {
 	if condition, found := metric.Labels["condition"]; !found || condition != "true" {
 		return
 	}
@@ -175,7 +175,7 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state metri
 	}
 }
 
-func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for labelValues, count := range a.accumulator {
 
 		labels := make(map[string]string)
@@ -195,15 +195,15 @@ func (a *counterAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJo
 	a.accumulator = make(map[[maxNumberOfAllowedLabels]string]float64)
 }
 
-func (a *lastCronJobCompleteAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+func (a *lastCronJobCompleteAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	a.aggregator.flush(sender, k, labelJoiner)
 }
 
-func (a *lastCronJobFailedAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+func (a *lastCronJobFailedAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	a.aggregator.flush(sender, k, labelJoiner)
 }
 
-func (a *lastCronJobAggregator) flush(sender aggregator.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+func (a *lastCronJobAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for cronjob, state := range a.accumulator {
 		hostname, tags := k.hostnameAndTags(
 			map[string]string{

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package check
+package stats
 
 import (
 	"sync"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -81,7 +82,7 @@ type Stats struct {
 	CheckName                string
 	CheckVersion             string
 	CheckConfigSource        string
-	CheckID                  ID
+	CheckID                  checkid.ID
 	TotalRuns                uint64
 	TotalErrors              uint64
 	TotalWarnings            uint64
@@ -106,8 +107,19 @@ type Stats struct {
 	telemetry                bool // do we want telemetry on this Check
 }
 
+type StatsCheck interface {
+	// String provides a printable version of the check name
+	String() string
+	// ID provides a unique identifier for every check instance
+	ID() checkid.ID
+	// Version returns the version of the check if available
+	Version() string
+	// ConfigSource returns the configuration source of the check
+	ConfigSource() string
+}
+
 // NewStats returns a new check stats instance
-func NewStats(c Check) *Stats {
+func NewStats(c StatsCheck) *Stats {
 	stats := Stats{
 		CheckID:                  c.ID(),
 		CheckName:                c.String(),

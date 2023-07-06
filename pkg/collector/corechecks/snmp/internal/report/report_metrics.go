@@ -7,8 +7,9 @@ package report
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -18,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
-// MetricSender is a wrapper around aggregator.Sender
+// MetricSender is a wrapper around sender.Sender
 type MetricSender struct {
-	sender           aggregator.Sender
+	sender           sender.Sender
 	hostname         string
 	submittedMetrics int
 	interfaceConfigs []snmpintegration.InterfaceConfig
@@ -36,7 +37,7 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender aggregator.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig) *MetricSender {
 	return &MetricSender{
 		sender:           sender,
 		hostname:         hostname,
@@ -246,7 +247,7 @@ func (ms *MetricSender) MonotonicCount(metric string, value float64, tags []stri
 }
 
 // ServiceCheck wraps Sender.ServiceCheck
-func (ms *MetricSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, tags []string, message string) {
+func (ms *MetricSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, tags []string, message string) {
 	ms.sender.ServiceCheck(checkName, status, ms.hostname, tags, message)
 }
 
