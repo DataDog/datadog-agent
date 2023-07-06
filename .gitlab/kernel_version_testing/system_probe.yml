@@ -44,7 +44,7 @@ pull_test_dockers_arm64:
     echo "x86_64-istance-ip" $ARM_INSTANCE_IP
     echo "arm64-instance-ip" $X86_INSTANCE_IP
     INSTANCE_IDS=$(aws ec2 describe-instances --filters 'Name=tag:team,Values=ebpf-platform' 'Name=tag:managed-by,Values=pulumi' 'Name=instance-state-name,Values=running' "Name=tag:pipeline-id,Values=${CI_PIPELINE_ID}" --output text --query 'Reservations[*].Instances[*].InstanceId' | tr '\n' ' ')
-    aws ec2 wait instance-status-ok $INSTANCE_IDS
+    aws ec2 wait instance-status-ok --instance-ids $INSTANCE_IDS
     sleep 30
 
 .write_ssh_key_file:
