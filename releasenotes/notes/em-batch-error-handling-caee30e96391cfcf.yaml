@@ -9,5 +9,5 @@
 enhancements:
   - |
     Improve error handling in External Metrics query logic by running
-    queries with errors individually with retry and backoff and batching
+    queries with errors individually with retry and backoff, and batching
     only queries without errors.
