@@ -16,6 +16,7 @@ from . import (
     dogstatsd,
     epforwarder,
     github,
+    kmt,
     msi,
     new_e2e_tests,
     package,
@@ -30,7 +31,6 @@ from . import (
     systray,
     trace_agent,
     vscode,
-    kmt,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
 from .components import lint_components
