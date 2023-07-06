@@ -293,7 +293,7 @@ func CanUseLeases(client discovery.DiscoveryInterface) (bool, error) {
 	}
 
 	if resourceType != "" {
-		log.Warnf("Unknown resource lock for leader election [%s]. Using the discovery client to select the lock", config)
+		log.Warnf("Unknown resource lock for leader election [%s]. Using the discovery client to select the lock", resourceType)
 	}
 
 	return detectLeases(client)
