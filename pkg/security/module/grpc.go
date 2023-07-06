@@ -61,6 +61,7 @@ func (gustc grpcUnixSocketTransportCredential) ServerHandshake(conn net.Conn) (n
 		// reject the connection
 		conn.Close()
 	}
+	log.Debugf("unix socket %s -> %s connection authenticated", unixConn.LocalAddr(), unixConn.RemoteAddr())
 	return conn, info{credentials.CommonAuthInfo{SecurityLevel: credentials.PrivacyAndIntegrity}}, nil
 }
 
