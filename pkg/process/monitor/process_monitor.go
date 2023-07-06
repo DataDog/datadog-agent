@@ -128,12 +128,15 @@ func (pm *ProcessMonitor) handleProcessExit(pid int) {
 	}
 }
 
-// initNetlinkProcessEventMonitor initialize the netlink socket filter for process event monitor.
-func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
+// initNetlinkChannels will initialize the internal chan
+func (pm *ProcessMonitor) initNetlinkChannels() {
 	pm.netlinkDoneChannel = make(chan struct{})
 	pm.netlinkErrorsChannel = make(chan error, 10)
 	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
+}
 
+// initNetlinkProcessEventMonitor initialize the netlink socket filter for process event monitor.
+func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 	if err := util.WithRootNS(util.GetProcRoot(), func() error {
 		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 	}); err != nil {
@@ -217,6 +220,7 @@ func (pm *ProcessMonitor) mainEventLoop() {
 			// by reinitializing netlink socket.
 			// Waiting a bit before reinitializing.
 			time.Sleep(50 * time.Millisecond)
+			pm.initNetlinkChannels()
 			if err := pm.initNetlinkProcessEventMonitor(); err != nil {
 				log.Errorf("failed re-initializing process monitor: %s", err)
 				return
@@ -238,21 +242,20 @@ func (pm *ProcessMonitor) Initialize() error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
-			pm.done = make(chan struct{})
+			// This would guarantee Stop() to not block on error path
 			pm.initCallbackRunner()
-
+			pm.initNetlinkChannels()
+			pm.done = make(chan struct{})
 			pm.processMonitorWG.Add(1)
-			// Setting up the main loop
-			pm.netlinkDoneChannel = make(chan struct{})
-			pm.netlinkErrorsChannel = make(chan error, 10)
-			pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
+			// Setting up the main loop
 			go pm.mainEventLoop()
 
-			if err := util.WithRootNS(util.GetProcRoot(), func() error {
-				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
-			}); err != nil {
-				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
+			if err := pm.initNetlinkProcessEventMonitor(); err != nil {
+				initErr = err
+				// cleanup callbackRunner, mainloop ticker
+				pm.Stop()
+				return
 			}
 
 			pm.processExecCallbacksMutex.RLock()
