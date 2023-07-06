@@ -5,7 +5,7 @@
 
 //go:build !orchestrator
 
-package serializer
+package types
 
 // ProcessMessageBody is a type alias for processes proto message body
 // this type alias allows to avoid importing the process agent payload proto
@@ -19,8 +19,8 @@ func (stubMessageBody) Reset()         {}
 func (stubMessageBody) String() string { return "" }
 func (stubMessageBody) Size() int      { return 0 }
 
-// processPayloadEncoder is a dummy ProcessMessageBody to avoid importing
+// ProcessPayloadEncoder is a dummy ProcessMessageBody to avoid importing
 // the process agent payload proto in case it's not needed (dogstastd)
-var processPayloadEncoder = func(m ProcessMessageBody) ([]byte, error) {
+var ProcessPayloadEncoder = func(m ProcessMessageBody) ([]byte, error) {
 	return []byte{}, nil
 }

@@ -5,7 +5,7 @@
 
 //go:build orchestrator
 
-package serializer
+package types
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -16,4 +16,4 @@ import (
 // ProcessMessageBody is a type alias for processes proto message body
 type ProcessMessageBody = model.MessageBody
 
-var processPayloadEncoder = api.EncodePayload
+var ProcessPayloadEncoder = api.EncodePayload

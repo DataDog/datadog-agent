@@ -22,6 +22,8 @@ type Opts struct {
 	PathResolutionEnabled bool
 	// TagsResolver will override the default one. Mainly here for tests.
 	TagsResolver tags.Resolver
+	// SyscallsMapMonitorEnabled enable syscalls map monitor
+	SyscallsMapMonitorEnabled bool
 }
 
 func (o *Opts) normalize() {

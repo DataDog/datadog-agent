@@ -73,7 +73,7 @@ func getMountProbes() []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unshare",
-	}, Entry)...)
+	}, EntryAndExit)...)
 
 	return mountProbes
 }

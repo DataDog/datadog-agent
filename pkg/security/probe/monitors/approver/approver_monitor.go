@@ -23,8 +23,8 @@ import (
 
 // ApproverStats is used to collect kernel space metrics about approvers. Stats about added approvers are sent from userspace.
 type ApproverStats struct {
-	EventApprovedByBasename uint64 `yaml:"event_approved_by_basename"`
-	EventApprovedByFlag     uint64 `yaml:"event_approved_by_flag"`
+	EventApprovedByBasename uint64
+	EventApprovedByFlag     uint64
 }
 
 // ApproverMonitor defines an approver monitor
