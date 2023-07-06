@@ -606,7 +606,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	}
 	mr.redemption = redemption
 
-	limiter, err := utils.NewLimiter[uint32](64, fallbackLimiterPeriod)
+	limiter, err := utils.NewLimiter[uint32](64, 1000, fallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}

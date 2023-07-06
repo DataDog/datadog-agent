@@ -1317,7 +1317,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	}
 	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
 
-	limiter, err := utils.NewLimiter[uint32](128, procFallbackLimiterPeriod)
+	limiter, err := utils.NewLimiter[uint32](128, 1000, procFallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}
