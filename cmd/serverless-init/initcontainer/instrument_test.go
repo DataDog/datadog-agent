@@ -23,6 +23,18 @@ func TestNodeTracerIsAutoInstrumented(t *testing.T) {
 	assert.Equal(t, "/dd_tracer/node/", os.Getenv("NODE_PATH"))
 }
 
+func TestDotNetTracerIsAutoInstrumented(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/dotnet/")
+
+	AutoInstrumentTracer(fs)
+
+	assert.Equal(t, "1", os.Getenv("CORECLR_ENABLE_PROFILING"))
+	assert.Equal(t, "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}", os.Getenv("CORECLR_PROFILER"))
+	assert.Equal(t, "/dd_tracer/dotnet/Datadog.Trace.ClrProfiler.Native.so", os.Getenv("CORECLR_PROFILER_PATH"))
+	assert.Equal(t, "/dd_tracer/dotnet/", os.Getenv("DD_DOTNET_TRACER_HOME"))
+}
+
 func TestJavaTracerIsAutoInstrumented(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	fs.Create("/dd_tracer/java/")
@@ -30,6 +42,17 @@ func TestJavaTracerIsAutoInstrumented(t *testing.T) {
 	AutoInstrumentTracer(fs)
 
 	assert.Equal(t, "-javaagent:/dd_tracer/java/dd-java-agent.jar", os.Getenv("JAVA_TOOL_OPTIONS"))
+}
+
+func TestJavaTracerInstrumentationAddsSecondAgent(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/java/")
+
+	t.Setenv("JAVA_TOOL_OPTIONS", "-javaagent:some_agent.jar")
+
+	AutoInstrumentTracer(fs)
+
+	assert.Equal(t, "-javaagent:some_agent.jar -javaagent:/dd_tracer/java/dd-java-agent.jar", os.Getenv("JAVA_TOOL_OPTIONS"))
 }
 
 func TestPythonTracerIsAutoInstrumented(t *testing.T) {
