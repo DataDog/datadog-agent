@@ -118,9 +118,14 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		evt.Open.File.FileFields.GID = stat.Gid
 
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
+
+		if fileinfo.Mode().IsRegular() {
+			evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+		}
+
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false, reducer)
+		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false, reducer, nil)
 	}
 }
 

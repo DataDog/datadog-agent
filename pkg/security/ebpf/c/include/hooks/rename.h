@@ -30,8 +30,8 @@ SYSCALL_KPROBE0(renameat2) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SEC("kprobe/do_renameat2")
-int kprobe_do_renameat2(struct pt_regs *ctx) {
+HOOK_ENTRY("do_renameat2")
+int hook_do_renameat2(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
         return trace__sys_rename(ASYNC_SYSCALL);
@@ -39,6 +39,7 @@ int kprobe_do_renameat2(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/vfs_rename")
 int kprobe_vfs_rename(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
@@ -105,11 +106,16 @@ int kprobe_vfs_rename(struct pt_regs *ctx) {
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_RENAME);
+
     return 0;
 }
 
 int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall(EVENT_RENAME);
         return 0;
     }
 
@@ -209,6 +215,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_rename_callback")
 int __attribute__((always_inline)) kprobe_dr_rename_callback(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);

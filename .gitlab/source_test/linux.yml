@@ -15,6 +15,7 @@
   stage: source_test
   variables:
     FLAVORS: '--flavors base'
+    KUBERNETES_MEMORY_LIMIT: 10Gi
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
@@ -26,11 +27,14 @@
     paths:
       - test_output.json
       - junit-*.tgz
+    reports:
+      junit: "**/junit-out-*.xml"
 
 .linux_lint:
   stage: source_test
   variables:
     FLAVORS: '--flavors base'
+    KUBERNETES_MEMORY_LIMIT: 10Gi
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]

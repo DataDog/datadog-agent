@@ -33,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+const CONTAINERD_COLLECTOR = "containerd"
+
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
 type familiarNamed string
 
@@ -92,7 +94,7 @@ func convertContainerdImage(ctx context.Context, client *containerd.Client, imgM
 
 	return &image{
 		name:    img.Name(),
-		opener:  imageOpener(ctx, ref.String(), f, imageWriter(client, img)),
+		opener:  imageOpener(ctx, CONTAINERD_COLLECTOR, ref.String(), f, imageWriter(client, img)),
 		inspect: insp,
 		history: history,
 	}, cleanup, nil

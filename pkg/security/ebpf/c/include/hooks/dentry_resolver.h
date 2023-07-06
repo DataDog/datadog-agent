@@ -113,6 +113,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         bpf_tail_call_compat(ctx, callbacks_map, syscall->resolver.callback);                                          \
     }                                                                                                                  \
 
+// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_kern")
 int kprobe_dentry_resolver_kern(struct pt_regs *ctx) {
     dentry_resolver_kern(ctx, &dentry_resolver_kprobe_progs, &dentry_resolver_kprobe_callbacks, DR_KPROBE_DENTRY_RESOLVER_KERN_KEY);
@@ -125,6 +126,7 @@ int tracepoint_dentry_resolver_kern(void *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_erpc_write_user")
 int kprobe_dentry_resolver_erpc_write_user(struct pt_regs *ctx) {
     u32 key = 0;
@@ -199,6 +201,7 @@ exit:
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_erpc_mmap")
 int kprobe_dentry_resolver_erpc_mmap(struct pt_regs *ctx) {
     u32 key = 0;
@@ -280,6 +283,7 @@ exit:
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_segment_erpc_write_user")
 int kprobe_dentry_resolver_segment_erpc_write_user(struct pt_regs *ctx) {
     u32 key = 0;
@@ -326,6 +330,7 @@ exit:
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_segment_erpc_mmap")
 int kprobe_dentry_resolver_segment_erpc_mmap(struct pt_regs *ctx) {
     u32 key = 0;
@@ -379,6 +384,7 @@ exit:
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_parent_erpc_write_user")
 int kprobe_dentry_resolver_parent_erpc_write_user(struct pt_regs *ctx) {
     u32 key = 0;
@@ -419,6 +425,7 @@ exit:
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_parent_erpc_mmap")
 int kprobe_dentry_resolver_parent_erpc_mmap(struct pt_regs *ctx) {
     u32 key = 0;
@@ -465,6 +472,7 @@ exit:
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_ad_filter")
 int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);

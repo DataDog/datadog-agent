@@ -198,6 +198,13 @@
         "async": {
           "type": "boolean",
           "description": "True if the event was asynchronous"
+        },
+        "matched_rules": {
+          "items": {
+            "$ref": "#/$defs/MatchedRule"
+          },
+          "type": "array",
+          "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
         }
       },
       "additionalProperties": false,
@@ -310,6 +317,17 @@
         "package_version": {
           "type": "string",
           "description": "System package version"
+        },
+        "hashes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of cryptographic hashes of the file"
+        },
+        "hash_state": {
+          "type": "string",
+          "description": "State of the hashes or reason why they weren't computed"
         }
       },
       "additionalProperties": false,
@@ -407,6 +425,17 @@
         "package_version": {
           "type": "string",
           "description": "System package version"
+        },
+        "hashes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of cryptographic hashes of the file"
+        },
+        "hash_state": {
+          "type": "string",
+          "description": "State of the hashes or reason why they weren't computed"
         },
         "destination": {
           "$ref": "#/$defs/File",
@@ -538,6 +567,36 @@
         "req_protection"
       ],
       "description": "MProtectEventSerializer serializes a mmap event to JSON"
+    },
+    "MatchedRule": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID of the rule"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the rule"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Tags of the rule"
+        },
+        "policy_name": {
+          "type": "string",
+          "description": "Name of the policy that introduced the rule"
+        },
+        "policy_version": {
+          "type": "string",
+          "description": "Version of the policy that introduced the rule"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "MatchedRuleSerializer serializes a rule"
     },
     "ModuleEvent": {
       "properties": {

@@ -135,7 +135,7 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
 	if err := util.WithRootNS(util.GetProcRoot(), func() error {
-		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel)
+		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 	}); err != nil {
 		return fmt.Errorf("couldn't initialize process monitor: %s", err)
 	}
@@ -250,7 +250,7 @@ func (pm *ProcessMonitor) Initialize() error {
 			go pm.mainEventLoop()
 
 			if err := util.WithRootNS(util.GetProcRoot(), func() error {
-				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel)
+				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 			}); err != nil {
 				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
 			}

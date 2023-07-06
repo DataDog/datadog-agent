@@ -57,7 +57,7 @@ func (c *ClusterCollector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *ClusterCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Core().V1().Nodes()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes()
 	c.lister = c.informer.Lister()
 }
 

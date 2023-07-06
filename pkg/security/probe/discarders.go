@@ -81,7 +81,7 @@ var (
 )
 
 var (
-	dentryInvalidDiscarder = []interface{}{""}
+	dentryInvalidDiscarder = []string{""}
 	eventZeroDiscarder     = &model.Event{
 		FieldHandlers:    &model.DefaultFieldHandlers{},
 		ContainerContext: &model.ContainerContext{},
@@ -89,7 +89,7 @@ var (
 )
 
 // InvalidDiscarders exposes list of values that are not discarders
-var InvalidDiscarders = map[eval.Field][]interface{}{
+var InvalidDiscarders = map[eval.Field][]string{
 	"open.file.path":               dentryInvalidDiscarder,
 	"unlink.file.path":             dentryInvalidDiscarder,
 	"chmod.file.path":              dentryInvalidDiscarder,
@@ -426,7 +426,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	return true, nil
 }
 
-func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32, timestamp uint64) (bool, uint32, uint64, error) {
+func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, pathKey model.PathKey, timestamp uint64) (bool, uint32, uint64, error) {
 	var discarderDepth int
 	var isDiscarder bool
 	var err error
@@ -442,29 +442,30 @@ func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.R
 		return false, 0, 0, err
 	}
 
+	parentKey := pathKey
+
 	for i := 0; i < discarderDepth; i++ {
-		parentMountID, parentInode, err := id.dentryResolver.GetParent(mountID, inode, pathID)
-		if err != nil || dentry.IsFakeInode(parentInode) {
+		parentKey, err = id.dentryResolver.GetParent(parentKey)
+		if err != nil || dentry.IsFakeInode(pathKey.Inode) {
 			if i == 0 {
 				return false, 0, 0, err
 			}
 			break
 		}
-		mountID, inode = parentMountID, parentInode
 	}
 
 	// do not insert multiple time the same discarder
-	if id.isRecentlyAdded(mountID, inode, timestamp) {
+	if id.isRecentlyAdded(parentKey.MountID, parentKey.Inode, timestamp) {
 		return false, 0, 0, nil
 	}
 
-	if err := id.discardInode(req, eventType, mountID, inode, false); err != nil {
+	if err := id.discardInode(req, eventType, parentKey.MountID, parentKey.Inode, false); err != nil {
 		return false, 0, 0, err
 	}
 
-	id.recentlyAdded(mountID, inode, timestamp)
+	id.recentlyAdded(parentKey.MountID, parentKey.Inode, timestamp)
 
-	return true, mountID, inode, nil
+	return true, parentKey.MountID, parentKey.Inode, nil
 }
 
 // function used to retrieve discarder information, *.file.path, FileEvent, file deleted
@@ -477,7 +478,6 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 		if fileEvent.PathResolutionError != nil {
 			return false, fileEvent.PathResolutionError
 		}
-		mountID, inode, pathID := fileEvent.MountID, fileEvent.Inode, fileEvent.PathID
 
 		if discarder.Field == field {
 			value, err := event.GetFieldValue(field)
@@ -494,13 +494,13 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 				return false, nil
 			}
 
-			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, mountID, inode, pathID, event.TimestampRaw)
+			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, fileEvent.PathKey, event.TimestampRaw)
 			if !isDiscarded && !isDeleted && err == nil {
-				if !dentry.IsFakeInode(inode) {
-					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
+				if !dentry.IsFakeInode(fileEvent.PathKey.Inode) {
+					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, fileEvent.PathKey.Inode, filename)
 
 					// not able to discard the parent then only discard the filename
-					_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, mountID, inode, true)
+					_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, fileEvent.PathKey.MountID, fileEvent.PathKey.Inode, true)
 				}
 			} else if !isDeleted {
 				seclog.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
@@ -518,27 +518,23 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 }
 
 // isInvalidDiscarder returns whether the given value is a valid discarder for the given field
-func isInvalidDiscarder(field eval.Field, value interface{}) bool {
-	values, exists := invalidDiscarders[field]
-	if !exists {
-		return false
-	}
-
-	return values[value]
+func isInvalidDiscarder(field eval.Field, value string) bool {
+	return invalidDiscarders[invalidDiscarderEntry{
+		field: field,
+		value: value,
+	}]
 }
 
 // rearrange invalid discarders for fast lookup
-func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
-	invalidDiscarders := make(map[eval.Field]map[interface{}]bool)
+func createInvalidDiscardersCache() map[invalidDiscarderEntry]bool {
+	invalidDiscarders := make(map[invalidDiscarderEntry]bool)
 
 	for field, values := range InvalidDiscarders {
-		ivalues := invalidDiscarders[field]
-		if ivalues == nil {
-			ivalues = make(map[interface{}]bool)
-			invalidDiscarders[field] = ivalues
-		}
 		for _, value := range values {
-			ivalues[value] = true
+			invalidDiscarders[invalidDiscarderEntry{
+				field: field,
+				value: value,
+			}] = true
 		}
 	}
 
@@ -621,7 +617,7 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 			MountID:              inodeEntry.PathKey.MountID,
 		}
 
-		path, err := resolver.Resolve(inodeEntry.PathKey.MountID, inodeEntry.PathKey.Inode, inodeEntry.PathKey.PathID, false)
+		path, err := resolver.Resolve(inodeEntry.PathKey, false)
 		if err == nil {
 			record.FilePath = path
 		}
@@ -700,7 +696,12 @@ func dumpDiscarders(resolver *dentry.Resolver, pidMap, inodeMap, statsFB, statsB
 	return dump, nil
 }
 
-var invalidDiscarders map[eval.Field]map[interface{}]bool
+type invalidDiscarderEntry struct {
+	field eval.Field
+	value string
+}
+
+var invalidDiscarders map[invalidDiscarderEntry]bool
 
 func init() {
 	invalidDiscarders = createInvalidDiscardersCache()

@@ -98,9 +98,14 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(event_type);
+
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_setxattr_callback")
 int __attribute__((always_inline)) kprobe_dr_setxattr_callback(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(xattr_predicate);
@@ -116,11 +121,13 @@ int __attribute__((always_inline)) kprobe_dr_setxattr_callback(struct pt_regs *c
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/vfs_setxattr")
 int kprobe_vfs_setxattr(struct pt_regs *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_SETXATTR);
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/vfs_removexattr")
 int kprobe_vfs_removexattr(struct pt_regs *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_REMOVEXATTR);

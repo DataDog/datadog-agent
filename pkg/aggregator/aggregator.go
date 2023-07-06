@@ -13,8 +13,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -25,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -192,11 +194,11 @@ func init() {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	bufferedServiceCheckIn chan []*metrics.ServiceCheck
-	bufferedEventIn        chan []*metrics.Event
+	bufferedServiceCheckIn chan []*servicecheck.ServiceCheck
+	bufferedEventIn        chan []*event.Event
 
-	eventIn        chan metrics.Event
-	serviceCheckIn chan metrics.ServiceCheck
+	eventIn        chan event.Event
+	serviceCheckIn chan servicecheck.ServiceCheck
 
 	checkItems             chan senderItem
 	orchestratorMetadataIn chan senderOrchestratorMetadata
@@ -208,9 +210,9 @@ type BufferedAggregator struct {
 	MetricSamplePool *metrics.MetricSamplePool
 
 	tagsStore              *tags.Store
-	checkSamplers          map[check.ID]*CheckSampler
-	serviceChecks          metrics.ServiceChecks
-	events                 metrics.Events
+	checkSamplers          map[checkid.ID]*CheckSampler
+	serviceChecks          servicecheck.ServiceChecks
+	events                 event.Events
 	manifests              []*senderOrchestratorManifest
 	flushInterval          time.Duration
 	mu                     sync.Mutex // to protect the checkSamplers field
@@ -266,11 +268,11 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
-		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
-		bufferedEventIn:        make(chan []*metrics.Event, bufferSize),
+		bufferedServiceCheckIn: make(chan []*servicecheck.ServiceCheck, bufferSize),
+		bufferedEventIn:        make(chan []*event.Event, bufferSize),
 
-		serviceCheckIn: make(chan metrics.ServiceCheck, bufferSize),
-		eventIn:        make(chan metrics.Event, bufferSize),
+		serviceCheckIn: make(chan servicecheck.ServiceCheck, bufferSize),
+		eventIn:        make(chan event.Event, bufferSize),
 
 		checkItems: make(chan senderItem, bufferSize),
 
@@ -279,7 +281,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		eventPlatformIn:        make(chan senderEventPlatformEvent, bufferSize),
 
 		tagsStore:                   tagsStore,
-		checkSamplers:               make(map[check.ID]*CheckSampler),
+		checkSamplers:               make(map[checkid.ID]*CheckSampler),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -361,7 +363,7 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 }
 
 // GetBufferedChannels returns a channel which can be subsequently used to send Event or ServiceCheck.
-func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck) {
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
@@ -373,12 +375,12 @@ func (agg *BufferedAggregator) GetEventPlatformForwarder() (epforwarder.EventPla
 	return agg.eventPlatformForwarder, nil
 }
 
-func (agg *BufferedAggregator) registerSender(id check.ID) error {
+func (agg *BufferedAggregator) registerSender(id checkid.ID) error {
 	agg.checkItems <- &registerSampler{id}
 	return nil
 }
 
-func (agg *BufferedAggregator) deregisterSender(id check.ID) {
+func (agg *BufferedAggregator) deregisterSender(id checkid.ID) {
 	// Use the same channel as metrics, so that the drop happens only
 	// after we handle all the metrics sent so far.
 	agg.checkItems <- &deregisterSampler{id}
@@ -428,7 +430,7 @@ func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatfor
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
-func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
+func (agg *BufferedAggregator) addServiceCheck(sc servicecheck.ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
@@ -442,7 +444,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 }
 
 // addEvent adds the event to the slice of current events
-func (agg *BufferedAggregator) addEvent(e metrics.Event) {
+func (agg *BufferedAggregator) addEvent(e event.Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
@@ -580,7 +582,7 @@ func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
-func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
+func (agg *BufferedAggregator) GetServiceChecks() servicecheck.ServiceChecks {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	// Clear the current service check slice
@@ -589,7 +591,7 @@ func (agg *BufferedAggregator) GetServiceChecks() metrics.ServiceChecks {
 	return serviceChecks
 }
 
-func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks metrics.ServiceChecks) {
+func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks servicecheck.ServiceChecks) {
 	log.Debugf("Flushing %d service checks to the forwarder", len(serviceChecks))
 	state := stateOk
 	if err := agg.serializer.SendServiceChecks(serviceChecks); err != nil {
@@ -604,9 +606,9 @@ func (agg *BufferedAggregator) sendServiceChecks(start time.Time, serviceChecks 
 
 func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerializer bool) {
 	// Add a simple service check for the Agent status
-	agg.addServiceCheck(metrics.ServiceCheck{
+	agg.addServiceCheck(servicecheck.ServiceCheck{
 		CheckName: fmt.Sprintf("datadog.%s.up", agg.agentName),
-		Status:    metrics.ServiceCheckOK,
+		Status:    servicecheck.ServiceCheckOK,
 		Tags:      agg.tags(false),
 		Host:      agg.hostname,
 	})
@@ -630,7 +632,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerial
 }
 
 // GetEvents grabs the events from the queue and clears it
-func (agg *BufferedAggregator) GetEvents() metrics.Events {
+func (agg *BufferedAggregator) GetEvents() event.Events {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	events := agg.events
@@ -644,7 +646,7 @@ func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Me
 	return agg.eventPlatformForwarder.Purge()
 }
 
-func (agg *BufferedAggregator) sendEvents(start time.Time, events metrics.Events) {
+func (agg *BufferedAggregator) sendEvents(start time.Time, events event.Events) {
 	log.Debugf("Flushing %d events to the forwarder", len(events))
 	err := agg.serializer.SendEvents(events)
 	state := stateOk
@@ -830,7 +832,7 @@ func (agg *BufferedAggregator) updateChecksTelemetry() {
 
 // deregisterSampler is an item sent internally by the aggregator to
 // signal that the sender will no longer will be used for a given
-// check.ID.
+// checkid.ID.
 //
 // 1. A check is unscheduled while running.
 //
@@ -855,14 +857,14 @@ func (agg *BufferedAggregator) updateChecksTelemetry() {
 // 7. Aggregator flushes metrics from the sampler and can now remove
 // it: we know for sure that no more metrics will arrive.
 type deregisterSampler struct {
-	id check.ID
+	id checkid.ID
 }
 
 func (s *deregisterSampler) handle(agg *BufferedAggregator) {
 	agg.handleDeregisterSampler(s.id)
 }
 
-func (agg *BufferedAggregator) handleDeregisterSampler(id check.ID) {
+func (agg *BufferedAggregator) handleDeregisterSampler(id checkid.ID) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	if cs, ok := agg.checkSamplers[id]; ok {
@@ -881,14 +883,14 @@ func (agg *BufferedAggregator) handleDeregisterSampler(id check.ID) {
 // the check is re-scheduled. If registerSampler is called before
 // the check runs, we will have a sampler for it one way or another.
 type registerSampler struct {
-	id check.ID
+	id checkid.ID
 }
 
 func (s *registerSampler) handle(agg *BufferedAggregator) {
 	agg.handleRegisterSampler(s.id)
 }
 
-func (agg *BufferedAggregator) handleRegisterSampler(id check.ID) {
+func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 

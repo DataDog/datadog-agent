@@ -18,6 +18,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const DOCKER_COLLECTOR = "docker"
+
 // Custom code based on https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/docker.go `DockerImage`
 func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMeta *workloadmeta.ContainerImageMetadata) (types.Image, func(), error) {
 	cleanup := func() {}
@@ -51,7 +53,7 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 	}
 
 	return &image{
-		opener:  imageOpener(ctx, imageID, f, client.ImageSave),
+		opener:  imageOpener(ctx, DOCKER_COLLECTOR, imageID, f, client.ImageSave),
 		inspect: inspect,
 		history: configHistory(history),
 	}, cleanup, nil
