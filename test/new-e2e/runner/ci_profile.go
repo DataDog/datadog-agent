@@ -13,9 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 )
 
-const defaultCISecretPrefix = "ci.datadog-agent."
-
-var defaultCIEnvs = []string{"aws/agent-qa"}
+const (
+	defaultCISecretPrefix = "ci.datadog-agent."
+	defaultCIEnvironments = "aws/agent-qa"
+)
 
 type ciProfile struct {
 	baseProfile
@@ -51,15 +52,23 @@ func NewCIProfile() (Profile, error) {
 
 	store := parameters.NewEnvStore(EnvPrefix)
 
-	ciEnvironments := defaultCIEnvs
-	ciEnvironmentsStr := os.Getenv("CI_ENV_NAMES")
-	if len(ciEnvironmentsStr) > 0 {
-		ciEnvironments = strings.Split(ciEnvironmentsStr, " ")
+	// get environments from store
+	environmentsStr, err := store.GetWithDefault(parameters.Environments, defaultCIEnvironments)
+	if err != nil {
+		return nil, err
 	}
+
+	// TODO can be removed using E2E_ENV variable
+	ciEnvNames := os.Getenv("CI_ENV_NAMES")
+	if len(ciEnvNames) > 0 {
+		environmentsStr = ciEnvNames
+	}
+
+	ciEnvironments := strings.Split(environmentsStr, " ")
 
 	return ciProfile{
 		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
-		ciUniqueID:  pipelineID + "-" + projectID,
+		ciUniqueID:  "ci-" + pipelineID + "-" + projectID,
 	}, nil
 }
 

@@ -8,8 +8,8 @@
 #include "helpers/utils.h"
 
 // used during the snapshot thus this kprobe will present only at the snapshot
-SEC("kprobe/security_inode_getattr")
-int kprobe_security_inode_getattr(struct pt_regs *ctx) {
+HOOK_ENTRY("security_inode_getattr")
+int hook_security_inode_getattr(ctx_t *ctx) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -20,12 +20,12 @@ int kprobe_security_inode_getattr(struct pt_regs *ctx) {
     u64 getattr2 = get_getattr2();
 
     if (getattr2) {
-        struct vfsmount *mnt = (struct vfsmount *)PT_REGS_PARM1(ctx);
+        struct vfsmount *mnt = (struct vfsmount *)CTX_PARM1(ctx);
         mount_id = get_vfsmount_mount_id(mnt);
 
-        dentry = (struct dentry *)PT_REGS_PARM2(ctx);
+        dentry = (struct dentry *)CTX_PARM2(ctx);
     } else {
-        struct path *path = (struct path *)PT_REGS_PARM1(ctx);
+        struct path *path = (struct path *)CTX_PARM1(ctx);
         mount_id = get_path_mount_id(path);
 
         dentry = get_path_dentry(path);
@@ -54,8 +54,8 @@ int kprobe_security_inode_getattr(struct pt_regs *ctx) {
 
 #ifndef DO_NOT_USE_TC
 
-SEC("kprobe/path_get")
-int kprobe_path_get(struct pt_regs *ctx) {
+HOOK_ENTRY("path_get")
+int hook_path_get(ctx_t *ctx) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -67,7 +67,7 @@ int kprobe_path_get(struct pt_regs *ctx) {
         return 0;
     }
 
-    struct path *p = (struct path *)PT_REGS_PARM1(ctx);
+    struct path *p = (struct path *)CTX_PARM1(ctx);
     struct file *sock_file = (void *)p - offsetof(struct file, f_path);
     struct pid_route_t route = {};
 
@@ -112,13 +112,13 @@ int kprobe_path_get(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/proc_fd_link")
-int kprobe_proc_fd_link(struct pt_regs *ctx) {
+HOOK_ENTRY("proc_fd_link")
+int hook_proc_fd_link(ctx_t *ctx) {
     if (!is_runtime_request()) {
         return 0;
     }
 
-    struct dentry *d = (struct dentry *)PT_REGS_PARM1(ctx);
+    struct dentry *d = (struct dentry *)CTX_PARM1(ctx);
     struct dentry *d_parent = NULL;
     struct basename_t basename = {};
 

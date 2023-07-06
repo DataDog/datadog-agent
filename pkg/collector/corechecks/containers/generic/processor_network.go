@@ -8,7 +8,7 @@ package generic
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -27,7 +27,7 @@ type containerNetwork struct {
 // ProcessorNetwork is a Processor extension taking care of network metrics
 type ProcessorNetwork struct {
 	sender                  SenderFunc
-	aggSender               aggregator.Sender
+	aggSender               sender.Sender
 	groupedContainerNetwork map[uint64][]containerNetwork
 }
 
@@ -37,7 +37,7 @@ func NewProcessorNetwork() ProcessorExtension {
 }
 
 // PreProcess is called once during check run, before any call to `Process`
-func (pn *ProcessorNetwork) PreProcess(sender SenderFunc, aggSender aggregator.Sender) {
+func (pn *ProcessorNetwork) PreProcess(sender SenderFunc, aggSender sender.Sender) {
 	pn.sender = sender
 	pn.aggSender = aggSender
 	pn.groupedContainerNetwork = make(map[uint64][]containerNetwork)

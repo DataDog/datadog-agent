@@ -11,10 +11,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // AgentDemultiplexerPrinter is used to output series, sketches, service checks
@@ -116,7 +115,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 
 	for k, v := range p.toDebugEpEvents() {
 		if len(v) > 0 {
-			if translated, ok := check.EventPlatformNameTranslations[k]; ok {
+			if translated, ok := stats.EventPlatformNameTranslations[k]; ok {
 				k = translated
 			}
 			fmt.Fprintln(color.Output, fmt.Sprintf("=== %s ===", color.BlueString(k)))

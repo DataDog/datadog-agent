@@ -17,8 +17,8 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
@@ -311,7 +311,7 @@ func TestProcessMetrics(t *testing.T) {
 			},
 			metricsToGet: []ksmstore.DDMetricsFam{},
 			metricTransformers: map[string]metricTransformerFunc{
-				"kube_pod_status_phase": func(s aggregator.Sender, n string, m ksmstore.DDMetric, h string, t []string, c time.Time) {
+				"kube_pod_status_phase": func(s sender.Sender, n string, m ksmstore.DDMetric, h string, t []string, c time.Time) {
 					s.Gauge("kube_pod_status_phase_transformed", 1, "", []string{"transformed:tag"})
 				},
 			},

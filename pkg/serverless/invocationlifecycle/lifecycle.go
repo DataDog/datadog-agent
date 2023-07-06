@@ -109,69 +109,95 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	switch eventType {
 	case trigger.APIGatewayEvent:
 		var event events.APIGatewayProxyRequest
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromAPIGatewayEvent(event, region)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
+			break
 		}
+		lp.initFromAPIGatewayEvent(event, region)
 	case trigger.APIGatewayV2Event:
 		var event events.APIGatewayV2HTTPRequest
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromAPIGatewayV2Event(event, region)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
+			break
 		}
+		lp.initFromAPIGatewayV2Event(event, region)
 	case trigger.APIGatewayWebsocketEvent:
 		var event events.APIGatewayWebsocketProxyRequest
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromAPIGatewayWebsocketEvent(event, region)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
+			break
 		}
+		lp.initFromAPIGatewayWebsocketEvent(event, region)
 	case trigger.ALBEvent:
 		var event events.ALBTargetGroupRequest
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromALBEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", applicationLoadBalancer, err)
+			break
 		}
+		lp.initFromALBEvent(event)
 	case trigger.CloudWatchEvent:
 		var event events.CloudWatchEvent
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromCloudWatchEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", cloudwatchEvents, err)
+			break
 		}
+		lp.initFromCloudWatchEvent(event)
 	case trigger.CloudWatchLogsEvent:
 		var event events.CloudwatchLogsEvent
-		if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
-			lp.initFromCloudWatchLogsEvent(event, region, account)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil && arnParseErr != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", cloudwatchLogs, err)
+			break
 		}
+		lp.initFromCloudWatchLogsEvent(event, region, account)
 	case trigger.DynamoDBStreamEvent:
 		var event events.DynamoDBEvent
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromDynamoDBStreamEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", dynamoDB, err)
+			break
 		}
+		lp.initFromDynamoDBStreamEvent(event)
 	case trigger.KinesisStreamEvent:
 		var event events.KinesisEvent
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromKinesisStreamEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", kinesis, err)
+			break
 		}
+		lp.initFromKinesisStreamEvent(event)
 	case trigger.EventBridgeEvent:
 		var event inferredspan.EventBridgeEvent
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromEventBridgeEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", eventBridge, err)
+			break
 		}
+		lp.initFromEventBridgeEvent(event)
 	case trigger.S3Event:
 		var event events.S3Event
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromS3Event(event)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", s3, err)
+			break
 		}
+		lp.initFromS3Event(event)
 	case trigger.SNSEvent:
 		var event events.SNSEvent
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromSNSEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", sns, err)
+			break
 		}
+		lp.initFromSNSEvent(event)
 	case trigger.SQSEvent:
 		var event events.SQSEvent
-		if err := json.Unmarshal(payloadBytes, &event); err == nil {
-			lp.initFromSQSEvent(event)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", sqs, err)
+			break
 		}
+		lp.initFromSQSEvent(event)
 	case trigger.LambdaFunctionURLEvent:
 		var event events.LambdaFunctionURLRequest
-		if err := json.Unmarshal(payloadBytes, &event); err == nil && arnParseErr == nil {
-			lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
+		if err := json.Unmarshal(payloadBytes, &event); err != nil && arnParseErr != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", functionURL, err)
+			break
 		}
+		lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}

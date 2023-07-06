@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -40,7 +40,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	tests := []struct {
 		name     string
 		event    *docker.ContainerEvent
-		expected []metrics.Event
+		expected []event.Event
 	}{
 		{
 			name: "event is filtered out",
@@ -62,17 +62,17 @@ func TestUnbundledEventsTransform(t *testing.T) {
 				Action:        "oom",
 				Timestamp:     ts,
 			},
-			expected: []metrics.Event{
+			expected: []event.Event{
 				{
 					Title:          "Container foobar: oom",
 					Text:           "Container foobar (running image \"foo:latest\"): oom",
-					AlertType:      metrics.EventAlertTypeError,
+					AlertType:      event.EventAlertTypeError,
 					AggregationKey: "docker:foobar",
 					Ts:             ts.Unix(),
 					Host:           hostname,
 					SourceTypeName: "docker",
 					EventType:      "docker",
-					Priority:       metrics.EventPriorityNormal,
+					Priority:       event.EventPriorityNormal,
 					Tags: []string{
 						"image_name:foo",
 						"image_tag:latest",

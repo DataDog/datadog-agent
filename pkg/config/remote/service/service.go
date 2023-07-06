@@ -11,8 +11,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"path"
+	"strconv"
 	"sync"
 	"time"
 
@@ -46,6 +48,7 @@ const (
 	defaultCacheBypassLimit = 5
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
+	orgStatusPollInterval   = 5 * time.Minute
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -58,6 +61,14 @@ const (
 	// When the agent continuously has the same authorization error when fetching RC updates
 	// The first initialLogRefreshError are logged as ERROR, and then it's only logged as INFO
 	initialFetchErrorLog uint64 = 5
+)
+
+var (
+	exportedMapStatus = expvar.NewMap("remoteConfigStatus")
+	// Status expvar exported
+	exportedStatusOrgEnabled    = expvar.String{}
+	exportedStatusKeyAuthorized = expvar.String{}
+	exportedLastUpdateErr       = expvar.String{}
 )
 
 // Service defines the remote config management service responsible for fetching, storing
@@ -94,6 +105,9 @@ type Service struct {
 	// Used to rate limit the 4XX error logs
 	fetchErrorCount    uint64
 	lastFetchErrorType error
+
+	// Previous /status response
+	previousOrgStatus *pbgo.OrgStatusResponse
 }
 
 // uptaneClient is used to mock the uptane component for testing
@@ -107,6 +121,14 @@ type uptaneClient interface {
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
 	TUFVersionState() (uptane.TUFVersions, error)
+}
+
+func init() {
+	// Exported variable to get the state of remote-config
+	exportedMapStatus.Init()
+	exportedMapStatus.Set("orgEnabled", &exportedStatusOrgEnabled)
+	exportedMapStatus.Set("apiKeyScoped", &exportedStatusKeyAuthorized)
+	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -251,6 +273,17 @@ func (s *Service) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 	go func() {
+		s.pollOrgStatus()
+		for {
+			select {
+			case <-s.clock.After(orgStatusPollInterval):
+				s.pollOrgStatus()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
 		defer cancel()
 
 		err := s.refresh()
@@ -277,6 +310,7 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 
 			if err != nil {
+				exportedLastUpdateErr.Set(err.Error())
 				log.Errorf("Could not refresh Remote Config: %v", err)
 			}
 		}
@@ -290,6 +324,40 @@ func (s *Service) Stop() error {
 	}
 
 	return s.db.Close()
+}
+
+func (s *Service) pollOrgStatus() {
+	response, err := s.api.FetchOrgStatus(context.Background())
+	if err != nil {
+		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
+		// and it limits the error log.
+		if !errors.Is(err, api.ErrUnauthorized) && !errors.Is(err, api.ErrProxy) {
+			log.Errorf("Could not refresh Remote Config: %v", err)
+		}
+		return
+	}
+
+	// Print info log when the new status is different from the previous one, or if it's the first run
+	if s.previousOrgStatus == nil || s.previousOrgStatus.Enabled != response.Enabled {
+		if !response.Enabled {
+			log.Infof("Remote Configuration isn't enabled, please follow the documentation to enable it.")
+		} else {
+			log.Infof("Remote Configuration is enabled.")
+		}
+	}
+	if s.previousOrgStatus == nil || s.previousOrgStatus.Authorized != response.Authorized {
+		if !response.Authorized {
+			log.Infof("Your API key does not have Remote Config scope attached. Please attach the scope to be able to use Remote Config.")
+		} else {
+			log.Infof("The API key is allowed to query Remote Config.")
+		}
+	}
+	s.previousOrgStatus = &pbgo.OrgStatusResponse{
+		Enabled:    response.Enabled,
+		Authorized: response.Authorized,
+	}
+	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
+	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
 func (s *Service) calculateRefreshInterval() time.Duration {
@@ -373,6 +441,8 @@ func (s *Service) refresh() error {
 	s.newProducts = make(map[rdata.Product]struct{})
 
 	s.backoffErrorCount = s.backoffPolicy.DecError(s.backoffErrorCount)
+
+	exportedLastUpdateErr.Set("")
 
 	return nil
 }

@@ -42,7 +42,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/agent-payload/v5 v5.0.85
+	github.com/DataDog/agent-payload/v5 v5.0.89-0.20230704083421-b45a1d578078
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
 	github.com/DataDog/datadog-agent/pkg/gohai v0.46.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.46.0-rc.2
@@ -570,9 +570,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.46.0-rc.2
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
+	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
+	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/sijms/go-ora/v2 v2.7.6
 )
 

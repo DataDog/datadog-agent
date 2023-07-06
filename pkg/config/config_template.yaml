@@ -486,14 +486,14 @@ api_key:
 #
 # use_proxy_for_cloud_metadata: false
 
-## @param inventories_configuration_enabled - boolean - optional - default: false
-## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: false
-## The Agent can send its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
+## @param inventories_configuration_enabled - boolean - optional - default: true
+## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: true
+## By default the Agent sends its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
 ## detail panel. See https://docs.datadoghq.com/infrastructure/list/#agent-configuration for more information.
 ##
 ## The Agent configuration is scrubbed of any sensitive information.
 #
-# inventories_configuration_enabled: false
+# inventories_configuration_enabled: true
 
 ## @param auto_exit - custom object - optional
 ## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
@@ -1338,6 +1338,9 @@ api_key:
   ##        @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "redis". Disabled by default.
   #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
+  ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
+  #         remove_all_args: false
   #
   ##    @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
   ##    Enables removing stack traces to replace them with "?". Disabled by default.

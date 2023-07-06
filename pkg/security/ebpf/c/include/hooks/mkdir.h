@@ -37,8 +37,8 @@ SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
-SEC("kprobe/vfs_mkdir")
-int kprobe_vfs_mkdir(struct pt_regs *ctx) {
+HOOK_ENTRY("vfs_mkdir")
+int hook_vfs_mkdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
@@ -48,12 +48,12 @@ int kprobe_vfs_mkdir(struct pt_regs *ctx) {
         return 0;
     }
 
-    syscall->mkdir.dentry = (struct dentry *) PT_REGS_PARM2(ctx);
+    syscall->mkdir.dentry = (struct dentry *) CTX_PARM2(ctx);
     // change the register based on the value of vfs_mkdir_dentry_position
     if (get_vfs_mkdir_dentry_position() == VFS_ARG_POSITION3) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->mkdir.dentry, sizeof(syscall->mkdir.dentry), &syscall->mkdir.dentry);
-        syscall->mkdir.dentry = (struct dentry *) PT_REGS_PARM3(ctx);
+        syscall->mkdir.dentry = (struct dentry *) CTX_PARM3(ctx);
     }
 
     syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
@@ -92,11 +92,11 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
     return 0;
 }
 
-SEC("kprobe/do_mkdirat")
-int kprobe_do_mkdirat(struct pt_regs *ctx) {
+HOOK_ENTRY("do_mkdirat")
+int kprobe_do_mkdirat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
-        umode_t mode = (umode_t)PT_REGS_PARM3(ctx);
+        umode_t mode = (umode_t)CTX_PARM3(ctx);
         return trace__sys_mkdir(ASYNC_SYSCALL, mode);
     }
     return 0;
@@ -158,6 +158,7 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/dr_mkdir_callback")
 int __attribute__((always_inline)) kprobe_dr_mkdir_callback(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
