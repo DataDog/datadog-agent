@@ -64,13 +64,8 @@ func (m *EBPFCheck) Configure(integrationConfigDigest uint64, config, initConfig
 	if err := m.config.Parse(config); err != nil {
 		return fmt.Errorf("ebpf check config: %s", err)
 	}
-
-	var err error
-	m.sysProbeUtil, err = processnet.GetRemoteSystemProbeUtil(
-		ddconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
-	)
-	if err != nil {
-		return fmt.Errorf("sysprobe connection: %s", err)
+	if err := processnet.CheckPath(ddconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket")); err != nil {
+		return fmt.Errorf("sysprobe socket: %s", err)
 	}
 
 	return nil
@@ -78,6 +73,16 @@ func (m *EBPFCheck) Configure(integrationConfigDigest uint64, config, initConfig
 
 // Run executes the check
 func (m *EBPFCheck) Run() error {
+	if m.sysProbeUtil == nil {
+		var err error
+		m.sysProbeUtil, err = processnet.GetRemoteSystemProbeUtil(
+			ddconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
+		)
+		if err != nil {
+			return fmt.Errorf("sysprobe connection: %s", err)
+		}
+	}
+
 	data, err := m.sysProbeUtil.GetCheck(sysconfig.EBPFModule)
 	if err != nil {
 		return fmt.Errorf("get ebpf check: %s", err)
