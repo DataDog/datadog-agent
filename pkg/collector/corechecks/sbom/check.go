@@ -24,7 +24,7 @@ import (
 
 const (
 	checkName    = "sbom"
-	metricPeriod = time.Minute
+	metricPeriod = 15 * time.Minute
 )
 
 func init() {
@@ -162,6 +162,8 @@ func (c *Check) Run() error {
 
 	// Trigger an initial scan on host
 	c.processor.processHostRefresh()
+
+	c.sendUsageMetrics()
 
 	containerPeriodicRefreshTicker := time.NewTicker(time.Duration(c.instance.ContainerPeriodicRefreshSeconds) * time.Second)
 	defer containerPeriodicRefreshTicker.Stop()
