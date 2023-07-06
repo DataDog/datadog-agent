@@ -7,6 +7,8 @@
 
 package ebpf
 
+import "github.com/prometheus/client_golang/prometheus"
+
 type DebugFsStatCollector struct{}
 
 func NewDebugFsStatCollector() *DebugFsStatCollector {
@@ -14,7 +16,7 @@ func NewDebugFsStatCollector() *DebugFsStatCollector {
 }
 
 // Describe returns all descriptions of the collector
-func (c *DebugFsStatCollector) Describe(ch chan<- *prometheus.Desc) {}
+func (c *DebugFsStatCollector) Describe(chan<- *prometheus.Desc) {}
 
 // Collect returns the current state of all metrics of the collector
-func (c *DebugFsStatCollector) Collect(ch chan<- prometheus.Metric) {}
+func (c *DebugFsStatCollector) Collect(chan<- prometheus.Metric) {}
