@@ -12,7 +12,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -99,7 +99,7 @@ func (c *CRICheck) Run() error {
 	return c.runProcessor(sender)
 }
 
-func (c *CRICheck) runProcessor(sender aggregator.Sender) error {
+func (c *CRICheck) runProcessor(sender sender.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 

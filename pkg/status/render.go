@@ -14,7 +14,7 @@ import (
 	"path"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
@@ -41,7 +41,7 @@ func FormatStatus(data []byte) (string, error) {
 	autoConfigStats := stats["autoConfigStats"]
 	checkSchedulerStats := stats["checkSchedulerStats"]
 	aggregatorStats := stats["aggregatorStats"]
-	s, err := check.TranslateEventPlatformEventTypes(aggregatorStats)
+	s, err := checkstats.TranslateEventPlatformEventTypes(aggregatorStats)
 	if err != nil {
 		log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
 	} else {
@@ -96,6 +96,9 @@ func FormatStatus(data []byte) (string, error) {
 		}
 		return nil
 	}
+	remoteConfigFunc := func() error {
+		return RenderStatusTemplate(b, "/remoteconfig.tmpl", stats)
+	}
 	otlpFunc := func() error {
 		if otlp.IsDisplayed() {
 			return RenderStatusTemplate(b, "/otlp.tmpl", stats)
@@ -110,7 +113,7 @@ func FormatStatus(data []byte) (string, error) {
 	} else {
 		renderFuncs = []func() error{headerFunc, checkStatsFunc, jmxFetchFunc, forwarderFunc, endpointsFunc,
 			logsAgentFunc, systemProbeFunc, processAgentFunc, traceAgentFunc, aggregatorFunc, dogstatsdFunc,
-			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc, otlpFunc}
+			clusterAgentFunc, snmpTrapFunc, autodiscoveryFunc, remoteConfigFunc, otlpFunc}
 	}
 	var errs []error
 	for _, f := range renderFuncs {

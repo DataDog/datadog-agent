@@ -43,15 +43,12 @@ func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor)
 func (l *GRPCServer) consumeProcessDiff(diff *ProcessCacheDiff) ([]*pbgo.ProcessEventSet, []*pbgo.ProcessEventUnset) {
 	setEvents := make([]*pbgo.ProcessEventSet, len(diff.creation))
 	for i, proc := range diff.creation {
-		setEvents[i] = &pbgo.ProcessEventSet{
-			Pid:      proc.pid,
-			Language: &pbgo.Language{Name: string(proc.language.Name)},
-		}
+		setEvents[i] = processEntityToEventSet(proc)
 	}
 
 	unsetEvents := make([]*pbgo.ProcessEventUnset, len(diff.deletion))
 	for i, proc := range diff.deletion {
-		unsetEvents[i] = &pbgo.ProcessEventUnset{Pid: proc.pid}
+		unsetEvents[i] = &pbgo.ProcessEventUnset{Pid: proc.Pid}
 	}
 
 	return setEvents, unsetEvents
@@ -94,10 +91,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	procs, snapshotVersion := l.extractor.GetAllProcessEntities()
 	setEvents := make([]*pbgo.ProcessEventSet, 0, len(procs))
 	for _, proc := range procs {
-		setEvents = append(setEvents, &pbgo.ProcessEventSet{
-			Pid:      proc.pid,
-			Language: &pbgo.Language{Name: string(proc.language.Name)},
-		})
+		setEvents = append(setEvents, processEntityToEventSet(proc))
 	}
 
 	syncMessage := &pbgo.ProcessStreamResponse{
@@ -155,4 +149,18 @@ func getGRPCStreamPort(cfg config.ConfigReader) int {
 		grpcPort = config.DefaultProcessEntityStreamPort
 	}
 	return grpcPort
+}
+
+func processEntityToEventSet(proc *ProcessEntity) *pbgo.ProcessEventSet {
+	var language *pbgo.Language
+	if proc.Language != nil {
+		language = &pbgo.Language{Name: string(proc.Language.Name)}
+	}
+
+	return &pbgo.ProcessEventSet{
+		Pid:          proc.Pid,
+		Nspid:        proc.NsPid,
+		CreationTime: proc.CreationTime,
+		Language:     language,
+	}
 }

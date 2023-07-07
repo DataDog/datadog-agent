@@ -44,6 +44,8 @@ const (
 	RemoteFormat      = "remote-format"
 	Input             = "input"
 	Remote            = "remote"
+	Origin            = "origin"
+	Target            = "target"
 
 	// Security Profile Subcommand
 	SecurityProfileInput = "input"

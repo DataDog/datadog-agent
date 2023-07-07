@@ -17,8 +17,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func TestGetGRPCStreamPort(t *testing.T) {
@@ -46,7 +48,9 @@ func TestStartStop(t *testing.T) {
 	cfg := config.Mock(t)
 
 	extractor := NewWorkloadMetaExtractor(cfg)
-	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+
+	port := testutil.FreeTCPPort(t)
+	cfg.Set("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(config.Mock(t), extractor)
 
 	err := srv.Start()
@@ -77,7 +81,8 @@ func TestStreamServer(t *testing.T) {
 	cfg := config.Mock(t)
 	extractor := NewWorkloadMetaExtractor(cfg)
 
-	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+	port := testutil.FreeTCPPort(t)
+	cfg.Set("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(cfg, extractor)
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
@@ -155,7 +160,8 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	cfg := config.Mock(t)
 	extractor := NewWorkloadMetaExtractor(cfg)
 
-	cfg.Set("process_config.language_detection.grpc_port", "0") // Tell the os to choose a port for us to reduce flakiness
+	port := testutil.FreeTCPPort(t)
+	cfg.Set("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(cfg, extractor)
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
@@ -208,6 +214,48 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 			toEventUnset(proc2),
 		},
 	}, msg)
+}
+
+func TestProcessEntityToEventSet(t *testing.T) {
+	for _, tc := range []struct {
+		desc    string
+		process *ProcessEntity
+		event   *pbgo.ProcessEventSet
+	}{
+		{
+			desc: "process with detected language",
+			process: &ProcessEntity{
+				Pid:          40,
+				NsPid:        1,
+				CreationTime: 5311456,
+				Language: &languagemodels.Language{
+					Name: languagemodels.Python,
+				},
+			},
+			event: &pbgo.ProcessEventSet{
+				Pid:          40,
+				Nspid:        1,
+				CreationTime: 5311456,
+				Language:     &pbgo.Language{Name: "python"},
+			},
+		},
+		{
+			desc: "process without detected language",
+			process: &ProcessEntity{
+				Pid:          40,
+				NsPid:        1,
+				CreationTime: 5311456,
+			},
+			event: &pbgo.ProcessEventSet{
+				Pid:          40,
+				Nspid:        1,
+				CreationTime: 5311456,
+			},
+		},
+	} {
+		event := processEntityToEventSet(tc.process)
+		assert.Equal(t, tc.event, event)
+	}
 }
 
 func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.ProcessStreamResponse) {

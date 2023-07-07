@@ -9,13 +9,14 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // ContainersTelemetry represents the objects necessary to send metrics listing containers
 type ContainersTelemetry struct {
-	Sender        aggregator.Sender
+	Sender        sender.Sender
 	MetadataStore workloadmeta.Store
 	IgnoreDDAgent bool
 }

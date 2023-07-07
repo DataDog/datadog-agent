@@ -16,8 +16,10 @@ import (
 )
 
 var (
-	checkExecutionTimeWeight float64 = 0
-	checkMetricSamplesWeight float64 = 1
+	checkExecutionTimeWeight   float64 = 0
+	checkMetricSamplesWeight   float64 = 1
+	checkHistogramBucketWeight float64 = 1
+	checkEventsWeight          float64 = 0.2
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice
@@ -55,7 +57,10 @@ func busynessFunc(s types.CLCRunnerStats) int {
 		// The check is failing, its weight is 0
 		return 0
 	}
-	return int(checkExecutionTimeWeight*float64(s.AverageExecutionTime) + checkMetricSamplesWeight*float64(s.MetricSamples))
+	return int(checkExecutionTimeWeight*float64(s.AverageExecutionTime) +
+		checkMetricSamplesWeight*float64(s.MetricSamples) +
+		checkHistogramBucketWeight*float64(s.HistogramBuckets) +
+		checkEventsWeight*float64(s.Events))
 }
 
 // orderedKeys sorts the keys of a map and return them in a slice

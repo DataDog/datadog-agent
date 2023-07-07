@@ -7,7 +7,7 @@ package traps
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"go.uber.org/atomic"
 	"net"
 	"time"
@@ -20,7 +20,7 @@ import (
 // TrapListener opens an UDP socket and put all received traps in a channel
 type TrapListener struct {
 	config             Config
-	aggregator         aggregator.Sender
+	aggregator         sender.Sender
 	packets            PacketsChannel
 	listener           *gosnmp.TrapListener
 	receivedTrapsCount *atomic.Uint64
@@ -28,7 +28,7 @@ type TrapListener struct {
 }
 
 // NewTrapListener creates a simple TrapListener instance but does not start it
-func NewTrapListener(config Config, aggregator aggregator.Sender, packets PacketsChannel) (*TrapListener, error) {
+func NewTrapListener(config Config, aggregator sender.Sender, packets PacketsChannel) (*TrapListener, error) {
 	var err error
 	gosnmpListener := gosnmp.NewTrapListener()
 	gosnmpListener.Params, err = config.BuildSNMPParams()
