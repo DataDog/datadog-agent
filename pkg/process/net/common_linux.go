@@ -78,6 +78,6 @@ func IsUnixNetConnValid(unixConn *net.UnixConn, sigs ...string) (bool, error) {
 	}
 
 	exepath, _ := os.Readlink(util.HostProc(strconv.FormatUint(uint64(ucred.Pid), 10), "exe"))
-	log.Debugf("rejected %s expected %v pid %s path %s", fmt.Sprintf("%x", h.Sum(nil)), sigs, ucred.Pid, exepath)
+	log.Debugf("rejected %s expected %v pid %d path %s", fmt.Sprintf("%x", h.Sum(nil)), sigs, ucred.Pid, exepath)
 	return false, nil
 }

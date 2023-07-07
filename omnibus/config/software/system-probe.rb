@@ -22,6 +22,15 @@ build do
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
     copy "#{ENV['SYSTEM_PROBE_BIN']}/system-probe", "#{install_dir}/embedded/bin/system-probe"
 
+    #
+    # We would need to have the binary signature after strip pass, but didn't find a way to hook (or run later, but before the packager) the Stripper on omnibus
+    #
+    # WARNING
+    # This is only works as expected as long as the omnibus Stripper class performs the same exact stripping operations as we would need the exact same binary.
+    # https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/stripper.rb#L78-L94
+    #
+    #
+    # The following part will be rewritten, as we would need agent, security-agent, process-agent and system-probe binary be available at the same place
     mkdir "#{install_dir}/.debug"
     mkdir "#{install_dir}/.debug/bin/agent"
     mkdir "#{install_dir}/.debug/embedded"
