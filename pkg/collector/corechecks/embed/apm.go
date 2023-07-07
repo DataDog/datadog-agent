@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -177,7 +177,7 @@ func (c *APMCheck) Configure(integrationConfigDigest uint64, data integration.Da
 	}
 
 	c.source = source
-	c.telemetry = telemetry_utils.IsCheckEnabled("apm")
+	c.telemetry = utils.IsCheckTelemetryEnabled("apm")
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil
