@@ -12,6 +12,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type ProfileMetricType string
+
+const (
+	ProfileMetricTypeGauge                 ProfileMetricType = "gauge"
+	ProfileMetricTypeMonotonicCount        ProfileMetricType = "monotonic_count"
+	ProfileMetricTypeMonotonicCountAndRate ProfileMetricType = "monotonic_count_and_rate"
+	ProfileMetricTypeRate                  ProfileMetricType = "rate"
+	ProfileMetricTypeFlagStream            ProfileMetricType = "flag_stream"
+
+	// ProfileMetricTypeCounter is DEPRECATED
+	// `counter` is deprecated in favour of `rate`
+	ProfileMetricTypeCounter ProfileMetricType = "counter"
+
+	// ProfileMetricTypePercent is DEPRECATED
+	// `percent` is deprecated in favour of `scale_factor`
+	ProfileMetricTypePercent ProfileMetricType = "percent"
+)
+
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID"`
@@ -28,7 +46,11 @@ type SymbolConfig struct {
 	Format           string  `yaml:"format"`
 	ConstantValueOne bool    `yaml:"constant_value_one"`
 
-	MetricType string `yaml:"metric_type"`
+	// `metric_type` is used for force the metric type
+	//   When empty, by default, the metric type is derived from SNMP OID value type.
+	//   Valid `metric_type` types: `gauge`, `rate`, `monotonic_count`, `monotonic_count_and_rate`
+	//   Deprecated types: `counter` (use `rate` instead), percent (use `scale_factor` instead)
+	MetricType ProfileMetricType `yaml:"metric_type"`
 }
 
 // MetricTagConfig holds metric tag info
@@ -87,8 +109,8 @@ type MetricsConfig struct {
 	StaticTags []string            `yaml:"static_tags"`
 	MetricTags MetricTagConfigList `yaml:"metric_tags"`
 
-	ForcedType string `yaml:"forced_type"` // deprecated in favour of metric_type
-	MetricType string `yaml:"metric_type"`
+	ForcedType ProfileMetricType `yaml:"forced_type"` // deprecated in favour of metric_type
+	MetricType ProfileMetricType `yaml:"metric_type"`
 
 	Options MetricsConfigOption `yaml:"options"`
 }

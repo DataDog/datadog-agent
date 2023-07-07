@@ -916,11 +916,7 @@ func (p Process) String(verbose bool) string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, p.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprintln(&sb, p.EntityMeta.String(verbose))
-
+	_, _ = fmt.Fprintln(&sb, "PID:", p.EntityID.ID)
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerId)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)

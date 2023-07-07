@@ -150,7 +150,7 @@ func start(log log.Component, config config.Component, forwarder defaultforwarde
 
 	// Initialize remote configuration
 	var rcClient *remote.Client
-	if pkgconfig.Datadog.GetBool("remote_configuration.enabled") {
+	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
 		var err error
 		rcClient, err = initializeRemoteConfig(mainCtx)
 		if err != nil {

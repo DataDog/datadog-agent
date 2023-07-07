@@ -87,7 +87,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
-	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote.NewGRPCClient(
 			rcClientName,
 			version.AgentVersion,
@@ -355,6 +355,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.enabled") {
 			c.Obfuscation.Redis.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.remove_all_args") {
+			c.Obfuscation.Redis.RemoveAllArgs = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.remove_all_args")
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.remove_stack_traces") {
 			c.Obfuscation.RemoveStackTraces = coreconfig.Datadog.GetBool("apm_config.obfuscation.remove_stack_traces")

@@ -655,7 +655,8 @@
 							"ObfuscateSQLValues":null
 					 },
 					 "Redis":{
-							"Enabled":false
+							"Enabled":false,
+							"RemoveAllArgs":false
 					 },
 					 "RemoveStackTraces":false,
 					 "SQLExecPlan":{

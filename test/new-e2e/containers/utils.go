@@ -47,7 +47,17 @@ func assertTags(actualTags []string, expectedTags []*regexp.Regexp) error {
 		if len(expectedTags) > 0 {
 			errs = append(errs, fmt.Errorf("missing tags: %s", strings.Join(lo.Map(expectedTags, func(re *regexp.Regexp, _ int) string { return re.String() }), ", ")))
 		}
-		return errors.Join(errs...)
+		// replace with
+		// errors.Join(errs...)
+		// once migrated to go 1.20
+		errMsgs := make([]string, 0, 2)
+		for _, err := range errs {
+			if err == nil {
+				continue
+			}
+			errMsgs = append(errMsgs, err.Error())
+		}
+		return errors.New(strings.Join(errMsgs, "\n"))
 	}
 
 	return nil

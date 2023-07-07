@@ -30,17 +30,20 @@ import (
 )
 
 const (
-	deleteDelayTime       = 5 * time.Second
-	fallbackLimiterPeriod = 5 * time.Second
+	deleteDelayTime                      = 5 * time.Second
+	numAllowedMountsToResolvePerDuration = 1
+	fallbackLimiterPeriod                = 5 * time.Second
 )
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
-		MountID:       uint32(mnt.ID),
-		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
-		ParentMountID: uint32(mnt.Parent),
+		MountID: uint32(mnt.ID),
+		Device:  uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
+		ParentPathKey: model.PathKey{
+			MountID: uint32(mnt.Parent),
+		},
 		FSType:        mnt.FSType,
 		MountPointStr: mnt.Mountpoint,
 		Path:          mnt.Mountpoint,
@@ -158,7 +161,7 @@ func (mr *Resolver) finalize(first *model.Mount) {
 
 		// finalize children
 		for _, child := range mr.mounts {
-			if child.ParentMountID == curr.MountID {
+			if child.ParentPathKey.MountID == curr.MountID {
 				if _, exists := mr.mounts[child.MountID]; exists {
 					open_queue = append(open_queue, child)
 				}
@@ -279,11 +282,11 @@ func (mr *Resolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string
 	}
 	cache[mountID] = true
 
-	if mount.ParentMountID == 0 {
+	if mount.ParentPathKey.MountID == 0 {
 		return "", ErrMountUndefined
 	}
 
-	parentMountPath, err := mr._getMountPath(mount.ParentMountID, cache)
+	parentMountPath, err := mr._getMountPath(mount.ParentPathKey.MountID, cache)
 	if err != nil {
 		return "", err
 	}
@@ -409,7 +412,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uin
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.fallbackLimiter.IsAllowed(mountID) {
+	if !mr.fallbackLimiter.Allow(mountID) {
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -464,7 +467,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.fallbackLimiter.IsAllowed(mountID) {
+	if !mr.fallbackLimiter.Allow(mountID) {
 		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -604,7 +607,8 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	}
 	mr.redemption = redemption
 
-	limiter, err := utils.NewLimiter[uint32](64, fallbackLimiterPeriod)
+	// create a rate limiter that allows for 64 mount IDs
+	limiter, err := utils.NewLimiter[uint32](64, numAllowedMountsToResolvePerDuration, fallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}
