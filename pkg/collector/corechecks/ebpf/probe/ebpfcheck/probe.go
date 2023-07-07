@@ -8,16 +8,19 @@
 package ebpfcheck
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/gopsutil/process"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"golang.org/x/exp/maps"
@@ -27,6 +30,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -509,29 +513,67 @@ func ringBufferMemoryUsage(mapStats *EBPFMapStats, info *ebpf.MapInfo, k *EBPFPr
 }
 
 func (k *EBPFProbe) getMmapRSS(mapid uint32, addrs []uintptr) (map[uintptr]uint64, error) {
-	matchaddrs := slices.Clone(addrs)
-	rss := make(map[uintptr]uint64, len(addrs))
 	var pid uint32
 	if err := k.pidMap.Lookup(unsafe.Pointer(&mapid), unsafe.Pointer(&pid)); err != nil {
 		return nil, fmt.Errorf("pid map lookup: %s", err)
 	}
 
 	log.Debugf("map pid=%d id=%d", pid, mapid)
-	// TODO use more efficient way of getting /proc/PID/smaps addr->RSS
-	proc, err := process.NewProcess(int32(pid))
+	return matchProcessRSS(int(pid), addrs)
+}
+
+func matchProcessRSS(pid int, addrs []uintptr) (map[uintptr]uint64, error) {
+	smaps, err := os.Open(util.HostProc(strconv.Itoa(int(pid)), "smaps"))
 	if err != nil {
-		return nil, fmt.Errorf("process %d new: %s", pid, err)
+		return nil, fmt.Errorf("smaps open: %s", err)
 	}
-	mmaps, err := proc.MemoryMaps(false)
-	if err != nil {
-		return nil, fmt.Errorf("process %d smaps: %s", pid, err)
-	}
-	for _, mm := range *mmaps {
-		for i, addr := range matchaddrs {
-			if mm.StartAddr == addr {
-				rss[mm.StartAddr] = mm.Rss * 1024
-				deleteAtNoOrder(matchaddrs, i)
-				break
+	defer smaps.Close()
+
+	return matchRSS(smaps, addrs)
+}
+
+func matchRSS(smaps io.Reader, addrs []uintptr) (map[uintptr]uint64, error) {
+	matchaddrs := slices.Clone(addrs)
+	rss := make(map[uintptr]uint64, len(addrs))
+	var matchAddr uintptr
+	scanner := bufio.NewScanner(bufio.NewReader(smaps))
+	for scanner.Scan() {
+		key, val, found := bytes.Cut(bytes.TrimSpace(scanner.Bytes()), []byte{' '})
+		if !found {
+			continue
+		}
+		if !bytes.HasSuffix(key, []byte(":")) {
+			if matchAddr != uintptr(0) {
+				return nil, fmt.Errorf("no RSS for matching address %x", matchAddr)
+			}
+			s, _, ok := bytes.Cut(key, []byte("-"))
+			if !ok {
+				return nil, fmt.Errorf("invalid smaps address format: %s", string(key))
+			}
+			start, err := strconv.ParseUint(string(s), 16, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid smaps address format: %s", string(key))
+			}
+			for i, addr := range matchaddrs {
+				if uintptr(start) == addr {
+					matchAddr = addr
+					deleteAtNoOrder(matchaddrs, i)
+					break
+				}
+			}
+		} else {
+			// if we have already parsed Rss, just keep skipping
+			if matchAddr == uintptr(0) {
+				continue
+			}
+			if string(key) == "Rss:" {
+				v := string(bytes.TrimSpace(bytes.TrimSuffix(val, []byte(" kB"))))
+				t, err := strconv.ParseUint(v, 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("parse rss: %s", err)
+				}
+				rss[matchAddr] = t * 1024
+				matchAddr = uintptr(0)
 			}
 		}
 	}

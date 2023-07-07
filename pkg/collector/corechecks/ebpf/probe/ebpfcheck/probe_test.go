@@ -8,12 +8,13 @@
 package ebpfcheck
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/DataDog/gopsutil/process"
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/perf"
 	"github.com/stretchr/testify/require"
@@ -21,17 +22,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-func TestMain(m *testing.M) {
-	logLevel := os.Getenv("DD_LOG_LEVEL")
-	if logLevel == "" {
-		logLevel = "warn"
-	}
-	log.SetupLogger(seelog.Default, logLevel)
-	os.Exit(m.Run())
-}
 
 func TestEBPFPerfBufferLength(t *testing.T) {
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
@@ -91,7 +82,10 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 		for _, cpub := range result.CPUBuffers {
 			for _, mm := range *mmaps {
 				if mm.StartAddr == cpub.Addr {
-					t.Log(mm)
+					exp := mm.Rss * 1024
+					if exp != cpub.RSS {
+						t.Fatalf("expected RSS %d got %d", exp, cpub.RSS)
+					}
 					break
 				}
 			}
@@ -102,4 +96,32 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 func testConfig() *ddebpf.Config {
 	cfg := ddebpf.NewConfig()
 	return cfg
+}
+
+func BenchmarkMatchProcessRSS(b *testing.B) {
+	pid := os.Getpid()
+	addrs := []uintptr{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := matchProcessRSS(pid, addrs)
+		require.NoError(b, err)
+	}
+}
+
+func BenchmarkMatchRSS(b *testing.B) {
+	data, err := os.ReadFile("./testdata/smaps.out")
+	require.NoError(b, err)
+	rdr := bytes.NewReader(data)
+	addrs := []uintptr{}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := rdr.Seek(0, io.SeekStart)
+		require.NoError(b, err)
+		_, err = matchRSS(rdr, addrs)
+		require.NoError(b, err)
+	}
 }
