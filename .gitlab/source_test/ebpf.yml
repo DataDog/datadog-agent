@@ -57,7 +57,7 @@
     - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
-      -m 8192M
+      -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}

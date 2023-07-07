@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 type temperatureMetricsSender struct {
@@ -30,7 +30,7 @@ func (temperatureMetricsSender *temperatureMetricsSender) Init() error {
 	return nil
 }
 
-func (temperatureMetricsSender *temperatureMetricsSender) SendMetrics(sender aggregator.Sender, field string) error {
+func (temperatureMetricsSender *temperatureMetricsSender) SendMetrics(sender sender.Sender, field string) error {
 	r := temperatureMetricsSender.regex
 	temperatureFields := r.FindAllStringSubmatch(field, -1)
 	if len(temperatureFields) <= 0 {

@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"go.uber.org/fx"
 )
@@ -32,7 +34,7 @@ type DemultiplexerWithAggregator interface {
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
 	GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error)
-	GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck)
+	GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck)
 }
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent.
@@ -276,7 +278,7 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 
 		if d.aggregator.hostname != "" {
 			// Send startup event only when we have a valid hostname
-			d.aggregator.eventIn <- metrics.Event{
+			d.aggregator.eventIn <- event.Event{
 				Text:           fmt.Sprintf("Version %s", agentVersion),
 				SourceTypeName: "System",
 				Host:           d.aggregator.hostname,
@@ -526,7 +528,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
-func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck) {
 	return d.aggregator.GetBufferedChannels()
 }
 

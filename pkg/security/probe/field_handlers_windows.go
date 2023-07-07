@@ -46,3 +46,8 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return nil, false
 }
+
+// ResolveHashes resolves the hash of the provided file
+func (fh *FieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+	return nil
+}

@@ -264,6 +264,10 @@ def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(
+            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
+        )
 
 
 def ninja_runtime_compilation_files(nw, gobin):
@@ -373,6 +377,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/tcp_queue_length_kern_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
             ],
         }
         nw.rule(
@@ -1537,7 +1544,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
 
 @task
-def test_microvms(
+def start_microvms(
     ctx,
     infra_env,
     instance_type_x86=None,
@@ -1545,12 +1552,13 @@ def test_microvms(
     x86_ami_id=None,
     arm_ami_id=None,
     destroy=False,
-    upload_dependencies=False,
     ssh_key_name=None,
     ssh_key_path=None,
     dependencies_dir=None,
     shutdown_period=320,
-    subnets=None,
+    stack_name="kernel-matrix-testing-system",
+    vmconfig=None,
+    local=False,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1558,14 +1566,14 @@ def test_microvms(
         f"--x86-ami-id {x86_ami_id}" if x86_ami_id else "",
         f"--arm-ami-id {arm_ami_id}" if arm_ami_id else "",
         "--destroy" if destroy else "",
-        "--upload-dependencies" if upload_dependencies else "",
         f"--ssh-key-path {ssh_key_path}" if ssh_key_path else "",
         f"--ssh-key-name {ssh_key_name}" if ssh_key_name else "",
         f"--infra-env {infra_env}",
         f"--shutdown-period {shutdown_period}",
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
-        f"--subnets {subnets}" if subnets else "",
-        "--name kernel-matrix-testing-system",
+        f"--name {stack_name}",
+        f"--vmconfig {vmconfig}" if vmconfig else "",
+        "--local" if local else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
