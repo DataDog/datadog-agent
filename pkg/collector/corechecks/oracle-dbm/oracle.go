@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/ReneKroon/ttlcache/v2"
 	_ "github.com/godror/godror"
+	ttlcache "github.com/jellydator/ttlcache/v2"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
 )
@@ -93,7 +93,7 @@ func (c *Check) Run() error {
 		log.Trace("Entered sysmetrics")
 		err := c.SysMetrics()
 		if err != nil {
-			return fmt.Errorf("failed to collecr sysmetrics %w", err)
+			return fmt.Errorf("failed to collect sysmetrics %w", err)
 		}
 	}
 	if c.config.Tablespaces.Enabled {
@@ -255,10 +255,8 @@ func (c *Check) Teardown() {
 			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
 		}
 	}
-	if c.fqtCache != nil {
-		c.fqtCache.Purge()
-		c.fqtCache.Close()
-	}
+	c.fqtCache.Purge()
+	c.fqtCache.Close()
 }
 
 // Configure configures the Oracle check.
@@ -290,7 +288,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 
 	c.tagsString = strings.Join(c.tags, ",")
 	c.fqtCache = ttlcache.NewCache()
-	c.fqtCache.SetTTL(time.Duration(3600 * time.Second))
+	c.fqtCache.SetTTL(time.Duration(60 * time.Minute))
 	return nil
 }
 

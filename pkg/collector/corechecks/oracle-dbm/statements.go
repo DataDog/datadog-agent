@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ttlcache "github.com/jellydator/ttlcache/v2"
 )
 
 const STATEMENT_METRICS_QUERY = `SELECT /* DD */
@@ -414,7 +415,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		return 0, err
 	}
 
-	SQLTextErrors := 0
 	SQLCount := 0
 	var oracleRows []OracleRow
 	var planErrors uint16
@@ -444,7 +444,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-		FQTSent := make(map[string]int)
 		executionPlanSent := make(map[uint64]int)
 		for _, statementMetricRow := range statementMetricsAll {
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
@@ -590,9 +589,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 
-			//_, ok := FQTSent[queryRow.QuerySignature]
-			//if !ok {
-			if _, err := cache.Get(queryRow.QuerySignature); err != ttlcache.ErrNotFound {
+			if _, err := c.fqtCache.Get(queryRow.QuerySignature); err == ttlcache.ErrNotFound {
 				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
 				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
 				FQTDBOracle := FQTDBOracle{
@@ -614,12 +611,11 @@ func (c *Check) StatementMetrics() (int, error) {
 				}
 				log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
 				sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
-				//FQTSent[queryRow.QuerySignature] = 1
 				c.fqtCache.Set(queryRow.QuerySignature, "1")
 			}
 
 			if c.config.ExecutionPlans.Enabled {
-				_, ok = executionPlanSent[statementMetricRow.PlanHashValue]
+				_, ok := executionPlanSent[statementMetricRow.PlanHashValue]
 				if !ok {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
@@ -825,7 +821,6 @@ func (c *Check) StatementMetrics() (int, error) {
 	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
-	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), "", c.tags)
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
 	if c.config.ExecutionPlans.Enabled {
 		sender.Gauge("dd.oracle.plan_errors.count", float64(planErrors), "", c.tags)
@@ -839,8 +834,8 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	c.statementsLastRun = start
 
-	if SQLTextErrors > 0 || planErrors > 0 {
-		return SQLCount, fmt.Errorf("SQL statements processed: %d, text errors: %d, plan erros: %d", SQLCount, SQLTextErrors, planErrors)
+	if planErrors > 0 {
+		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan erros: %d", SQLCount, planErrors)
 	}
 	return SQLCount, nil
 }
