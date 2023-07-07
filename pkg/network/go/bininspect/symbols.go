@@ -62,21 +62,9 @@ func getSymbolLengthBoundaries(set common.StringSet) (int, int) {
 	return minSymbolName, maxSymbolName
 }
 
-// readSymbolEntryInStringTable reads the first 4 bytes from the symbol section current location, which represents the
-// symbol name entry in the string data section. Returns error in case of failure in reading the symbol entry.
-func readSymbolEntryInStringTable(symbolSectionReader io.ReaderAt, byteOrder binary.ByteOrder, readLocation int64, allocatedBufferForRead []byte) (int, error) {
-	if _, err := symbolSectionReader.ReadAt(allocatedBufferForRead, readLocation); err != nil {
-		return 0, err
-	}
-	return int(byteOrder.Uint32(allocatedBufferForRead)), nil
-}
-
 // fillSymbol reads the symbol entry from the symbol section with the first 4 bytes of the name entry (which
 // we read using readSymbolEntryInStringTable).
-func fillSymbol(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byteOrder binary.ByteOrder, symbolName string, readLocation int64, allocatedBufferForRead []byte, is64Bit bool) error {
-	if _, err := symbolSectionReader.ReadAt(allocatedBufferForRead, readLocation); err != nil {
-		return err
-	}
+func fillSymbol(symbol *elf.Symbol, byteOrder binary.ByteOrder, symbolName string, allocatedBufferForRead []byte, is64Bit bool) {
 	symbol.Name = symbolName
 	if is64Bit {
 		infoAndOther := byteOrder.Uint16(allocatedBufferForRead[0:2])
@@ -93,8 +81,6 @@ func fillSymbol(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byteOrder b
 		symbol.Value = uint64(byteOrder.Uint32(allocatedBufferForRead[0:4]))
 		symbol.Size = uint64(byteOrder.Uint32(allocatedBufferForRead[4:8]))
 	}
-
-	return nil
 }
 
 // getSymbolsUnified extracts the given symbol list from the binary.
@@ -127,17 +113,33 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 	// Pre-allocating a buffer to read the symbol string into.
 	// The size of the buffer is maxSymbolNameSize + 1, for null termination.
 	symbolNameBuf := make([]byte, maxSymbolNameSize+1)
-	// Pre allocating a buffer for reading the symbol entry in the string table.
-	allocatedBufferForSymbolNameRead := make([]byte, 4)
-	// Pre allocating a buffer for reading the rest of the symbol fields from the symbol section.
-	allocatedBufferForSymbolRead := make([]byte, symbolSize-len(allocatedBufferForSymbolNameRead))
+
+	const symbolChunkSize = int64(48)
+
+	chunkSize := symbolChunkSize * int64(symbolSize)
+
+	symbolsCache := make([]byte, chunkSize)
+	var symbol elf.Symbol
+
+	var locationInCache int64
 
 	// Iterating through the symbol table. We skip the first symbolSize bytes as they are zeros.
 	for readLocation := int64(symbolSize); uint64(readLocation) < symbolSection.Size; readLocation += int64(symbolSize) {
-		// Reading the symbol entry in the string table.
-		stringEntry, err := readSymbolEntryInStringTable(symbolSection.ReaderAt, f.ByteOrder, readLocation, allocatedBufferForSymbolNameRead)
-		if err != nil {
-			log.Debugf("failed reading symbol entry %s", err)
+		// Should read again
+		if (readLocation-int64(symbolSize))/int64(symbolSize)%symbolChunkSize == 0 {
+			_, err := symbolSection.ReaderAt.ReadAt(symbolsCache, readLocation)
+			if err != nil && err != io.EOF {
+				log.Debugf("failed reading symbol entry %s", err)
+				return nil, err
+			}
+			locationInCache = 0
+		} else {
+			locationInCache += int64(symbolSize)
+		}
+
+		stringEntry := int(f.ByteOrder.Uint32(symbolsCache[locationInCache : locationInCache+4]))
+		if stringEntry == 0 {
+			// symbol without a name.
 			continue
 		}
 
@@ -155,10 +157,7 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 		}
 
 		// Complete the symbol reading.
-		var symbol elf.Symbol
-		if err := fillSymbol(&symbol, symbolSection.ReaderAt, f.ByteOrder, symbolName, readLocation+4, allocatedBufferForSymbolRead, is64Bit); err != nil {
-			continue
-		}
+		fillSymbol(&symbol, f.ByteOrder, symbolName, symbolsCache[locationInCache+4:locationInCache+int64(symbolSize)-4], is64Bit)
 		symbols = append(symbols, symbol)
 
 		// If no symbols left, stop running.
