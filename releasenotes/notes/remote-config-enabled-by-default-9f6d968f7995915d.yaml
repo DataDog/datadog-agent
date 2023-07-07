@@ -6,10 +6,10 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+features:
   - |
-    With this release, remote_config.enabled is set to true by default in the agent configuration file.
-    This will cause the agent to request configuration updates from the Datadog site.
+    With this release, ``remote_config.enabled`` is set to ``true`` by default in the Agent configuration file.
+    This causes the Agent to request configuration updates from the Datadog site.
 
-    To receive configurations from Datadog, you still need to enable Remote Configuration at the organization level and enable Remote Configuration capability on your API Key from the Datadog UI.
-    If you don't want your agent requesting configurations from Datadog, you can set ``remote_config.enabled`` to ``false`` in the agent configuration file.
+    To receive configurations from Datadog, you still need to enable Remote Configuration at the organization level and enable Remote Configuration capability on your API Key from the Datadog application.
+    If you don't want the Agent to request configurations from Datadog, set ``remote_config.enabled`` to ``false`` in the Agent configuration file.
