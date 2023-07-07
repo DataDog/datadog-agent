@@ -38,7 +38,6 @@ var labelsToEnv = map[string]string{
 }
 
 var labelsToWorkloadEnv = [][2]string{
-	{kubernetes.EnvTagLabelKey, "DD_WORKLOAD_ENV"},
 	{kubernetes.ServiceTagLabelKey, "DD_WORKLOAD_SERVICE"},
 	{kubernetes.KubeAppNameLabelKey, "DD_WORKLOAD_SERVICE"},
 	{kubernetes.VersionTagLabelKey, "DD_WORKLOAD_VERSION"},

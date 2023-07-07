@@ -27,7 +27,6 @@ var workloadLabelsAsEnvVars = map[string]string{
 	"DD_WORKLOAD_IMAGE_TAG":  "image_tag",
 	"DD_WORKLOAD_SERVICE":    "service",
 	"DD_WORKLOAD_VERSION":    "version",
-	"DD_WORKLOAD_ENV":        "env",
 }
 
 // NewModel returns a new model with some extra field validation
