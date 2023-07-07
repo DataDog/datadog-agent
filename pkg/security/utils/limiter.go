@@ -30,13 +30,6 @@ type Limiter[K comparable] struct {
 	allowed *atomic.Uint64
 }
 
-// LimiterStat return stats
-type LimiterStat struct {
-	Dropped uint64
-	Allowed uint64
-	Tags    []string
-}
-
 // NewLimiter returns a rate limiter that is sized to the configured number of unique tokens, and each unique token is allowed 'numAllowedTokensPerDuration' times per 'duration'.
 func NewLimiter[K comparable](numUniqueTokens int, numAllowedTokensPerDuration int, duration time.Duration) (*Limiter[K], error) {
 	// num of buckets should be around the number of workloads per profile
