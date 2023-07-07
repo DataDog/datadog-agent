@@ -14,12 +14,9 @@ import (
 	"os"
 	"os/user"
 	"strconv"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var warnOnce sync.Once
 
 // Permission handles permissions for Unix and Windows
 type Permission struct{}
@@ -29,35 +26,24 @@ func NewPermission() (*Permission, error) {
 	return &Permission{}, nil
 }
 
-// return the user dd-agent uid and gid
-func UserDDAgent() (usrID int, grpID int, err error) {
-	usr, err := user.Lookup("dd-agent")
-	if err != nil {
-		return 0, 0, err
-	}
-
-	usrID, err = strconv.Atoi(usr.Uid)
-	if err != nil {
-		return 0, 0, fmt.Errorf("couldn't parse UID (%s): %w", usr.Uid, err)
-	}
-
-	grpID, err = strconv.Atoi(usr.Gid)
-	if err != nil {
-		return 0, 0, fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
-	}
-	return usrID, grpID, nil
-}
-
 // RestrictAccessToUser sets the file user and group to the same as 'dd-agent' user. If the function fails to lookup
 // "dd-agent" user it return nil immediately.
 func (p *Permission) RestrictAccessToUser(path string) error {
-	usrID, grpID, err := UserDDAgent()
+	usr, err := user.Lookup("dd-agent")
 	if err != nil {
-		warnOnce.Do(func() {
-			log.Warnf("dd-agent user not found, skipping restriction")
-		})
 		return nil
 	}
+
+	usrID, err := strconv.Atoi(usr.Uid)
+	if err != nil {
+		return fmt.Errorf("couldn't parse UID (%s): %w", usr.Uid, err)
+	}
+
+	grpID, err := strconv.Atoi(usr.Gid)
+	if err != nil {
+		return fmt.Errorf("couldn't parse GID (%s): %w", usr.Gid, err)
+	}
+
 	if err = os.Chown(path, usrID, grpID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			log.Infof("Cannot change owner of '%s', permission denied", path)
