@@ -99,7 +99,7 @@ func (al *AnomalyDetectionLimiter) SwapStats() []utils.LimiterStat {
 	return al.limiter.SwapStats()
 }
 
-// NewAnomalyDetectionLimiter returns a new anomaly detection limiter
+// NewAnomalyDetectionLimiter returns a new rate limiter which is bucketed by workload ID
 func NewAnomalyDetectionLimiter(numWorkloads int, numEventsAllowedPerDuration int, duration time.Duration) (*AnomalyDetectionLimiter, error) {
 	limiter, err := utils.NewLimiter[string](numWorkloads, numEventsAllowedPerDuration, duration)
 	if err != nil {

@@ -97,10 +97,6 @@ func (l *Limiter[K]) Count(k K) {
 	if entry, ok := l.cache.Get(k); ok {
 		entry.count++
 	} else {
-		entry = &cacheEntry{
-			count: 1,
-			last:  time.Now(),
-		}
-		l.cache.Add(k, entry)
+		l.init(k)
 	}
 }
