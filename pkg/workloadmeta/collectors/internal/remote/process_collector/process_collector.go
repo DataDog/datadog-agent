@@ -142,8 +142,8 @@ func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.Collect
 
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))
 
-	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, protoutils.WorkloadmetaEventFromProcessEventUnset)
-	collectorEvents = handleEvents(collectorEvents, response.SetEvents, protoutils.WorkloadmetaEventFromProcessEventSet)
+	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, WorkloadmetaEventFromProcessEventUnset)
+	collectorEvents = handleEvents(collectorEvents, response.SetEvents, WorkloadmetaEventFromProcessEventSet)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
