@@ -62,7 +62,7 @@ type exe interface {
 // ReadElfBuildInfo extracts the Go toolchain version and module information
 // strings from a Go binary. On success, vers should be non-empty. mod
 // is empty if the binary was not built with modules enabled.
-func ReadElfBuildInfo(elfFile *elf.File) (vers, mod string, err error) {
+func ReadElfBuildInfo(elfFile *elf.File) (vers string, err error) {
 	x := &elfExe{f: elfFile}
 
 	// Read the first 64kB of dataAddr to find the build info blob.
@@ -73,7 +73,7 @@ func ReadElfBuildInfo(elfFile *elf.File) (vers, mod string, err error) {
 	dataAddr := x.DataStart()
 	data, err := x.ReadData(dataAddr, 64*1024)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	const (
 		buildInfoAlign = 16
@@ -82,7 +82,7 @@ func ReadElfBuildInfo(elfFile *elf.File) (vers, mod string, err error) {
 	for {
 		i := bytes.Index(data, buildInfoMagic)
 		if i < 0 || len(data)-i < buildInfoSize {
-			return "", "", ErrNotGoExe
+			return "", ErrNotGoExe
 		}
 		if i%buildInfoAlign == 0 && len(data)-i >= buildInfoSize {
 			data = data[i:]
@@ -104,7 +104,6 @@ func ReadElfBuildInfo(elfFile *elf.File) (vers, mod string, err error) {
 	ptrSize := int(data[14])
 	if data[15]&2 != 0 {
 		vers, data = decodeString(data[32:])
-		mod, _ = decodeString(data)
 	} else {
 		bigEndian := data[15] != 0
 		var bo binary.ByteOrder
@@ -120,20 +119,12 @@ func ReadElfBuildInfo(elfFile *elf.File) (vers, mod string, err error) {
 			readPtr = bo.Uint64
 		}
 		vers = readString(x, ptrSize, readPtr, readPtr(data[16:]))
-		mod = readString(x, ptrSize, readPtr, readPtr(data[16+ptrSize:]))
 	}
 	if vers == "" {
-		return "", "", ErrNotGoExe
-	}
-	if len(mod) >= 33 && mod[len(mod)-17] == '\n' {
-		// Strip module framing: sentinel strings delimiting the module info.
-		// These are cmd/go/internal/modload.infoStart and infoEnd.
-		mod = mod[16 : len(mod)-16]
-	} else {
-		mod = ""
+		return "", ErrNotGoExe
 	}
 
-	return vers, mod, nil
+	return vers, nil
 }
 
 func decodeString(data []byte) (s string, rest []byte) {
