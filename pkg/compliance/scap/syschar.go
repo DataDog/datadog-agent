@@ -49,22 +49,23 @@ func SysChar(doc *Document) (*SystemCharacteristics, error) {
 			o := Object{
 				ID: string(object.Id),
 			}
-			if object.Flag == "complete" {
-				if doc.OvalSystemCharacteristics.SystemData != nil {
-					for _, reference := range object.Reference {
-						for _, item := range doc.OvalSystemCharacteristics.SystemData.Item {
-							if reference.ItemRef != item.Id {
-								continue
-							}
-							i := Item{
-								ID:       item.XMLName.Local,
-								Messages: make(map[string]string, len(item.Message)),
-							}
-							for _, message := range item.Message {
-								i.Messages[message.XMLName.Local] = message.Text
-							}
-							o.Items = append(o.Items, i)
+			if object.Flag != "complete" {
+				continue
+			}
+			if doc.OvalSystemCharacteristics.SystemData != nil {
+				for _, reference := range object.Reference {
+					for _, item := range doc.OvalSystemCharacteristics.SystemData.Item {
+						if reference.ItemRef != item.Id {
+							continue
 						}
+						i := Item{
+							ID:       item.XMLName.Local,
+							Messages: make(map[string]string, len(item.Message)),
+						}
+						for _, message := range item.Message {
+							i.Messages[message.XMLName.Local] = message.Text
+						}
+						o.Items = append(o.Items, i)
 					}
 				}
 			}

@@ -128,6 +128,11 @@ func (ce *CustomEvent) GetType() string {
 	return ce.eventType.String()
 }
 
+// GetWorkloadID returns the workload id
+func (ce *CustomEvent) GetWorkloadID() string {
+	return ""
+}
+
 // GetEventType returns the event type
 func (ce *CustomEvent) GetEventType() model.EventType {
 	return ce.eventType
