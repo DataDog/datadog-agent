@@ -283,6 +283,17 @@ func TestProcessEntityToEventSet(t *testing.T) {
 	}
 }
 
+// TestSingleStream tests that there can only ever be a single stream at one time.
+func TestSingleStream(t *testing.T) {
+	_, _, conn, _ := setupGRPCTest(t)
+
+	stream, err := pbgo.NewProcessEntityStreamClient(conn).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	require.NoError(t, err)
+
+	_, err = stream.Recv()
+	assert.ErrorContains(t, err, streamExistsErr.Error())
+}
+
 func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.ProcessStreamResponse) {
 	t.Helper()
 

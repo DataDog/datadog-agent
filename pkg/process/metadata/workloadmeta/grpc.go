@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var streamExistsErr = errors.New("failed to StreamEntities because a stream already exists")
+
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
 	config    config.ConfigReader
@@ -94,7 +96,7 @@ func (l *GRPCServer) Stop() {
 func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
 	if !l.streamMutex.TryLock() {
 		_ = log.Error("Tried to call StreamEntities but a stream already exists! Check to see that there aren't multiple instances of the agent running at once.")
-		return errors.New("failed to StreamEntities because a stream already exists")
+		return streamExistsErr
 	}
 	defer l.streamMutex.Unlock()
 
