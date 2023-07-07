@@ -41,8 +41,7 @@ const (
 	CWSInstrumentationPodLabelEnabled = "admission.datadoghq.com/cws-instrumentation.enabled"
 )
 
-var labelsToWorkloadEnv = [][2]string{
-	{kubeutil.EnvTagLabelKey, "DD_WORKLOAD_ENV"},
+var labelsToWorkloadEnv = []labelToEnv{
 	{kubeutil.ServiceTagLabelKey, "DD_WORKLOAD_SERVICE"},
 	{kubeutil.KubeAppNameLabelKey, "DD_WORKLOAD_SERVICE"},
 	{kubeutil.VersionTagLabelKey, "DD_WORKLOAD_VERSION"},

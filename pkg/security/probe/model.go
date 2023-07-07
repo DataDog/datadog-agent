@@ -24,7 +24,6 @@ var workloadLabelsAsEnvVars = map[string]string{
 	"DD_WORKLOAD_IMAGE_NAME": "image_name",
 	"DD_WORKLOAD_IMAGE_TAG":  "image_tag",
 	"DD_WORKLOAD_VERSION":    "version",
-	"DD_WORKLOAD_ENV":        "env",
 }
 
 // NewEvent returns a new event
