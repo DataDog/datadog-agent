@@ -130,10 +130,9 @@ func (al *AnomalyDetectionLimiter) SwapStats() []utils.LimiterStat {
 }
 
 // NewAnomalyDetectionLimiter returns a new anomaly detection limiter
-func NewAnomalyDetectionLimiter(numEventsAllowedPerDuration int, duration time.Duration) *AnomalyDetectionLimiter {
-
-	processLimiter, _ := utils.NewLimiter[string](1000, numEventsAllowedPerDuration, duration)
-	networkLimiter, _ := utils.NewLimiter[string](1000, numEventsAllowedPerDuration, duration)
+func NewAnomalyDetectionLimiter(numUniqueTokens int, numEventsAllowedPerDuration int, duration time.Duration) *AnomalyDetectionLimiter {
+	processLimiter, _ := utils.NewLimiter[string](numUniqueTokens, numEventsAllowedPerDuration, duration)
+	networkLimiter, _ := utils.NewLimiter[string](numUniqueTokens, numEventsAllowedPerDuration, duration)
 	return &AnomalyDetectionLimiter{
 		processLimiter: processLimiter,
 		networkLimiter: networkLimiter,
@@ -164,7 +163,7 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 		limiters[id] = limiter
 	}
 
-	limiters[AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(100, rl.config.AnomalyDetectionRateLimiter)
+	limiters[AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumBuckets, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiter)
 }
 
 // Apply a set of rules
