@@ -18,6 +18,13 @@ type cacheEntry struct {
 	last  time.Time
 }
 
+// LimiterStat return stats
+type LimiterStat struct {
+	Dropped uint64
+	Allowed uint64
+	Tags    []string
+}
+
 // Limiter defines a rate limiter which limits tokens to 'numAllowedTokensPerDuration' per 'duration'
 type Limiter[K comparable] struct {
 	cache                       *simplelru.LRU[K, *cacheEntry]
