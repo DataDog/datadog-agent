@@ -183,6 +183,20 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     )
     outfiles.append(syscall_wrapper_outfile)
 
+    # fentry + syscall wrapper
+    root, ext = os.path.splitext(outfile)
+    syscall_wrapper_outfile = f"{root}-fentry{ext}"
+    ninja_ebpf_program(
+        nw,
+        infile=infile,
+        outfile=syscall_wrapper_outfile,
+        variables={
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
+            "kheaders": kheaders,
+        },
+    )
+    outfiles.append(syscall_wrapper_outfile)
+
     # offset guesser
     offset_guesser_outfile = os.path.join(build_dir, "runtime-security-offset-guesser.o")
     ninja_ebpf_program(
@@ -250,6 +264,10 @@ def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(
+            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
+        )
 
 
 def ninja_runtime_compilation_files(nw, gobin):
@@ -336,13 +354,14 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
-            "pkg/network/protocols/http/http_types.go": [
+            "pkg/network/protocols/http/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",
+                "pkg/network/ebpf/c/protocols/tls/sowatcher-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
-            "pkg/network/protocols/http/http2_types.go": [
+            "pkg/network/protocols/http2/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],
@@ -358,6 +377,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/tcp_queue_length_kern_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
             ],
         }
         nw.rule(
@@ -709,12 +731,10 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
         for gobin in ["gotls_client", "sowatcher_client", "prefetch_file"]:
-            client_dir = os.path.join("testutil", gobin)
-            extra_path = os.path.join(pkg, client_dir)
-            if not windows and os.path.isdir(extra_path):
-                client_binary = os.path.join(client_dir, gobin)
-                binary_path = os.path.join(target_path, client_binary)
-                with chdir(extra_path):
+            src_file_path = os.path.join(pkg, f"{gobin}.go")
+            if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
+                binary_path = os.path.join(target_path, gobin)
+                with chdir(pkg):
                     ctx.run(f"go build -o {binary_path} -ldflags=\"-extldflags '-static'\" {gobin}.go")
 
     gopath = os.getenv("GOPATH")
@@ -1201,7 +1221,7 @@ def build_object_files(
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
-        java_dir = os.path.join("pkg", "network", "java")
+        java_dir = os.path.join("pkg", "network", "protocols", "tls", "java")
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_JAVA_DIR}")
         ctx.run(f"{sudo} install -m644 -oroot -groot {java_dir}/agent-usm.jar {EMBEDDED_SHARE_JAVA_DIR}/agent-usm.jar")
 
@@ -1524,29 +1544,39 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
 
 @task
-def test_microvms(
+def start_microvms(
     ctx,
-    security_groups=None,
-    subnets=None,
+    infra_env,
     instance_type_x86=None,
     instance_type_arm=None,
     x86_ami_id=None,
     arm_ami_id=None,
     destroy=False,
-    upload_dependencies=False,
+    ssh_key_name=None,
+    ssh_key_path=None,
+    dependencies_dir=None,
+    shutdown_period=320,
+    stack_name="kernel-matrix-testing-system",
+    vmconfig=None,
+    local=False,
 ):
     args = [
-        f"--sgs {security_groups}" if security_groups is not None else "",
-        f"--subnets {subnets}" if subnets is not None else "",
-        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
-        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
-        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
-        f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id else "",
         "--destroy" if destroy else "",
-        "--upload-dependencies" if upload_dependencies else "",
+        f"--ssh-key-path {ssh_key_path}" if ssh_key_path else "",
+        f"--ssh-key-name {ssh_key_name}" if ssh_key_name else "",
+        f"--infra-env {infra_env}",
+        f"--shutdown-period {shutdown_period}",
+        f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
+        f"--name {stack_name}",
+        f"--vmconfig {vmconfig}" if vmconfig else "",
+        "--local" if local else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
     ctx.run(
-        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
     )

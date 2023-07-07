@@ -3,12 +3,12 @@
 # https://github.com/confluentinc/confluent-kafka-python/blob/master/tools/windows-install-librdkafka.bat
 
 name "librdkafka"
-default_version "2.0.2"
+default_version "2.1.1"
 
 dependency "cyrus-sasl"
 
 source :url => "https://github.com/confluentinc/librdkafka/archive/refs/tags/v#{version}.tar.gz",
-        :sha256 => "f321bcb1e015a34114c83cf1aa7b99ee260236aab096b85c003170c90a47ca9d",
+        :sha256 => "7be1fc37ab10ebdc037d5c5a9b35b48931edafffae054b488faaff99e60e0108",
         :extract => :seven_zip
 
 relative_path "librdkafka-#{version}"

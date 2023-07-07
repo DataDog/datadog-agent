@@ -96,6 +96,7 @@ func TestExecCommandError(t *testing.T) {
 	setCorrectRight(secretBackendCommand)
 	secretBackendTimeout = 2
 	_, err = execCommand(inputPayload)
+	secretBackendTimeout = 5
 	require.NotNil(t, err)
 	require.Equal(t, "error while running './test/timeout/timeout"+binExtension+"': command timeout", err.Error())
 

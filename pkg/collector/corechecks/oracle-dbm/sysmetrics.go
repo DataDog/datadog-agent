@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package oracle
 
 import (
 	"database/sql"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -109,7 +111,7 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"User Rollbacks Per Sec":                   {DDmetric: "user_rollbacks"},
 }
 
-func (c *Check) sendMetric(s aggregator.Sender, r SysmetricsRowDB, seen map[string]bool) {
+func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]bool) {
 	if metric, ok := SYSMETRICS_COLS[r.MetricName]; ok {
 		value := r.Value
 		if r.MetricUnit == "CentiSeconds Per Second" {
@@ -130,7 +132,7 @@ func (c *Check) SysMetrics() error {
 	}
 
 	metricRows := []SysmetricsRowDB{}
-	err = c.db.Select(&metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$con_sysmetric"))
+	err = selectWrapper(c, &metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$con_sysmetric"))
 	if err != nil {
 		return fmt.Errorf("failed to collect container sysmetrics: %w", err)
 	}
@@ -140,7 +142,7 @@ func (c *Check) SysMetrics() error {
 	}
 
 	seenInGlobalMetrics := make(map[string]bool)
-	err = c.db.Select(&metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
+	err = selectWrapper(c, &metricRows, fmt.Sprintf(SYSMETRICS_QUERY, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
 	if err != nil {
 		return fmt.Errorf("failed to collect sysmetrics: %w", err)
 	}

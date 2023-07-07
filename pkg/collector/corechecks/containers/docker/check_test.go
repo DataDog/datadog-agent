@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -104,7 +104,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 
 func TestDockerCustomPart(t *testing.T) {
 	// Mocksender
-	mockSender := mocksender.NewMockSender(check.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := local.NewFakeTagger()
@@ -230,11 +230,11 @@ func TestDockerCustomPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.volume.count", 10, "", []string{"volume_state:attached"})
 	mockSender.AssertMetric(t, "Gauge", "docker.volume.count", 2, "", []string{"volume_state:dangling"})
 
-	mockSender.AssertServiceCheck(t, DockerServiceUp, coreMetrics.ServiceCheckOK, "", nil, "")
+	mockSender.AssertServiceCheck(t, DockerServiceUp, servicecheck.ServiceCheckOK, "", nil, "")
 }
 
 func TestContainersRunning(t *testing.T) {
-	mockSender := mocksender.NewMockSender(check.ID(t.Name()))
+	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
 	// Define tags for 3 different containers. The first 2 have the same tags.

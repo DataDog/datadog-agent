@@ -31,6 +31,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -518,7 +519,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 		return nil, err
 	}
 
-	kind := model.ParseEvalEventType(eventData.Type)
+	kind := secconfig.ParseEvalEventType(eventData.Type)
 	if kind == model.UnknownEventType {
 		return nil, errors.New("unknown event type")
 	}
@@ -661,11 +662,12 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 		return nil, nil
 	}
 
-	logProfiledWorkloads := config.GetBool("runtime_security_config.log_profiled_workloads")
-
 	// start/stop order is important, agent need to be stopped first and started after all the others
 	// components
-	agent, err := secagent.NewRuntimeSecurityAgent(hostname, logProfiledWorkloads)
+	agent, err := secagent.NewRuntimeSecurityAgent(hostname, secagent.RSAOptions{
+		LogProfiledWorkloads:    config.GetBool("runtime_security_config.log_profiled_workloads"),
+		IgnoreDDAgentContainers: config.GetBool("runtime_security_config.telemetry.ignore_dd_agent_containers"),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}

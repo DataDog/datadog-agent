@@ -11,34 +11,36 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 func TestLanguageFromCommandline(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		cmdline  []string
-		expected LanguageName
+		expected languagemodels.LanguageName
 		error    bool
 	}{
 		{
 			name:     "Python",
 			cmdline:  []string{"C:\\Program Files\\Python3.9\\Python.exe", "test.py"},
-			expected: Python,
+			expected: languagemodels.Python,
 		},
 		{
 			name:     "Java",
 			cmdline:  []string{"C:\\Program Files\\Java\\Java.exe", "main.Java"},
-			expected: Java,
+			expected: languagemodels.Java,
 		},
 		{
 			name:     "ingore javac",
 			cmdline:  []string{"C:\\Program Files\\Java\\javac.exe", "main.Java"},
-			expected: Unknown,
+			expected: languagemodels.Unknown,
 		},
 		{
 			name:     "dotnet",
 			cmdline:  []string{"dotnet", "BankApp.dll"},
-			expected: Dotnet,
+			expected: languagemodels.Dotnet,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

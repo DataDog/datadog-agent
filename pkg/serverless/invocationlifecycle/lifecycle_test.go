@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -28,7 +30,8 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	}
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 
 	endInvocationTime := time.Now()
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
@@ -58,7 +61,8 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -92,7 +96,8 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
 
@@ -121,7 +126,8 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -169,7 +175,8 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	var tracePayload *api.Payload
@@ -203,11 +210,13 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 
 func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_SERVICE", "mock-lambda-service")
 
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -254,7 +263,9 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	httpStatusCode := testProcessor.GetInferredSpan().Span.GetMeta()["http.status_code"]
+	peerService := testProcessor.GetInferredSpan().Span.GetMeta()["peer.service"]
 	assert.NotNil(t, httpStatusCode)
+	assert.Equal(t, peerService, "mock-lambda-service")
 	assert.Equal(t, testProcessor.GetInferredSpan().Span.Start, completedInferredSpan.Start)
 }
 
@@ -264,7 +275,8 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -349,7 +361,8 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -439,7 +452,8 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -525,7 +539,8 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -609,7 +624,8 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{

@@ -52,10 +52,12 @@ func fileTestSetup(t *testing.T) {
 	})
 }
 
-func makeTestPod() *workloadmeta.KubernetesPod {
-	return &workloadmeta.KubernetesPod{
+func makeTestPod() (*workloadmeta.KubernetesPod, *workloadmeta.Container) {
+	podID := "poduuid"
+	containerID := "abc"
+	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
-			ID:   "poduuid",
+			ID:   podID,
 			Kind: workloadmeta.KindKubernetesPod,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
@@ -64,7 +66,7 @@ func makeTestPod() *workloadmeta.KubernetesPod {
 		},
 		Containers: []workloadmeta.OrchestratorContainer{
 			{
-				ID:   "abc",
+				ID:   containerID,
 				Name: "cname",
 				Image: workloadmeta.ContainerImage{
 					Name: "iname",
@@ -72,6 +74,19 @@ func makeTestPod() *workloadmeta.KubernetesPod {
 			},
 		},
 	}
+
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+	}
+
+	return pod, container
 }
 
 func TestMakeFileSource_docker_success(t *testing.T) {
@@ -176,7 +191,9 @@ func TestMakeK8sSource(t *testing.T) {
 	wildcard := filepath.Join(dir, "*.log")
 
 	store := workloadmeta.NewMockStore()
-	store.SetEntity(makeTestPod())
+	pod, container := makeTestPod()
+	store.SetEntity(pod)
+	store.SetEntity(container)
 
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
@@ -258,8 +275,8 @@ func TestFindK8sLogPath(t *testing.T) {
 			defer func() {
 				require.NoError(t, os.RemoveAll(podLogsBasePath))
 			}()
-
-			gotPattern := findK8sLogPath(makeTestPod(), "cname")
+			pod, _ := makeTestPod()
+			gotPattern := findK8sLogPath(pod, "cname")
 			require.Equal(t, filepath.Join(podLogsBasePath, expectedPattern), gotPattern)
 		})
 	}

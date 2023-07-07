@@ -421,6 +421,7 @@ core,github.com/aws/aws-sdk-go-v2/internal/ini,Apache-2.0,"Copyright 2014-2015 S
 core,github.com/aws/aws-sdk-go-v2/internal/rand,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/sdk,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/sdkio,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/internal/shareddefaults,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/strings,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/sync/singleflight,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/internal/timeconv,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -530,6 +531,12 @@ core,github.com/cavaliergopher/grab/v3,BSD-3-Clause,Copyright (c) 2017 Ryan Arms
 core,github.com/cavaliergopher/grab/v3/pkg/bps,BSD-3-Clause,Copyright (c) 2017 Ryan Armstrong. All rights reserved
 core,github.com/cenkalti/backoff,MIT,Copyright (c) 2014 Cenk Altı
 core,github.com/cenkalti/backoff/v4,MIT,Copyright (c) 2014 Cenk Altı
+core,github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1,Apache-2.0,Google Inc.
+core,github.com/census-instrumentation/opencensus-proto/gen-go/agent/metrics/v1,Apache-2.0,Google Inc.
+core,github.com/census-instrumentation/opencensus-proto/gen-go/agent/trace/v1,Apache-2.0,Google Inc.
+core,github.com/census-instrumentation/opencensus-proto/gen-go/metrics/v1,Apache-2.0,Google Inc.
+core,github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1,Apache-2.0,Google Inc.
+core,github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1,Apache-2.0,Google Inc.
 core,github.com/cespare/xxhash/v2,MIT,Copyright (c) 2016 Caleb Spare
 core,github.com/cihub/seelog,BSD-3-Clause,"Copyright (c) 2012, Cloud Instruments Co., Ltd. <info@cin.io>"
 core,github.com/cilium/ebpf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -538,7 +545,9 @@ core,github.com/cilium/ebpf/btf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright
 core,github.com/cilium/ebpf/features,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/epoll,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
+core,github.com/cilium/ebpf/internal/kconfig,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/sys,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
+core,github.com/cilium/ebpf/internal/tracefs,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/unix,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/perf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/ringbuf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -817,7 +826,7 @@ core,github.com/go-redis/redis/v9/internal/pool,BSD-2-Clause,Copyright (c) 2013 
 core,github.com/go-redis/redis/v9/internal/proto,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
 core,github.com/go-redis/redis/v9/internal/rand,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
 core,github.com/go-redis/redis/v9/internal/util,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
-core,github.com/go-sql-driver/mysql,MPL-2.0,"Aaron Hopkins <go-sql-driver at die.net> | Achille Roussel <achille.roussel at gmail.com> | Alex Snast <alexsn at fb.com> | Alexey Palazhchenko <alexey.palazhchenko at gmail.com> | Andrew Reid <andrew.reid at tixtrack.com> | Animesh Ray <mail.rayanimesh at gmail.com> | Ariel Mashraki <ariel at mashraki.co.il> | Arne Hormann <arnehormann at gmail.com> | Asta Xie <xiemengjun at gmail.com> | Barracuda Networks, Inc. | Bulat Gaifullin <gaifullinbf at gmail.com> | Caine Jette <jette at alum.mit.edu> | Carlos Nieto <jose.carlos at menteslibres.net> | Chris Kirkland <chriskirkland at github.com> | Chris Moos <chris at tech9computers.com> | Counting Ltd. | Craig Wilson <craiggwilson at gmail.com> | Daniel Montoya <dsmontoyam at gmail.com> | Daniel Nichter <nil at codenode.com> | Daniël van Eeden <git at myname.nl> | Dave Protasowski <dprotaso at gmail.com> | DigitalOcean Inc. | DisposaBoy <disposaboy at dby.me> | Egor Smolyakov <egorsmkv at gmail.com> | Erwan Martin <hello at erwan.io> | Evan Shaw <evan at vendhq.com> | Facebook Inc. | Frederick Mayle <frederickmayle at gmail.com> | GitHub Inc. | Google Inc. | Gustavo Kristic <gkristic at gmail.com> | Hajime Nakagami <nakagami at gmail.com> | Hanno Braun <mail at hannobraun.com> | Henri Yandell <flamefew at gmail.com> | Hirotaka Yamamoto <ymmt2005 at gmail.com> | Huyiguang <hyg at webterren.com> | ICHINOSE Shogo <shogo82148 at gmail.com> | INADA Naoki <songofacandy at gmail.com> | Ilia Cimpoes <ichimpoesh at gmail.com> | InfoSum Ltd. | Jacek Szwec <szwec.jacek at gmail.com> | James Harr <james.harr at gmail.com> | Janek Vedock <janekvedock at comcast.net> | Jeff Hodges <jeff at somethingsimilar.com> | Jeffrey Charles <jeffreycharles at gmail.com> | Jerome Meyer <jxmeyer at gmail.com> | Jiajia Zhong <zhong2plus at gmail.com> | Jian Zhen <zhenjl at gmail.com> | Joshua Prunier <joshua.prunier at gmail.com> | Julien Lefevre <julien.lefevr at gmail.com> | Julien Schmidt <go-sql-driver at julienschmidt.com> | Justin Li <jli at j-li.net> | Justin Nuß <nuss.justin at gmail.com> | Kamil Dziedzic <kamil at klecza.pl> | Kei Kamikawa <x00.x7f.x86 at gmail.com> | Kevin Malachowski <kevin at chowski.com> | Keybase Inc. | Kieron Woodhouse <kieron.woodhouse at infosum.com> | Lance Tian <lance6716 at gmail.com> | Lennart Rudolph <lrudolph at hmc.edu> | Leonardo YongUk Kim <dalinaum at gmail.com> | Linh Tran Tuan <linhduonggnu at gmail.com> | Lion Yang <lion at aosc.xyz> | Luca Looz <luca.looz92 at gmail.com> | Lucas Liu <extrafliu at gmail.com> | Luke Scott <luke at webconnex.com> | Lunny Xiao <xiaolunwen at gmail.com> | Maciej Zimnoch <maciej.zimnoch at codilime.com> | Michael Woolnough <michael.woolnough at gmail.com> | Multiplay Ltd. | Nathanial Murphy <nathanial.murphy at gmail.com> | Nicola Peduzzi <thenikso at gmail.com> | Olivier Mengué <dolmen at cpan.org> | Paul Bonser <misterpib at gmail.com> | Percona LLC | Peter Schultz <peter.schultz at classmarkets.com> | Pivotal Inc. | Rebecca Chin <rchin at pivotal.io> | Reed Allman <rdallman10 at gmail.com> | Richard Wilkes <wilkes at me.com> | Robert Russell <robert at rrbrussell.com> | Runrioter Wung <runrioter at gmail.com> | Santhosh Kumar Tekuri <santhosh.tekuri at gmail.com> | Sho Iizuka <sho.i518 at gmail.com> | Sho Ikeda <suicaicoca at gmail.com> | Shuode Li <elemount at qq.com> | Simon J Mudd <sjmudd at pobox.com> | Soroush Pour <me at soroushjp.com> | Stan Putrya <root.vagner at gmail.com> | Stanley Gunawan <gunawan.stanley at gmail.com> | Steven Hartland <steven.hartland at multiplay.co.uk> | Stripe Inc. | Tan Jinhua <312841925 at qq.com> | Thomas Wodarek <wodarekwebpage at gmail.com> | Tim Ruffles <timruffles at gmail.com> | Tom Jenkinson <tom at tjenkinson.me> | Vladimir Kovpak <cn007b at gmail.com> | Vladyslav Zhelezniak <zhvladi at gmail.com> | Xiangyu Hu <xiangyu.hu at outlook.com> | Xiaobing Jiang <s7v7nislands at gmail.com> | Xiuming Chen <cc at cxm.cc> | Xuehong Chan <chanxuehong at gmail.com> | Zendesk Inc. | Zhenye Xie <xiezhenye at gmail.com> | Zhixin Wen <john.wenzhixin at gmail.com> | Ziheng Lyu <zihenglv at gmail.com> | copyright doctrines of fair use, fair dealing, or other | dyves labs AG | oscarzhao <oscarzhaosl at gmail.com>"
+core,github.com/go-sql-driver/mysql,MPL-2.0,"Aaron Hopkins <go-sql-driver at die.net> | Achille Roussel <achille.roussel at gmail.com> | Alex Snast <alexsn at fb.com> | Alexey Palazhchenko <alexey.palazhchenko at gmail.com> | Andrew Reid <andrew.reid at tixtrack.com> | Animesh Ray <mail.rayanimesh at gmail.com> | Ariel Mashraki <ariel at mashraki.co.il> | Arne Hormann <arnehormann at gmail.com> | Asta Xie <xiemengjun at gmail.com> | Barracuda Networks, Inc. | Bulat Gaifullin <gaifullinbf at gmail.com> | Caine Jette <jette at alum.mit.edu> | Carlos Nieto <jose.carlos at menteslibres.net> | Chris Kirkland <chriskirkland at github.com> | Chris Moos <chris at tech9computers.com> | Counting Ltd. | Craig Wilson <craiggwilson at gmail.com> | Daniel Montoya <dsmontoyam at gmail.com> | Daniel Nichter <nil at codenode.com> | Daniël van Eeden <git at myname.nl> | Dave Protasowski <dprotaso at gmail.com> | DigitalOcean Inc. | DisposaBoy <disposaboy at dby.me> | Egor Smolyakov <egorsmkv at gmail.com> | Erwan Martin <hello at erwan.io> | Evan Shaw <evan at vendhq.com> | Facebook Inc. | Frederick Mayle <frederickmayle at gmail.com> | GitHub Inc. | Google Inc. | Gustavo Kristic <gkristic at gmail.com> | Hajime Nakagami <nakagami at gmail.com> | Hanno Braun <mail at hannobraun.com> | Henri Yandell <flamefew at gmail.com> | Hirotaka Yamamoto <ymmt2005 at gmail.com> | Huyiguang <hyg at webterren.com> | ICHINOSE Shogo <shogo82148 at gmail.com> | INADA Naoki <songofacandy at gmail.com> | Ilia Cimpoes <ichimpoesh at gmail.com> | InfoSum Ltd. | Jacek Szwec <szwec.jacek at gmail.com> | James Harr <james.harr at gmail.com> | Janek Vedock <janekvedock at comcast.net> | Jeff Hodges <jeff at somethingsimilar.com> | Jeffrey Charles <jeffreycharles at gmail.com> | Jerome Meyer <jxmeyer at gmail.com> | Jiajia Zhong <zhong2plus at gmail.com> | Jian Zhen <zhenjl at gmail.com> | Joshua Prunier <joshua.prunier at gmail.com> | Julien Lefevre <julien.lefevr at gmail.com> | Julien Schmidt <go-sql-driver at julienschmidt.com> | Justin Li <jli at j-li.net> | Justin Nuß <nuss.justin at gmail.com> | Kamil Dziedzic <kamil at klecza.pl> | Kei Kamikawa <x00.x7f.x86 at gmail.com> | Kevin Malachowski <kevin at chowski.com> | Keybase Inc. | Kieron Woodhouse <kieron.woodhouse at infosum.com> | Lance Tian <lance6716 at gmail.com> | Lennart Rudolph <lrudolph at hmc.edu> | Leonardo YongUk Kim <dalinaum at gmail.com> | Linh Tran Tuan <linhduonggnu at gmail.com> | Lion Yang <lion at aosc.xyz> | Luca Looz <luca.looz92 at gmail.com> | Lucas Liu <extrafliu at gmail.com> | Luke Scott <luke at webconnex.com> | Lunny Xiao <xiaolunwen at gmail.com> | Maciej Zimnoch <maciej.zimnoch at codilime.com> | Michael Woolnough <michael.woolnough at gmail.com> | Multiplay Ltd. | Nathanial Murphy <nathanial.murphy at gmail.com> | Nicola Peduzzi <thenikso at gmail.com> | Olivier Mengué <dolmen at cpan.org> | Paul Bonser <misterpib at gmail.com> | Percona LLC | Peter Schultz <peter.schultz at classmarkets.com> | Phil Porada <philporada at gmail.com> | Pivotal Inc. | Rebecca Chin <rchin at pivotal.io> | Reed Allman <rdallman10 at gmail.com> | Richard Wilkes <wilkes at me.com> | Robert Russell <robert at rrbrussell.com> | Runrioter Wung <runrioter at gmail.com> | Samantha Frank <hello at entropy.cat> | Santhosh Kumar Tekuri <santhosh.tekuri at gmail.com> | Sho Iizuka <sho.i518 at gmail.com> | Sho Ikeda <suicaicoca at gmail.com> | Shuode Li <elemount at qq.com> | Simon J Mudd <sjmudd at pobox.com> | Soroush Pour <me at soroushjp.com> | Stan Putrya <root.vagner at gmail.com> | Stanley Gunawan <gunawan.stanley at gmail.com> | Steven Hartland <steven.hartland at multiplay.co.uk> | Stripe Inc. | Tan Jinhua <312841925 at qq.com> | Thomas Wodarek <wodarekwebpage at gmail.com> | Tim Ruffles <timruffles at gmail.com> | Tom Jenkinson <tom at tjenkinson.me> | Vladimir Kovpak <cn007b at gmail.com> | Vladyslav Zhelezniak <zhvladi at gmail.com> | Xiangyu Hu <xiangyu.hu at outlook.com> | Xiaobing Jiang <s7v7nislands at gmail.com> | Xiuming Chen <cc at cxm.cc> | Xuehong Chan <chanxuehong at gmail.com> | Zendesk Inc. | Zhenye Xie <xiezhenye at gmail.com> | Zhixin Wen <john.wenzhixin at gmail.com> | Ziheng Lyu <zihenglv at gmail.com> | copyright doctrines of fair use, fair dealing, or other | dyves labs AG | oscarzhao <oscarzhaosl at gmail.com>"
 core,github.com/gobwas/glob,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/compiler,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/match,MIT,Copyright (c) 2016 Sergey Kamardin
@@ -826,6 +835,19 @@ core,github.com/gobwas/glob/syntax/ast,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/syntax/lexer,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/runes,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/strings,MIT,Copyright (c) 2016 Sergey Kamardin
+core,github.com/gocomply/scap/pkg/scap/constants,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/cdf,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/cpe,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/cpe_dict,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/cpe_language,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/ds,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/er,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/inter,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/oval,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/oval_def,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/oval_res,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/oval_sc,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
+core,github.com/gocomply/scap/pkg/scap/models/xml_dsig,CC0-1.0,"Copyright and | Copyright and Related | Copyright and Related Rights (defined below) upon the creator | Copyright and Related Rights and associated claims and causes | Copyright and Related Rights in the | Copyright and Related Rights in the Work | Copyright and Related Rights in the Work, voluntarily | Copyright and Related Rights include, but are not | Copyright and Related Rights. A Work made available under CC0 may be"
 core,github.com/godbus/dbus,BSD-2-Clause,"Copyright (c) 2013, Georg Reinke (<guelfey at gmail dot com>), Google"
 core,github.com/godbus/dbus/v5,BSD-2-Clause,"Copyright (c) 2013, Georg Reinke (<guelfey at gmail dot com>), Google"
 core,github.com/godror/godror,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
@@ -911,7 +933,6 @@ core,github.com/google/pprof/internal/symbolizer,Apache-2.0,Andrew Hunter <andre
 core,github.com/google/pprof/internal/symbolz,Apache-2.0,Andrew Hunter <andrewhhunter@gmail.com> | Google Inc. | Hyoun Kyu Cho <netforce@google.com> | Martin Spier <spiermar@gmail.com> | Raul Silvera <rsilvera@google.com> | Taco de Wolff <tacodewolff@gmail.com> | Tipp Moseley <tipp@google.com>
 core,github.com/google/pprof/internal/transport,Apache-2.0,Andrew Hunter <andrewhhunter@gmail.com> | Google Inc. | Hyoun Kyu Cho <netforce@google.com> | Martin Spier <spiermar@gmail.com> | Raul Silvera <rsilvera@google.com> | Taco de Wolff <tacodewolff@gmail.com> | Tipp Moseley <tipp@google.com>
 core,github.com/google/pprof/profile,Apache-2.0,Andrew Hunter <andrewhhunter@gmail.com> | Google Inc. | Hyoun Kyu Cho <netforce@google.com> | Martin Spier <spiermar@gmail.com> | Raul Silvera <rsilvera@google.com> | Taco de Wolff <tacodewolff@gmail.com> | Tipp Moseley <tipp@google.com>
-core,github.com/google/pprof/third_party/d3,BSD-3-Clause,Andrew Hunter <andrewhhunter@gmail.com> | Copyright 2010-2017 Mike Bostock | Google Inc. | Hyoun Kyu Cho <netforce@google.com> | Martin Spier <spiermar@gmail.com> | Raul Silvera <rsilvera@google.com> | Taco de Wolff <tacodewolff@gmail.com> | Tipp Moseley <tipp@google.com>
 core,github.com/google/pprof/third_party/d3flamegraph,Apache-2.0,Andrew Hunter <andrewhhunter@gmail.com> | Google Inc. | Hyoun Kyu Cho <netforce@google.com> | Martin Spier <spiermar@gmail.com> | Raul Silvera <rsilvera@google.com> | Taco de Wolff <tacodewolff@gmail.com> | Tipp Moseley <tipp@google.com>
 core,github.com/google/pprof/third_party/svgpan,BSD-3-Clause,Andrew Hunter <andrewhhunter@gmail.com> | Copyright 2009-2017 Andrea Leofreddi <a.leofreddi@vleo.net>. All rights reserved | Google Inc. | Hyoun Kyu Cho <netforce@google.com> | Martin Spier <spiermar@gmail.com> | Raul Silvera <rsilvera@google.com> | Taco de Wolff <tacodewolff@gmail.com> | Tipp Moseley <tipp@google.com>
 core,github.com/google/s2a-go,Apache-2.0,Copyright (c) 2020 Google
@@ -1009,8 +1030,6 @@ core,github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v0.2,Apache-2.0,C
 core,github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v1,Apache-2.0,Copyright 2018 New York University
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2022 Alan Shreve (@inconshreveable)
 core,github.com/invopop/jsonschema,MIT,Copyright (C) 2014 Alec Thomas
-core,github.com/iovisor/gobpf/pkg/cpupossible,Apache-2.0,Copyright 2016 Kinvolk | Copyright 2016 PLUMgrid
-core,github.com/iovisor/gobpf/pkg/cpurange,Apache-2.0,Copyright 2016 Kinvolk | Copyright 2016 PLUMgrid
 core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2023 itchyny
 core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2022 itchyny
 core,github.com/jbenet/go-context/io,MIT,Copyright (c) 2014 Juan Batiz-Benet
@@ -1055,6 +1074,7 @@ core,github.com/knqyf263/go-rpmdb/pkg/sqlite3,MIT,Copyright (c) 2019 Teppei Fuku
 core,github.com/knqyf263/nested,MIT,Copyright (c) 2019 Teppei Fukuda
 core,github.com/liamg/jfather,MIT,Copyright (c) 2022 Liam Galvin
 core,github.com/libp2p/go-reuseport,ISC,Copyright (c) 2013 Conformal Systems LLC
+core,github.com/lorenzosaino/go-sysctl,BSD-3-Clause,"Copyright (c) 2018, Lorenzo Saino"
 core,github.com/lufia/plan9stats,BSD-3-Clause,"Copyright (c) 2019, KADOTA, Kyohei"
 core,github.com/lunixbochs/struc,MIT,Copyright (c) 2015 Ryan Hileman
 core,github.com/lxn/walk,BSD-3-Clause,Copyright (c) 2010 The Walk Authors. All rights reserved.
@@ -1209,7 +1229,14 @@ core,github.com/open-policy-agent/opa/tracing,Apache-2.0,Copyright 2016 The OPA 
 core,github.com/open-policy-agent/opa/types,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/version,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/occonventions,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/tracetranslator,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/opencensus,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver/internal/ocmetrics,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver/internal/octrace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/opencontainers/go-digest,Apache-2.0,"Copyright 2016 Docker, Inc | Copyright 2019, 2020 OCI Contributors | Copyright © 2016 Docker, Inc | Copyright © 2019, 2020 OCI Contributors"
 core,github.com/opencontainers/image-spec/identity,Apache-2.0,Copyright 2016 The Linux Foundation
 core,github.com/opencontainers/image-spec/specs-go,Apache-2.0,Copyright 2016 The Linux Foundation
@@ -1311,6 +1338,7 @@ core,github.com/sirupsen/logrus,MIT,Copyright (c) 2014 Simon Eskildsen
 core,github.com/skydive-project/go-debouncer,Apache-2.0,"Copyright (C) 2018 Red Hat, Inc."
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Copyright (c) 2014 Andrey Smirnov
 core,github.com/smira/go-xz,MIT,Copyright (c) 2015 Andrey Smirnov
+core,github.com/soheilhy/cmux,Apache-2.0,Andreas Jaekle <andreas@jaekle.net> | Copyright 2016 The CMux Authors. All rights reserved | Dmitri Shuralyov <shurcooL@gmail.com> | Ethan Mosbaugh <emosbaugh@gmail.com> | Soheil Hassas Yeganeh <soheil.h.y@gmail.com> | Soheil Hassas Yeganeh <soheil@cs.toronto.edu> | Tamir Duberstein <tamir@cockroachlabs.com> | Tamir Duberstein <tamird@gmail.com>
 core,github.com/spaolacci/murmur3,BSD-3-Clause,"Copyright 2013, Sébastien Paolacci"
 core,github.com/spdx/tools-golang/jsonloader,Apache-2.0,Copyright (c) 2018 The Authors
 core,github.com/spdx/tools-golang/jsonloader/parser2v2,Apache-2.0,Copyright (c) 2018 The Authors
@@ -1447,6 +1475,12 @@ core,go.mongodb.org/mongo-driver/bson/bsontype,Apache-2.0,"Copyright © 2018 Mon
 core,go.mongodb.org/mongo-driver/bson/primitive,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/event,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/internal,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/aws,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/aws/awserr,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/aws/credentials,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/aws/signer/v4,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/credproviders,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/internal/logger,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/internal/randutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/internal/randutil/rand,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/internal/uuid,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
@@ -1459,11 +1493,10 @@ core,go.mongodb.org/mongo-driver/mongo/readpref,Apache-2.0,"Copyright © 2018 Mo
 core,go.mongodb.org/mongo-driver/mongo/writeconcern,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/tag,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/version,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/bsonx,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/x/bsonx/bsoncore,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/x/mongo/driver,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/x/mongo/driver/auth,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
-core,go.mongodb.org/mongo-driver/x/mongo/driver/auth/internal/awsv4,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/x/mongo/driver/auth/creds,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/x/mongo/driver/auth/internal/gssapi,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/x/mongo/driver/connstring,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/x/mongo/driver/dns,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
@@ -1485,6 +1518,7 @@ core,go.opencensus.io/plugin/ocgrpc,Apache-2.0,"Copyright 2018, OpenCensus Autho
 core,go.opencensus.io/plugin/ochttp,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/plugin/ochttp/propagation/b3,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/resource,Apache-2.0,"Copyright 2018, OpenCensus Authors"
+core,go.opencensus.io/resource/resourcekeys,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/stats,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/stats/internal,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opencensus.io/stats/view,Apache-2.0,"Copyright 2018, OpenCensus Authors"
@@ -1689,6 +1723,9 @@ core,golang.org/x/crypto/ssh/terminal,BSD-3-Clause,Copyright (c) 2009 The Go Aut
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/slices,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
+core,golang.org/x/lint/golint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/net/bpf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/context,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/context/ctxhttp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1960,6 +1997,46 @@ core,gopkg.in/warnings.v0,BSD-2-Clause,Copyright (c) 2016 Péter Surányi
 core,gopkg.in/yaml.v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/yaml.v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,Copyright (c) 2013 by authors and contributors | Copyright 2013-2019 by authors and contributors
+core,honnef.co/go/tools/analysis/code,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/edit,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/deprecated,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/directives,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/generated,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/nilness,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/purity,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/tokenfile,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/facts/typedness,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/lint,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/report,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/cmd/staticcheck,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/config,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/go/ast/astutil,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/go/buildid,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/go/ir,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2016 Dominik Honnef | Copyright (c) 2016 Dominik Honnef. All rights reserved
+core,honnef.co/go/tools/go/ir/irutil,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2016 Dominik Honnef | Copyright (c) 2016 Dominik Honnef. All rights reserved
+core,honnef.co/go/tools/go/loader,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/go/types/typeutil,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/passes/buildir,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/renameio,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/robustio,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/sharedcheck,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/sync,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/knowledge,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/lintcmd,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/lintcmd/cache,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/lintcmd/runner,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/lintcmd/version,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/pattern,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/printf,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/quickfix,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/sarif,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/simple,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/fakejson,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/fakereflect,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/fakexml,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/stylecheck,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/unused,MIT,Copyright (c) 2016 Dominik Honnef
 core,inet.af/netaddr,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
 core,k8s.io/api/admission/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admission/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -2014,7 +2091,9 @@ core,k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1,Apache-2.0,Co
 core,k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -2208,9 +2287,13 @@ core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/poc.autoscaling.k8s.io/v
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1beta1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1beta2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/autoscaling.k8s.io/v1beta2/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/poc.autoscaling.k8s.io/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/typed/poc.autoscaling.k8s.io/v1alpha1/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions/autoscaling.k8s.io,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions/autoscaling.k8s.io/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -2584,7 +2667,7 @@ core,k8s.io/utils/pointer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/trace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,lukechampine.com/uint128,MIT,Copyright (c) 2019 Luke Champine
 core,mellium.im/sasl,BSD-2-Clause,Copyright © 2014 The Mellium Contributors
-core,modernc.org/cc/v3,BSD-3-Clause,Copyright (c) 2017 The CC Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> | Dan Peterson <danp@danp.net> | Denys Smirnov <denis.smirnov.91@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Maxim Kupriianov <max@kc.vc> | Peter Waller <p@pwaller.net> | Steffen Butzer <steffen(dot)butzer@outlook.com> | Tommi Virtanen <tv@eagain.net> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Zvi Effron <zeffron@cs.hmc.edu>
+core,modernc.org/cc/v3,BSD-3-Clause,Copyright (c) 2017 The CC Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> | Dan Peterson <danp@danp.net> | Denys Smirnov <denis.smirnov.91@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Lucas Raab <tuftedocelot@fastmail.fm> | Maxim Kupriianov <max@kc.vc> | Peter Waller <p@pwaller.net> | Steffen Butzer <steffen(dot)butzer@outlook.com> | Tommi Virtanen <tv@eagain.net> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Zvi Effron <zeffron@cs.hmc.edu>
 core,modernc.org/ccgo/v3/lib,BSD-3-Clause,Copyright (c) 2017 The CCGO Authors. All rights reserved
 core,modernc.org/libc,BSD-3-Clause,Copyright (c) 2017 The Libc Authors. All rights reserved | Dan Kortschak <dan@kortschak.io> | Dan Peterson <danp@danp.net> | Jaap Aarts <jaap.aarts1@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Jason DeBettencourt <jasond17@gmail.com> | Koichi Shiraishi <zchee.io@gmail.com> | Marius Orcsik <marius@federated.id> | Steffen Butzer <steffen(dot)butzer@outlook.com> | ZHU Zijia <piggynl@outlook.com>
 core,modernc.org/libc/errno,BSD-3-Clause,Copyright (c) 2017 The Libc Authors. All rights reserved | Dan Kortschak <dan@kortschak.io> | Dan Peterson <danp@danp.net> | Jaap Aarts <jaap.aarts1@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Jason DeBettencourt <jasond17@gmail.com> | Koichi Shiraishi <zchee.io@gmail.com> | Marius Orcsik <marius@federated.id> | Steffen Butzer <steffen(dot)butzer@outlook.com> | ZHU Zijia <piggynl@outlook.com>
@@ -2615,8 +2698,8 @@ core,modernc.org/libc/wctype,BSD-3-Clause,Copyright (c) 2017 The Libc Authors. A
 core,modernc.org/mathutil,BSD-3-Clause,Bodecker DellaMaria <bojdell@gmail.com> | CZ.NIC z.s.p.o. <kontakt@nic.cz> | Copyright (c) 2014 The mathutil Authors. All rights reserved | Edward Betts <edward@4angle.com> | Faiz Abbasi <faizamodo@gmail.com> | Gary Burd <gary@beagledreams.com> | Jan Mercl <0xjnml@gmail.com> | Muhammad Surya <surya.asriadie@gmail.com> | Santiago De la Cruz <delacruzsantiago12@gmail.com>
 core,modernc.org/memory,BSD-3-Clause,Anup Kodlekere <anup.kodlekere@ibm.com> | Copyright (c) 2017 The Memory Authors. All rights reserved | Gleb Sakhnov <gleb.sakhnov@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Steffen Butzer <steffen(dot)butzer@outlook.com> | ZHU Zijia <piggynl@outlook.com>
 core,modernc.org/opt,BSD-3-Clause,Copyright (c) 2019 The Opt Authors. All rights reserved | Jan Mercl <0xjnml@gmail.com>
-core,modernc.org/sqlite,BSD-3-Clause,Alexander Menzhinsky <amenzhinsky@gmail.com> | Artyom Pervukhin <github@artyom.dev> | Copyright (c) 2017 The Sqlite Authors. All rights reserved | Dan Peterson <danp@danp.net> | David Skinner <skinner.david@gmail.com> | Davsk Ltd Co <skinner.david@gmail.com> | Gleb Sakhnov <gleb.sakhnov@gmail.com> | Jaap Aarts <jaap.aarts1@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Logan Snow <logansnow@protonmail.com> | Matthew Gabeler-Lee <fastcat@gmail.com> | Michael Hoffmann <mhoffm@posteo.de> | Ross Light <ross@zombiezen.com> | Saed SayedAhmed <saadmtsa@gmail.com> | Steffen Butzer <steffen(dot)butzer@outlook.com> | Yaacov Akiba Slama <ya@slamail.org>
-core,modernc.org/sqlite/lib,BSD-3-Clause,Alexander Menzhinsky <amenzhinsky@gmail.com> | Artyom Pervukhin <github@artyom.dev> | Copyright (c) 2017 The Sqlite Authors. All rights reserved | Dan Peterson <danp@danp.net> | David Skinner <skinner.david@gmail.com> | Davsk Ltd Co <skinner.david@gmail.com> | Gleb Sakhnov <gleb.sakhnov@gmail.com> | Jaap Aarts <jaap.aarts1@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Logan Snow <logansnow@protonmail.com> | Matthew Gabeler-Lee <fastcat@gmail.com> | Michael Hoffmann <mhoffm@posteo.de> | Ross Light <ross@zombiezen.com> | Saed SayedAhmed <saadmtsa@gmail.com> | Steffen Butzer <steffen(dot)butzer@outlook.com> | Yaacov Akiba Slama <ya@slamail.org>
+core,modernc.org/sqlite,BSD-3-Clause,Alexander Menzhinsky <amenzhinsky@gmail.com> | Artyom Pervukhin <github@artyom.dev> | Copyright (c) 2017 The Sqlite Authors. All rights reserved | Dan Peterson <danp@danp.net> | David Skinner <skinner.david@gmail.com> | David Walton <david@davidwalton.com> | Davsk Ltd Co <skinner.david@gmail.com> | FlyingOnion <731677080@qq.com> | Gleb Sakhnov <gleb.sakhnov@gmail.com> | Jaap Aarts <jaap.aarts1@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Logan Snow <logansnow@protonmail.com> | Matthew Gabeler-Lee <fastcat@gmail.com> | Michael Hoffmann <mhoffm@posteo.de> | Ross Light <ross@zombiezen.com> | Saed SayedAhmed <saadmtsa@gmail.com> | Steffen Butzer <steffen(dot)butzer@outlook.com> | Yaacov Akiba Slama <ya@slamail.org>
+core,modernc.org/sqlite/lib,BSD-3-Clause,Alexander Menzhinsky <amenzhinsky@gmail.com> | Artyom Pervukhin <github@artyom.dev> | Copyright (c) 2017 The Sqlite Authors. All rights reserved | Dan Peterson <danp@danp.net> | David Skinner <skinner.david@gmail.com> | David Walton <david@davidwalton.com> | Davsk Ltd Co <skinner.david@gmail.com> | FlyingOnion <731677080@qq.com> | Gleb Sakhnov <gleb.sakhnov@gmail.com> | Jaap Aarts <jaap.aarts1@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Logan Snow <logansnow@protonmail.com> | Matthew Gabeler-Lee <fastcat@gmail.com> | Michael Hoffmann <mhoffm@posteo.de> | Ross Light <ross@zombiezen.com> | Saed SayedAhmed <saadmtsa@gmail.com> | Steffen Butzer <steffen(dot)butzer@outlook.com> | Yaacov Akiba Slama <ya@slamail.org>
 core,modernc.org/strutil,BSD-3-Clause,CZ.NIC z.s.p.o. <kontakt@nic.cz> | Copyright (c) 2014 The strutil Authors. All rights reserved | Jan Mercl <0xjnml@gmail.com>
 core,modernc.org/token,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client,Apache-2.0,Copyright 2017 The Kubernetes Authors.

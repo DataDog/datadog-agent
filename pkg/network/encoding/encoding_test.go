@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -860,4 +861,34 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
 	}
+}
+
+func TestUSMPayloadTelemetry(t *testing.T) {
+	telemetry.Clear()
+	t.Cleanup(telemetry.Clear)
+
+	// Set metric present in the payload telemetry list to an arbitrary value
+	m1 := telemetry.NewMetric("usm.http.total_hits", telemetry.OptPayloadTelemetry)
+	m1.Add(10)
+	require.Contains(t, network.USMPayloadTelemetry, network.ConnTelemetryType(m1.Name()))
+
+	// Add another metric that is not present in the allowed list
+	m2 := telemetry.NewMetric("foobar", telemetry.OptPayloadTelemetry)
+	m2.Add(50)
+	require.NotContains(t, network.USMPayloadTelemetry, network.ConnTelemetryType(m2.Name()))
+
+	// Perform a marshal/unmarshal cycle
+	in := new(network.Connections)
+	marshaler := GetMarshaler("application/protobuf")
+	blob, err := marshaler.Marshal(in)
+	require.NoError(t, err)
+
+	unmarshaler := GetUnmarshaler("application/protobuf")
+	result, err := unmarshaler.Unmarshal(blob)
+	require.NoError(t, err)
+
+	// Assert that the correct metric is present in the emitted payload
+	payloadTelemetry := result.ConnTelemetryMap
+	assert.Equal(t, int64(10), payloadTelemetry["usm.http.total_hits"])
+	assert.NotContains(t, payloadTelemetry, "foobar")
 }

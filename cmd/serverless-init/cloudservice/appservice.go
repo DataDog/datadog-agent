@@ -7,6 +7,8 @@ package cloudservice
 
 import (
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // AppService has helper functions for getting specific Azure Container App data
@@ -23,12 +25,18 @@ func (a *AppService) GetTags() map[string]string {
 	appName := os.Getenv(WebsiteName)
 	region := os.Getenv(RegionName)
 
-	return map[string]string{
+	tags := map[string]string{
 		"app_name":   appName,
 		"region":     region,
 		"origin":     a.GetOrigin(),
 		"_dd.origin": a.GetOrigin(),
 	}
+
+	for key, value := range traceutil.GetAppServicesTags() {
+		tags[key] = value
+	}
+
+	return tags
 }
 
 // GetOrigin returns the `origin` attribute type for the given
@@ -41,6 +49,11 @@ func (a *AppService) GetOrigin() string {
 // metrics with.
 func (a *AppService) GetPrefix() string {
 	return "azure.appservice"
+}
+
+// Init is empty for AppService
+func (a *AppService) Init() error {
+	return nil
 }
 
 func isAppService() bool {

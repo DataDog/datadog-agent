@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 /*
@@ -481,7 +481,7 @@ func testRunErrorReturn(t *testing.T) {
 }
 
 func testRun(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
 	rtloader = newMockRtLoaderPtr()
@@ -493,7 +493,7 @@ func testRun(t *testing.T) {
 	}
 
 	c.instance = newMockPyObjectPtr()
-	c.id = check.ID("testID")
+	c.id = checkid.ID("testID")
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
@@ -514,7 +514,7 @@ func testRun(t *testing.T) {
 }
 
 func testRunSimple(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
 	rtloader = newMockRtLoaderPtr()
@@ -526,7 +526,7 @@ func testRunSimple(t *testing.T) {
 	}
 
 	c.instance = newMockPyObjectPtr()
-	c.id = check.ID("testID")
+	c.id = checkid.ID("testID")
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")

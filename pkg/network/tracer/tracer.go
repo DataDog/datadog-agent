@@ -18,6 +18,8 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -29,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
@@ -38,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -135,27 +137,26 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 		log.Infof("detected kernel version %s, will use kprobes from kernel version < 4.1.0", currKernelVersion)
 	}
 
-	usmSupported := currKernelVersion >= http.MinimumKernelVersion
-	if !usmSupported && cfg.ServiceMonitoringEnabled {
-		errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", http.MinimumKernelVersion, currKernelVersion)
-		if !cfg.NPMEnabled {
-			return nil, fmt.Errorf(errStr)
-		}
-		log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
-		cfg.EnableHTTPMonitoring = false
-		cfg.EnableHTTP2Monitoring = false
-		cfg.EnableHTTPSMonitoring = false
-	}
-
-	http2Supported := http.HTTP2Supported()
-	if !http2Supported && cfg.ServiceMonitoringEnabled {
-		cfg.EnableHTTP2Monitoring = false
-		log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http.HTTP2MinimumKernelVersion, currKernelVersion)
-	}
-
 	var bpfTelemetry *nettelemetry.EBPFTelemetry
-	if usmSupported {
-		bpfTelemetry = nettelemetry.NewEBPFTelemetry()
+
+	if cfg.ServiceMonitoringEnabled {
+		if !http.Supported() {
+			errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", http.MinimumKernelVersion, currKernelVersion)
+			if !cfg.NPMEnabled {
+				return nil, fmt.Errorf(errStr)
+			}
+			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
+			cfg.EnableHTTPMonitoring = false
+			cfg.EnableHTTP2Monitoring = false
+			cfg.EnableHTTPSMonitoring = false
+		} else {
+			bpfTelemetry = nettelemetry.NewEBPFTelemetry()
+		}
+
+		if !http2.Supported() {
+			cfg.EnableHTTP2Monitoring = false
+			log.Warnf("http2 requires a Linux kernel version of %s or higher. We detected %s", http2.MinimumKernelVersion, currKernelVersion)
+		}
 	}
 
 	ebpfTracer, err := connection.NewTracer(cfg, bpfTelemetry)
@@ -225,6 +226,10 @@ func newTracer(cfg *config.Config) (*Tracer, error) {
 			select {
 			case <-ticker.C:
 				ddebpf.GetProbeStats()
+				if bpfTelemetry != nil {
+					bpfTelemetry.GetMapsTelemetry()
+					bpfTelemetry.GetHelperTelemetry()
+				}
 			case <-tr.exitTelemetry:
 				return
 			}
@@ -381,7 +386,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetHTTPStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
 	t.activeBuffer.Reset()
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
@@ -802,6 +807,16 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *net
 		}
 	}
 
+	if c.EnableHTTP2Monitoring {
+		log.Info("http2 monitoring enabled")
+	}
+	if c.EnableKafkaMonitoring {
+		log.Info("kafka monitoring enabled")
+	}
+	if c.EnableGoTLSSupport {
+		log.Info("goTLS monitoring enabled")
+	}
+
 	monitor, err := usm.NewMonitor(c, connectionProtocolMap, sockFDMap, bpfTelemetry)
 	if err != nil {
 		log.Error(err)
@@ -811,17 +826,6 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *net
 	if err := monitor.Start(); err != nil {
 		log.Error(err)
 		return nil
-	}
-
-	log.Info("http monitoring enabled")
-	if c.EnableHTTP2Monitoring {
-		log.Info("http2 monitoring enabled")
-	}
-	if c.EnableKafkaMonitoring {
-		log.Info("kafka monitoring enabled")
-	}
-	if c.EnableGoTLSSupport {
-		log.Info("goTLS monitoring enabled")
 	}
 
 	return monitor

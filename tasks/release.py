@@ -21,7 +21,14 @@ from .libs.common.user_interactions import yes_no_question
 from .libs.version import Version
 from .modules import DEFAULT_MODULES
 from .pipeline import run
-from .utils import DEFAULT_BRANCH, check_clean_branch_state, get_version, nightly_entry_for, release_entry_for
+from .utils import (
+    DEFAULT_BRANCH,
+    GITHUB_REPO_NAME,
+    check_clean_branch_state,
+    get_version,
+    nightly_entry_for,
+    release_entry_for,
+)
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -29,8 +36,6 @@ from .utils import DEFAULT_BRANCH, check_clean_branch_state, get_version, nightl
 # - X.Y.Z-devel
 # - vX.Y(.Z) (security-agent-policies repo)
 VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
-
-REPOSITORY_NAME = "DataDog/datadog-agent"
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
@@ -74,7 +79,7 @@ def add_dca_prelude(ctx, agent7_version, agent6_version=""):
             f"""prelude:
     |
     Released on: {date.today()}
-    Pinned to datadog-agent v{agent7_version}: `CHANGELOG <https://github.com/{REPOSITORY_NAME}/blob/{DEFAULT_BRANCH}/CHANGELOG.rst#{agent7_version.replace('.', '')}{agent6_version}>`_."""
+    Pinned to datadog-agent v{agent7_version}: `CHANGELOG <https://github.com/{GITHUB_REPO_NAME}/blob/{DEFAULT_BRANCH}/CHANGELOG.rst#{agent7_version.replace('.', '')}{agent6_version}>`_."""
         )
 
     ctx.run(f"git add {new_releasenote}")
@@ -1034,7 +1039,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    github = GithubAPI(repository=REPOSITORY_NAME, api_token=get_github_token())
+    github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -1156,7 +1161,13 @@ Make sure that milestone is open before trying again.""",
     updated_pr = github.update_pr(
         pull_number=pr["number"],
         milestone_number=milestone["number"],
-        labels=["changelog/no-changelog", "qa/skip-qa", "team/agent-platform", "team/agent-core"],
+        labels=[
+            "changelog/no-changelog",
+            "qa/skip-qa",
+            "team/agent-platform",
+            "team/agent-release-management",
+            "category/release_operations",
+        ],
     )
 
     if not updated_pr or not updated_pr.get("number") or not updated_pr.get("html_url"):
@@ -1185,7 +1196,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    gitlab = Gitlab(project_name=REPOSITORY_NAME, api_token=get_gitlab_token())
+    gitlab = Gitlab(project_name=GITHUB_REPO_NAME, api_token=get_gitlab_token())
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
@@ -1341,7 +1352,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    github = GithubAPI(repository=REPOSITORY_NAME, api_token=get_github_token())
+    github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
     check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(

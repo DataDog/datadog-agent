@@ -19,6 +19,7 @@ import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -28,6 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+type EventTypeState struct {
+	lastAnomalyNano uint64
+	state           EventFilteringProfileState
+}
+
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
 	sync.Mutex
@@ -36,7 +42,8 @@ type SecurityProfile struct {
 	selector               cgroupModel.WorkloadSelector
 	profileCookie          uint64
 	anomalyDetectionEvents []model.EventType
-	lastAnomalyNano        map[model.EventType]uint64
+	eventTypeState         map[model.EventType]*EventTypeState
+	eventTypeStateLock     sync.Mutex
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -70,7 +77,7 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 	return &SecurityProfile{
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
-		lastAnomalyNano:        make(map[model.EventType]uint64),
+		eventTypeState:         make(map[model.EventType]*EventTypeState),
 	}
 }
 
@@ -79,7 +86,7 @@ func (p *SecurityProfile) reset() {
 	p.loadedInKernel = false
 	p.loadedNano = 0
 	p.profileCookie = 0
-	p.lastAnomalyNano = make(map[model.EventType]uint64)
+	p.eventTypeState = make(map[model.EventType]*EventTypeState)
 	p.Instances = nil
 }
 
@@ -127,11 +134,6 @@ func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode
 	// TODO: debounce and regenerate profile filters & programs
 }
 
-// IsAnomalyDetectionEvent returns true if the provided event type is a kernel generated anomaly detection event type
-func IsAnomalyDetectionEvent(eventType model.EventType) bool {
-	return model.AnomalyDetectionSyscallEventType == eventType
-}
-
 func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
@@ -163,7 +165,7 @@ func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
 }
 
 // ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
-func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Resolver, minimumStablePeriod time.Duration) *api.SecurityProfileMessage {
+func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Resolver, cfg *config.RuntimeSecurityConfig) *api.SecurityProfileMessage {
 	msg := &api.SecurityProfileMessage{
 		LoadedInKernel:          p.loadedInKernel,
 		LoadedInKernelTimestamp: timeResolver.ResolveMonotonicTimestamp(p.loadedNano).String(),
@@ -193,12 +195,12 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 		msg.AnomalyDetectionEvents = append(msg.AnomalyDetectionEvents, evt.String())
 	}
 
-	for evt, ts := range p.lastAnomalyNano {
-		lastAnomaly := timeResolver.ResolveMonotonicTimestamp(ts)
+	for evt, state := range p.eventTypeState {
+		lastAnomaly := timeResolver.ResolveMonotonicTimestamp(state.lastAnomalyNano)
 		msg.LastAnomalies = append(msg.LastAnomalies, &api.LastAnomalyTimestampMessage{
 			EventType:         evt.String(),
 			Timestamp:         lastAnomaly.String(),
-			IsStableEventType: time.Now().Sub(lastAnomaly) >= minimumStablePeriod,
+			IsStableEventType: time.Since(lastAnomaly) >= cfg.GetAnomalyDetectionMinimumStablePeriod(evt),
 		})
 	}
 

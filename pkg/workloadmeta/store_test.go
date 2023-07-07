@@ -12,6 +12,7 @@ import (
 	"gotest.tools/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 const (
@@ -599,6 +600,47 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+func TestGetProcess(t *testing.T) {
+	s := newTestStore()
+
+	process := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "123",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: process,
+		},
+	})
+
+	gotProcess, err := s.GetProcess(123)
+	if err != nil {
+		t.Errorf("expected to find process %q, not found", process.ID)
+	}
+
+	if !reflect.DeepEqual(process, gotProcess) {
+		t.Errorf("expected process %q to match the one in the store", process.ID)
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeUnset,
+			Source: fooSource,
+			Entity: process,
+		},
+	})
+
+	_, err = s.GetProcess(123)
+	if err == nil || !errors.IsNotFound(err) {
+		t.Errorf("expected process %q to be absent. found or had errors. err: %q", process.ID, err)
+	}
+}
+
 func TestListContainers(t *testing.T) {
 	container := &Container{
 		EntityID: EntityID{
@@ -681,6 +723,96 @@ func TestListContainersWithFilter(t *testing.T) {
 	runningContainers := testStore.ListContainersWithFilter(GetRunningContainers)
 
 	assert.DeepEqual(t, []*Container{runningContainer}, runningContainers)
+}
+
+func TestListProcesses(t *testing.T) {
+	process := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "123",
+		},
+	}
+
+	tests := []struct {
+		name              string
+		preEvents         []CollectorEvent
+		expectedProcesses []*Process
+	}{
+		{
+			name: "some processes stored",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: process,
+				},
+			},
+			expectedProcesses: []*Process{process},
+		},
+		{
+			name:              "no processes stored",
+			preEvents:         nil,
+			expectedProcesses: []*Process{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			testStore.handleEvents(test.preEvents)
+
+			processes := testStore.ListProcesses()
+
+			assert.DeepEqual(t, test.expectedProcesses, processes)
+		})
+	}
+}
+
+func TestListProcessesWithFilter(t *testing.T) {
+	javaProcess := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "123",
+		},
+		Language: &languagemodels.Language{
+			Name: languagemodels.Java,
+		},
+	}
+
+	nodeProcess := &Process{
+		EntityID: EntityID{
+			Kind: KindProcess,
+			ID:   "2",
+		},
+		Language: &languagemodels.Language{
+			Name: languagemodels.Node,
+		},
+	}
+
+	testStore := newTestStore()
+
+	testStore.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: javaProcess,
+		},
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: nodeProcess,
+		},
+	})
+
+	retrievedProcesses := testStore.ListProcessesWithFilter(func(p *Process) bool {
+		if p.Language.Name == languagemodels.Java {
+			return true
+		} else {
+			return false
+		}
+	})
+
+	assert.DeepEqual(t, []*Process{javaProcess}, retrievedProcesses)
 }
 
 func TestListImages(t *testing.T) {
@@ -774,6 +906,100 @@ func TestGetImage(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResetProcesses(t *testing.T) {
+	tests := []struct {
+		name         string
+		preEvents    []CollectorEvent
+		newProcesses []*Process
+	}{
+		{
+			name:      "initially empty",
+			preEvents: []CollectorEvent{},
+			newProcesses: []*Process{
+				{
+					EntityID: EntityID{
+						Kind: KindProcess,
+						ID:   "123",
+					},
+				},
+			},
+		},
+		{
+			name: "old process to be removed",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: SourceRemoteProcessCollector,
+					Entity: &Process{
+						EntityID: EntityID{
+							Kind: KindProcess,
+							ID:   "123",
+						},
+					},
+				},
+			},
+			newProcesses: []*Process{
+				{
+					EntityID: EntityID{
+						Kind: KindProcess,
+						ID:   "345",
+					},
+				},
+			},
+		},
+		{
+			name: "old process to be updated",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: SourceRemoteProcessCollector,
+					Entity: &Process{
+						EntityID: EntityID{
+							Kind: KindProcess,
+							ID:   "123",
+						},
+					},
+				},
+			},
+			newProcesses: []*Process{
+				{
+					EntityID: EntityID{
+						Kind: KindProcess,
+						ID:   "123",
+					},
+					NsPid: 345,
+				},
+				{
+					EntityID: EntityID{
+						Kind: KindProcess,
+						ID:   "12",
+					},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			testStore.handleEvents(test.preEvents)
+
+			entities := make([]Entity, len(test.newProcesses))
+			for i := range test.newProcesses {
+				entities[i] = test.newProcesses[i]
+			}
+			testStore.ResetProcesses(entities, SourceRemoteProcessCollector)
+			// Force handling of events generated by the reset
+			if len(testStore.eventCh) > 0 {
+				testStore.handleEvents(<-testStore.eventCh)
+			}
+			processes := testStore.ListProcesses()
+			assert.DeepEqual(t, processes, test.newProcesses)
+
+		})
+	}
+
 }
 
 func TestReset(t *testing.T) {

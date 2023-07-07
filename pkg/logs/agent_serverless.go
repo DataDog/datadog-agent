@@ -32,7 +32,7 @@ import (
 func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the a null auditor, not tracking data in any registry
 	auditor := auditor.NewNullAuditor()

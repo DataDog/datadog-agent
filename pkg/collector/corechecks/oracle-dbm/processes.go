@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package oracle
 
 import (
@@ -37,7 +39,7 @@ type ProcessesRowDB struct {
 
 func (c *Check) ProcessMemory() error {
 	rows := []ProcessesRowDB{}
-	err := c.db.Select(&rows, PGA_QUERY)
+	err := selectWrapper(c, &rows, PGA_QUERY)
 	if err != nil {
 		return fmt.Errorf("failed to collect processes info: %w", err)
 	}

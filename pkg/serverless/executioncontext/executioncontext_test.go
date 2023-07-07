@@ -22,6 +22,7 @@ func TestGetCurrentState(t *testing.T) {
 	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
 	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	ec := ExecutionContext{}
+	ec.initTime = time.Now()
 	ec.SetFromInvocation(testArn, testRequestID)
 
 	ecs := ec.GetCurrentState()
@@ -36,8 +37,8 @@ func TestSetFromInvocationUppercase(t *testing.T) {
 	testArn := "arn:aws:lambda:us-east-1:123456789012:function:MY-SUPER-function"
 	testRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
 	ec := ExecutionContext{}
+	ec.initTime = time.Now()
 	ec.SetFromInvocation(testArn, testRequestID)
-
 	assert.Equal("arn:aws:lambda:us-east-1:123456789012:function:my-super-function", ec.arn)
 	assert.Equal(testRequestID, ec.lastRequestID)
 	assert.Equal(true, ec.coldstart)

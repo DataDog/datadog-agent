@@ -10,10 +10,10 @@ package k8s
 import (
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 // ExtractPersistentVolume returns the protobuf model corresponding to a Kubernetes
@@ -113,6 +113,8 @@ func extractPVSelector(ls []corev1.NodeSelectorRequirement) []*model.LabelSelect
 
 func addVolumeSource(pvModel *model.PersistentVolume, volume corev1.PersistentVolumeSource) {
 	switch {
+	case volume.Local != nil:
+		pvModel.Spec.PersistentVolumeType = "LocalVolume"
 	case volume.HostPath != nil:
 		pvModel.Spec.PersistentVolumeType = "HostPath"
 	case volume.GCEPersistentDisk != nil:

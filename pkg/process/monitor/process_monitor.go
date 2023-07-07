@@ -56,8 +56,10 @@ type ProcessMonitor struct {
 	netlinkErrorsChannel chan error
 
 	// callback registration and parallel execution management
+	hasExecCallbacks          atomic.Bool
 	processExecCallbacksMutex sync.RWMutex
 	processExecCallbacks      map[*ProcessCallback]struct{}
+	hasExitCallbacks          atomic.Bool
 	processExitCallbacksMutex sync.RWMutex
 	processExitCallbacks      map[*ProcessCallback]struct{}
 	callbackRunner            chan func()
@@ -133,7 +135,7 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 	pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
 	if err := util.WithRootNS(util.GetProcRoot(), func() error {
-		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel)
+		return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 	}); err != nil {
 		return fmt.Errorf("couldn't initialize process monitor: %s", err)
 	}
@@ -188,10 +190,20 @@ func (pm *ProcessMonitor) mainEventLoop() {
 			switch ev := event.Msg.(type) {
 			case *netlink.ExecProcEvent:
 				pm.execCount.Inc()
-				pm.handleProcessExec(int(ev.ProcessPid))
+				// handleProcessExec locks a mutex to access the exec callbacks array, if it is empty, then we're
+				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
+				// Checking an atomic boolean, is an atomic operation, hence much faster.
+				if pm.hasExecCallbacks.Load() {
+					pm.handleProcessExec(int(ev.ProcessPid))
+				}
 			case *netlink.ExitProcEvent:
 				pm.exitCount.Inc()
-				pm.handleProcessExit(int(ev.ProcessPid))
+				// handleProcessExit locks a mutex to access the exit callbacks array, if it is empty, then we're
+				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
+				// Checking an atomic boolean, is an atomic operation, hence much faster.
+				if pm.hasExitCallbacks.Load() {
+					pm.handleProcessExit(int(ev.ProcessPid))
+				}
 			}
 		case err, ok := <-pm.netlinkErrorsChannel:
 			if !ok {
@@ -238,19 +250,27 @@ func (pm *ProcessMonitor) Initialize() error {
 			go pm.mainEventLoop()
 
 			if err := util.WithRootNS(util.GetProcRoot(), func() error {
-				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel)
+				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
 			}); err != nil {
 				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
 			}
 
-			handleProcessExecWrapper := func(pid int) error {
-				pm.handleProcessExec(pid)
-				return nil
-			}
-			// Scanning already running processes
-			if err := util.WithAllProcs(util.GetProcRoot(), handleProcessExecWrapper); err != nil {
-				initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
-				return
+			pm.processExecCallbacksMutex.RLock()
+			execCallbacksLength := len(pm.processExecCallbacks)
+			pm.processExecCallbacksMutex.RUnlock()
+
+			// Initialize should be called only once after we registered all callbacks. Thus, if we have no registered
+			// callback, no need to scan already running processes.
+			if execCallbacksLength > 0 {
+				handleProcessExecWrapper := func(pid int) error {
+					pm.handleProcessExec(pid)
+					return nil
+				}
+				// Scanning already running processes
+				if err := util.WithAllProcs(util.GetProcRoot(), handleProcessExecWrapper); err != nil {
+					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
+					return
+				}
 			}
 		},
 	)
@@ -263,6 +283,7 @@ func (pm *ProcessMonitor) Initialize() error {
 // Exit callback.
 func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) (func(), error) {
 	pm.processExecCallbacksMutex.Lock()
+	pm.hasExecCallbacks.Store(true)
 	pm.processExecCallbacks[&callback] = struct{}{}
 	pm.processExecCallbacksMutex.Unlock()
 
@@ -270,6 +291,7 @@ func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) (func(), error
 	return func() {
 		pm.processExecCallbacksMutex.Lock()
 		delete(pm.processExecCallbacks, &callback)
+		pm.hasExecCallbacks.Store(len(pm.processExecCallbacks) > 0)
 		pm.processExecCallbacksMutex.Unlock()
 	}, nil
 }
@@ -277,6 +299,7 @@ func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) (func(), error
 // SubscribeExit register an exit callback and returns unsubscribe function callback that removes the callback.
 func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) (func(), error) {
 	pm.processExitCallbacksMutex.Lock()
+	pm.hasExitCallbacks.Store(true)
 	pm.processExitCallbacks[&callback] = struct{}{}
 	pm.processExitCallbacksMutex.Unlock()
 
@@ -284,6 +307,7 @@ func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) (func(), error
 	return func() {
 		pm.processExitCallbacksMutex.Lock()
 		delete(pm.processExitCallbacks, &callback)
+		pm.hasExitCallbacks.Store(len(pm.processExitCallbacks) > 0)
 		pm.processExitCallbacksMutex.Unlock()
 	}, nil
 }

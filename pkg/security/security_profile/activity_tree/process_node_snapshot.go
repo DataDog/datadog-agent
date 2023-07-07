@@ -31,10 +31,10 @@ import (
 )
 
 // snapshot uses procfs to retrieve information about the current process
-func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStats, newEvent func() *model.Event) {
+func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// call snapshot for all the children of the current node
 	for _, child := range pn.Children {
-		child.snapshot(owner, stats, newEvent)
+		child.snapshot(owner, stats, newEvent, reducer)
 		// iterate slowly
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -48,7 +48,7 @@ func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStat
 
 	// snapshot files
 	if owner.IsEventTypeValid(model.FileOpenEventType) {
-		pn.snapshotFiles(p, stats, newEvent)
+		pn.snapshotFiles(p, stats, newEvent, reducer)
 	}
 
 	// snapshot sockets
@@ -57,7 +57,7 @@ func (pn *ProcessNode) snapshot(owner ActivityTreeOwner, stats *ActivityTreeStat
 	}
 }
 
-func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event) {
+func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// list the files opened by the process
 	fileFDs, err := p.OpenFiles()
 	if err != nil {
@@ -118,9 +118,14 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *ActivityTreeStat
 		evt.Open.File.FileFields.GID = stat.Gid
 
 		evt.Open.File.Mode = evt.Open.File.FileFields.Mode
+
+		if fileinfo.Mode().IsRegular() {
+			evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
+		}
+
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false)
+		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false, reducer, nil)
 	}
 }
 

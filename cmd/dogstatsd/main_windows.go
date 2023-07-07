@@ -16,11 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/command"
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
@@ -64,10 +65,10 @@ func main() {
 		runService(false)
 		return
 	}
-	defer log.Flush()
+	defer pkglog.Flush()
 
 	if err = command.MakeRootCommand(defaultLogFile).Execute(); err != nil {
-		log.Error(err)
+		pkglog.Error(err)
 		os.Exit(-1)
 	}
 }
@@ -79,7 +80,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
-	log.Infof("Service control function")
+	pkglog.Infof("Service control function")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cliParams := &start.CLIParams{}
@@ -89,13 +90,13 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 		cliParams,
 		DefaultConfPath,
 		defaultLogFile,
-		func(config config.Component, params *start.Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
+		func(config config.Component, log log.Component, params *start.Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
 			components.DogstatsdServer = server
-			return start.RunAgent(ctx, cliParams, config, params, components, forwarder)
+			return start.RunAgent(ctx, cliParams, config, log, params, components, forwarder)
 		})
 
 	if err != nil {
-		log.Errorf("Failed to start agent %v", err)
+		pkglog.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc0000008, err.Error())
 		errno = 1 // indicates non-successful return from handler.
 		start.StopAgent(cancel, components)
@@ -115,25 +116,25 @@ loop:
 				time.Sleep(100 * time.Millisecond)
 				changes <- c.CurrentStatus
 			case svc.Stop:
-				log.Info("Received stop message from service control manager")
+				pkglog.Info("Received stop message from service control manager")
 				elog.Info(0x4000000b, ServiceName)
 				break loop
 			case svc.PreShutdown:
-				log.Info("Received pre-shutdown message from service control manager")
+				pkglog.Info("Received pre-shutdown message from service control manager")
 				elog.Info(0x4000000d, pkgconfig.ServiceName)
 				break loop
 			case svc.Shutdown:
-				log.Info("Received shutdown message from service control manager")
+				pkglog.Info("Received shutdown message from service control manager")
 				elog.Info(0x4000000c, ServiceName)
 				break loop
 			default:
-				log.Warnf("unexpected control request #%d", c)
+				pkglog.Warnf("unexpected control request #%d", c)
 				elog.Warning(0xc0000005, fmt.Sprint(c.Cmd))
 			}
 		}
 	}
 	elog.Info(0x40000006, ServiceName)
-	log.Infof("Initiating service shutdown")
+	pkglog.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
 	start.StopAgent(cancel, components)
 	changes <- svc.Status{State: svc.Stopped}

@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -80,6 +81,10 @@ func TestSELinux(t *testing.T) {
 	})
 
 	t.Run("sel_disable", func(t *testing.T) {
+		checkKernelCompatibility(t, ">= 5.10 kernels", func(kv *kernel.Version) bool {
+			return kv.Code >= kernel.Kernel5_10
+		})
+
 		test.WaitSignal(t, func() error {
 			if err := rawSudoWrite("/sys/fs/selinux/disable", "0", false); err != nil {
 				return fmt.Errorf("failed to write to selinuxfs: %w", err)

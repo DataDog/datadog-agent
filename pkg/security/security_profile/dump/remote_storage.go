@@ -19,7 +19,7 @@ import (
 	"github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -198,7 +198,7 @@ func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest,
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender aggregator.Sender) {
+func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender sender.Sender) {
 	// send too large entity metric
 	for entry, count := range storage.tooLargeEntities {
 		if entityCount := count.Swap(0); entityCount > 0 {

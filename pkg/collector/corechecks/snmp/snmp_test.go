@@ -16,20 +16,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
@@ -43,15 +45,25 @@ func demuxOpts() aggregator.AgentDemultiplexerOptions {
 	return opts
 }
 
+type deps struct {
+	fx.In
+	Log       log.Component
+	Forwarder defaultforwarder.Component
+}
+
+func createDeps(t *testing.T) deps {
+	return fxutil.Test[deps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+}
+
 func Test_Run_simpleCase(t *testing.T) {
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
+	deps := createDeps(t)
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -323,7 +335,7 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
+	deps := createDeps(t)
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -331,7 +343,7 @@ func Test_Run_customIfSpeed(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -347,7 +359,7 @@ metrics:
 - table:
     OID: 1.3.6.1.2.1.2.2
     name: ifTable
-  forced_type: monotonic_count_and_rate
+  metric_type: monotonic_count_and_rate
   symbols:
   - OID: 1.3.6.1.2.1.31.1.1.1.6
     name: ifHCInOctets
@@ -537,8 +549,8 @@ metrics:
 func TestProfile(t *testing.T) {
 	timeNow = common.MockTimeNow
 
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	deps := createDeps(t)
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	checkconfig.SetConfdPathAndCleanProfiles()
 
@@ -914,7 +926,7 @@ profiles:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
 }
 
 func TestServiceCheckFailures(t *testing.T) {
@@ -950,7 +962,7 @@ community_string: public
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0.0, "", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "snmp connection error: can't connect")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "snmp connection error: can't connect")
 }
 
 func TestCheckID(t *testing.T) {
@@ -991,10 +1003,10 @@ namespace: nsSubnet
 	err = checkSubnet.Configure(integration.FakeConfigHash, rawInstanceConfigSubnet, []byte(``), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, check.ID("snmp:default:1.1.1.1:9d3f14dbaceba72d"), check1.ID())
-	assert.Equal(t, check.ID("snmp:default:2.2.2.2:9c51b342e7a4fdd5"), check2.ID())
-	assert.Equal(t, check.ID("snmp:ns3:3.3.3.3:7e1c698677986eca"), check3.ID())
-	assert.Equal(t, check.ID("snmp:nsSubnet:10.10.10.0/24:ae80a9e88fe6643e"), checkSubnet.ID())
+	assert.Equal(t, checkid.ID("snmp:default:1.1.1.1:9d3f14dbaceba72d"), check1.ID())
+	assert.Equal(t, checkid.ID("snmp:default:2.2.2.2:9c51b342e7a4fdd5"), check2.ID())
+	assert.Equal(t, checkid.ID("snmp:ns3:3.3.3.3:7e1c698677986eca"), check3.ID())
+	assert.Equal(t, checkid.ID("snmp:nsSubnet:10.10.10.0/24:ae80a9e88fe6643e"), checkSubnet.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 
@@ -1188,8 +1200,8 @@ namespace: '%s'
 			sender := new(mocksender.MockSender)
 
 			if !tt.disableAggregator {
-				forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
-				aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+				deps := createDeps(t)
+				aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 			}
 
 			mocksender.SetSender(sender, chk.ID())
@@ -1214,7 +1226,7 @@ namespace: '%s'
 			sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 			sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
-			sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, tt.expectedErr)
+			sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, tt.expectedErr)
 		})
 	}
 }
@@ -1262,14 +1274,14 @@ metrics:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = common.MockTimeNow
 
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	deps := createDeps(t)
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1555,13 +1567,13 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value")
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	timeNow = common.MockTimeNow
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	deps := createDeps(t)
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	checkconfig.SetConfdPathAndCleanProfiles()
 
@@ -1645,11 +1657,11 @@ tags:
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckCritical, "", snmpTags, expectedErrMsg)
 }
 
 func TestDiscovery(t *testing.T) {
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
+	deps := createDeps(t)
 	timeNow = common.MockTimeNow
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -1657,7 +1669,7 @@ func TestDiscovery(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1982,7 +1994,7 @@ metric_tags:
 }
 
 func TestDiscovery_CheckError(t *testing.T) {
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
+	deps := createDeps(t)
 	checkconfig.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1990,7 +2002,7 @@ func TestDiscovery_CheckError(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory, workerRunDeviceCheckErrors: atomic.NewUint64(0)}
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2056,7 +2068,7 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
+	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 
 	checkconfig.SetConfdPathAndCleanProfiles()
@@ -2067,7 +2079,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	chk := Check{sessionFactory: sessionFactory}
 	coreconfig.Datadog.Set("hostname", "test-hostname")
 	coreconfig.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2247,7 +2259,7 @@ use_device_id_as_hostname: true
 }
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
+	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 	timeNow = common.MockTimeNow
 	checkconfig.SetConfdPathAndCleanProfiles()
@@ -2258,7 +2270,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	chk := Check{sessionFactory: sessionFactory}
 
 	coreconfig.Datadog.Set("hostname", "my-hostname")
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2453,7 +2465,7 @@ metrics:
 }
 
 func TestCheckCancel(t *testing.T) {
-	forwarder := fxutil.Test[defaultforwarder.Component](t, defaultforwarder.MockModule, config.MockModule)
+	deps := createDeps(t)
 	checkconfig.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -2461,7 +2473,7 @@ func TestCheckCancel(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, demuxOpts(), "")
+	aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
 	rawInstanceConfig := []byte(`

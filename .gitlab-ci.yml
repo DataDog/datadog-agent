@@ -27,6 +27,7 @@ include:
   - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
+  - /.gitlab/e2e_test_junit_upload.yml
   - /.gitlab/fakeintake.yml
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
@@ -41,6 +42,7 @@ include:
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
   - /.gitlab/benchmarks/benchmarks.yml
+  - /.gitlab/benchmarks/macrobenchmarks.yml
 
 default:
   retry:
@@ -79,6 +81,7 @@ stages:
   - choco_deploy
   - internal_image_deploy
   - e2e
+  - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
@@ -146,18 +149,21 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v16026304-782441d
+  DATADOG_AGENT_BUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v16026304-782441d
+  DATADOG_AGENT_WINBUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v16026304-782441d
+  DATADOG_AGENT_ARMBUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v16026304-782441d
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v14597610-8d767dd
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v16026304-782441d
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v16026304-782441d
-  DATADOG_AGENT_BUILDERS: v9930706-ef9d493
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_BUILDERS: v16852259-65c480c
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: d44e03d53b06
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -180,6 +186,8 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-08d9716d20480186e"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-044d1c0f7ab0e3537"
 
 #
 # Condition mixins for simplification of rules
@@ -272,6 +280,9 @@ variables:
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+
+.if_scheduled_main: &if_scheduled_main
+  if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
 
 #
 # Workflow rules
@@ -844,8 +855,12 @@ workflow:
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*
       - .gitlab/functional_test/system_probe.yml
+      - .gitlab/kernel_version_testing/system_probe.yml
       - test/new-e2e/system-probe/**/*
       - test/new-e2e/scenarios/system-probe/**/*
+      - test/new-e2e/runner/**/*
+      - test/new-e2e-utils/**/*
+      - test/new-e2e/go.mod
     when: on_success
   - when: manual
     allow_failure: true
@@ -866,5 +881,11 @@ workflow:
       - pkg/trace/**/*
       - .gitlab/benchmarks/*
     when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_scheduled_main_or_manual:
+  - <<: *if_scheduled_main
+    when: always
   - when: manual
     allow_failure: true

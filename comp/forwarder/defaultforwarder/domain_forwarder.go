@@ -13,9 +13,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -27,6 +27,7 @@ var (
 // backend.
 type domainForwarder struct {
 	config                    config.Component
+	log                       log.Component
 	isRetrying                *atomic.Bool
 	domain                    string
 	numberOfWorkers           int
@@ -47,6 +48,7 @@ type domainForwarder struct {
 
 func newDomainForwarder(
 	config config.Component,
+	log log.Component,
 	domain string,
 	retryQueue *retry.TransactionRetryQueue,
 	numberOfWorkers int,
@@ -55,13 +57,14 @@ func newDomainForwarder(
 	pointCountTelemetry *retry.PointCountTelemetry) *domainForwarder {
 	return &domainForwarder{
 		config:                    config,
+		log:                       log,
 		isRetrying:                atomic.NewBool(false),
 		domain:                    domain,
 		numberOfWorkers:           numberOfWorkers,
 		retryQueue:                retryQueue,
 		connectionResetInterval:   connectionResetInterval,
 		internalState:             Stopped,
-		blockedList:               newBlockedEndpoints(config),
+		blockedList:               newBlockedEndpoints(config, log),
 		transactionPrioritySorter: transactionPrioritySorter,
 		pointCountTelemetry:       pointCountTelemetry,
 	}
@@ -71,7 +74,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	// In case it takes more that flushInterval to sort and retry
 	// transactions we skip a retry.
 	if !f.isRetrying.CAS(false, true) {
-		log.Errorf("The forwarder is still retrying Transaction: this should never happens, you might want to lower the 'forwarder_retry_queue_payloads_max_size'")
+		f.log.Errorf("The forwarder is still retrying Transaction: this should never happens, you might want to lower the 'forwarder_retry_queue_payloads_max_size'")
 		return
 	}
 	defer f.isRetrying.Store(false)
@@ -84,7 +87,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 
 	transactions, err = f.retryQueue.ExtractTransactions()
 	if err != nil {
-		log.Errorf("Error when getting transactions from the retry queue: %v", err)
+		f.log.Errorf("Error when getting transactions from the retry queue: %v", err)
 	}
 
 	f.transactionPrioritySorter.Sort(transactions)
@@ -115,7 +118,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	tlmTxRetryQueueSize.Set(float64(transactionCount), f.domain)
 
 	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
-		log.Errorf("Dropped %d transactions in this retry attempt:%d for exceeding the retry queue payloads size limit of %d, %d because the workers are too busy",
+		f.log.Errorf("Dropped %d transactions in this retry attempt:%d for exceeding the retry queue payloads size limit of %d, %d because the workers are too busy",
 			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.retryQueue.GetMaxMemSizeInBytes(), droppedWorkerBusy)
 	}
 }
@@ -123,7 +126,7 @@ func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 func (f *domainForwarder) addToTransactionRetryQueue(t transaction.Transaction) int {
 	dropCount, err := f.retryQueue.Add(t)
 	if err != nil {
-		log.Errorf("Error when adding a transaction to the retry queue: %v", err)
+		f.log.Errorf("Error when adding a transaction to the retry queue: %v", err)
 	}
 
 	if dropCount > 0 {
@@ -166,7 +169,7 @@ func (f *domainForwarder) scheduleConnectionResets() {
 	for {
 		select {
 		case <-ticker.C:
-			log.Debugf("Scheduling reset of connections used for domain: %q", f.domain)
+			f.log.Debugf("Scheduling reset of connections used for domain: %q", f.domain)
 			for _, worker := range f.workers {
 				worker.ScheduleConnectionReset()
 			}
@@ -204,7 +207,7 @@ func (f *domainForwarder) Start() error {
 	f.init()
 
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry)
+		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
@@ -225,7 +228,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	defer f.m.Unlock()
 
 	if f.internalState == Stopped {
-		log.Warnf("the forwarder is already stopped")
+		f.log.Warnf("the forwarder is already stopped")
 		return
 	}
 
@@ -242,7 +245,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	close(f.highPrio)
 	close(f.lowPrio)
 	close(f.requeuedTransaction)
-	log.Info("domainForwarder stopped")
+	f.log.Info("domainForwarder stopped")
 	f.internalState = Stopped
 }
 
@@ -262,6 +265,6 @@ func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 		f.addToTransactionRetryQueue(t)
 		highPriorityQueueFull.Add(1)
 		tlmTxHighPriorityQueueFull.Inc(f.domain, t.GetEndpointName())
-		log.Debugf("Adding the transaction to the retry queue because the forwarder input queue for %s is full; consider increasing forwarder_num_workers", f.domain)
+		f.log.Debugf("Adding the transaction to the retry queue because the forwarder input queue for %s is full; consider increasing forwarder_num_workers", f.domain)
 	}
 }

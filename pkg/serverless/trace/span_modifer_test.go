@@ -115,7 +115,7 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 		select {
 		case ss := <-agnt.TraceWriter.In:
 			tp = ss.TracerPayload
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(100 * time.Millisecond):
 			t.Fatal("timed out")
 		}
 

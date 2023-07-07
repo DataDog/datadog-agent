@@ -486,14 +486,14 @@ api_key:
 #
 # use_proxy_for_cloud_metadata: false
 
-## @param inventories_configuration_enabled - boolean - optional - default: false
-## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: false
-## The Agent can send its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
+## @param inventories_configuration_enabled - boolean - optional - default: true
+## @env DD_INVENTORIES_CONFIGURATION_ENABLED - boolean - optional - default: true
+## By default the Agent sends its own configuration to Datadog to be displayed in the `Agent Configuration` section of the host
 ## detail panel. See https://docs.datadoghq.com/infrastructure/list/#agent-configuration for more information.
 ##
 ## The Agent configuration is scrubbed of any sensitive information.
 #
-# inventories_configuration_enabled: false
+# inventories_configuration_enabled: true
 
 ## @param auto_exit - custom object - optional
 ## Configuration for the automatic exit mechanism: the Agent stops when some conditions are met.
@@ -1287,9 +1287,95 @@ api_key:
   ## See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
   #
   # obfuscation:
-  #     <OBFUSCATION_CONFIGURATION>
+  #     credit_cards:
+  ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for credit cards. Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional
+  ##        Enables a Luhn checksum check in order to eliminate false negatives. Disabled by default.
+  #         luhn: false
+  #
+  #     elasticsearch:
+  ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "elasticsearch". Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values: 
+  #             - client_id
+  ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values: 
+  #             - val1
+  #
+  #     http:
+  ##        @param DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING - boolean - optional
+  ##        Enables obfuscation of query strings in URLs
+  #         remove_query_string: false
+  ##        @param DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS - boolean - optional
+  ##        If enabled, path segments in URLs containing digits are replaced by "?"
+  #         remove_path_with_digits: false
+  #
+  #     memcached:
+  ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "memcached". Disabled by default.
+  #         enabled: false
+  #
+  #     mongodb:
+  ##        @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "mongodb". Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values: 
+  #             - document_id
+  ##        @param DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES - object - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
+  #
+  #     redis:
+  ##        @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "redis". Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
+  ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
+  #         remove_all_args: false
+  #
+  ##    @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
+  ##    Enables removing stack traces to replace them with "?". Disabled by default.
+  #     remove_stack_traces: false
+  #
+  #     sql_exec_plan:
+  ##        @param DD_APM_SQL_EXEC_PLAN_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for JSON query execution plans. Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_SQL_EXEC_PLAN_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - id1
+  ##        @param DD_APM_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values: 
+  #             - val1
+  #
+  #     sql_exec_plan_normalize:
+  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for JSON query execution plans, including cost and row estimates.
+  ##        Produces a normalized execution plan. Disabled by default.
+  #         enabled: false
+  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - id1
+  ##        @param DD_APM_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
 
   ## @param filter_tags - object - optional
+  ## @env DD_APM_FILTER_TAG_REQUIRE - object - optional
+  ## @env DD_APM_FILTER_TAG_REJECT - object - optional
   ## Defines rules by which to filter traces based on tags.
   ##  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
   ##  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
@@ -1367,6 +1453,18 @@ api_key:
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
   # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
+
+  ## @param additional_endpoints - object - optional
+  ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
+  ## Enables sending data to multiple endpoints and/or with multiple API keys via dual shipping.
+  ## See https://docs.datadoghq.com/agent/guide/dual-shipping
+  #
+  # additional_endpoints:
+  #   "https://trace.agent.datadoghq.com":
+  #   - apikey2
+  #   - apikey3
+  #   "https://trace.agent.datadoghq.eu":
+  #   - apikey4
 
   ## @param debug - custom object - optional
   ## Specifies settings for the debug server of the trace agent.
