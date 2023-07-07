@@ -97,7 +97,8 @@ func getBuildInfo() (component.BuildInfo, error) {
 type PipelineConfig struct {
 	// OTLPReceiverConfig is the OTLP receiver configuration.
 	OTLPReceiverConfig map[string]interface{}
-	// OpenCensusEnabled reports whether the OpenCensus receiver is enabled
+	// OpenCensusEnabled reports whether the OpenCensus receiver is enabled.
+	// WARNING: This feature is for internal use and may be removed in a minor version.
 	OpenCensusEnabled bool
 	// OpenCensusReceiverConfig specifies the configuration for the OpenCensus receiver.
 	OpenCensusReceiverConfig map[string]interface{}
@@ -205,6 +206,9 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 	p, err := NewPipelineFromAgentConfig(cfg, s)
 	if err != nil {
 		return nil, err
+	}
+	if p.OpenCensusEnabled {
+		log.Warn("The OpenCensus receiver is for internal use only and may be removed without notice.")
 	}
 	go func() {
 		err := p.Run(ctx)
