@@ -265,6 +265,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
 	config.BindEnvAndSetDefault("integration_profiling", false)
+	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
@@ -584,6 +585,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
+	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
+
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
@@ -1037,6 +1040,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_socket", "unix:///var/run/datadog/apm.socket")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.dogstatsd_socket", "unix:///var/run/datadog/dsd.socket")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
@@ -1142,7 +1146,7 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)            // controls the agent configurations
+	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)             // controls the agent configurations
 	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false)     // controls the checks configurations
 	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
@@ -1184,6 +1188,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
+	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
@@ -1343,12 +1348,12 @@ func LoadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -1495,12 +1500,7 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
-// LoadDatadogCustom has several datadog.yaml customizations that other configs may not need with LoadCusto
-func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(config, origin, loadSecret, nil)
-}
-
-func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {

@@ -11,9 +11,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -25,16 +25,18 @@ import (
 )
 
 type patcher struct {
-	k8sClient        kubernetes.Interface
-	isLeader         func() bool
-	deploymentsQueue chan PatchRequest
+	k8sClient          kubernetes.Interface
+	isLeader           func() bool
+	deploymentsQueue   chan PatchRequest
+	telemetryCollector telemetry.TelemetryCollector
 }
 
-func newPatcher(k8sClient kubernetes.Interface, isLeaderFunc func() bool, pp patchProvider) *patcher {
+func newPatcher(k8sClient kubernetes.Interface, isLeaderFunc func() bool, telemetryCollector telemetry.TelemetryCollector, pp patchProvider) *patcher {
 	return &patcher{
-		k8sClient:        k8sClient,
-		isLeader:         isLeaderFunc,
-		deploymentsQueue: pp.subscribe(KindDeployment),
+		k8sClient:          k8sClient,
+		isLeader:           isLeaderFunc,
+		deploymentsQueue:   pp.subscribe(KindDeployment),
+		telemetryCollector: telemetryCollector,
 	}
 }
 
@@ -102,8 +104,10 @@ func (p *patcher) patchDeployment(req PatchRequest) error {
 	}
 	log.Infof("Patching %s with patch %s", req.K8sTarget, string(patch))
 	if _, err = p.k8sClient.AppsV1().Deployments(req.K8sTarget.Namespace).Patch(context.TODO(), req.K8sTarget.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		p.telemetryCollector.SendRemoteConfigMutateEvent(req.getApmRemoteConfigEvent(err, telemetry.FailedToMutateConfig))
 		return err
 	}
+	p.telemetryCollector.SendRemoteConfigMutateEvent(req.getApmRemoteConfigEvent(nil, telemetry.Success))
 	metrics.PatchCompleted.Inc()
 	return nil
 }
@@ -137,6 +141,10 @@ func disableConfig(deploy *corev1.Deployment, req PatchRequest) {
 		log.Debugf("Found pod label %q=%q in target %s. Setting it to false", common.EnabledLabelKey, val, req.K8sTarget)
 	}
 	deploy.Spec.Template.Labels[common.EnabledLabelKey] = "false"
+	if deploy.Spec.Template.Annotations == nil {
+		deploy.Spec.Template.Annotations = make(map[string]string)
+	}
+
 	versionAnnotKey := fmt.Sprintf(common.LibVersionAnnotKeyFormat, req.LibConfig.Language)
 	delete(deploy.Spec.Template.Annotations, versionAnnotKey)
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)

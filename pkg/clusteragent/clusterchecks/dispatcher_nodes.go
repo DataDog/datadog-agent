@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -188,7 +188,7 @@ func (d *dispatcher) updateRunnersStats() {
 			// Stats contain info about all the running checks on a node
 			// Node checks must be filtered from Cluster Checks
 			// so they can be included in calculating node Agent busyness and excluded from rebalancing decisions.
-			if _, found := d.store.idToDigest[check.ID(id)]; found {
+			if _, found := d.store.idToDigest[checkid.ID(id)]; found {
 				// Cluster check detected (exists in the Cluster Agent checks store)
 				log.Tracef("Check %s running on node %s is a cluster check", id, node.name)
 				checkStats.IsClusterCheck = true

@@ -18,7 +18,7 @@ import (
 // for testing purpose
 var (
 	cpuGet      = cpu.Get
-	memoryGet   = memory.Get
+	memoryGet   = memory.CollectInfo
 	networkGet  = network.Get
 	platformGet = platform.Get
 )
@@ -120,14 +120,17 @@ func getHostMetadata() *HostMetadata {
 		metadata.CPUArchitecture = platformInfo.HardwarePlatform
 	}
 
-	memoryInfo, warnings, err := memoryGet()
+	memoryInfo := memoryGet()
+	_, warnings, err = memoryInfo.AsJSON()
 	if err != nil {
 		logErrorf("failed to retrieve host memory metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.MemoryTotalKb = memoryInfo.TotalBytes / 1024
-		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalBytes / 1024
+		// Value() returns the default value of the type in case of error so we can use it directly
+		memoryTotalKb, _ := memoryInfo.TotalBytes.Value()
+		metadata.MemoryTotalKb = memoryTotalKb / 1024
+		metadata.MemorySwapTotalKb, _ = memoryInfo.SwapTotalKb.Value()
 	}
 
 	networkInfo, warnings, err := networkGet()

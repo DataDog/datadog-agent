@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -31,12 +33,12 @@ type batcher struct {
 	// with timestamp currently stored)
 	samplesWithTsCount int
 
-	events        []*metrics.Event
-	serviceChecks []*metrics.ServiceCheck
+	events        []*event.Event
+	serviceChecks []*servicecheck.ServiceCheck
 
 	// output channels
-	choutEvents        chan<- []*metrics.Event
-	choutServiceChecks chan<- []*metrics.ServiceCheck
+	choutEvents        chan<- []*event.Event
+	choutServiceChecks chan<- []*servicecheck.ServiceCheck
 
 	metricSamplePool *metrics.MetricSamplePool
 
@@ -71,8 +73,8 @@ func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
 func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
-	var e chan []*metrics.Event
-	var sc chan []*metrics.ServiceCheck
+	var e chan []*event.Event
+	var sc chan []*servicecheck.ServiceCheck
 
 	// the Serverless Agent doesn't have to support service checks nor events so
 	// it doesn't run an Aggregator.
@@ -159,11 +161,11 @@ func (b *batcher) appendSample(sample metrics.MetricSample) {
 	b.samplesCount[shardKey]++
 }
 
-func (b *batcher) appendEvent(event *metrics.Event) {
+func (b *batcher) appendEvent(event *event.Event) {
 	b.events = append(b.events, event)
 }
 
-func (b *batcher) appendServiceCheck(serviceCheck *metrics.ServiceCheck) {
+func (b *batcher) appendServiceCheck(serviceCheck *servicecheck.ServiceCheck) {
 	b.serviceChecks = append(b.serviceChecks, serviceCheck)
 }
 
@@ -206,7 +208,6 @@ func (b *batcher) flushSamplesWithTs() {
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "late_metrics")
 
 		b.samplesWithTsCount = 0
-		b.metricSamplePool.PutBatch(b.samplesWithTs)
 		b.samplesWithTs = b.metricSamplePool.GetBatch()
 	}
 }
@@ -228,7 +229,7 @@ func (b *batcher) flush() {
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "events")
 
-		b.events = []*metrics.Event{}
+		b.events = []*event.Event{}
 	}
 
 	// flush service checks
@@ -238,6 +239,6 @@ func (b *batcher) flush() {
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "service_checks")
 
-		b.serviceChecks = []*metrics.ServiceCheck{}
+		b.serviceChecks = []*servicecheck.ServiceCheck{}
 	}
 }

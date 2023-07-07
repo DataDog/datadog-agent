@@ -33,7 +33,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	}
 
 	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
+
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
 	opts := testOpts{
@@ -96,7 +96,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	}
 
 	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
+
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
@@ -184,7 +184,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	}
 
 	outputDir := t.TempDir()
-	defer os.RemoveAll(outputDir)
+
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{

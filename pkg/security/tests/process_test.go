@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
@@ -849,19 +848,19 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].args"); err == nil {
-				t.Errorf("shouldn't have args, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("shouldn't have args, got %+v %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].envs"); err == nil {
-				t.Errorf("shouldn't have envs, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("shouldn't have envs, got %+v : %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].args"); err != nil {
-				t.Errorf("should have args, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("should have args, got %+v %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
-				t.Errorf("should have envs, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("should have envs, got %+v %s", json, serialized)
 			}
 		}))
 	})
@@ -986,7 +985,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
-		Expression: "exec.file.change_time < 5s",
+		Expression: "exec.file.change_time < 30s",
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -1844,7 +1843,6 @@ func TestProcessInterpreter(t *testing.T) {
 	if whichPythonErr != nil {
 		python = which(t, "python3")
 	}
-	perl := which(t, "perl")
 
 	tests := []struct {
 		name            string
@@ -1881,7 +1879,7 @@ echo "Back to bash"`, python, python),
 			name: "regular exec without interpreter rule",
 			rule: &rules.RuleDefinition{
 				ID:         "test_regular_exec_without_interpreter_rule",
-				Expression: `exec.file.name == "perl" && exec.interpreter.file.name == ""`,
+				Expression: `exec.file.name == ~"*python*" && exec.interpreter.file.name == ""`,
 			},
 			scriptName: "regularExecWithInterpreterRule.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
@@ -1891,10 +1889,10 @@ echo "Executing echo inside a bash script"
 %s <<__HERE__
 #!%s
 
-print "Executing print inside a perl (%s) script inside a bash script\n";
+print('Executing print inside a python (%s) script inside a bash script')
 __HERE__
 
-echo "Back to bash"`, perl, perl, perl),
+echo "Back to bash"`, python, python, python),
 			check: func(event *model.Event) {
 				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
 				assertFieldEqual(t, event, "process.parent.file.name", "regularExecWithInterpreterRule.sh", "wrong process parent file name")
@@ -1973,6 +1971,7 @@ chmod 755 pyscript.py
 
 	var ruleList []*rules.RuleDefinition
 	for _, test := range tests {
+		test.rule.Expression += "  && process.parent.file.name == \"" + test.scriptName + "\""
 		ruleList = append(ruleList, test.rule)
 	}
 

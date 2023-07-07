@@ -70,7 +70,7 @@ func (c *CRCollector) getGRV() schema.GroupVersionResource {
 // Init is used to initialize the collector.
 func (c *CRCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	grv := c.getGRV()
-	c.informer = rcfg.APIClient.DynamicInformerFactory.ForResource(grv)
+	c.informer = rcfg.OrchestratorInformerFactory.DynamicInformerFactory.ForResource(grv)
 	c.lister = c.informer.Lister()
 }
 

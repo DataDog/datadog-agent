@@ -22,7 +22,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	easyjson "github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
-	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
@@ -43,10 +42,11 @@ import (
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/reorderer"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/reorderer"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -57,7 +57,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -66,7 +65,7 @@ import (
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
 type EventStream interface {
 	Init(*manager.Manager, *pconfig.Config) error
-	SetMonitor(reorderer.LostEventCounter)
+	SetMonitor(eventstream.LostEventCounter)
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
@@ -105,15 +104,14 @@ type PlatformProbe struct {
 	notifyDiscarderPushedCallbacks []NotifyDiscarderPushedCallback
 	approvers                      map[eval.EventType]kfilters.ActiveApprovers
 
-	// Events section
-	generatedAnomalyDetection map[model.EventType]*atomic.Uint64
-
 	// Approvers / discarders section
 	notifyDiscarderPushedCallbacksLock sync.Mutex
 
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
+
+	useFentry bool
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -225,7 +223,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	loader := ebpf.NewProbeLoader(p.Config.Probe, useSyscallWrapper, p.UseRingBuffers(), p.StatsdClient)
+	loader := ebpf.NewProbeLoader(p.Config.Probe, useSyscallWrapper, p.UseRingBuffers(), p.useFentry, p.StatsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -247,7 +245,7 @@ func (p *Probe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -270,7 +268,7 @@ func (p *Probe) Init() error {
 	}
 	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
-	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
+	p.eventStream.SetMonitor(p.monitor.eventStreamMonitor)
 
 	return nil
 }
@@ -311,7 +309,7 @@ func (p *Probe) PlaySnapshot() {
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		if entry.Source != model.ProcessCacheEntryFromProcFS {
+		if entry.Source != model.ProcessCacheEntryFromSnapshot {
 			return
 		}
 		entry.Retain()
@@ -337,7 +335,7 @@ func (p *Probe) PlaySnapshot() {
 }
 
 func (p *Probe) sendAnomalyDetection(event *model.Event) {
-	tags := p.GetEventTags(event)
+	tags := p.GetEventTags(event.ContainerContext.ID)
 	if service := p.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -346,26 +344,6 @@ func (p *Probe) sendAnomalyDetection(event *model.Event) {
 		events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc),
 		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
 	)
-	p.generatedAnomalyDetection[event.GetEventType()].Inc()
-}
-
-func (p *Probe) handleAnomalyDetection(event *model.Event) bool {
-	if !event.SecurityProfileContext.Status.IsEnabled(model.AnomalyDetection) {
-		return false
-	}
-
-	// first, check if the current event is a kernel generated anomaly detection event
-	if profile.IsAnomalyDetectionEvent(event.GetEventType()) {
-		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
-		// check if the profile can generate anomalies for the current event type
-	} else if !event.SecurityProfileContext.CanGenerateAnomaliesFor(event.GetEventType()) {
-		return false
-	} else if event.IsInProfile() {
-		return false
-	}
-
-	p.sendAnomalyDetection(event)
-	return true
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
@@ -394,13 +372,17 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		handler.HandleEvent(event)
 	}
 
-	// handle anomaly detection, if not an anomaly let it pass to the process monitor so that it can be added to a dump
-	if !p.handleAnomalyDetection(event) && event.Error == nil {
-		// Process after evaluation because some monitors need the DentryResolver to have been called first.
+	// handle anomaly detections
+	if event.IsAnomalyDetectionEvent() {
+		if event.IsKernelSpaceAnomalyDetectionEvent() {
+			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
+		}
+		p.sendAnomalyDetection(event)
+	} else if event.Error == nil {
+		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 		if p.profileManagers.activityDumpManager != nil {
 			p.profileManagers.activityDumpManager.ProcessEvent(event)
 		}
-
 	}
 	p.monitor.ProcessEvent(event)
 }
@@ -444,14 +426,10 @@ func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) 
 func (p *Probe) SendStats() error {
 	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
 
-	for evtType, count := range p.generatedAnomalyDetection {
-		tags := []string{fmt.Sprintf("event_type:%s", evtType)}
-		if value := count.Swap(0); value > 0 {
-			if err := p.StatsdClient.Count(metrics.MetricSecurityProfileAnomalyDetectionGenerated, int64(value), tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricSecurityProfileAnomalyDetectionGenerated metric: %w", err)
-			}
-		}
+	if err := p.profileManagers.SendStats(); err != nil {
+		return err
 	}
+
 	return p.monitor.SendStats()
 }
 
@@ -518,7 +496,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
-	p.monitor.perfBufferMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, reorderer.EventStreamMap, CPU)
+	p.monitor.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -600,7 +578,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
-			nsid := uint32(event.Mount.RootInode)
+			nsid := uint32(event.Mount.RootPathKey.Inode)
 			mountPath, err := p.resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
@@ -619,7 +597,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
 		mount, _ := p.resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
-			nsid := uint32(mount.RootInode)
+			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
 				p.FlushNetworkNamespace(namespace)
 			}
@@ -950,7 +928,7 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Policy
 		return fmt.Errorf("unable to find policy table: %w", err)
 	}
 
-	et := model.ParseEvalEventType(eventType)
+	et := config.ParseEvalEventType(eventType)
 	if et == model.UnknownEventType {
 		return errors.New("unable to parse the eval event type")
 	}
@@ -1071,7 +1049,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	var activatedProbes []manager.ProbesSelector
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType() {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
 		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
@@ -1114,7 +1092,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	enabledEvents := uint64(0)
 	for _, eventName := range eventTypes {
 		if eventName != "*" {
-			eventType := model.ParseEvalEventType(eventName)
+			eventType := config.ParseEvalEventType(eventName)
 			if eventType == model.UnknownEventType {
 				return fmt.Errorf("unknown event type '%s'", eventName)
 			}
@@ -1415,20 +1393,16 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		StatsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		PlatformProbe: PlatformProbe{
-			approvers:                 make(map[eval.EventType]kfilters.ActiveApprovers),
-			managerOptions:            ebpf.NewDefaultOptions(),
-			Erpc:                      nerpc,
-			erpcRequest:               &erpc.ERPCRequest{},
-			isRuntimeDiscarded:        !opts.DontDiscardRuntime,
-			generatedAnomalyDetection: make(map[model.EventType]*atomic.Uint64),
+			approvers:          make(map[eval.EventType]kfilters.ActiveApprovers),
+			managerOptions:     ebpf.NewDefaultOptions(),
+			Erpc:               nerpc,
+			erpcRequest:        &erpc.ERPCRequest{},
+			isRuntimeDiscarded: !opts.DontDiscardRuntime,
+			useFentry:          config.Probe.EventStreamUseFentry,
 		},
 	}
 
 	p.event = NewEvent(p.fieldHandlers)
-
-	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		p.generatedAnomalyDetection[i] = atomic.NewUint64(0)
-	}
 
 	if err := p.detectKernelVersion(); err != nil {
 		// we need the kernel version to start, fail if we can't get it
@@ -1450,7 +1424,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	useRingBuffers := p.UseRingBuffers()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
-	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers)
+	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
 
 	p.ensureConfigDefaults()
 
@@ -1567,6 +1541,10 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
 			Value: utils.BoolTouint64(slices.Contains(p.Config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
+		},
+		manager.ConstantEditor{
+			Name:  "monitor_syscalls_map_enabled",
+			Value: utils.BoolTouint64(opts.SyscallsMapMonitorEnabled),
 		},
 	)
 

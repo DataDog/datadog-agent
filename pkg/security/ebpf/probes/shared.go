@@ -9,30 +9,37 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-// sharedProbes is the list of probes that are shared across multiple events
-var sharedProbes = []*manager.Probe{
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_filename_create",
+// getSharedProbes returns the list of probes that are shared across multiple events
+func getSharedProbes(fentry bool) []*manager.Probe {
+	probes := []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_filename_create",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_mnt_want_write",
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_mnt_want_write",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_mnt_want_write_file",
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_mnt_want_write_file",
+			},
 		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_mnt_want_write_file_path",
-		},
-	},
+	}
+
+	if !fentry {
+		probes = append(probes, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_mnt_want_write_file_path",
+			},
+		})
+	}
+
+	return probes
 }

@@ -3,6 +3,7 @@
 
 #include "helpers/erpc.h"
 
+// fentry blocked by: tail call
 SEC("kprobe/do_vfs_ioctl")
 int kprobe_do_vfs_ioctl(struct pt_regs *ctx) {
     if (is_erpc_request(ctx)) {

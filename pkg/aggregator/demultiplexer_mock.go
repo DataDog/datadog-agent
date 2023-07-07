@@ -10,11 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 // TestAgentDemultiplexer is an implementation of the Demultiplexer which is sending
@@ -26,8 +29,8 @@ type TestAgentDemultiplexer struct {
 	noAggSamples      []metrics.MetricSample
 	sync.Mutex
 
-	events        chan []*metrics.Event
-	serviceChecks chan []*metrics.ServiceCheck
+	events        chan []*event.Event
+	serviceChecks chan []*servicecheck.ServiceCheck
 }
 
 // AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
@@ -50,7 +53,7 @@ func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventP
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
-func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+func (a *TestAgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck) {
 	return a.events, a.serviceChecks
 }
 
@@ -157,27 +160,27 @@ func (a *TestAgentDemultiplexer) Reset() {
 }
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
-func InitTestAgentDemultiplexerWithOpts(sharedForwarderOptions *forwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, sharedForwarderOptions)
-	demux := InitAndStartAgentDemultiplexer(sharedForwarder, opts, "hostname")
+func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOptions *forwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)
+	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "hostname")
 	testAgent := TestAgentDemultiplexer{
 		AgentDemultiplexer: demux,
-		events:             make(chan []*metrics.Event),
-		serviceChecks:      make(chan []*metrics.ServiceCheck),
+		events:             make(chan []*event.Event),
+		serviceChecks:      make(chan []*servicecheck.ServiceCheck),
 	}
 	return &testAgent
 }
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
-func InitTestAgentDemultiplexerWithFlushInterval(flushInterval time.Duration) *TestAgentDemultiplexer {
+func InitTestAgentDemultiplexerWithFlushInterval(log log.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	return InitTestAgentDemultiplexerWithOpts(forwarder.NewOptions(config.Datadog, nil), opts)
+	return InitTestAgentDemultiplexerWithOpts(log, forwarder.NewOptions(config.Datadog, log, nil), opts)
 }
 
 // InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.
-func InitTestAgentDemultiplexer() *TestAgentDemultiplexer {
-	return InitTestAgentDemultiplexerWithFlushInterval(time.Hour) // long flush interval for unit tests
+func InitTestAgentDemultiplexer(log log.Component) *TestAgentDemultiplexer {
+	return InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour) // long flush interval for unit tests
 }

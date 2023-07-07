@@ -169,7 +169,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"column symbols [{1.2 abc  <nil>   <nil> 0  false}] doesn't have a 'metric_tags' section",
+				"column symbols doesn't have a 'metric_tags' section",
 			},
 		},
 		{
@@ -439,6 +439,112 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 			expectedErrors: []string{
 				"symbol oid missing",
 				"`constant_value_one` cannot be used outside of tables",
+			},
+		},
+		{
+			name: "metric_type usage in column symbol",
+			metrics: []MetricsConfig{
+				{
+					Symbols: []SymbolConfig{
+						{
+							Name:       "abc",
+							OID:        "1.2.3",
+							MetricType: ProfileMetricTypeCounter,
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								Name: "abc",
+								OID:  "1.2.3",
+							},
+							Tag: "hello",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "metric_type usage in scalar symbol",
+			metrics: []MetricsConfig{
+				{
+					Symbol: SymbolConfig{
+						Name:       "abc",
+						OID:        "1.2.3",
+						MetricType: ProfileMetricTypeCounter,
+					},
+				},
+			},
+			expectedErrors: []string{},
+		},
+		{
+			name: "ERROR metric_type usage in metric_tags",
+			metrics: []MetricsConfig{
+				{
+					Symbols: []SymbolConfig{
+						{
+							Name: "abc",
+							OID:  "1.2.3",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								Name:       "abc",
+								OID:        "1.2.3",
+								MetricType: ProfileMetricTypeCounter,
+							},
+							Tag: "hello",
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				"`metric_type` cannot be used outside scalar/table metric symbols and metrics root",
+			},
+		},
+		{
+			name: "metric root forced_type converted to metric_type",
+			metrics: []MetricsConfig{
+				{
+					ForcedType: ProfileMetricTypeCounter,
+					Symbols: []SymbolConfig{
+						{
+							Name: "abc",
+							OID:  "1.2.3",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								Name: "abc",
+								OID:  "1.2.3",
+							},
+							Tag: "hello",
+						},
+					},
+				},
+			},
+			expectedMetrics: []MetricsConfig{
+				{
+					MetricType: ProfileMetricTypeCounter,
+					Symbols: []SymbolConfig{
+						{
+							Name: "abc",
+							OID:  "1.2.3",
+						},
+					},
+					MetricTags: MetricTagConfigList{
+						MetricTagConfig{
+							Column: SymbolConfig{
+								Name: "abc",
+								OID:  "1.2.3",
+							},
+							Tag: "hello",
+						},
+					},
+				},
 			},
 		},
 		{

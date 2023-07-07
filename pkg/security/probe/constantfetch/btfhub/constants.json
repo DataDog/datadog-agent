@@ -1,5 +1,5 @@
 {
-	"commit": "cb426c2f135ce1760bb7523afb998b47ae381d9b",
+	"commit": "ead2ff641ec299f58cf5bdfc3d51902bc136a53e",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -9447,6 +9447,13 @@
 			"distrib": "centos",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.92.1.el7.x86_64",
+			"cindex": 33
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.el7.x86_64",
 			"cindex": 33
 		},
@@ -12394,6 +12401,20 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "arm64",
+			"uname_release": "4.14.35-2047.527.2.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
+			"uname_release": "4.14.35-2047.528.1.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
 			"uname_release": "4.14.35-2048.el7uek.aarch64",
 			"cindex": 76
 		},
@@ -14726,6 +14747,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.1.12-124.75.3.el7uek.x86_64",
+			"cindex": 82
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.1.12-124.76.2.el7uek.x86_64",
 			"cindex": 82
 		},
 		{
@@ -17190,6 +17218,20 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.14.35-2047.527.1.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.527.2.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.528.1.el7uek.x86_64",
 			"cindex": 85
 		},
 		{
@@ -29488,6 +29530,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1152-gcp",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1153-aws",
 			"cindex": 115
 		},
@@ -30007,6 +30056,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-212-generic",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-213-generic",
 			"cindex": 115
 		},
 		{

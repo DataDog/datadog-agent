@@ -56,7 +56,7 @@ As an example this is how HTTP integration does it:
 
 ```go
 func callback(data []byte) {
-	event := (*ebpfHttpTx)(unsafe.Pointer(&data[0]))
+	event := (*EbpfTx)(unsafe.Pointer(&data[0]))
 	...
 }
 ```

@@ -122,7 +122,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, cliParams.caseID, cliParams.email)
+	response, e := flare.SendFlare(filePath, cliParams.caseID, cliParams.email, "local")
 	fmt.Println(response)
 	if e != nil {
 		return e

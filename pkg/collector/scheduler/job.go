@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +37,7 @@ func (jb *jobBucket) addJob(c check.Check) {
 
 // removeJob removes the check from the bucket, and returns
 // whether the check was indeed in the bucket (and therefore actually removed)
-func (jb *jobBucket) removeJob(id check.ID) bool {
+func (jb *jobBucket) removeJob(id checkid.ID) bool {
 	jb.mu.Lock()
 	defer jb.mu.Unlock()
 
@@ -123,7 +124,7 @@ func (jq *jobQueue) addJob(c check.Check) {
 	jq.schedulingBucketIdx = (jq.schedulingBucketIdx + jq.sparseStep) % uint(len(jq.buckets))
 }
 
-func (jq *jobQueue) removeJob(id check.ID) error {
+func (jq *jobQueue) removeJob(id checkid.ID) error {
 	jq.mu.Lock()
 	defer jq.mu.Unlock()
 

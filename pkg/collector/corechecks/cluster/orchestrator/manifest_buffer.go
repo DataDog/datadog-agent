@@ -15,7 +15,7 @@ import (
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -85,7 +85,7 @@ func NewManifestBuffer(chk *OrchestratorCheck) *ManifestBuffer {
 }
 
 // flushManifest flushes manifests by chunking them first then sending them to the sender
-func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
+func (cb *ManifestBuffer) flushManifest(sender sender.Sender) {
 	manifests := cb.bufferedManifests
 	ctx := &processors.ProcessorContext{
 		ClusterID:  cb.Cfg.ClusterID,
@@ -104,7 +104,7 @@ func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
 
 // appendManifest appends manifest into the buffer
 // If buffer is full, it will flush the buffer first then append the manifest
-func (cb *ManifestBuffer) appendManifest(m interface{}, sender aggregator.Sender) {
+func (cb *ManifestBuffer) appendManifest(m interface{}, sender sender.Sender) {
 	if len(cb.bufferedManifests) >= cb.Cfg.MaxBufferedManifests {
 		cb.flushManifest(sender)
 	}
@@ -114,12 +114,15 @@ func (cb *ManifestBuffer) appendManifest(m interface{}, sender aggregator.Sender
 
 // Start is to start a thread to buffer manifest and send them
 // It flushes manifests every defaultFlushManifestTime
-func (cb *ManifestBuffer) Start(sender aggregator.Sender) {
-	ticker := time.NewTicker(cb.Cfg.ManifestBufferFlushInterval)
+func (cb *ManifestBuffer) Start(sender sender.Sender) {
 	cb.wg.Add(1)
 
 	go func() {
-		defer cb.wg.Done()
+		ticker := time.NewTicker(cb.Cfg.ManifestBufferFlushInterval)
+		defer func() {
+			ticker.Stop()
+			cb.wg.Done()
+		}()
 	loop:
 		for {
 			select {
