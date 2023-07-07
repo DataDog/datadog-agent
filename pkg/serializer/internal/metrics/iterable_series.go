@@ -142,8 +142,28 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	const pointValue = 1
 	const pointTimestamp = 2
 	const serieMetadataOrigin = 1
+	//         |------| 'Metadata' message
+	//                 |-----| 'origin' field index
 	const serieMetadataOriginMetricType = 3
+	//         |------| 'Metadata' message
+	//                 |----| 'origin' message
+	//                       |--------| 'metric_type' field index
 	const metryTypeNotIndexed = 9
+	//    |-----------------| 'metric_type_agent_hidden' field index
+
+	const serieMetadataOriginOriginProduct = 4
+	//                 |----|  'Origin' message
+	//                       |-----------| 'origin_product' field index
+	const serieMetadataOriginOriginCategory = 5
+	//                 |----|  'Origin' message
+	//                       |-----------| 'origin_category' field index
+	const serieMetadataOriginOriginService = 6
+	//                 |----|  'Origin' message
+	//                       |-----------| 'origin_service' field index
+	const serieMetadataOriginOriginProductAgentType = 10
+	//                 |----|  'Origin' message
+	//                       |-----------| 'OriginProduct' enum
+	//                                    |-------| 'Agent' enum value
 
 	// Prepare to write the next payload
 	startPayload := func() error {
@@ -312,12 +332,27 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 				}
 			}
 
-			if serie.NoIndex {
-				return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
-					return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
-						return ps.Int32(serieMetadataOriginMetricType, metryTypeNotIndexed)
-					})
+			err = ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
+				return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
+					if serie.NoIndex {
+						err = ps.Int32(serieMetadataOriginMetricType, metryTypeNotIndexed)
+						if err != nil {
+							return err
+						}
+					}
+					err = ps.Int32(serieMetadataOriginOriginProduct, serieMetadataOriginOriginProductAgentType)
+					if err != nil {
+						return err
+					}
+					err = ps.Int32(serieMetadataOriginOriginCategory, MetricSourceToOriginCategory(serie.Source))
+					if err != nil {
+						return err
+					}
+					return ps.Int32(serieMetadataOriginOriginService, MetricSourceToOriginService(serie.Source))
 				})
+			})
+			if err != nil {
+				return err
 			}
 			return nil
 		})

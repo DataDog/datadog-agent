@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 type swapMetricsSender struct {
@@ -28,7 +28,7 @@ func (swapMetricsSender *swapMetricsSender) Init() error {
 	return nil
 }
 
-func (swapMetricsSender *swapMetricsSender) SendMetrics(sender aggregator.Sender, field string) error {
+func (swapMetricsSender *swapMetricsSender) SendMetrics(sender sender.Sender, field string) error {
 	swapFields := regexFindStringSubmatchMap(swapMetricsSender.regex, field)
 	if swapFields == nil {
 		// SWAP is not present on all devices

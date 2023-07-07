@@ -23,7 +23,8 @@ rm -rf /ci-visibility
 CODE=0
 /test-runner -retry $RETRY_COUNT || CODE=$?
 
-find /ci-visibility -maxdepth 1 -type d -name testjson-* -exec tar czvf {}-$IP.tar.gz {} \;
-find /ci-visibility -maxdepth 1 -type d -name junit-* -exec tar czvf {}-$IP.tar.gz {} \;
+pushd /ci-visibility
+tar czvf testjson.tar.gz testjson
+tar czvf junit.tar.gz junit
 
 exit $CODE

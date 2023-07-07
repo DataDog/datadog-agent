@@ -115,7 +115,6 @@ kernel_matrix_testing_setup_env:
   stage: kernel_matrix_testing
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
-  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
@@ -151,7 +150,7 @@ kernel_matrix_testing_setup_env:
     # Without the newline ssh silently fails and moves on to try other auth methods
     - echo "" >> $AWS_EC2_SSH_KEY_FILE
     - chmod 600 $AWS_EC2_SSH_KEY_FILE
-    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --subnets=$SUBNETS
+    - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --subnets=$SUBNETS
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
   artifacts:
@@ -165,52 +164,41 @@ kernel_matrix_testing_setup_env:
       - $CI_PROJECT_DIR/stack.outputs
       - $AWS_EC2_SSH_KEY_FILE
 
-kernel_matrix_testing_upload_deps:
+.kernel_matrix_testing_upload_deps:
   extends:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  needs: ["go_deps", "kernel_matrix_testing_setup_env", "package_dependencies_x64", "package_dependencies_arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:7c39524b
   tags: ["arch:amd64"]
   allow_failure: true
   variables:
-    EC2_X86_INSTANCE_TYPE: "m5.metal"
-    EC2_ARM_INSTANCE_TYPE: "m6g.metal"
-    X86_AMI_ID: $KERNEL_MATRIX_TESTING_X86_AMI_ID
-    ARM_AMI_ID: $KERNEL_MATRIX_TESTING_ARM_AMI_ID
-    AWS_REGION: us-east-1
-    LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
-    LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
-    STACK_DIR: $CI_PROJECT_DIR/stack.dir
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
-    AWS_EC2_SSH_KEY_NAME: datadog-agent-ci
-    INFRA_ENV: "aws/agent-qa"
-    PIPELINE_ID: $CI_PIPELINE_ID
-    TEAM: "ebpf-platform"
-    # We have user provided AZ here because the default AZ was experiencing
-    # capacity issues for m6g.metal machines
-    SUBNETS: "subnet-03061a1647c63c3c3,subnet-071213aedb0e1ae54"
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
   script:
-    - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.test-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --upload-dependencies --subnets=$SUBNETS
-    - pulumi logout
-  artifacts:
-    when: always
-    paths:
-      - $LibvirtSSHKeyX86
-      - $LibvirtSSHKeyX86.pub
-      - $LibvirtSSHKeyARM
-      - $LibvirtSSHKeyARM.pub
-      - $STACK_DIR
+    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing
+
+kernel_matrix_testing_upload_deps_x64:
+  extends:
+    - .kernel_matrix_testing_upload_deps
+  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_x64"]
+  variables:
+    ARCHIVE_NAME: dependencies-x86_64.tar.gz
+    ARCH: "x86_64"
+
+kernel_matrix_testing_upload_deps_arm64:
+  extends:
+    - .kernel_matrix_testing_upload_deps
+  needs: ["kernel_matrix_testing_setup_env", "package_dependencies_arm64"]
+  variables:
+    ARCHIVE_NAME: dependencies-arm64.tar.gz
+    ARCH: "arm64"
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  needs: ["kernel_matrix_testing_upload_deps", "kernel_matrix_testing_setup_env"]
   tags: ["arch:amd64"]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -230,15 +218,16 @@ kernel_matrix_testing_upload_deps:
     - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 1)
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION} ${RETRY}'"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/ci-visibility/junit-*.tar.gz /home/ubuntu/"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/ci-visibility/testjson-*.tar.gz /home/ubuntu/"
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson-*.tar.gz $DD_AGENT_TESTING_DIR/
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit-*.tar.gz $DD_AGENT_TESTING_DIR/
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit.tar.gz"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson.tar.gz"
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson.tar.gz $DD_AGENT_TESTING_DIR/
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit.tar.gz $DD_AGENT_TESTING_DIR/
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} '/test-json-review'"
 
 kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
+  needs: ["kernel_matrix_testing_upload_deps_x64", "kernel_matrix_testing_setup_env"]
   variables:
     ARCH: "x86_64"
   parallel:
@@ -248,16 +237,18 @@ kernel_matrix_testing_run_tests_x64:
 kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
+  needs: ["kernel_matrix_testing_upload_deps_arm64", "kernel_matrix_testing_setup_env"]
   variables:
     ARCH: "arm64"
   parallel:
     matrix:
       - TAG: ["focal", "jammy"]
 
-.kernel_matrix_testing_cleanup:
+kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
+  when: always
   tags: ["arch:amd64"]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
@@ -276,14 +267,3 @@ kernel_matrix_testing_run_tests_arm64:
       if [ $(echo $INSTANCE_IDS | wc -w) != "0" ]; then
         aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
       fi
-
-kernel_matrix_testing_cleanup_success:
-  extends:
-    - .kernel_matrix_testing_cleanup
-  when: on_success
-
-
-kernel_matrix_testing_cleanup_failure:
-  extends:
-    - .kernel_matrix_testing_cleanup
-  when: on_failure

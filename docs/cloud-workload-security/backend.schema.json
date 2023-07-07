@@ -317,6 +317,17 @@
         "package_version": {
           "type": "string",
           "description": "System package version"
+        },
+        "hashes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of cryptographic hashes of the file"
+        },
+        "hash_state": {
+          "type": "string",
+          "description": "State of the hashes or reason why they weren't computed"
         }
       },
       "additionalProperties": false,
@@ -414,6 +425,17 @@
         "package_version": {
           "type": "string",
           "description": "System package version"
+        },
+        "hashes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "List of cryptographic hashes of the file"
+        },
+        "hash_state": {
+          "type": "string",
+          "description": "State of the hashes or reason why they weren't computed"
         },
         "destination": {
           "$ref": "#/$defs/File",
