@@ -42,7 +42,7 @@ func NewAgent(sources *sources.LogSources, services *service.Services, tracker *
 	auditorTTL := time.Duration(coreConfig.Datadog.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
