@@ -985,6 +985,21 @@ func TestResetProcesses(t *testing.T) {
 			testStore := newTestStore()
 			testStore.handleEvents(test.preEvents)
 
+			ch := testStore.Subscribe(dummySubscriber, NormalPriority, nil)
+			doneCh := make(chan struct{})
+
+			go func() {
+				for bundle := range ch {
+					close(bundle.Ch)
+
+					// nil the bundle's Ch so we can deep-equal just the events
+					// later
+					bundle.Ch = nil
+				}
+
+				close(doneCh)
+			}()
+
 			entities := make([]Entity, len(test.newProcesses))
 			for i := range test.newProcesses {
 				entities[i] = test.newProcesses[i]
@@ -994,9 +1009,13 @@ func TestResetProcesses(t *testing.T) {
 			if len(testStore.eventCh) > 0 {
 				testStore.handleEvents(<-testStore.eventCh)
 			}
+
+			testStore.Unsubscribe(ch)
+
+			<-doneCh
+
 			processes := testStore.ListProcesses()
 			assert.DeepEqual(t, processes, test.newProcesses)
-
 		})
 	}
 
