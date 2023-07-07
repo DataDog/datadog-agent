@@ -59,16 +59,12 @@ type exe interface {
 	DataStart() uint64
 }
 
-// ReadElfBuildInfo finds and returns the Go version in the given ELF binary.
-func ReadElfBuildInfo(elfFile *elf.File) (vers, mod string, err error) {
-	vers, mod, err = readRawBuildInfo(&elfExe{f: elfFile})
-	return
-}
-
-// readRawBuildInfo extracts the Go toolchain version and module information
+// ReadElfBuildInfo extracts the Go toolchain version and module information
 // strings from a Go binary. On success, vers should be non-empty. mod
 // is empty if the binary was not built with modules enabled.
-func readRawBuildInfo(x exe) (vers, mod string, err error) {
+func ReadElfBuildInfo(elfFile *elf.File) (vers, mod string, err error) {
+	x := &elfExe{f: elfFile}
+
 	// Read the first 64kB of dataAddr to find the build info blob.
 	// On some platforms, the blob will be in its own section, and DataStart
 	// returns the address of that section. On others, it's somewhere in the
