@@ -54,7 +54,12 @@ def split_junitxml(xml_path, codeowners, output_dir):
         # don't, so for determining ownership we append "/" temporarily.
         owners = codeowners.of(path + "/")
         if not owners:
-            main_owner = "none"
+            filepath = next(tree.iter("testcase")).attrib.get("file",None)
+            if filepath:
+                owners = codeowners.of(filepath)
+                main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
+            else:
+                main_owner = "none"
         else:
             main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
 
