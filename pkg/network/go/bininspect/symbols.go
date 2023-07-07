@@ -26,21 +26,31 @@ import (
 // preAllocatedBuf is a pre allocated buffer with a constant length (== max length among all given symbols) to spare
 // redundant allocations. We get it as a parameter and not putting it as a global, to be thread safe among concurrent
 // and parallel calls.
-func getSymbolNameByEntry(sectionReader io.ReaderAt, startPos, minLength int, preAllocatedBuf []byte) (string, bool) {
+func getSymbolNameByEntry(sectionReader io.ReaderAt, startPos, minLength int, preAllocatedBuf []byte) int {
 	_, err := sectionReader.ReadAt(preAllocatedBuf, int64(startPos))
 	if err != nil {
-		return "", false
+		return -1
 	}
-	for i := 0; i < len(preAllocatedBuf); i++ {
+
+	foundNull := false
+	nullIndex := minLength
+	for ; nullIndex < len(preAllocatedBuf); nullIndex++ {
+		if preAllocatedBuf[nullIndex] == 0 {
+			foundNull = true
+			break
+		}
+	}
+	if !foundNull {
+		return -1
+	}
+
+	for i := 1; i <= nullIndex; i++ {
 		if preAllocatedBuf[i] == 0 {
-			if i < minLength {
-				break
-			}
-			return string(preAllocatedBuf[0:i]), true
+			return i
 		}
 	}
 
-	return "", false
+	return -1
 }
 
 // getSymbolLengthBoundaries extracts the minimum and maximum lengths of the symbols.
@@ -114,7 +124,7 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 	// The size of the buffer is maxSymbolNameSize + 1, for null termination.
 	symbolNameBuf := make([]byte, maxSymbolNameSize+1)
 
-	const symbolChunkSize = int64(48)
+	const symbolChunkSize = int64(100)
 
 	chunkSize := symbolChunkSize * int64(symbolSize)
 
@@ -146,18 +156,19 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 		// Trying to get string representation of symbol.
 		// If the symbol name's length is not in the boundaries [minSymbolNameSize, maxSymbolNameSize+1] then we fail,
 		// and continue to the next symbol.
-		symbolName, ok := getSymbolNameByEntry(f.Sections[symbolSection.Link].ReaderAt, stringEntry, minSymbolNameSize, symbolNameBuf)
-		if !ok {
+		symbolNameSize := getSymbolNameByEntry(f.Sections[symbolSection.Link].ReaderAt, stringEntry, minSymbolNameSize, symbolNameBuf)
+
+		if symbolNameSize <= 0 {
 			continue
 		}
 
 		// Checking the symbol is relevant for us.
-		if _, ok := wantedSymbols[symbolName]; !ok {
+		if _, ok := wantedSymbols[string(symbolNameBuf[:symbolNameSize])]; !ok {
 			continue
 		}
 
 		// Complete the symbol reading.
-		fillSymbol(&symbol, f.ByteOrder, symbolName, symbolsCache[locationInCache+4:locationInCache+int64(symbolSize)-4], is64Bit)
+		fillSymbol(&symbol, f.ByteOrder, string(symbolNameBuf[:symbolNameSize]), symbolsCache[locationInCache+4:locationInCache+int64(symbolSize)-4], is64Bit)
 		symbols = append(symbols, symbol)
 
 		// If no symbols left, stop running.
