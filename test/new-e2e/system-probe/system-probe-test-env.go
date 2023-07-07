@@ -181,7 +181,9 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	ctx := context.Background()
 	currentAZ = PrimaryAZ
 	b := retry.NewConstant(3 * time.Second)
-	b = retry.WithMaxRetries(3, b)
+	// Retry 4 times. This allows us to cycle through all AZs, and handle libvirt
+	// connection issues in the worst case.
+	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		// Set AZ in retry block so we can change if needed.
 		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: currentAZ}
@@ -192,14 +194,17 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 			}
 			return nil
 		}, opts.FailOnMissing)
-		// Only retry if we failed to dial libvirt.
-		// Libvirt daemon on the server occasionally crashes with the following error
-		// "End of file while reading data: Input/output error"
-		// The root cause of this is unknown. The problem usually fixes itself upon retry.
 		if err != nil {
+			// Retry if we failed to dial libvirt.
+			// Libvirt daemon on the server occasionally crashes with the following error
+			// "End of file while reading data: Input/output error"
+			// The root cause of this is unknown. The problem usually fixes itself upon retry.
 			if strings.Contains(err.Error(), "failed to dial libvirt") {
 				fmt.Println("[Error] Failed to dial libvirt. Retrying stack.")
 				return retry.RetryableError(err)
+
+				// Retry if we have capacity issues in our current AZ.
+				// We switch to a different AZ and attempt to launch the instance again.
 			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
 				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", currentAZ, getNextAZ(currentAZ))
 				currentAZ = getNextAZ(currentAZ)
