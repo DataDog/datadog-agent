@@ -270,12 +270,15 @@ func TestCollection(t *testing.T) {
 			mockStore := workloadmeta.NewMockStore()
 			mockStore.Notify(test.preEvents)
 
+			ctx, cancel := context.WithCancel(context.TODO())
 			// Start collection
-			err = collector.Start(context.TODO(), mockStore)
+			err = collector.Start(ctx, mockStore)
 			require.NoError(t, err)
 
 			// Wait for gRPC calls to be sent
 			time.Sleep(1 * time.Second)
+
+			cancel()
 
 			// Verify final state
 			for i := range test.expectedProcesses {
