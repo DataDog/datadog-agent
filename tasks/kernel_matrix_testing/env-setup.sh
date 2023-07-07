@@ -25,7 +25,7 @@ fi
 
 sudo systemctl start nfs-kernel-server.service
 
-pip install -r tasks/kernel_matrix_testing/requirements.txt
+pip3 install -r tasks/kernel_matrix_testing/requirements.txt
 
 curl -fsSL https://get.pulumi.com | sh
 
