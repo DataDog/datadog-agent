@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/ReneKroon/ttlcache/v2"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -70,6 +71,7 @@ type Check struct {
 	filePath                                string
 	isRDS                                   bool
 	sqlTraceRunsCount                       int
+	fqtCache                                ttlcache.SimpleCache
 }
 
 // Run executes the check.
@@ -253,6 +255,10 @@ func (c *Check) Teardown() {
 			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
 		}
 	}
+	if c.fqtCache != nil {
+		c.fqtCache.Purge()
+		c.fqtCache.Close()
+	}
 }
 
 // Configure configures the Oracle check.
@@ -283,6 +289,8 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
 	c.tagsString = strings.Join(c.tags, ",")
+	c.fqtCache = ttlcache.NewCache()
+	c.fqtCache.SetTTL(time.Duration(3600 * time.Second))
 	return nil
 }
 
