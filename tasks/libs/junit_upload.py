@@ -94,11 +94,11 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
         ]
         if "upload_option.os_version_from_name" in additional_tags:
             additional_tags.remove("upload_option.os_version_from_name")
-            args.append("--tags")
+            additional_tags.append("--tags")
             version_match = re.search("kitchen-rspec-([a-zA-Z0-9]+)-?([0-9-]*)-.*\.xml", xmlfile_name)
             exact_version = version_match.group(1)+version_match.group(2).replace("-",".")
-            args.append(f"version:{exact_version}")
-
+            additional_tags.append(f"version:{exact_version}")
+            print(additional_tags)
 
         if additional_tags:
             args.extend(additional_tags)
@@ -140,7 +140,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
             xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
-                upload_junitxmls(output_dir, written_owners, flavor, tags, job_url, xmlfile.split("/")[-1])
+                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], tags, job_url)
         xmlcounts[junit_tgz] = xmls
 
     empty_tgzs = []
