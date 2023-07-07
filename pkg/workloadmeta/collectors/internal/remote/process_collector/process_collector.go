@@ -28,11 +28,11 @@ const (
 
 type client struct {
 	cl              pbgo.ProcessEntityStreamClient
-	parentCollector *remoteProcessCollectorStreamHandler
+	parentCollector *streamHandler
 }
 
 func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) {
-	log.Debug("[remoteprocesscollector] starting a new stream")
+	log.Debug("starting a new stream")
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
 		&pbgo.ProcessStreamEntitiesRequest{},
@@ -48,40 +48,39 @@ type stream struct {
 }
 
 func (s *stream) Recv() (interface{}, error) {
-	log.Trace("[remoteprocesscollector] calling stream recv")
+	log.Trace("calling stream recv")
 	return s.cl.Recv()
 }
 
-type remoteProcessCollectorStreamHandler struct {
-}
+type streamHandler struct{}
 
 func init() {
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 		return &remote.GenericCollector{
 			CollectorID:   collectorID,
-			StreamHandler: &remoteProcessCollectorStreamHandler{},
+			StreamHandler: &streamHandler{},
 			Port:          config.Datadog.GetInt("process_config.language_detection.grpc_port"),
 			Insecure:      true, // wlm extractor currently does not support TLS
 		}
 	})
 }
 
-func (s *remoteProcessCollectorStreamHandler) IsEnabled() error {
+func (s *streamHandler) IsEnabled() error {
 	if !config.IsFeaturePresent(config.RemoteProcessCollector) {
-		return dderrors.NewDisabled(collectorID, "[remoteprocesscollector] is not enabled")
+		return dderrors.NewDisabled(collectorID, "RemoteProcessCollector is not enabled")
 	}
-	log.Trace("[remoteprocesscollector] feature is enabled")
+	log.Trace("feature is enabled")
 	return nil
 }
 
-func (s *remoteProcessCollectorStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
-	log.Debug("[remoteprocesscollector] creating grpc client")
+func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
+	log.Debug("creating grpc client")
 	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
-func (s *remoteProcessCollectorStreamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
-	log.Trace("[remoteprocesscollector] handling response")
+func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+	log.Trace("handling response")
 	response, ok := resp.(*pbgo.ProcessStreamResponse)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
@@ -91,7 +90,7 @@ func (s *remoteProcessCollectorStreamHandler) HandleResponse(resp interface{}) (
 
 	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, protoutils.WorkloadmetaEventFromProcessEventUnset)
 	collectorEvents = handleEvents(collectorEvents, response.SetEvents, protoutils.WorkloadmetaEventFromProcessEventSet)
-	log.Tracef("[remoteprocesscollector] collected [%d] events", len(collectorEvents))
+	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
 
@@ -114,7 +113,7 @@ func handleEvents[T any](collectorEvents []workloadmeta.CollectorEvent, setEvent
 	return collectorEvents
 }
 
-func (s *remoteProcessCollectorStreamHandler) HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
+func (s *streamHandler) HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
 	var processes []workloadmeta.Entity
 	for _, event := range events {
 		processes = append(processes, event.Entity)
@@ -125,6 +124,6 @@ func (s *remoteProcessCollectorStreamHandler) HandleResync(store workloadmeta.St
 	// in the store, because when a client subscribes to the workloadmeta subscriber
 	// the first response is always a bundle of events with all the existing
 	// processes in the store.
-	log.Debugf("[remoteprocesscollector] resync, handling [%d] events", len(processes))
+	log.Debugf("resync, handling [%d] events", len(processes))
 	store.ResetProcesses(processes, workloadmeta.SourceRemoteProcessCollector)
 }
