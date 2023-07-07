@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const (
@@ -35,6 +36,7 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 
 func TestExtractor(t *testing.T) {
 	extractor := NewWorkloadMetaExtractor(config.Mock(t))
+	t.Cleanup(telemetry.Reset)
 
 	var (
 		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})

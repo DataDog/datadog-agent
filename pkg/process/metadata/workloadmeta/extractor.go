@@ -61,8 +61,8 @@ func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor
 		// Keep only the latest diff in memory in case there's no consumer for it
 		diffChan:        make(chan *ProcessCacheDiff, 1),
 		cacheSizeGuage:  telemetry.NewGauge(subsystem, "cache_size", nil, "The cache size for the workloadMetaExtractor"),
-		oldDiffDropped:  telemetry.NewSimpleCounter(subsystem, "old_diff_dropped", "The number of times a diff is removed from the queue due to the diffChan being full."),
-		diffChannelFull: telemetry.NewSimpleCounter(subsystem, "diffchan_full", "The number of times the extractor was unable to write to the diffChan due to it being full. This should never happen."),
+		oldDiffDropped:  telemetry.NewSimpleCounter(subsystem, "diff_dropped", "The number of times a diff is removed from the queue due to the diffChan being full."),
+		diffChannelFull: telemetry.NewSimpleCounter(subsystem, "diff_chan_full", "The number of times the extractor was unable to write to the diffChan due to it being full. This should never happen."),
 	}
 }
 

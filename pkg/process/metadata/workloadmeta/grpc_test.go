@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -53,6 +54,7 @@ func TestStartStop(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
 	cfg.Set("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(config.Mock(t), extractor)
+	t.Cleanup(telemetry.Reset)
 
 	err := srv.Start()
 	assert.NoError(t, err)
@@ -81,6 +83,7 @@ func TestStreamServer(t *testing.T) {
 
 	cfg := config.Mock(t)
 	extractor := NewWorkloadMetaExtractor(cfg)
+	t.Cleanup(telemetry.Reset)
 
 	port := testutil.FreeTCPPort(t)
 	cfg.Set("process_config.language_detection.grpc_port", port)
@@ -160,6 +163,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 
 	cfg := config.Mock(t)
 	extractor := NewWorkloadMetaExtractor(cfg)
+	t.Cleanup(telemetry.Reset)
 
 	port := testutil.FreeTCPPort(t)
 	cfg.Set("process_config.language_detection.grpc_port", port)
@@ -349,6 +353,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	err = grpcServer.Start()
 	require.NoError(t, err)
 	t.Cleanup(grpcServer.Stop)
+	t.Cleanup(telemetry.Reset)
 
 	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
