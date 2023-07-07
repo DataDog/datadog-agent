@@ -5,15 +5,13 @@
 
 package utils
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/config"
-)
+import "github.com/DataDog/datadog-agent/pkg/config"
 
 // IsCheckEnabled returns if we want telemetry for the given check.
 // Returns true if a * is present in the telemetry.checks list.
-func IsCheckEnabled(checkName string) bool {
+func IsCheckTelemetryEnabled(checkName string) bool {
 	// false if telemetry is disabled
-	if !IsEnabled() {
+	if !IsTelemetryEnabled() {
 		return false
 	}
 
@@ -31,6 +29,6 @@ func IsCheckEnabled(checkName string) bool {
 }
 
 // IsEnabled returns whether or not telemetry is enabled
-func IsEnabled() bool {
+func IsTelemetryEnabled() bool {
 	return config.Datadog.IsSet("telemetry.enabled") && config.Datadog.GetBool("telemetry.enabled")
 }

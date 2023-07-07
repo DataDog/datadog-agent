@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,7 +38,7 @@ func newJMXCheck(config integration.Config, source string) *JMXCheck {
 		name:      config.Name,
 		id:        checkid.ID(fmt.Sprintf("%v_%x", config.Name, digest)),
 		source:    source,
-		telemetry: telemetry_utils.IsCheckEnabled("jmx"),
+		telemetry: utils.IsCheckTelemetryEnabled("jmx"),
 	}
 	check.Configure(digest, config.InitConfig, config.MetricConfig, source) //nolint:errcheck
 

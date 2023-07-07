@@ -135,9 +135,6 @@ kernel_matrix_testing_setup_env:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
-    # We have user provided AZ here because the default AZ was experiencing
-    # capacity issues for m6g.metal machines
-    SUBNETS: "subnet-03061a1647c63c3c3,subnet-071213aedb0e1ae54"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
@@ -150,7 +147,7 @@ kernel_matrix_testing_setup_env:
     # Without the newline ssh silently fails and moves on to try other auth methods
     - echo "" >> $AWS_EC2_SSH_KEY_FILE
     - chmod 600 $AWS_EC2_SSH_KEY_FILE
-    - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --subnets=$SUBNETS
+    - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
   artifacts:
@@ -228,6 +225,7 @@ kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
   needs: ["kernel_matrix_testing_upload_deps_x64", "kernel_matrix_testing_setup_env"]
+  timeout: 3h
   variables:
     ARCH: "x86_64"
   parallel:
@@ -238,6 +236,7 @@ kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
   needs: ["kernel_matrix_testing_upload_deps_arm64", "kernel_matrix_testing_setup_env"]
+  timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:
