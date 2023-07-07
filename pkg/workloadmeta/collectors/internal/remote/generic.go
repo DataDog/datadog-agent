@@ -45,8 +45,8 @@ type Stream interface {
 type StreamHandler interface {
 	// Port returns the targetted port
 	Port() int
-	// IsEnabled returns an error if this StreamHandler is disabled
-	IsEnabled() error
+	// IsEnabled returns if the feature is enabled
+	IsEnabled() bool
 	// NewClient returns a client to connect to a remote gRPC server.
 	NewClient(cc grpc.ClientConnInterface) RemoteGrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
@@ -76,8 +76,8 @@ type GenericCollector struct {
 }
 
 func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) error {
-	if err := c.StreamHandler.IsEnabled(); err != nil {
-		return err
+	if !c.StreamHandler.IsEnabled() {
+		return fmt.Errorf("collector %s is not enabled", c.CollectorID)
 	}
 
 	c.store = store

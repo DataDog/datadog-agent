@@ -13,7 +13,6 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,12 +68,8 @@ func (s *streamHandler) Port() int {
 	return config.Datadog.GetInt("process_config.language_detection.grpc_port")
 }
 
-func (s *streamHandler) IsEnabled() error {
-	if !config.IsFeaturePresent(config.RemoteProcessCollector) {
-		return dderrors.NewDisabled(collectorID, "RemoteProcessCollector is not enabled")
-	}
-	log.Trace("feature is enabled")
-	return nil
+func (s *streamHandler) IsEnabled() bool {
+	return config.Datadog.GetBool("workloadmeta.remote_process_collector.enabled")
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {

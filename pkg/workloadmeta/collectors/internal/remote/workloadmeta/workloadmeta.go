@@ -77,9 +77,9 @@ func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpc
 	return &client{cl: pb.NewAgentSecureClient(cc)}
 }
 
-// For now, we do not use detectFeature to enable or disable the remote workloadmeta
-func (s *streamHandler) IsEnabled() error {
-	return nil
+// IsEnabled always return true for the remote workloadmeta because it uses the remote catalog
+func (s *streamHandler) IsEnabled() bool {
+	return true
 }
 
 func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
