@@ -434,6 +434,11 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
+// GetWorkloadID returns an ID that represents the workload
+func (e *Event) GetWorkloadID() string {
+	return e.SecurityProfileContext.Name
+}
+
 // Retain the event
 func (ev *Event) Retain() Event {
 	if ev.ProcessCacheEntry != nil {

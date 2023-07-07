@@ -48,9 +48,10 @@ const (
 )
 
 const (
-	procResolveMaxDepth       = 16
-	maxParallelArgsEnvs       = 512              // == number of parallel starting processes
-	procFallbackLimiterPeriod = 30 * time.Second // proc fallback period by pid
+	procResolveMaxDepth                     = 16
+	maxParallelArgsEnvs                     = 512 // == number of parallel starting processes
+	numAllowedProcessesToResolvePerDuration = 1
+	procFallbackLimiterPeriod               = 30 * time.Second // proc fallback period by pid
 )
 
 // ResolverOpts options of resolver
@@ -598,7 +599,7 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *model
 		return nil
 	}
 
-	if p.procFallbackLimiter.IsAllowed(pid) {
+	if p.procFallbackLimiter.Allow(pid) {
 		p.procFallbackLimiter.Count(pid)
 
 		// fallback to /proc, the in-kernel LRU may have deleted the entry
@@ -1317,7 +1318,8 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	}
 	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
 
-	limiter, err := utils.NewLimiter[uint32](128, procFallbackLimiterPeriod)
+	// Create rate limiter that allows for 128 pids
+	limiter, err := utils.NewLimiter[uint32](128, numAllowedProcessesToResolvePerDuration, procFallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}
