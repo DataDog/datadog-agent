@@ -1319,7 +1319,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
 
 	// Create rate limiter that allows for 128 pids
-	limiter, err := utils.NewLimiter[uint32](128, numAllowedProcessesToResolvePerDuration, procFallbackLimiterPeriod)
+	limiter, err := utils.NewLimiter[uint32](128, numAllowedProcessesToResolvePerPeriod, procFallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}
