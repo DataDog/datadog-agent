@@ -25,6 +25,8 @@ A `stack` may be:
 ### Linux
 Review and run `tasks/kernel_matrix_testing/env-setup.sh`   
    
+
+- **You will have to run the following manually**
 Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.   
 From within the repository execute the following commands:  
 ```bash
