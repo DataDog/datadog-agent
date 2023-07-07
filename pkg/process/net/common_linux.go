@@ -19,6 +19,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 )
 
 const (
@@ -61,7 +62,8 @@ func IsUnixNetConnValid(unixConn *net.UnixConn, sigs ...string) (bool, error) {
 		return false, ucredErr
 	}
 
-	f, err := os.Open(util.HostProc(strconv.FormatUint(uint64(ucred.Pid), 10), "exe"))
+	procExe := util.HostProc(strconv.FormatUint(uint64(ucred.Pid), 10), "exe")
+	f, err := os.Open(procExe)
 	if err != nil {
 		return false, err
 	}
@@ -77,7 +79,9 @@ func IsUnixNetConnValid(unixConn *net.UnixConn, sigs ...string) (bool, error) {
 		}
 	}
 
-	exepath, _ := os.Readlink(util.HostProc(strconv.FormatUint(uint64(ucred.Pid), 10), "exe"))
-	log.Debugf("rejected %s expected %v pid %d path %s", fmt.Sprintf("%x", h.Sum(nil)), sigs, ucred.Pid, exepath)
+	if log.ShouldLog(seelog.TraceLvl) {
+		exepath, _ := os.Readlink(procExe)
+		log.Tracef("unix socket %s -> %s rejected %s expected %v pid %d path %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), exeSig, sigs, ucred.Pid, exepath)
+	}
 	return false, nil
 }

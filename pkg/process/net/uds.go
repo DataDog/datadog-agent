@@ -38,7 +38,6 @@ func HttpServe(l net.Listener, handler http.Handler, authSocket bool) error {
 			if unixConn, ok = c.(*net.UnixConn); !ok {
 				return ctx
 			}
-			log.Debugf("unix socket %s -> %s connection : signature %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), udsProcessAgentSig)
 			valid, err := IsUnixNetConnValid(unixConn, udsAgentSig, udsProcessAgentSig)
 			if err != nil || !valid {
 				if err != nil {
