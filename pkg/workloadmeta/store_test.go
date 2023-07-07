@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 
+	tassert "github.com/stretchr/testify/assert"
 	"gotest.tools/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -1015,7 +1016,7 @@ func TestResetProcesses(t *testing.T) {
 			<-doneCh
 
 			processes := testStore.ListProcesses()
-			assert.DeepEqual(t, processes, test.newProcesses)
+			tassert.ElementsMatch(t, processes, test.newProcesses)
 		})
 	}
 
