@@ -14,8 +14,8 @@ single-machine-performance-regression_detector:
       - outputs/report.html              # for debugging, also on S3
     when: always
   variables:
-    SMP_VERSION: 0.7.3
-    LADING_VERSION: 0.15.3
+    SMP_VERSION: 0.8.0
+    LADING_VERSION: 0.17.1
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45
     REPLICAS: 20

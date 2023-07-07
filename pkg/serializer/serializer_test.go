@@ -307,6 +307,7 @@ func TestSendSeries(t *testing.T) {
 	matcher := createProtoscopeMatcher(`1: {
 		1: { 1: {"host"} }
 		5: 3
+		9: { 1: { 4: 10 }}
 	  }`)
 	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.series", true) // default value, but just to be sure

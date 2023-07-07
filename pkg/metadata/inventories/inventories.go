@@ -84,6 +84,7 @@ const (
 	AgentInstallMethodTool               AgentMetadataName = "install_method_tool"
 	AgentInstallMethodToolVersion        AgentMetadataName = "install_method_tool_version"
 	AgentLogsTransport                   AgentMetadataName = "logs_transport"
+	AgentFIPSEnabled                     AgentMetadataName = "feature_fips_enabled"
 	AgentCWSEnabled                      AgentMetadataName = "feature_cws_enabled"
 	AgentCWSNetworkEnabled               AgentMetadataName = "feature_cws_network_enabled"
 	AgentCWSSecurityProfilesEnabled      AgentMetadataName = "feature_cws_security_profiles_enabled"
@@ -95,6 +96,7 @@ const (
 	AgentNetworksHTTPEnabled             AgentMetadataName = "feature_networks_http_enabled"
 	AgentNetworksHTTPSEnabled            AgentMetadataName = "feature_networks_https_enabled"
 	AgentRemoteConfigEnabled             AgentMetadataName = "feature_remote_configuration_enabled"
+	AgentUSMEnabled                      AgentMetadataName = "feature_usm_enabled"
 	AgentUSMKafkaEnabled                 AgentMetadataName = "feature_usm_kafka_enabled"
 	AgentUSMJavaTLSEnabled               AgentMetadataName = "feature_usm_java_tls_enabled"
 	AgentUSMHTTP2Enabled                 AgentMetadataName = "feature_usm_http2_enabled"
@@ -435,6 +437,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
+	SetAgentMetadata(AgentFIPSEnabled, config.Datadog.GetBool("fips.enabled"))
 	SetAgentMetadata(AgentCWSEnabled, config.SystemProbe.GetBool("runtime_security_config.enabled"))
 	SetAgentMetadata(AgentCWSNetworkEnabled, config.SystemProbe.GetBool("event_monitoring_config.network.enabled"))
 	SetAgentMetadata(AgentCWSSecurityProfilesEnabled, config.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"))
@@ -444,7 +447,8 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
-	SetAgentMetadata(AgentUSMKafkaEnabled, config.Datadog.GetBool("data_streams_config.enabled"))
+	SetAgentMetadata(AgentUSMEnabled, config.SystemProbe.GetBool("service_monitoring_config.enabled"))
+	SetAgentMetadata(AgentUSMKafkaEnabled, config.SystemProbe.GetBool("data_streams_config.enabled"))
 	SetAgentMetadata(AgentRemoteConfigEnabled, config.Datadog.GetBool("remote_configuration.enabled"))
 	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))

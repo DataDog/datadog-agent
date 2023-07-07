@@ -1069,13 +1069,14 @@ func TestEnrichTags(t *testing.T) {
 		conf          enrichConfig
 	}
 	tests := []struct {
-		name              string
-		args              args
-		wantedTags        []string
-		wantedHost        string
-		wantedOrigin      string
-		wantedK8sOrigin   string
-		wantedCardinality string
+		name               string
+		args               args
+		wantedTags         []string
+		wantedHost         string
+		wantedOrigin       string
+		wantedK8sOrigin    string
+		wantedCardinality  string
+		wantedMetricSource metrics.MetricSource
 	}{
 		{
 			name: "empty tags, host=foo",
@@ -1086,11 +1087,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: true,
 				},
 			},
-			wantedTags:        nil,
-			wantedHost:        "foo",
-			wantedOrigin:      "",
-			wantedK8sOrigin:   "",
-			wantedCardinality: "",
+			wantedTags:         nil,
+			wantedHost:         "foo",
+			wantedOrigin:       "",
+			wantedK8sOrigin:    "",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "",
 		},
 		{
 			name: "entityId not present, host=foo, should return origin tags",
@@ -1102,11 +1104,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: true,
 				},
 			},
-			wantedTags:        []string{"env:prod"},
-			wantedHost:        "foo",
-			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "",
-			wantedCardinality: "",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "",
 		},
 		{
 			name: "entityId not present, host=foo, empty tags list, should return origin tags",
@@ -1118,11 +1121,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: true,
 				},
 			},
-			wantedTags:        nil,
-			wantedHost:        "foo",
-			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "",
-			wantedCardinality: "",
+			wantedTags:         nil,
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "",
 		},
 		{
 			name: "entityId present, host=foo, should not return origin tags",
@@ -1134,11 +1138,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: true,
 				},
 			},
-			wantedTags:        []string{"env:prod"},
-			wantedHost:        "foo",
-			wantedOrigin:      "",
-			wantedK8sOrigin:   "kubernetes_pod_uid://my-id",
-			wantedCardinality: "",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "",
+			wantedK8sOrigin:    "kubernetes_pod_uid://my-id",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "",
 		},
 		{
 			name: "entityId=none present, host=foo, should not call the originFromUDSFunc()",
@@ -1150,11 +1155,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: true,
 				},
 			},
-			wantedTags:        []string{"env:prod"},
-			wantedHost:        "foo",
-			wantedOrigin:      "",
-			wantedK8sOrigin:   "",
-			wantedCardinality: "",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "",
+			wantedK8sOrigin:    "",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "",
 		},
 		{
 			name: "entityId=42 present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
@@ -1166,11 +1172,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: false,
 				},
 			},
-			wantedTags:        []string{"env:prod"},
-			wantedHost:        "foo",
-			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
-			wantedCardinality: "",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "kubernetes_pod_uid://42",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "",
 		},
 		{
 			name: "entityId=42 cardinality=high present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
@@ -1182,11 +1189,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: false,
 				},
 			},
-			wantedTags:        []string{"env:prod"},
-			wantedHost:        "foo",
-			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
-			wantedCardinality: "high",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "kubernetes_pod_uid://42",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "high",
 		},
 		{
 			name: "entityId=42 cardinality=orchestrator present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
@@ -1198,11 +1206,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: false,
 				},
 			},
-			wantedTags:        []string{"env:prod"},
-			wantedHost:        "foo",
-			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
-			wantedCardinality: "orchestrator",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "kubernetes_pod_uid://42",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "orchestrator",
 		},
 		{
 			name: "entityId=42 cardinality=low present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
@@ -1214,11 +1223,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: false,
 				},
 			},
-			wantedTags:        []string{"env:prod"},
-			wantedHost:        "foo",
-			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
-			wantedCardinality: "low",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "kubernetes_pod_uid://42",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "low",
 		},
 		{
 			name: "entityId=42 cardinality=unknown present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
@@ -1230,11 +1240,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: false,
 				},
 			},
-			wantedTags:        []string{"env:prod"},
-			wantedHost:        "foo",
-			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
-			wantedCardinality: "unknown",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "kubernetes_pod_uid://42",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "unknown",
 		},
 		{
 			name: "entityId=42 cardinality='' present entityIDPrecendenceEnabled=false, host=foo, should call the originFromUDSFunc()",
@@ -1246,11 +1257,12 @@ func TestEnrichTags(t *testing.T) {
 					entityIDPrecedenceEnabled: false,
 				},
 			},
-			wantedTags:        []string{"env:prod"},
-			wantedHost:        "foo",
-			wantedOrigin:      "originID",
-			wantedK8sOrigin:   "kubernetes_pod_uid://42",
-			wantedCardinality: "",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "kubernetes_pod_uid://42",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
+			wantedCardinality:  "",
 		},
 		{
 			name: "entity_id=pod-uid, originFromMsg=container-id, should consider entity_id",
@@ -1262,10 +1274,11 @@ func TestEnrichTags(t *testing.T) {
 					defaultHostname: "foo",
 				},
 			},
-			wantedTags:      []string{"env:prod"},
-			wantedHost:      "foo",
-			wantedOrigin:    "originID",
-			wantedK8sOrigin: "kubernetes_pod_uid://pod-uid",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "kubernetes_pod_uid://pod-uid",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
 		{
 			name: "no entity_id, originFromMsg=container-id, should consider originFromMsg",
@@ -1277,10 +1290,11 @@ func TestEnrichTags(t *testing.T) {
 					defaultHostname: "foo",
 				},
 			},
-			wantedTags:      []string{"env:prod"},
-			wantedHost:      "foo",
-			wantedOrigin:    "originID",
-			wantedK8sOrigin: "container_id://container-id",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "originID",
+			wantedK8sOrigin:    "container_id://container-id",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
 
 		{
@@ -1294,15 +1308,16 @@ func TestEnrichTags(t *testing.T) {
 					originOptOutEnabled: true,
 				},
 			},
-			wantedTags:      []string{"env:prod"},
-			wantedHost:      "foo",
-			wantedOrigin:    "",
-			wantedK8sOrigin: "",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "foo",
+			wantedOrigin:       "",
+			wantedK8sOrigin:    "",
+			wantedMetricSource: metrics.MetricSourceDogstatsd,
 		},
 		{
 			name: "opt-out, entity id present, uds origin present",
 			args: args{
-				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid", "dd.internal.card:none", "host:"},
+				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid", "dd.internal.card:none", "host:", "jmx_domain:org.apache"},
 				originFromUDS: "originID",
 				originFromMsg: []byte("none"),
 				conf: enrichConfig{
@@ -1310,20 +1325,22 @@ func TestEnrichTags(t *testing.T) {
 					originOptOutEnabled: true,
 				},
 			},
-			wantedTags:      []string{"env:prod"},
-			wantedHost:      "",
-			wantedOrigin:    "",
-			wantedK8sOrigin: "",
+			wantedTags:         []string{"env:prod"},
+			wantedHost:         "",
+			wantedOrigin:       "",
+			wantedK8sOrigin:    "",
+			wantedMetricSource: metrics.MetricSourceJmxCustom,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, tt.args.conf)
+			tags, host, origin, k8sOrigin, cardinality, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, tt.args.conf)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
 			assert.Equal(t, tt.wantedK8sOrigin, k8sOrigin)
 			assert.Equal(t, tt.wantedCardinality, cardinality)
+			assert.Equal(t, tt.wantedMetricSource, metricSource)
 		})
 
 		if !tt.args.conf.originOptOutEnabled {
@@ -1331,12 +1348,13 @@ func TestEnrichTags(t *testing.T) {
 			conf := tt.args.conf
 			conf.originOptOutEnabled = true
 			t.Run(tt.name, func(t *testing.T) {
-				tags, host, origin, k8sOrigin, cardinality := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, conf)
+				tags, host, origin, k8sOrigin, cardinality, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, conf)
 				assert.Equal(t, tt.wantedTags, tags)
 				assert.Equal(t, tt.wantedHost, host)
 				assert.Equal(t, tt.wantedOrigin, origin)
 				assert.Equal(t, tt.wantedK8sOrigin, k8sOrigin)
 				assert.Equal(t, tt.wantedCardinality, cardinality)
+				assert.Equal(t, tt.wantedMetricSource, metricSource)
 			})
 		}
 	}

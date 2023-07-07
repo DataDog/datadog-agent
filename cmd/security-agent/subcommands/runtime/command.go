@@ -31,6 +31,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -518,7 +519,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 		return nil, err
 	}
 
-	kind := model.ParseEvalEventType(eventData.Type)
+	kind := secconfig.ParseEvalEventType(eventData.Type)
 	if kind == model.UnknownEventType {
 		return nil, errors.New("unknown event type")
 	}
