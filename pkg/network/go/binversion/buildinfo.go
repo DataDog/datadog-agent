@@ -30,6 +30,8 @@ import (
 	"debug/elf"
 	"encoding/binary"
 	"errors"
+	"io"
+	"sync"
 )
 
 var (
@@ -47,6 +49,20 @@ var (
 	// the binary's pointer size (1 byte),
 	// and whether the binary is big endian (1 byte).
 	buildInfoMagic = []byte("\xff Go buildinf:")
+)
+
+const (
+	buildInfoAlign = 16
+	buildInfoSize  = 32
+	maxSizeToRead  = 64 * 1024 // 64KB
+)
+
+var (
+	dataRawBuildPool = sync.Pool{
+		New: func() any {
+			return make([]byte, maxSizeToRead)
+		},
+	}
 )
 
 type exe interface {
@@ -71,14 +87,20 @@ func ReadElfBuildInfo(elfFile *elf.File) (vers string, err error) {
 	// data segment; the linker puts it near the beginning.
 	// See cmd/link/internal/ld.Link.buildinfo.
 	dataAddr := x.DataStart()
-	data, err := x.ReadData(dataAddr, 64*1024)
-	if err != nil {
+	data := dataRawBuildPool.Get().([]byte)
+	defer func() {
+		// Zeroing the array. We cannot simply do data = data[:0], as this method changes the len to 0, which messes
+		// with ReadAt.
+		for i := range data {
+			data[i] = 0
+		}
+		dataRawBuildPool.Put(data)
+	}()
+
+	if err := x.ReadDataWithPool(dataAddr, data); err != nil {
 		return "", err
 	}
-	const (
-		buildInfoAlign = 16
-		buildInfoSize  = 32
-	)
+
 	for {
 		i := bytes.Index(data, buildInfoMagic)
 		if i < 0 || len(data)-i < buildInfoSize {
@@ -171,6 +193,25 @@ func (x *elfExe) ReadData(addr, size uint64) ([]byte, error) {
 		}
 	}
 	return nil, errUnrecognizedFormat
+}
+
+func (x *elfExe) ReadDataWithPool(addr uint64, data []byte) error {
+	for _, prog := range x.f.Progs {
+		if prog.Vaddr <= addr && addr <= prog.Vaddr+prog.Filesz-1 {
+			expectedSizeToRead := prog.Vaddr + prog.Filesz - addr
+			if expectedSizeToRead > uint64(len(data)) {
+				expectedSizeToRead = uint64(len(data))
+			}
+			readSize, err := prog.ReadAt(data, int64(addr-prog.Vaddr))
+			// If there is an error, and the error is not "EOF" caused due to the fact we tried to read too much,
+			// then report an error.
+			if err != nil && (err != io.EOF && uint64(readSize) != expectedSizeToRead) {
+				return err
+			}
+			return nil
+		}
+	}
+	return errUnrecognizedFormat
 }
 
 func (x *elfExe) DataStart() uint64 {
