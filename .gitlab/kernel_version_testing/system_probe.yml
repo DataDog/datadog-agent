@@ -225,6 +225,7 @@ kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
   needs: ["kernel_matrix_testing_upload_deps_x64", "kernel_matrix_testing_setup_env"]
+  timeout: 3h
   variables:
     ARCH: "x86_64"
   parallel:
@@ -235,6 +236,7 @@ kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
   needs: ["kernel_matrix_testing_upload_deps_arm64", "kernel_matrix_testing_setup_env"]
+  timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:
