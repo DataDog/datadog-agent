@@ -334,7 +334,9 @@ func TestProcess(t *testing.T) {
 		case <-timeout:
 			t.Fatal("timed out")
 		}
-		assert.Contains(t, tp.Chunks[0].Spans[0].Meta, "aas.site.kind")
+		for tag := range traceutil.GetAppServicesTags() {
+			assert.Contains(t, tp.Chunks[0].Spans[0].Meta, tag)
+		}
 	})
 
 	t.Run("DiscardSpans", func(t *testing.T) {
