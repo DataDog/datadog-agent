@@ -201,7 +201,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				fmt.Println("[Error] Failed to dial libvirt. Retrying stack.")
 				return retry.RetryableError(err)
 			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
-				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack.", currentAZ)
+				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", currentAZ, getNextAZ(currentAZ))
 				currentAZ = getNextAZ(currentAZ)
 				return retry.RetryableError(err)
 			} else {
