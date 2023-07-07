@@ -56,12 +56,13 @@ func NewLimiter[K comparable](numUniqueTokens int, numAllowedTokensPerDuration i
 
 // Allow returns whether an entry is allowed or not
 func (l *Limiter[K]) Allow(k K) bool {
+	incrementedCount := 1
+
 	if entry, ok := l.cache.Get(k); ok {
-		if entry.count <= l.numAllowedTokensPerDuration {
-			entry.count++
-			entry.last = time.Now()
-			// compare next time, if time elapsed is longer than allowed duration, remove from cache and allow current event
+		if entry.count < l.numAllowedTokensPerDuration {
+			incrementedCount = entry.count + 1
 		} else if time.Now().Sub(entry.last) >= l.duration {
+			// compare next time, if time elapsed is longer than allowed duration, remove from cache and allow current event
 			l.cache.Remove(k)
 			l.allowed.Inc()
 			return true
@@ -71,7 +72,10 @@ func (l *Limiter[K]) Allow(k K) bool {
 		}
 	}
 
-	l.Count(k)
+	l.cache.Add(k, cacheEntry{
+		count: incrementedCount,
+		last:  time.Now(),
+	})
 	l.allowed.Inc()
 	return true
 }

@@ -24,25 +24,23 @@ func TestLimiter_Allow(t *testing.T) {
 		{
 			name:                          "More events than limit",
 			numOfUniqueTokens:             3,
-			numOfAllowedTokensPerDuration: 8,
-			duration:                      time.Second,
-			numOfTokensEachToGenerate:     10,
+			numOfAllowedTokensPerDuration: 1,
+			duration:                      time.Minute * 2,
+			numOfTokensEachToGenerate:     5,
 			wantStats: []LimiterStat{
-				{Allowed: 24, Dropped: 6},
+				{Allowed: 3, Dropped: 12}, // 15 'events' are generated (numOfTokensEachToGenerate * numOfUniqueTokens). Allow 3 because each unique token is allowed 'numOfAllowedTokensPerDuration' times in the 'duration'.
 			},
 		},
-		//{
-		//	name:                          "More events than limit but spaced over time",
-		//	numOfUniqueTokens:             3,
-		//	numOfAllowedTokensPerDuration: 8,
-		//	duration:                      time.Second,
-		//	numOfTokensEachToGenerate:     10,
-		//	wantStats: []LimiterStat{
-		//		{Allowed: 10, Dropped: 0},
-		//		{Allowed: 10, Dropped: 0},
-		//		{Allowed: 10, Dropped: 0},
-		//	},
-		//},
+		{
+			name:                          "More events than limit but spaced over time",
+			numOfUniqueTokens:             3,
+			numOfAllowedTokensPerDuration: 1,
+			duration:                      time.Nanosecond,
+			numOfTokensEachToGenerate:     10,
+			wantStats: []LimiterStat{
+				{Allowed: 30, Dropped: 0}, // Allow all (numOfTokensEachToGenerate * numOfUniqueTokens) because they are spaced more than the 'duration'.
+			},
+		},
 		//{
 		//	name:                          "Over capacity of LRU",
 		//	numOfUniqueTokens:             3,
@@ -50,8 +48,6 @@ func TestLimiter_Allow(t *testing.T) {
 		//	duration:                      time.Second,
 		//	numOfTokensEachToGenerate:     10,
 		//	wantStats: []LimiterStat{
-		//		{Allowed: 8, Dropped: 3},
-		//		{Allowed: 8, Dropped: 3},
 		//		{Allowed: 8, Dropped: 3},
 		//	},
 		//},
@@ -75,10 +71,6 @@ func TestLimiter_Allow(t *testing.T) {
 			fmt.Printf("Stats: %+v", stats)
 
 			assert.Equal(t, tt.wantStats, stats)
-
-			//if got := limiter.Allow(tt.args.k); got != tt.want {
-			//	t.Errorf("Allow() = %v, want %v", got, tt.want)
-			//}
 		})
 	}
 }
