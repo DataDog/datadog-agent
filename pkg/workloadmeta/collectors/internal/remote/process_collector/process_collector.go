@@ -28,7 +28,7 @@ const (
 	collectorID = "process-collector"
 )
 
-func toLanguage(proto *pb.Language) *languagemodels.Language {
+func toLanguage(proto *pbgo.Language) *languagemodels.Language {
 	if proto == nil {
 		return nil
 	}
@@ -38,7 +38,7 @@ func toLanguage(proto *pb.Language) *languagemodels.Language {
 }
 
 // WorkloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventSet(protoEvent *pb.ProcessEventSet) (workloadmeta.Event, error) {
+func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
 	if protoEvent == nil {
 		return workloadmeta.Event{}, nil
 	}
@@ -59,7 +59,7 @@ func WorkloadmetaEventFromProcessEventSet(protoEvent *pb.ProcessEventSet) (workl
 }
 
 // WorkloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventUnset(protoEvent *pb.ProcessEventUnset) (workloadmeta.Event, error) {
+func WorkloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
 	if protoEvent == nil {
 		return workloadmeta.Event{}, nil
 	}
