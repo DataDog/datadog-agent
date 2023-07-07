@@ -135,10 +135,10 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 		limiters[id] = limiter
 	}
 
-	limiter, err := NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiter)
+	limiter, err := NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiterDuration)
 	if err != nil {
 		// should never happen, fallback to std limiter
-		limiters[AnomalyDetectionRuleID] = NewStdLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiter), rl.config.AnomalyDetectionRateLimiterNumEventsAllowed)
+		limiters[AnomalyDetectionRuleID] = NewStdLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiterDuration), rl.config.AnomalyDetectionRateLimiterNumEventsAllowed)
 	} else {
 		limiters[AnomalyDetectionRuleID] = limiter
 	}
