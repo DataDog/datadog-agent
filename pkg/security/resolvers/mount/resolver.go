@@ -30,9 +30,9 @@ import (
 )
 
 const (
-	deleteDelayTime                      = 5 * time.Second
-	numAllowedMountsToResolvePerDuration = 1
-	fallbackLimiterPeriod                = 5 * time.Second
+	deleteDelayTime                    = 5 * time.Second
+	numAllowedMountsToResolvePerPeriod = 12
+	fallbackLimiterPeriod              = 5 * time.Second
 )
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
