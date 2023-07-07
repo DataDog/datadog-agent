@@ -237,8 +237,8 @@ func TestStreamVersioning(t *testing.T) {
 	stream, err = pbgo.NewProcessEntityStreamClient(conn).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
 	require.NoError(t, err)
 	msg, err = stream.Recv()
-	assert.EqualValues(t, 0, msg.EventID)
 	require.NoError(t, err)
+	assert.EqualValues(t, 0, msg.EventID)
 }
 
 func TestProcessEntityToEventSet(t *testing.T) {
@@ -337,6 +337,8 @@ func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
 // setupGRPCTest a test extractor, server, and client connection.
 // Cleanup is handled automatically via T.Cleanup().
 func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.ClientConn, pbgo.ProcessEntityStream_StreamEntitiesClient) {
+	t.Helper()
+
 	cfg := config.Mock(t)
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
@@ -351,8 +353,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		err := cc.Close()
-		require.NoError(t, err)
+		_ = cc.Close()
 	})
 
 	stream, err := pbgo.NewProcessEntityStreamClient(cc).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
