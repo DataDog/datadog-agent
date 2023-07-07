@@ -681,7 +681,7 @@ func (ad *ActivityDump) ToTranscodingRequestMessage() *api.TranscodingRequestMes
 func (ad *ActivityDump) Encode(format config.StorageFormat) (*bytes.Buffer, error) {
 	switch format {
 	case config.Json:
-		return ad.EncodeJSON()
+		return ad.EncodeJSON("")
 	case config.Protobuf:
 		return ad.EncodeProtobuf()
 	case config.Dot:
@@ -722,7 +722,7 @@ func (ad *ActivityDump) EncodeProfile() (*bytes.Buffer, error) {
 }
 
 // EncodeJSON encodes an activity dump in the ProtoJSON format
-func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
+func (ad *ActivityDump) EncodeJSON(indent string) (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
@@ -732,6 +732,7 @@ func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
 	opts := protojson.MarshalOptions{
 		EmitUnpopulated: true,
 		UseProtoNames:   true,
+		Indent:          indent,
 	}
 
 	raw, err := opts.Marshal(pad)
