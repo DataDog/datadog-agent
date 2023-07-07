@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -103,7 +102,7 @@ func sigFile(fpath string) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func almostACopyOfHttpServe(l net.Listener, handler http.Handler, authSocket bool, sig string) error {
+func almostACopyOfHttpServe(t *testing.T, l net.Listener, handler http.Handler, authSocket bool, sig string) error {
 	srv := &http.Server{Handler: handler}
 	if authSocket {
 		srv.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
@@ -115,9 +114,9 @@ func almostACopyOfHttpServe(l net.Listener, handler http.Handler, authSocket boo
 			valid, err := IsUnixNetConnValid(unixConn, sig)
 			if err != nil || !valid {
 				if err != nil {
-					log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
+					t.Logf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)
 				} else if !valid {
-					log.Errorf("unix socket %s -> %s closing connection, rejected. Client accessing this socket require to be a signed binary", unixConn.LocalAddr(), unixConn.RemoteAddr())
+					t.Logf("unix socket %s -> %s closing connection, rejected. Client accessing this socket require to be a signed binary", unixConn.LocalAddr(), unixConn.RemoteAddr())
 				}
 				// reject the connection
 				newCtx, cancelCtx := context.WithCancel(ctx)
@@ -160,7 +159,7 @@ func testHttpServe(t *testing.T, shouldFailed bool, f *fakeHandler, prefixCmd []
 		}
 	}()
 
-	return almostACopyOfHttpServe(conn, f, auth, sig)
+	return almostACopyOfHttpServe(t, conn, f, auth, sig)
 }
 
 func lookupUser(t *testing.T, name string) (usrIDstr string, grpIDstr string) {
