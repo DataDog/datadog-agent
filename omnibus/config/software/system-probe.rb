@@ -5,6 +5,8 @@
 
 name 'system-probe'
 
+dependency 'datadog-agent'
+
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
