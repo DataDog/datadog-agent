@@ -96,9 +96,9 @@ func (al *AnomalyDetectionLimiter) Allow(event Event) bool {
 
 	switch category {
 	case model.ProcessCategory:
-		return al.processLimiter.Allow(event.GetType())
+		return al.processLimiter.Allow(event.GetWorkloadID())
 	case model.NetworkCategory:
-		return al.networkLimiter.Allow(event.GetType())
+		return al.networkLimiter.Allow(event.GetWorkloadID())
 	}
 
 	return false

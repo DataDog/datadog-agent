@@ -28,6 +28,7 @@ type Signal struct {
 
 // Event is the interface that an event must implement to be sent to the backend
 type Event interface {
+	GetWorkloadID() string
 	GetTags() []string
 	GetType() string
 }
