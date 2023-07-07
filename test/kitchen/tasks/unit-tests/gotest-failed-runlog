@@ -1,0 +1,10 @@
+I, [2023-06-20T17:11:07.082387 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: PASS
+I, [2023-06-20T17:11:07.083578 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: finished system-probe tests for /pkg/network/tracer/testsuite.exe
+I, [2023-06-20T17:11:07.084475 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: 
+I, [2023-06-20T17:11:07.085372 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: 
+I, [2023-06-20T17:11:07.086272 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: FAILURES:
+I, [2023-06-20T17:11:07.087161 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: 
+I, [2023-06-20T17:11:07.088145 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: system-probe tests for /pkg/network/testsuite.exe successfully runs:
+I, [2023-06-20T17:11:07.089081 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: --- FAIL: TestMustFail (0.00s)
+I, [2023-06-20T17:11:07.089982 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: 
+I, [2023-06-20T17:11:07.090900 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: Finished in 29.9 seconds.
