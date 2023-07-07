@@ -280,6 +280,11 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
+			if a.conf.InAzureAppServices {
+				for k, v := range traceutil.GetAppServicesTags() {
+					traceutil.SetMeta(span, k, v)
+				}
+			}
 			if a.ModifySpan != nil {
 				a.ModifySpan(chunk, span)
 			}
@@ -290,15 +295,6 @@ func (a *Agent) Process(p *api.Payload) {
 			}
 		}
 		a.Replacer.Replace(chunk.Spans)
-
-		// Set aas tags on all spans
-		if a.conf.InAzureAppServices {
-			for _, span := range chunk.Spans {
-				for k, v := range traceutil.GetAppServicesTags() {
-					traceutil.SetMeta(span, k, v)
-				}
-			}
-		}
 
 		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {

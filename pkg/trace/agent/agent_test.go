@@ -313,6 +313,30 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
+	t.Run("aas.site.kind", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.InAzureAppServices = true
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		go agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+		timeout := time.After(2 * time.Second)
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			tp = ss.TracerPayload
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+		assert.Contains(t, tp.Chunks[0].Spans[0].Meta, "aas.site.kind")
+	})
+
 	t.Run("DiscardSpans", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -1970,19 +1994,4 @@ func TestSpanSampling(t *testing.T) {
 			assert.Equal(t, len(tc.payload.Chunks[0].Spans), len(stats.Traces[0].TraceChunk.Spans))
 		})
 	}
-}
-
-func TestSetRootSpanTagsInAzureAppServices(t *testing.T) {
-	cfg := config.New()
-	cfg.Endpoints[0].APIKey = "test"
-	cfg.InAzureAppServices = true
-	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
-	defer cancel()
-
-	span := &pb.Span{}
-
-	agnt.setRootSpanTags(span)
-
-	assert.Contains(t, span.Meta, "aas.site.kind")
 }
