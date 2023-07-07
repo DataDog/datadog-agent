@@ -15,13 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 const (
@@ -29,16 +27,15 @@ const (
 )
 
 type client struct {
-	cl              pb.ProcessEntityStreamClient
+	cl              pbgo.ProcessEntityStreamClient
 	parentCollector *remoteProcessCollectorStreamHandler
 }
 
 func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) {
 	log.Debug("[remoteprocesscollector] starting a new stream")
-	c.parentCollector.eventIdSet = false // Can be removed when the remote workloadmeta guarantees to not skip any event
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
-		&pb.ProcessStreamEntitiesRequest{},
+		&pbgo.ProcessStreamEntitiesRequest{},
 	)
 	if err != nil {
 		return nil, err
@@ -56,8 +53,6 @@ func (s *stream) Recv() (interface{}, error) {
 }
 
 type remoteProcessCollectorStreamHandler struct {
-	lastEventID int32
-	eventIdSet  bool
 }
 
 func init() {
@@ -82,26 +77,14 @@ func (s *remoteProcessCollectorStreamHandler) IsEnabled() error {
 
 func (s *remoteProcessCollectorStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
 	log.Debug("[remoteprocesscollector] creating grpc client")
-	return &client{cl: pb.NewProcessEntityStreamClient(cc), parentCollector: s}
+	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
 func (s *remoteProcessCollectorStreamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	log.Trace("[remoteprocesscollector] handling response")
-	response, ok := resp.(*pb.ProcessStreamResponse)
+	response, ok := resp.(*pbgo.ProcessStreamResponse)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
-	}
-
-	if s.eventIdSet {
-		if response.EventID != s.lastEventID+1 {
-			// This edge case should not occur if the server does not skip any EventID which is not the case for 7.47.0 release
-			log.Warnf("remote process collector server is out of sync: expected id [%d], received id [%d]", s.lastEventID+1, response.EventID)
-			telemetry.RemoteProcessCollectorOutOfSync.Inc()
-		}
-		s.lastEventID = response.EventID
-	} else {
-		s.lastEventID = response.EventID
-		s.eventIdSet = true
 	}
 
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))

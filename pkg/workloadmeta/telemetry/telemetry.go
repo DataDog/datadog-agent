@@ -88,16 +88,6 @@ var (
 		commonOpts,
 	)
 
-	// RemoteProcessCollectorOutOfSync tracks the number of times the remote process collector
-	// was out of sync with the process extractor
-	RemoteProcessCollectorOutOfSync = telemetry.NewCounterWithOpts(
-		subsystem,
-		"remote_process_collector_out_of_sync",
-		[]string{},
-		"Number of errors on the remote workloadmeta client while receiving events",
-		commonOpts,
-	)
-
 	// RemoteServerErrors track the number of errors on the remote workloadmeta
 	// server while streaming events.
 	RemoteServerErrors = telemetry.NewCounterWithOpts(
