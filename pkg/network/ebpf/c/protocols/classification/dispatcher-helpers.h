@@ -124,7 +124,6 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     if (tcp_termination) {
         dispatcher_delete_protocol_stack(&skb_tup, stack);
-        stack = NULL;
     }
 
     if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
