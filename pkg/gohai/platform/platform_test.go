@@ -17,23 +17,22 @@ import (
 func TestCollectPlatform(t *testing.T) {
 	platformInfo := CollectInfo()
 
-	errorGetters := map[string]func() error{
-		"GoVersion":        utils.ValueErrorGetter(&platformInfo.GoVersion),
-		"GoOS":             utils.ValueErrorGetter(&platformInfo.GoOS),
-		"GoArch":           utils.ValueErrorGetter(&platformInfo.GoArch),
-		"KernelName":       utils.ValueErrorGetter(&platformInfo.KernelName),
-		"KernelRelease":    utils.ValueErrorGetter(&platformInfo.KernelRelease),
-		"Hostname":         utils.ValueErrorGetter(&platformInfo.Hostname),
-		"Machine":          utils.ValueErrorGetter(&platformInfo.Machine),
-		"OS":               utils.ValueErrorGetter(&platformInfo.OS),
-		"Family":           utils.ValueErrorGetter(&platformInfo.Family),
-		"KernelVersion":    utils.ValueErrorGetter(&platformInfo.KernelVersion),
-		"Processor":        utils.ValueErrorGetter(&platformInfo.Processor),
-		"HardwarePlatform": utils.ValueErrorGetter(&platformInfo.HardwarePlatform),
+	errorGetters := map[string]error{
+		"GoVersion":        platformInfo.GoVersion.Error(),
+		"GoOS":             platformInfo.GoOS.Error(),
+		"GoArch":           platformInfo.GoArch.Error(),
+		"KernelName":       platformInfo.KernelName.Error(),
+		"KernelRelease":    platformInfo.KernelRelease.Error(),
+		"Hostname":         platformInfo.Hostname.Error(),
+		"Machine":          platformInfo.Machine.Error(),
+		"OS":               platformInfo.OS.Error(),
+		"Family":           platformInfo.Family.Error(),
+		"KernelVersion":    platformInfo.KernelVersion.Error(),
+		"Processor":        platformInfo.Processor.Error(),
+		"HardwarePlatform": platformInfo.HardwarePlatform.Error(),
 	}
 
-	for fieldname, errorGetter := range errorGetters {
-		err := errorGetter()
+	for fieldname, err := range errorGetters {
 		if err != nil {
 			assert.ErrorIsf(t, err, utils.ErrNotCollectable, "platform: field %s could not be collected", fieldname)
 		}
