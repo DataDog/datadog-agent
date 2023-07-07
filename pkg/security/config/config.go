@@ -301,7 +301,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionWorkloadWarmupPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
 		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
-		AnomalyDetectionRateLimiterPeriod:            coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter.duration"),
+		AnomalyDetectionRateLimiterPeriod:            coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter.period"),
 		AnomalyDetectionRateLimiterNumKeys:           coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys"),
 		AnomalyDetectionRateLimiterNumEventsAllowed:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
 		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
