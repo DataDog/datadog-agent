@@ -44,7 +44,7 @@ func CheckPath(path string) error {
 
 // IsUnixNetConnValid return true if the connection is an unix socket
 // and client binary sha256 match with sig (use client pid as source of truth)
-func IsUnixNetConnValid(unixConn *net.UnixConn, sig string) (bool, error) {
+func IsUnixNetConnValid(unixConn *net.UnixConn, sigs ...string) (bool, error) {
 	sysConn, err := unixConn.SyscallConn()
 	if err != nil {
 		return false, err
@@ -70,11 +70,14 @@ func IsUnixNetConnValid(unixConn *net.UnixConn, sig string) (bool, error) {
 	if _, err := io.Copy(h, f); err != nil {
 		return false, err
 	}
-	if fmt.Sprintf("%x", h.Sum(nil)) == sig {
-		return true, nil
+	exeSig := fmt.Sprintf("%x", h.Sum(nil))
+	for _, sig := range sigs {
+		if exeSig == sig {
+			return true, nil
+		}
 	}
 
 	exepath, _ := os.Readlink(util.HostProc(strconv.FormatUint(uint64(ucred.Pid), 10), "exe"))
-	log.Debugf("rejected %s expected %s pid %s path %s", fmt.Sprintf("%x", h.Sum(nil)), sig, ucred.Pid, exepath)
+	log.Debugf("rejected %s expected %v pid %s path %s", fmt.Sprintf("%x", h.Sum(nil)), sigs, ucred.Pid, exepath)
 	return false, nil
 }

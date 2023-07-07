@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const udsAgentSig = "UDS_AGENT_SIG-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca4"
 const udsProcessAgentSig = "UDS_PROCESS_AGENT_SIG-6df08279acf372b0fe1c624369059fe2d6ade65d05"
 
 // UDSListener (Unix Domain Socket Listener)
@@ -38,7 +39,7 @@ func HttpServe(l net.Listener, handler http.Handler, authSocket bool) error {
 				return ctx
 			}
 			log.Debugf("unix socket %s -> %s connection : signature %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), udsProcessAgentSig)
-			valid, err := IsUnixNetConnValid(unixConn, udsProcessAgentSig)
+			valid, err := IsUnixNetConnValid(unixConn, udsAgentSig, udsProcessAgentSig)
 			if err != nil || !valid {
 				if err != nil {
 					log.Errorf("unix socket %s -> %s closing connection, error %s", unixConn.LocalAddr(), unixConn.RemoteAddr(), err)

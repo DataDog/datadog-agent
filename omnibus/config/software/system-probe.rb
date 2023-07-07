@@ -23,9 +23,23 @@ build do
     copy "#{ENV['SYSTEM_PROBE_BIN']}/system-probe", "#{install_dir}/embedded/bin/system-probe"
 
     mkdir "#{install_dir}/.debug"
+    mkdir "#{install_dir}/.debug/bin/agent"
     mkdir "#{install_dir}/.debug/embedded"
     mkdir "#{install_dir}/.debug/embedded/bin"
+
     # Update binary signature for unix socket connection when system_probe_config.sysprobe_auth_socket is true
+    bak = "#{install_dir}/bin/agent/agent.bak"
+    source = "#{install_dir}/bin/agent/agent"
+    target = "#{install_dir}/.debug/bin/agent/agent.dbg"
+    copy "#{source}", "#{bak}"
+    command "objcopy --only-keep-debug #{source} #{target}"
+    command "strip --strip-debug --strip-unneeded #{source}"
+    command "objcopy --add-gnu-debuglink=#{target} #{source}"
+    command "sha256sum -b #{source}"
+    command "sed -i \"s|UDS_AGENT_SIG-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca4|$(sha256sum -b #{source} | sed 's| .*||g')|g\" #{install_dir}/embedded/bin/system-probe"
+    delete "#{source}"
+    move "#{bak}", "#{source}"
+
     bak = "#{install_dir}/embedded/bin/process-agent.bak"
     source = "#{install_dir}/embedded/bin/process-agent"
     target = "#{install_dir}/.debug/embedded/bin/process-agent.dbg"
