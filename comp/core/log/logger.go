@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 )
 
 // logger implements the component
@@ -81,10 +80,7 @@ func (*logger) Trace(v ...interface{}) { log.TraceStackDepth(2, v...) }
 
 // Tracef implements Component#Tracef.
 func (*logger) Tracef(format string, params ...interface{}) {
-	currentLevel, _ := log.GetLogLevel()
-	if currentLevel <= seelog.TraceLvl {
-		log.TraceStackDepth(2, fmt.Sprintf(format, params...))
-	}
+	log.TraceStackDepth(2, fmt.Sprintf(format, params...))
 }
 
 // Debug implements Component#Debug.
@@ -92,10 +88,7 @@ func (*logger) Debug(v ...interface{}) { log.DebugStackDepth(2, v...) }
 
 // Debugf implements Component#Debugf.
 func (*logger) Debugf(format string, params ...interface{}) {
-	currentLevel, _ := log.GetLogLevel()
-	if currentLevel <= seelog.DebugLvl {
-		log.DebugStackDepth(2, fmt.Sprintf(format, params...))
-	}
+	log.DebugStackDepth(2, fmt.Sprintf(format, params...))
 }
 
 // Info implements Component#Info.
@@ -103,10 +96,7 @@ func (*logger) Info(v ...interface{}) { log.InfoStackDepth(2, v...) }
 
 // Infof implements Component#Infof.
 func (*logger) Infof(format string, params ...interface{}) {
-	currentLevel, _ := log.GetLogLevel()
-	if currentLevel <= seelog.InfoLvl {
-		log.InfoStackDepth(2, fmt.Sprintf(format, params...))
-	}
+	log.InfoStackDepth(2, fmt.Sprintf(format, params...))
 }
 
 // Warn implements Component#Warn.
