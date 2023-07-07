@@ -18,6 +18,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -73,5 +74,7 @@ func IsUnixNetConnValid(unixConn *net.UnixConn, sig string) (bool, error) {
 		return true, nil
 	}
 
+	exepath, _ := os.Readlink(util.HostProc(strconv.FormatUint(uint64(ucred.Pid), 10), "exe"))
+	log.Debugf("rejected %s expected %s pid %s path %s", fmt.Sprintf("%x", h.Sum(nil)), sig, ucred.Pid, exepath)
 	return false, nil
 }
