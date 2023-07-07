@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package oracle
 
 import (
 	"database/sql"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -109,7 +111,7 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"User Rollbacks Per Sec":                   {DDmetric: "user_rollbacks"},
 }
 
-func (c *Check) sendMetric(s aggregator.Sender, r SysmetricsRowDB, seen map[string]bool) {
+func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]bool) {
 	if metric, ok := SYSMETRICS_COLS[r.MetricName]; ok {
 		value := r.Value
 		if r.MetricUnit == "CentiSeconds Per Second" {

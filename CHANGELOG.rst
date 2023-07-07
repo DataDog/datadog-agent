@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.45.1:
+
+7.45.1 / 6.45.1
+======
+
+.. _Release Notes_7.45.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-06-27
+
+
+.. _Release Notes_7.45.1_Security Notes:
+
+Security Notes
+--------------
+
+- Bump ncurses to 6.4 in the Agent embedded environment. Fixes CVE-2023-29491.
+
+- Updated the version of OpenSSL used by Python to `1.1.1u`; addressed CVE-2023-2650, CVE-2023-0466, CVE-2023-0465 and CVE-2023-0464.
+
+
 .. _Release Notes_7.45.0:
 
 7.45.0 / 6.45.0

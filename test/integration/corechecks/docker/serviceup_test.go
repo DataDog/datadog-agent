@@ -8,11 +8,11 @@ package docker
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 func TestServiceUp(t *testing.T) {
 	expectedTags := []string{}
 
-	sender.AssertServiceCheck(t, "docker.service_up", metrics.ServiceCheckOK, "", expectedTags, "")
+	sender.AssertServiceCheck(t, "docker.service_up", servicecheck.ServiceCheckOK, "", expectedTags, "")
 }

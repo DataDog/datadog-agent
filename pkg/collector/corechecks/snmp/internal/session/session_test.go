@@ -165,6 +165,59 @@ func Test_snmpSession_Configure(t *testing.T) {
 			},
 		},
 		{
+			name: "valid v3 AuthPriv default protocol config",
+			config: checkconfig.CheckConfig{
+				User:    "myUser",
+				AuthKey: "myAuthKey",
+				PrivKey: "myPrivKey",
+			},
+			expectedVersion:  gosnmp.Version3,
+			expectedMsgFlags: gosnmp.AuthPriv,
+			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
+				UserName:                 "myUser",
+				AuthenticationProtocol:   gosnmp.MD5,
+				AuthenticationPassphrase: "myAuthKey",
+				PrivacyProtocol:          gosnmp.DES,
+				PrivacyPassphrase:        "myPrivKey",
+			},
+		},
+		{
+			name: "valid v3 Auth default config",
+			config: checkconfig.CheckConfig{
+				User:         "myUser",
+				AuthKey:      "myAuthKey",
+				PrivKey:      "myPrivKey",
+				PrivProtocol: "aes",
+			},
+			expectedVersion:  gosnmp.Version3,
+			expectedMsgFlags: gosnmp.AuthPriv,
+			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
+				UserName:                 "myUser",
+				AuthenticationProtocol:   gosnmp.MD5,
+				AuthenticationPassphrase: "myAuthKey",
+				PrivacyProtocol:          gosnmp.AES,
+				PrivacyPassphrase:        "myPrivKey",
+			},
+		},
+		{
+			name: "valid v3 Priv default config",
+			config: checkconfig.CheckConfig{
+				User:         "myUser",
+				AuthKey:      "myAuthKey",
+				AuthProtocol: "sha",
+				PrivKey:      "myPrivKey",
+			},
+			expectedVersion:  gosnmp.Version3,
+			expectedMsgFlags: gosnmp.AuthPriv,
+			expectedSecurityParameters: &gosnmp.UsmSecurityParameters{
+				UserName:                 "myUser",
+				AuthenticationProtocol:   gosnmp.SHA,
+				AuthenticationPassphrase: "myAuthKey",
+				PrivacyProtocol:          gosnmp.DES,
+				PrivacyPassphrase:        "myPrivKey",
+			},
+		},
+		{
 			name: "invalid v3 authProtocol",
 			config: checkconfig.CheckConfig{
 				IPAddress:    "1.2.3.4",

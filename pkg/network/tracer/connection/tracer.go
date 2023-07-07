@@ -96,6 +96,8 @@ var ConnTracerTelemetry = struct {
 	UdpSendsMissed    *prometheus.Desc
 	UdpDroppedConns   *prometheus.Desc
 	PidCollisions     *nettelemetry.StatCounterWrapper
+	iterationDups     telemetry.Counter
+	iterationAborts   telemetry.Counter
 
 	lastTcpFailedConnects *atomic.Int64
 	LastTcpSentMiscounts  *atomic.Int64
@@ -114,6 +116,8 @@ var ConnTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
+	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
+	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -321,6 +325,12 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
+	// connsByTuple is used to detect whether we are iterating over
+	// a connection we have previously seen. This can happen when
+	// ebpf maps are being iterated over and deleted at the same time.
+	// The iteration can reset when that happens.
+	// See https://justin.azoff.dev/blog/bpf_map_get_next_key-pitfalls/
+	connsByTuple := make(map[netebpf.ConnTuple]struct{})
 
 	// Cached objects
 	conn := new(network.ConnectionStats)
@@ -329,7 +339,15 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
+		if _, exists := connsByTuple[*key]; exists {
+			// already seen the connection in current batch processing,
+			// due to race between the iterator and bpf_map_delete
+			ConnTracerTelemetry.iterationDups.Inc()
+			continue
+		}
+
 		populateConnStats(conn, key, stats, t.ch)
+		connsByTuple[*key] = struct{}{}
 
 		isTCP := conn.Type == network.TCP
 		switch conn.Family {
@@ -350,14 +368,21 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 		if filter != nil && !filter(conn) {
 			continue
 		}
+
 		if t.getTCPStats(tcp, key, seen) {
-			updateTCPStats(conn, stats.Cookie, tcp)
+			updateTCPStats(conn, tcp)
 		}
+
 		*buffer.Next() = *conn
 	}
 
 	if err := entries.Err(); err != nil {
-		return fmt.Errorf("unable to iterate connection map: %s", err)
+		if err != ebpf.ErrIterationAborted {
+			return fmt.Errorf("unable to iterate connection map: %s", err)
+		}
+
+		log.Warn("eBPF conn_stats map iteration aborted. Some connections may not be reported")
+		ConnTracerTelemetry.iterationAborts.Inc()
 	}
 
 	updateTelemetry(tcp4, tcp6, udp4, udp6)
@@ -620,7 +645,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 }
 
-func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
+func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
 	if conn.Type != network.TCP {
 		return
 	}

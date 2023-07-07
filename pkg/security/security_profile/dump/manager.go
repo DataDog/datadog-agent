@@ -22,16 +22,13 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
-	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -56,9 +53,7 @@ type ActivityDumpManager struct {
 	emptyDropped           *atomic.Uint64
 	dropMaxDumpReached     *atomic.Uint64
 	newEvent               func() *model.Event
-	processResolver        *process.Resolver
-	timeResolver           *stime.Resolver
-	tagsResolvers          tags.Resolver
+	resolvers              *resolvers.Resolvers
 	kernelVersion          *kernel.Version
 	manager                *manager.Manager
 	dumpHandler            ActivityDumpHandler
@@ -152,7 +147,7 @@ func (adm *ActivityDumpManager) cleanup() {
 	var timestamp uint64
 
 	for iterator.Next(&containerIDB, &timestamp) {
-		if time.Now().After(adm.timeResolver.ResolveMonotonicTimestamp(timestamp)) {
+		if time.Now().After(adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(timestamp)) {
 			if err := adm.cgroupWaitList.Delete(&containerIDB); err != nil {
 				seclog.Errorf("couldn't delete cgroup_wait_list entry for (%s): %v", string(containerIDB), err)
 			}
@@ -235,8 +230,8 @@ func (adm *ActivityDumpManager) HandleActivityDump(dump *api.ActivityDumpStreamM
 }
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
-func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, processResolver *process.Resolver, timeResolver *stime.Resolver,
-	tagsResolver tags.Resolver, kernelVersion *kernel.Version, scrubber *procutil.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
+func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, resolvers *resolvers.Resolvers,
+	kernelVersion *kernel.Version, manager *manager.Manager) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -274,9 +269,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		emptyDropped:           atomic.NewUint64(0),
 		dropMaxDumpReached:     atomic.NewUint64(0),
 		newEvent:               newEvent,
-		processResolver:        processResolver,
-		timeResolver:           timeResolver,
-		tagsResolvers:          tagsResolver,
+		resolvers:              resolvers,
 		kernelVersion:          kernelVersion,
 		manager:                manager,
 		tracedPIDsMap:          tracedPIDs,
@@ -359,7 +352,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 	}
 
 	// loop through the process cache entry tree and push traced pids if necessary
-	adm.processResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
+	adm.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
 
 	// Delay the activity dump snapshot to reduce the overhead on the main goroutine
 	select {
@@ -624,6 +617,11 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		ad.Lock()
 		defer ad.Unlock()
 
+		// check process lineage
+		if !entry.HasCompleteLineage() {
+			return
+		}
+
 		// compute the list of ancestors, we need to start inserting them from the root
 		ancestors := []*model.ProcessCacheEntry{entry}
 		parent := activity_tree.GetNextAncestorBinaryOrArgv0(&entry.ProcessContext)
@@ -633,7 +631,7 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		}
 
 		for _, parent = range ancestors {
-			_, _, err := ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false)
+			_, _, err := ad.ActivityTree.CreateProcessNode(parent, nil, activity_tree.Snapshot, false, adm.resolvers)
 			if err != nil {
 				// if one of the parents wasn't inserted, leave now
 				break

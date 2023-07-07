@@ -234,7 +234,7 @@ var (
 	servedFromCache           uint64
 	completedRequestCount     uint64
 	missedConnectionCount     uint64
-	missedCacheCount          uint64
+	missedCacheCount          uint64 //nolint:unused
 	parsingErrorCount         uint64
 	notHandledEventsCount     uint64
 	transferedETWBytesTotal   uint64

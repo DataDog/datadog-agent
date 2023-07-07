@@ -1183,6 +1183,17 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(cfg.Obfuscation.Redis.Enabled)
 	})
 
+	env = "DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS"
+	t.Run(env, func(t *testing.T) {
+		defer cleanConfig()()
+		assert := assert.New(t)
+		t.Setenv(env, "true")
+		cfg, err := LoadConfigFile("./testdata/full.yaml")
+		assert.NoError(err)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.remove_all_args"))
+		assert.True(cfg.Obfuscation.Redis.RemoveAllArgs)
+	})
+
 	env = "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES"
 	t.Run(env, func(t *testing.T) {
 		defer cleanConfig()()

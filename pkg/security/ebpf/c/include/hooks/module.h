@@ -47,6 +47,10 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_INIT_MODULE);
+
     return 0;
 }
 

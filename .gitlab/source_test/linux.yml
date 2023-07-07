@@ -27,6 +27,8 @@
     paths:
       - test_output.json
       - junit-*.tgz
+    reports:
+      junit: "**/junit-out-*.xml"
 
 .linux_lint:
   stage: source_test

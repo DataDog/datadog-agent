@@ -79,6 +79,9 @@ type MetricSampleContext interface {
 
 	// IsNoIndex returns true if the metric must not be indexed.
 	IsNoIndex() bool
+
+	//GetMetricSource returns the metric source for this metric. This is used to define the Origin
+	GetSource() MetricSource
 }
 
 // MetricSample represents a raw metric sample
@@ -96,6 +99,7 @@ type MetricSample struct {
 	OriginFromClient string
 	Cardinality      string
 	NoIndex          bool
+	Source           MetricSource
 }
 
 // Implement the MetricSampleContext interface
@@ -133,4 +137,9 @@ func (m *MetricSample) Copy() *MetricSample {
 // IsNoIndex returns true if the metric must not be indexed.
 func (m *MetricSample) IsNoIndex() bool {
 	return m.NoIndex
+}
+
+// GetSource returns the currently set MetricSource
+func (m *MetricSample) GetSource() MetricSource {
+	return m.Source
 }

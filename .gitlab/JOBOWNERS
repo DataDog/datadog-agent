@@ -40,6 +40,7 @@ check_already_deployed_version_*     @DataDog/do-not-notify
 
 # Dev container deploy
 dca_dev_branch*                        @DataDog/container-integrations
+dca_dev_master*                        @DataDog/container-integrations
 dev_branch*                            @DataDog/container-integrations
 dev_master*                            @DataDog/container-integrations
 dev_nightly*                           @DataDog/container-integrations
@@ -71,3 +72,6 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 # Kernel version testing
 package_dependencies*             @DataDog/ebpf-platform
 kernel_matrix_testing*            @DataDog/ebpf-platform
+
+# Single machine performance
+single_machine_performance*       @DataDog/single-machine-performance
