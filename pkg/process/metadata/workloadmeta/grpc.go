@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 	"sync"
@@ -104,6 +105,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 		return err
 	}
 
+	expectedVersion := snapshotVersion + 1
 	// Once connection is established, only diffs (process creations/deletions) are sent to the client
 	for {
 		select {
@@ -112,6 +114,15 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			if diff.cacheVersion <= snapshotVersion {
 				continue
 			}
+
+			// The diff received from the channel should be 1 + the previous version. Otherwise, we have lost data,
+			// and we should signal the client to resync by closing the stream.
+			log.Trace("[WorkloadMeta GRPCServer] expected diff version %d, actual %d", expectedVersion, diff.cacheVersion)
+			if diff.cacheVersion != expectedVersion {
+				log.Debug("[WorkloadMeta GRPCServer] missing cache diff - dropping stream")
+				return fmt.Errorf("missing cache diff: received version = %d; expected = %d", diff.cacheVersion, expectedVersion)
+			}
+			expectedVersion++
 
 			sets, unsets := l.consumeProcessDiff(diff)
 			msg := &pbgo.ProcessStreamResponse{
