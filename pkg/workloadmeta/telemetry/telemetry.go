@@ -83,7 +83,7 @@ var (
 	RemoteClientErrors = telemetry.NewCounterWithOpts(
 		subsystem,
 		"remote_client_errors",
-		[]string{"workloadmeta_collector"},
+		[]string{"collector"},
 		"Number of errors on the remote workloadmeta client while receiving events",
 		commonOpts,
 	)
