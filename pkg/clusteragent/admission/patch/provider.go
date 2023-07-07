@@ -21,7 +21,7 @@ type patchProvider interface {
 }
 
 func newPatchProvider(rcClient *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (patchProvider, error) {
-	if config.Datadog.GetBool("remote_configuration.enabled") {
+	if config.IsRemoteConfigEnabled(config.Datadog) {
 		return newRemoteConfigProvider(rcClient, isLeaderNotif, telemetryCollector, clusterName)
 	}
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider") {

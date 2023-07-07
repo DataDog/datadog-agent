@@ -2078,3 +2078,12 @@ func GetTraceAgentDefaultEnv() string {
 
 	return defaultEnv
 }
+
+// IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
+func IsRemoteConfigEnabled(cfg ConfigReader) bool {
+	// Disable Remote Config for GovCloud
+	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
+		return false
+	}
+	return cfg.GetBool("remote_configuration.enabled")
+}

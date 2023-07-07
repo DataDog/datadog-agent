@@ -87,7 +87,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
-	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote.NewGRPCClient(
 			rcClientName,
 			version.AgentVersion,

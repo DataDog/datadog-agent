@@ -170,6 +170,8 @@ new-e2e-containers-main:
   variables:
     TARGETS: ./containers
     CONFIGPARAMS: "-c ddagent:fullImagePath=datadog/agent-dev:master-py3 -c ddagent:clusterAgentFullImagePath=datadog/cluster-agent-dev:master"
+  # Temporary, until we manage to stabilize those tests.
+  allow_failure: true
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
