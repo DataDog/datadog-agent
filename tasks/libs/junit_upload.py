@@ -72,7 +72,7 @@ def split_junitxml(xml_path, codeowners, output_dir):
     return list(output_xmls), flavor
 
 
-def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url=""):
+def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=None, job_url=""):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
@@ -95,8 +95,8 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
         if "upload_option.os_version_from_name" in additional_tags:
             additional_tags.remove("upload_option.os_version_from_name")
             args.append("--tags")
-            version_match = re.search("kitchen-rspec-([a-zA-Z0-9]+)-?([0-9-]*)-.*\.xml", owner+".xml")
-            exact_version = version_match.match(1)+version_match.match(2).replace("-",".")
+            version_match = re.search("kitchen-rspec-([a-zA-Z0-9]+)-?([0-9-]*)-.*\.xml", xmlfile_name)
+            exact_version = version_match.group(1)+version_match.group(2).replace("-",".")
             args.append(f"version:{exact_version}")
 
 
@@ -140,7 +140,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
             xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
-                upload_junitxmls(output_dir, written_owners, flavor, tags, job_url)
+                upload_junitxmls(output_dir, written_owners, flavor, tags, job_url, xmlfile.split("/")[-1])
         xmlcounts[junit_tgz] = xmls
 
     empty_tgzs = []
