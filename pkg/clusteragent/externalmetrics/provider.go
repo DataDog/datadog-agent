@@ -58,7 +58,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 
 	refreshPeriod := config.Datadog.GetInt64("external_metrics_provider.refresh_period")
 	retrieverMetricsMaxAge := int64(math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
-	splitBatchBackoffOnErrors := config.Datadog.GetBool("external_metrics_provider.split_batches_and_backoff")
+	splitBatchBackoffOnErrors := config.Datadog.GetBool("external_metrics_provider.split_batches_with_backoff")
 	autogenNamespace := common.GetResourcesNamespace()
 	autogenEnabled := config.Datadog.GetBool("external_metrics_provider.enable_datadogmetric_autogen")
 
