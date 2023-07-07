@@ -39,7 +39,7 @@ func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor)
 		config:              config,
 		extractor:           extractor,
 		server:              grpc.NewServer(),
-		invalidVersionError: telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that is from the future."),
+		invalidVersionError: telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version."),
 		streamServerError:   telemetry.NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent."),
 	}
 
