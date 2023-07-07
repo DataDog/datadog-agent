@@ -7,10 +7,8 @@ package proto
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -419,53 +417,6 @@ func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*wor
 	}
 
 	return workloadmeta.NewFilter(kinds, source, eventType), nil
-}
-
-func toLanguage(proto *pb.Language) *languagemodels.Language {
-	if proto == nil {
-		return nil
-	}
-	return &languagemodels.Language{
-		Name: languagemodels.LanguageName(proto.GetName()),
-	}
-}
-
-// WorkloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventSet(protoEvent *pb.ProcessEventSet) (workloadmeta.Event, error) {
-	if protoEvent == nil {
-		return workloadmeta.Event{}, nil
-	}
-
-	return workloadmeta.Event{
-		Type: workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.Process{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindProcess,
-				ID:   strconv.Itoa(int(protoEvent.GetPid())),
-			},
-			NsPid:        protoEvent.GetNspid(),
-			ContainerId:  protoEvent.GetContainerId(),
-			CreationTime: time.Unix(protoEvent.GetCreationTime(), 0), // TODO: confirm what we receive as creation time here
-			Language:     toLanguage(protoEvent.GetLanguage()),
-		},
-	}, nil
-}
-
-// WorkloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventUnset(protoEvent *pb.ProcessEventUnset) (workloadmeta.Event, error) {
-	if protoEvent == nil {
-		return workloadmeta.Event{}, nil
-	}
-
-	return workloadmeta.Event{
-		Type: workloadmeta.EventTypeUnset,
-		Entity: &workloadmeta.Process{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindProcess,
-				ID:   strconv.Itoa(int(protoEvent.GetPid())),
-			},
-		},
-	}, nil
 }
 
 // WorkloadmetaEventFromProtoEvent converts the given protobuf workloadmeta event into a workloadmeta.Event
