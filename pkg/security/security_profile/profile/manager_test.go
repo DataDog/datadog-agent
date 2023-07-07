@@ -662,7 +662,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		eventFiltering: make(map[eventFilteringEntry]*atomic.Uint64),
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
-				AnomalyDetectionMinimumStablePeriod:          AnomalyDetectionMinimumStablePeriod,
+				AnomalyDetectionDefaultMinimumStablePeriod:   AnomalyDetectionMinimumStablePeriod,
 				AnomalyDetectionWorkloadWarmupPeriod:         AnomalyDetectionWorkloadWarmupPeriod,
 				AnomalyDetectionUnstableProfileTimeThreshold: AnomalyDetectionUnstableProfileTimeThreshold,
 				AnomalyDetectionUnstableProfileSizeThreshold: AnomalyDetectionUnstableProfileSizeThreshold,
