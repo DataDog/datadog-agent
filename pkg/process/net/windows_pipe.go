@@ -19,7 +19,7 @@ type WindowsPipeListener struct {
 }
 
 // NewListener sets up a TCP listener for now, will eventually be a named pipe
-// authSocket is not supported on windows
+// authSocket are unused, as windows doesn't support credential
 func NewListener(socketAddr string, authSocket bool) (*WindowsPipeListener, error) {
 	l, err := net.Listen("tcp", socketAddr)
 	return &WindowsPipeListener{l, "path"}, err

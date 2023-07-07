@@ -89,23 +89,24 @@ func NewListener(socketAddr string, authSocket bool) (*UDSListener, error) {
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	socketMode := 0720
 	if authSocket { // in authSocket mode we don't care about the user as we check the client binary signature at runtime
-		socketMode = 0777
-	}
-	if err := os.Chmod(socketAddr, os.FileMode(socketMode)); err != nil {
-		return nil, fmt.Errorf("can't set the socket at write only: %s", err)
-	}
+		if err := os.Chmod(socketAddr, 0777); err != nil {
+			return nil, fmt.Errorf("can't set the socket at write only: %s", err)
+		}
+	} else {
+		if err := os.Chmod(socketAddr, 0720); err != nil {
+			return nil, fmt.Errorf("can't set the socket at write only: %s", err)
+		}
 
-	perms, err := filesystem.NewPermission()
-	if err != nil {
-		return nil, err
-	}
+		perms, err := filesystem.NewPermission()
+		if err != nil {
+			return nil, err
+		}
 
-	if err := perms.RestrictAccessToUser(socketAddr); err != nil {
-		return nil, err
+		if err := perms.RestrictAccessToUser(socketAddr); err != nil {
+			return nil, err
+		}
 	}
-
 	listener := &UDSListener{
 		conn:       conn,
 		socketPath: socketAddr,
