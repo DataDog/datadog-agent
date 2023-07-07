@@ -231,11 +231,11 @@ func TestCollection(t *testing.T) {
 			errorResponse: true,
 		},
 	}
+	mockConfig := config.Mock(t)
+	mockConfig.Set("workloadmeta.remote_process_collector.enabled", true)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
-			mockConfig.Set("workloadmeta.remote_process_collector.enabled", true)
 
 			// remote process collector server (process agent)
 			server := &mockServer{
@@ -270,12 +270,15 @@ func TestCollection(t *testing.T) {
 			mockStore := workloadmeta.NewMockStore()
 			mockStore.Notify(test.preEvents)
 
+			ctx, cancel := context.WithCancel(context.TODO())
 			// Start collection
-			err = collector.Start(context.TODO(), mockStore)
+			err = collector.Start(ctx, mockStore)
 			require.NoError(t, err)
 
 			// Wait for gRPC calls to be sent
 			time.Sleep(1 * time.Second)
+
+			cancel()
 
 			// Verify final state
 			for i := range test.expectedProcesses {
