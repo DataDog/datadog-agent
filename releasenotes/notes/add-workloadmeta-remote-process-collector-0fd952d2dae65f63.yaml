@@ -1,6 +1,5 @@
 features:
   - |
-    * Add workloadmeta remote process collector to collect process metadata from the Process-Agent
-    and store it in the core agent.
-    * Add new parameter ``workloadmeta.remote_process_collector.enabled`` to enable it.
-    * ``datadog.agent.workloadmeta_remote_client_errors`` is now tagged by ``collector``.
+    * Added workloadmeta remote process collector to collect process metadata from the Process-Agent and store it in the core agent.
+    * Added new parameter ``workloadmeta.remote_process_collector.enabled`` to enable the workloadmeta remote process collector.
+    * Updated the tag for ``datadog.agent.workloadmeta_remote_client_errors`` to include ``collector``.
