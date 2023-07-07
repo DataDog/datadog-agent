@@ -59,6 +59,7 @@ func init() {
 
 	workloadmeta.RegisterRemoteCollector(collectorID, func() workloadmeta.Collector {
 		return &remote.GenericCollector{
+			CollectorID:   collectorID,
 			StreamHandler: &streamHandler{},
 		}
 	})
@@ -74,6 +75,11 @@ func (s *streamHandler) Port() int {
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
 	return &client{cl: pb.NewAgentSecureClient(cc)}
+}
+
+// IsEnabled always return true for the remote workloadmeta because it uses the remote catalog
+func (s *streamHandler) IsEnabled() bool {
+	return true
 }
 
 func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {

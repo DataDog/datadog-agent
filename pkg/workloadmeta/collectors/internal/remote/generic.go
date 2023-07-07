@@ -43,8 +43,10 @@ type Stream interface {
 }
 
 type StreamHandler interface {
-	// Port returns the targetted port
+	// Port returns the targeted port
 	Port() int
+	// IsEnabled returns if the feature is enabled
+	IsEnabled() bool
 	// NewClient returns a client to connect to a remote gRPC server.
 	NewClient(cc grpc.ClientConnInterface) RemoteGrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
@@ -55,6 +57,7 @@ type StreamHandler interface {
 
 // GenericCollector is a generic remote workloadmeta collector with resync mechanisms.
 type GenericCollector struct {
+	CollectorID   string
 	StreamHandler StreamHandler
 
 	store        workloadmeta.Store
@@ -73,6 +76,10 @@ type GenericCollector struct {
 }
 
 func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) error {
+	if !c.StreamHandler.IsEnabled() {
+		return fmt.Errorf("collector %s is not enabled", c.CollectorID)
+	}
+
 	c.store = store
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
@@ -183,7 +190,7 @@ func (c *GenericCollector) Run() {
 		if err != nil {
 			c.streamCancel()
 
-			telemetry.RemoteClientErrors.Inc()
+			telemetry.RemoteClientErrors.Inc(c.CollectorID)
 
 			// when Recv() returns an error, the stream is aborted and the
 			// contents of our store are considered out of sync. The stream must
