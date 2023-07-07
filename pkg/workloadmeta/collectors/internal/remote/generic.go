@@ -43,7 +43,7 @@ type Stream interface {
 }
 
 type StreamHandler interface {
-	// Port returns the targetted port
+	// Port returns the targeted port
 	Port() int
 	// IsEnabled returns if the feature is enabled
 	IsEnabled() bool
