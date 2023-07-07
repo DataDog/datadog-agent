@@ -1110,7 +1110,6 @@ func InitConfig(config Config) {
 
 	// Remote process collector
 	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
-	bindEnvAndSetLogsConfigKeys(config, "workloadmeta.")
 
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
