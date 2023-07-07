@@ -107,14 +107,14 @@ def gen_ssh_key(ctx):
 
 def init_kernel_matrix_testing_system(ctx, lite):
     sudo = "sudo" if not is_root() else ""
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_PACKAGES_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_BACKUP_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_STACKS_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_LIBVIRT_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_ROOTFS_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_SHARED_DIR}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd 1000 | cut -d ':' -f 1) {KMT_KHEADERS_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_PACKAGES_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_BACKUP_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_STACKS_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_LIBVIRT_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_ROOTFS_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_SHARED_DIR}")
+    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {KMT_KHEADERS_DIR}")
 
     ## fix libvirt conf
     user = getpass.getuser()
