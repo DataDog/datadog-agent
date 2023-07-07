@@ -50,7 +50,7 @@ const (
 const (
 	procResolveMaxDepth                     = 16
 	maxParallelArgsEnvs                     = 512 // == number of parallel starting processes
-	numAllowedProcessesToResolvePerDuration = 500
+	numAllowedProcessesToResolvePerDuration = 1
 	procFallbackLimiterPeriod               = 30 * time.Second // proc fallback period by pid
 )
 

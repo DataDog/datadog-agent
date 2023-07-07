@@ -7,9 +7,10 @@ package events
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
@@ -18,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -86,57 +86,29 @@ func (l *StdLimiter) SwapStats() []utils.LimiterStat {
 
 // AnomalyDetectionLimiter limiter specific to anomaly detection
 type AnomalyDetectionLimiter struct {
-	networkLimiter *utils.Limiter[string]
-	processLimiter *utils.Limiter[string]
+	limiter *utils.Limiter[string]
 }
 
 // Allow returns whether the event is allowed
 func (al *AnomalyDetectionLimiter) Allow(event Event) bool {
-	category := model.GetEventTypeCategory(event.GetType())
-
-	switch category {
-	case model.ProcessCategory:
-		return al.processLimiter.Allow(event.GetWorkloadID())
-	case model.NetworkCategory:
-		return al.networkLimiter.Allow(event.GetWorkloadID())
-	}
-
-	return false
+	return al.limiter.Allow(event.GetWorkloadID())
 }
 
 // SwapStats return dropped and allowed stats
 func (al *AnomalyDetectionLimiter) SwapStats() []utils.LimiterStat {
-	var stats []utils.LimiterStat
-
-	processStats := al.processLimiter.SwapStats()
-	for _, stat := range processStats {
-		stats = append(stats, utils.LimiterStat{
-			Tags:    []string{"category:process"},
-			Dropped: stat.Dropped,
-			Allowed: stat.Allowed,
-		})
-	}
-
-	networkStats := al.networkLimiter.SwapStats()
-	for _, stat := range networkStats {
-		stats = append(stats, utils.LimiterStat{
-			Tags:    []string{"category:network"},
-			Dropped: stat.Dropped,
-			Allowed: stat.Allowed,
-		})
-	}
-
-	return stats
+	return al.limiter.SwapStats()
 }
 
 // NewAnomalyDetectionLimiter returns a new anomaly detection limiter
-func NewAnomalyDetectionLimiter(numWorkloads int, numEventsAllowedPerDuration int, duration time.Duration) *AnomalyDetectionLimiter {
-	processLimiter, _ := utils.NewLimiter[string](numWorkloads, numEventsAllowedPerDuration, duration)
-	networkLimiter, _ := utils.NewLimiter[string](numWorkloads, numEventsAllowedPerDuration, duration)
-	return &AnomalyDetectionLimiter{
-		processLimiter: processLimiter,
-		networkLimiter: networkLimiter,
+func NewAnomalyDetectionLimiter(numWorkloads int, numEventsAllowedPerDuration int, duration time.Duration) (*AnomalyDetectionLimiter, error) {
+	limiter, err := utils.NewLimiter[string](numWorkloads, numEventsAllowedPerDuration, duration)
+	if err != nil {
+		return nil, err
 	}
+
+	return &AnomalyDetectionLimiter{
+		limiter: limiter,
+	}, nil
 }
 
 // RateLimiter describes a set of rule rate limiters
@@ -163,7 +135,13 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 		limiters[id] = limiter
 	}
 
-	limiters[AnomalyDetectionRuleID] = NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiter)
+	limiter, err := NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiter)
+	if err != nil {
+		// should never happen, fallback to std limiter
+		limiters[AnomalyDetectionRuleID] = NewStdLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiter), rl.config.AnomalyDetectionRateLimiterNumEventsAllowed)
+	} else {
+		limiters[AnomalyDetectionRuleID] = limiter
+	}
 }
 
 // Apply a set of rules

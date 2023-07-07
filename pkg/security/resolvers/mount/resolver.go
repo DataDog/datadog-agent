@@ -31,7 +31,7 @@ import (
 
 const (
 	deleteDelayTime                      = 5 * time.Second
-	numAllowedMountsToResolvePerDuration = 250
+	numAllowedMountsToResolvePerDuration = 1
 	fallbackLimiterPeriod                = 5 * time.Second
 )
 

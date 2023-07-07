@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
 package utils
 
 import (
-	"go.uber.org/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
@@ -21,7 +20,7 @@ type cacheEntry struct {
 
 // Limiter defines a rate limiter which limits tokens to 'numAllowedTokensPerDuration' per 'duration'
 type Limiter[K comparable] struct {
-	cache                       *simplelru.LRU[K, cacheEntry]
+	cache                       *simplelru.LRU[K, *cacheEntry]
 	numAllowedTokensPerDuration int
 	duration                    time.Duration
 
@@ -32,7 +31,7 @@ type Limiter[K comparable] struct {
 
 // NewLimiter returns a rate limiter that is sized to the configured number of unique tokens, and each unique token is allowed 'numAllowedTokensPerDuration' times per 'duration'.
 func NewLimiter[K comparable](numUniqueTokens int, numAllowedTokensPerDuration int, duration time.Duration) (*Limiter[K], error) {
-	cache, err := simplelru.NewLRU[K, cacheEntry](numUniqueTokens, nil)
+	cache, err := simplelru.NewLRU[K, *cacheEntry](numUniqueTokens, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -49,17 +48,17 @@ func NewLimiter[K comparable](numUniqueTokens int, numAllowedTokensPerDuration i
 // Allow returns whether an entry is allowed or not
 func (l *Limiter[K]) Allow(k K) bool {
 	if entry, ok := l.cache.Get(k); ok {
-		if entry.count < l.numAllowedTokensPerDuration {
+		if time.Now().Sub(entry.last) >= l.duration {
+			// If time elapsed between now and the last cache entry is longer than allowed duration, reset the count and allow
+			l.init(k)
+		} else if entry.count < l.numAllowedTokensPerDuration {
 			l.Count(k)
-		} else if time.Now().Sub(entry.last) >= l.duration {
-			// If time elapsed between now and the last cache entry is longer than allowed duration, remove from cache and allow current event
-			l.cache.Remove(k)
-			l.allowed.Inc()
-			return true
 		} else {
 			l.dropped.Inc()
 			return false
 		}
+	} else {
+		l.init(k)
 	}
 
 	l.allowed.Inc()
@@ -76,20 +75,25 @@ func (l *Limiter[K]) SwapStats() []LimiterStat {
 	}
 }
 
-// Count marks the key as used
-func (l *Limiter[K]) Count(k K) {
-	cacheEntryToAdd := cacheEntry{
+// Init marks the key as used
+func (l *Limiter[K]) init(k K) {
+	entry := &cacheEntry{
 		count: 1,
 		last:  time.Now(),
 	}
+	l.cache.Add(k, entry)
+}
 
-	if val, ok := l.cache.Peek(k); ok {
-		incrementedCount := val.count + 1
-		cacheEntryToAdd = cacheEntry{
-			count: incrementedCount,
+// Count marks the key as used
+func (l *Limiter[K]) Count(k K) {
+	// use get to mark it as used so that it won't be evicted
+	if entry, ok := l.cache.Get(k); ok {
+		entry.count++
+	} else {
+		entry = &cacheEntry{
+			count: 1,
 			last:  time.Now(),
 		}
+		l.cache.Add(k, entry)
 	}
-
-	l.cache.Add(k, cacheEntryToAdd)
 }
