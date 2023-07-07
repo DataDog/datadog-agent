@@ -132,7 +132,9 @@ func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig int
 	if err != nil {
 		return err
 	}
+
 	c.sender = sender
+	sender.SetNoIndex(true)
 
 	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second, ddConfig.Datadog.GetBool("sbom.host.enabled"))
 	if err != nil {
