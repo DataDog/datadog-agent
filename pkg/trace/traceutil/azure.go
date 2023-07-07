@@ -25,11 +25,14 @@ const (
 	aasSiteType         = "aas.site.type"
 	aasSubscriptionID   = "aas.subscription.id"
 
-	// this value matches the runtime value set in the Azure Windows Extension
-	dotnetFramework = ".NET"
-	nodeFramework   = "Node.js"
-	javaFramework   = "Java"
-	unknown         = "unknown"
+	dotnetFramework    = ".NET"
+	nodeFramework      = "Node.js"
+	javaFramework      = "Java"
+	pythonFramework    = "Python"
+	phpFramework       = "PHP"
+	goFramework        = "Go"
+	containerFramework = "Container"
+	unknown            = "unknown"
 
 	appService = "app"
 )
@@ -49,13 +52,13 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	resourceGroup := getenv("WEBSITE_RESOURCE_GROUP")
 	instanceID := getEnvOrUnknown("WEBSITE_INSTANCE_ID", getenv)
 	computerName := getEnvOrUnknown("COMPUTERNAME", getenv)
-	currentRuntime := getRuntime(getenv)
 	extensionVersion := getenv("DD_AAS_EXTENSION_VERSION")
 
 	// Windows and linux environments provide the OS differently
 	// We should grab it from GO's builtin runtime pkg
 	websiteOS := runtime.GOOS
 
+	currentRuntime := getRuntime(websiteOS, getenv)
 	subscriptionID := parseAzureSubscriptionID(ownerName)
 	resourceID := compileAzureResourceID(subscriptionID, resourceGroup, siteName)
 
@@ -94,9 +97,20 @@ func getEnvOrUnknown(env string, getenv func(string) string) string {
 	return val
 }
 
-func getRuntime(getenv func(string) string) (rt string) {
-	rt = unknown
+func getRuntime(websiteOS string, getenv func(string) string) (rt string) {
+	switch websiteOS {
+	case "windows":
+		rt = getWindowsRuntime(getenv)
+	case "linux":
+		rt = getLinuxRuntime(getenv)
+	default:
+		rt = unknown
+	}
 
+	return rt
+}
+
+func getWindowsRuntime(getenv func(string) string) (rt string) {
 	env := getenv("WEBSITE_STACK")
 	if env == "JAVA" {
 		rt = javaFramework
@@ -104,6 +118,33 @@ func getRuntime(getenv func(string) string) (rt string) {
 		rt = nodeFramework
 	} else if hasEnv("DOTNET_CLI_TELEMETRY_PROFILE", getenv) {
 		rt = dotnetFramework
+	} else {
+		rt = unknown
+	}
+
+	return rt
+}
+
+func getLinuxRuntime(getenv func(string) string) (rt string) {
+	rt = unknown
+
+	switch getenv("WEBSITE_STACK") {
+	case "DOCKER":
+		rt = containerFramework
+	case "":
+		if hasEnv("DOCKER_SERVER_VERSION", getenv) {
+			rt = containerFramework
+		}
+	case "NODE":
+		rt = nodeFramework
+	case "PYTHON":
+		rt = pythonFramework
+	case "JAVA", "TOMCAT":
+		rt = javaFramework
+	case "DOTNETCORE":
+		rt = dotnetFramework
+	case "PHP":
+		rt = phpFramework
 	}
 
 	return rt

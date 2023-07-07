@@ -35,20 +35,28 @@ func TestGetEnvOrUnknown(t *testing.T) {
 	assert.Equal(t, "unknown", unknownEnvVar)
 }
 
-func TestGetRuntime(t *testing.T) {
-	dotnet := getRuntime(func(s string) string {
+func TestHasEnv(t *testing.T) {
+	has := hasEnv("WEBSITE_STACK", mockGetEnvVar)
+	notHas := hasEnv("DD_SERVICE", mockGetEnvVar)
+
+	assert.Equal(t, true, has)
+	assert.Equal(t, false, notHas)
+}
+
+func TestGetWindowsRuntime(t *testing.T) {
+	dotnet := getRuntime("windows", func(s string) string {
 		if s == "DOTNET_CLI_TELEMETRY_PROFILE" {
 			return "AzureKudu"
 		}
 		return ""
 	})
-	java := getRuntime(func(s string) string {
+	java := getRuntime("windows", func(s string) string {
 		if s == "WEBSITE_STACK" {
 			return "JAVA"
 		}
 		return ""
 	})
-	node := getRuntime(func(s string) string {
+	node := getRuntime("windows", func(s string) string {
 		if s == "WEBSITE_STACK" {
 			return "NODE"
 		}
@@ -57,11 +65,41 @@ func TestGetRuntime(t *testing.T) {
 		}
 		return ""
 	})
-	unknown := getRuntime(func(s string) string { return "" })
+	unknown := getRuntime("windows", func(s string) string { return "" })
 
 	assert.Equal(t, ".NET", dotnet)
 	assert.Equal(t, "Java", java)
 	assert.Equal(t, "Node.js", node)
+	assert.Equal(t, "unknown", unknown)
+}
+
+func TestGetLinuxRuntime(t *testing.T) {
+	docker := getRuntime("linux", func(s string) string { return "DOCKER" })
+	compose := getRuntime("linux", func(s string) string {
+		if s == "WEBSITE_STACK" {
+			return ""
+		}
+		if s == "DOCKER_SERVER_VERSION" {
+			return "19.03.15+azure"
+		}
+		return ""
+	})
+	java := getRuntime("linux", func(s string) string { return "JAVA" })
+	tomcat := getRuntime("linux", func(s string) string { return "TOMCAT" })
+	node := getRuntime("linux", func(s string) string { return "NODE" })
+	python := getRuntime("linux", func(s string) string { return "PYTHON" })
+	dotnet := getRuntime("linux", func(s string) string { return "DOTNETCORE" })
+	php := getRuntime("linux", func(s string) string { return "PHP" })
+	unknown := getRuntime("linux", func(s string) string { return "" })
+
+	assert.Equal(t, "Container", docker)
+	assert.Equal(t, "Container", compose)
+	assert.Equal(t, "Java", java)
+	assert.Equal(t, "Java", tomcat)
+	assert.Equal(t, "Node.js", node)
+	assert.Equal(t, "Python", python)
+	assert.Equal(t, ".NET", dotnet)
+	assert.Equal(t, "PHP", php)
 	assert.Equal(t, "unknown", unknown)
 }
 
