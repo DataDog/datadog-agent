@@ -27,19 +27,19 @@ import (
 var nodeNRegex = regexp.MustCompile("^node[0-9]+$")
 
 func (cpuInfo *Info) fillProcCPUErr(err error) {
-	procCPUFields := []func(error){
-		utils.ValueErrorSetter(&cpuInfo.VendorID), utils.ValueErrorSetter(&cpuInfo.ModelName),
-		utils.ValueErrorSetter(&cpuInfo.CPUCores), utils.ValueErrorSetter(&cpuInfo.CPULogicalProcessors),
-		utils.ValueErrorSetter(&cpuInfo.CacheSizeKB), utils.ValueErrorSetter(&cpuInfo.Family),
-		utils.ValueErrorSetter(&cpuInfo.Model), utils.ValueErrorSetter(&cpuInfo.Stepping),
-		utils.ValueErrorSetter(&cpuInfo.CPUPkgs), utils.ValueErrorSetter(&cpuInfo.CPUNumaNodes),
-		utils.ValueErrorSetter(&cpuInfo.CacheSizeL1Bytes), utils.ValueErrorSetter(&cpuInfo.CacheSizeL2Bytes),
-		utils.ValueErrorSetter(&cpuInfo.CacheSizeL3Bytes),
-	}
-
-	for _, setter := range procCPUFields {
-		setter(err)
-	}
+	cpuInfo.VendorID = utils.NewErrorValue[string](err)
+	cpuInfo.ModelName = utils.NewErrorValue[string](err)
+	cpuInfo.CPUCores = utils.NewErrorValue[uint64](err)
+	cpuInfo.CPULogicalProcessors = utils.NewErrorValue[uint64](err)
+	cpuInfo.CacheSizeKB = utils.NewErrorValue[uint64](err)
+	cpuInfo.Family = utils.NewErrorValue[string](err)
+	cpuInfo.Model = utils.NewErrorValue[string](err)
+	cpuInfo.Stepping = utils.NewErrorValue[string](err)
+	cpuInfo.CPUPkgs = utils.NewErrorValue[uint64](err)
+	cpuInfo.CPUNumaNodes = utils.NewErrorValue[uint64](err)
+	cpuInfo.CacheSizeL1Bytes = utils.NewErrorValue[uint64](err)
+	cpuInfo.CacheSizeL2Bytes = utils.NewErrorValue[uint64](err)
+	cpuInfo.CacheSizeL3Bytes = utils.NewErrorValue[uint64](err)
 }
 
 func (cpuInfo *Info) fillFirstCPUInfo(firstCPU map[string]string) {

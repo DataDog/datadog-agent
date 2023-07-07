@@ -245,15 +245,10 @@ func getCPUInfo() *Info {
 			cpuInfo.Family = utils.NewErrorValue[string](err)
 		}
 	} else {
-		errorSetters := []func(error){
-			utils.ValueErrorSetter(&cpuInfo.Mhz),
-			utils.ValueErrorSetter(&cpuInfo.ModelName),
-			utils.ValueErrorSetter(&cpuInfo.VendorID),
-			utils.ValueErrorSetter(&cpuInfo.Family),
-		}
-		for _, errorSetter := range errorSetters {
-			errorSetter(err)
-		}
+		cpuInfo.Mhz = utils.NewErrorValue[float64](err)
+		cpuInfo.ModelName = utils.NewErrorValue[string](err)
+		cpuInfo.VendorID = utils.NewErrorValue[string](err)
+		cpuInfo.Family = utils.NewErrorValue[string](err)
 	}
 
 	cpus, cpuerr := computeCoresAndProcessors()

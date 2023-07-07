@@ -17,25 +17,24 @@ import (
 func TestCollectCPU(t *testing.T) {
 	cpuInfo := CollectInfo()
 
-	errorGetters := map[string]func() error{
-		"VendorID":             utils.ValueErrorGetter(&cpuInfo.VendorID),
-		"ModelName":            utils.ValueErrorGetter(&cpuInfo.ModelName),
-		"CPUCores":             utils.ValueErrorGetter(&cpuInfo.CPUCores),
-		"CPULogicalProcessors": utils.ValueErrorGetter(&cpuInfo.CPULogicalProcessors),
-		"Mhz":                  utils.ValueErrorGetter(&cpuInfo.Mhz),
-		"CacheSizeKB":          utils.ValueErrorGetter(&cpuInfo.CacheSizeKB),
-		"Family":               utils.ValueErrorGetter(&cpuInfo.Family),
-		"Model":                utils.ValueErrorGetter(&cpuInfo.Model),
-		"Stepping":             utils.ValueErrorGetter(&cpuInfo.Stepping),
-		"CPUPkgs":              utils.ValueErrorGetter(&cpuInfo.CPUPkgs),
-		"CPUNumaNodes":         utils.ValueErrorGetter(&cpuInfo.CPUNumaNodes),
-		"CacheSizeL1Bytes":     utils.ValueErrorGetter(&cpuInfo.CacheSizeL1Bytes),
-		"CacheSizeL2Bytes":     utils.ValueErrorGetter(&cpuInfo.CacheSizeL2Bytes),
-		"CacheSizeL3Bytes":     utils.ValueErrorGetter(&cpuInfo.CacheSizeL3Bytes),
+	errorGetters := map[string]error{
+		"VendorID":             cpuInfo.VendorID.Error(),
+		"ModelName":            cpuInfo.ModelName.Error(),
+		"CPUCores":             cpuInfo.CPUCores.Error(),
+		"CPULogicalProcessors": cpuInfo.CPULogicalProcessors.Error(),
+		"Mhz":                  cpuInfo.Mhz.Error(),
+		"CacheSizeKB":          cpuInfo.CacheSizeKB.Error(),
+		"Family":               cpuInfo.Family.Error(),
+		"Model":                cpuInfo.Model.Error(),
+		"Stepping":             cpuInfo.Stepping.Error(),
+		"CPUPkgs":              cpuInfo.CPUPkgs.Error(),
+		"CPUNumaNodes":         cpuInfo.CPUNumaNodes.Error(),
+		"CacheSizeL1Bytes":     cpuInfo.CacheSizeL1Bytes.Error(),
+		"CacheSizeL2Bytes":     cpuInfo.CacheSizeL2Bytes.Error(),
+		"CacheSizeL3Bytes":     cpuInfo.CacheSizeL3Bytes.Error(),
 	}
 
-	for fieldname, errorGetter := range errorGetters {
-		err := errorGetter()
+	for fieldname, err := range errorGetters {
 		if err != nil {
 			assert.ErrorIsf(t, err, utils.ErrNotCollectable, "cpu: field %s could not be collected", fieldname)
 		}
