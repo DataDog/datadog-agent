@@ -24,7 +24,7 @@ import (
 
 // StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
-	conn, err := net.NewListener(cfg.SocketAddress)
+	conn, err := net.NewListener(cfg.SocketAddress, cfg.AuthSocket)
 	if err != nil {
 		return fmt.Errorf("error creating IPC socket: %s", err)
 	}

@@ -33,7 +33,7 @@ func testSocketExistsNewUDSListener(t *testing.T, socketPath string) {
 	require.NoError(t, err)
 
 	// Create a new socket using UDSListener
-	l, err := NewListener(socketPath)
+	l, err := NewListener(socketPath, false)
 	require.NoError(t, err)
 
 	l.Stop()
@@ -46,12 +46,12 @@ func testSocketExistsAsRegularFileNewUDSListener(t *testing.T, socketPath string
 	defer f.Close()
 
 	// Create a new socket using UDSListener
-	_, err = NewListener(socketPath)
+	_, err = NewListener(socketPath, false)
 	require.Error(t, err)
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewListener(socketPath)
+	s, err := NewListener(socketPath, false)
 	require.NoError(t, err)
 	defer s.Stop()
 

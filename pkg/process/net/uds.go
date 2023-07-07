@@ -61,7 +61,7 @@ func HttpServe(l net.Listener, handler http.Handler, authSocket bool) error {
 }
 
 // NewListener returns an idle UDSListener
-func NewListener(socketAddr string) (*UDSListener, error) {
+func NewListener(socketAddr string, authSocket bool) (*UDSListener, error) {
 	if len(socketAddr) == 0 {
 		return nil, fmt.Errorf("uds: empty socket path provided")
 	}
@@ -89,7 +89,11 @@ func NewListener(socketAddr string) (*UDSListener, error) {
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	if err := os.Chmod(socketAddr, 0720); err != nil {
+	socketMode := 0720
+	if authSocket { // in authSocket mode we don't care about the user as we check the client binary signature at runtime
+		socketMode = 0777
+	}
+	if err := os.Chmod(socketAddr, os.FileMode(socketMode)); err != nil {
 		return nil, fmt.Errorf("can't set the socket at write only: %s", err)
 	}
 
