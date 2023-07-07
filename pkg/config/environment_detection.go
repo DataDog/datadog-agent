@@ -107,7 +107,6 @@ func detectFeatures() {
 	newFeatures := make(FeatureMap)
 	if IsAutoconfigEnabled() {
 		detectContainerFeatures(newFeatures)
-		detectRemoteProcessCollector(newFeatures)
 		excludedFeatures := Datadog.GetStringSlice("autoconfig_exclude_features")
 		excludeFeatures(newFeatures, excludedFeatures)
 

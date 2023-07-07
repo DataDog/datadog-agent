@@ -234,8 +234,8 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Enable remote process collector
-			config.SetFeatures(t, config.RemoteProcessCollector)
+			mockConfig := config.Mock(t)
+			mockConfig.Set("workloadmeta.remote_process_collector.enabled", true)
 
 			// remote process collector server (process agent)
 			server := &mockServer{
@@ -261,9 +261,10 @@ func TestCollection(t *testing.T) {
 
 			// gRPC client (core agent)
 			collector := &remote.GenericCollector{
-				StreamHandler: &streamHandler{},
-				Port:          port,
-				Insecure:      true,
+				StreamHandler: &streamHandler{
+					port: port,
+				},
+				Insecure: true,
 			}
 
 			mockStore := workloadmeta.NewMockStore()

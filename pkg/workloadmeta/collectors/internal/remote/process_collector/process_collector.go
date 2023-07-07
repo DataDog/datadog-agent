@@ -51,7 +51,9 @@ func (s *stream) Recv() (interface{}, error) {
 	return s.cl.Recv()
 }
 
-type streamHandler struct{}
+type streamHandler struct {
+	port int
+}
 
 func init() {
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
@@ -65,7 +67,11 @@ func init() {
 }
 
 func (s *streamHandler) Port() int {
-	return config.Datadog.GetInt("process_config.language_detection.grpc_port")
+	if s.port == 0 {
+		return config.Datadog.GetInt("process_config.language_detection.grpc_port")
+	}
+	// for test purposes
+	return s.port
 }
 
 func (s *streamHandler) IsEnabled() bool {

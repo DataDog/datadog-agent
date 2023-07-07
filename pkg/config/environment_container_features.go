@@ -27,6 +27,4 @@ const (
 	CloudFoundry Feature = "cloudfoundry"
 	// Podman containers storage path accessible
 	Podman Feature = "podman"
-	// Process Agent with language detection enabled
-	RemoteProcessCollector Feature = "remoteprocesscollector"
 )

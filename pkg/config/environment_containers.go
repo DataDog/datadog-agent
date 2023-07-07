@@ -43,7 +43,6 @@ func init() {
 	registerFeature(KubeOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
-	registerFeature(RemoteProcessCollector)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
@@ -186,12 +185,6 @@ func detectPodman(features FeatureMap) {
 			features[Podman] = struct{}{}
 			return
 		}
-	}
-}
-
-func detectRemoteProcessCollector(features FeatureMap) {
-	if Datadog.GetBool("workloadmeta.remote_process_collector.enabled") {
-		features[RemoteProcessCollector] = struct{}{}
 	}
 }
 
