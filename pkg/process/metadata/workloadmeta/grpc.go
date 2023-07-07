@@ -120,7 +120,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			log.Trace("[WorkloadMeta GRPCServer] expected diff version %d, actual %d", expectedVersion, diff.cacheVersion)
 			if diff.cacheVersion != expectedVersion {
 				log.Debug("[WorkloadMeta GRPCServer] missing cache diff - dropping stream")
-				return fmt.Errorf("missing cache diff: received version = %v; expected = %v", diff.cacheVersion, expectedVersion)
+				return fmt.Errorf("missing cache diff: received version = %d; expected = %d", diff.cacheVersion, expectedVersion)
 			}
 			expectedVersion++
 
