@@ -188,6 +188,9 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 		return nil, err
 	}
 
+	if cfg.OpenCensusEnabled {
+		log.Warn("The OpenCensus receiver is for internal use only and may be removed without notice.")
+	}
 	return &Pipeline{col}, nil
 }
 
@@ -206,9 +209,6 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 	p, err := NewPipelineFromAgentConfig(cfg, s)
 	if err != nil {
 		return nil, err
-	}
-	if p.OpenCensusEnabled {
-		log.Warn("The OpenCensus receiver is for internal use only and may be removed without notice.")
 	}
 	go func() {
 		err := p.Run(ctx)
