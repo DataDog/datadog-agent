@@ -272,6 +272,11 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 			if err != nil {
 				return data, err
 			}
+			// If a `‰` character hasn’t been consumed by a `%%var%%` template variable replacement,
+			// let’s restore it to the initial `%%` value it had in the original string.
+			if str, ok := s.(string); ok {
+				s = strings.ReplaceAll(str, "‰", "%%")
+			}
 			top.set(s)
 
 		case nil, int, bool:

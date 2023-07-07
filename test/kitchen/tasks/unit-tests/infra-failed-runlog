@@ -1,0 +1,10 @@
+I, [2023-06-19T14:41:49.342860 #357]  INFO -- chef-win2022-azure-x86-64:      Shared Example Group: "Agent behavior" called from ./chef_spec.rb:5
+I, [2023-06-19T14:41:49.343999 #357]  INFO -- chef-win2022-azure-x86-64:      # ./spec_helper.rb:225:in `block in integration_install'
+I, [2023-06-19T14:41:49.345581 #357]  INFO -- chef-win2022-azure-x86-64:      # ./spec_helper.rb:224:in `tap'
+I, [2023-06-19T14:41:49.347113 #357]  INFO -- chef-win2022-azure-x86-64:      # ./spec_helper.rb:224:in `integration_install'
+I, [2023-06-19T14:41:49.348798 #357]  INFO -- chef-win2022-azure-x86-64:      # ./spec_helper.rb:782:in `block (2 levels) in <top (required)>'
+I, [2023-06-19T14:41:49.350390 #357]  INFO -- chef-win2022-azure-x86-64:      # C:/Users/datadog/AppData/Local/Temp/verifier/gems/gems/busser-rspec_datadog-0.8.5/lib/busser/rspec_datadog/runner.rb:23:in `<main>'
+I, [2023-06-19T14:41:49.351817 #357]  INFO -- chef-win2022-azure-x86-64: 
+I, [2023-06-19T14:41:49.353374 #357]  INFO -- chef-win2022-azure-x86-64: Finished in 6 minutes 2 seconds (files took 0.45318 seconds to load)
+I, [2023-06-19T14:41:49.354914 #357]  INFO -- chef-win2022-azure-x86-64: 33 examples, 0 failures, 3 pending
+I, [2023-06-19T14:41:49.356773 #357]  INFO -- chef-win2022-azure-x86-64: 

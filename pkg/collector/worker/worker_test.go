@@ -473,6 +473,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 func TestWorkerServiceCheckSending(t *testing.T) {
 	expvars.Reset()
 	config.Datadog.Set("hostname", "myhost")
+	config.Datadog.Set("integration_check_status_enabled", "true")
 
 	var wg sync.WaitGroup
 
@@ -515,7 +516,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 		serviceCheckStatusKey,
 		servicecheck.ServiceCheckOK,
 		"myhost",
-		[]string{"check:goodcheck"},
+		[]string{"check:goodcheck", "dd_enable_check_intake:true"},
 		"",
 	).Return().Times(1)
 
@@ -524,7 +525,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 		serviceCheckStatusKey,
 		servicecheck.ServiceCheckWarning,
 		"myhost",
-		[]string{"check:check_withwarn"},
+		[]string{"check:check_withwarn", "dd_enable_check_intake:true"},
 		"",
 	).Return().Times(1)
 
@@ -533,7 +534,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 		serviceCheckStatusKey,
 		servicecheck.ServiceCheckCritical,
 		"myhost",
-		[]string{"check:check_witherr"},
+		[]string{"check:check_witherr", "dd_enable_check_intake:true"},
 		"",
 	).Return().Times(1)
 

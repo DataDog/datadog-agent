@@ -35,6 +35,8 @@
     paths:
       - test_output.json
       - junit-*.tgz
+    reports:
+      junit: "**/junit-out-*.xml"
 
 .lint_windows_base:
   stage: source_test
@@ -47,14 +49,14 @@
     # Since Windows runners have 32Gb of memory and jobs are using either 8Gb or 16Gb of memory, we can limit memory to 16Gb on this job because
     # even if we decided to limit to 10Gb for instance, it would leave 6Gb free but we could not fit another job with these 6Gb remaining.
     - >
-      docker run --rm 
-      -m 16384M 
-      -v "$(Get-Location):c:\mnt" 
+      docker run --rm
+      -m 16384M
+      -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
-      -e PY_RUNTIMES="$PYTHON_RUNTIMES" 
-      -e GOMODCACHE="c:\modcache" 
+      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
+      -e GOMODCACHE="c:\modcache"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:$Env:DATADOG_AGENT_WINBUILDIMAGES c:\mnt\tasks\winbuildscripts\lint.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
