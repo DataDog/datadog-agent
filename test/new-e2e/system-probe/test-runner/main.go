@@ -30,7 +30,7 @@ func init() {
 }
 
 type TestConfig struct {
-	retry           int
+	retryCount      int
 	includePackages []string
 	excludePackages []string
 }
@@ -40,10 +40,9 @@ const (
 	TestDirRoot = "/opt/system-probe-tests"
 	GoTestSum   = "/go/bin/gotestsum"
 
-	// The directory format is <name>-<attempt>*
-	XMLDir       = "junit-%d"
-	JSONDir      = "pkgjson-%d"
-	JSONOutDir   = "testjson-%d"
+	XMLDir       = "junit"
+	JSONDir      = "pkgjson"
+	JSONOutDir   = "testjson"
 	CIVisibility = "/ci-visibility"
 )
 
@@ -107,7 +106,12 @@ func generatePackageName(file string) string {
 	return pkg
 }
 
-func buildCommandArgs(junitPath string, jsonPath string, file string) []string {
+func pathToPackage(path string) string {
+	dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
+	return dir
+}
+
+func buildCommandArgs(junitPath string, jsonPath string, file string, retryCnt int) []string {
 	pkg := generatePackageName(file)
 	junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 	xmlpath := filepath.Join(
@@ -118,10 +122,13 @@ func buildCommandArgs(junitPath string, jsonPath string, file string) []string {
 		jsonPath,
 		fmt.Sprintf("%s.json", junitfilePrefix),
 	)
+
 	args := []string{
 		"--format", "dots",
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
+		fmt.Sprintf("--rerun-fails=%d", retryCnt),
+		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
 		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
 	}
@@ -170,15 +177,15 @@ func concatenateJsons(indir, outdir string) error {
 	return nil
 }
 
-func getCIVisibilityDir(dir string, attempt int) string {
-	return filepath.Join(CIVisibility, fmt.Sprintf(dir, attempt))
+func getCIVisibilityDir(dir string) string {
+	return filepath.Join(CIVisibility, dir)
 }
 
-func buildCIVisibilityDirs(attempt int) error {
+func buildCIVisibilityDirs() error {
 	dirs := []string{
-		getCIVisibilityDir(XMLDir, attempt),
-		getCIVisibilityDir(JSONDir, attempt),
-		getCIVisibilityDir(JSONOutDir, attempt),
+		getCIVisibilityDir(XMLDir),
+		getCIVisibilityDir(JSONDir),
+		getCIVisibilityDir(JSONOutDir),
 	}
 
 	for _, d := range dirs {
@@ -193,11 +200,9 @@ func buildCIVisibilityDirs(attempt int) error {
 	return nil
 }
 
-func testPass(testConfig *TestConfig, attempt int) (bool, error) {
-	var retry bool
-
+func testPass(testConfig *TestConfig) error {
 	matches, err := glob(TestDirRoot, Testsuite, func(path string) bool {
-		dir, _ := filepath.Rel(TestDirRoot, filepath.Dir(path))
+		dir := pathToPackage(path)
 		for _, p := range testConfig.excludePackages {
 			if dir == p {
 				return false
@@ -216,18 +221,19 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 		return true
 	})
 	if err != nil {
-		return false, fmt.Errorf("test glob: %s", err)
+		return fmt.Errorf("test glob: %s", err)
 	}
 
-	if err := buildCIVisibilityDirs(attempt); err != nil {
-		return false, err
+	if err := buildCIVisibilityDirs(); err != nil {
+		return err
 	}
 
 	for _, file := range matches {
 		args := buildCommandArgs(
-			getCIVisibilityDir(XMLDir, attempt),
-			getCIVisibilityDir(JSONDir, attempt),
+			getCIVisibilityDir(XMLDir),
+			getCIVisibilityDir(JSONDir),
 			file,
+			testConfig.retryCount,
 		)
 		cmd := exec.Command(GoTestSum, args...)
 
@@ -238,18 +244,17 @@ func testPass(testConfig *TestConfig, attempt int) (bool, error) {
 
 		if err := cmd.Run(); err != nil {
 			// log but do not return error
-			retry = true
 			fmt.Fprintf(os.Stderr, "cmd run %s: %s", file, err)
 		}
 	}
 
 	if err := concatenateJsons(
-		getCIVisibilityDir(JSONDir, attempt),
-		getCIVisibilityDir(JSONOutDir, attempt),
+		getCIVisibilityDir(JSONDir),
+		getCIVisibilityDir(JSONOutDir),
 	); err != nil {
-		return false, fmt.Errorf("concat json: %s", err)
+		return fmt.Errorf("concat json: %s", err)
 	}
-	return retry, nil
+	return nil
 }
 
 func fixAssetPermissions() error {
@@ -294,24 +299,16 @@ func buildTestConfiguration() *TestConfig {
 	}
 
 	return &TestConfig{
-		retry:           *retryPtr,
+		retryCount:      *retryPtr,
 		includePackages: packagesLs,
 		excludePackages: excludeLs,
 	}
 }
 
-func printHeader(str string) {
-	magentaString := color.New(color.FgMagenta, color.Bold).Add(color.Underline)
-	fmt.Println()
-	magentaString.Println(str)
-}
-
 func run() error {
-	var err error
 	var uname unix.Utsname
 
 	testConfig := buildTestConfiguration()
-
 	if err := unix.Uname(&uname); err != nil {
 		return fmt.Errorf("error calling uname: %w", err)
 	}
@@ -329,13 +326,5 @@ func run() error {
 		}
 	}
 
-	for i := 1; i <= testConfig.retry; i++ {
-		printHeader(fmt.Sprintf("Test attempt %d", i))
-		retry, err := testPass(testConfig, i)
-		if !retry || err != nil {
-			break
-		}
-	}
-
-	return err
+	return testPass(testConfig)
 }
