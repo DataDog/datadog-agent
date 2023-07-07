@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -27,14 +28,17 @@ type GRPCServer struct {
 	addr net.Addr
 
 	wg sync.WaitGroup
+
+	streamMutex *sync.Mutex
 }
 
 // NewGRPCServer creates a new instance of a GRPCServer
 func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor) *GRPCServer {
 	l := &GRPCServer{
-		config:    config,
-		extractor: extractor,
-		server:    grpc.NewServer(),
+		config:      config,
+		extractor:   extractor,
+		server:      grpc.NewServer(),
+		streamMutex: &sync.Mutex{},
 	}
 
 	pbgo.RegisterProcessEntityStreamServer(l.server, l)
@@ -88,6 +92,12 @@ func (l *GRPCServer) Stop() {
 
 // StreamEntities streams Process Entities collected through the WorkloadMetaExtractor
 func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
+	if !l.streamMutex.TryLock() {
+		_ = log.Error("Tried to call StreamEntities but a stream already exists! Check to see that there aren't multiple instances of the agent running at once.")
+		return errors.New("failed to StreamEntities because a stream already exists")
+	}
+	defer l.streamMutex.Unlock()
+
 	// When connection is created, send a snapshot of all processes detected on the host so far as "SET" events
 	procs, snapshotVersion := l.extractor.GetAllProcessEntities()
 	setEvents := make([]*pbgo.ProcessEventSet, 0, len(procs))
