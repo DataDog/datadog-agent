@@ -182,7 +182,7 @@ spec:
                 value: {{inputs.parameters.dd-url}}
               - name: DD_ADMISSION_CONTROLLER_INJECT_TAGS_ENABLED
                 value: "true"
-              - name: DD_ADMISSION_CONTROLLER_INJECT_TAGS_WORKLOAD_TAGS
+              - name: DD_ADMISSION_CONTROLLER_INJECT_TAGS_WORKLOAD_CONTEXT
                 value: "true"
           EOF
 

@@ -144,7 +144,7 @@ func injectTagsFromLabels(labels map[string]string, pod *corev1.Pod) (bool, bool
 		injectTag(l, envName)
 	}
 
-	if config.Datadog.GetBool("admission_controller.inject_tags.workload_tags") {
+	if config.Datadog.GetBool("admission_controller.inject_tags.workload_context") {
 		for _, entry := range labelsToWorkloadEnv {
 			l, envName := entry[0], entry[1]
 			injectTag(l, envName)
