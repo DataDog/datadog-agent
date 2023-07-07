@@ -264,6 +264,10 @@ def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(
+            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
+        )
 
 
 def ninja_runtime_compilation_files(nw, gobin):
@@ -373,6 +377,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/tcp_queue_length_kern_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
             ],
         }
         nw.rule(
