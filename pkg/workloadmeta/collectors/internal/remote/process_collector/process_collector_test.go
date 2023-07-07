@@ -231,11 +231,11 @@ func TestCollection(t *testing.T) {
 			errorResponse: true,
 		},
 	}
+	mockConfig := config.Mock(t)
+	mockConfig.Set("workloadmeta.remote_process_collector.enabled", true)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
-			mockConfig.Set("workloadmeta.remote_process_collector.enabled", true)
 
 			// remote process collector server (process agent)
 			server := &mockServer{
