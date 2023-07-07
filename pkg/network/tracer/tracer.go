@@ -356,6 +356,7 @@ func (t *Tracer) Stop() {
 	t.conntracker.Close()
 	t.processCache.Stop()
 	close(t.exitTelemetry)
+	telemetry.Reset()
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
