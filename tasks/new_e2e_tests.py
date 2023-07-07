@@ -8,6 +8,7 @@ import os.path
 import shutil
 import subprocess
 from pathlib import Path
+import tempfile
 from typing import List
 
 from invoke.context import Context
@@ -167,7 +168,7 @@ def _clean_stacks(ctx: Context):
 
 def _get_existing_stacks(ctx: Context) -> List[str]:
     # ensure we deal with local stacks
-    with ctx.cd('/tmp'):
+    with ctx.cd(tempfile.gettempdir()):
         output = ctx.run("pulumi stack ls --all", pty=True)
         if output is None or not output:
             return []
