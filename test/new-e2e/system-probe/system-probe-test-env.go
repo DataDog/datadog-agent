@@ -37,11 +37,7 @@ const (
 	BackupAZ    = "subnet-071213aedb0e1ae54"
 )
 
-var nextAZ = map[string]string{
-	PrimaryAZ:   SecondaryAZ,
-	SecondaryAZ: BackupAZ,
-	BackupAZ:    PrimaryAZ,
-}
+var availabilityZones = []string{PrimaryAZ, SecondaryAZ, BackupAZ}
 
 type SystemProbeEnvOpts struct {
 	X86AmiID              string
@@ -121,14 +117,13 @@ func credentials() (string, error) {
 	return password, nil
 }
 
-func getNextAZ(currentAZ string) string {
-	return nextAZ[currentAZ]
+func getAvailabilityZone(azIndx int) string {
+	return availabilityZones[azIndx%len(availabilityZones)]
 }
 
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	var err error
 	var sudoPassword string
-	var currentAZ string
 
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
@@ -179,14 +174,14 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 	var upResult auto.UpResult
 	ctx := context.Background()
-	currentAZ = PrimaryAZ
+	currentAZ := 0 // PrimaryAZ
 	b := retry.NewConstant(3 * time.Second)
 	// Retry 4 times. This allows us to cycle through all AZs, and handle libvirt
 	// connection issues in the worst case.
 	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		// Set AZ in retry block so we can change if needed.
-		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: currentAZ}
+		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: getAvailabilityZone(currentAZ)}
 
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 			if err := microvms.Run(ctx); err != nil {
@@ -206,8 +201,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				// Retry if we have capacity issues in our current AZ.
 				// We switch to a different AZ and attempt to launch the instance again.
 			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
-				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", currentAZ, getNextAZ(currentAZ))
-				currentAZ = getNextAZ(currentAZ)
+				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(currentAZ), getAvailabilityZone(currentAZ+1))
+				currentAZ += 1
 				return retry.RetryableError(err)
 			} else {
 				return err
