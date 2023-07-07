@@ -463,28 +463,37 @@ func TestFuncVersions(t *testing.T) {
 }
 
 func TestStackDepthfLogging(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
+	cases := []struct {
+		seelogLevel        seelog.LogLevel
+		strLogLevel        string
+		expectedToBeCalled int
+	}{
+		{seelog.CriticalLvl, "critical", 1},
+		{seelog.ErrorLvl, "error", 2},
+		{seelog.WarnLvl, "warn", 3},
+		{seelog.InfoLvl, "info", 4},
+		{seelog.DebugLvl, "debug", 5},
+		{seelog.TraceLvl, "trace", 6},
+	}
 
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg\n")
-	assert.Nil(t, err)
+	for _, tc := range cases {
+		var b bytes.Buffer
+		w := bufio.NewWriter(&b)
 
-	SetupLogger(l, "trace")
+		l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %FuncShort: %Msg\n")
+		assert.Nil(t, err)
 
-	TracefStackDepth("%s", 0, "foo")
-	DebugfStackDepth("%s", 0, "foo")
-	InfofStackDepth("%s", 0, "foo")
-	WarnfStackDepth("%s", 0, "foo")
-	ErrorfStackDepth("%s", 0, "foo")
-	CriticalfStackDepth("%s", 0, "foo")
-	w.Flush()
+		SetupLogger(l, tc.strLogLevel)
 
-	assert.Subset(t, strings.Split(b.String(), "\n"), []string{
-		"[TRACE] TestStackDepthfLogging: foo",
-		"[DEBUG] TestStackDepthfLogging: foo",
-		"[INFO] TestStackDepthfLogging: foo",
-		"[WARN] TestStackDepthfLogging: foo",
-		"[ERROR] TestStackDepthfLogging: foo",
-		"[CRITICAL] TestStackDepthfLogging: foo",
-	})
+		TracefStackDepth("%s", 0, "foo")
+		DebugfStackDepth("%s", 0, "foo")
+		InfofStackDepth("%s", 0, "foo")
+		WarnfStackDepth("%s", 0, "foo")
+		ErrorfStackDepth("%s", 0, "foo")
+		CriticalfStackDepth("%s", 0, "foo")
+		w.Flush()
+
+		assert.Equal(t, tc.expectedToBeCalled, strings.Count(b.String(), "TestStackDepthfLogging"), tc)
+
+	}
 }
