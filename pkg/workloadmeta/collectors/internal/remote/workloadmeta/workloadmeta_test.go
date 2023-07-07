@@ -118,7 +118,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 		Events: []*pbgo.WorkloadmetaEvent{protoWorkloadmetaEvent},
 	}
 
-	streamhandler := &remoteWorkloadMetaStreamHandler{}
+	streamhandler := &streamHandler{}
 	collectorEvents, err := streamhandler.HandleResponse(mockResponse)
 
 	require.NoError(t, err)
@@ -163,9 +163,10 @@ func TestCollection(t *testing.T) {
 
 	// gRPC client
 	collector := &remote.GenericCollector{
-		StreamHandler: &remoteWorkloadMetaStreamHandler{},
-		Port:          port,
-		Insecure:      true,
+		StreamHandler: &streamHandler{
+			port: port,
+		},
+		Insecure: true,
 	}
 
 	mockClientStore := workloadmeta.NewMockStore()

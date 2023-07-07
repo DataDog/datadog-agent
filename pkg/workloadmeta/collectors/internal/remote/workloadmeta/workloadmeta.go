@@ -50,24 +50,33 @@ func (s *stream) Recv() (interface{}, error) {
 	return s.cl.Recv()
 }
 
-type remoteWorkloadMetaStreamHandler struct{}
+type streamHandler struct {
+	port int
+}
 
 func init() {
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
 
 	workloadmeta.RegisterRemoteCollector(collectorID, func() workloadmeta.Collector {
 		return &remote.GenericCollector{
-			StreamHandler: &remoteWorkloadMetaStreamHandler{},
-			Port:          config.Datadog.GetInt("cmd_port"),
+			StreamHandler: &streamHandler{},
 		}
 	})
 }
 
-func (s *remoteWorkloadMetaStreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
+func (s *streamHandler) Port() int {
+	if s.port == 0 {
+		return config.Datadog.GetInt("cmd_port")
+	}
+	// for tests
+	return s.port
+}
+
+func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
 	return &client{cl: pb.NewAgentSecureClient(cc)}
 }
 
-func (s *remoteWorkloadMetaStreamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	response, ok := resp.(*pb.WorkloadmetaStreamResponse)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
@@ -92,7 +101,7 @@ func (s *remoteWorkloadMetaStreamHandler) HandleResponse(resp interface{}) ([]wo
 	return collectorEvents, nil
 }
 
-func (s *remoteWorkloadMetaStreamHandler) HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
+func (s *streamHandler) HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
 	var entities []workloadmeta.Entity
 	for _, event := range events {
 		entities = append(entities, event.Entity)

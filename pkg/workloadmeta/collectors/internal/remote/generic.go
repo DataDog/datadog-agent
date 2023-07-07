@@ -43,6 +43,8 @@ type Stream interface {
 }
 
 type StreamHandler interface {
+	// Port returns the targetted port
+	Port() int
 	// NewClient returns a client to connect to a remote gRPC server.
 	NewClient(cc grpc.ClientConnInterface) RemoteGrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
@@ -54,8 +56,6 @@ type StreamHandler interface {
 // GenericCollector is a generic remote workloadmeta collector with resync mechanisms.
 type GenericCollector struct {
 	StreamHandler StreamHandler
-
-	Port int // Currently, only TCP + TLS is supported
 
 	store        workloadmeta.Store
 	resyncNeeded bool
@@ -98,7 +98,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) 
 
 	conn, err := grpc.DialContext(
 		c.ctx,
-		fmt.Sprintf(":%v", c.Port),
+		fmt.Sprintf(":%v", c.StreamHandler.Port()),
 		opts...,
 	)
 	if err != nil {
