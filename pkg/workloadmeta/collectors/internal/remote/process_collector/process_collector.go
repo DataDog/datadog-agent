@@ -60,10 +60,13 @@ func init() {
 		return &remote.GenericCollector{
 			CollectorID:   collectorID,
 			StreamHandler: &streamHandler{},
-			Port:          config.Datadog.GetInt("process_config.language_detection.grpc_port"),
 			Insecure:      true, // wlm extractor currently does not support TLS
 		}
 	})
+}
+
+func (s *streamHandler) Port() int {
+	return config.Datadog.GetInt("process_config.language_detection.grpc_port")
 }
 
 func (s *streamHandler) IsEnabled() error {

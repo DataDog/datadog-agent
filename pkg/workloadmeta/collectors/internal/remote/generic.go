@@ -43,6 +43,8 @@ type Stream interface {
 }
 
 type StreamHandler interface {
+	// Port returns the targetted port
+	Port() int
 	// IsEnabled returns an error if this StreamHandler is disabled
 	IsEnabled() error
 	// NewClient returns a client to connect to a remote gRPC server.
@@ -57,8 +59,6 @@ type StreamHandler interface {
 type GenericCollector struct {
 	CollectorID   string
 	StreamHandler StreamHandler
-
-	Port int // Currently, only TCP + TLS is supported
 
 	store        workloadmeta.Store
 	resyncNeeded bool
@@ -105,7 +105,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Store) 
 
 	conn, err := grpc.DialContext(
 		c.ctx,
-		fmt.Sprintf(":%v", c.Port),
+		fmt.Sprintf(":%v", c.StreamHandler.Port()),
 		opts...,
 	)
 	if err != nil {
