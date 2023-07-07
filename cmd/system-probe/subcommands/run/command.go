@@ -152,6 +152,7 @@ func StartSystemProbeWithDefaults() error {
 		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		rcclient.Module,
 		config.Module,
+		telemetry.Module,
 		sysprobeconfig.Module,
 		// use system-probe config instead of agent config for logging
 		fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
