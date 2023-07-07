@@ -32,7 +32,6 @@ type Limiter[K comparable] struct {
 
 // NewLimiter returns a rate limiter that is sized to the configured number of unique tokens, and each unique token is allowed 'numAllowedTokensPerDuration' times per 'duration'.
 func NewLimiter[K comparable](numUniqueTokens int, numAllowedTokensPerDuration int, duration time.Duration) (*Limiter[K], error) {
-	// num of buckets should be around the number of workloads per profile
 	cache, err := simplelru.NewLRU[K, cacheEntry](numUniqueTokens, nil)
 	if err != nil {
 		return nil, err
@@ -49,13 +48,11 @@ func NewLimiter[K comparable](numUniqueTokens int, numAllowedTokensPerDuration i
 
 // Allow returns whether an entry is allowed or not
 func (l *Limiter[K]) Allow(k K) bool {
-	incrementedCount := 1
-
 	if entry, ok := l.cache.Get(k); ok {
 		if entry.count < l.numAllowedTokensPerDuration {
-			incrementedCount = entry.count + 1
+			l.Count(k)
 		} else if time.Now().Sub(entry.last) >= l.duration {
-			// compare next time, if time elapsed is longer than allowed duration, remove from cache and allow current event
+			// If time elapsed between now and the last cache entry is longer than allowed duration, remove from cache and allow current event
 			l.cache.Remove(k)
 			l.allowed.Inc()
 			return true
@@ -65,10 +62,6 @@ func (l *Limiter[K]) Allow(k K) bool {
 		}
 	}
 
-	l.cache.Add(k, cacheEntry{
-		count: incrementedCount,
-		last:  time.Now(),
-	})
 	l.allowed.Inc()
 	return true
 }
@@ -85,8 +78,18 @@ func (l *Limiter[K]) SwapStats() []LimiterStat {
 
 // Count marks the key as used
 func (l *Limiter[K]) Count(k K) {
-	l.cache.Add(k, cacheEntry{
+	cacheEntryToAdd := cacheEntry{
 		count: 1,
 		last:  time.Now(),
-	})
+	}
+
+	if val, ok := l.cache.Peek(k); ok {
+		incrementedCount := val.count + 1
+		cacheEntryToAdd = cacheEntry{
+			count: incrementedCount,
+			last:  time.Now(),
+		}
+	}
+
+	l.cache.Add(k, cacheEntryToAdd)
 }
