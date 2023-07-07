@@ -6,6 +6,7 @@
 package rcclient
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -17,7 +18,7 @@ type Component interface {
 	// TODO: (components) Start the remote config client to listen to AGENT_TASK configurations
 	// Once the remote config client is refactored and can push updates directly to the listeners,
 	// we can remove this.
-	Listen() error
+	Listen(clientName string, products []data.Product) error
 }
 
 // Module defines the fx options for this component.

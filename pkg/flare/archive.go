@@ -112,7 +112,7 @@ func CompleteFlare(fb flarehelpers.FlareBuilder) error {
 		fb.AddFileFromFunc("telemetry.log", func() ([]byte, error) { return getHTTPCallContent(telemetryURL) })
 	}
 
-	if config.Datadog.GetBool("remote_configuration.enabled") {
+	if config.IsRemoteConfigEnabled(config.Datadog) {
 		if err := exportRemoteConfig(fb); err != nil {
 			log.Errorf("Could not export remote-config state: %s", err)
 		}

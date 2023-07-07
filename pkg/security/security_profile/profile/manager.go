@@ -26,9 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -120,8 +120,7 @@ type ActivityDumpManager interface {
 type SecurityProfileManager struct {
 	config              *config.Config
 	statsdClient        statsd.ClientInterface
-	cgroupResolver      *cgroup.Resolver
-	timeResolver        *timeResolver.Resolver
+	resolvers           *resolvers.Resolvers
 	providers           []Provider
 	activityDumpManager ActivityDumpManager
 
@@ -142,7 +141,7 @@ type SecurityProfileManager struct {
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
-func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, cgroupResolver *cgroup.Resolver, timeResolver *timeResolver.Resolver, manager *manager.Manager) (*SecurityProfileManager, error) {
+func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.Resolvers, manager *manager.Manager) (*SecurityProfileManager, error) {
 	var providers []Provider
 
 	// instantiate directory provider
@@ -185,8 +184,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		manager:                    manager,
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
-		cgroupResolver:             cgroupResolver,
-		timeResolver:               timeResolver,
+		resolvers:                  resolvers,
 		profiles:                   make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
 		pendingCache:               profileCache,
 		cacheHit:                   atomic.NewUint64(0),
@@ -232,8 +230,8 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 	}
 
 	// register the manager to the CGroup resolver
-	_ = m.cgroupResolver.RegisterListener(cgroup.WorkloadSelectorResolved, m.OnWorkloadSelectorResolvedEvent)
-	_ = m.cgroupResolver.RegisterListener(cgroup.CGroupDeleted, m.OnCGroupDeletedEvent)
+	_ = m.resolvers.CGroupResolver.RegisterListener(cgroup.WorkloadSelectorResolved, m.OnWorkloadSelectorResolvedEvent)
+	_ = m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.OnCGroupDeletedEvent)
 
 	seclog.Infof("security profile manager started")
 
@@ -586,7 +584,7 @@ func (m *SecurityProfileManager) prepareProfile(profile *SecurityProfile) {
 // loadProfile (thread unsafe) loads a Security Profile in kernel space
 func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	profile.loadedInKernel = true
-	profile.loadedNano = uint64(m.timeResolver.ComputeMonotonicTimestamp(time.Now()))
+	profile.loadedNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
@@ -678,7 +676,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		return
 	case StableEventType:
 		// check if the event is in its profile
-		found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift)
+		found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift, m.resolvers)
 		if err != nil {
 			// ignore, evaluation failed
 			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
@@ -726,7 +724,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 		}
 
 		// did we reached the stable state time limit ?
-		if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod {
+		if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.GetAnomalyDetectionMinimumStablePeriod(event.GetEventType()) {
 			eventState.state = StableEventType
 			// call the activity dump manager to stop dumping workloads from the current profile selector
 			if m.activityDumpManager != nil {
@@ -750,7 +748,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 		// for each event type we want to reach either the StableEventType or UnstableEventType states, even
 		// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
 		// rearming the lastAnomalyNano timer based on if it's something new or not.
-		found, err := profile.ActivityTree.Contains(event, nodeType)
+		found, err := profile.ActivityTree.Contains(event, nodeType, m.resolvers)
 		if err != nil {
 			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 			return NoProfile
@@ -766,7 +764,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 
 	// here we are either in AutoLearning or WorkloadWarmup
 	// try to insert the event in the profile
-	newEntry, err := profile.ActivityTree.Insert(event, nodeType)
+	newEntry, err := profile.ActivityTree.Insert(event, nodeType, m.resolvers)
 	if err != nil {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return NoProfile
@@ -787,7 +785,7 @@ func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfil
 	defer m.profilesLock.Unlock()
 
 	for _, p := range m.profiles {
-		msg := p.ToSecurityProfileMessage(m.timeResolver, m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod)
+		msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver, m.config.RuntimeSecurity)
 		out.Profiles = append(out.Profiles, msg)
 	}
 
@@ -799,7 +797,7 @@ func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfil
 			if !ok {
 				continue
 			}
-			msg := p.ToSecurityProfileMessage(m.timeResolver, m.config.RuntimeSecurity.AnomalyDetectionMinimumStablePeriod)
+			msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver, m.config.RuntimeSecurity)
 			out.Profiles = append(out.Profiles, msg)
 		}
 	}

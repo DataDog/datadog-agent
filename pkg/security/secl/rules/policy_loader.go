@@ -57,7 +57,9 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 
 		for _, policy := range policies {
 			if policy.Name == DefaultPolicyName {
-				defaultPolicy = policy
+				if defaultPolicy == nil {
+					defaultPolicy = policy
+				}
 			} else {
 				allPolicies = append(allPolicies, policy)
 			}
