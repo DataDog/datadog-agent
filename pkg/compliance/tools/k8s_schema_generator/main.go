@@ -46,6 +46,7 @@ func main() {
 		c.Properties.Delete("kubeApiserver")
 		c.Properties.Delete("kubeScheduler")
 		c.Properties.Delete("kubeControllerManager")
+		c.Properties.Delete("etcd")
 		delete(schema.Definitions, "K8sKubeApiserverConfig")
 		delete(schema.Definitions, "K8sEtcdConfig")
 		delete(schema.Definitions, "K8sKubeControllerManagerConfig")
