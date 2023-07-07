@@ -158,13 +158,9 @@ func (fi *Server) Stop() error {
 	return nil
 }
 
-type postPayloadResponse struct {
-	Errors []string `json:"errors"`
-}
-
 func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {
 	if req == nil {
-		response := buildPostResponse(errors.New("invalid request, nil request"))
+		response := buildErrorResponse(errors.New("invalid request, nil request"))
 		writeHttpResponse(w, response)
 		return
 	}
@@ -188,41 +184,27 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	// from now on accept only POST requests
 	if req.Method != http.MethodPost {
-		response := buildPostResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
+		response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
 		writeHttpResponse(w, response)
 		return
 	}
 
 	if req.Body == nil {
-		response := buildPostResponse(errors.New("invalid request, nil body"))
+		response := buildErrorResponse(errors.New("invalid request, nil body"))
 		writeHttpResponse(w, response)
 		return
 	}
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
-		response := buildPostResponse(err)
+		response := buildErrorResponse(err)
 		writeHttpResponse(w, response)
 		return
 	}
 
 	fi.safeAppendPayload(req.URL.Path, payload, req.Header.Get("Content-Encoding"))
 
-	var response httpResponse
-	if req.URL.Path == "/support/flare" {
-		response = buildFlareResponse()
-	} else {
-		response = buildPostResponse(nil)
-	}
+	response := buildSuccessResponse(req.URL.Path)
 	writeHttpResponse(w, response)
-}
-
-func buildFlareResponse() httpResponse {
-	body, _ := json.Marshal(map[string]any{"case_id": 0, "error": nil})
-	return httpResponse{
-		statusCode:  http.StatusOK,
-		contentType: "application/json",
-		body:        body,
-	}
 }
 
 func (fi *Server) handleFlushPayloads(w http.ResponseWriter, req *http.Request) {
@@ -232,32 +214,6 @@ func (fi *Server) handleFlushPayloads(w http.ResponseWriter, req *http.Request) 
 	writeHttpResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
-}
-
-func buildPostResponse(responseError error) httpResponse {
-	ret := httpResponse{}
-
-	ret.contentType = "application/json"
-	ret.statusCode = http.StatusAccepted
-
-	resp := postPayloadResponse{}
-	if responseError != nil {
-		ret.statusCode = http.StatusBadRequest
-		resp.Errors = []string{responseError.Error()}
-	}
-	body, err := json.Marshal(resp)
-
-	if err != nil {
-		return httpResponse{
-			statusCode:  http.StatusInternalServerError,
-			contentType: "text/plain",
-			body:        []byte(err.Error()),
-		}
-	}
-
-	ret.body = body
-
-	return ret
 }
 
 func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
