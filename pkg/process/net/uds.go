@@ -52,7 +52,9 @@ func HttpServe(l net.Listener, handler http.Handler, authSocket bool) error {
 				cancelCtx()
 				c.Close()
 			}
-			log.Debugf("unix socket %s -> %s connection authenticated", unixConn.LocalAddr(), unixConn.RemoteAddr())
+			if valid {
+				log.Debugf("unix socket %s -> %s connection authenticated", unixConn.LocalAddr(), unixConn.RemoteAddr())
+			}
 			return ctx
 		}
 	}
