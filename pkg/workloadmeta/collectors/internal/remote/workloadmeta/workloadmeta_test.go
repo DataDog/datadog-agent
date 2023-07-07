@@ -170,7 +170,8 @@ func TestCollection(t *testing.T) {
 	}
 
 	mockClientStore := workloadmeta.NewMockStore()
-	err = collector.Start(context.TODO(), mockClientStore)
+	ctx, cancel := context.WithCancel(context.TODO())
+	err = collector.Start(ctx, mockClientStore)
 	require.NoError(t, err)
 
 	// Start straming entites
@@ -213,6 +214,7 @@ func TestCollection(t *testing.T) {
 	)
 
 	time.Sleep(2 * time.Second)
+	cancel()
 
 	container, err := mockClientStore.GetContainer("ctr-id")
 	require.NoError(t, err)
