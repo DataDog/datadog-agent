@@ -16,12 +16,9 @@ import (
 
 // buildLabelSelectors returns the mutating webhooks object selector based on the configuration
 func buildLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
-	isMutateUnlabelled := config.Datadog.GetBool("admission_controller.mutate_unlabelled")
-	isApmInstrumented := config.Datadog.GetBool("apm_config.instrumentation_enabled")
-
 	var labelSelector metav1.LabelSelector
 
-	if isMutateUnlabelled || isApmInstrumented {
+	if config.Datadog.GetBool("admission_controller.mutate_unlabelled") || config.Datadog.GetBool("apm_config.instrumentation_enabled") {
 		// add selector if admission.datadoghq.com/enabled=true or unset
 		labelSelector = metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
