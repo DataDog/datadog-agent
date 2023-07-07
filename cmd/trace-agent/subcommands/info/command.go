@@ -25,14 +25,14 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Short: "Gather Datadog trace-agent information.",
 		Long:  `Use this to gather informaiton on the runnint trace-agent`,
 		RunE: func(*cobra.Command, []string) error {
-			return RunTraceAgentInfoFct(globalParamsGetter(), agentInfo)
+			return runTraceAgentInfoFct(globalParamsGetter(), agentInfo)
 		},
 	}
 
 	return infoCmd
 }
 
-func RunTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) error {
+func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) error {
 	return fxutil.OneShot(fct,
 		config.Module,
 		fx.Supply(coreconfig.NewAgentParamsWithSecrets(params.ConfPath)),

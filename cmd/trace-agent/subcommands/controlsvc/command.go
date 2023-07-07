@@ -34,7 +34,6 @@ func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Comm
 		Short:   "starts the agent within the service control manager",
 		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.GlobalParams = globalParamsGetter()
 			return fxutil.OneShot(controlsvc.StartService)
 		},
 	}
@@ -48,7 +47,6 @@ func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Comm
 		Short:   "stops the agent within the service control manager",
 		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.GlobalParams = globalParamsGetter()
 			return fxutil.OneShot(controlsvc.StopService)
 		},
 	}
@@ -60,7 +58,6 @@ func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Comm
 		Short:   "restarts the agent within the service control manager",
 		Long:    ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.GlobalParams = globalParamsGetter()
 			return fxutil.OneShot(controlsvc.RestartService)
 		},
 	}
