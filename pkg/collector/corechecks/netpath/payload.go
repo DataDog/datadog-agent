@@ -9,7 +9,7 @@ type TracerouteHop struct {
 }
 
 type Traceroute struct {
-	TracerouteSource string          `json:"traceroute_sourcesource"`
+	TracerouteSource string          `json:"traceroute_source"`
 	Timestamp        int64           `json:"timestamp"`
 	AgentHost        string          `json:"agent_host"`
 	DestinationHost  string          `json:"destination_host"`
