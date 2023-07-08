@@ -20,6 +20,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -27,6 +28,11 @@ import (
 )
 
 const checkName = "netpath"
+
+// TODO: FIXME The mutex is used to prevent multiple checks running at the same
+//
+//	It seems there are some concurrency issues
+var globalMu = &sync.Mutex{}
 
 // Check doesn't need additional fields
 type Check struct {
@@ -39,6 +45,8 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
+	globalMu.Lock()
+	defer globalMu.Unlock()
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
