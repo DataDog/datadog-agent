@@ -65,12 +65,10 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		return err
 	}
 
-	tr := Traceroute{
-		TracerouteSource: "netpath_integration",
-		Timestamp:        time.Now().UnixMilli(),
-		AgentHost:        hname,
-		DestinationHost:  destinationHost,
-	}
+	tr := NewTraceroute()
+	tr.Timestamp = time.Now().UnixMilli()
+	tr.AgentHost = hname
+	tr.DestinationHost = destinationHost
 
 	ipAddr, err := net.ResolveIPAddr("ip", destinationHost)
 	if err != nil {

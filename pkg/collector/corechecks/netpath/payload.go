@@ -16,3 +16,10 @@ type Traceroute struct {
 	Hops             []TracerouteHop          `json:"hops"`
 	HopsByIpAddress  map[string]TracerouteHop `json:"hops_by_ip_address"`
 }
+
+func NewTraceroute() *Traceroute {
+	return &Traceroute{
+		TracerouteSource: "netpath_integration",
+		HopsByIpAddress:  make(map[string]TracerouteHop),
+	}
+}
