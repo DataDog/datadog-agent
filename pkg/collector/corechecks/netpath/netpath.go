@@ -6,7 +6,11 @@
 package netpath
 
 import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
 	"github.com/shirou/gopsutil/v3/cpu"
+	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -30,6 +34,8 @@ func (c *Check) Run() error {
 		return err
 	}
 
+	c.traceroute(sender)
+
 	sender.Gauge("netpath.test_metric", 10, "", nil)
 	sender.Commit()
 	return nil
@@ -42,6 +48,32 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 		return err
 	}
 	return nil
+}
+
+func (c *Check) traceroute(sender sender.Sender) {
+	options := traceroute.TracerouteOptions{}
+	options.SetRetries(1)
+	options.SetMaxHops(30)
+	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
+	times := 1
+
+	hosts := []string{"1.1.1.1"}
+
+	var allHops [][]traceroute.TracerouteHop
+	for _, host := range hosts {
+
+		ipAddr, err := net.ResolveIPAddr("ip", host)
+		if err != nil {
+			return
+		}
+
+		fmt.Printf("traceroute to %v (%v), %v hops max, %v byte packets\n", host, ipAddr, options.MaxHops(), options.PacketSize())
+
+		hostHops := getHops(options, times, err, host)
+		printHops(hostHops)
+		allHops = append(allHops, hostHops...)
+	}
+
 }
 
 func netpathFactory() check.Check {
