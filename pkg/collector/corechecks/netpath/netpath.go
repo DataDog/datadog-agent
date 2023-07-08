@@ -150,6 +150,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 			"ttl:" + strconv.Itoa(hop.TTL),
 		}
 		sender.Gauge("netpath.hop.duration", durationMs, "", tags)
+		sender.Gauge("netpath.hop.record", float64(1), "", tags)
 	}
 
 	return nil
