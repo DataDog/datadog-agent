@@ -66,11 +66,6 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		return err
 	}
 
-	tr := NewTraceroute()
-	tr.Timestamp = time.Now().UnixMilli()
-	tr.AgentHost = hname
-	tr.DestinationHost = destinationHost
-
 	ipAddr, err := net.ResolveIPAddr("ip", destinationHost)
 	if err != nil {
 		return nil
@@ -82,6 +77,21 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	if len(hostHops) == 0 {
 		return errors.New("no hops")
 	}
+
+	err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
+	tr := NewTraceroute()
+	tr.Timestamp = time.Now().UnixMilli()
+	tr.AgentHost = hname
+	tr.DestinationHost = destinationHost
+
 	hops := hostHops[0]
 	for _, hop := range hops {
 		ip := hop.AddressString()
@@ -104,6 +114,33 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	log.Infof("traceroute: %s", tracerouteStr)
 
 	sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
+	return nil
+}
+
+func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
+	hops := hostHops[0]
+	for _, hop := range hops {
+		ip := hop.AddressString()
+		tr := TracerouteV2{
+			TracerouteSource: "netpath-integration",
+			Timestamp:        time.Now().UnixMilli(),
+			AgentHost:        hname,
+			DestinationHost:  destinationHost,
+			TTL:              hop.TTL,
+			IpAddress:        ip,
+			Host:             hop.HostOrAddressString(),
+			Duration:         hop.ElapsedTime.Seconds(),
+			Success:          hop.Success,
+		}
+		tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
+		if err != nil {
+			return err
+		}
+
+		log.Infof("traceroute: %s", tracerouteStr)
+
+		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
+	}
 
 	return nil
 }
