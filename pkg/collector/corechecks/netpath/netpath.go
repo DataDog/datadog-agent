@@ -18,6 +18,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -92,7 +93,7 @@ func (c *Check) traceroute(sender sender.Sender) error {
 			Success:   hop.Success,
 		}
 		tr.Hops = append(tr.Hops, hop)
-		tr.HopsByIpAddress[ip] = hop
+		tr.HopsByIpAddress[strings.ReplaceAll(ip, ".", "_")] = hop
 	}
 
 	tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
