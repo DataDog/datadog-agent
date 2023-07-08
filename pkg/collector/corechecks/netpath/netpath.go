@@ -66,6 +66,7 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	}
 
 	tr := Traceroute{
+		Source:          "netpath",
 		Timestamp:       time.Now().UnixMilli(),
 		AgentHost:       hname,
 		DestinationHost: destinationHost,
