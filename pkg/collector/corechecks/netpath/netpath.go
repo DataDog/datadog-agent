@@ -93,7 +93,7 @@ func (c *Check) traceroute(sender sender.Sender) error {
 			Success:   hop.Success,
 		}
 		tr.Hops = append(tr.Hops, hop)
-		tr.HopsByIpAddress[strings.ReplaceAll(ip, ".", "_")] = hop
+		tr.HopsByIpAddress[strings.ReplaceAll(ip, ".", "-")] = hop
 	}
 
 	tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
