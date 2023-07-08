@@ -1,11 +1,11 @@
 package netpath
 
 type TracerouteHop struct {
-	TTL       int    `json:"ttl"`
-	IpAddress string `json:"ip_address"`
-	Host      string `json:"host"`
-	Duration  int64  `json:"duration"`
-	Success   bool   `json:"success"`
+	TTL       int     `json:"ttl"`
+	IpAddress string  `json:"ip_address"`
+	Host      string  `json:"host"`
+	Duration  float64 `json:"duration"`
+	Success   bool    `json:"success"`
 }
 
 type Traceroute struct {

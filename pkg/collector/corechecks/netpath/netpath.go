@@ -88,7 +88,7 @@ func (c *Check) traceroute(sender sender.Sender) error {
 			TTL:       hop.TTL,
 			IpAddress: hop.AddressString(),
 			Host:      hop.HostOrAddressString(),
-			Duration:  hop.ElapsedTime.Milliseconds(),
+			Duration:  hop.ElapsedTime.Seconds(),
 			Success:   hop.Success,
 		})
 	}
