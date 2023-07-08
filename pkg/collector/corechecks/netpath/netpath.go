@@ -85,13 +85,16 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	}
 	hops := hostHops[0]
 	for _, hop := range hops {
-		tr.Hops = append(tr.Hops, TracerouteHop{
+		ip := hop.AddressString()
+		hop := TracerouteHop{
 			TTL:       hop.TTL,
-			IpAddress: hop.AddressString(),
+			IpAddress: ip,
 			Host:      hop.HostOrAddressString(),
 			Duration:  hop.ElapsedTime.Seconds(),
 			Success:   hop.Success,
-		})
+		}
+		tr.Hops = append(tr.Hops, hop)
+		tr.HopsByIpAddress[ip] = hop
 	}
 
 	tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
