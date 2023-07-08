@@ -8,11 +8,11 @@ package netpath
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -25,6 +25,7 @@ type Check struct {
 	nbCPU       float64
 	lastNbCycle float64
 	lastTimes   cpu.TimesStat
+	config      *CheckConfig
 }
 
 // Run executes the check
@@ -41,15 +42,6 @@ func (c *Check) Run() error {
 	return nil
 }
 
-// Configure the CPU check
-func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *Check) traceroute(sender sender.Sender) {
 	options := traceroute.TracerouteOptions{}
 	options.SetRetries(1)
@@ -57,7 +49,7 @@ func (c *Check) traceroute(sender sender.Sender) {
 	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
 	times := 1
 
-	hosts := []string{"1.1.1.1"}
+	hosts := []string{c.config.Hostname}
 
 	var allHops [][]traceroute.TracerouteHop
 	for _, host := range hosts {
@@ -74,6 +66,20 @@ func (c *Check) traceroute(sender sender.Sender) {
 		allHops = append(allHops, hostHops...)
 	}
 
+}
+
+// Configure the CPU check
+func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
+	if err != nil {
+		return err
+	}
+	config, err := NewCheckConfig(data, initConfig)
+	if err != nil {
+		return err
+	}
+	c.config = config
+	return nil
 }
 
 func netpathFactory() check.Check {
