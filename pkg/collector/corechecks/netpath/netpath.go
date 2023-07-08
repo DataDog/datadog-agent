@@ -6,15 +6,18 @@
 package netpath
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -54,18 +57,27 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	options.SetMaxHops(30)
 	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
 	times := 1
+	destinationHost := c.config.Hostname
 
-	tr := Traceroute{}
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		return err
+	}
 
-	host := c.config.Hostname
-	ipAddr, err := net.ResolveIPAddr("ip", host)
+	tr := Traceroute{
+		Timestamp:       time.Now().UnixMilli(),
+		AgentHost:       hname,
+		DestinationHost: destinationHost,
+	}
+
+	ipAddr, err := net.ResolveIPAddr("ip", destinationHost)
 	if err != nil {
 		return nil
 	}
 
-	fmt.Printf("traceroute to %v (%v), %v hops max, %v byte packets\n", host, ipAddr, options.MaxHops(), options.PacketSize())
+	fmt.Printf("traceroute to %v (%v), %v hops max, %v byte packets\n", destinationHost, ipAddr, options.MaxHops(), options.PacketSize())
 
-	hostHops := getHops(options, times, err, host)
+	hostHops := getHops(options, times, err, destinationHost)
 	if len(hostHops) == 0 {
 		return errors.New("no hops")
 	}
