@@ -161,6 +161,10 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	if err != nil {
 		return err
 	}
+
+	// Must be called before c.CommonConfigure
+	c.BuildID(integrationConfigDigest, data, initConfig)
+
 	config, err := NewCheckConfig(data, initConfig)
 	if err != nil {
 		return err
