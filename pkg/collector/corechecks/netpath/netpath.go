@@ -6,10 +6,13 @@
 package netpath
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
+	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
 
@@ -35,37 +38,55 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	c.traceroute(sender)
+	err = c.traceroute(sender)
+	if err != nil {
+		return err
+	}
 
 	sender.Gauge("netpath.test_metric", 10, "", nil)
 	sender.Commit()
 	return nil
 }
 
-func (c *Check) traceroute(sender sender.Sender) {
+func (c *Check) traceroute(sender sender.Sender) error {
 	options := traceroute.TracerouteOptions{}
 	options.SetRetries(1)
 	options.SetMaxHops(30)
 	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
 	times := 1
 
-	hosts := []string{c.config.Hostname}
+	tr := Traceroute{}
 
-	var allHops [][]traceroute.TracerouteHop
-	for _, host := range hosts {
-
-		ipAddr, err := net.ResolveIPAddr("ip", host)
-		if err != nil {
-			return
-		}
-
-		fmt.Printf("traceroute to %v (%v), %v hops max, %v byte packets\n", host, ipAddr, options.MaxHops(), options.PacketSize())
-
-		hostHops := getHops(options, times, err, host)
-		printHops(hostHops)
-		allHops = append(allHops, hostHops...)
+	host := c.config.Hostname
+	ipAddr, err := net.ResolveIPAddr("ip", host)
+	if err != nil {
+		return nil
 	}
 
+	fmt.Printf("traceroute to %v (%v), %v hops max, %v byte packets\n", host, ipAddr, options.MaxHops(), options.PacketSize())
+
+	hostHops := getHops(options, times, err, host)
+	if len(hostHops) == 0 {
+		return errors.New("no hops")
+	}
+	hops := hostHops[0]
+	for _, hop := range hops {
+		tr.Hops = append(tr.Hops, TracerouteHop{
+			TTL:       hop.TTL,
+			IpAddress: hop.AddressString(),
+			Host:      hop.HostOrAddressString(),
+			Duration:  hop.ElapsedTime.Milliseconds(),
+		})
+	}
+
+	tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
+	if err != nil {
+		return err
+	}
+
+	log.Infof("traceroute: %s", tracerouteStr)
+
+	return nil
 }
 
 // Configure the CPU check
