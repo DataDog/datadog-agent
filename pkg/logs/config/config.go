@@ -209,6 +209,8 @@ func BuildHTTPEndpointsWithConfig(logsConfig *LogsConfigKeys, endpointPrefix str
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
 	}
 
+	log.Errorf("logsConfig.useV2API(): %s", logsConfig.useV2API())
+	log.Errorf("intakeTrackType: %s", intakeTrackType)
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
 		main.TrackType = intakeTrackType
