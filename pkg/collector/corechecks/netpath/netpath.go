@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -97,6 +98,8 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	}
 
 	log.Infof("traceroute: %s", tracerouteStr)
+
+	sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 
 	return nil
 }

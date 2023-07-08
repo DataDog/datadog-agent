@@ -40,6 +40,9 @@ const (
 	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
 	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
 
+	// EventTypeNetworkDevicesNetpath is the event type for network devices Network Path data
+	EventTypeNetworkDevicesNetpath = "network-devices-netpath"
+
 	EventTypeContainerLifecycle = "container-lifecycle"
 	EventTypeContainerImages    = "container-images"
 	EventTypeContainerSBOM      = "container-sbom"
@@ -141,6 +144,17 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		//   aggregator loop, making SendEventPlatformEvent blocking might slow down other type of data handled
 		//   by aggregator.
 		defaultInputChanSize: 10000,
+	},
+	{
+		eventType:                     EventTypeNetworkDevicesNetpath,
+		contentType:                   http.JSONContentType,
+		endpointsConfigPrefix:         "network_devices.netpath.forwarder.",
+		hostnameEndpointPrefix:        "event-platform-intake.",
+		intakeTrackType:               "logs",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 	{
 		eventType:                     EventTypeContainerLifecycle,
