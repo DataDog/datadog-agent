@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -121,6 +122,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 	hops := hostHops[0]
 	for _, hop := range hops {
 		ip := hop.AddressString()
+		durationMs := hop.ElapsedTime.Seconds() * 10e3
 		tr := TracerouteV2{
 			TracerouteSource: "netpath_integration",
 			Timestamp:        time.Now().UnixMilli(),
@@ -129,7 +131,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 			TTL:              hop.TTL,
 			IpAddress:        ip,
 			Host:             hop.HostOrAddressString(),
-			Duration:         hop.ElapsedTime.Seconds(),
+			Duration:         durationMs,
 			Success:          hop.Success,
 		}
 		tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
@@ -140,6 +142,14 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 		log.Infof("traceroute: %s", tracerouteStr)
 
 		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
+		tags := []string{
+			"agent_host:" + hname,
+			"destination_host:" + destinationHost,
+			"hop_ip_address:" + ip,
+			"hop_host:" + hop.HostOrAddressString(),
+			"ttl:" + strconv.Itoa(hop.TTL),
+		}
+		sender.Gauge("netpath.hop.duration", durationMs, "", tags)
 	}
 
 	return nil
