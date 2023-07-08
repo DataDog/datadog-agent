@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
 	"strings"
@@ -122,7 +122,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 	for _, hop := range hops {
 		ip := hop.AddressString()
 		tr := TracerouteV2{
-			TracerouteSource: "netpath-integration",
+			TracerouteSource: "netpath_integration",
 			Timestamp:        time.Now().UnixMilli(),
 			AgentHost:        hname,
 			DestinationHost:  destinationHost,
