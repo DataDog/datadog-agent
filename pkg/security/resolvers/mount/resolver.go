@@ -377,9 +377,6 @@ func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (s
 
 func (mr *Resolver) syncCacheMiss(mountID uint32) {
 	mr.procMissStats.Inc()
-
-	// add to fallback limiter to avoid storm of file access
-	mr.fallbackLimiter.Count(mountID)
 }
 
 func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uint32) (string, error) {

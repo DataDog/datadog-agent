@@ -50,7 +50,7 @@ const (
 const (
 	procResolveMaxDepth                   = 16
 	maxParallelArgsEnvs                   = 512 // == number of parallel starting processes
-	numAllowedProcessesToResolvePerPeriod = 300
+	numAllowedProcessesToResolvePerPeriod = 1
 	procFallbackLimiterPeriod             = 30 * time.Second // proc fallback period by pid
 )
 
@@ -600,8 +600,6 @@ func (p *Resolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *model
 	}
 
 	if p.procFallbackLimiter.Allow(pid) {
-		p.procFallbackLimiter.Count(pid)
-
 		// fallback to /proc, the in-kernel LRU may have deleted the entry
 		if entry := p.resolveFromProcfs(pid, procResolveMaxDepth); entry != nil {
 			p.hitsStats[metrics.ProcFSTag].Inc()
