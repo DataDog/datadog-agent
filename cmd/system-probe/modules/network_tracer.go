@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/test2"
 	"google.golang.org/grpc"
 	"net"
@@ -112,14 +113,17 @@ func startRPCServer(tracer networkTracer) error {
 	server := grpc.NewServer()
 	test2.RegisterSystemProbeServer(server, &tracer)
 
-	go func() {
-		log.Info("gRPC server listening on Unix domain socket...")
+	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
+	if useGRPCServer {
+		go func() {
+			log.Info("gRPC server listening on Unix domain socket...")
 
-		err = server.Serve(listener)
-		if err != nil {
-			return
-		}
-	}()
+			err = server.Serve(listener)
+			if err != nil {
+				return
+			}
+		}()
+	}
 
 	// Wait for interrupt signal to gracefully stop the server
 	sigCh := make(chan os.Signal, 1)
@@ -174,6 +178,16 @@ func (nt *networkTracer) GetConnections(req *test2.GetConnectionsRequest, s2 tes
 
 	//	iterate over all the connections
 	s2.Send(&test2.Connection{Data: finalConn})
+	//f, err := os.Create("memory.prof")
+	//if err != nil {
+	//	return err
+	//}
+	//defer f.Close()
+	//runtime.GC() // Perform garbage collection before profiling
+	//if err := pprof.WriteHeapProfile(f); err != nil {
+	//	return err
+	//}
+
 	return nil
 }
 
@@ -197,6 +211,16 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
+
+		//f, err := os.Create("memory-with-http2.prof")
+		//if err != nil {
+		//	log.Errorf("%s", err)
+		//}
+		//defer f.Close()
+		//runtime.GC() // Perform garbage collection before profiling
+		//if err := pprof.WriteHeapProfile(f); err != nil {
+		//	log.Errorf("%s", err)
+		//}
 		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
 	}))
