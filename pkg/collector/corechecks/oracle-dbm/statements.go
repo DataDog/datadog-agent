@@ -21,11 +21,16 @@ import (
 	ttlcache "github.com/jellydator/ttlcache/v2"
 )
 
+/*
+ * We are selecting from sql_fulltext instead of sql_text because sql_text doesn't preserve the new lines.
+ * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
+ * For such statements, we will have to get the text from v$sql which has the complete text.
+ */
 const STATEMENT_METRICS_QUERY = `SELECT /* DD */
 	c.name as pdb_name,
 	%s,
 	plan_hash_value,
-	max(sql_text) sql_text,
+	max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text,
 	length(max(sql_text)) sql_text_length,
 	max(sql_id) random_sql_id,
 	sum(parse_calls) as parse_calls,
@@ -66,8 +71,11 @@ FROM v$sqlstats s, v$containers c
 WHERE 
 	s.con_id = c.con_id(+)
 	AND force_matching_signature %s= 0
-GROUP BY c.name, %s, plan_hash_value`
+GROUP BY c.name, %s, plan_hash_value
+HAVING MAX(last_active_time) > sysdate - :seconds/24/60/60
+FETCH FIRST :limit ROWS ONLY`
 
+// including sql_id for indexed access
 const PLAN_QUERY = `SELECT /* DD */
 	timestamp,
 	operation,
@@ -106,7 +114,7 @@ const PLAN_QUERY = `SELECT /* DD */
 	c.name pdb_name
 FROM v$sql_plan_statistics_all s, v$containers c
 WHERE 
-  child_address = ( SELECT last_active_child_address FROM v$sqlstats WHERE plan_hash_value = :1 ORDER BY last_active_time DESC FETCH FIRST 1 ROW ONLY)
+  sql_id = :1 AND plan_hash_value = :2
   AND s.con_id = c.con_id(+)
 ORDER BY id, position`
 
@@ -393,7 +401,7 @@ type PlanRows struct {
 
 func GetStatementsMetricsForKeys(c *Check, key string, negator string) ([]StatementMetricsDB, error) {
 	var statementMetrics []StatementMetricsDB
-	err := selectWrapper(c, &statementMetrics, fmt.Sprintf(STATEMENT_METRICS_QUERY, key, negator, key))
+	err := selectWrapper(c, &statementMetrics, fmt.Sprintf(STATEMENT_METRICS_QUERY, key, negator, key), 2*c.config.QueryMetrics.CollectionInterval, c.config.QueryMetrics.DBRowsLimit)
 	if err != nil {
 		return nil, fmt.Errorf("error executing statement metrics query: %w %s", err)
 	}
@@ -409,6 +417,11 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 
 func (c *Check) StatementMetrics() (int, error) {
 	start := time.Now()
+
+	if !c.statementsLastRun.IsZero() && start.Sub(c.statementsLastRun).Milliseconds() < c.config.QueryMetrics.CollectionInterval*1000 {
+		return 0, nil
+	}
+
 	sender, err := c.GetSender()
 	if err != nil {
 		log.Errorf("GetSender statements metrics")
@@ -444,7 +457,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-		executionPlanSent := make(map[uint64]int)
 		for _, statementMetricRow := range statementMetricsAll {
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
@@ -615,12 +627,13 @@ func (c *Check) StatementMetrics() (int, error) {
 			}
 
 			if c.config.ExecutionPlans.Enabled {
-				_, ok := executionPlanSent[statementMetricRow.PlanHashValue]
-				if !ok {
+				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
+				_, err := c.planCache.Get(planCacheKey)
+				if c.config.QueryMetrics.PlanCacheRetention == 0 || err == ttlcache.ErrNotFound {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
-					err = c.db.Select(&planStepsDB, PLAN_QUERY, statementMetricRow.PlanHashValue)
+					err = selectWrapper(c, &planStepsDB, PLAN_QUERY, statementMetricRow.RandomSQLID, statementMetricRow.PlanHashValue)
 
 					if err == nil {
 						for _, stepRow := range planStepsDB {
@@ -779,15 +792,17 @@ func (c *Check) StatementMetrics() (int, error) {
 
 						sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
 						log.Tracef("Plan payload %+v", string(planPayloadBytes))
+						c.planCache.Set(planCacheKey, "1")
 					} else {
 						planErrors++
-						log.Errorf("failed getting execution plan %s for plan_hash_value: %d", err, statementMetricRow.PlanHashValue)
+						log.Errorf("failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", err, statementMetricRow.RandomSQLID, statementMetricRow.PlanHashValue)
 					}
 				}
 			}
 		}
 
 		c.copyToPreviousMap(newCache)
+		c.statementsLastRun = start
 	} else {
 		heartbeatStatement := "__other__"
 		queryRowHeartbeat := QueryRow{QuerySignature: heartbeatStatement}
@@ -831,8 +846,6 @@ func (c *Check) StatementMetrics() (int, error) {
 	c.statementsFilter.ForceMatchingSignatures = nil
 	c.statementsCache.SQLIDs = nil
 	c.statementsCache.forceMatchingSignatures = nil
-
-	c.statementsLastRun = start
 
 	if planErrors > 0 {
 		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan erros: %d", SQLCount, planErrors)

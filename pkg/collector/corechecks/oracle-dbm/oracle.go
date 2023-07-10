@@ -72,6 +72,7 @@ type Check struct {
 	isRDS                                   bool
 	sqlTraceRunsCount                       int
 	fqtCache                                ttlcache.SimpleCache
+	planCache                               ttlcache.SimpleCache
 }
 
 // Run executes the check.
@@ -255,8 +256,15 @@ func (c *Check) Teardown() {
 			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
 		}
 	}
-	c.fqtCache.Purge()
-	c.fqtCache.Close()
+	if c.fqtCache != nil {
+		c.fqtCache.Purge()
+		c.fqtCache.Close()
+	}
+	if c.planCache != nil {
+		c.planCache.Purge()
+		c.planCache.Close()
+	}
+
 }
 
 // Configure configures the Oracle check.
@@ -287,8 +295,16 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
 	c.tagsString = strings.Join(c.tags, ",")
+
 	c.fqtCache = ttlcache.NewCache()
 	c.fqtCache.SetTTL(time.Duration(60 * time.Minute))
+	c.planCache = ttlcache.NewCache()
+	var planCacheRetention = c.config.QueryMetrics.PlanCacheRetention
+	if planCacheRetention == 0 {
+		planCacheRetention = 1
+	}
+	c.planCache.SetTTL(time.Duration(time.Duration(planCacheRetention) * time.Minute))
+
 	return nil
 }
 
@@ -300,7 +316,6 @@ func init() {
 	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
 }
 
-// func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature string, SQLID string) (common.ObfuscatedStatement, error) {
 func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string) (common.ObfuscatedStatement, error) {
 	obfuscatedStatement, err := o.ObfuscateSQLString(statement)
 	if err == nil {
@@ -330,8 +345,8 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 	return append(tags, "pdb:"+pdb.String)
 }
 
-func selectWrapper[T any](c *Check, s T, sql string) error {
-	err := c.db.Select(s, sql)
+func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
+	err := c.db.Select(s, sql, binds...)
 	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
 		db, err := c.Connect()
 		if err != nil {
