@@ -43,9 +43,9 @@ type RunParams struct {
 
 func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	cmd.PersistentFlags().BoolVarP(&cliParams.Foreground, "foreground", "f", false,
-		"runs the agent in the foreground.")
+		"runs the trace-agent in the foreground.")
 	cmd.PersistentFlags().BoolVarP(&cliParams.Debug, "debug", "d", false,
-		"runs the agent in debug mode.")
+		"runs the trace-agent in debug mode.")
 }
 
 func Start(cliParams *RunParams, config config.Component) error {
@@ -98,7 +98,6 @@ func runService(cliParams *RunParams, config config.Component) {
 		cliParams: cliParams,
 		config:    config,
 	})
-
 	if err != nil {
 		elog.Error(0xc0000008, err.Error())
 		return

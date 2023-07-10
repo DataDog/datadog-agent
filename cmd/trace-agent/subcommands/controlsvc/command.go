@@ -25,7 +25,7 @@ type RunParams struct {
 	Interactive bool
 }
 
-// Commands returns a slice of subcommands for the 'agent' command.
+// Commands returns a slice of subcommands for the 'trace-agent' command.
 func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Command {
 	cliParams := &RunParams{}
 	startCmd := &cobra.Command{

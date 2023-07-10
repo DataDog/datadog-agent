@@ -21,6 +21,6 @@ func TestInfoCommand(t *testing.T) {
 		[]string{"info"},
 		agentInfo,
 		func() {
-			// No errors is good enough
+			// No panic is good enough
 		})
 }

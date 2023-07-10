@@ -40,12 +40,10 @@ func StartService() error {
 
 // RestartService restarts the agent service by calling StopService and StartService
 func RestartService() error {
-
-	var err error
-	if err = StopService(); err == nil {
+	err := StopService();
+	if err == nil {
 		err = StartService()
 	}
-
 	return err
 }
 

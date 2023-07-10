@@ -95,7 +95,7 @@ func (c *cfg) SetHandler() http.Handler {
 	})
 }
 
-// setMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.
+// SetMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.
 // If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
 // Resource limits are better handled by container runtimes and orchestrators.
 func (c *cfg) SetMaxMemCPU(isContainerized bool) {

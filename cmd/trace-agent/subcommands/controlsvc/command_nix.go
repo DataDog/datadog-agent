@@ -6,8 +6,8 @@
 //go:build !windows
 // +build !windows
 
-// Package controlsvc implements 'agent start-service', 'agent stopservice',
-// and 'agent restart-service'.
+// Package controlsvc implements 'trace-agent start-service', 'trace-agent stopservice',
+// and 'trace-agent restart-service'.
 package controlsvc
 
 import (

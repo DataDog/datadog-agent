@@ -53,10 +53,7 @@ func NewServerlessConfig(path string) (Component, error) {
 		options = append(options, WithConfFilePath(path))
 	}
 
-	p := NewParams(path, options...)
-	d := dependencies{
-		Params: p,
-	}
+	d := dependencies{Params: NewParams(path, options...)}
 	return newConfig(d)
 }
 
