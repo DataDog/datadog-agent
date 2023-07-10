@@ -77,6 +77,7 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.trace_buffer", "DD_APM_TRACE_BUFFER")
 	config.BindEnv("apm_config.decoders", "DD_APM_DECODERS")
 	config.BindEnv("apm_config.max_connections", "DD_APM_MAX_CONNECTIONS")
+	config.BindEnv("apm_config.decoder_timeout", "DD_APM_DECODER_TIMEOUT")
 	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")
 	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")
 	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")

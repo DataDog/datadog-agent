@@ -94,6 +94,9 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	semcount := conf.Decoders
 	if semcount == 0 {
 		semcount = runtime.GOMAXPROCS(0) / 2
+		if semcount == 0 {
+			semcount = 1
+		}
 	}
 	log.Infof("Receiver configured with %d decoders.", semcount)
 	return &HTTPReceiver{
@@ -455,7 +458,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 
 	select {
 	case r.recvsem <- struct{}{}:
-	case <-time.After(1 * time.Second):
+	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
 		// this payload can not be accepted
 		io.Copy(io.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(http.StatusTooManyRequests)

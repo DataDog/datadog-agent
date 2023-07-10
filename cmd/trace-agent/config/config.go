@@ -260,6 +260,11 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	} else {
 		c.MaxConnections = 1000
 	}
+	if coreconfig.Datadog.IsSet("apm_config.decoder_timeout") {
+		c.DecoderTimeout = coreconfig.Datadog.GetInt("apm_config.decoder_timeout")
+	} else {
+		c.DecoderTimeout = 1000
+	}
 
 	if k := "apm_config.replace_tags"; coreconfig.Datadog.IsSet(k) {
 		rt := make([]*config.ReplaceRule, 0)

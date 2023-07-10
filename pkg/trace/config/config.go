@@ -340,6 +340,7 @@ type AgentConfig struct {
 	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
 	Decoders        int   // specifies the number of traces that can be concurrently decoded.
 	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
