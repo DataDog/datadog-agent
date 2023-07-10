@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pb/core"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
