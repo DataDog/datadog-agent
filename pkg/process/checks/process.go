@@ -18,7 +18,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
-	workloadMetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -40,15 +40,25 @@ const (
 // NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 	var extractors []metadata.Extractor
-	if workloadMetaExtractor.Enabled(config) {
-		extractors = append(extractors, workloadMetaExtractor.NewWorkloadMetaExtractor())
+	var wlmServer *workloadmeta.GRPCServer
+	if workloadmeta.Enabled(config) {
+		wlmExtractor := workloadmeta.NewWorkloadMetaExtractor(config)
+		srv := workloadmeta.NewGRPCServer(config, wlmExtractor)
+		err := srv.Start()
+		if err != nil {
+			log.Error("Failed to start the workload meta gRPC server:", err)
+		} else {
+			extractors = append(extractors, wlmExtractor)
+			wlmServer = srv
+		}
 	}
 
 	return &ProcessCheck{
-		config:        config,
-		scrubber:      procutil.NewDefaultDataScrubber(),
-		lookupIdProbe: NewLookupIdProbe(config),
-		extractors:    extractors,
+		config:             config,
+		scrubber:           procutil.NewDefaultDataScrubber(),
+		lookupIdProbe:      NewLookupIdProbe(config),
+		extractors:         extractors,
+		workloadMetaServer: wlmServer,
 	}
 }
 
@@ -103,7 +113,8 @@ type ProcessCheck struct {
 
 	lookupIdProbe *LookupIdProbe
 
-	extractors []metadata.Extractor
+	extractors         []metadata.Extractor
+	workloadMetaServer *workloadmeta.GRPCServer
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -186,7 +197,11 @@ func (p *ProcessCheck) Realtime() bool { return false }
 func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 
 // Cleanup frees any resource held by the ProcessCheck before the agent exits
-func (p *ProcessCheck) Cleanup() {}
+func (p *ProcessCheck) Cleanup() {
+	if p.workloadMetaServer != nil {
+		p.workloadMetaServer.Stop()
+	}
+}
 
 func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
 	start := time.Now()

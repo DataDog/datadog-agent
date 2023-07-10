@@ -64,7 +64,7 @@ func (lc *ActivityDumpLoadController) getDefaultLoadConfig() *model.ActivityDump
 		0,
 		lc.adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		time.Now(),
-		lc.adm.timeResolver,
+		lc.adm.resolvers.TimeResolver,
 	)
 	defaults.WaitListTimestampRaw = uint64(lc.adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout)
 	return defaults

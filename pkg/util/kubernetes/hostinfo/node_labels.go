@@ -58,3 +58,8 @@ func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error)
 	}
 	return n.apiserverNodeLabelsFunc(ctx, nodeName)
 }
+
+// GetNodeName returns the node name for this host
+func (n *NodeInfo) GetNodeName(ctx context.Context) (string, error) {
+	return n.client.GetNodename(ctx)
+}

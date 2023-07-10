@@ -98,6 +98,10 @@ int __attribute__((always_inline)) trace__vfs_setxattr(struct pt_regs *ctx, u64 
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(event_type);
+
     return 0;
 }
 
