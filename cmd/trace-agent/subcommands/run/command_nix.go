@@ -33,8 +33,6 @@ type RunParams struct {
 func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
 
 func Start(cliParams *RunParams, config config.Component) error {
-	// Entrypoint here
-
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	// prepare go runtime
