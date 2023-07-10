@@ -123,6 +123,7 @@ func mockAzureAppServiceMetadata() map[string]string {
 	aasMetadata["WEBSITE_INSTANCE_ID"] = "1234abcd"
 	aasMetadata["COMPUTERNAME"] = "test-instance"
 	aasMetadata["WEBSITE_STACK"] = "NODE"
+	aasMetadata["WEBSITE_NODE_DEFAULT_VERSION"] = "~18"
 
 	return aasMetadata
 }
