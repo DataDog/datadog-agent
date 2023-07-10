@@ -428,7 +428,8 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 def check_notify_teams(_):
     if check_for_missing_owners_slack():
         print(
-            "Error: Some teams in CODEOWNERS don't have their slack notification channel specified in the GITHUB_SLACK_MAP !!"
+            "Error: Some teams in CODEOWNERS don't have their slack notification channel specified!\n"
+            "Please specify one in the GITHUB_SLACK_MAP map in tasks/libs/pipeline_notifications.py."
         )
         raise Exit(code=1)
     else:
