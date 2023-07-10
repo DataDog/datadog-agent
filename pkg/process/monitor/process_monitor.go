@@ -128,7 +128,7 @@ func (pm *ProcessMonitor) handleProcessExit(pid int) {
 	}
 }
 
-// initNetlinkChannels will initialize the internal chan
+// initNetlinkChannels will initialize the internal channels
 func (pm *ProcessMonitor) initNetlinkChannels() {
 	pm.netlinkDoneChannel = make(chan struct{})
 	pm.netlinkErrorsChannel = make(chan error, 10)
@@ -242,7 +242,6 @@ func (pm *ProcessMonitor) Initialize() error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
-			// This would guarantee Stop() to not block on error path
 			pm.initCallbackRunner()
 			pm.initNetlinkChannels()
 			pm.done = make(chan struct{})
