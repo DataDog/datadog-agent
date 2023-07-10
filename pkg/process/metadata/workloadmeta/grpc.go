@@ -32,12 +32,13 @@ type GRPCServer struct {
 	// The address of the server set by start(). Primarily used for testing. May be nil if start() has not been called.
 	addr net.Addr
 
-	wg          sync.WaitGroup
-	streamMutex *sync.Mutex
+	wg sync.WaitGroup
+
+	streamMutex         *sync.Mutex
+	closeExistingStream context.CancelFunc
 
 	invalidVersionError telemetry.SimpleCounter
 	streamServerError   telemetry.SimpleCounter
-	closeExistingStream context.CancelFunc
 }
 
 // NewGRPCServer creates a new instance of a GRPCServer
