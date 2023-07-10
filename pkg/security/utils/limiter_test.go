@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 package utils
 
 import (
@@ -25,20 +27,20 @@ func TestLimiter_Allow(t *testing.T) {
 			name:                          "More events than limit",
 			numOfUniqueTokens:             3,
 			numOfAllowedTokensPerDuration: 1,
-			duration:                      time.Minute * 2, // Test will not exceed this duration
+			duration:                      time.Minute * 2, // Test will not exceed this period
 			numOfTokensEachToGenerate:     5,
 			wantStats: []LimiterStat{
-				{Allowed: 3, Dropped: 12}, // 15 'events' are generated (numOfTokensEachToGenerate * numOfUniqueTokens). Allow 3 because each unique token is allowed 'numOfAllowedTokensPerDuration' times in the 'duration'.
+				{Allowed: 3, Dropped: 12}, // 15 'events' are generated (numOfTokensEachToGenerate * numOfUniqueTokens). Allow 3 because each unique token is allowed 'numOfAllowedTokensPerDuration' times in the 'period'.
 			},
 		},
 		{
 			name:                          "More events than limit but spaced over time",
 			numOfUniqueTokens:             3,
 			numOfAllowedTokensPerDuration: 1,
-			duration:                      time.Nanosecond, // Test will exceed this duration
+			duration:                      time.Nanosecond, // Test will exceed this period
 			numOfTokensEachToGenerate:     10,
 			wantStats: []LimiterStat{
-				{Allowed: 30, Dropped: 0}, // Allow all (numOfTokensEachToGenerate * numOfUniqueTokens) because they are spaced more than the 'duration'.
+				{Allowed: 30, Dropped: 0}, // Allow all (numOfTokensEachToGenerate * numOfUniqueTokens) because they are spaced more than the 'period'.
 			},
 		},
 		{

@@ -48,10 +48,10 @@ const (
 )
 
 const (
-	procResolveMaxDepth                     = 16
-	maxParallelArgsEnvs                     = 512 // == number of parallel starting processes
-	numAllowedProcessesToResolvePerDuration = 1
-	procFallbackLimiterPeriod               = 30 * time.Second // proc fallback period by pid
+	procResolveMaxDepth                   = 16
+	maxParallelArgsEnvs                   = 512 // == number of parallel starting processes
+	numAllowedProcessesToResolvePerPeriod = 300
+	procFallbackLimiterPeriod             = 30 * time.Second // proc fallback period by pid
 )
 
 // ResolverOpts options of resolver
@@ -1319,7 +1319,7 @@ func NewResolver(manager *manager.Manager, config *config.Config, statsdClient s
 	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
 
 	// Create rate limiter that allows for 128 pids
-	limiter, err := utils.NewLimiter[uint32](128, numAllowedProcessesToResolvePerDuration, procFallbackLimiterPeriod)
+	limiter, err := utils.NewLimiter[uint32](128, numAllowedProcessesToResolvePerPeriod, procFallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}

@@ -100,8 +100,8 @@ func (al *AnomalyDetectionLimiter) SwapStats() []utils.LimiterStat {
 }
 
 // NewAnomalyDetectionLimiter returns a new rate limiter which is bucketed by workload ID
-func NewAnomalyDetectionLimiter(numWorkloads int, numEventsAllowedPerDuration int, duration time.Duration) (*AnomalyDetectionLimiter, error) {
-	limiter, err := utils.NewLimiter[string](numWorkloads, numEventsAllowedPerDuration, duration)
+func NewAnomalyDetectionLimiter(numWorkloads int, numEventsAllowedPerPeriod int, period time.Duration) (*AnomalyDetectionLimiter, error) {
+	limiter, err := utils.NewLimiter[string](numWorkloads, numEventsAllowedPerPeriod, period)
 	if err != nil {
 		return nil, err
 	}
@@ -135,10 +135,10 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 		limiters[id] = limiter
 	}
 
-	limiter, err := NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiter)
+	limiter, err := NewAnomalyDetectionLimiter(rl.config.AnomalyDetectionRateLimiterNumKeys, rl.config.AnomalyDetectionRateLimiterNumEventsAllowed, rl.config.AnomalyDetectionRateLimiterPeriod)
 	if err != nil {
 		// should never happen, fallback to std limiter
-		limiters[AnomalyDetectionRuleID] = NewStdLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiter), rl.config.AnomalyDetectionRateLimiterNumEventsAllowed)
+		limiters[AnomalyDetectionRuleID] = NewStdLimiter(rate.Every(rl.config.AnomalyDetectionRateLimiterPeriod), rl.config.AnomalyDetectionRateLimiterNumEventsAllowed)
 	} else {
 		limiters[AnomalyDetectionRuleID] = limiter
 	}
