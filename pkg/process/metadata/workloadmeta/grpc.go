@@ -102,13 +102,7 @@ func (l *GRPCServer) Stop() {
 
 // StreamEntities streams Process Entities collected through the WorkloadMetaExtractor
 func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
-	l.streamMutex.Lock()
-	if l.closeExistingStream != nil {
-		l.closeExistingStream()
-	}
-	streamCtx, cancel := context.WithCancel(context.Background())
-	l.closeExistingStream = cancel
-	l.streamMutex.Unlock()
+	streamCtx := l.acquireStreamCtx()
 
 	// When connection is created, send a snapshot of all processes detected on the host so far as "SET" events
 	procs, snapshotVersion := l.extractor.GetAllProcessEntities()
@@ -201,4 +195,18 @@ func processEntityToEventSet(proc *ProcessEntity) *pbgo.ProcessEventSet {
 		CreationTime: proc.CreationTime,
 		Language:     language,
 	}
+}
+
+// acquireStreamCtx is responsible for handling locking and cancelling running streams. This ensures that whenever a
+// new client connects, the stream is unique.
+func (l *GRPCServer) acquireStreamCtx() context.Context {
+	l.streamMutex.Lock()
+	defer l.streamMutex.Unlock()
+
+	if l.closeExistingStream != nil {
+		l.closeExistingStream()
+	}
+	streamCtx, cancel := context.WithCancel(context.Background())
+	l.closeExistingStream = cancel
+	return streamCtx
 }
