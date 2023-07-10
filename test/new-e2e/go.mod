@@ -9,7 +9,7 @@ go 1.18
 replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 
 require (
-	github.com/DataDog/datadog-agent/test/fakeintake v0.46.0-rc.2
+	github.com/DataDog/datadog-agent/test/fakeintake v0.47.0-rc.1
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
 	// You should bump the image version at the `image` field in `.new_e2e_template` job
 	// in .gitlab/e2e.yml to 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:<commit_sha>
