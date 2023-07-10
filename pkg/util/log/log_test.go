@@ -463,6 +463,8 @@ func TestFuncVersions(t *testing.T) {
 }
 
 func TestStackDepthfLogging(t *testing.T) {
+	const stackDepth = 0
+
 	cases := []struct {
 		seelogLevel        seelog.LogLevel
 		strLogLevel        string
@@ -477,23 +479,24 @@ func TestStackDepthfLogging(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		var b bytes.Buffer
-		w := bufio.NewWriter(&b)
+		t.Run(tc.strLogLevel, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
 
-		l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %FuncShort: %Msg\n")
-		assert.Nil(t, err)
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %Func: %Msg\n")
+			assert.Nil(t, err)
 
-		SetupLogger(l, tc.strLogLevel)
+			SetupLogger(l, tc.strLogLevel)
 
-		TracefStackDepth("%s", 0, "foo")
-		DebugfStackDepth("%s", 0, "foo")
-		InfofStackDepth("%s", 0, "foo")
-		WarnfStackDepth("%s", 0, "foo")
-		ErrorfStackDepth("%s", 0, "foo")
-		CriticalfStackDepth("%s", 0, "foo")
-		w.Flush()
+			TracefStackDepth("%s", stackDepth, "foo")
+			DebugfStackDepth("%s", stackDepth, "foo")
+			InfofStackDepth("%s", stackDepth, "foo")
+			WarnfStackDepth("%s", stackDepth, "foo")
+			ErrorfStackDepth("%s", stackDepth, "foo")
+			CriticalfStackDepth("%s", stackDepth, "foo")
+			w.Flush()
 
-		assert.Equal(t, tc.expectedToBeCalled, strings.Count(b.String(), "TestStackDepthfLogging"), tc)
-
+			assert.Equal(t, tc.expectedToBeCalled, strings.Count(b.String(), "TestStackDepthfLogging"), tc)
+		})
 	}
 }
