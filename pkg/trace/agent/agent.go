@@ -215,6 +215,12 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 		rate := ratelimiter.RealRate()
 		sampler.SetPreSampleRate(root, rate)
 	}
+
+	if a.conf.InAzureAppServices {
+		for k, v := range traceutil.GetAppServicesTags() {
+			traceutil.SetMeta(root, k, v)
+		}
+	}
 }
 
 // Process is the default work unit that receives a trace, transforms it and
@@ -272,6 +278,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		// Extra sanitization steps of the trace.
+		appServicesTags := traceutil.GetAppServicesTags()
 		for _, span := range chunk.Spans {
 			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {
@@ -281,9 +288,8 @@ func (a *Agent) Process(p *api.Payload) {
 				}
 			}
 			if a.conf.InAzureAppServices {
-				for k, v := range traceutil.GetAppServicesTags() {
-					traceutil.SetMeta(span, k, v)
-				}
+				traceutil.SetMeta(span, "aas.site.name", appServicesTags["aas.site.name"])
+				traceutil.SetMeta(span, "aas.site.type", appServicesTags["aas.site.type"])
 			}
 			if a.ModifySpan != nil {
 				a.ModifySpan(chunk, span)
