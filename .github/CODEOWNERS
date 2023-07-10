@@ -112,6 +112,7 @@
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/network-device-monitoring
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-metrics-logs
+/cmd/agent/subcommands/streamep         @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist       @DataDog/container-integrations
 /cmd/agent/subcommands/workloadlist     @DataDog/container-integrations
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
@@ -428,3 +429,5 @@
 /tools/agent_QA/                        @DataDog/agent-metrics-logs
 
 /internal/tools/                        @DataDog/agent-platform
+/internal/third_party/client-go         @DataDog/container-integrations
+/internal/third_party/kubernetes        @DataDog/container-integrations

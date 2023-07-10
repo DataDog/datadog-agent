@@ -25,6 +25,8 @@ A `stack` may be:
 ### Linux
 Review and run `tasks/kernel_matrix_testing/env-setup.sh`   
    
+
+- **You will have to run the following manually**
 Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.   
 From within the repository execute the following commands:  
 ```bash
@@ -91,7 +93,7 @@ inv -e kmt.launch-stack --stack=demo-stack --ssh-key=<ssh-key>
 
 ### Connecting to VMs
 ```bash
-inv -e kmt.ls --stack=demo-stack
+inv -e kmt.stack --stack=demo-stack
 ```
 This will print the IP addresses of all the VMs and the remote machines if any
 
@@ -107,6 +109,13 @@ Tear down the stack
 ```bash
 inv -e kmt.destroy-stack --stack=demo-stack
 ```
+
+If you run into any problems while destroying the stack, repeat with the following:
+```bash
+inv -e kmt.destroy-stack --force
+```
+
+This will attempt to manually teardown all resources. Primarily we care about cleaning the local libvirt environment and destroy remote ec2 instances. This flag takes care of these steps.
 
 ## Tasks
 

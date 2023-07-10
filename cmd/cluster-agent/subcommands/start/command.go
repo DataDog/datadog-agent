@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -44,7 +45,6 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -94,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, forwarder defaultforwarder.Component, cliParams *command.GlobalParams) error {
+func start(log log.Component, config config.Component, telemetry telemetry.Component, forwarder defaultforwarder.Component, cliParams *command.GlobalParams) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())

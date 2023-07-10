@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import List
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
@@ -125,7 +126,7 @@ def run(
         'stacks': 'Cleans up local stack state, default False',
     },
 )
-def clean(_, locks=True, stacks=False):
+def clean(ctx, locks=True, stacks=False):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
@@ -138,7 +139,7 @@ def clean(_, locks=True, stacks=False):
         _clean_locks()
 
     if stacks:
-        _clean_stacks()
+        _clean_stacks(ctx)
 
 
 def _clean_locks():
@@ -148,44 +149,40 @@ def _clean_locks():
     for entry in os.listdir(Path(lock_dir)):
         subdir = os.path.join(lock_dir, entry)
         for filename in os.listdir(Path(subdir)):
-            file_path = os.path.join(subdir, filename)
-            if os.path.isfile(file_path) and filename.endswith(".json"):
-                os.remove(file_path)
-                print(f"🗑️ Deleted lock: {file_path}")
+            path = os.path.join(subdir, filename)
+            if os.path.isfile(path) and filename.endswith(".json"):
+                os.remove(path)
+                print(f"🗑️ Deleted lock: {path}")
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
 
 
-def _clean_stacks():
+def _clean_stacks(ctx: Context):
     print("🧹 Clean up stacks")
-    stacks = _get_existing_stacks()
+    stacks = _get_existing_stacks(ctx)
 
     for stack in stacks:
         print(f"🗑️ Cleaning up stack {stack}")
-        _remove_stack(stack)
+        _remove_stack(ctx, stack)
 
 
-def _get_existing_stacks() -> List[str]:
+def _get_existing_stacks(ctx: Context) -> List[str]:
     # ensure we deal with local stacks
-    output = subprocess.check_output(["pulumi", "stack", "ls", "--all"], cwd=tempfile.gettempdir())
-    output = output.decode("utf-8")
-    lines = output.splitlines()
-    lines = lines[1:]  # skip headers
-    e2e_stacks: List[str] = []
-    for line in lines:
-        stack_name = line.split(" ")[0]
-        e2e_stacks.append(stack_name)
-    return e2e_stacks
+    with ctx.cd(tempfile.gettempdir()):
+        output = ctx.run("pulumi stack ls --all", pty=True)
+        if output is None or not output:
+            return []
+        lines = output.stdout.splitlines()
+        lines = lines[1:]  # skip headers
+        e2e_stacks: List[str] = []
+        for line in lines:
+            stack_name = line.split(" ")[0]
+            e2e_stacks.append(stack_name)
+        return e2e_stacks
 
 
-def _remove_stack(stack_name: str):
-    subprocess.call(
-        [
-            "pulumi",
-            "stack",
-            "rm",
-            "--force",
-            stack_name,
-        ]
-    )
+def _remove_stack(ctx: Context, stack_name: str):
+    ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
 
 
 def _get_pulumi_about() -> str:

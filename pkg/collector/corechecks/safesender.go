@@ -39,57 +39,57 @@ func cloneTags(tags []string) []string {
 	return tagsCopy
 }
 
-// Gauge implememnts sender.Sender#Gauge.
+// Gauge implements sender.Sender#Gauge.
 func (ss *safeSender) Gauge(metric string, value float64, hostname string, tags []string) {
 	ss.Sender.Gauge(metric, value, hostname, cloneTags(tags))
 }
 
-// Rate implememnts sender.Sender#Rate.
+// Rate implements sender.Sender#Rate.
 func (ss *safeSender) Rate(metric string, value float64, hostname string, tags []string) {
 	ss.Sender.Rate(metric, value, hostname, cloneTags(tags))
 }
 
-// Count implememnts sender.Sender#Count.
+// Count implements sender.Sender#Count.
 func (ss *safeSender) Count(metric string, value float64, hostname string, tags []string) {
 	ss.Sender.Count(metric, value, hostname, cloneTags(tags))
 }
 
-// MonotonicCount implememnts sender.Sender#MonotonicCount.
+// MonotonicCount implements sender.Sender#MonotonicCount.
 func (ss *safeSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	ss.Sender.MonotonicCount(metric, value, hostname, cloneTags(tags))
 }
 
-// MonotonicCountWithFlushFirstValue implememnts sender.Sender#MonotonicCountWithFlushFirstValue.
+// MonotonicCountWithFlushFirstValue implements sender.Sender#MonotonicCountWithFlushFirstValue.
 func (ss *safeSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
 	ss.Sender.MonotonicCountWithFlushFirstValue(metric, value, hostname, cloneTags(tags), flushFirstValue)
 }
 
-// Counter implememnts sender.Sender#Counter.
+// Counter implements sender.Sender#Counter.
 func (ss *safeSender) Counter(metric string, value float64, hostname string, tags []string) {
 	ss.Sender.Counter(metric, value, hostname, cloneTags(tags))
 }
 
-// Histogram implememnts sender.Sender#Histogram.
+// Histogram implements sender.Sender#Histogram.
 func (ss *safeSender) Histogram(metric string, value float64, hostname string, tags []string) {
 	ss.Sender.Histogram(metric, value, hostname, cloneTags(tags))
 }
 
-// Historate implememnts sender.Sender#Historate.
+// Historate implements sender.Sender#Historate.
 func (ss *safeSender) Historate(metric string, value float64, hostname string, tags []string) {
 	ss.Sender.Historate(metric, value, hostname, cloneTags(tags))
 }
 
-// ServiceCheck implememnts sender.Sender#ServiceCheck.
+// ServiceCheck implements sender.Sender#ServiceCheck.
 func (ss *safeSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
 	ss.Sender.ServiceCheck(checkName, status, hostname, cloneTags(tags), message)
 }
 
-// HistogramBucket implememnts sender.Sender#HistogramBucket.
+// HistogramBucket implements sender.Sender#HistogramBucket.
 func (ss *safeSender) HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
 	ss.Sender.HistogramBucket(metric, value, lowerBound, upperBound, monotonic, hostname, cloneTags(tags), flushFirstValue)
 }
 
-// SetCheckCustomTags implememnts sender.Sender#SetCheckCustomTags.
+// SetCheckCustomTags implements sender.Sender#SetCheckCustomTags.
 func (ss *safeSender) SetCheckCustomTags(tags []string) {
 	ss.Sender.SetCheckCustomTags(cloneTags(tags))
 }

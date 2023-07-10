@@ -401,12 +401,12 @@ func computeActivityDumpDiff(p1, p2 *dump.ActivityDump, states map[string]bool) 
 }
 
 func diffActivityDump(log log.Component, config config.Component, args *activityDumpCliParams) error {
-	ad := dump.NewEmptyActivityDump()
+	ad := dump.NewEmptyActivityDump(nil)
 	if err := ad.Decode(args.file); err != nil {
 		return err
 	}
 
-	ad2 := dump.NewEmptyActivityDump()
+	ad2 := dump.NewEmptyActivityDump(nil)
 	if err := ad2.Decode(args.file2); err != nil {
 		return err
 	}

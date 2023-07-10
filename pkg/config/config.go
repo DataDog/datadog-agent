@@ -716,6 +716,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("leader_lease_name", "datadog-leader-election")
+	config.BindEnvAndSetDefault("leader_election_default_resource", "configmap")
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
@@ -1004,6 +1005,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.config", map[string]string{})        // list of options that can be used to configure the external metrics server
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30)        // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.chunk_size", 35)                     // Maximum number of queries to batch when querying Datadog.
+	config.BindEnvAndSetDefault("external_metrics_provider.split_batches_with_backoff", false)  // Splits batches and runs queries with errors individually with an exponential backoff
 	AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
@@ -1109,6 +1111,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_image.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
+	// Remote process collector
+	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
+
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
@@ -1173,7 +1178,8 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
-	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
+	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")

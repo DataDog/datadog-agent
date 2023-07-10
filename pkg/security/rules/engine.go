@@ -345,7 +345,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return e.probe.GetEventTags(containerID)
 	}
 
-	e.eventSender.SendEvent(rule, event, extTagsCb, service)
+	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
 
 	return true
 }

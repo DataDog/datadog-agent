@@ -157,8 +157,12 @@ type RuntimeSecurityConfig struct {
 	// AnomalyDetectionWorkloadWarmupPeriod defines the duration we ignore the anomaly detections for
 	// because of workload warm up
 	AnomalyDetectionWorkloadWarmupPeriod time.Duration
-	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
-	AnomalyDetectionRateLimiter time.Duration
+	// AnomalyDetectionRateLimiterPeriod is the duration during which a limited number of anomaly detection events are allowed
+	AnomalyDetectionRateLimiterPeriod time.Duration
+	// AnomalyDetectionRateLimiterNumEventsAllowed is the number of anomaly detection events allowed per duration by the rate limiter
+	AnomalyDetectionRateLimiterNumEventsAllowed int
+	// AnomalyDetectionRateLimiterNumKeys is the number of keys in the rate limiter
+	AnomalyDetectionRateLimiterNumKeys int
 	// AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the
 	// rules they might have matched.
 	AnomalyDetectionTagRulesEnabled bool
@@ -297,7 +301,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionWorkloadWarmupPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
 		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
-		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
+		AnomalyDetectionRateLimiterPeriod:            coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter.period"),
+		AnomalyDetectionRateLimiterNumKeys:           coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys"),
+		AnomalyDetectionRateLimiterNumEventsAllowed:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
 		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
 	}
 
