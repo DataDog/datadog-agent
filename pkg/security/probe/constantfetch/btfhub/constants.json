@@ -1,5 +1,5 @@
 {
-	"commit": "ead2ff641ec299f58cf5bdfc3d51902bc136a53e",
+	"commit": "28796b4665655ff04c946902bd9b0bc7f26f2cd5",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -26121,6 +26121,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-1158-aws",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-117-generic",
 			"cindex": 96
 		},
@@ -26535,6 +26542,13 @@
 			"version": "18.04",
 			"arch": "arm64",
 			"uname_release": "4.15.0-212-generic",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-213-generic",
 			"cindex": 129
 		},
 		{
@@ -29586,6 +29600,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1158-aws",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1158-azure",
 			"cindex": 140
 		},
@@ -29636,6 +29657,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1166-azure",
+			"cindex": 140
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1167-azure",
 			"cindex": 140
 		},
 		{
