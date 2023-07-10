@@ -1,5 +1,6 @@
 import json
 import os
+
 from jsonschema import Draft7Validator, RefResolver
 
 
@@ -12,7 +13,6 @@ class JsonSchemaValidator:
                 with open(os.path.join(self.schema_directory, filename)) as file:
                     schema = json.load(file)
                     if "$id" in schema:
-                        print(schema["$id"])
                         # Add each schema to the store using its 'id' as key
                         self.schema_store[f"/schemas/{schema['$id']}"] = schema
 
