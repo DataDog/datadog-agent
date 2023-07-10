@@ -11,12 +11,11 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"golang.org/x/exp/slices"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -49,7 +48,7 @@ var (
 		"Ei": 1024 * 1024 * 1024 * 1024 * 1024 * 1024,
 	}
 
-	whitelistedContainerStateReason = map[string][]string{
+	includeContainerStateReason = map[string][]string{
 		"waiting": {
 			"errimagepull",
 			"imagepullbackoff",
@@ -137,14 +136,14 @@ func (p *Provider) generateContainerSpecMetrics(sender aggregator.Sender, pod *k
 	}
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
 
-	for resource, value := range container.Resources.Requests {
-		if v, err := parseQuantity(value); err == nil {
-			sender.Gauge(common.KubeletMetricsPrefix+resource+".requests", v, "", tags)
+	for r, value := range container.Resources.Requests {
+		if v, err := resource.ParseQuantity(value); err == nil {
+			sender.Gauge(common.KubeletMetricsPrefix+r+".requests", v.AsApproximateFloat64(), "", tags)
 		}
 	}
-	for resource, value := range container.Resources.Limits {
-		if v, err := parseQuantity(value); err == nil {
-			sender.Gauge(common.KubeletMetricsPrefix+resource+".limits", v, "", tags)
+	for r, value := range container.Resources.Limits {
+		if v, err := resource.ParseQuantity(value); err == nil {
+			sender.Gauge(common.KubeletMetricsPrefix+r+".limits", v.AsApproximateFloat64(), "", tags)
 		}
 	}
 }
@@ -163,11 +162,11 @@ func (p *Provider) generateContainerStatusMetrics(sender aggregator.Sender, pod 
 	sender.Gauge(common.KubeletMetricsPrefix+"containers.restarts", float64(cStatus.RestartCount), "", tags)
 
 	for key, state := range map[string]kubelet.ContainerState{"state": cStatus.State, "last_state": cStatus.LastState} {
-		if state.Terminated != nil && slices.Contains(whitelistedContainerStateReason["terminated"], strings.ToLower(state.Terminated.Reason)) {
+		if state.Terminated != nil && slices.Contains(includeContainerStateReason["terminated"], strings.ToLower(state.Terminated.Reason)) {
 			termTags := utils.ConcatenateStringTags(tags, "reason:"+strings.ToLower(state.Terminated.Reason))
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".terminated", 1, "", termTags)
 		}
-		if state.Waiting != nil && slices.Contains(whitelistedContainerStateReason["waiting"], strings.ToLower(state.Waiting.Reason)) {
+		if state.Waiting != nil && slices.Contains(includeContainerStateReason["waiting"], strings.ToLower(state.Waiting.Reason)) {
 			waitTags := utils.ConcatenateStringTags(tags, "reason:"+strings.ToLower(state.Waiting.Reason))
 			sender.Gauge(common.KubeletMetricsPrefix+"containers."+key+".waiting", 1, "", waitTags)
 		}
@@ -235,27 +234,6 @@ func (r *runningAggregator) generateRunningAggregatorMetrics(sender aggregator.S
 	for hash, count := range r.runningPodsCounter {
 		sender.Gauge(common.KubeletMetricsPrefix+"pods.running", count, "", r.runningPodsTags[hash])
 	}
-}
-
-func parseQuantity(value string) (float64, error) {
-	var number, unit string
-	for _, char := range value {
-		if unicode.IsDigit(char) || char == '.' {
-			number += string(char)
-		} else {
-			unit += string(char)
-		}
-	}
-
-	convertedNumber, err := strconv.ParseFloat(number, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	if factor, ok := factors[unit]; ok {
-		return convertedNumber * factor, nil
-	}
-	return convertedNumber, nil
 }
 
 // generateTagHash creates a sorted string representation of the tags supplied. The resulting string that it returns is
