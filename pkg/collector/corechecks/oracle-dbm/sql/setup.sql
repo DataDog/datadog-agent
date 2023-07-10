@@ -2,7 +2,6 @@ set verify off
 
 accept password hide prompt password:
 
-
 CREATE USER c##datadog IDENTIFIED BY &password CONTAINER = ALL ;
 
 ALTER USER c##datadog SET CONTAINER_DATA=ALL CONTAINER=CURRENT;
@@ -13,7 +12,15 @@ grant select on v_$database to c##datadog ;
 grant select on v_$containers to c##datadog;
 grant select on v_$sqlstats to c##datadog ;
 grant select on v_$instance to c##datadog ;
+grant select on v_$sql_plan_statistics_all to c##datadog ;
 grant select on dba_feature_usage_statistics to c##datadog ;
+grant select on v_$datafile to c##datadog ;
+grant select on v_$con_sysmetric to c##datadog ;
+grant select on v_$sysmetric to c##datadog ;
+grant select on cdb_tablespace_usage_metrics to c##datadog ;
+grant select on cdb_tablespaces to c##datadog ;
+grant select on v_$process to c##datadog ;
+grant select on v_$sgainfo to c##datadog ;
 
 CREATE OR REPLACE VIEW dd_session AS
 SELECT 
@@ -103,9 +110,3 @@ SELECT
 ;
 
 GRANT SELECT ON dd_session TO c##datadog ;
-
--- for compatibility with the existing Oracle integration
-GRANT CREATE SESSION TO c##datadog CONTAINER=ALL;
-Grant select any dictionary to c##datadog container=all;
-GRANT SELECT ON GV_$PROCESS TO c##datadog CONTAINER=ALL;
-GRANT SELECT ON gv_$sysmetric TO c##datadog CONTAINER=ALL;
