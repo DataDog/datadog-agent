@@ -6,6 +6,7 @@
 package workloadmeta
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -20,7 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var streamExistsErr = errors.New("failed to StreamEntities because a stream already exists")
+// DuplicateConnectionErr is an error that explains the connection was closed because another client tried to connect
+var DuplicateConnectionErr = errors.New("the stream was closed because another client called StreamEntities")
 
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
@@ -35,6 +37,7 @@ type GRPCServer struct {
 
 	invalidVersionError telemetry.SimpleCounter
 	streamServerError   telemetry.SimpleCounter
+	closeExistingStream context.CancelFunc
 }
 
 // NewGRPCServer creates a new instance of a GRPCServer
@@ -99,11 +102,13 @@ func (l *GRPCServer) Stop() {
 
 // StreamEntities streams Process Entities collected through the WorkloadMetaExtractor
 func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
-	if !l.streamMutex.TryLock() {
-		_ = log.Error("Tried to call StreamEntities but a stream already exists! Check to see that there aren't multiple instances of the agent running at once.")
-		return streamExistsErr
+	l.streamMutex.Lock()
+	if l.closeExistingStream != nil {
+		l.closeExistingStream()
 	}
-	defer l.streamMutex.Unlock()
+	streamCtx, cancel := context.WithCancel(context.Background())
+	l.closeExistingStream = cancel
+	l.streamMutex.Unlock()
 
 	// When connection is created, send a snapshot of all processes detected on the host so far as "SET" events
 	procs, snapshotVersion := l.extractor.GetAllProcessEntities()
@@ -158,6 +163,8 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 		case <-out.Context().Done():
 			return nil
+		case <-streamCtx.Done():
+			return DuplicateConnectionErr
 		}
 	}
 }
