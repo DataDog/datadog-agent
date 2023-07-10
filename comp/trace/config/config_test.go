@@ -546,7 +546,7 @@ func TestNoAPMConfig(t *testing.T) {
 
 	require.NotNil(t, cfg)
 
-	assert.Equal(t, "thingo", cfg.Hostname)
+	assert.Equal(t, "thing", cfg.Hostname)
 	assert.Equal(t, "apikey_12", cfg.Endpoints[0].APIKey)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	assert.Equal(t, 28125, cfg.StatsdPort)

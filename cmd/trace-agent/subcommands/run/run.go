@@ -197,7 +197,7 @@ func runAgent(ctx context.Context, cliParams *RunParams, cfg config.Component) e
 	agnt.Run()
 
 	// collect memory profile
-	if cliParams.CPUProfile != "" {
+	if cliParams.MemProfile != "" {
 		f, err := os.Create(cliParams.MemProfile)
 		if err != nil {
 			log.Error("Could not create memory profile: ", err)

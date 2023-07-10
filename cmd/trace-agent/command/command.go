@@ -24,22 +24,10 @@ func MakeRootCommand(defaultLogFile string) *cobra.Command {
 		ConfigName: "datadog-trace",
 	}
 
-	commands := makeCommands(&globalParams)
-	traceAgentCmd := *commands[0] // first command in the slice is run() command
-	// shallow copy should suffice
-	traceAgentCmd.Use = "trace-agent [command]"
-	traceAgentCmd.Short = "Datadog trace-agent at your service."
-
-	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", defaultConfigPath, "path to directory containing datadog.yaml")
-
-	for _, cmd := range commands {
-		traceAgentCmd.AddCommand(cmd)
-	}
-
-	return &traceAgentCmd
+	return makeCommands(&globalParams)
 }
 
-func makeCommands(globalParams *subcommands.GlobalParams) []*cobra.Command {
+func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	globalConfGetter := func() *subcommands.GlobalParams {
 		return &subcommands.GlobalParams{
 			ConfPath:   globalParams.ConfPath,
@@ -47,13 +35,23 @@ func makeCommands(globalParams *subcommands.GlobalParams) []*cobra.Command {
 			LoggerName: "TRACE",
 		}
 	}
-	cmds := []*cobra.Command{
-		run.MakeCommand(globalConfGetter), // should always be first in the slice
+	commands := []*cobra.Command{
+		run.MakeCommand(globalConfGetter),
 		info.MakeCommand(globalConfGetter),
 		version.MakeCommand("trace-agent"),
 	}
 
-	cmds = append(cmds, controlsvc.Commands(globalConfGetter)...)
+	commands = append(commands, controlsvc.Commands(globalConfGetter)...)
 
-	return cmds
+	traceAgentCmd := *commands[0] // root cmd is `run()`; indexed at 0
+	traceAgentCmd.Use = "trace-agent [command]"
+	traceAgentCmd.Short = "Datadog trace-agent at your service."
+
+	for _, cmd := range commands {
+		traceAgentCmd.AddCommand(cmd)
+	}
+
+	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", defaultConfigPath, "path to directory containing datadog.yaml")
+
+	return &traceAgentCmd
 }

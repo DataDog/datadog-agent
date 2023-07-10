@@ -27,7 +27,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Start datadog trace-agent.",
-		Long: `The Datadog trace-agent aggregates, samples, and forwards traces to datadog submitted by tracers loaded into your application.`,
+		Long:  `The Datadog trace-agent aggregates, samples, and forwards traces to datadog submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.GlobalParams = globalParamsGetter()
 			return RunTraceAgentFct(cliParams, cliParams.ConfPath, Start)

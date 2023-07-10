@@ -18,16 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type RunParams struct {
-	*subcommands.GlobalParams
-
-	// Interactive sets whether or not to run the agent in interactive mode.
-	Interactive bool
-}
-
 // Commands returns a slice of subcommands for the 'trace-agent' command.
 func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Command {
-	cliParams := &RunParams{}
 	startCmd := &cobra.Command{
 		Use:     "start-service",
 		Aliases: []string{"startservice"},
@@ -37,8 +29,6 @@ func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Comm
 			return fxutil.OneShot(controlsvc.StartService)
 		},
 	}
-	startCmd.PersistentFlags().BoolVarP(&cliParams.Interactive, "foreground", "f", false,
-		"Always run foreground instead whether session is interactive or not")
 
 	stopCmd := &cobra.Command{
 
