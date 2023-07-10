@@ -122,7 +122,9 @@ class TestE2EDocker(unittest.TestCase):
 
         policy_source = "remote-config" if rc_enabled else "file"
         with Step(msg=f"check ruleset_loaded `{policy_source}` for default.policy", emoji=":delivery_truck:"):
-            event = self.app.wait_app_log(f"rule_id:ruleset_loaded @policies.source:{policy_source} @policies.name:default.policy")
+            event = self.app.wait_app_log(
+                f"rule_id:ruleset_loaded @policies.source:{policy_source} @policies.name:default.policy"
+            )
             attributes = event["data"][-1]["attributes"]["attributes"]
             if rc_enabled:
                 self.app.check_policy_found(self, attributes, "remote-config", "default.policy")

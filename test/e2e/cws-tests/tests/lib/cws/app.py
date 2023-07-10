@@ -210,7 +210,13 @@ class App(common.App):
         return found
 
     def check_policy_found(self, test_case, policies, policy_source, policy_name):
-        test_case.assertTrue(self.__find_policy(policies, policy_source, policy_name), msg=f"should find policy in log (source:{policy_source} name:{policy_name})")
+        test_case.assertTrue(
+            self.__find_policy(policies, policy_source, policy_name),
+            msg=f"should find policy in log (source:{policy_source} name:{policy_name})",
+        )
 
     def check_policy_not_found(self, test_case, policies, policy_source, policy_name):
-        test_case.assertFalse(self.__find_policy(policies, policy_source, policy_name), msg=f"shouldn't find policy in log (source:{policy_source} name:{policy_name})")
+        test_case.assertFalse(
+            self.__find_policy(policies, policy_source, policy_name),
+            msg=f"shouldn't find policy in log (source:{policy_source} name:{policy_name})",
+        )

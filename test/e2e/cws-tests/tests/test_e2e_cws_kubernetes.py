@@ -77,7 +77,9 @@ class TestE2EKubernetes(unittest.TestCase):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
         with Step(msg="check ruleset_loaded for `file` test.policy", emoji=":delivery_truck:"):
-            event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:file @policies.name:test.policy -@policies.source:remote-config")
+            event = self.app.wait_app_log(
+                "rule_id:ruleset_loaded @policies.source:file @policies.name:test.policy -@policies.source:remote-config"
+            )
             attributes = event["data"][-1]["attributes"]["attributes"]
             self.app.check_policy_found(self, attributes, "file", "test.policy")
             self.app.check_for_ignored_policies(self, attributes)
@@ -106,7 +108,10 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="reload policies", emoji=":rocket:"):
             self.kubernetes_helper.reload_policies()
 
-        with Step(msg="check ruleset_loaded for `remote-config` default.policy precedence over `file` default.policy", emoji=":delivery_truck:"):
+        with Step(
+            msg="check ruleset_loaded for `remote-config` default.policy precedence over `file` default.policy",
+            emoji=":delivery_truck:",
+        ):
             for _i in range(60):
                 event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.name:default.policy")
                 attributes = event["data"][-1]["attributes"]["attributes"]
@@ -141,7 +146,9 @@ class TestE2EKubernetes(unittest.TestCase):
             self.kubernetes_helper.reload_policies()
 
         with Step(msg="check ruleset_loaded for `file` downloaded.policy", emoji=":delivery_truck:"):
-            event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:file @policies.name:downloaded.policy")
+            event = self.app.wait_app_log(
+                "rule_id:ruleset_loaded @policies.source:file @policies.name:downloaded.policy"
+            )
             attributes = event["data"][-1]["attributes"]["attributes"]
             self.app.check_policy_found(self, attributes, "file", "downloaded.policy")
             self.app.check_policy_not_found(self, attributes, "file", "default.policy")
