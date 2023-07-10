@@ -131,6 +131,9 @@ class TestE2EDocker(unittest.TestCase):
             rule_id = "self_test"
             event = self.app.wait_app_log(f"rule_id:{rule_id}")
             attributes = event["data"][0]["attributes"]["attributes"]
+            if "date" in attributes:
+                attributes["date"] = attributes["date"].strftime("%Y-%m-%dT%H:%M:%S")
+
             self.assertEqual(rule_id, attributes["agent"]["rule_id"], "unable to find rule_id tag attribute")
             self.assertTrue(
                 "failed_tests" not in attributes,
