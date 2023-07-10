@@ -30,7 +30,7 @@ type GRPCServer struct {
 	// The address of the server set by start(). Primarily used for testing. May be nil if start() has not been called.
 	addr net.Addr
 
-	wg sync.WaitGroup
+	wg          sync.WaitGroup
 	streamMutex *sync.Mutex
 
 	invalidVersionError telemetry.SimpleCounter
@@ -46,7 +46,7 @@ func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor)
 		streamMutex:         &sync.Mutex{},
 		invalidVersionError: telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version."),
 		streamServerError:   telemetry.NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent."),
-}
+	}
 
 	pbgo.RegisterProcessEntityStreamServer(l.server, l)
 	return l
