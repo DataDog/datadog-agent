@@ -150,7 +150,7 @@ func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin s
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-	aggr := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg, customTags[:], customSpanNames[:])
+	aggr := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg, customTags, customSpanNames)
 	sb.add(s, weight, isTop, aggr)
 }
 

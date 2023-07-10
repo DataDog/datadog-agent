@@ -54,7 +54,6 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.sync_flushing")
 	config.SetKnown("apm_config.features")
 	config.SetKnown("apm_config.custom_tags")
-	config.SetKnown("apm_config.custom_span_names")
 
 	bindVectorOptions(config, Traces)
 

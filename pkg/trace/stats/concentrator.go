@@ -21,6 +21,8 @@ import (
 // units used by the concentrator.
 const defaultBufferLen = 2
 
+const AgentConfig *config.AgentConfig
+
 // Concentrator produces time bucketed statistics from a stream of raw traces.
 // https://en.wikipedia.org/wiki/Knelson_concentrator
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
@@ -49,8 +51,7 @@ type Concentrator struct {
 	peerSvcAggregation     bool // flag to enable peer.service aggregation
 	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
 	conf                   *config.AgentConfig
-	customTags             []string
-	customTagSpanNames     []string
+	customTags             map[string]string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -73,7 +74,6 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		peerSvcAggregation:     conf.PeerServiceAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		customTags:             conf.CustomTags,
-		customTagSpanNames:     conf.SpanNamesForCustomTags,
 	}
 	return &c
 }

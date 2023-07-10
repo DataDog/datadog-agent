@@ -437,11 +437,8 @@ type AgentConfig struct {
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 
-	// CustomTags defines a list of custom tags that the customer wants to add to metrics generated from spans
-	CustomTags []string
-
-	// SpanNamesForCustomTags defines a list of span names that the customer would want custom tags generated on, can be empty if custom tags are to be generated on all spans
-	SpanNamesForCustomTags []string
+	// CustomTags defines a map of custom tags that the customer wants to add to metrics generated from spans, with the key defining the span name for which the custom tags are to be added on
+	CustomTags map[string]string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

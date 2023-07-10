@@ -199,8 +199,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.ConnectionLimit = coreconfig.Datadog.GetInt("apm_config.connection_limit")
 	}
 
-	c.CustomTags = coreconfig.Datadog.GetStringSlice("apm_config.custom_tags")
-	c.SpanNamesForCustomTags = coreconfig.Datadog.GetStringSlice("apm_config.custom_span_names")
+	c.CustomTags = coreconfig.Datadog.GetStringMapString("apm_config.custom_tags")
 
 	c.PeerServiceAggregation = coreconfig.Datadog.GetBool("apm_config.peer_service_aggregation")
 	c.ComputeStatsBySpanKind = coreconfig.Datadog.GetBool("apm_config.compute_stats_by_span_kind")
