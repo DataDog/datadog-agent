@@ -98,7 +98,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 			semcount = 1
 		}
 	}
-	log.Infof("Receiver configured with %d decoders.", semcount)
+	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),
 
