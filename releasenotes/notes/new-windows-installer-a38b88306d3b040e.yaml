@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    The Windows installer can now send a report to Datadog in case of install failure.
+    The Windows installer can now send a report to Datadog in case of installation failure.
   - |
     The Windows installer can now send APM telemetry.
 enhancements:
