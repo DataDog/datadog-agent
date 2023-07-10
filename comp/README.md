@@ -136,7 +136,7 @@ Package systray
 
 *Datadog Team*: agent-apm
 
-Package process implements the "process" bundle, providing components for the Process Agent
+Package trace implements the "trace" bundle, providing components for the Trace Agent
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/trace/config)
 

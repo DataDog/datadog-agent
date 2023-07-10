@@ -62,7 +62,6 @@ func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, e
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
 func LoadConfigFile(path string, c corecompcfg.Component) (*config.AgentConfig, error) {
-
 	cfg, err := prepareConfig(c)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -270,7 +269,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		} else {
 			err := compileReplaceRules(rt)
 			if err != nil {
-				// osutil.Exitf("replace_tags: %s", err)
 				return fmt.Errorf("replace_tags: %s", err)
 			}
 			c.ReplaceTags = rt
@@ -510,7 +508,6 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 func addReplaceRule(c *config.AgentConfig, tag, pattern, repl string) error {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		// osutil.Exitf("error adding replace rule: %s", err)
 		return fmt.Errorf("error adding replace rule: %s", err)
 	}
 	c.ReplaceTags = append(c.ReplaceTags, &config.ReplaceRule{
