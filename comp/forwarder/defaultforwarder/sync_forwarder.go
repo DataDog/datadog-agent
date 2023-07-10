@@ -11,26 +11,28 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SyncForwarder is a very simple Forwarder synchronously sending
 // the data to the intake.
 type SyncForwarder struct {
 	config           config.Component
+	log              log.Component
 	defaultForwarder *DefaultForwarder
 	client           *http.Client
 }
 
 // NewSyncForwarder returns a new synchronous forwarder.
-func NewSyncForwarder(config config.Component, domainResolvers map[string]resolver.DomainResolver, timeout time.Duration) *SyncForwarder {
+func NewSyncForwarder(config config.Component, log log.Component, domainResolvers map[string]resolver.DomainResolver, timeout time.Duration) *SyncForwarder {
 	return &SyncForwarder{
 		config:           config,
-		defaultForwarder: NewDefaultForwarder(config, NewOptionsWithResolvers(config, domainResolvers)),
+		log:              log,
+		defaultForwarder: NewDefaultForwarder(config, log, NewOptionsWithResolvers(config, log, domainResolvers)),
 		client: &http.Client{
 			Timeout:   timeout,
 			Transport: utilhttp.CreateHTTPTransport(),
@@ -49,18 +51,18 @@ func (f *SyncForwarder) Stop() {
 
 func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	for _, t := range transactions {
-		if err := t.Process(context.Background(), f.config, f.client); err != nil {
-			log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
+		if err := t.Process(context.Background(), f.config, f.log, f.client); err != nil {
+			f.log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
 			// Retry once after error
 			// The intake may have closed the connection between Lambda invocations.
 			// If so, the first attempt will fail because the closed connection will still be cached.
-			log.Debug("Retrying transaction")
-			if err := t.Process(context.Background(), f.config, f.client); err != nil {
-				log.Warnf("SyncForwarder.sendHTTPTransactions failed to send: %s", err)
+			f.log.Debug("Retrying transaction")
+			if err := t.Process(context.Background(), f.config, f.log, f.client); err != nil {
+				f.log.Warnf("SyncForwarder.sendHTTPTransactions failed to send: %s", err)
 			}
 		}
 	}
-	log.Debugf("SyncForwarder has flushed %d transactions", len(transactions))
+	f.log.Debugf("SyncForwarder has flushed %d transactions", len(transactions))
 	return nil
 }
 

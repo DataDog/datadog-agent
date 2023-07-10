@@ -6,6 +6,7 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductAgentConfig: {},
 	ProductAgentTask:   {},
 	ProductAPMSampling: {},
 	ProductCWSDD:       {},
@@ -18,6 +19,8 @@ var validProducts = map[string]struct{}{
 }
 
 const (
+	// ProductAgentConfig is to receive agent configurations, like the log level
+	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentTask is to receive agent task instruction, like a flare
 	ProductAgentTask = "AGENT_TASK"
 	// ProductAPMSampling is the apm sampling product

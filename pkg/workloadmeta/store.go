@@ -318,21 +318,35 @@ func (s *store) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
 
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
 func (s *store) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
-	entities, ok := s.store[KindKubernetesPod]
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	containerEntities, ok := s.store[KindContainer]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	for _, e := range entities {
-		pod := e.cached.(*KubernetesPod)
-		for _, podContainer := range pod.Containers {
-			if podContainer.ID == containerID {
-				return pod, nil
-			}
-		}
+	containerEntity, ok := containerEntities[containerID]
+	if !ok {
+		return nil, errors.NewNotFound(containerID)
 	}
 
-	return nil, errors.NewNotFound(containerID)
+	container := containerEntity.cached.(*Container)
+	if container.Owner == nil || container.Owner.Kind != KindKubernetesPod {
+		return nil, errors.NewNotFound(containerID)
+	}
+
+	podEntities, ok := s.store[KindKubernetesPod]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	pod, ok := podEntities[container.Owner.ID]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	return pod.cached.(*KubernetesPod), nil
 }
 
 // GetKubernetesNode implements Store#GetKubernetesNode
@@ -383,6 +397,38 @@ func (s *store) Notify(events []CollectorEvent) {
 	if len(events) > 0 {
 		s.eventCh <- events
 	}
+}
+
+// ResetProcesses implements Store#ResetProcesses
+func (s *store) ResetProcesses(newProcesses []Entity, source Source) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	var events []CollectorEvent
+	newProcessEntities := classifyByKindAndID(newProcesses)[KindProcess]
+
+	processStore := s.store[KindProcess]
+	// Remove outdated stored processes
+	for ID, storedProcess := range processStore {
+		if newP, found := newProcessEntities[ID]; !found || storedProcess.cached != newP {
+			events = append(events, CollectorEvent{
+				Type:   EventTypeUnset,
+				Source: source,
+				Entity: storedProcess.cached,
+			})
+		}
+	}
+
+	// Add new processes
+	for _, newP := range newProcesses {
+		events = append(events, CollectorEvent{
+			Type:   EventTypeSet,
+			Source: source,
+			Entity: newP,
+		})
+	}
+
+	s.Notify(events)
 }
 
 // Reset implements Store#Reset

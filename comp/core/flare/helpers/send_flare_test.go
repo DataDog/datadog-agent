@@ -59,8 +59,9 @@ func TestFlareHasRightForm(t *testing.T) {
 	archivePath := "./test/blank.zip"
 	caseID := "12345"
 	email := "dev@datadoghq.com"
+	source := ""
 
-	_, err := SendTo(archivePath, caseID, email, "abcdef", ddURL)
+	_, err := SendTo(archivePath, caseID, email, source, "abcdef", ddURL)
 
 	assert.Nil(t, err)
 

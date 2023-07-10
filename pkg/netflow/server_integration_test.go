@@ -15,11 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
@@ -41,7 +43,8 @@ network_devices:
 	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(1 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 1*time.Millisecond)
 	defer demux.Stop(false)
 
 	sender, err := demux.GetDefaultSender()
@@ -93,7 +96,8 @@ network_devices:
 	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(1 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 1*time.Millisecond)
 	defer demux.Stop(false)
 
 	sender, err := demux.GetDefaultSender()
@@ -139,7 +143,8 @@ network_devices:
 	config.Datadog.Set("hostname", "my-hostname")
 
 	// Setup NetFlow Server
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(1 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 1*time.Millisecond)
 	defer demux.Stop(false)
 
 	sender, err := demux.GetDefaultSender()

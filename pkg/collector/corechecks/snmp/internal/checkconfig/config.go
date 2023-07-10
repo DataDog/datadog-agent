@@ -60,14 +60,6 @@ var uptimeMetricConfig = MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.
 // DeviceDigest is the digest of a minimal config used for autodiscovery
 type DeviceDigest string
 
-// InterfaceConfig interface related configs (e.g. interface speed override)
-type InterfaceConfig struct {
-	MatchField string `yaml:"match_field"` // e.g. name, index
-	MatchValue string `yaml:"match_value"` // e.g. eth0 (name), 10 (index)
-	InSpeed    uint64 `yaml:"in_speed"`    // inbound speed override in bits per sec
-	OutSpeed   uint64 `yaml:"out_speed"`   // outbound speed override in bits per sec
-}
-
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	Profiles                     profileConfigMap `yaml:"profiles"`
@@ -733,8 +725,13 @@ func GetProfileForSysObjectID(profiles profileConfigMap, sysObjectID string) (st
 			if !found {
 				continue
 			}
-			if matchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
-				return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, matchedProfile)
+			if prevMatchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
+				if profiles[prevMatchedProfile].isUserProfile && !profConfig.isUserProfile {
+					continue
+				}
+				if profiles[prevMatchedProfile].isUserProfile == profConfig.isUserProfile {
+					return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, prevMatchedProfile)
+				}
 			}
 			tmpSysOidToProfile[oidPattern] = profile
 			matchedOids = append(matchedOids, oidPattern)

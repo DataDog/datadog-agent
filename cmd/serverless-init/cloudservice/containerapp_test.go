@@ -52,6 +52,7 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 		"revision":        "test_revision",
 		"_dd.origin":      "containerapp",
 		"subscription_id": "test_subscription_id",
+		"resource_id":     "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app_name",
 		"resource_group":  "test_resource_group",
 	}, tags)
 

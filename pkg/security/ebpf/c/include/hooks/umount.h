@@ -10,12 +10,12 @@ SYSCALL_KPROBE0(umount) {
     return 0;
 }
 
-SEC("kprobe/security_sb_umount")
-int kprobe_security_sb_umount(struct pt_regs *ctx) {
+HOOK_ENTRY("security_sb_umount")
+int hook_security_sb_umount(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UMOUNT,
         .umount = {
-            .vfs = (struct vfsmount *)PT_REGS_PARM1(ctx),
+            .vfs = (struct vfsmount *)CTX_PARM1(ctx),
         }
     };
 

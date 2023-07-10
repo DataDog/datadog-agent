@@ -43,26 +43,26 @@ func newForwarders(deps dependencies) (Component, error) {
 		return nil, err
 	}
 
-	eventForwarderOpts := createParams(deps.Config, queueBytes, eventsAPIEndpoints)
+	eventForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints)
 
 	processAPIEndpoints, err := endpoint.GetAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
 
-	processForwarderOpts := createParams(deps.Config, queueBytes, processAPIEndpoints)
+	processForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
 
 	return &forwarders{
-		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, eventForwarderOpts),
-		processForwarder:     defaultforwarder.NewForwarder(deps.Config, processForwarderOpts),
-		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, processForwarderOpts),
-		connectionsForwarder: defaultforwarder.NewForwarder(deps.Config, processForwarderOpts),
+		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, deps.Logger, eventForwarderOpts),
+		processForwarder:     defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
+		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
+		connectionsForwarder: defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
 	}, nil
 
 }
 
-func createParams(config config.Component, queueBytes int, endpoints []apicfg.Endpoint) defaultforwarder.Params {
-	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints)))
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) defaultforwarder.Params {
+	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints)))
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	return defaultforwarder.Params{Options: forwarderOpts}

@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+// +build !windows
+
 package systemProbe
 
 import (
@@ -13,14 +16,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/command"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
-	pulumiCommand "github.com/pulumi/pulumi-command/sdk/go/command"
-	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/sethvargo/go-retry"
+	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
@@ -29,9 +31,13 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-var (
-	DependenciesPackage = "dependencies-%s.tar.gz"
+const (
+	PrimaryAZ   = "subnet-03061a1647c63c3c3"
+	SecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
+	BackupAZ    = "subnet-071213aedb0e1ae54"
 )
+
+var availabilityZones = []string{PrimaryAZ, SecondaryAZ, BackupAZ}
 
 type SystemProbeEnvOpts struct {
 	X86AmiID              string
@@ -42,8 +48,9 @@ type SystemProbeEnvOpts struct {
 	Provision             bool
 	ShutdownPeriod        int
 	FailOnMissing         bool
-	UploadDependencies    bool
 	DependenciesDirectory string
+	VMConfigPath          string
+	Local                 bool
 }
 
 type TestEnv struct {
@@ -58,7 +65,6 @@ type TestEnv struct {
 var (
 	MicroVMsDependenciesPath = filepath.Join("/", "opt", "kernel-version-testing", "dependencies-%s.tar.gz")
 	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
-	vmConfig                 = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 
 	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
@@ -89,34 +95,70 @@ func GetEnv(key, fallback string) string {
 	return fallback
 }
 
+func credentials() (string, error) {
+	var fd int
+	if terminal.IsTerminal(syscall.Stdin) {
+		fd = syscall.Stdin
+	} else {
+		tty, err := os.Open("/dev/tty")
+		if err != nil {
+			return "", fmt.Errorf("error allocating terminal: %w", err)
+		}
+		defer tty.Close()
+		fd = int(tty.Fd())
+	}
+	fmt.Print("Enter Password: ")
+	bytePassword, err := term.ReadPassword(fd)
+	if err != nil {
+		return "", err
+	}
+
+	password := string(bytePassword)
+	return password, nil
+}
+
+func getAvailabilityZone(azIndx int) string {
+	return availabilityZones[azIndx%len(availabilityZones)]
+}
+
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	var err error
+	var sudoPassword string
+
 	systemProbeTestEnv := &TestEnv{
 		context: context.Background(),
-		name:    fmt.Sprintf("microvm-scenario-%s", name),
+		name:    name,
 	}
 
 	stackManager := infra.GetStackManager()
 
+	if opts.Local {
+		sudoPassword, err = credentials()
+		if err != nil {
+			return nil, fmt.Errorf("Unable to get password: %w", err)
+		}
+	} else {
+		sudoPassword = ""
+	}
+
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
-		runner.AwsKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
+		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
 		// Its fine to hardcode the password here, since the remote ec2 instances do not have
 		// any password on sudo. This secret configuration was introduced in the test-infra-definitions
 		// scenario for dev environments: https://github.com/DataDog/test-infra-definitions/pull/159
-		"sudo-password":                          auto.ConfigValue{Value: "", Secret: true},
+		"sudo-password-remote":                   auto.ConfigValue{Value: "", Secret: true},
+		"sudo-password-local":                    auto.ConfigValue{Value: sudoPassword, Secret: true},
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
-		"ddinfra:aws/defaultShutdownBehavior":    auto.ConfigValue{Value: "terminate"},
 		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
-		"microvm:microVMConfigFile":              auto.ConfigValue{Value: vmConfig},
+		"microvm:microVMConfigFile":              auto.ConfigValue{Value: opts.VMConfigPath},
 		"microvm:libvirtSSHKeyFileX86":           auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":           auto.ConfigValue{Value: sshKeyArm},
 		"microvm:provision":                      auto.ConfigValue{Value: "false"},
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
-		"microvm:shutdownPeriod":                 auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)},
 	}
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
 	if opts.SSHKeyPath != "" {
@@ -125,62 +167,42 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		config["ddinfra:aws/defaultPrivateKeyPath"] = auto.ConfigValue{Value: ""}
 	}
 
+	if opts.ShutdownPeriod != 0 {
+		config["microvm:shutdownPeriod"] = auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)}
+		config["ddinfra:aws/defaultShutdownBehavior"] = auto.ConfigValue{Value: "terminate"}
+	}
+
 	var upResult auto.UpResult
 	ctx := context.Background()
+	currentAZ := 0 // PrimaryAZ
 	b := retry.NewConstant(3 * time.Second)
-	b = retry.WithMaxRetries(3, b)
+	// Retry 4 times. This allows us to cycle through all AZs, and handle libvirt
+	// connection issues in the worst case.
+	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
-		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-			awsEnvironment, err := aws.NewEnvironment(ctx)
-			if err != nil {
-				return fmt.Errorf("aws new environment: %w", err)
-			}
+		// Set AZ in retry block so we can change if needed.
+		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: getAvailabilityZone(currentAZ)}
 
-			scenarioDone, err := microvms.RunAndReturnInstances(awsEnvironment)
-			if err != nil {
+		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
+			if err := microvms.Run(ctx); err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
-
-			osCommand := command.NewUnixOSCommand()
-			commandProvider, err := pulumiCommand.NewProvider(ctx, "test-env-command-provider", &pulumiCommand.ProviderArgs{})
-			if err != nil {
-				return fmt.Errorf("failed to get command provider: %w", err)
-			}
-			for _, instance := range scenarioDone.Instances {
-				remoteRunner, err := command.NewRunner(*awsEnvironment.CommonEnvironment, command.RunnerArgs{
-					ConnectionName: "remote-runner-" + instance.Arch,
-					Connection:     instance.Connection,
-					ReadyFunc: func(r *command.Runner) (*remote.Command, error) {
-						return command.WaitForCloudInit(r)
-					},
-					OSCommand: osCommand,
-				})
-
-				if opts.UploadDependencies {
-					// Copy dependencies to micro-vms. Directory '/opt/kernel-version-testing'
-					// is mounted to all micro-vms. Each micro-vm extract the context on boot.
-					filemanager := command.NewFileManager(remoteRunner)
-					_, err = filemanager.CopyFile(
-						filepath.Join(opts.DependenciesDirectory, fmt.Sprintf(DependenciesPackage, instance.Arch)),
-						fmt.Sprintf(MicroVMsDependenciesPath, instance.Arch),
-						pulumi.DependsOn(scenarioDone.Dependencies),
-						pulumi.Provider(commandProvider),
-					)
-					if err != nil {
-						return fmt.Errorf("copy file: %w", err)
-					}
-				}
-			}
-
 			return nil
 		}, opts.FailOnMissing)
-		// Only retry if we failed to dial libvirt.
-		// Libvirt daemon on the server occasionally crashes with the following error
-		// "End of file while reading data: Input/output error"
-		// The root cause of this is unknown. The problem usually fixes itself upon retry.
 		if err != nil {
+			// Retry if we failed to dial libvirt.
+			// Libvirt daemon on the server occasionally crashes with the following error
+			// "End of file while reading data: Input/output error"
+			// The root cause of this is unknown. The problem usually fixes itself upon retry.
 			if strings.Contains(err.Error(), "failed to dial libvirt") {
-				fmt.Printf("[Error] Failed to dial libvirt. Retrying stack.")
+				fmt.Println("[Error] Failed to dial libvirt. Retrying stack.")
+				return retry.RetryableError(err)
+
+				// Retry if we have capacity issues in our current AZ.
+				// We switch to a different AZ and attempt to launch the instance again.
+			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
+				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(currentAZ), getAvailabilityZone(currentAZ+1))
+				currentAZ += 1
 				return retry.RetryableError(err)
 			} else {
 				return err
@@ -202,6 +224,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	return systemProbeTestEnv, nil
 }
 
-func (testEnv *TestEnv) Destroy() error {
-	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.name)
+func Destroy(name string) error {
+	return infra.GetStackManager().DeleteStack(context.Background(), name)
 }

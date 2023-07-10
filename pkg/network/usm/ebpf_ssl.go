@@ -9,6 +9,7 @@ package usm
 
 import (
 	"debug/elf"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -195,13 +196,14 @@ var gnuTLSProbes = []manager.ProbesSelector{
 const (
 	sslSockByCtxMap        = "ssl_sock_by_ctx"
 	sharedLibrariesPerfMap = "shared_libraries"
+
+	// probe used for streaming shared library events
+	openatSysCall  = "openat"
+	openat2SysCall = "openat2"
 )
 
-// probe used for streaming shared library events
 var (
-	kprobeKretprobePrefix = []string{"kprobe", "kretprobe"}
-	doSysOpen             = "do_sys_open"
-	doSysOpenAt2          = "do_sys_openat2"
+	traceTypes = []string{"enter", "exit"}
 )
 
 type sslProgram struct {
@@ -227,6 +229,14 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 		perfHandler:             ddebpf.NewPerfHandler(100),
 		sysOpenHooksIdentifiers: getSysOpenHooksIdentifiers(),
 	}
+}
+
+func (o *sslProgram) Name() string {
+	return "openssl"
+}
+
+func (o *sslProgram) IsBuildModeSupported(_ buildMode) bool {
+	return true
 }
 
 func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
@@ -467,10 +477,10 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 		}
 	}
 
-	for _, hook := range []string{doSysOpen, doSysOpenAt2} {
-		for _, kprobe := range kprobeKretprobePrefix {
+	for _, hook := range []string{openatSysCall, openat2SysCall} {
+		for _, traceType := range traceTypes {
 			probeList = append(probeList, manager.ProbeIdentificationPair{
-				EBPFFuncName: kprobe + "__" + hook,
+				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, hook),
 			})
 		}
 	}
@@ -479,7 +489,7 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 }
 
 func sysOpenAt2Supported() bool {
-	missing, err := ddebpf.VerifyKernelFuncs(doSysOpenAt2)
+	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
 	if err == nil && len(missing) == 0 {
 		return true
 	}
@@ -492,19 +502,20 @@ func sysOpenAt2Supported() bool {
 	return kversion >= kernel.VersionCode(5, 6, 0)
 }
 
-// getSysOpenHooksIdentifiers returns the kprobe and kretprobe for the chosen kernel function to hook, to get notification
-// about file opening. Before kernel 5.6 we use do_sys_open, otherwise we use do_sys_openat2.
+// getSysOpenHooksIdentifiers returns the enter and exit tracepoints for openat and openat2 (if supported).
 func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
-	probeSysOpen := doSysOpen
+	openatProbes := []string{openatSysCall}
 	if sysOpenAt2Supported() {
-		probeSysOpen = doSysOpenAt2
+		openatProbes = append(openatProbes, openat2SysCall)
 	}
 
-	res := make([]manager.ProbeIdentificationPair, len(kprobeKretprobePrefix))
-	for i, kprobe := range kprobeKretprobePrefix {
-		res[i] = manager.ProbeIdentificationPair{
-			EBPFFuncName: kprobe + "__" + probeSysOpen,
-			UID:          probeUID,
+	res := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
+	for _, probe := range openatProbes {
+		for _, traceType := range traceTypes {
+			res = append(res, manager.ProbeIdentificationPair{
+				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
+				UID:          probeUID,
+			})
 		}
 	}
 

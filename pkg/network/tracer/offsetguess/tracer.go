@@ -261,12 +261,13 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 	return
 }
 
-func GetIPv6LinkLocalAddress() (*net.UDPAddr, error) {
+func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 	ints, err := net.Interfaces()
 	if err != nil {
 		return nil, err
 	}
 
+	var udpAddrs []*net.UDPAddr
 	for _, i := range ints {
 		if i.Flags&net.FlagLoopback != 0 {
 			continue
@@ -279,11 +280,15 @@ func GetIPv6LinkLocalAddress() (*net.UDPAddr, error) {
 			if strings.HasPrefix(a.String(), "fe80::") && !strings.HasPrefix(i.Name, "dummy") {
 				// this address *may* have CIDR notation
 				if ar, _, err := net.ParseCIDR(a.String()); err == nil {
-					return &net.UDPAddr{IP: ar, Zone: i.Name}, nil
+					udpAddrs = append(udpAddrs, &net.UDPAddr{IP: ar, Zone: i.Name})
+					continue
 				}
-				return &net.UDPAddr{IP: net.ParseIP(a.String()), Zone: i.Name}, nil
+				udpAddrs = append(udpAddrs, &net.UDPAddr{IP: net.ParseIP(a.String()), Zone: i.Name})
 			}
 		}
+	}
+	if len(udpAddrs) > 0 {
+		return udpAddrs, nil
 	}
 	return nil, fmt.Errorf("no IPv6 link local address found")
 }
@@ -735,14 +740,20 @@ func getUDP6Conn(flowi6 bool) (*net.UDPConn, error) {
 		return nil, nil
 	}
 
-	linkLocal, err := GetIPv6LinkLocalAddress()
+	linkLocals, err := GetIPv6LinkLocalAddress()
 	if err != nil {
 		// TODO: Find a offset guessing method that doesn't need an available IPv6 interface
 		log.Debugf("unable to find ipv6 device for udp6 flow offset guessing. unconnected udp6 flows won't be traced: %s", err)
 		return nil, nil
 	}
-
-	return net.ListenUDP("udp6", linkLocal)
+	var conn *net.UDPConn
+	for _, linkLocalAddr := range linkLocals {
+		conn, err = net.ListenUDP("udp6", linkLocalAddr)
+		if err == nil {
+			return conn, err
+		}
+	}
+	return nil, err
 }
 
 // Generate an event for offset guessing

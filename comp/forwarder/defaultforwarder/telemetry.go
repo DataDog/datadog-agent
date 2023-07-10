@@ -8,11 +8,11 @@ package defaultforwarder
 import (
 	"expvar"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -82,7 +82,7 @@ func initOrchestratorExpVars() {
 	transaction.TransactionsExpvars.Set("OrchestratorManifest", &transactionsOrchestratorManifest)
 }
 
-func bumpOrchestratorPayload(nodeType int) {
+func bumpOrchestratorPayload(log log.Component, nodeType int) {
 	e, ok := transactionsIntakeOrchestrator[orchestrator.NodeType(nodeType)]
 	if !ok {
 		log.Errorf("Unknown NodeType %v, cannot bump expvar", nodeType)

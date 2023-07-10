@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Worker consumes Transaction (aka transactions) from the Forwarder and
@@ -23,6 +23,7 @@ import (
 // it back to the Forwarder to be retried later.
 type Worker struct {
 	config config.Component
+	log    log.Component
 
 	// Client the http client used to processed transactions.
 	Client *http.Client
@@ -49,6 +50,7 @@ type PointSuccessfullySent interface {
 // and push back erroneous ones into requeueChan.
 func NewWorker(
 	config config.Component,
+	log log.Component,
 	highPrioChan <-chan transaction.Transaction,
 	lowPrioChan <-chan transaction.Transaction,
 	requeueChan chan<- transaction.Transaction,
@@ -56,6 +58,7 @@ func NewWorker(
 	pointSuccessfullySent PointSuccessfullySent) *Worker {
 	return &Worker{
 		config:                config,
+		log:                   log,
 		HighPrio:              highPrioChan,
 		LowPrio:               lowPrioChan,
 		RequeueChan:           requeueChan,
@@ -89,7 +92,7 @@ func (w *Worker) Stop(purgeHighPrio bool) {
 		for {
 			select {
 			case t := <-w.HighPrio:
-				log.Debugf("Flushing one new transaction before stopping Worker")
+				w.log.Debugf("Flushing one new transaction before stopping Worker")
 				w.callProcess(t) //nolint:errcheck
 			default:
 				break L
@@ -155,7 +158,7 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = httptrace.WithClientTrace(ctx, transaction.Trace)
+	ctx = httptrace.WithClientTrace(ctx, transaction.GetClientTrace(w.log))
 	done := make(chan interface{})
 	go func() {
 		w.process(ctx, t)
@@ -180,7 +183,7 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 		select {
 		case w.RequeueChan <- t:
 		default:
-			log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
+			w.log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
 		}
 	}
 
@@ -188,11 +191,11 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	target := t.GetTarget()
 	if w.blockedList.isBlock(target) {
 		requeue()
-		log.Errorf("Too many errors for endpoint '%s': retrying later", target)
-	} else if err := t.Process(ctx, w.config, w.Client); err != nil {
+		w.log.Errorf("Too many errors for endpoint '%s': retrying later", target)
+	} else if err := t.Process(ctx, w.config, w.log, w.Client); err != nil {
 		w.blockedList.close(target)
 		requeue()
-		log.Errorf("Error while processing transaction: %v", err)
+		w.log.Errorf("Error while processing transaction: %v", err)
 	} else {
 		w.pointSuccessfullySent.OnPointSuccessfullySent(t.GetPointCount())
 		w.blockedList.recover(target)
@@ -203,7 +206,7 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 // the worker, in order to create new connections when the next transactions are processed.
 // It must not be called while a transaction is being processed.
 func (w *Worker) resetConnections() {
-	log.Debug("Resetting worker's connections")
+	w.log.Debug("Resetting worker's connections")
 	w.Client.CloseIdleConnections()
 	w.Client = NewHTTPClient(w.config)
 }

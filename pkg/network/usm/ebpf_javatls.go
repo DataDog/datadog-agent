@@ -23,8 +23,8 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/java"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -162,6 +162,14 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 		cfg:            c,
 		processMonitor: mon,
 	}
+}
+
+func (p *JavaTLSProgram) Name() string {
+	return "java-tls"
+}
+
+func (p *JavaTLSProgram) IsBuildModeSupported(buildMode) bool {
+	return true
 }
 
 func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {

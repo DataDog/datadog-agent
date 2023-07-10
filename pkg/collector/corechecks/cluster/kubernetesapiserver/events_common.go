@@ -14,7 +14,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,15 +32,15 @@ type eventHostInfo struct {
 }
 
 // getDDAlertType converts kubernetes event types into datadog alert types
-func getDDAlertType(k8sType string) metrics.EventAlertType {
+func getDDAlertType(k8sType string) event.EventAlertType {
 	switch k8sType {
 	case v1.EventTypeNormal:
-		return metrics.EventAlertTypeInfo
+		return event.EventAlertTypeInfo
 	case v1.EventTypeWarning:
-		return metrics.EventAlertTypeWarning
+		return event.EventAlertTypeWarning
 	default:
 		log.Debugf("Unknown event type '%s'", k8sType)
-		return metrics.EventAlertTypeInfo
+		return event.EventAlertTypeInfo
 	}
 }
 

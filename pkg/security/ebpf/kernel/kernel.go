@@ -223,6 +223,11 @@ func (k *Version) IsRH8Kernel() bool {
 	return k.OsRelease["PLATFORM_ID"] == "platform:el8"
 }
 
+// IsRH9Kernel returns whether the kernel is a rh9 kernel
+func (k *Version) IsRH9Kernel() bool {
+	return k.OsRelease["PLATFORM_ID"] == "platform:el9"
+}
+
 // IsSuseKernel returns whether the kernel is a suse kernel
 func (k *Version) IsSuseKernel() bool {
 	return k.IsSLESKernel() || k.OsRelease["ID"] == "opensuse-leap"

@@ -15,9 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type CollectorDemuxTestSuite struct {
@@ -29,7 +31,8 @@ type CollectorDemuxTestSuite struct {
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
 	suite.c = NewCollector()
-	suite.demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(100 * time.Hour)
+	log := fxutil.Test[log.Component](suite.T(), log.MockModule)
+	suite.demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 100*time.Hour)
 
 	suite.c.Start()
 }
@@ -171,7 +174,7 @@ func TestCollectorDemuxSuite(t *testing.T) {
 }
 
 type cancelledCheck struct {
-	check.StubCheck
+	stats.StubCheck
 	flip chan struct{}
 	flop chan struct{}
 }

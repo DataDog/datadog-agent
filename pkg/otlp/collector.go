@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 )
 
 var (
@@ -52,6 +53,7 @@ func getComponents(s serializer.MetricSerializer) (
 
 	receivers, err := receiver.MakeFactoryMap(
 		otlpreceiver.NewFactory(),
+		opencensusreceiver.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
@@ -95,6 +97,11 @@ func getBuildInfo() (component.BuildInfo, error) {
 type PipelineConfig struct {
 	// OTLPReceiverConfig is the OTLP receiver configuration.
 	OTLPReceiverConfig map[string]interface{}
+	// OpenCensusEnabled reports whether the OpenCensus receiver is enabled.
+	// WARNING: This feature is for internal use and may be removed in a minor version.
+	OpenCensusEnabled bool
+	// OpenCensusReceiverConfig specifies the configuration for the OpenCensus receiver.
+	OpenCensusReceiverConfig map[string]interface{}
 	// TracePort is the trace Agent OTLP port.
 	TracePort uint
 	// MetricsEnabled states whether OTLP metrics support is enabled.
@@ -181,6 +188,9 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, 
 		return nil, err
 	}
 
+	if cfg.OpenCensusEnabled {
+		log.Warn("The OpenCensus receiver is for internal use only and may be removed without notice.")
+	}
 	return &Pipeline{col}, nil
 }
 
