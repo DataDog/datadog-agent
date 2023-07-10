@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -697,6 +698,188 @@ func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T
 	assert.Equal(t, "eventbridge", span2.Service)
 }
 
+func TestExtractContextFromSNSSQSEvent_ValidBinaryTraceData(t *testing.T) {
+	mockSQSMessage := events.SQSMessage{
+		Body: `{
+            "Message": "mock message",
+            "MessageAttributes": {
+                "_datadog": {
+                    "Type": "Binary",
+                    "Value": "eyJ0cmFjZXBhcmVudCI6IjAwLTAwMDAwMDAwMDAwMDAwMDAxN2ZlNGQ1ODA0YWMxNzg3LTA0ZThhY2JmZGY2YWE5OTktMDEiLCJ0cmFjZXN0YXRlIjoiZGQ9czoxO3QuZG06LTEiLCJ4LWRhdGFkb2ctdHJhY2UtaWQiOiIxNzI4OTA0MzQ3Mzg3Njk3MDMxIiwieC1kYXRhZG9nLXBhcmVudC1pZCI6IjM1MzcyMjUxMDgzNTYyNDM0NSIsIngtZGF0YWRvZy1zYW1wbGluZy1wcmlvcml0eSI6IjEiLCJ4LWRhdGFkb2ctdGFncyI6Il9kZC5wLmRtPS0xIn0="
+                }
+            }
+        }`,
+	}
+
+	traceID, parentID, samplingPriority, err := extractContextFromSNSSQSEvent(mockSQSMessage)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "1728904347387697031", traceID)
+	assert.Equal(t, "353722510835624345", parentID)
+	assert.Equal(t, "1", samplingPriority)
+}
+
+func TestExtractContextFromSNSSQSEvent_InvalidBinaryTraceData(t *testing.T) {
+	// In this case, the binary payload (Value) is not a valid base64 encoding of a TraceHeader JSON object
+	mockSQSMessage := events.SQSMessage{
+		Body: `{
+            "Message": "mock message",
+            "MessageAttributes": {
+                "_datadog": {
+                    "Type": "Binary",
+                    "Value": "invalid binary data"
+                }
+            }
+        }`,
+	}
+
+	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
+
+	assert.Error(t, err)
+}
+
+func TestExtractContextFromSNSSQSEvent_InvalidJsonBody(t *testing.T) {
+	mockSQSMessage := events.SQSMessage{
+		Body: `invalid json`,
+	}
+
+	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
+	assert.Error(t, err)
+}
+
+func TestExtractContextFromSNSSQSEvent_NoDatadogTraceContext(t *testing.T) {
+	mockSQSMessage := events.SQSMessage{
+		Body: `{
+            "Message": "mock message",
+            "MessageAttributes": {}
+        }`,
+	}
+
+	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
+	assert.Error(t, err)
+	assert.Equal(t, "no Datadog trace context found", err.Error())
+}
+
+func TestExtractContextFromSNSSQSEvent_UnsupportedDataType(t *testing.T) {
+	mockSQSMessage := events.SQSMessage{
+		Body: `{
+            "Message": "mock message",
+            "MessageAttributes": {
+                "_datadog": {
+                    "Type": "Unsupported",
+                    "Value": "eyJ4LWRhdGFkb2ctdHJhY2UtaWQiOiAiMTIzNDU2Nzg5MCIsICJ4LWRhdGFkb2ctcGFyZW50LWlkIjogIjEyMzQ1Njc4OTAiLCAieC1kYXRhZG9nLXNhbXBsaW5nLXByaW9yaXR5IjogIjEuMCJ9"
+                }
+            }
+        }`,
+	}
+
+	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
+	assert.Error(t, err)
+	assert.Equal(t, "unsupported DataType in _datadog payload", err.Error())
+}
+
+func TestExtractContextFromSNSSQSEvent_InvalidBase64(t *testing.T) {
+	mockSQSMessage := events.SQSMessage{
+		Body: `{
+            "Message": "mock message",
+            "MessageAttributes": {
+                "_datadog": {
+                    "Type": "Binary",
+                    "Value": "invalid base64"
+                }
+            }
+        }`,
+	}
+
+	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
+	assert.Error(t, err)
+}
+
+func TestExtractContextFromPureSqsEvent_ValidStringTraceData(t *testing.T) {
+	mockSQSMessageAttribute := events.SQSMessageAttribute{
+		DataType: "String",
+		StringValue: aws.String(`{
+            "x-datadog-trace-id": "1234567890",
+            "x-datadog-parent-id": "1234567890",
+            "x-datadog-sampling-priority": "1.0"
+        }`),
+	}
+
+	traceID, parentID, samplingPriority, err := extractContextFromPureSqsEvent(mockSQSMessageAttribute)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "1234567890", traceID)
+	assert.Equal(t, "1234567890", parentID)
+	assert.Equal(t, "1.0", samplingPriority)
+}
+
+func TestExtractContextFromPureSqsEvent_InvalidStringTraceData(t *testing.T) {
+	// In this case, the string payload (StringValue) is not a valid TraceHeader JSON object
+	mockSQSMessageAttribute := events.SQSMessageAttribute{
+		DataType:    "String",
+		StringValue: aws.String(`invalid string data`),
+	}
+
+	_, _, _, err := extractContextFromPureSqsEvent(mockSQSMessageAttribute)
+
+	assert.Error(t, err)
+}
+
+func TestExtractContextFromPureSqsEvent_InvalidJson(t *testing.T) {
+	mockSQSMessageAttribute := events.SQSMessageAttribute{
+		DataType:    "String",
+		StringValue: aws.String(`invalid json`),
+	}
+
+	_, _, _, err := extractContextFromPureSqsEvent(mockSQSMessageAttribute)
+	assert.Error(t, err)
+}
+
+func TestExtractContextFromPureSqsEvent_UnsupportedDataType(t *testing.T) {
+	mockSQSMessageAttribute := events.SQSMessageAttribute{
+		DataType: "Unsupported",
+		StringValue: aws.String(`{
+            "x-datadog-trace-id": "1234567890",
+            "x-datadog-parent-id": "1234567890",
+            "x-datadog-sampling-priority": "1.0"
+        }`),
+	}
+
+	_, _, _, err := extractContextFromPureSqsEvent(mockSQSMessageAttribute)
+	assert.Error(t, err)
+	assert.Equal(t, "unsupported DataType in _datadog payload", err.Error())
+}
+
+func TestConvertToUint64_ValidInput(t *testing.T) {
+	str := "1234567890"
+	result, err := convertToUint64(str)
+
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1234567890), result)
+}
+
+func TestConvertToUint64_InvalidInput(t *testing.T) {
+	str := "invalid"
+	_, err := convertToUint64(str)
+
+	assert.Error(t, err)
+}
+
+func TestConvertToFloat64_ValidInput(t *testing.T) {
+	str := "123.45"
+	result, err := convertToFloat64(str)
+
+	assert.NoError(t, err)
+	assert.Equal(t, float64(123.45), result)
+}
+
+func TestConvertToFloat64_InvalidInput(t *testing.T) {
+	str := "invalid"
+	_, err := convertToFloat64(str)
+
+	assert.Error(t, err)
+}
+
 func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
 	var sqsRequest events.SQSEvent
 	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
@@ -705,6 +888,7 @@ func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
 	span := inferredSpan.Span
 	assert.Equal(t, uint64(2684756524522091840), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
+	assert.Equal(t, map[string]float64(map[string]float64{"_sampling_priority_v1": 1.0}), span.Metrics)
 	assert.Equal(t, int64(1634662094538000000), span.Start)
 	assert.Equal(t, "sqs", span.Service)
 	assert.Equal(t, "aws.sqs", span.Name)
