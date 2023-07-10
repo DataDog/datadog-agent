@@ -20,12 +20,12 @@ type MountInfo struct {
 
 const name = "filesystem"
 
-func (self *FileSystem) Name() string {
+func (fs *FileSystem) Name() string {
 	return name
 }
 
-func (self *FileSystem) Collect() (interface{}, error) {
-	mounts, err := self.Get()
+func (fs *FileSystem) Collect() (interface{}, error) {
+	mounts, err := fs.Get()
 	if err != nil {
 		return nil, err
 	}
@@ -43,6 +43,6 @@ func (self *FileSystem) Collect() (interface{}, error) {
 	return results, nil
 }
 
-func (self *FileSystem) Get() ([]MountInfo, error) {
+func (fs *FileSystem) Get() ([]MountInfo, error) {
 	return getFileSystemInfo()
 }

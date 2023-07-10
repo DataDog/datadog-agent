@@ -16,33 +16,33 @@ import (
 
 // These FS types should be excluded from listing
 var IgnoredFSTypes = map[string]struct{}{
-	"autofs":      struct{}{},
-	"debugfs":     struct{}{},
-	"devfs":       struct{}{},
-	"devpts":      struct{}{},
-	"fuse.portal": struct{}{},
-	"fusectl":     struct{}{},
-	"ignore":      struct{}{},
-	"kernfs":      struct{}{},
-	"none":        struct{}{},
-	"proc":        struct{}{},
-	"subfs":       struct{}{},
-	"mqueue":      struct{}{},
-	"rpc_pipefs":  struct{}{},
-	"sysfs":       struct{}{},
+	"autofs":      {},
+	"debugfs":     {},
+	"devfs":       {},
+	"devpts":      {},
+	"fuse.portal": {},
+	"fusectl":     {},
+	"ignore":      {},
+	"kernfs":      {},
+	"none":        {},
+	"proc":        {},
+	"subfs":       {},
+	"mqueue":      {},
+	"rpc_pipefs":  {},
+	"sysfs":       {},
 }
 
 // These FS types are known to be remote
 var RemoteFSTypes = map[string]struct{}{
-	"acfs":       struct{}{},
-	"afs":        struct{}{},
-	"auristorfs": struct{}{},
-	"coda":       struct{}{},
-	"fhgfs":      struct{}{},
-	"gpfs":       struct{}{},
-	"ibrix":      struct{}{},
-	"ocfs2":      struct{}{},
-	"vxfs":       struct{}{},
+	"acfs":       {},
+	"afs":        {},
+	"auristorfs": {},
+	"coda":       {},
+	"fhgfs":      {},
+	"gpfs":       {},
+	"ibrix":      {},
+	"ocfs2":      {},
+	"vxfs":       {},
 }
 
 func getFileSystemInfo() ([]MountInfo, error) {
