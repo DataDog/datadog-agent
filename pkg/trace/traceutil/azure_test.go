@@ -57,9 +57,6 @@ func TestGetWindowsRuntime(t *testing.T) {
 		return ""
 	})
 	node := getRuntime("windows", func(s string) string {
-		if s == "WEBSITE_STACK" {
-			return "NODE"
-		}
 		if s == "WEBSITE_NODE_DEFAULT_VERSION" {
 			return "~18"
 		}

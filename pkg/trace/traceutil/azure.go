@@ -101,7 +101,7 @@ func getRuntime(websiteOS string, getenv func(string) string) (rt string) {
 	switch websiteOS {
 	case "windows":
 		rt = getWindowsRuntime(getenv)
-	case "linux":
+	case "linux", "darwin":
 		rt = getLinuxRuntime(getenv)
 	default:
 		rt = unknown
@@ -111,10 +111,9 @@ func getRuntime(websiteOS string, getenv func(string) string) (rt string) {
 }
 
 func getWindowsRuntime(getenv func(string) string) (rt string) {
-	env := getenv("WEBSITE_STACK")
-	if env == "JAVA" {
+	if getenv("WEBSITE_STACK") == "JAVA" {
 		rt = javaFramework
-	} else if env == "NODE" || hasEnv("WEBSITE_NODE_DEFAULT_VERSION", getenv) {
+	} else if hasEnv("WEBSITE_NODE_DEFAULT_VERSION", getenv) {
 		rt = nodeFramework
 	} else if hasEnv("DOTNET_CLI_TELEMETRY_PROFILE", getenv) {
 		rt = dotnetFramework
