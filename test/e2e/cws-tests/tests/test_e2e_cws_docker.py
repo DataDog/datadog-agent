@@ -48,7 +48,7 @@ class TestE2EDocker(unittest.TestCase):
         desc = f"e2e test rule {test_id}"
         data = None
         agent_rule_name = f"e2e_agent_rule_{test_id}"
-        rc_enabled = os.getenv("DD_RC_ENABLED") != ""
+        rc_enabled = os.getenv("DD_RC_ENABLED") is not None
 
         with Step(msg=f"check agent rule({test_id}) creation", emoji=":straight_ruler:"):
             self.agent_rule_id = self.app.create_cws_agent_rule(
