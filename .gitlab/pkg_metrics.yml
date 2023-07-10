@@ -149,6 +149,9 @@ send_pkg_size-a7:
             add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/system-probe | sed 's/\([0-9]\+\).\+/\1/') bin:system-probe os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
             if [[ "$arch" == "amd64" || "$os" == "debian" ]]; then add_metric datadog.agent.binary.size $(du -sB1 ${base}/dogstatsd/opt/datadog-dogstatsd/bin/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') bin:dogstatsd os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}; fi
             add_metric datadog.agent.binary.size $(du -sB1 ${base}/iot-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
+            if [ -f "${base}/heroku-agent/opt/datadog-agent/bin/agent/agent" ]; then
+                add_metric datadog.agent.binary.size $(du -sB1 ${base}/heroku-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:heroku-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch};
+            fi
         }
 
     # We silence dpkg and cpio output so we don't exceed gitlab log limit
