@@ -21,6 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	symbolChunkSize = uint64(100)
+)
+
 // getSymbolNameByEntry extracts from the string data section the string in the given position.
 // If the symbol name is shorter or longer than the given min and max (==len(preallocatedBuf)) then we return false.
 // preAllocatedBuf is a pre allocated buffer with a constant length (== max length among all given symbols) to spare
@@ -124,20 +128,17 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 	// The size of the buffer is maxSymbolNameSize + 1, for null termination.
 	symbolNameBuf := make([]byte, maxSymbolNameSize+1)
 
-	const symbolChunkSize = int64(100)
-
-	chunkSize := symbolChunkSize * int64(symbolSize)
-
+	symbolSizeUint64 := uint64(symbolSize)
+	chunkSize := symbolChunkSize * symbolSizeUint64
 	symbolsCache := make([]byte, chunkSize)
-	var symbol elf.Symbol
 
 	var locationInCache int64
 
 	// Iterating through the symbol table. We skip the first symbolSize bytes as they are zeros.
-	for readLocation := int64(symbolSize); uint64(readLocation) < symbolSection.Size; readLocation += int64(symbolSize) {
+	for readLocation := symbolSizeUint64; readLocation < symbolSection.Size; readLocation += symbolSizeUint64 {
 		// Should read again
-		if (readLocation-int64(symbolSize))/int64(symbolSize)%symbolChunkSize == 0 {
-			_, err := symbolSection.ReaderAt.ReadAt(symbolsCache, readLocation)
+		if (readLocation-symbolSizeUint64)/symbolSizeUint64%symbolChunkSize == 0 {
+			_, err := symbolSection.ReaderAt.ReadAt(symbolsCache, int64(readLocation))
 			if err != nil && err != io.EOF {
 				log.Debugf("failed reading symbol entry %s", err)
 				return nil, err
@@ -167,6 +168,7 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 			continue
 		}
 
+		var symbol elf.Symbol
 		// Complete the symbol reading.
 		fillSymbol(&symbol, f.ByteOrder, string(symbolNameBuf[:symbolNameSize]), symbolsCache[locationInCache+4:locationInCache+int64(symbolSize)-4], is64Bit)
 		symbols = append(symbols, symbol)
