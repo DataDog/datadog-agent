@@ -13,8 +13,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pb/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -43,7 +42,7 @@ func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (r
 }
 
 type stream struct {
-	cl pbgo.AgentSecure_WorkloadmetaStreamEntitiesClient
+	cl pb.AgentSecure_WorkloadmetaStreamEntitiesClient
 }
 
 func (s *stream) Recv() (interface{}, error) {
