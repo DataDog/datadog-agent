@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package config
 
 import (
@@ -22,22 +24,67 @@ type InitConfig struct {
 	MinCollectionInterval int `yaml:"min_collection_interval"`
 }
 
+type QuerySamplesConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type QueryMetricsConfig struct {
+	Enabled               bool `yaml:"enabled"`
+	IncludeDatadogQueries bool `yaml:"include_datadog_queries"`
+}
+
+type SysMetricsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type TablespacesConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type ProcessMemoryConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type SharedMemoryConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type ExecutionPlansConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type AgentSQLTrace struct {
+	Enabled    bool `yaml:"enabled"`
+	Binds      bool `yaml:"binds"`
+	Waits      bool `yaml:"waits"`
+	TracedRuns int  `yaml:"traced_runs"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                 string              `yaml:"server"`
-	Port                   int                 `yaml:"port"`
-	ServiceName            string              `yaml:"service_name"`
-	Username               string              `yaml:"username"`
-	Password               string              `yaml:"password"`
-	TnsAlias               string              `yaml:"tns_alias"`
-	TnsAdmin               string              `yaml:"tns_admin"`
-	DBM                    bool                `yaml:"dbm"`
-	Tags                   []string            `yaml:"tags"`
-	LogUnobfuscatedQueries bool                `yaml:"log_unobfuscated_queries"`
-	ObfuscatorOptions      obfuscate.SQLConfig `yaml:"obfuscator_options"`
-	InstantClient          bool                `yaml:"instant_client"`
-	ReportedHostname       string              `yaml:"reported_hostname"`
-	QueryMetrics           bool                `yaml:"query_metrics"`
+	Server                 string               `yaml:"server"`
+	Port                   int                  `yaml:"port"`
+	ServiceName            string               `yaml:"service_name"`
+	Username               string               `yaml:"username"`
+	Password               string               `yaml:"password"`
+	TnsAlias               string               `yaml:"tns_alias"`
+	TnsAdmin               string               `yaml:"tns_admin"`
+	Protocol               string               `yaml:"protocol"`
+	Wallet                 string               `yaml:"wallet"`
+	DBM                    bool                 `yaml:"dbm"`
+	Tags                   []string             `yaml:"tags"`
+	LogUnobfuscatedQueries bool                 `yaml:"log_unobfuscated_queries"`
+	ObfuscatorOptions      obfuscate.SQLConfig  `yaml:"obfuscator_options"`
+	InstantClient          bool                 `yaml:"instant_client"`
+	ReportedHostname       string               `yaml:"reported_hostname"`
+	QuerySamples           QuerySamplesConfig   `yaml:"query_samples"`
+	QueryMetrics           QueryMetricsConfig   `yaml:"query_metrics"`
+	SysMetrics             SysMetricsConfig     `yaml:"sysmetrics"`
+	Tablespaces            TablespacesConfig    `yaml:"tablespaces"`
+	ProcessMemory          ProcessMemoryConfig  `yaml:"process_memory"`
+	SharedMemory           SharedMemoryConfig   `yaml:"shared_memory"`
+	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
+	AgentSQLTrace          AgentSQLTrace        `yaml:"agent_sql_trace"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -60,11 +107,20 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance := InstanceConfig{}
 	initCfg := InitConfig{}
 
+	// Defaults begin
 	instance.ObfuscatorOptions.DBMS = common.IntegrationName
 	instance.ObfuscatorOptions.TableNames = true
 	instance.ObfuscatorOptions.CollectCommands = true
 	instance.ObfuscatorOptions.CollectComments = true
-	//instance.QueryMetrics = true
+
+	instance.QuerySamples.Enabled = true
+	instance.QueryMetrics.Enabled = true
+
+	instance.SysMetrics.Enabled = true
+	instance.Tablespaces.Enabled = true
+	instance.ProcessMemory.Enabled = true
+	instance.SharedMemory.Enabled = true
+	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
 		return nil, err
