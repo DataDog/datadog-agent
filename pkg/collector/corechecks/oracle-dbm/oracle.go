@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	_ "github.com/godror/godror"
-	ttlcache "github.com/jellydator/ttlcache/v2"
 	"github.com/jmoiron/sqlx"
+	cache "github.com/patrickmn/go-cache"
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
@@ -71,8 +71,8 @@ type Check struct {
 	filePath                                string
 	isRDS                                   bool
 	sqlTraceRunsCount                       int
-	fqtCache                                ttlcache.SimpleCache
-	planCache                               ttlcache.SimpleCache
+	fqtEmitted                              *cache.Cache
+	planEmitted                             *cache.Cache
 }
 
 // Run executes the check.
@@ -256,15 +256,8 @@ func (c *Check) Teardown() {
 			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
 		}
 	}
-	if c.fqtCache != nil {
-		c.fqtCache.Purge()
-		c.fqtCache.Close()
-	}
-	if c.planCache != nil {
-		c.planCache.Purge()
-		c.planCache.Close()
-	}
-
+	c.fqtEmitted = nil
+	c.planEmitted = nil
 }
 
 // Configure configures the Oracle check.
@@ -296,14 +289,13 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 
 	c.tagsString = strings.Join(c.tags, ",")
 
-	c.fqtCache = ttlcache.NewCache()
-	c.fqtCache.SetTTL(time.Duration(60 * time.Minute))
-	c.planCache = ttlcache.NewCache()
+	c.fqtEmitted = cache.New(60*time.Minute, 10*time.Minute)
+
 	var planCacheRetention = c.config.QueryMetrics.PlanCacheRetention
 	if planCacheRetention == 0 {
 		planCacheRetention = 1
 	}
-	c.planCache.SetTTL(time.Duration(planCacheRetention) * time.Minute)
+	c.planEmitted = cache.New(time.Duration(planCacheRetention)*time.Minute, 10*time.Minute)
 
 	return nil
 }

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ttlcache "github.com/jellydator/ttlcache/v2"
+	cache "github.com/patrickmn/go-cache"
 )
 
 /*
@@ -403,7 +403,7 @@ func GetStatementsMetricsForKeys(c *Check, key string, negator string) ([]Statem
 	var statementMetrics []StatementMetricsDB
 	err := selectWrapper(c, &statementMetrics, fmt.Sprintf(STATEMENT_METRICS_QUERY, key, negator, key), 2*c.config.QueryMetrics.CollectionInterval, c.config.QueryMetrics.DBRowsLimit)
 	if err != nil {
-		return nil, fmt.Errorf("error executing statement metrics query: %w %s", err)
+		return nil, fmt.Errorf("error executing statement metrics query: %w", err)
 	}
 	return statementMetrics, nil
 }
@@ -601,7 +601,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 
-			if _, err := c.fqtCache.Get(queryRow.QuerySignature); err == ttlcache.ErrNotFound {
+			if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
 				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
 				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
 				FQTDBOracle := FQTDBOracle{
@@ -623,13 +623,13 @@ func (c *Check) StatementMetrics() (int, error) {
 				}
 				log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
 				sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
-				c.fqtCache.Set(queryRow.QuerySignature, "1")
+				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
 			if c.config.ExecutionPlans.Enabled {
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
-				_, err := c.planCache.Get(planCacheKey)
-				if c.config.QueryMetrics.PlanCacheRetention == 0 || err == ttlcache.ErrNotFound {
+				_, found := c.planEmitted.Get(planCacheKey)
+				if c.config.QueryMetrics.PlanCacheRetention == 0 || !found {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
@@ -792,7 +792,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 						sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
 						log.Tracef("Plan payload %+v", string(planPayloadBytes))
-						c.planCache.Set(planCacheKey, "1")
+						c.planEmitted.Set(planCacheKey, "1", cache.DefaultExpiration)
 					} else {
 						planErrors++
 						log.Errorf("failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", err, statementMetricRow.RandomSQLID, statementMetricRow.PlanHashValue)
