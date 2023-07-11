@@ -1806,23 +1806,24 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	require.NoError(t, err)
 	t.Cleanup(func() { syscall.Close(sfd) })
 
-	err = syscall.Bind(sfd, &syscall.SockaddrInet4{})
+	err = syscall.Bind(sfd, &syscall.SockaddrInet4{Addr: netip.MustParseAddr("127.0.0.1").As4()})
 	require.NoError(t, err)
 
 	err = syscall.Sendto(sfd, []byte("foo"), 0, &syscall.SockaddrInet4{Port: 8125, Addr: netip.MustParseAddr("127.0.0.1").As4()})
 	require.NoError(t, err)
 
-	var conn network.ConnectionStats
+	_sa, err := syscall.Getsockname(sfd)
+	require.NoError(t, err)
+	sa := _sa.(*syscall.SockaddrInet4)
+	ap := netip.AddrPortFrom(netip.AddrFrom4(sa.Addr), uint16(sa.Port))
+	raddr, err := net.ResolveUDPAddr("udp", server.address)
+	require.NoError(t, err)
+
+	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
-		for _, c := range conns.Conns {
-			if c.DPort == 8125 {
-				conn = c
-				return true
-			}
-		}
-
-		return false
+		conn, _ = findConnection(net.UDPAddrFromAddrPort(ap), raddr, conns)
+		return conn != nil
 	}, 3*time.Second, 500*time.Millisecond)
 
 	assert.Equal(t, network.OUTGOING, conn.Direction)
