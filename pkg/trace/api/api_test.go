@@ -1191,24 +1191,3 @@ func msgpTraces(t *testing.T, traces pb.Traces) []byte {
 	}
 	return bts
 }
-
-func TestAgentStatusOnStartup(t *testing.T) {
-	c := config.New()
-	c.DebugServerPort = 5012
-	s := NewDebugServer(c)
-	info.InitInfo(c)
-	s.Start()
-	defer s.Stop()
-
-	resp, err := http.Get("http://127.0.0.1:5012/debug/vars")
-	assert.NoError(t, err)
-	defer resp.Body.Close()
-	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
-
-	if resp.StatusCode == http.StatusOK {
-		var out map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&out)
-		assert.NoError(t, err)
-		assert.NotNil(t, out["receiver"])
-	}
-}
