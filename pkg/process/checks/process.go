@@ -41,8 +41,9 @@ const (
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 	var extractors []metadata.Extractor
 	var wlmServer *workloadmeta.GRPCServer
+	var wlmExtractor *workloadmeta.WorkloadMetaExtractor
 	if workloadmeta.Enabled(config) {
-		wlmExtractor := workloadmeta.NewWorkloadMetaExtractor(config)
+		wlmExtractor = workloadmeta.NewWorkloadMetaExtractor(config)
 		srv := workloadmeta.NewGRPCServer(config, wlmExtractor)
 		err := srv.Start()
 		if err != nil {
@@ -54,11 +55,12 @@ func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 	}
 
 	return &ProcessCheck{
-		config:             config,
-		scrubber:           procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:      NewLookupIdProbe(config),
-		extractors:         extractors,
-		workloadMetaServer: wlmServer,
+		config:                config,
+		scrubber:              procutil.NewDefaultDataScrubber(),
+		lookupIdProbe:         NewLookupIdProbe(config),
+		extractors:            extractors,
+		workloadMetaServer:    wlmServer,
+		workloadmetaExtractor: wlmExtractor,
 	}
 }
 
@@ -113,8 +115,10 @@ type ProcessCheck struct {
 
 	lookupIdProbe *LookupIdProbe
 
-	extractors         []metadata.Extractor
-	workloadMetaServer *workloadmeta.GRPCServer
+	extractors []metadata.Extractor
+
+	workloadmetaExtractor *workloadmeta.WorkloadMetaExtractor
+	workloadMetaServer    *workloadmeta.GRPCServer
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -245,6 +249,11 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.lastContainerRates = lastContainerRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)
+	}
+
+	// Notify the workload meta extractor that the mapping between pid and cid has changed
+	if p.workloadmetaExtractor != nil {
+		p.workloadmetaExtractor.SetLastPidToCid(pidToCid)
 	}
 
 	// Keep track of containers addresses

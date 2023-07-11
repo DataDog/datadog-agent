@@ -22,6 +22,7 @@ const subsystem = "WorkloadMetaExtractor"
 // ProcessEntity represents a process exposed by the WorkloadMeta extractor
 type ProcessEntity struct {
 	Pid          int32
+	ContainerId  string
 	NsPid        int32
 	CreationTime int64
 	Language     *languagemodels.Language
@@ -42,6 +43,8 @@ type WorkloadMetaExtractor struct {
 	cacheSizeGuage  telemetry.Gauge
 	oldDiffDropped  telemetry.SimpleCounter
 	diffChannelFull telemetry.SimpleCounter
+
+	pidToCid map[int]string
 }
 
 // ProcessCacheDiff holds the information about processes that have been created and deleted in the past
@@ -64,6 +67,14 @@ func NewWorkloadMetaExtractor(config config.ConfigReader) *WorkloadMetaExtractor
 		oldDiffDropped:  telemetry.NewSimpleCounter(subsystem, "diff_dropped", "The number of times a diff is removed from the queue due to the diffChan being full."),
 		diffChannelFull: telemetry.NewSimpleCounter(subsystem, "diff_chan_full", "The number of times the extractor was unable to write to the diffChan due to it being full. This should never happen."),
 	}
+}
+
+// SetLastPidToCid is a utility function that should be called from either the process collector, or the process check.
+// pidToCid will be used by the extractor to add enrich process entities with their associated container id.
+// This method was added to avoid the cost of reaching out to workloadMeta on a hot path where `GetContainers` will do an O(n) copy of its entire store.
+// Note that this method is not thread safe.
+func (w *WorkloadMetaExtractor) SetLastPidToCid(pidToCid map[int]string) {
+	w.pidToCid = pidToCid
 }
 
 // Extract detects the process language, creates a process entity, and sends that entity to WorkloadMeta
@@ -106,6 +117,7 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 			NsPid:        proc.NsPid,
 			CreationTime: creationTime,
 			Language:     lang,
+			ContainerId:  w.pidToCid[int(pid)],
 		}
 		newEntities = append(newEntities, entity)
 		newCache[hashProcess(pid, proc.Stats.CreateTime)] = entity
