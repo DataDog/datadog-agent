@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Improve Oracle query metrics algorithm and the execution time of execution plan fetching.
+    Improve Oracle query metrics algorithm and the fetching time for execution plans.
