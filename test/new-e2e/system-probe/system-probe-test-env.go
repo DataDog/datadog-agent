@@ -35,6 +35,8 @@ const (
 	PrimaryAZ   = "subnet-03061a1647c63c3c3"
 	SecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
 	BackupAZ    = "subnet-071213aedb0e1ae54"
+
+	DatadogAgentQAEnv = "aws/agent-qa"
 )
 
 var availabilityZones = []string{PrimaryAZ, SecondaryAZ, BackupAZ}
@@ -117,6 +119,10 @@ func credentials() (string, error) {
 	return password, nil
 }
 
+func isCIRun(env string) bool {
+	return env == DatadogAgentQAEnv
+}
+
 func getAvailabilityZone(azIndx int) string {
 	return availabilityZones[azIndx%len(availabilityZones)]
 }
@@ -181,7 +187,9 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		// Set AZ in retry block so we can change if needed.
-		config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: getAvailabilityZone(currentAZ)}
+		if isCIRun(opts.InfraEnv) {
+			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: getAvailabilityZone(currentAZ)}
+		}
 
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 			if err := microvms.Run(ctx); err != nil {
@@ -200,7 +208,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 				// Retry if we have capacity issues in our current AZ.
 				// We switch to a different AZ and attempt to launch the instance again.
-			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
+			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") && isCIRun(opts.InfraEnv) {
 				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(currentAZ), getAvailabilityZone(currentAZ+1))
 				currentAZ += 1
 				return retry.RetryableError(err)
