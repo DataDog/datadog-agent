@@ -7,7 +7,6 @@ package pb
 import (
 	binary "encoding/binary"
 	fmt "fmt"
-	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 	math "math"
@@ -20,56 +19,6 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
-
-func (m *Span) CloneVT() *Span {
-	if m == nil {
-		return (*Span)(nil)
-	}
-	r := &Span{
-		Service:  m.Service,
-		Name:     m.Name,
-		Resource: m.Resource,
-		TraceID:  m.TraceID,
-		SpanID:   m.SpanID,
-		ParentID: m.ParentID,
-		Start:    m.Start,
-		Duration: m.Duration,
-		Error:    m.Error,
-		Type:     m.Type,
-	}
-	if rhs := m.Meta; rhs != nil {
-		tmpContainer := make(map[string]string, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v
-		}
-		r.Meta = tmpContainer
-	}
-	if rhs := m.Metrics; rhs != nil {
-		tmpContainer := make(map[string]float64, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v
-		}
-		r.Metrics = tmpContainer
-	}
-	if rhs := m.MetaStruct; rhs != nil {
-		tmpContainer := make(map[string][]byte, len(rhs))
-		for k, v := range rhs {
-			tmpBytes := make([]byte, len(v))
-			copy(tmpBytes, v)
-			tmpContainer[k] = tmpBytes
-		}
-		r.MetaStruct = tmpContainer
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *Span) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
 
 func (m *Span) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {

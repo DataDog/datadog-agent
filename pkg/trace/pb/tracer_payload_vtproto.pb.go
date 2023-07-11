@@ -6,7 +6,6 @@ package pb
 
 import (
 	fmt "fmt"
-	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 )
@@ -17,79 +16,6 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
-
-func (m *TraceChunk) CloneVT() *TraceChunk {
-	if m == nil {
-		return (*TraceChunk)(nil)
-	}
-	r := &TraceChunk{
-		Priority:     m.Priority,
-		Origin:       m.Origin,
-		DroppedTrace: m.DroppedTrace,
-	}
-	if rhs := m.Spans; rhs != nil {
-		tmpContainer := make([]*Span, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v.CloneVT()
-		}
-		r.Spans = tmpContainer
-	}
-	if rhs := m.Tags; rhs != nil {
-		tmpContainer := make(map[string]string, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v
-		}
-		r.Tags = tmpContainer
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *TraceChunk) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *TracerPayload) CloneVT() *TracerPayload {
-	if m == nil {
-		return (*TracerPayload)(nil)
-	}
-	r := &TracerPayload{
-		ContainerID:     m.ContainerID,
-		LanguageName:    m.LanguageName,
-		LanguageVersion: m.LanguageVersion,
-		TracerVersion:   m.TracerVersion,
-		RuntimeID:       m.RuntimeID,
-		Env:             m.Env,
-		Hostname:        m.Hostname,
-		AppVersion:      m.AppVersion,
-	}
-	if rhs := m.Chunks; rhs != nil {
-		tmpContainer := make([]*TraceChunk, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v.CloneVT()
-		}
-		r.Chunks = tmpContainer
-	}
-	if rhs := m.Tags; rhs != nil {
-		tmpContainer := make(map[string]string, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v
-		}
-		r.Tags = tmpContainer
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *TracerPayload) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
 
 func (m *TraceChunk) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {

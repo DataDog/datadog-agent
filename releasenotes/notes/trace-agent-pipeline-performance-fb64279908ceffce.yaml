@@ -9,41 +9,41 @@
 features:
   - |
     APM - This change improves the acceptance and queueing strategy for trace
-    payloads sent to the trace agent. These changes create a system of
-    backpressure in the trace agent, causing it to reject payloads when it
+    payloads sent to the Trace Agent. These changes create a system of
+    backpressure in the Trace Agent, causing it to reject payloads when it
     cannot keep up with the rate of traffic, rather than buffering and causing
     OOM issues.
     
     This change includes several configuration options which can be used to
     control the queue parameters, although they should not usually need to
-    be adjusted, as the defaults have been tested and confirmed to be good
+    be adjusted, as the defaults have been tested and confirmed to be sufficient
     for both very low load and very high load.
     
     These configuration options are:
     apm_config.trace_buffer / DD_APM_TRACE_BUFFER:
-      this controls the size of the buffer that holds traces which were accepted
+      This controls the size of the buffer that holds traces which were accepted
       and decoded, but are waiting to be processed. In practice this should not
-      be adjusted, as it does not increase throughput, but balloons the RAM usage
-      of the trace agent considerably. The only time when this may be useful is for
+      be adjusted, as it does not increase throughput, but significantly increases
+      the RAM usage of the Trace Agent. The only time when this may be useful is for
       extremely bursty, large loads.
 
     apm_config.decoders / DD_APM_DECODERS:
-      this controls the number of simultaneous goroutines that are allowed to decode
-      payloads. By default, this is max(1, 0.5 * (# cores allowed to the trace agent))
+      This controls the number of simultaneous goroutines that are allowed to decode
+      payloads. By default, this is max(1, 0.5 * (# cores allowed to the Trace Agent))
       which is the same as the number of processing workers. This is enough to keep
       the processor routines busy without creating CPU contention or expanding RAM.
 
     apm_config.decoder_timeout / DD_APM_DECODER_TIMEOUT:
-      this controls how long decoders will wait for a turn to decode a payload. There
-      are a limited number of simultaneous decoders allowed (controlled by
-      apm_config.decoders), and when there are more payloads being submitted, they wait
-      for a turn to be decoded. Under heavy load, this can cause long delays. The timeout
-      ensures that client tracers don't wait indefinitely for a response. The default
-      timeout is 1 second, after which the trace agent will send a 429 Too Many Requests.
+      This controls how long decoders wait for a turn to decode a payload. There are a
+      limited number of simultaneous decoders allowed (controlled by apm_config.decoders),
+      and when there are more payloads being submitted, they wait for a turn to be decoded.
+      Under heavy load, this can cause long delays. The timeout ensures that client tracers
+      don't wait indefinitely for a response. The default timeout is 1 second, after which
+      the Trace Agent sends a 429 Too Many Requests error.
 
     apm_config.max_connections / DD_APM_MAX_CONNECTIONS:
-      this controls the maximum number of active network connections that are allowed
-      into the agent's http server. This number's default 1000, which is high enough that
-      it should not come into play except for agents with extreme numbers of clients.
-      In practice, we should not expect to see this limit reached and it is only here
-      to prevent accidental or intentional denial-of-service attacks on the trace agent.
+      This controls the maximum number of active network connections that are allowed
+      into the Agent's HTTP server. This number defaults to 1000, which is high enough that
+      it should not take effect except for Agents with extreme numbers of clients.
+      In practice, the Trace Agent is not expected to reach this limit and it is only there
+      to prevent accidental or intentional denial-of-service attacks on the Trace Agent.

@@ -7,7 +7,6 @@ package pb
 import (
 	binary "encoding/binary"
 	fmt "fmt"
-	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 	math "math"
@@ -19,43 +18,6 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
-
-func (m *AgentPayload) CloneVT() *AgentPayload {
-	if m == nil {
-		return (*AgentPayload)(nil)
-	}
-	r := &AgentPayload{
-		HostName:           m.HostName,
-		Env:                m.Env,
-		AgentVersion:       m.AgentVersion,
-		TargetTPS:          m.TargetTPS,
-		ErrorTPS:           m.ErrorTPS,
-		RareSamplerEnabled: m.RareSamplerEnabled,
-	}
-	if rhs := m.TracerPayloads; rhs != nil {
-		tmpContainer := make([]*TracerPayload, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v.CloneVT()
-		}
-		r.TracerPayloads = tmpContainer
-	}
-	if rhs := m.Tags; rhs != nil {
-		tmpContainer := make(map[string]string, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v
-		}
-		r.Tags = tmpContainer
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *AgentPayload) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
 
 func (m *AgentPayload) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
