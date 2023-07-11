@@ -45,6 +45,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/logs"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -54,7 +56,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -168,6 +169,7 @@ func run(log log.Component,
 	forwarder defaultforwarder.Component,
 	rcclient rcclient.Component,
 	cliParams *cliParams,
+	logsAgent logsAgent.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server)
@@ -209,7 +211,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder, logsAgent); err != nil {
 		return err
 	}
 
@@ -233,10 +235,11 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		capture replay.Component,
 		rcclient rcclient.Component,
 		forwarder defaultforwarder.Component,
+		logsAgent logsAgent.Component,
 	) error {
 		dsdServer = server
 
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder)
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder, logsAgent)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -276,6 +279,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		dogstatsd.Bundle,
 		rcclient.Module,
+		logs.Bundle,
 	)
 }
 
@@ -290,7 +294,9 @@ func startAgent(
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
 	rcclient rcclient.Component,
-	sharedForwarder defaultforwarder.Component) error {
+	sharedForwarder defaultforwarder.Component,
+	logsAgent logsAgent.Component,
+) error {
 
 	var err error
 
@@ -413,6 +419,7 @@ func startAgent(
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
+	logsAgent.AddScheduler(common.AC)
 
 	// start the cloudfoundry container tagger
 	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {
@@ -503,18 +510,6 @@ func startAgent(
 		}
 	}
 
-	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents)
-	if pkgconfig.Datadog.GetBool("logs_enabled") || pkgconfig.Datadog.GetBool("log_enabled") {
-		if pkgconfig.Datadog.GetBool("log_enabled") {
-			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
-		}
-		if _, err := logs.Start(common.AC); err != nil {
-			log.Error("Could not start logs-agent: ", err)
-		}
-	} else {
-		log.Info("logs-agent disabled")
-	}
-
 	// Start NetFlow server
 	// This must happen after LoadComponents is set up (via common.LoadComponents).
 	// netflow.StartServer uses AgentDemultiplexer, that uses ContextResolver, that uses the tagger (initialized by LoadComponents)
@@ -587,7 +582,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component) {
 		demux.Stop(true)
 	}
 
-	logs.Stop()
 	gui.StopGUIServer()
 	profiler.Stop()
 
