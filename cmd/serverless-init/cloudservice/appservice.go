@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -58,7 +59,5 @@ func (a *AppService) Init() error {
 }
 
 func isAppService() bool {
-	_, exists_linux := os.LookupEnv(RunZip)
-	_, exists_win := os.LookupEnv(AppLogsTrace)
-	return exists_linux || exists_win
+	return config.InAzureAppServices(os.LookupEnv)
 }

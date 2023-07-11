@@ -12,9 +12,9 @@ import (
 )
 
 func TestInAzureAppServices(t *testing.T) {
-	isLinuxAzure := inAzureAppServices(func(s string) string { return "APPSVC_RUN_ZIP" })
-	isWindowsAzure := inAzureAppServices(func(s string) string { return "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED" })
-	isNotAzure := inAzureAppServices(func(s string) string { return "" })
+	isLinuxAzure := InAzureAppServices(func(s string) (string, bool) { return "", true })
+	isWindowsAzure := InAzureAppServices(func(s string) (string, bool) { return "", true })
+	isNotAzure := InAzureAppServices(func(s string) (string, bool) { return "", false })
 	assert.True(t, isLinuxAzure)
 	assert.True(t, isWindowsAzure)
 	assert.False(t, isNotAzure)
