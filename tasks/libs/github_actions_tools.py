@@ -179,3 +179,22 @@ def download_artifacts(run_id, destination="."):
             # Unzip it in the target destination
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(destination)
+
+
+def download_artifacts_with_retry(run_id, destination=".", retry_count=3, retry_interval=10):
+    retry = retry_count
+
+    while retry > 0:
+        try:
+            download_artifacts(run_id, destination)
+        except ConnectionResetError:
+            print(f'Connectivity issue while downloading the artifact, retrying {retry}/{retry_count}')
+            sleep(retry_interval)
+            retry -= 1
+        except Exception as e:
+            raise e
+        else:
+            print(color_message(f"Successfully downloaded artifacts for run {run_id} to {destination}", "blue"))
+            return
+    print(f'Download failed {retry_count} times, stop retry and exit 1')
+    raise Exit(code=1)
