@@ -7,6 +7,7 @@ from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobType, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
+DEFAULT_JIRA_PROJECT = "AGENTR"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = {
     "@datadog/agent-platform": DEFAULT_SLACK_CHANNEL,
@@ -38,6 +39,38 @@ GITHUB_SLACK_MAP = {
     "@datadog/database-monitoring": "#database-monitoring",
     "@datadog/agent-cspm": "#k9-cspm-ops",
     "@datadog/telemetry-and-analytics": "#instrumentation-telemetry",
+}
+
+GITHUB_JIRA_MAP = {
+    "@datadog/agent-platform": DEFAULT_JIRA_PROJECT,
+    "@datadog/documentation": DEFAULT_JIRA_PROJECT,
+    "@datadog/container-integrations": DEFAULT_JIRA_PROJECT,
+    "@datadog/platform-integrations": DEFAULT_JIRA_PROJECT,
+    "@datadog/agent-security": DEFAULT_JIRA_PROJECT,
+    "@datadog/agent-apm": DEFAULT_JIRA_PROJECT,
+    "@datadog/network-device-monitoring": DEFAULT_JIRA_PROJECT,
+    "@datadog/processes": DEFAULT_JIRA_PROJECT,
+    "@datadog/agent-metrics-logs": DEFAULT_JIRA_PROJECT,
+    "@datadog/agent-shared-components": DEFAULT_JIRA_PROJECT,
+    "@datadog/container-app": DEFAULT_JIRA_PROJECT,
+    "@datadog/metrics-aggregation": DEFAULT_JIRA_PROJECT,
+    "@datadog/serverless": DEFAULT_JIRA_PROJECT,
+    "@datadog/remote-config": DEFAULT_JIRA_PROJECT,
+    "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
+    "@datadog/ebpf-platform": DEFAULT_JIRA_PROJECT,
+    "@datadog/networks": DEFAULT_JIRA_PROJECT,
+    "@datadog/universal-service-monitoring": DEFAULT_JIRA_PROJECT,
+    "@datadog/windows-agent": DEFAULT_JIRA_PROJECT,
+    "@datadog/windows-kernel-integrations": DEFAULT_JIRA_PROJECT,
+    "@datadog/opentelemetry": DEFAULT_JIRA_PROJECT,
+    "@datadog/agent-e2e-testing": DEFAULT_JIRA_PROJECT,
+    "@datadog/software-integrity-and-trust": DEFAULT_JIRA_PROJECT,
+    "@datadog/single-machine-performance": DEFAULT_JIRA_PROJECT,
+    "@datadog/agent-integrations": DEFAULT_JIRA_PROJECT,
+    "@datadog/debugger": DEFAULT_JIRA_PROJECT,
+    "@datadog/database-monitoring": DEFAULT_JIRA_PROJECT,
+    "@datadog/agent-cspm": DEFAULT_JIRA_PROJECT,
+    "@datadog/telemetry-and-analytics": DEFAULT_JIRA_PROJECT,
 }
 
 
