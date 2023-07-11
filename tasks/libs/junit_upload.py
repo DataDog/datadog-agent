@@ -91,6 +91,8 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
             f"test.flavor:{flavor}",
             "--tags",
             f"slack_channel:{slack_channel}",
+            "--tags",
+            f"jira_project:{jira_project}",
         ]
         if additional_tags:
             args.extend(additional_tags)
