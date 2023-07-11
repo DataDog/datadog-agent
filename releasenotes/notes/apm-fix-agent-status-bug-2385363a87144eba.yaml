@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    APM: fix issue of ``agent status`` returning an error when run shortly after 
+    APM: Fix issue of ``agent status`` returning an error when run shortly after 
     starting the trace agent.
