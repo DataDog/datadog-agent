@@ -8,7 +8,7 @@
 package kubelet
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -26,7 +26,7 @@ const (
 
 // Provider provides the metrics related to a given Kubelet endpoint
 type Provider interface {
-	Provide(kubelet.KubeUtilInterface, aggregator.Sender) error
+	Provide(kubelet.KubeUtilInterface, sender.Sender) error
 }
 
 // KubeletCheck wraps the config and the metric stores needed to run the check

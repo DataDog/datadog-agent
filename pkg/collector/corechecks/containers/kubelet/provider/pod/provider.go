@@ -17,7 +17,7 @@ import (
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -54,7 +54,7 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig) *Provi
 	}
 }
 
-func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender aggregator.Sender) error {
+func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
 	pods, err := kc.GetLocalPodListWithMetadata(context.TODO())
 	if err != nil {
@@ -107,7 +107,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender aggregator.Sende
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender aggregator.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerId string) {
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerId string) {
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
@@ -130,7 +130,7 @@ func (p *Provider) generateContainerSpecMetrics(sender aggregator.Sender, pod *k
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender aggregator.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerId string) {
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerId string) {
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
 	}
@@ -209,7 +209,7 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 	}
 }
 
-func (r *runningAggregator) generateRunningAggregatorMetrics(sender aggregator.Sender) {
+func (r *runningAggregator) generateRunningAggregatorMetrics(sender sender.Sender) {
 	for hash, count := range r.runningContainersCounter {
 		sender.Gauge(common.KubeletMetricsPrefix+"containers.running", count, "", r.runningContainersTags[hash])
 	}

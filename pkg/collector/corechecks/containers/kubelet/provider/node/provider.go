@@ -11,7 +11,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -35,7 +35,7 @@ func NewProvider(config *common.KubeletConfig) *Provider {
 	}
 }
 
-func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender aggregator.Sender) error {
+func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
 	nodeSpecRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/spec/")
 	if err != nil || responseCode == 404 {
