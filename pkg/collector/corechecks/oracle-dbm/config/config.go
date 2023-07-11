@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package config
 
 import (
@@ -67,6 +69,8 @@ type InstanceConfig struct {
 	Password               string               `yaml:"password"`
 	TnsAlias               string               `yaml:"tns_alias"`
 	TnsAdmin               string               `yaml:"tns_admin"`
+	Protocol               string               `yaml:"protocol"`
+	Wallet                 string               `yaml:"wallet"`
 	DBM                    bool                 `yaml:"dbm"`
 	Tags                   []string             `yaml:"tags"`
 	LogUnobfuscatedQueries bool                 `yaml:"log_unobfuscated_queries"`

@@ -23,15 +23,19 @@ func buildKey(keys ...string) string {
 	return strings.Join(keys, confmap.KeyDelimiter)
 }
 
-func buildTracesMap(tracePort uint) (*confmap.Conf, error) {
+func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultTracesConfig)
 	if err != nil {
 		return nil, err
 	}
+	smap := map[string]interface{}{
+		buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", cfg.TracePort),
+	}
+	if cfg.OpenCensusEnabled {
+		smap[buildKey("service", "pipelines", "traces", "receivers")] = []interface{}{"otlp", "opencensus"}
+	}
 	{
-		configMap := confmap.NewFromStringMap(map[string]interface{}{
-			buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", tracePort),
-		})
+		configMap := confmap.NewFromStringMap(smap)
 		err = baseMap.Merge(configMap)
 	}
 	return baseMap, err
@@ -42,27 +46,34 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	smap := map[string]interface{}{
+		buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
+	}
+	if cfg.OpenCensusEnabled {
+		smap[buildKey("service", "pipelines", "metrics", "receivers")] = []interface{}{"otlp", "opencensus"}
+	}
 	{
-		configMap := confmap.NewFromStringMap(map[string]interface{}{
-			buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
-		})
+		configMap := confmap.NewFromStringMap(smap)
 		err = baseMap.Merge(configMap)
 	}
 	return baseMap, err
 }
 
-func buildReceiverMap(otlpReceiverConfig map[string]interface{}) *confmap.Conf {
-	return confmap.NewFromStringMap(map[string]interface{}{
-		"receivers": map[string]interface{}{"otlp": otlpReceiverConfig},
-	})
+func buildReceiverMap(cfg PipelineConfig) *confmap.Conf {
+	rcvs := map[string]interface{}{
+		"otlp": cfg.OTLPReceiverConfig,
+	}
+	if cfg.OpenCensusEnabled {
+		rcvs["opencensus"] = cfg.OpenCensusReceiverConfig
+	}
+	return confmap.NewFromStringMap(map[string]interface{}{"receivers": rcvs})
 }
 
 func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	retMap := confmap.New()
 	var errs []error
 	if cfg.TracesEnabled {
-		traceMap, err := buildTracesMap(cfg.TracePort)
+		traceMap, err := buildTracesMap(cfg)
 		errs = append(errs, err)
 
 		err = retMap.Merge(traceMap)
@@ -100,7 +111,7 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		errs = append(errs, retMap.Merge(confmap.NewFromStringMap(m)))
 	}
 
-	err := retMap.Merge(buildReceiverMap(cfg.OTLPReceiverConfig))
+	err := retMap.Merge(buildReceiverMap(cfg))
 	errs = append(errs, err)
 
 	return retMap, multierr.Combine(errs...)

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -59,6 +60,7 @@ type Resolvers struct {
 	TCResolver        *tc.Resolver
 	PathResolver      path.ResolverInterface
 	SBOMResolver      *sbom.Resolver
+	HashResolver      *hash.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -131,6 +133,10 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 	if err != nil {
 		return nil, err
 	}
+	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient, cgroupsResolver)
+	if err != nil {
+		return nil, err
+	}
 
 	resolvers := &Resolvers{
 		manager:           manager,
@@ -146,6 +152,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		ProcessResolver:   processResolver,
 		PathResolver:      pathResolver,
 		SBOMResolver:      sbomResolver,
+		HashResolver:      hashResolver,
 	}
 
 	return resolvers, nil

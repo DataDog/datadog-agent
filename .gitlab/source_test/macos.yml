@@ -25,3 +25,5 @@ tests_macos:
     paths:
       - test_output.json
       - junit-*-repacked.tgz
+    reports:
+      junit: "**/junit-out-*.xml"

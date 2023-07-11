@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
 var _ metricAggregator = &sumValuesAggregator{}
@@ -232,7 +232,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.complete",
-				status:  metrics.ServiceCheckOK,
+				status:  servicecheck.ServiceCheckOK,
 				tags:    []string{"namespace:foo", "cronjob:bar"},
 				message: "",
 			},
@@ -269,7 +269,7 @@ func Test_lastCronJobAggregator(t *testing.T) {
 			},
 			expected: &serviceCheck{
 				name:    "kubernetes_state.cronjob.complete",
-				status:  metrics.ServiceCheckCritical,
+				status:  servicecheck.ServiceCheckCritical,
 				tags:    []string{"namespace:foo", "cronjob:bar"},
 				message: "",
 			},

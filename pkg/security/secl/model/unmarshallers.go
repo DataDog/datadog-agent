@@ -397,27 +397,34 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
 
-	m.ParentInode = ByteOrder.Uint64(data[0:8])
-	m.RootInode = ByteOrder.Uint64(data[8:16])
-	m.Device = ByteOrder.Uint32(data[16:20])
-	m.MountID = ByteOrder.Uint32(data[20:24])
-	m.ParentMountID = ByteOrder.Uint32(data[24:28])
-	m.RootMountID = ByteOrder.Uint32(data[28:32])
-	m.BindSrcMountID = ByteOrder.Uint32(data[32:36])
+	n, err := m.ParentPathKey.UnmarshalBinary(data)
+	if err != nil {
+		return 0, err
+	}
+	data = data[n:]
+
+	n, err = m.RootPathKey.UnmarshalBinary(data)
+	if err != nil {
+		return 0, err
+	}
+	data = data[n:]
+
+	m.Device = ByteOrder.Uint32(data[0:4])
+	m.MountID = ByteOrder.Uint32(data[4:8])
+	m.BindSrcMountID = ByteOrder.Uint32(data[8:12])
 
 	// +4 for padding
 
-	var err error
-	m.FSType, err = UnmarshalString(data[40:56], 16)
+	m.FSType, err = UnmarshalString(data[16:], 16)
 	if err != nil {
 		return 0, err
 	}
 
-	return 56, nil
+	return 64, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -975,6 +982,9 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	var err error
 	e.Name, err = decodeDNSName(data[10:])
 	if err != nil {
+		return 0, err
+	}
+	if err = validateDNSName(e.Name); err != nil {
 		return 0, err
 	}
 	return len(data), nil

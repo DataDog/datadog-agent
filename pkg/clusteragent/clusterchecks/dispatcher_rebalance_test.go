@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -1396,7 +1396,7 @@ func TestRebalance(t *testing.T) {
 func TestMoveCheck(t *testing.T) {
 	type checkInfo struct {
 		config integration.Config
-		id     check.ID
+		id     checkid.ID
 		node   string
 	}
 
@@ -1428,7 +1428,7 @@ func TestMoveCheck(t *testing.T) {
 			dispatcher := newDispatcher()
 
 			// setup check id
-			id := check.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0], tc.check.config.InitConfig)
+			id := checkid.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0], tc.check.config.InitConfig)
 
 			// prepare store
 			dispatcher.store.active = true

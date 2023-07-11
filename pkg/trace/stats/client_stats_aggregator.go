@@ -237,6 +237,7 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 				Service:        aggrKey.Service,
 				PeerService:    aggrKey.PeerService,
 				Name:           aggrKey.Name,
+				SpanKind:       aggrKey.SpanKind,
 				Resource:       aggrKey.Resource,
 				HTTPStatusCode: aggrKey.StatusCode,
 				Type:           aggrKey.Type,
@@ -271,6 +272,7 @@ func newBucketAggregationKey(b pb.ClientGroupedStats, enablePeerSvcAgg bool) Buc
 	k := BucketsAggregationKey{
 		Service:    b.Service,
 		Name:       b.Name,
+		SpanKind:   b.SpanKind,
 		Resource:   b.Resource,
 		Type:       b.Type,
 		Synthetics: b.Synthetics,

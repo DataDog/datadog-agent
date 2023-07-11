@@ -56,6 +56,7 @@ func TestBuildSNMPParams(t *testing.T) {
 		}
 		_, err = config.BuildSNMPParams("192.168.0.1")
 		assert.NoError(t, err)
+		assert.Equal(t, authProto, config.AuthProtocol)
 	}
 
 	for _, privProto := range []string{"", "des", "aes", "aes192", "aes192c", "aes256", "aes256c"} {
@@ -66,6 +67,7 @@ func TestBuildSNMPParams(t *testing.T) {
 		}
 		_, err = config.BuildSNMPParams("192.168.0.1")
 		assert.NoError(t, err)
+		assert.Equal(t, privProto, config.PrivProtocol)
 	}
 
 	config = Config{
