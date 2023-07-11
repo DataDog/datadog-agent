@@ -19,10 +19,19 @@ import (
 
 const defaultTTL = 10 * time.Second
 
+// ContainerAddr records the IPs, Ports and Protocols for each container
+type ContainerAddr struct {
+	Ip       string
+	Port     int32
+	Protocol ConnectionType
+}
+
+type ConnectionType int32
+
 // LocalResolver is responsible resolving the raddr of connections when they are local containers
 type LocalResolver struct {
 	mux         sync.RWMutex
-	addrToCtrID map[model.ContainerAddr]string
+	addrToCtrID map[ContainerAddr]string
 	ctrForPid   map[int]string
 	updated     time.Time
 }
@@ -37,7 +46,7 @@ func (l *LocalResolver) LoadAddrs(containers []*model.Container, pidToCid map[in
 	}
 
 	l.updated = time.Now()
-	l.addrToCtrID = make(map[model.ContainerAddr]string)
+	l.addrToCtrID = make(map[ContainerAddr]string)
 	l.ctrForPid = pidToCid
 	for _, ctr := range containers {
 		for _, networkAddr := range ctr.Addresses {
@@ -45,7 +54,8 @@ func (l *LocalResolver) LoadAddrs(containers []*model.Container, pidToCid map[in
 			if parsedAddr.IsLoopback() {
 				continue
 			}
-			l.addrToCtrID[*networkAddr] = ctr.Id
+			containerAddr := ContainerAddr{networkAddr.Ip, networkAddr.Port, ConnectionType(networkAddr.Protocol)}
+			l.addrToCtrID[containerAddr] = ctr.Id
 		}
 	}
 }
@@ -168,10 +178,10 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			}
 		}
 
-		if conn.Raddr.ContainerId = l.addrToCtrID[model.ContainerAddr{
+		if conn.Raddr.ContainerId = l.addrToCtrID[ContainerAddr{
 			Ip:       raddr.Addr().String(),
 			Port:     int32(raddr.Port()),
-			Protocol: conn.Type,
+			Protocol: ConnectionType(conn.Type),
 		}]; conn.Raddr.ContainerId == "" {
 			log.Tracef("could not resolve raddr %v", conn.Raddr)
 		}

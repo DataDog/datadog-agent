@@ -11,13 +11,14 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DockerProxy keeps track of every docker-proxy instance and filters network traffic going through them
 type DockerProxy struct {
-	proxyByTarget map[model.ContainerAddr]*proxy
+	proxyByTarget map[resolver.ContainerAddr]*proxy
 	// This "secondary index" is used only during the proxy IP discovery process
 	proxyByPID map[int32]*proxy
 }
@@ -25,20 +26,20 @@ type DockerProxy struct {
 type proxy struct {
 	pid    int32
 	ip     string
-	target model.ContainerAddr
+	target resolver.ContainerAddr
 }
 
 // NewDockerProxy instantiates a new filter loaded with docker-proxy instance information
 func NewDockerProxy() *DockerProxy {
 	return &DockerProxy{
 		proxyByPID:    make(map[int32]*proxy),
-		proxyByTarget: make(map[model.ContainerAddr]*proxy),
+		proxyByTarget: make(map[resolver.ContainerAddr]*proxy),
 	}
 }
 
 func (d *DockerProxy) Extract(processes map[int32]*procutil.Process) {
 	proxyByPID := make(map[int32]*proxy)
-	proxyByTarget := make(map[model.ContainerAddr]*proxy)
+	proxyByTarget := make(map[resolver.ContainerAddr]*proxy)
 
 	for _, p := range processes {
 		if proxy, seen := d.proxyByPID[p.Pid]; seen {
@@ -102,11 +103,11 @@ func (d *DockerProxy) Filter(payload *model.Connections) {
 }
 
 func (d *DockerProxy) isProxied(c *model.Connection) bool {
-	if p, ok := d.proxyByTarget[model.ContainerAddr{Ip: c.Laddr.Ip, Port: c.Laddr.Port, Protocol: c.Type}]; ok {
+	if p, ok := d.proxyByTarget[resolver.ContainerAddr{Ip: c.Laddr.Ip, Port: c.Laddr.Port, Protocol: resolver.ConnectionType(c.Type)}]; ok {
 		return p.ip == c.Raddr.Ip
 	}
 
-	if p, ok := d.proxyByTarget[model.ContainerAddr{Ip: c.Raddr.Ip, Port: c.Raddr.Port, Protocol: c.Type}]; ok {
+	if p, ok := d.proxyByTarget[resolver.ContainerAddr{Ip: c.Raddr.Ip, Port: c.Raddr.Port, Protocol: resolver.ConnectionType(c.Type)}]; ok {
 		return p.ip == c.Laddr.Ip
 	}
 
@@ -161,7 +162,7 @@ func extractProxyTarget(p *procutil.Process) *proxy {
 			if !ok {
 				return nil
 			}
-			proxy.target.Protocol = model.ConnectionType(proto)
+			proxy.target.Protocol = resolver.ConnectionType(proto)
 		}
 	}
 

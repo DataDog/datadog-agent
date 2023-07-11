@@ -280,11 +280,11 @@ func TestWeightProcess(t *testing.T) {
 		p := testProcessWithStrings(strSizes[i])
 		actualWeight := weighProcess(p)
 		t.Run(fmt.Sprintf("case %d weight %d", i, actualWeight), func(t *testing.T) {
-			serialized, err := p.Marshal()
+			serialized, err := p.MarshalVT()
 			assert.NoError(t, err)
 
 			expectedWeight := len(serialized)
-			assert.Equal(t, expectedWeight, p.Size())
+			assert.Equal(t, expectedWeight, p.SizeVT())
 			allowedDelta := int(float64(actualWeight) * allowedPctDelta / 100.)
 			if allowedDelta < allowedMinDelta {
 				allowedDelta = allowedMinDelta
