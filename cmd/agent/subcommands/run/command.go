@@ -349,7 +349,9 @@ func startAgent(
 	telemetryHandler := telemetry.Handler()
 
 	expvarPort := pkgconfig.Datadog.GetString("expvar_port")
-	http.Handle("/telemetry", telemetryHandler)
+	if pkgconfig.Datadog.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetryHandler)
+	}
 	go func() {
 		common.ExpvarServer = &http.Server{
 			Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
