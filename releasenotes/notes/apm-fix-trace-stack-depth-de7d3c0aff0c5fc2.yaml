@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix incorrect filenames and line numbers in logs from the trace agent.
+    APM: Fix incorrect filenames and line numbers in logs from the trace agent.
