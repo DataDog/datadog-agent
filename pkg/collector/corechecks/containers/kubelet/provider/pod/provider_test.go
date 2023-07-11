@@ -215,11 +215,7 @@ func (suite *ProviderTestSuite) TestTransformRunningPods() {
 	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	pods, err := suite.provider.Collect(suite.kubeUtil)
-	require.Nil(suite.T(), err)
-	require.NotNil(suite.T(), pods)
-
-	err = suite.provider.Transform(pods, suite.mockSender)
+	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
 	require.Nil(suite.T(), err)
 
 	suite.mockSender.AssertNumberOfCalls(suite.T(), "Gauge", 30)
@@ -277,11 +273,7 @@ func (suite *ProviderTestSuite) TestTransformCrashedPods() {
 	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	pods, err := suite.provider.Collect(suite.kubeUtil)
-	require.Nil(suite.T(), err)
-	require.NotNil(suite.T(), pods)
-
-	err = suite.provider.Transform(pods, suite.mockSender)
+	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
 	require.Nil(suite.T(), err)
 
 	// container state metrics
@@ -320,11 +312,7 @@ func (suite *ProviderTestSuite) TestTransformPodsRequestsLimits() {
 	require.Nil(suite.T(), err)
 	config := suite.provider.config
 
-	pods, err := suite.provider.Collect(suite.kubeUtil)
-	require.Nil(suite.T(), err)
-	require.NotNil(suite.T(), pods)
-
-	err = suite.provider.Transform(pods, suite.mockSender)
+	err = suite.provider.Provide(suite.kubeUtil, suite.mockSender)
 	require.Nil(suite.T(), err)
 
 	// container resource metrics

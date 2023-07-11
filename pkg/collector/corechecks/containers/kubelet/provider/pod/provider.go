@@ -61,6 +61,7 @@ var (
 	}
 )
 
+// Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
 	filter *containers.Filter
 	config *common.KubeletConfig
@@ -73,16 +74,17 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig) *Provi
 	}
 }
 
-func (p *Provider) Collect(kc kubelet.KubeUtilInterface) (interface{}, error) {
-	return kc.GetLocalPodListWithMetadata(context.TODO())
-}
-
-func (p *Provider) Transform(podList interface{}, sender aggregator.Sender) error {
-	pods := podList.(*kubelet.PodList)
+func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender aggregator.Sender) error {
+	// Collect raw data
+	pods, err := kc.GetLocalPodListWithMetadata(context.TODO())
+	if err != nil {
+		return err
+	}
 	if pods == nil {
 		return nil
 	}
 
+	// Report metrics
 	runningAggregator := newRunningAggregator()
 
 	sender.Gauge(common.KubeletMetricsPrefix+"pods.expired", float64(pods.ExpiredCount), "", p.config.Tags)

@@ -19,15 +19,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 )
 
-func TestProvider_Collect(t *testing.T) {
+func TestProvider_Provide(t *testing.T) {
 	type response struct {
 		filename string
 		code     int
 		err      error
 	}
+	type metrics struct {
+		name  string
+		value float64
+		tags  []string
+	}
 	type want struct {
-		collected interface{}
-		err       error
+		metrics []metrics
+		err     error
 	}
 	tests := []struct {
 		name     string
@@ -42,9 +47,17 @@ func TestProvider_Collect(t *testing.T) {
 				err:      nil,
 			},
 			want: want{
-				collected: &nodeSpec{
-					NumCores:       1,
-					MemoryCapacity: 3885424640,
+				metrics: []metrics{
+					{
+						name:  common.KubeletMetricsPrefix + "cpu.capacity",
+						value: 1,
+						tags:  []string{"instance_tag:something"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.capacity",
+						value: 3885424640,
+						tags:  []string{"instance_tag:something"},
+					},
 				},
 				err: nil,
 			},
@@ -56,8 +69,8 @@ func TestProvider_Collect(t *testing.T) {
 				err:  errors.New("page not found"),
 			},
 			want: want{
-				collected: nil,
-				err:       nil,
+				metrics: nil,
+				err:     nil,
 			},
 		},
 		{
@@ -67,13 +80,16 @@ func TestProvider_Collect(t *testing.T) {
 				err:  errors.New("unauthorized"),
 			},
 			want: want{
-				collected: nil,
-				err:       errors.New("unauthorized"),
+				metrics: nil,
+				err:     errors.New("unauthorized"),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender(check.ID(t.Name()))
+			mockSender.SetupAcceptAll()
+
 			kubeletMock := mock.NewKubeletMock()
 			var content []byte
 			var err error
@@ -94,59 +110,14 @@ func TestProvider_Collect(t *testing.T) {
 			p := &Provider{
 				config: config,
 			}
-			got, err := p.Collect(kubeletMock)
+			err = p.Provide(kubeletMock, mockSender)
 			if !reflect.DeepEqual(err, tt.want.err) {
 				t.Errorf("Collect() error = %v, wantErr %v", err, tt.want.err)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want.collected) {
-				t.Errorf("Collect() got = %v, want %v", got, tt.want.collected)
-			}
-		})
-	}
-}
-
-func TestProvider_Transform(t *testing.T) {
-	type args struct {
-		spec *nodeSpec
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "spec is nil reports nothing",
-		},
-		{
-			name: "spec is not nil reports metrics",
-			args: args{spec: &nodeSpec{
-				NumCores:       1,
-				MemoryCapacity: 3885424640,
-			}},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender(check.ID(t.Name()))
-			mockSender.SetupAcceptAll()
-
-			config := &common.KubeletConfig{Tags: []string{"instance_tag:something"}}
-
-			p := &Provider{
-				config: config,
-			}
-			if err := p.Transform(tt.args.spec, mockSender); (err != nil) != tt.wantErr {
-				t.Errorf("Transform() error = %v, wantErr %v", err, tt.wantErr)
-			}
-
-			if tt.args.spec == nil {
-				mockSender.AssertNumberOfCalls(t, "Gauge", 0)
-			} else {
-				mockSender.AssertNumberOfCalls(t, "Gauge", 2)
-
-				mockSender.AssertMetric(t, "Gauge", common.KubeletMetricsPrefix+"cpu.capacity", tt.args.spec.NumCores, "", []string{"instance_tag:something"})
-				mockSender.AssertMetric(t, "Gauge", common.KubeletMetricsPrefix+"memory.capacity", tt.args.spec.MemoryCapacity, "", []string{"instance_tag:something"})
+			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.want.metrics))
+			for _, metric := range tt.want.metrics {
+				mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
 			}
 		})
 	}

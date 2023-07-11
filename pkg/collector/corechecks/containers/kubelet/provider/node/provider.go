@@ -24,6 +24,7 @@ type nodeSpec struct {
 	MemoryCapacity float64 `json:"memory_capacity"`
 }
 
+// Provider provides the metrics related to data collected from the `/spec/` Kubelet endpoint
 type Provider struct {
 	config *common.KubeletConfig
 }
@@ -34,30 +35,23 @@ func NewProvider(config *common.KubeletConfig) *Provider {
 	}
 }
 
-func (p *Provider) Collect(kc kubelet.KubeUtilInterface) (interface{}, error) {
+func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender aggregator.Sender) error {
+	// Collect raw data
 	nodeSpecRaw, responseCode, err := kc.QueryKubelet(context.TODO(), "/spec/")
 	if err != nil || responseCode == 404 {
 		if responseCode == 404 {
-			return nil, nil
+			return nil
 		}
-		return nil, err
+		return err
 	}
 
-	var spec *nodeSpec
-	err = json.Unmarshal(nodeSpecRaw, &spec)
+	var node *nodeSpec
+	err = json.Unmarshal(nodeSpecRaw, &node)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return spec, nil
-}
-
-func (p *Provider) Transform(spec interface{}, sender aggregator.Sender) error {
-	node, ok := spec.(*nodeSpec)
-	if !ok || node == nil {
-		return nil
-	}
-
+	// Report metrics
 	sender.Gauge(common.KubeletMetricsPrefix+"cpu.capacity", node.NumCores, "", p.config.Tags)
 	sender.Gauge(common.KubeletMetricsPrefix+"memory.capacity", node.MemoryCapacity, "", p.config.Tags)
 

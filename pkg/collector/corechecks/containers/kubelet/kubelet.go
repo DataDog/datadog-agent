@@ -24,9 +24,9 @@ const (
 	KubeletCheckName = "kubelet_core"
 )
 
+// Provider provides the metrics related to a given Kubelet endpoint
 type Provider interface {
-	Collect(kubelet.KubeUtilInterface) (interface{}, error)
-	Transform(interface{}, aggregator.Sender) error
+	Provide(kubelet.KubeUtilInterface, aggregator.Sender) error
 }
 
 // KubeletCheck wraps the config and the metric stores needed to run the check
@@ -100,13 +100,7 @@ func (k *KubeletCheck) Run() error {
 	}
 
 	for _, provider := range k.providers {
-		collected, err := provider.Collect(kc)
-		if err != nil {
-			_ = k.Warnf("Error collecting metrics: %s", err)
-			continue
-		}
-
-		err = provider.Transform(collected, sender)
+		err = provider.Provide(kc, sender)
 		if err != nil {
 			_ = k.Warnf("Error reporting metrics: %s", err)
 		}
