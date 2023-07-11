@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// This test is less important now that remoteConfigProvidersFirst() exists, which enforces that the RC providers are first
 func TestRuleEngineGatherPolicyProviders(t *testing.T) {
 	type fields struct {
 		config *config.RuntimeSecurityConfig

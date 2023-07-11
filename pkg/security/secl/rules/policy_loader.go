@@ -40,7 +40,8 @@ type PolicyLoader struct {
 	debouncer *debouncer.Debouncer
 }
 
-// LoadPolicies loads the policies
+// LoadPolicies gathers the policies in the correct precedence order and ensuring there's only 1 default policy.
+// RC Default replaces Local Default and takes precedence above any other policies, and RC Custom takes precedence over Local Custom.
 func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierror.Error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -52,6 +53,7 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 	)
 
 	// use the provider in the order of insertion, keep the very last default policy
+	p.remoteConfigProvidersFirst()
 	for _, provider := range p.Providers {
 		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters)
 		if err.ErrorOrNil() != nil {
@@ -66,6 +68,8 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 			if policy.Name == DefaultPolicyName {
 				if defaultPolicy == nil {
 					defaultPolicy = policy
+				} else if policy.Source == PolicySourceRC {
+					defaultPolicy = policy // This ensures that a RC default policy always overwrites a local default policy, regardless of the order the providers were loaded
 				}
 			} else {
 				allPolicies = append(allPolicies, policy)
@@ -140,4 +144,28 @@ func NewPolicyLoader(providers ...PolicyProvider) *PolicyLoader {
 	p.SetProviders(providers)
 
 	return p
+}
+
+// Rules from RC override local rules if they share the same ID, so the RC policy provider has to be first
+func (p *PolicyLoader) remoteConfigProvidersFirst() {
+	var remoteConfigProviders []PolicyProvider
+	var dirProviders []PolicyProvider
+	var unknownProviders []PolicyProvider
+
+	for _, provider := range p.Providers {
+		if provider.Type() == PolicyProviderTypeRC {
+			remoteConfigProviders = append(remoteConfigProviders, provider)
+		} else if provider.Type() == PolicyProviderTypeDir {
+			dirProviders = append(dirProviders, provider)
+		} else {
+			unknownProviders = append(unknownProviders, provider)
+		}
+	}
+
+	var allProviders []PolicyProvider
+	allProviders = append(allProviders, remoteConfigProviders...)
+	allProviders = append(allProviders, dirProviders...)
+	allProviders = append(allProviders, unknownProviders...)
+
+	p.Providers = allProviders
 }

@@ -282,7 +282,6 @@ func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
 	// add remote config as config provider if enabled.
-	// rules from RC override local rules if they share the same ID, so the RC policy provider is added first
 	if e.config.RemoteConfigurationEnabled {
 		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
 		if err != nil {
