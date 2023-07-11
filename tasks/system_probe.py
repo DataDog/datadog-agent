@@ -1512,13 +1512,14 @@ def print_failed_tests(_, output_dir):
                                 test_results[test_key] = action
                                 continue
 
+                            print(f"re-ran [{test_platform}] {package} {name}: {action}")
                             if action == "pass" and res == "fail":
                                 test_results[test_key] = action
 
         for key, res in test_results.items():
             if res == "fail":
                 package, name = key.split(".")
-                print(f"FAIL: [{test_platform}] {package} {name}")
+                print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
                 fail_count += 1
 
     if fail_count > 0:
