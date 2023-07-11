@@ -8,8 +8,13 @@ package config
 
 import (
 	"fmt"
+	"io"
+	"os"
 
+	"github.com/mikefarah/yq/v4/pkg/yqlib"
+	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	logging "gopkg.in/op/go-logging.v1"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -17,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/spf13/cobra"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -27,6 +30,10 @@ type cliParams struct {
 
 	// args are the positional command line args
 	args []string
+
+	append    bool
+	remove    bool
+	printOnly bool
 }
 
 type GlobalParams struct {
@@ -79,6 +86,19 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		RunE:  oneShotRunE(setConfigValue),
 	}
 	cmd.AddCommand(setCmd)
+
+	persistCommand := &cobra.Command{
+		Use:   "persist [setting] [value]",
+		Short: "Persist the value of a given configuration setting",
+		Long:  ``,
+		RunE:  oneShotRunE(persistConfigValue),
+	}
+
+	persistCommand.Flags().StringVarP(&cliParams.GlobalParams.ConfigName, "config-file", "f", "datadog.yaml", "")
+	persistCommand.Flags().BoolVarP(&cliParams.printOnly, "print-only", "p", false, "do not modify configuration file and print the result to the standard output")
+	persistCommand.Flags().BoolVarP(&cliParams.append, "append", "a", false, "append a value to an array")
+	persistCommand.Flags().BoolVarP(&cliParams.remove, "remove", "r", false, "remove a set of values from an array")
+	cmd.AddCommand(persistCommand)
 
 	getCmd := &cobra.Command{
 		Use:   "get [setting]",
@@ -188,6 +208,69 @@ func getConfigValue(log log.Component, config config.Component, cliParams *cliPa
 	}
 
 	fmt.Printf("%s is set to: %v\n", cliParams.args[0], value)
+
+	return nil
+}
+
+type logWrapper struct {
+	log.Component
+}
+
+func (w *logWrapper) Log(level logging.Level, calldepth int, rec *logging.Record) error {
+	switch level {
+	case logging.CRITICAL:
+		w.Critical(rec.Message())
+	case logging.ERROR:
+		w.Error(rec.Message())
+	case logging.WARNING:
+		w.Warn(rec.Message())
+	case logging.NOTICE:
+		w.Info(rec.Message())
+	case logging.INFO:
+		w.Info(rec.Message())
+	case logging.DEBUG:
+		w.Debug(rec.Message())
+	}
+	return nil
+}
+
+func persistConfigValue(log log.Component, config config.Component, params *cliParams) error {
+	yqlib.GetLogger().SetBackend(logging.AddModuleLevel(&logWrapper{Component: log}))
+	yqlib.InitExpressionParser()
+
+	decoder := yqlib.NewYamlDecoder(yqlib.ConfiguredYamlPreferences)
+
+	var out io.Writer
+	var err error
+	if params.printOnly {
+		out = os.Stdout
+	} else {
+		if out, err = os.OpenFile(config.ConfigFileUsed(), os.O_WRONLY, 0); err != nil {
+			return err
+		}
+	}
+
+	printerWriter := yqlib.NewSinglePrinterWriter(out)
+
+	encoder := yqlib.NewYamlEncoder(2, false, yqlib.ConfiguredYamlPreferences)
+	printer := yqlib.NewPrinter(encoder, printerWriter)
+
+	streamEvaluator := yqlib.NewStreamEvaluator()
+
+	var operator string
+	switch {
+	case params.append:
+		operator = "+="
+	case params.remove:
+		operator = "-="
+	default:
+		operator = "="
+	}
+
+	expression := fmt.Sprintf(".%s %s %s", params.args[0], operator, params.args[1])
+	if err = streamEvaluator.EvaluateFiles(expression, []string{config.ConfigFileUsed()}, printer, decoder); err != nil {
+		return err
+	}
 
 	return nil
 }

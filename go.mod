@@ -601,7 +601,10 @@ require (
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230525234020-1aefcd67740a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect
+	gopkg.in/imdario/mergo.v0 v0.3.9 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	gopkg.in/mikefarah/yaml.v2 v2.1.0 // indirect
+	gopkg.in/spf13/cobra.v0 v0.0.3 // indirect
 	gotest.tools/v3 v3.3.0 // indirect
 	honnef.co/go/tools v0.3.2 // indirect
 	inet.af/netaddr v0.0.0-20220617031823-097006376321 // indirect
