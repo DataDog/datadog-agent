@@ -9,4 +9,4 @@
 features:
   - |
     Flush in-flight requests and pending retries to disk at shutdown when disk-based buffering of metrics is enabled
-    (i.e. when `forwarder_storage_max_size_in_bytes` is set).
+    (for example, when `forwarder_storage_max_size_in_bytes` is set).
