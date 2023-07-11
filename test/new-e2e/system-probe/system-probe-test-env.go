@@ -187,6 +187,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		// Set AZ in retry block so we can change if needed.
+		// Only set the default subnets if this is a CI run.
 		if isCIRun(opts.InfraEnv) {
 			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: getAvailabilityZone(currentAZ)}
 		}
