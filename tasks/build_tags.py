@@ -32,6 +32,7 @@ ALL_TAGS = {
     "linux_bpf",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "npm",
+    "oracle",
     "orchestrator",
     "otlp",
     "podman",
@@ -62,6 +63,7 @@ AGENT_TAGS = {
     "kubeapiserver",
     "kubelet",
     "netcgo",
+    "oracle",
     "orchestrator",
     "otlp",
     "podman",
@@ -84,6 +86,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "jetson",
         "kubeapiserver",
         "kubelet",
+        "oracle",
         "orchestrator",
         "podman",
         "systemd",
@@ -114,7 +117,7 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib"}
+SECURITY_AGENT_TAGS = {"netcgo", "secrets", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "ec2"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference({"python", "trivy", "systemd"})

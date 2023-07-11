@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
 	"os"
@@ -102,13 +103,18 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	if p := coreconfig.Datadog.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
-
-	if coreConfigObject.GetBool("remote_configuration.enabled") && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewGRPCClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+	cfg.ConfigPath = path
+	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
+		client, err := remote.NewGRPCClient(
+			rcClientName,
+			version.AgentVersion,
+			[]data.Product{data.ProductAPMSampling, data.ProductAgentConfig},
+			rcClientPollInterval,
+		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
-			cfg.RemoteSamplingClient = client
+			cfg.RemoteConfigClient = client
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
@@ -253,7 +259,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		if c.HasFeature("big_resource") {
 			c.MaxResourceLen = 15_000
 		}
-		log.Debug("Found APM feature flags: %v", c.Features)
+		log.Infof("Found APM feature flags: %s", feats)
 	}
 
 	if k := "apm_config.ignore_resources"; core.IsSet(k) {
@@ -340,6 +346,60 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 		if core.IsSet("apm_config.obfuscation.credit_cards.luhn") {
 			c.Obfuscation.CreditCards.Luhn = core.GetBool("apm_config.obfuscation.credit_cards.luhn")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.elasticsearch.enabled") {
+			c.Obfuscation.ES.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.elasticsearch.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.elasticsearch.keep_values") {
+			c.Obfuscation.ES.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.elasticsearch.obfuscate_sql_values") {
+			c.Obfuscation.ES.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.http.remove_query_string") {
+			c.Obfuscation.HTTP.RemoveQueryString = coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_query_string")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.http.remove_paths_with_digits") {
+			c.Obfuscation.HTTP.RemovePathDigits = coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_paths_with_digits")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.enabled") {
+			c.Obfuscation.Memcached.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.enabled") {
+			c.Obfuscation.Mongo.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.keep_values") {
+			c.Obfuscation.Mongo.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.obfuscate_sql_values") {
+			c.Obfuscation.Mongo.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.enabled") {
+			c.Obfuscation.Redis.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.remove_all_args") {
+			c.Obfuscation.Redis.RemoveAllArgs = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.remove_all_args")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.remove_stack_traces") {
+			c.Obfuscation.RemoveStackTraces = coreconfig.Datadog.GetBool("apm_config.obfuscation.remove_stack_traces")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan.enabled") {
+			c.Obfuscation.SQLExecPlan.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan.keep_values") {
+			c.Obfuscation.SQLExecPlan.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values") {
+			c.Obfuscation.SQLExecPlan.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.enabled") {
+			c.Obfuscation.SQLExecPlanNormalize.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.keep_values") {
+			c.Obfuscation.SQLExecPlanNormalize.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values") {
+			c.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
 		}
 	}
 
@@ -671,6 +731,62 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	}
 	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
+}
+
+// SetHandler returns handler for runtime configuration changes.
+func SetHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
+			return
+		}
+		for key, values := range req.URL.Query() {
+			if len(values) == 0 {
+				continue
+			}
+			value := html.UnescapeString(values[len(values)-1])
+			switch key {
+			case "log_level":
+				// Note: This endpoint is used by remote-config to set the log level dynamically
+				// Please make sure to reach out to this team before removing it.
+				lvl := strings.ToLower(value)
+				if lvl == "warning" {
+					lvl = "warn"
+				}
+				if err := coreconfig.ChangeLogLevel(lvl); err != nil {
+					httpError(w, http.StatusInternalServerError, err)
+					return
+				}
+				coreconfig.Datadog.Set("log_level", lvl)
+				log.Infof("Switched log level to %s", lvl)
+			default:
+				log.Infof("Unsupported config change requested (key: %q).", key)
+			}
+		}
+	})
+}
+
+func httpError(w http.ResponseWriter, status int, err error) {
+	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
+}
+
+// setMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.
+// If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
+// Resource limits are better handled by container runtimes and orchestrators.
+func setMaxMemCPU(c *config.AgentConfig, isContainerized bool) {
+	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
+		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
+	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_cpu_percent is not set, setting it to 0")
+		c.MaxCPU = 0
+	}
+
+	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
+		c.MaxMemory = coreconfig.Datadog.GetFloat64("apm_config.max_memory")
+	} else if isContainerized {
+		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
+		c.MaxMemory = 0
+	}
 }
 
 func isObsPipelineEnabled(core corecompcfg.Component) (bool, string) {

@@ -54,6 +54,7 @@ func getMemoryStatsCgroupV2(memStat *v2.MemoryStat, memEvents *v2.MemoryEvents) 
 
 	res := provider.ContainerMemStats{
 		UsageTotal:   pointer.Ptr(float64(memStat.Usage)),
+		WorkingSet:   pointer.Ptr(float64(memStat.Usage - memStat.InactiveFile)),
 		RSS:          pointer.Ptr(float64(memStat.Anon)),
 		Cache:        pointer.Ptr(float64(memStat.File)),
 		KernelMemory: pointer.Ptr(float64(memStat.Slab + memStat.KernelStack)),

@@ -13,7 +13,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/vishvananda/netns"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -50,7 +50,7 @@ type gatewayLookup struct {
 	procRoot            string
 	rootNetNs           netns.NsHandle
 	routeCache          network.RouteCache
-	subnetCache         *simplelru.LRU // interface index to subnet cache
+	subnetCache         *simplelru.LRU[int, interface{}] // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
 }
 
@@ -99,7 +99,7 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, config.MaxTrackedConnections)
 	}
 
-	gl.subnetCache, _ = simplelru.NewLRU(maxSubnetCacheSize, nil)
+	gl.subnetCache, _ = simplelru.NewLRU[int, interface{}](maxSubnetCacheSize, nil)
 	gl.routeCache = network.NewRouteCache(int(routeCacheSize), router)
 	return gl
 }

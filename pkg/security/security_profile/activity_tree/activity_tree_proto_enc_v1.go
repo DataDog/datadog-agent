@@ -35,6 +35,7 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 	*ppan = adproto.ProcessActivityNode{
 		Process:        processNodeToProto(&pan.Process),
 		GenerationType: adproto.GenerationType(pan.GenerationType),
+		IsExecChild:    pan.IsExecChild,
 		MatchedRules:   make([]*adproto.MatchedRule, 0, len(pan.MatchedRules)),
 		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
@@ -154,7 +155,10 @@ func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
 		PackageName:       fe.PkgName,
 		PackageVersion:    fe.PkgVersion,
 		PackageSrcversion: fe.PkgSrcVersion,
+		Hashes:            make([]string, len(fe.Hashes)),
+		HashState:         adproto.HashState(fe.HashState),
 	}
+	copy(fi.Hashes, fe.Hashes)
 
 	return fi
 }

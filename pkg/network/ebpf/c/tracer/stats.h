@@ -23,6 +23,11 @@ static __always_inline __u64 offset_rtt_var();
 #endif
 
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {
+    conn_stats_ts_t *cs = bpf_map_lookup_elem(&conn_stats, t);
+    if (cs) {
+        return cs;
+    }
+
     // initialize-if-no-exist the connection stat, and load it
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
@@ -65,6 +70,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     normalize_tuple(&conn_tuple_copy);
 
     protocol_stack_t *protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+    set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
@@ -74,6 +80,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
 
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
     protocol_stack = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+    set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 }
 

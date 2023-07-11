@@ -60,11 +60,11 @@ func QueryAccountIdTag() string {
 		defer cancel()
 
 		tagName, tagValue, err := queryAccountId(ctx)
-		var tag string
-		if err == nil {
-			tag = fmt.Sprintf("%s:%s", tagName, tagValue)
+		if err != nil {
+			log.Errorf("failed to query account id: %v", err)
+			return
 		}
-		accountIdTagCache.value = tag
+		accountIdTagCache.value = fmt.Sprintf("%s:%s", tagName, tagValue)
 	})
 
 	return accountIdTagCache.value

@@ -20,17 +20,13 @@ type Telemetry struct {
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
 	totalHits    *libtelemetry.Metric
-	dropped      *libtelemetry.Metric // this happens when httpStatKeeper reaches capacity
+	dropped      *libtelemetry.Metric // this happens when statKeeper reaches capacity
 	rejected     *libtelemetry.Metric // this happens when an user-defined reject-filter matches a request
 	malformed    *libtelemetry.Metric // this happens when the request doesn't have the expected format
 	aggregations *libtelemetry.Metric
-
-	newIncomplete    *libtelemetry.Metric
-	totalIncomplete  *libtelemetry.Metric
-	joinedIncomplete *libtelemetry.Metric
 }
 
-func NewTelemetry() (*Telemetry, error) {
+func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
@@ -46,13 +42,8 @@ func NewTelemetry() (*Telemetry, error) {
 		hits5XX:      metricGroup.NewMetric("hits5xx"),
 		aggregations: metricGroup.NewMetric("aggregations"),
 
-		// metrics from `incompleteBuffer`
-		newIncomplete:    metricGroup.NewMetric("new_incomplete"),
-		totalIncomplete:  metricGroup.NewMetric("total_incomplete"),
-		joinedIncomplete: metricGroup.NewMetric("joined_incomplete"),
-
 		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd),
+		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
 		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
 		rejected:  metricGroup.NewMetric("rejected", libtelemetry.OptStatsd),
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
@@ -60,10 +51,10 @@ func NewTelemetry() (*Telemetry, error) {
 
 	t.LastCheck.Store(time.Now().Unix())
 
-	return t, nil
+	return t
 }
 
-func (t *Telemetry) Count(tx HttpTX) {
+func (t *Telemetry) Count(tx Transaction) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
 	case 100:
@@ -92,14 +83,11 @@ func (t *Telemetry) Log() {
 	rejected := t.rejected.Delta()
 	malformed := t.malformed.Delta()
 	aggregations := t.aggregations.Delta()
-	newIncomplete := t.newIncomplete.Delta()
-	joinedIncomplete := t.joinedIncomplete.Delta()
-	totalIncomplete := t.totalIncomplete.Delta()
 	elapsed := now - t.LastCheck.Load()
 	t.LastCheck.Store(now)
 
 	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) incomplete_parts=%d(%.2f/s) incomplete_parts_joined=%d(%.2f/s) incomplete_parts_accumulated=%d aggregations=%d",
+		"http stats summary: requests_processed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
 		totalRequests,
 		float64(totalRequests)/float64(elapsed),
 		dropped,
@@ -108,11 +96,6 @@ func (t *Telemetry) Log() {
 		float64(rejected)/float64(elapsed),
 		malformed,
 		float64(malformed)/float64(elapsed),
-		newIncomplete,
-		float64(newIncomplete)/float64(elapsed),
-		joinedIncomplete,
-		float64(joinedIncomplete)/float64(elapsed),
-		totalIncomplete,
 		aggregations,
 	)
 }

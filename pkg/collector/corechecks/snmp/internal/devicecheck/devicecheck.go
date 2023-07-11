@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -111,11 +111,11 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	tags := common.CopyStrings(staticTags)
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
-		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, tags, checkErr.Error())
+		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, checkErr.Error())
 	} else {
 		d.savedDynamicTags = dynamicTags
 		tags = append(tags, dynamicTags...)
-		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, tags, "")
+		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
 	d.sender.Gauge(deviceReachableMetric, common.BoolToFloat64(deviceReachable), tags)
 	d.sender.Gauge(deviceUnreachableMetric, common.BoolToFloat64(!deviceReachable), tags)
@@ -259,8 +259,8 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 	alreadySeenMetrics := make(map[string]bool)
 	// If a global tag has already been encountered, we won't try to add it again.
 	alreadyGlobalTags := make(map[string]bool)
-	for _, profileDef := range d.config.Profiles {
-		for _, metricConfig := range profileDef.Metrics {
+	for _, profileConfig := range d.config.Profiles {
+		for _, metricConfig := range profileConfig.Definition.Metrics {
 			newMetricConfig := metricConfig
 			if metricConfig.IsScalar() {
 				metricName := metricConfig.Symbol.Name
@@ -284,7 +284,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 				}
 			}
 		}
-		for _, metricTag := range profileDef.MetricTags {
+		for _, metricTag := range profileConfig.Definition.MetricTags {
 			if root.LeafExist(metricTag.OID) || root.LeafExist(metricTag.Column.OID) {
 				if metricTag.Tag != "" {
 					if alreadyGlobalTags[metricTag.Tag] {

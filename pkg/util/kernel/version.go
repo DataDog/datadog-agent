@@ -49,6 +49,15 @@ func HostVersion() (Version, error) {
 	return Version(lvc), nil
 }
 
+// MustHostVersion returns the running kernel version of the host
+func MustHostVersion() Version {
+	lvc, err := features.LinuxVersionCode()
+	if err != nil {
+		panic(err)
+	}
+	return Version(lvc)
+}
+
 // ParseVersion parses a string in the format of x.x.x to a Version
 func ParseVersion(s string) Version {
 	var a, b, c byte

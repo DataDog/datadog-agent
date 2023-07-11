@@ -266,11 +266,11 @@ struct cred_ids {
     kernel_cap_t cap_ambient;
 };
 
-SEC("kprobe/commit_creds")
-int kprobe_commit_creds(struct pt_regs *ctx) {
+HOOK_ENTRY("commit_creds")
+int hook_commit_creds(ctx_t *ctx) {
     u64 creds_uid_offset;
     LOAD_CONSTANT("creds_uid_offset", creds_uid_offset);
-    struct cred_ids *credentials = (struct cred_ids *)(PT_REGS_PARM1(ctx) + creds_uid_offset);
+    struct cred_ids *credentials = (struct cred_ids *)(CTX_PARM1(ctx) + creds_uid_offset);
     struct pid_cache_t new_pid_entry = {};
 
     // update pid_cache entry for the current process

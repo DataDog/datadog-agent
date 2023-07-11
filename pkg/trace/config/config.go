@@ -11,9 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -39,9 +37,6 @@ type Endpoint struct {
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
-
-// App Services env var
-const azureAppServices = "DD_AZURE_APP_SERVICES"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -102,7 +97,7 @@ type ObfuscationConfig struct {
 
 	// Redis holds the configuration for obfuscating the "redis.raw_command" tag
 	// for spans of type "redis".
-	Redis Enablable `mapstructure:"redis"`
+	Redis RedisObfuscationConfig `mapstructure:"redis"`
 
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
@@ -146,6 +141,10 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			RemoveQueryString: o.HTTP.RemoveQueryString,
 			RemovePathDigits:  o.HTTP.RemovePathDigits,
 		},
+		Redis: obfuscate.RedisConfig{
+			Enabled:       o.Redis.Enabled,
+			RemoveAllArgs: o.Redis.RemoveAllArgs,
+		},
 		Logger: new(debugLogger),
 	}
 }
@@ -180,6 +179,16 @@ type HTTPObfuscationConfig struct {
 // Enablable can represent any option that has an "enabled" boolean sub-field.
 type Enablable struct {
 	Enabled bool `mapstructure:"enabled"`
+}
+
+// RedisObfuscationConfig holds the configuration settings for Redis obfuscation
+type RedisObfuscationConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveAllArgs specifies whether all arguments to a given Redis
+	// command should be obfuscated.
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
 
 // TelemetryConfig holds Instrumentation telemetry Endpoints information
@@ -433,17 +442,14 @@ type AgentConfig struct {
 	// catalog. If not set (0) it will default to 5000.
 	MaxCatalogEntries int
 
-	// RemoteSamplingClient retrieves sampling updates from the remote config backend
-	RemoteSamplingClient RemoteClient `json:"-"`
+	// RemoteConfigClient retrieves sampling updates from the remote config backend
+	RemoteConfigClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
 
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
-
-	// Azure App Services
-	InAzureAppServices bool
 
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
@@ -454,7 +460,8 @@ type AgentConfig struct {
 type RemoteClient interface {
 	Close()
 	Start()
-	RegisterAPMUpdate(func(update map[string]state.APMSamplingConfig))
+	Subscribe(string, func(update map[string]state.RawConfig))
+	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 
 // Tag represents a key/value pair.
@@ -525,8 +532,6 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		InAzureAppServices: inAzureAppServices(os.Getenv),
-
 		Features: make(map[string]struct{}),
 	}
 }
@@ -585,13 +590,4 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
-}
-
-func inAzureAppServices(getenv func(string) string) bool {
-	str := getenv(azureAppServices)
-	if val, err := strconv.ParseBool(str); err == nil {
-		return val
-	} else {
-		return false
-	}
 }

@@ -20,10 +20,6 @@ func (tx *EbpfKafkaTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
-func (tx *EbpfKafkaTx) TopicName() string {
-	return string(tx.Topic_name[:tx.Topic_name_size])
-}
-
 func (tx *EbpfKafkaTx) APIKey() uint16 {
 	return tx.Request_api_key
 }

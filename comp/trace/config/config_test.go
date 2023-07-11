@@ -667,6 +667,22 @@ func TestFullYamlConfig(t *testing.T) {
 
 }
 
+func TestFileLoggingDisabled(t *testing.T) {
+
+	config := fxutil.Test[Component](t, fx.Options(
+		corecomp.MockModule,
+		fx.Replace(corecomp.MockParams{
+			Params:      corecomp.Params{ConfFilePath: "./testdata/disable_file_logging.yaml"},
+			SetupConfig: true,
+		}),
+		MockModule,
+	))
+	cfg := config.Object()
+
+	require.NotNil(t, cfg)
+	assert.Equal(t, "", cfg.LogFilePath)
+}
+
 func TestUndocumentedYamlConfig(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
@@ -1038,6 +1054,24 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
+	})
+
+	env = "DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "12.3")
+
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/undocumented.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 12.3, cfg.OTLPReceiver.ProbabilisticSampling)
 	})
 
 	for _, envKey := range []string{
@@ -1416,6 +1450,94 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, "my-key", coreconfig.Datadog.GetString("apm_config.debugger_api_key"))
 	})
 
+	env = "DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := map[string][]string{
+			"url1": {"key1", "key2"},
+			"url2": {"key3"},
+		}
+
+		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.debugger_additional_endpoints")
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_SYMDB_DD_URL"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "my-site.com")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "my-site.com", coreconfig.Datadog.GetString("apm_config.symdb_dd_url"))
+	})
+
+	env = "DD_APM_SYMDB_API_KEY"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "my-key")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "my-key", coreconfig.Datadog.GetString("apm_config.symdb_api_key"))
+	})
+
+	env = "DD_APM_SYMDB_ADDITIONAL_ENDPOINTS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `{"url1": ["key1", "key2"], "url2": ["key3"]}`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := map[string][]string{
+			"url1": {"key1", "key2"},
+			"url2": {"key3"},
+		}
+
+		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.symdb_additional_endpoints")
+		if !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
 	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "false")
@@ -1433,6 +1555,7 @@ func TestLoadEnv(t *testing.T) {
 		assert.NotNil(t, cfg)
 
 		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled"))
+		assert.False(t, cfg.Obfuscation.CreditCards.Enabled)
 	})
 
 	env = "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN"
@@ -1450,8 +1573,373 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-
 		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn"))
+	})
+
+	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "false")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
+		assert.True(t, cfg.Obfuscation.ES.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["client_id", "product_id"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := []string{"client_id", "product_id"}
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+		actualParsed := cfg.Obfuscation.ES.KeepValues
+		assert.Equal(t, expected, actualConfig)
+		assert.Equal(t, expected, actualParsed)
+	})
+
+	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["key1", "key2"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := []string{"key1", "key2"}
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+		actualParsed := cfg.Obfuscation.ES.ObfuscateSQLValues
+		assert.Equal(t, expected, actualConfig)
+		assert.Equal(t, expected, actualParsed)
+	})
+
+	env = "DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_query_string"))
+		assert.True(t, cfg.Obfuscation.HTTP.RemoveQueryString)
+	})
+
+	env = "DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_MEMCACHED_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_MONGODB_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.enabled"))
+		assert.True(t, cfg.Obfuscation.Mongo.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["document_id", "template_id"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := []string{"document_id", "template_id"}
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
+		actualParsed := cfg.Obfuscation.Mongo.KeepValues
+		assert.Equal(t, expected, actualConfig)
+		assert.Equal(t, expected, actualParsed)
+	})
+
+	env = "DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["key1", "key2"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := []string{"key1", "key2"}
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+		actualParsed := cfg.Obfuscation.Mongo.ObfuscateSQLValues
+		assert.Equal(t, expected, actualConfig)
+		assert.Equal(t, expected, actualParsed)
+	})
+
+	env = "DD_APM_OBFUSCATION_REDIS_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.enabled"))
+		assert.True(t, cfg.Obfuscation.Redis.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.remove_all_args"))
+		assert.True(t, cfg.Obfuscation.Redis.RemoveAllArgs)
+	})
+
+	env = "DD_APM_OBFUSCATION_REMOVE_STACK_TRACES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.remove_stack_traces"))
+		assert.True(t, cfg.Obfuscation.RemoveStackTraces)
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
+		assert.True(t, cfg.Obfuscation.SQLExecPlan.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["id1", "id2"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := []string{"id1", "id2"}
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
+		actualParsed := cfg.Obfuscation.SQLExecPlan.KeepValues
+		assert.Equal(t, expected, actualConfig)
+		assert.Equal(t, expected, actualParsed)
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["key1", "key2"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := []string{"key1", "key2"}
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+		actualParsed := cfg.Obfuscation.SQLExecPlan.ObfuscateSQLValues
+		assert.Equal(t, expected, actualConfig)
+		assert.Equal(t, expected, actualParsed)
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
+		assert.True(cfg.Obfuscation.SQLExecPlanNormalize.Enabled)
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["id1", "id2"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := []string{"id1", "id2"}
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.KeepValues
+		assert.Equal(t, expected, actualConfig)
+		assert.Equal(t, expected, actualParsed)
+	})
+
+	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `["key1", "key2"]`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		expected := []string{"key1", "key2"}
+		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
+		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues
+		assert.Equal(t, expected, actualConfig)
+		assert.Equal(t, expected, actualParsed)
 	})
 
 	env = "DD_APM_PROFILING_ADDITIONAL_ENDPOINTS"
@@ -1474,9 +1962,40 @@ func TestLoadEnv(t *testing.T) {
 			"url1": {"key1", "key2"},
 			"url2": {"key3"},
 		}
-		actual := coreconfig.Datadog.GetStringMapStringSlice(("apm_config.profiling_additional_endpoints"))
+		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
+		}
+	})
+
+	env = "DD_APM_FEATURES"
+	t.Run(env, func(t *testing.T) {
+		assert := func(in string, expected []string) {
+			t.Setenv(env, in)
+			c := fxutil.Test[Component](t, fx.Options(
+				corecomp.MockModule,
+				fx.Replace(corecomp.MockParams{
+					Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+					SetupConfig: true,
+				}),
+				MockModule,
+			))
+			cfg := c.Object()
+
+			assert.NotNil(t, cfg)
+		}
+
+		cases := map[string][]string{
+			"":                      nil,
+			"feat1":                 {"feat1"},
+			"feat1,feat2,feat3":     {"feat1", "feat2", "feat3"},
+			"feat1 feat2 feat3":     {"feat1", "feat2", "feat3"},
+			"feat1,feat2 feat3":     {"feat1", "feat2 feat3"},    // mixing separators is not supported, comma wins
+			"feat1, feat2, feat3":   {"feat1", "feat2", "feat3"}, // trim whitespaces
+			"feat1 , feat2 , feat3": {"feat1", "feat2", "feat3"}, // trim whitespaces
+		}
+		for in, expected := range cases {
+			assert(in, expected)
 		}
 	})
 }
@@ -1591,6 +2110,68 @@ func TestSetMaxMemCPU(t *testing.T) {
 		config.SetMaxMemCPU(true)
 		assert.Equal(t, 0.3, cfg.MaxCPU)
 		assert.Equal(t, 300.0, cfg.MaxMemory)
+	})
+}
+
+func TestPeerServiceAggregation(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			MockModule,
+		))
+		// underlying config
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.PeerServiceAggregation)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"apm_config.peer_service_aggregation": true,
+		}
+
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{Overrides: overrides}),
+			MockModule,
+		))
+		// underlying config
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.PeerServiceAggregation)
+	})
+}
+
+func TestComputeStatsBySpanKind(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			MockModule,
+		))
+		// underlying config
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.ComputeStatsBySpanKind)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"apm_config.compute_stats_by_span_kind": true,
+		}
+
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{Overrides: overrides}),
+			MockModule,
+		))
+		// underlying config
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.ComputeStatsBySpanKind)
 	})
 }
 

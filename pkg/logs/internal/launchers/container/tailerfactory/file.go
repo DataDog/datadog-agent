@@ -120,13 +120,16 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 
 	// New file source that inherits most of its parent's properties
 	fileSource := sources.NewLogSource(source.Name, &config.LogsConfig{
-		Type:            config.FileType,
-		Identifier:      containerID,
-		Path:            path,
-		Service:         serviceName,
-		Source:          sourceName,
-		Tags:            source.Config.Tags,
-		ProcessingRules: source.Config.ProcessingRules,
+		Type:                        config.FileType,
+		Identifier:                  containerID,
+		Path:                        path,
+		Service:                     serviceName,
+		Source:                      sourceName,
+		Tags:                        source.Config.Tags,
+		ProcessingRules:             source.Config.ProcessingRules,
+		AutoMultiLine:               source.Config.AutoMultiLine,
+		AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
+		AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
 	})
 
 	// inform the file launcher that it should expect docker-formatted content
@@ -203,13 +206,16 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	fileSource := sources.NewLogSource(
 		fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name),
 		&config.LogsConfig{
-			Type:            config.FileType,
-			Identifier:      containerID,
-			Path:            path,
-			Service:         serviceName,
-			Source:          sourceName,
-			Tags:            source.Config.Tags,
-			ProcessingRules: source.Config.ProcessingRules,
+			Type:                        config.FileType,
+			Identifier:                  containerID,
+			Path:                        path,
+			Service:                     serviceName,
+			Source:                      sourceName,
+			Tags:                        source.Config.Tags,
+			ProcessingRules:             source.Config.ProcessingRules,
+			AutoMultiLine:               source.Config.AutoMultiLine,
+			AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
+			AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
 		})
 
 	switch source.Config.Type {

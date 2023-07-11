@@ -22,9 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
+func getProcessMonitor(t *testing.T) *ProcessMonitor {
+	pm := GetProcessMonitor()
+	t.Cleanup(pm.Stop)
+	return pm
+}
+
 func initializePM(t *testing.T, pm *ProcessMonitor) {
 	require.NoError(t, pm.Initialize())
-	t.Cleanup(pm.Stop)
 	time.Sleep(time.Millisecond * 500)
 }
 
@@ -33,7 +38,7 @@ func registerCallback(t *testing.T, pm *ProcessMonitor, isExec bool, callback *P
 	if isExec {
 		registrationFunc = pm.SubscribeExec
 	}
-	unsubscribe, err := registrationFunc(callback)
+	unsubscribe, err := registrationFunc(*callback)
 	require.NoError(t, err)
 	t.Cleanup(unsubscribe)
 	return unsubscribe
@@ -52,19 +57,18 @@ func getTestBinaryPath(t *testing.T) string {
 
 func TestProcessMonitorSingleton(t *testing.T) {
 	// Making sure we get the same process monitor if we call it twice.
-	pm := GetProcessMonitor()
-	pm2 := GetProcessMonitor()
+	pm := getProcessMonitor(t)
+	pm2 := getProcessMonitor(t)
 
 	require.Equal(t, pm, pm2)
 }
 
 func TestProcessMonitorSanity(t *testing.T) {
-	pm := GetProcessMonitor()
+	pm := getProcessMonitor(t)
 	numberOfExecs := atomic.Int32{}
 	testBinaryPath := getTestBinaryPath(t)
-	registerCallback(t, pm, true, &ProcessCallback{
-		Callback: func(pid int) { numberOfExecs.Inc() },
-	})
+	callback := func(pid int) { numberOfExecs.Inc() }
+	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
 	initializePM(t, pm)
 	require.NoError(t, exec.Command(testBinaryPath, "test").Run())
@@ -75,16 +79,15 @@ func TestProcessMonitorSanity(t *testing.T) {
 }
 
 func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
-	pm := GetProcessMonitor()
+	pm := getProcessMonitor(t)
 
 	const iterations = 10
 	counters := make([]*atomic.Int32, iterations)
 	for i := 0; i < iterations; i++ {
 		counters[i] = &atomic.Int32{}
 		c := counters[i]
-		registerCallback(t, pm, true, &ProcessCallback{
-			Callback: func(pid int) { c.Inc() },
-		})
+		callback := func(pid int) { c.Inc() }
+		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 	}
 
 	initializePM(t, pm)
@@ -101,7 +104,7 @@ func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
 }
 
 func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
-	pm := GetProcessMonitor()
+	pm := getProcessMonitor(t)
 
 	const iterations = 10
 	counters := make([]*atomic.Int32, iterations)
@@ -109,9 +112,8 @@ func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
 		counters[i] = &atomic.Int32{}
 		c := counters[i]
 		// Sanity subscribing a callback.
-		registerCallback(t, pm, false, &ProcessCallback{
-			Callback: func(pid int) { c.Inc() },
-		})
+		callback := func(pid int) { c.Inc() }
+		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 	}
 
 	initializePM(t, pm)
@@ -128,11 +130,10 @@ func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
 }
 
 func TestProcessMonitorRefcount(t *testing.T) {
-	pm := GetProcessMonitor()
-	require.Equal(t, pm.refcount.Load(), int32(0))
+	var pm *ProcessMonitor
 
 	for i := 1; i <= 10; i++ {
-		require.NoError(t, pm.Initialize())
+		pm = GetProcessMonitor()
 		require.Equal(t, pm.refcount.Load(), int32(i))
 	}
 
@@ -145,13 +146,10 @@ func TestProcessMonitorRefcount(t *testing.T) {
 func TestProcessMonitorInNamespace(t *testing.T) {
 	execSet := sync.Map{}
 
-	pm := GetProcessMonitor()
+	pm := getProcessMonitor(t)
 
-	registerCallback(t, pm, true, &ProcessCallback{
-		Callback: func(pid int) {
-			execSet.Store(pid, struct{}{})
-		},
-	})
+	callback := func(pid int) { execSet.Store(pid, struct{}{}) }
+	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
 	monNs, err := netns.New()
 	require.NoError(t, err, "could not create network namespace for process monitor")

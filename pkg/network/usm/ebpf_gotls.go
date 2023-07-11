@@ -189,6 +189,14 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	return p
 }
 
+func (p *GoTLSProgram) Name() string {
+	return "go-tls"
+}
+
+func (p *GoTLSProgram) IsBuildModeSupported(mode buildMode) bool {
+	return mode == CORE || mode == RuntimeCompiled
+}
+
 func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
@@ -257,11 +265,6 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 
-	if err = p.procMonitor.monitor.Initialize(); err != nil {
-		log.Errorf("failed to initialize process monitor error: %s", err)
-		return
-	}
-
 	p.wg.Add(1)
 	go func() {
 		processSync := time.NewTicker(scanTerminatedProcessesInterval)
@@ -293,6 +296,9 @@ func (p *GoTLSProgram) Start() {
 }
 
 func (p *GoTLSProgram) Stop() {
+	close(p.done)
+	// Waiting for the main event loop to finish.
+	p.wg.Wait()
 	if p.procMonitor.cleanupExec != nil {
 		p.procMonitor.cleanupExec()
 	}

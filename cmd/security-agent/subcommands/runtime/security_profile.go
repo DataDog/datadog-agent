@@ -148,6 +148,15 @@ func listSecurityProfiles(log log.Component, config config.Component, args *secu
 	return nil
 }
 
+func printActivityTreeStats(prefix string, msg *api.ActivityTreeStatsMessage) {
+	fmt.Printf("%s  activity_tree_stats:\n", prefix)
+	fmt.Printf("%s    approximate_size: %v\n", prefix, msg.GetApproximateSize())
+	fmt.Printf("%s    process_nodes_count: %v\n", prefix, msg.GetProcessNodesCount())
+	fmt.Printf("%s    file_nodes_count: %v\n", prefix, msg.GetFileNodesCount())
+	fmt.Printf("%s    dns_nodes_count: %v\n", prefix, msg.GetDNSNodesCount())
+	fmt.Printf("%s    socket_nodes_count: %v\n", prefix, msg.GetSocketNodesCount())
+}
+
 func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 	prefix := "  "
 	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
@@ -178,13 +187,8 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 			fmt.Printf("%s      tags: %v\n", prefix, inst.GetTags())
 		}
 	}
-	fmt.Printf("%s  activity_tree_stats:\n", prefix)
-	fmt.Printf("%s    approximate_size: %v\n", prefix, msg.GetStats().GetApproximateSize())
-	fmt.Printf("%s    process_nodes_count: %v\n", prefix, msg.GetStats().GetProcessNodesCount())
-	fmt.Printf("%s    file_nodes_count: %v\n", prefix, msg.GetStats().GetFileNodesCount())
-	fmt.Printf("%s    dns_nodes_count: %v\n", prefix, msg.GetStats().GetDNSNodesCount())
-	fmt.Printf("%s    socket_nodes_count: %v\n", prefix, msg.GetStats().GetSocketNodesCount())
 	fmt.Printf("%s  tags: %v\n", prefix, msg.GetTags())
+	printActivityTreeStats(prefix, msg.GetStats())
 }
 
 func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Command {

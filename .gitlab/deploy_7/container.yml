@@ -14,12 +14,13 @@
   stage: deploy7
   dependencies: []
   before_script:
-    - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv -e agent.version --major-version 7 --url-safe)"; fi
+    - source /root/.bashrc
+    - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv agent.version --major-version 7 --url-safe)"; fi
     - export IMG_BASE_SRC="${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7${JMX}-amd64,${IMG_BASE_SRC}-7${JMX}-arm64"
-    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7${JMX}-win1809${SERVERCORE}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2022${SERVERCORE}-amd64"
-    - if [[ "$SERVERCORE" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
-    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${SERVERCORE}${JMX}"
+    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7${JMX}-win1809${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2022${FLAVOR}-amd64"
+    - if [[ "$FLAVOR" == "-linux" ]]; then export IMG_SOURCES="${IMG_LINUX_SOURCES}"; elif [[ "$FLAVOR" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${FLAVOR}${JMX}"
 
 
 .deploy_containers-a7_external:
@@ -29,9 +30,10 @@
       - JMX:
           - ""
           - "-jmx"
-        SERVERCORE:
+        FLAVOR:
           - ""
           - "-servercore"
+          - "-linux"
 
 
 deploy_containers-a7:
@@ -55,7 +57,8 @@ deploy_containers-dogstatsd:
     !reference [.on_deploy_a7_manual_auto_on_rc]
   dependencies: []
   before_script:
-    - export VERSION="$(inv -e agent.version --major-version 7 --url-safe)"
+    - source /root/.bashrc
+    - export VERSION="$(inv agent.version --major-version 7 --url-safe)"
     - export IMG_SOURCES="${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64"
     - export IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
 

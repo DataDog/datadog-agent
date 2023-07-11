@@ -45,7 +45,7 @@ static __always_inline void classify_decrypted_payload(conn_tuple_t *t, void *bu
     set_protocol(stack, proto);
 }
 
-static __always_inline bool http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
+static __always_inline void http_process(http_transaction_t *http_stack, skb_info_t *skb_info, __u64 tags);
 
 static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t len, __u64 tags) {
     http_transaction_t http;

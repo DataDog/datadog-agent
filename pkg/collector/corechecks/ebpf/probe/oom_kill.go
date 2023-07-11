@@ -146,14 +146,16 @@ func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {
 	it := k.oomMap.Iterate()
 	for it.Next(unsafe.Pointer(&pid), unsafe.Pointer(&stat)) {
 		results = append(results, convertStats(stat))
-
-		if err := k.oomMap.Delete(unsafe.Pointer(&pid)); err != nil {
-			log.Warnf("failed to delete stat: %s", err)
-		}
 	}
 
 	if err := it.Err(); err != nil {
 		log.Warnf("failed to iterate on OOM stats while flushing: %s", err)
+	}
+
+	for _, r := range results {
+		if err := k.oomMap.Delete(unsafe.Pointer(&r.Pid)); err != nil {
+			log.Warnf("failed to delete stat: %s", err)
+		}
 	}
 
 	return results

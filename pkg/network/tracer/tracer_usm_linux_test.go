@@ -29,21 +29,22 @@ import (
 	"github.com/DataDog/gopsutil/host"
 	krpretty "github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	javatestutil "github.com/DataDog/datadog-agent/pkg/network/java/testutil"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
+	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
+	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
 
@@ -74,7 +75,18 @@ func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
 }
 
-func TestEnableHTTPMonitoring(t *testing.T) {
+type USMSuite struct {
+	suite.Suite
+}
+
+func TestUSMSuite(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		suite.Run(t, new(USMSuite))
+	})
+}
+
+func (s *USMSuite) TestEnableHTTPMonitoring() {
+	t := s.T()
 	if !httpSupported() {
 		t.Skip("HTTP monitoring not supported")
 	}
@@ -84,7 +96,8 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 	_ = setupTracer(t, cfg)
 }
 
-func TestHTTPStats(t *testing.T) {
+func (s *USMSuite) TestHTTPStats() {
+	t := s.T()
 	t.Run("status code", func(t *testing.T) {
 		testHTTPStats(t, true)
 	})
@@ -142,7 +155,8 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	}, 3*time.Second, 10*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 }
 
-func TestHTTPSViaLibraryIntegration(t *testing.T) {
+func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
+	t := s.T()
 	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
@@ -371,7 +385,8 @@ const (
 )
 
 // TestOpenSSLVersions setups a HTTPs python server, and makes sure we are able to capture all traffic.
-func TestOpenSSLVersions(t *testing.T) {
+func (s *USMSuite) TestOpenSSLVersions() {
+	t := s.T()
 	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
@@ -431,7 +446,8 @@ func TestOpenSSLVersions(t *testing.T) {
 // Unfortunately, this is only a best-effort mechanism and it relies on some assumptions that are not always necessarily true
 // such as having SSL_read/SSL_write calls in the same call-stack/execution-context as the kernel function tcp_sendmsg. Force
 // this is reason the fallback behavior may require a few warmup requests before we start capturing traffic.
-func TestOpenSSLVersionsSlowStart(t *testing.T) {
+func (s *USMSuite) TestOpenSSLVersionsSlowStart() {
+	t := s.T()
 	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
@@ -557,7 +573,8 @@ func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Re
 	return false
 }
 
-func TestProtocolClassification(t *testing.T) {
+func (s *USMSuite) TestProtocolClassification() {
+	t := s.T()
 	cfg := testConfig()
 	if !classificationSupported(cfg) {
 		t.Skip("Classification is not supported")
@@ -677,7 +694,8 @@ func createJavaTempFile(t *testing.T, dir string) string {
 	return tempfile.Name()
 }
 
-func TestJavaInjection(t *testing.T) {
+func (s *USMSuite) TestJavaInjection() {
+	t := s.T()
 	if !httpsSupported() {
 		t.Skip("java TLS not supported on the current platform")
 	}
@@ -689,7 +707,7 @@ func TestJavaInjection(t *testing.T) {
 	defaultCfg := cfg
 
 	dir, _ := testutil.CurDir()
-	testdataDir := filepath.Join(dir, "../java/testdata")
+	testdataDir := filepath.Join(dir, "../protocols/tls/java/testdata")
 	legacyJavaDir := cfg.JavaDir
 	// create a fake agent-usm.jar based on TestAgentLoaded.jar by forcing cfg.JavaDir
 	fakeAgentDir, err := os.MkdirTemp("", "fake.agent-usm.jar.")
@@ -851,16 +869,21 @@ func TestJavaInjection(t *testing.T) {
 				cfg.ProtocolClassificationEnabled = true
 				cfg.CollectTCPv4Conns = true
 				cfg.CollectTCPv6Conns = true
+
+				serverDoneFn := testutil.HTTPServer(t, "0.0.0.0:5443", testutil.Options{
+					EnableTLS: true,
+				})
+				t.Cleanup(serverDoneFn)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://httpbin.org/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
-					for key := range payload.HTTP {
-						if key.Path.Content == "/anything/java-tls-request" {
+					for key, stats := range payload.HTTP {
+						if key.Path.Content == "/200/anything/java-tls-request" {
 							t.Log("path content found")
 							// socket filter is not supported on fentry tracer
 							if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
@@ -868,16 +891,28 @@ func TestJavaInjection(t *testing.T) {
 								return true
 							}
 
+							req, exists := stats.Data[200]
+							if !exists {
+								t.Logf("wrong response, not 200 : %#+v", key)
+								continue
+							}
+
+							if req.StaticTags != network.ConnTagJava {
+								t.Logf("tag not java : %#+v", key)
+								continue
+							}
+
 							for _, c := range payload.Conns {
 								if c.SPort == key.SrcPort && c.DPort == key.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 									return true
 								}
 							}
+							t.Logf("TLS connection tag not found : %#+v", key)
 						}
 					}
 
 					return false
-				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://httpbin.org/anything/java-tls-request")
+				}, 4*time.Second, time.Second, "couldn't find http connection matching: %s", "https://host.docker.internal:5443/200/anything/java-tls-request")
 			},
 		},
 	}
@@ -899,88 +934,43 @@ func TestJavaInjection(t *testing.T) {
 	}
 }
 
-// GoTLS test
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	if !goTLSSupported() {
-		t.Skip("GoTLS not supported for this setup")
-	}
-	info, err := host.Info()
-	require.NoError(t, err)
-	// TODO fix TestHTTPGoTLSAttachProbes on these Fedora versions
-	if info.Platform == "fedora" && (info.PlatformVersion == "36" || info.PlatformVersion == "37") {
-		// TestHTTPGoTLSAttachProbes fails consistently in CI on Fedora 36,37
-		t.Skip("TestHTTPGoTLSAttachProbes fails on this OS consistently")
-	}
-
-	t.Run("runtime compilation", func(t *testing.T) {
-		cfg := testConfig()
-		cfg.EnableRuntimeCompiler = true
-		cfg.AllowPrecompiledFallback = false
-		cfg.EnableCORE = false
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		if !goTLSSupported() {
+			t.Skip("GoTLS not supported for this setup")
+		}
+		info, err := host.Info()
+		require.NoError(t, err)
+		// TODO fix TestHTTPGoTLSAttachProbes on these Fedora versions
+		if info.Platform == "fedora" && (info.PlatformVersion == "36" || info.PlatformVersion == "37") {
+			// TestHTTPGoTLSAttachProbes fails consistently in CI on Fedora 36,37
+			t.Skip("TestHTTPGoTLSAttachProbes fails on this OS consistently")
+		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, cfg)
+			testHTTPGoTLSCaptureNewProcess(t, config.New())
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
-		})
-	})
-
-	t.Run("CO-RE", func(t *testing.T) {
-		// note: this is a bit of hack since CI runs an entire package either as
-		// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
-		// and running the CO-RE tests as well
-		cfg := testConfig()
-		cfg.EnableCORE = true
-		cfg.EnableRuntimeCompiler = false
-		cfg.AllowRuntimeCompiledFallback = false
-
-		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, cfg)
-		})
-		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, cfg)
+			testHTTPGoTLSCaptureAlreadyRunning(t, config.New())
 		})
 	})
 }
 
 func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	t.Skip("Skipping a flaky test")
-	if !goTLSSupported() {
-		t.Skip("GoTLS not supported for this setup")
-	}
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		if !goTLSSupported() {
+			t.Skip("GoTLS not supported for this setup")
+		}
 
-	t.Run("new process (runtime compilation)", func(t *testing.T) {
-		cfg := config.New()
-		cfg.EnableRuntimeCompiler = true
-		cfg.EnableCORE = false
-		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
-	})
-
-	t.Run("already running process (runtime compilation)", func(t *testing.T) {
-		cfg := config.New()
-		cfg.EnableRuntimeCompiler = true
-		cfg.EnableCORE = false
-		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
-	})
-
-	// note: this is a bit of hack since CI runs an entire package either as
-	// runtime, CO-RE, or pre-built. here we're piggybacking on the runtime pass
-	// and running the CO-RE tests as well
-	t.Run("new process (co-re)", func(t *testing.T) {
-		cfg := config.New()
-		cfg.EnableCORE = true
-		cfg.EnableRuntimeCompiler = false
-		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPsGoTLSCaptureNewProcessContainer(t, cfg)
-	})
-
-	t.Run("already running process (co-re)", func(t *testing.T) {
-		cfg := config.New()
-		cfg.EnableCORE = true
-		cfg.EnableRuntimeCompiler = false
-		cfg.AllowRuntimeCompiledFallback = false
-		testHTTPsGoTLSCaptureAlreadyRunningContainer(t, cfg)
+		t.Run("new process", func(t *testing.T) {
+			testHTTPsGoTLSCaptureNewProcessContainer(t, config.New())
+		})
+		t.Run("already running process", func(t *testing.T) {
+			testHTTPsGoTLSCaptureAlreadyRunningContainer(t, config.New())
+		})
 	})
 }
 
@@ -1013,7 +1003,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	tracertestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
+	gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)()
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
@@ -1030,7 +1020,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	t.Cleanup(closeServer)
 
 	// spin-up goTLS client but don't issue requests yet
-	issueRequestsFn := tracertestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true
@@ -1074,7 +1064,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 
 	tr := setupTracer(t, cfg)
 
-	require.NoError(t, gotls.RunServer(t, serverPort))
+	require.NoError(t, gotlstestutil.RunServer(t, serverPort))
 	reqs := make(requestsMap)
 	for i := 0; i < expectedOccurrences; i++ {
 		resp, err := client.Get(fmt.Sprintf("https://localhost:%s/status/%d", serverPort, 200+i))
@@ -1093,7 +1083,7 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 		expectedOccurrences = 10
 	)
 
-	require.NoError(t, gotls.RunServer(t, serverPort))
+	require.NoError(t, gotlstestutil.RunServer(t, serverPort))
 
 	client := &nethttp.Client{
 		Transport: &nethttp.Transport{
@@ -1128,7 +1118,8 @@ type tlsTestCommand struct {
 }
 
 // TLS classification tests
-func TestTLSClassification(t *testing.T) {
+func (s *USMSuite) TestTLSClassification() {
+	t := s.T()
 	cfg := testConfig()
 	cfg.ProtocolClassificationEnabled = true
 	cfg.CollectTCPv4Conns = true

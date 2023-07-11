@@ -12,7 +12,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -43,9 +43,9 @@ type unbundledTransformer struct {
 	taggerInstance tagger.Tagger
 }
 
-func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, []error) {
+func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
 	var (
-		datadogEvs []metrics.Event
+		datadogEvs []event.Event
 		errors     []error
 	)
 
@@ -79,9 +79,9 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, [
 
 		emittedEvents.Inc(involvedObject.Kind, ev.Type)
 
-		datadogEvs = append(datadogEvs, metrics.Event{
+		datadogEvs = append(datadogEvs, event.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),
-			Priority:       metrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			Host:           hostInfo.hostname,
 			SourceTypeName: "kubernetes",
 			EventType:      kubernetesAPIServerCheckName,

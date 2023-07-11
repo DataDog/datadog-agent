@@ -78,6 +78,7 @@ apm_config:
     remove_stack_traces: true
     redis:
       enabled: true
+      remove_all_args: true
     memcached:
       enabled: true
     credit_cards:

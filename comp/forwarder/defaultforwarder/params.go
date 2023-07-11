@@ -21,12 +21,12 @@ type Params struct {
 }
 
 func NewParams(config config.Component, log log.Component) Params {
-	return Params{Options: NewOptions(config, getMultipleEndpoints(config, log))}
+	return Params{Options: NewOptions(config, log, getMultipleEndpoints(config, log))}
 }
 
 func NewParamsWithResolvers(config config.Component, log log.Component) Params {
 	keysPerDomain := getMultipleEndpoints(config, log)
-	return Params{Options: NewOptionsWithResolvers(config, resolver.NewSingleDomainResolvers(keysPerDomain))}
+	return Params{Options: NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))}
 }
 
 func getMultipleEndpoints(_ config.Component, log log.Component) map[string][]string {

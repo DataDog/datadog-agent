@@ -33,9 +33,6 @@ type USMConnectionData[K comparable, V any] struct {
 
 	// Used for the purposes of orphan aggregation count
 	claimed bool
-
-	// Used during the first pass to determine the size of the `Data`
-	size int
 }
 
 type USMKeyValue[K comparable, V any] struct {
@@ -50,48 +47,19 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 	byConnection := &USMConnectionIndex[K, V]{
 		protocol: protocol,
 		lookupFn: USMLookup[K, V],
-		// Note about the initial map size here:
-		//
-		// The intent is to amortize the allocation cost of re-sizing the map
-		// too many times until the final size is reached, but unfortunately it
-		// is hard to predict the cardinality of this map.
-		//
-		// The generated map is keyed by connection tuple, whereas the input map
-		// is keyed by (connection tuple, endpoint, etc), so the cardinality of
-		// the generated map is *less or equal than* the original map cardinality.
-		//
-		// The difference between the input map and the generated map is
-		// dependent on the workload. For example, if there is a decent amount
-		// of connection pooling in place like one HTTP client with keep-alives
-		// issuing requests to 100 different endpoints from the same server,
-		// then cardinality of the original map would be 100 and of the
-		// generated map would be 1.
-		//
-		// I would expect *some* level of aggregation by connection in most
-		// workloads, so I chose the initial size to be len(data)/2.
-		//
-		// An alternative approach would be iterating over all
-		// network.ConnectionStats and counting how many of them are classified
-		// as `protocol`. But that has its own problems as well (classification
-		// might be disabled, there may be a mismatch between what NPM and USM
-		// sees etc)
-		data: make(map[types.ConnectionKey]*USMConnectionData[K, V], len(data)/2),
 	}
+
+	// The map intended to calculate how many entries we actually need in byConnection.data, and for each entry
+	// how many elements it has in it.
+	entriesSizeMap := make(map[types.ConnectionKey]int)
 
 	// In the first pass we instantiate the map and calculate the number of
 	// USM aggregation objects per connection
 	for key := range data {
-		connectionKey := keyGen(key)
-		connectionData, ok := byConnection.data[connectionKey]
-		if !ok {
-			// Implementation note for whoever tries to optimize this further:
-			// Pooling these `USMConnectionData` objects doesn't seem to yield
-			// any gains in terms of memory usage, so I'd probably keep it as it is
-			connectionData = new(USMConnectionData[K, V])
-			byConnection.data[connectionKey] = connectionData
-		}
-		connectionData.size++
+		entriesSizeMap[keyGen(key)]++
 	}
+
+	byConnection.data = make(map[types.ConnectionKey]*USMConnectionData[K, V], len(entriesSizeMap))
 
 	// In the second pass we create a slice for each `USMConnectionData` entry
 	// in the map using the pre-determined sizes from the previous iteration and
@@ -100,14 +68,9 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 		connectionKey := keyGen(key)
 		connectionData, ok := byConnection.data[connectionKey]
 		if !ok {
-			// should never happen
-			log.Errorf("missing aggregation for %+v. this is indicative of a bug in the code", connectionKey)
-			continue
-		}
-
-		// Create slice with pre-determined size
-		if connectionData.Data == nil {
-			connectionData.Data = make([]USMKeyValue[K, V], 0, connectionData.size)
+			connectionData = new(USMConnectionData[K, V])
+			connectionData.Data = make([]USMKeyValue[K, V], 0, entriesSizeMap[keyGen(key)])
+			byConnection.data[connectionKey] = connectionData
 		}
 
 		connectionData.Data = append(connectionData.Data, USMKeyValue[K, V]{

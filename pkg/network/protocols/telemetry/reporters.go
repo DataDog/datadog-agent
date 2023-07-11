@@ -38,10 +38,10 @@ func ReportStatsd() {
 
 var telemetryDelta deltaCalculator
 
-// ReportPayloadTelemetry returns a map with all metrics tagged with `OptTelemetry`
+// ReportPayloadTelemetry returns a map with all metrics tagged with `OptPayloadTelemetry`
 // The return format is consistent with what we use in the protobuf messages sent to the backend
 func ReportPayloadTelemetry(clientID string) map[string]int64 {
-	metrics := GetMetrics(OptTelemetry)
+	metrics := GetMetrics(OptPayloadTelemetry)
 	previousValues := telemetryDelta.GetState(clientID)
 	result := make(map[string]int64, len(metrics))
 	for _, metric := range metrics {

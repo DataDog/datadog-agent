@@ -160,7 +160,9 @@ func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][
 
 	// sanity checks
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
-		log.Error("Template entries don't all have the same length, not using them.")
+		log.Errorf("Template entries don't all have the same length. "+
+			"checkNames: %d, initConfigs: %d, instances: %d. Not using them.",
+			len(checkNames), len(initConfigs), len(instances))
 		return templates
 	}
 	for idx := range initConfigs {

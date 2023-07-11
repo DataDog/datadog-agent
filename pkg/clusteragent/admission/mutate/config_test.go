@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
@@ -125,7 +126,7 @@ func TestInjectService(t *testing.T) {
 	pod = withLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
 	err := injectConfig(pod, "", nil)
 	assert.Nil(t, err)
-	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_AGENT_HOST", "datadog.default.svc.cluster.local"))
+	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_AGENT_HOST", "datadog."+common.GetMyNamespace()+".svc.cluster.local"))
 }
 
 func TestInjectSocket(t *testing.T) {
@@ -134,6 +135,7 @@ func TestInjectSocket(t *testing.T) {
 	err := injectConfig(pod, "", nil)
 	assert.Nil(t, err)
 	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
+	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].MountPath, "/var/run/datadog")
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].Name, "datadog")
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].ReadOnly, true)

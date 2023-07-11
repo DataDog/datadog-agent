@@ -26,6 +26,7 @@ func PingTCP(tb testing.TB, ip net.IP, port int) net.Conn {
 
 	conn, err := net.DialTimeout(network, addr, time.Second)
 	require.NoError(tb, err)
+	tb.Cleanup(func() { conn.Close() })
 
 	_, err = conn.Write([]byte("ping"))
 	require.NoError(tb, err)
@@ -38,7 +39,7 @@ func PingTCP(tb testing.TB, ip net.IP, port int) net.Conn {
 
 // PingUDP connects to the provided IP address over UDP/UDPv6, sends the string "ping",
 // and returns the open connection for further use/inspection.
-func PingUDP(t *testing.T, ip net.IP, port int) net.Conn {
+func PingUDP(tb testing.TB, ip net.IP, port int) net.Conn {
 	network := "udp"
 	if isIpv6(ip) {
 		network = "udp6"
@@ -48,10 +49,11 @@ func PingUDP(t *testing.T, ip net.IP, port int) net.Conn {
 		Port: port,
 	}
 	conn, err := net.DialUDP(network, nil, addr)
-	require.NoError(t, err)
+	require.NoError(tb, err)
+	tb.Cleanup(func() { conn.Close() })
 
 	_, err = conn.Write([]byte("ping"))
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return conn
 }

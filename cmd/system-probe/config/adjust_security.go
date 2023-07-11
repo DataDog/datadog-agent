@@ -21,8 +21,9 @@ func adjustSecurity(cfg config.Config) {
 		// if runtime is enabled then we force fim
 		cfg.Set(secNS("fim_enabled"), true)
 	} else {
-		// if runtime is disabled then we force disable activity dumps
+		// if runtime is disabled then we force disable activity dumps and security profiles
 		cfg.Set(secNS("activity_dump.enabled"), false)
+		cfg.Set(secNS("security_profile.enabled"), false)
 	}
 
 	// further adjustments done in RuntimeSecurityConfig.sanitize

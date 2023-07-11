@@ -164,6 +164,15 @@ instances:
       #
       # collect_comments: true
 
+    ## Configure collection of shared memory usage
+    #
+    # shared_memory:
+
+        ## @param enabled - boolean - optional - default: true. Requires `dbm: true`.
+        ## Enable collection of database shared memory usages
+        #
+        # enabled: true
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##

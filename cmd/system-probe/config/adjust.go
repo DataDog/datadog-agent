@@ -17,11 +17,11 @@ var adjustMtx sync.Mutex
 
 // Adjust makes changes to the raw config based on deprecations and inferences.
 func Adjust(cfg config.Config) {
-	if IsAdjusted(cfg) {
-		return
-	}
 	adjustMtx.Lock()
 	defer adjustMtx.Unlock()
+	if cfg.GetBool(spNS("adjusted")) {
+		return
+	}
 
 	deprecateString(cfg, spNS("log_level"), "log_level")
 	deprecateString(cfg, spNS("log_file"), "log_file")
@@ -47,13 +47,6 @@ func Adjust(cfg config.Config) {
 	adjustSecurity(cfg)
 
 	cfg.Set(spNS("adjusted"), true)
-}
-
-// IsAdjusted returns whether the configuration has already been adjusted by Adjust
-func IsAdjusted(cfg config.Config) bool {
-	adjustMtx.Lock()
-	defer adjustMtx.Unlock()
-	return cfg.GetBool(spNS("adjusted"))
 }
 
 // validateString validates the string configuration value at `key` using a custom provided function `valFn`.
@@ -107,6 +100,30 @@ func applyDefault(cfg config.Config, key string, defaultVal interface{}) {
 func deprecateBool(cfg config.Config, oldkey string, newkey string) {
 	deprecateCustom(cfg, oldkey, newkey, func(cfg config.Config) interface{} {
 		return cfg.GetBool(oldkey)
+	})
+}
+
+// deprecateInt64 logs a deprecation message if `oldkey` is used.
+// It sets `newkey` to the value obtained from `getFn`, but only if `oldkey` is set and `newkey` is not set.
+func deprecateInt64(cfg config.Config, oldkey string, newkey string) {
+	deprecateCustom(cfg, oldkey, newkey, func(cfg config.Config) interface{} {
+		return cfg.GetInt64(oldkey)
+	})
+}
+
+// deprecateGeneric logs a deprecation message if `oldkey` is used.
+// It sets `newkey` to the value obtained from `getFn`, but only if `oldkey` is set and `newkey` is not set.
+func deprecateGeneric(cfg config.Config, oldkey string, newkey string) {
+	deprecateCustom(cfg, oldkey, newkey, func(cfg config.Config) interface{} {
+		return cfg.Get(oldkey)
+	})
+}
+
+// deprecateInt logs a deprecation message if `oldkey` is used.
+// It sets `newkey` to the value obtained from `getFn`, but only if `oldkey` is set and `newkey` is not set.
+func deprecateInt(cfg config.Config, oldkey string, newkey string) {
+	deprecateCustom(cfg, oldkey, newkey, func(cfg config.Config) interface{} {
+		return cfg.GetInt(oldkey)
 	})
 }
 

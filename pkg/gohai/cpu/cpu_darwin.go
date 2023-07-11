@@ -6,38 +6,51 @@
 package cpu
 
 import (
-	"os/exec"
-	"strconv"
-	"strings"
+	"fmt"
+
+	"golang.org/x/sys/unix"
 )
 
-var cpuMap = map[string]string{
+var cpuMapString = map[string]string{
 	"machdep.cpu.vendor":       "vendor_id",
 	"machdep.cpu.brand_string": "model_name",
-	"hw.physicalcpu":           "cpu_cores",
-	"hw.logicalcpu":            "cpu_logical_processors",
-	"hw.cpufrequency":          "mhz",
-	"machdep.cpu.family":       "family",
-	"machdep.cpu.model":        "model",
-	"machdep.cpu.stepping":     "stepping",
 }
 
-func getCPUInfo() (cpuInfo map[string]string, err error) {
-	cpuInfo = make(map[string]string)
+var cpuMapInt32 = map[string]string{
+	"machdep.cpu.family":   "family",
+	"machdep.cpu.model":    "model",
+	"machdep.cpu.stepping": "stepping",
+	"hw.physicalcpu":       "cpu_cores",
+	"hw.logicalcpu":        "cpu_logical_processors",
+}
 
-	for option, key := range cpuMap {
-		out, err := exec.Command("sysctl", "-n", option).Output()
-		if err == nil {
-			cpuInfo[key] = strings.Trim(string(out), "\n")
+// use `man 3 sysctl` to see the type returned when using each option
+func getCPUInfo() (map[string]string, error) {
+	cpuInfo := make(map[string]string)
+
+	// type returned by sysctl is string
+	for option, key := range cpuMapString {
+		if value, err := unix.Sysctl(option); err == nil {
+			cpuInfo[key] = value
 		}
 	}
 
-	if len(cpuInfo["mhz"]) != 0 {
-		mhz, err := strconv.Atoi(cpuInfo["mhz"])
-		if err == nil {
-			cpuInfo["mhz"] = strconv.Itoa(mhz / 1000000)
+	// type returned by sysctl is int32
+	for option, key := range cpuMapInt32 {
+		if value, err := unix.SysctlUint32(option); err == nil {
+			rendered := fmt.Sprintf("%d", value)
+			cpuInfo[key] = rendered
 		}
 	}
 
-	return
+	// type returned by sysctl is int64
+	option := "hw.cpufrequency"
+	if value, err := unix.SysctlUint64(option); err == nil {
+		// the value is in Hz
+		mhz := value / 1000000
+		rendered := fmt.Sprintf("%d", mhz)
+		cpuInfo["mhz"] = rendered
+	}
+
+	return cpuInfo, nil
 }

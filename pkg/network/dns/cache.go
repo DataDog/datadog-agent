@@ -100,7 +100,7 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 	return true
 }
 
-func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
+func (c *reverseDNSCache) Get(ips map[util.Address]struct{}) map[util.Address][]Hostname {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -141,12 +141,12 @@ func (c *reverseDNSCache) Get(ips []util.Address) map[util.Address][]Hostname {
 		}
 	}
 
-	for _, ip := range ips {
+	for ip := range ips {
 		collectNamesForIP(ip)
 	}
 
 	// Update stats for telemetry
-	cacheTelemetry.lookups.Add(int64((len(resolved) + len(unresolved))))
+	cacheTelemetry.lookups.Add(int64(len(resolved) + len(unresolved)))
 	cacheTelemetry.resolved.Add(int64(len(resolved)))
 	cacheTelemetry.oversized.Add(int64(len(oversized)))
 

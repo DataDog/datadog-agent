@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package oracle
 
 import (
@@ -35,7 +37,7 @@ type RowDB struct {
 
 func (c *Check) Tablespaces() error {
 	rows := []RowDB{}
-	err := c.db.Select(&rows, QUERY)
+	err := selectWrapper(c, &rows, QUERY)
 	if err != nil {
 		return fmt.Errorf("failed to collect tablespace info: %w", err)
 	}

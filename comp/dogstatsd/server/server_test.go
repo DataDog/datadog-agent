@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package server
 
 import (
@@ -20,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -34,6 +37,7 @@ type serverDeps struct {
 
 	Server Component
 	Config configComponent.Component
+	Log    log.Component
 }
 
 // getAvailableUDPPort requests a random port number and makes sure it is available
@@ -100,7 +104,8 @@ func TestNewServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 
@@ -116,7 +121,8 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	deps.Server.Stop()
@@ -176,7 +182,7 @@ func TestUDPReceive(t *testing.T) {
 	opts.UseNoopEventPlatformForwarder = true
 	opts.EnableNoAggregationPipeline = true
 
-	demux := aggregator.InitTestAgentDemultiplexerWithOpts(defaultforwarder.NewOptions(config.Datadog, nil), opts)
+	demux := aggregator.InitTestAgentDemultiplexerWithOpts(deps.Log, defaultforwarder.NewOptions(deps.Config, deps.Log, nil), opts)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -463,7 +469,7 @@ func TestUDPForward(t *testing.T) {
 
 	defer pc.Close()
 
-	demux := mockDemultiplexer()
+	demux := mockDemultiplexer(deps.Config, deps.Log)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -498,7 +504,8 @@ func TestHistToDist(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -588,7 +595,8 @@ func TestE2EParsing(t *testing.T) {
 	cfg["dogstatsd_port"] = port
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 
 	url := fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
@@ -609,7 +617,7 @@ func TestE2EParsing(t *testing.T) {
 	cfg["dogstatsd_eol_required"] = []string{"udp"}
 
 	deps = fulfillDepsWithConfigOverride(t, cfg)
-	demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(deps.Log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 
 	url = fmt.Sprintf("127.0.0.1:%d", deps.Config.GetInt("dogstatsd_port"))
@@ -637,7 +645,8 @@ func TestExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -669,7 +678,8 @@ func TestStaticTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -709,7 +719,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	samples := []metrics.MetricSample{}
 
-	demux := mockDemultiplexer()
+	demux := mockDemultiplexer(deps.Config, deps.Log)
 	defer demux.Stop(false)
 	requireStart(t, s, demux)
 
@@ -824,7 +834,7 @@ dogstatsd_mapper_profiles:
 
 			cw.Set("dogstatsd_port", port)
 
-			demux := mockDemultiplexer()
+			demux := mockDemultiplexer(deps.Config, deps.Log)
 			defer demux.Stop(false)
 			requireStart(t, s, demux)
 
@@ -861,7 +871,7 @@ func TestNewServerExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
-	demux := mockDemultiplexer()
+	demux := mockDemultiplexer(deps.Config, deps.Log)
 	requireStart(t, s, demux)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 	s.Stop()
@@ -871,7 +881,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg["tags"] = "hello:world"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
-	demux = mockDemultiplexer()
+	demux = mockDemultiplexer(deps.Config, deps.Log)
 	requireStart(t, s, demux)
 	require.Len(s.extraTags, 0, "no tags should have been read")
 	s.Stop()
@@ -881,7 +891,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	cfg["dogstatsd_tags"] = "hello:world extra:tags"
 	deps = fulfillDepsWithConfigOverride(t, cfg)
 	s = deps.Server.(*server)
-	demux = mockDemultiplexer()
+	demux = mockDemultiplexer(deps.Config, deps.Log)
 	requireStart(t, s, demux)
 	require.Len(s.extraTags, 2, "two tags should have been read")
 	require.Equal(s.extraTags[0], "extra:tags", "the tag extra:tags should be set")
@@ -900,7 +910,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		s := deps.Server.(*server)
 		assert := assert.New(t)
 
-		demux := mockDemultiplexer()
+		demux := mockDemultiplexer(deps.Config, deps.Log)
 		defer demux.Stop(false)
 		requireStart(t, s, demux)
 
@@ -980,8 +990,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	deps := fulfillDeps(t)
 	s := deps.Server.(*server)
 	assert := assert.New(t)
-
-	requireStart(t, s, mockDemultiplexer())
+	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
 
 	parser := newParser(deps.Config, newFloat64ListPool())
@@ -1023,7 +1032,7 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	s := deps.Server.(*server)
 	assert := assert.New(t)
 
-	requireStart(t, s, mockDemultiplexer())
+	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
 
 	parser := newParser(deps.Config, newFloat64ListPool())

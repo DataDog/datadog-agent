@@ -33,4 +33,5 @@ var MockBundle = fxutil.Bundle(
 	log.MockModule,
 	fx.Provide(func(params BundleParams) sysprobeconfig.Params { return params.SysprobeConfigParams }),
 	sysprobeconfig.MockModule,
+	telemetry.Module,
 )

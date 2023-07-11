@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    `DD_SERVICE_MAPPING` can be used to rename Serverless inferred spans' service names.

@@ -160,6 +160,9 @@ const (
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
+
+	// USM Payload Telemetry
+	USMHTTPHits ConnTelemetryType = "usm.http.total_hits"
 )
 
 //revive:enable
@@ -188,6 +191,11 @@ var (
 		MonotonicUDPSendsProcessed,
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
+	}
+
+	// USMPayloadTelemetry lists all USM metrics that are sent as payload telemetry
+	USMPayloadTelemetry = []ConnTelemetryType{
+		USMHTTPHits,
 	}
 )
 
@@ -220,6 +228,8 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
+type StatCookie = uint64
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
@@ -232,7 +242,7 @@ type ConnectionStats struct {
 
 	Last StatCounters
 
-	Cookie uint32
+	Cookie StatCookie
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64

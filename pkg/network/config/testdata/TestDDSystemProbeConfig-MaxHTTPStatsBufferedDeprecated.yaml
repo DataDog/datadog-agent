@@ -1,0 +1,2 @@
+network_config:
+  max_http_stats_buffered: 513

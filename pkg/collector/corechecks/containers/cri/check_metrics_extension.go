@@ -10,7 +10,7 @@ package cri
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -23,12 +23,12 @@ import (
 
 type criCustomMetricsExtension struct {
 	sender            generic.SenderFunc
-	aggSender         aggregator.Sender
+	aggSender         sender.Sender
 	criGetter         func() (cri.CRIClient, error)
 	criContainerStats map[string]*criTypes.ContainerStats
 }
 
-func (cext *criCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender aggregator.Sender) {
+func (cext *criCustomMetricsExtension) PreProcess(sender generic.SenderFunc, aggSender sender.Sender) {
 	cext.sender = sender
 	cext.aggSender = aggSender
 

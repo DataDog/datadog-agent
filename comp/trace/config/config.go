@@ -115,10 +115,6 @@ func (c *cfg) SetMaxMemCPU(isContainerized bool) {
 	}
 }
 
-func httpError(w http.ResponseWriter, status int, err error) {
-	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
-}
-
 func newMock(deps dependencies, t testing.TB) (Component, error) {
 	// injected Agentconfig should be a mock
 
