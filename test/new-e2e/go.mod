@@ -11,12 +11,11 @@ replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.47.0-rc.1
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
-	// You should bump the image version at the `image` field in `.new_e2e_template` job
-	// in .gitlab/e2e.yml to 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:<commit_sha>
-	// Commit sha matches the commit sha in the module version
+	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab-ci.yml`
+	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
-	// => image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20230706090837-d44e03d53b06
+	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
+	github.com/DataDog/test-infra-definitions v0.0.0-20230710102207-efed150be993
 	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.27
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
