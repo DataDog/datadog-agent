@@ -81,9 +81,9 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info) ([]MountInfo, 
 		}
 
 		mountInfo := MountInfo{
-			Name:      mount.Source[:],
+			Name:      mount.Source,
 			SizeKB:    sizeKB,
-			MountedOn: mount.Mountpoint[:],
+			MountedOn: mount.Mountpoint,
 		}
 		mountInfos = append(mountInfos, mountInfo)
 	}
@@ -115,7 +115,7 @@ func isRemoteFS(fsType string, fsSource string) bool {
 		return true
 	}
 
-	// If we satrt with `//` and we're one of the listed FS types, it's
+	// If we start with `//` and we're one of the listed FS types, it's
 	// a remote mount
 	if len(fsSource) > 2 && fsSource[0:2] == "//" {
 		switch fsType {

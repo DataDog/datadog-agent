@@ -127,14 +127,14 @@ func TestNixFSTypeFiltering(t *testing.T) {
 		tc := tc
 		t.Run("TestIgnoringOfFSType/"+caser.String(tc.FSType), func(t *testing.T) {
 			inputMounts := []*mountinfo.Info{
-				&mountinfo.Info{
+				{
 					Source:     tc.FSName,
 					FSType:     tc.FSType,
 					Mountpoint: randString(),
 				},
 				newTestInputMountinfo(randString()),
 				newTestInputMountinfo(randString()),
-				&mountinfo.Info{
+				{
 					Source:     tc.FSName,
 					FSType:     tc.FSType,
 					Mountpoint: randString(),
@@ -184,9 +184,9 @@ func TestNixMissingMountValues(t *testing.T) {
 			"MissingMountName",
 			[]*mountinfo.Info{
 				newTestInputMountinfo("Normal1"),
-				&mountinfo.Info{Source: "", FSType: "foo", Mountpoint: "Bad1"},
+				{Source: "", FSType: "foo", Mountpoint: "Bad1"},
 				newTestInputMountinfo("Normal2"),
-				&mountinfo.Info{Source: "", FSType: "foo", Mountpoint: "Bad2"},
+				{Source: "", FSType: "foo", Mountpoint: "Bad2"},
 				newTestInputMountinfo("Normal3"),
 			},
 			[]MountInfo{
@@ -199,9 +199,9 @@ func TestNixMissingMountValues(t *testing.T) {
 			"MissingMountPoint",
 			[]*mountinfo.Info{
 				newTestInputMountinfo("Normal1"),
-				&mountinfo.Info{Source: "Bad1", FSType: "foo", Mountpoint: ""},
+				{Source: "Bad1", FSType: "foo", Mountpoint: ""},
 				newTestInputMountinfo("Normal2"),
-				&mountinfo.Info{Source: "Bad2", FSType: "foo", Mountpoint: ""},
+				{Source: "Bad2", FSType: "foo", Mountpoint: ""},
 				newTestInputMountinfo("Normal3"),
 			},
 			[]MountInfo{
@@ -214,7 +214,7 @@ func TestNixMissingMountValues(t *testing.T) {
 			"MissingMountPointAndName",
 			[]*mountinfo.Info{
 				newTestInputMountinfo("Normal1"),
-				&mountinfo.Info{Source: "", FSType: "foo", Mountpoint: ""},
+				{Source: "", FSType: "foo", Mountpoint: ""},
 				newTestInputMountinfo("Normal2"),
 			},
 			[]MountInfo{newTestOutputMountInfo("Normal1"), newTestOutputMountInfo("Normal2")},
@@ -223,9 +223,9 @@ func TestNixMissingMountValues(t *testing.T) {
 			"MissingFSType",
 			[]*mountinfo.Info{
 				newTestInputMountinfo("Normal1"),
-				&mountinfo.Info{Source: "Bad1", FSType: "", Mountpoint: "Bad1"},
+				{Source: "Bad1", FSType: "", Mountpoint: "Bad1"},
 				newTestInputMountinfo("Normal2"),
-				&mountinfo.Info{Source: "Bad2", FSType: "", Mountpoint: "Bad2"},
+				{Source: "Bad2", FSType: "", Mountpoint: "Bad2"},
 				newTestInputMountinfo("Normal3"),
 			},
 			[]MountInfo{
