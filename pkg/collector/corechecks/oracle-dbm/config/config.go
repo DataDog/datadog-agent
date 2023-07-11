@@ -60,6 +60,18 @@ type AgentSQLTrace struct {
 	TracedRuns int  `yaml:"traced_runs"`
 }
 
+type CustomQueryColumns struct {
+	Name string `yaml:"name"`
+	Type string `yaml:"type"`
+}
+
+type CustomQueries struct {
+	MetricPrefix string               `yaml:"metric_prefix"`
+	Query        string               `yaml:"query"`
+	Columns      []CustomQueryColumns `yaml:"columns"`
+	Tags         []string             `yaml:"tags"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
 	Server                 string               `yaml:"server"`
@@ -85,6 +97,7 @@ type InstanceConfig struct {
 	SharedMemory           SharedMemoryConfig   `yaml:"shared_memory"`
 	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
 	AgentSQLTrace          AgentSQLTrace        `yaml:"agent_sql_trace"`
+	CustomQueries          []CustomQueries      `yaml:"custom_queries"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.

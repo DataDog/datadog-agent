@@ -127,6 +127,10 @@ func (c *Check) Run() error {
 				return err
 			}
 		}
+
+		if len(c.config.CustomQueries) != 0 {
+			c.CustomQueries()
+		}
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
