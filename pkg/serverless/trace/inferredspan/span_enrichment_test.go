@@ -778,6 +778,26 @@ func TestExtractContextFromSNSSQSEvent_UnsupportedDataType(t *testing.T) {
 	assert.Equal(t, "unsupported DataType in _datadog payload", err.Error())
 }
 
+func TestExtractContextFromSNSSQSEvent_InvalidParentIdValidSamplingPriority(t *testing.T) {
+	// The x-datadog-parent-id field is invalid, but the x-datadog-sampling-priority is valid.
+	mockSQSMessage := events.SQSMessage{
+		Body: `{
+            "Message": "mock message",
+            "MessageAttributes": {
+                "_datadog": {
+                    "Type": "Binary",
+                    "Value": "eyJ4LWRhdGFkb2ctdHJhY2UtaWQiOiAiMTIzNDU2Nzg5MCIsIngtZGF0YWRvZy1wYXJlbnQtaWQi
+					OiAiaW52YWxpZE51bWJlciIsIngtZGF0YWRvZy1zYW1wbGluZy1wcmlvcml0eSI6ICIxLjAifQ="
+                }
+            }
+        }`,
+	}
+
+	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
+
+	assert.Error(t, err)
+}
+
 func TestExtractContextFromSNSSQSEvent_InvalidBase64(t *testing.T) {
 	mockSQSMessage := events.SQSMessage{
 		Body: `{
@@ -876,6 +896,29 @@ func TestConvertToFloat64_ValidInput(t *testing.T) {
 func TestConvertToFloat64_InvalidInput(t *testing.T) {
 	str := "invalid"
 	_, err := convertToFloat64(str)
+
+	assert.Error(t, err)
+}
+
+func TestConvertValues_ValidInput(t *testing.T) {
+	traceID := "1234567890"
+	parentID := "1234567890"
+	samplingPriority := "1.0"
+
+	uint64TraceID, uint64ParentID, samplingPriorityFloat64, err := convertValues(traceID, parentID, samplingPriority)
+
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1234567890), uint64TraceID)
+	assert.Equal(t, uint64(1234567890), uint64ParentID)
+	assert.Equal(t, float64(1.0), samplingPriorityFloat64)
+}
+
+func TestConvertValues_InvalidInput(t *testing.T) {
+	traceID := "invalid"
+	parentID := "invalid"
+	samplingPriority := "invalid"
+
+	_, _, _, err := convertValues(traceID, parentID, samplingPriority)
 
 	assert.Error(t, err)
 }

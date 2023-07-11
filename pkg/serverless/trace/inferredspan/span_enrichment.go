@@ -306,6 +306,25 @@ func convertToFloat64(str string) (float64, error) {
 	return converted, nil
 }
 
+func convertValues(traceID, parentID, samplingPriority string) (uint64, uint64, float64, error) {
+	uint64TraceID, err := convertToUint64(traceID)
+	if err != nil {
+		return 0, 0, 0.0, err
+	}
+
+	uint64ParentID, err := convertToUint64(parentID)
+	if err != nil {
+		return 0, 0, 0.0, err
+	}
+
+	samplingPriorityFloat64, err := convertToFloat64(samplingPriority)
+	if err != nil {
+		return 0, 0, 0.0, err
+	}
+
+	return uint64TraceID, uint64ParentID, samplingPriorityFloat64, nil
+}
+
 // EnrichInferredSpanWithSQSEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an SQS event.
@@ -316,28 +335,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	var samplingPriorityFloat64 float64
 
 	eventRecord := eventPayload.Records[0]
-	if ddMessageAttribute, ok := eventRecord.MessageAttributes["_datadog"]; ok {
-		traceID, parentID, samplingPriority, err = extractContextFromPureSqsEvent(ddMessageAttribute)
-	} else {
-		traceID, parentID, samplingPriority, err = extractContextFromSNSSQSEvent(eventRecord)
-	}
-	if err != nil {
-		log.Errorf("Failed to extract context: %v", err)
-	} else {
-		uint64TraceID, err = convertToUint64(traceID)
-		if err != nil {
-			log.Errorf("%v", err)
-		}
-		uint64ParentID, err = convertToUint64(parentID)
-		if err != nil {
-			log.Errorf("%v", err)
-		}
-		samplingPriorityFloat64, err = convertToFloat64(samplingPriority)
-		if err != nil {
-			log.Errorf("%v", err)
-		}
-	}
-
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
 	parsedQueueName := splitArn[len(splitArn)-1]
 	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
@@ -348,13 +345,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Start = startTime
 	inferredSpan.Span.Resource = parsedQueueName
-	if err == nil {
-		inferredSpan.Span.TraceID = uint64TraceID
-		inferredSpan.Span.ParentID = uint64ParentID
-		inferredSpan.Span.Metrics = map[string]float64{
-			"_sampling_priority_v1": samplingPriorityFloat64,
-		}
-	}
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName:  "aws.sqs",
@@ -363,6 +353,29 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 		eventSourceArn: eventRecord.EventSourceARN,
 		receiptHandle:  eventRecord.ReceiptHandle,
 		senderID:       eventRecord.Attributes["SenderId"],
+	}
+	if ddMessageAttribute, ok := eventRecord.MessageAttributes["_datadog"]; ok {
+		traceID, parentID, samplingPriority, err = extractContextFromPureSqsEvent(ddMessageAttribute)
+	} else {
+		traceID, parentID, samplingPriority, err = extractContextFromSNSSQSEvent(eventRecord)
+	}
+
+	if err != nil {
+		log.Errorf("Failed to extract context: %v", err)
+		return
+	}
+
+	uint64TraceID, uint64ParentID, samplingPriorityFloat64, err = convertValues(traceID, parentID, samplingPriority)
+	if err != nil {
+		log.Errorf("%v", err)
+		return
+	}
+	if err == nil {
+		inferredSpan.Span.TraceID = uint64TraceID
+		inferredSpan.Span.ParentID = uint64ParentID
+		inferredSpan.Span.Metrics = map[string]float64{
+			"_sampling_priority_v1": samplingPriorityFloat64,
+		}
 	}
 }
 
