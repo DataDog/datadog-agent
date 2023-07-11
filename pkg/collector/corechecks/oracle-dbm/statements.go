@@ -848,7 +848,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	c.statementsCache.forceMatchingSignatures = nil
 
 	if planErrors > 0 {
-		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan erros: %d", SQLCount, planErrors)
+		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan errors: %d", SQLCount, planErrors)
 	}
 	return SQLCount, nil
 }
