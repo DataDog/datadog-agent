@@ -128,9 +128,10 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	for {
 		select {
 		case diff := <-l.extractor.ProcessCacheDiff():
-			if _, ok := <-streamCtx.Done(); !ok { // Ensure that if streamCtx.Done() is closed, we always chose that path.
+			if _, ok := <-streamCtx.Done(); !ok { // Ensure that if streamCtx.Done() is closed, we always choose that path.
 				return DuplicateConnectionErr
 			}
+
 			// Do not send diff if it has the same or older version of the cache snapshot sent on the connection creation
 			if diff.cacheVersion <= snapshotVersion {
 				continue
