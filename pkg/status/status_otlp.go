@@ -8,22 +8,25 @@
 package status
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 )
+
+// OTLPCollector holds an instance of any running collector.
+// TODO: remove once this package is migrated to components.
+var OTLPCollector collector.Component
 
 // GetOTLPStatus parses the otlp pipeline and its collector info to be sent to the frontend
 func GetOTLPStatus() map[string]interface{} {
 	status := make(map[string]interface{})
 	otlpIsEnabled := otlp.IsEnabled(config.Datadog)
 	var otlpCollectorStatus otlp.CollectorStatus
-	if otlpIsEnabled {
-		otlpCollectorStatus = otlp.GetCollectorStatus(common.OTLP)
+	if otlpIsEnabled && OTLPCollector != nil {
+		otlpCollectorStatus = OTLPCollector.Status()
 	} else {
 		otlpCollectorStatus = otlp.CollectorStatus{Status: "Not running", ErrorMessage: ""}
 	}
-
 	status["otlpStatus"] = otlpIsEnabled
 	status["otlpCollectorStatus"] = otlpCollectorStatus.Status
 	status["otlpCollectorStatusErr"] = otlpCollectorStatus.ErrorMessage
