@@ -127,13 +127,13 @@ func getFileSystemInfo() ([]MountInfo, error) {
 		moreData := true
 		for moreData {
 			outstring := convertWindowsString(buf)
-			sz, _ := getDiskSize(outstring)
-			var capacity string
-			if 0 == sz {
-				capacity = "Unknown"
-			} else {
-				capacity = strconv.FormatInt(int64(sz)/1024.0, 10)
+
+			size, _ := getDiskSize(outstring)
+			sizeKB := uint64(0)
+			if size != 0 {
+				sizeKB = uint64(size) / 1024
 			}
+
 			mountpts := getMountPoints(outstring)
 			var mountName string
 			if len(mountpts) > 0 {
@@ -147,7 +147,7 @@ func getFileSystemInfo() ([]MountInfo, error) {
 			fileSystemInfo = append(fileSystemInfo, mountInfo)
 			status, _, _ := findNext.Call(fh,
 				uintptr(unsafe.Pointer(&buf[0])),
-				uintptr(sz))
+				uintptr(size))
 			if 0 == status {
 				moreData = false
 			}
