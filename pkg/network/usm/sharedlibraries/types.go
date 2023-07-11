@@ -5,7 +5,7 @@
 
 //go:build ignore
 
-package sharedlibrary
+package sharedlibraries
 
 /*
 #include "../../ebpf/c/shared-libraries/types.h"

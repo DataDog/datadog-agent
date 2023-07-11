@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package sharedlibrary
+package sharedlibraries
 
 import (
 	"errors"

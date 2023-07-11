@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibrary"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -208,7 +208,7 @@ type sslProgram struct {
 	cfg       *config.Config
 	sockFDMap *ebpf.Map
 	manager   *errtelemetry.Manager
-	watcher   *sharedlibrary.Watcher
+	watcher   *sharedlibraries.Watcher
 }
 
 var _ subprogram = &sslProgram{}
@@ -218,18 +218,18 @@ func newSSLProgram(c *config.Config, m *manager.Manager, sockFDMap *ebpf.Map, bp
 		return nil
 	}
 
-	watcher := sharedlibrary.NewWatcher(c, bpfTelemetry,
-		sharedlibrary.Rule{
+	watcher := sharedlibraries.NewWatcher(c, bpfTelemetry,
+		sharedlibraries.Rule{
 			Re:           regexp.MustCompile(`libssl.so`),
 			RegisterCB:   addHooks(m, openSSLProbes),
 			UnregisterCB: removeHooks(m, openSSLProbes),
 		},
-		sharedlibrary.Rule{
+		sharedlibraries.Rule{
 			Re:           regexp.MustCompile(`libcrypto.so`),
 			RegisterCB:   addHooks(m, cryptoProbes),
 			UnregisterCB: removeHooks(m, cryptoProbes),
 		},
-		sharedlibrary.Rule{
+		sharedlibraries.Rule{
 			Re:           regexp.MustCompile(`libgnutls.so`),
 			RegisterCB:   addHooks(m, gnuTLSProbes),
 			UnregisterCB: removeHooks(m, gnuTLSProbes),
@@ -278,8 +278,8 @@ func (o *sslProgram) Start() {
 func (o *sslProgram) Stop() {
 }
 
-func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedlibrary.PathIdentifier, string, string) error {
-	return func(id sharedlibrary.PathIdentifier, root string, path string) error {
+func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedlibraries.PathIdentifier, string, string) error {
+	return func(id sharedlibraries.PathIdentifier, root string, path string) error {
 		uid := getUID(id)
 
 		elfFile, err := elf.Open(root + path)
@@ -366,8 +366,8 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedli
 	}
 }
 
-func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedlibrary.PathIdentifier) error {
-	return func(lib sharedlibrary.PathIdentifier) error {
+func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedlibraries.PathIdentifier) error {
+	return func(lib sharedlibraries.PathIdentifier) error {
 		uid := getUID(lib)
 		for _, singleProbe := range probes {
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
@@ -404,7 +404,7 @@ func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(share
 //	fmt.Sprintf("%s_%.*s_%s_%s", probeType, maxFuncNameLen, functionName, UID, attachPIDstr)
 //
 // functionName is variable but with a minimum guarantee of 10 chars
-func getUID(lib sharedlibrary.PathIdentifier) string {
+func getUID(lib sharedlibraries.PathIdentifier) string {
 	return lib.Key()[:5]
 }
 
