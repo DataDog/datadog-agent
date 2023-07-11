@@ -6,7 +6,6 @@
 package filesystem
 
 import (
-	"strconv"
 	"syscall"
 	"unsafe"
 )
