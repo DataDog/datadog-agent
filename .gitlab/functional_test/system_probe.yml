@@ -28,6 +28,7 @@
     when: always
     paths:
       - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
+      - $DD_AGENT_TESTING_DIR/testjson
       - $CI_PROJECT_DIR/kitchen_logs
 
 .retrieve_test_dockers:
