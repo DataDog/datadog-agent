@@ -16,8 +16,7 @@ import (
 )
 
 const (
-	policyExtension    = ".policy"
-	PolicyProviderType = "directoryPolicyProvider"
+	policyExtension = ".policy"
 )
 
 var _ PolicyProvider = (*PoliciesDirProvider)(nil)
@@ -49,7 +48,7 @@ func (p *PoliciesDirProvider) loadPolicy(filename string, macroFilters []MacroFi
 
 	name := filepath.Base(filename)
 
-	return LoadPolicy(name, "file", f, macroFilters, ruleFilters)
+	return LoadPolicy(name, PolicySourceDir, f, macroFilters, ruleFilters)
 }
 
 func (p *PoliciesDirProvider) getPolicyFiles() ([]string, error) {
@@ -203,5 +202,5 @@ func NewPoliciesDirProvider(policiesDir string, watch bool) (*PoliciesDirProvide
 }
 
 func (p *PoliciesDirProvider) Type() string {
-	return PolicyProviderType
+	return PolicyProviderTypeDir
 }

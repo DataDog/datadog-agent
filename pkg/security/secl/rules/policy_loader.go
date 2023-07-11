@@ -13,6 +13,13 @@ import (
 	"github.com/skydive-project/go-debouncer"
 )
 
+const (
+	PolicyProviderTypeDir = "directoryPolicyProvider"
+	PolicySourceDir       = "file"
+	PolicyProviderTypeRC  = "remoteConfigPolicyProvider"
+	PolicySourceRC        = "remote-config"
+)
+
 var (
 	debounceDelay = 5 * time.Second
 )
