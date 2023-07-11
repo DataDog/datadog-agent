@@ -1083,6 +1083,7 @@ func TestExpvar(t *testing.T) {
 
 	c := config.New()
 	c.DebugServerPort = 5012
+	info.InitInfo(c)
 	s := NewDebugServer(c)
 	s.Start()
 	defer s.Stop()
@@ -1090,13 +1091,18 @@ func TestExpvar(t *testing.T) {
 	resp, err := http.Get("http://127.0.0.1:5012/debug/vars")
 	assert.NoError(t, err)
 	defer resp.Body.Close()
-	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
 
-	if resp.StatusCode == http.StatusOK {
-		var out map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&out)
-		assert.NoError(t, err, "/debug/vars must return valid json")
-	}
+	t.Run("read-expvars", func(t *testing.T) {
+		assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
+	})
+	t.Run("valid-response", func(t *testing.T) {
+		if resp.StatusCode == http.StatusOK {
+			var out map[string]interface{}
+			err = json.NewDecoder(resp.Body).Decode(&out)
+			assert.NoError(t, err, "/debug/vars must return valid json")
+			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
+		}
+	})
 }
 
 func TestWatchdog(t *testing.T) {
@@ -1184,4 +1190,25 @@ func msgpTraces(t *testing.T, traces pb.Traces) []byte {
 		t.Fatal(err)
 	}
 	return bts
+}
+
+func TestAgentStatusOnStartup(t *testing.T) {
+	c := config.New()
+	c.DebugServerPort = 5012
+	s := NewDebugServer(c)
+	info.InitInfo(c)
+	s.Start()
+	defer s.Stop()
+
+	resp, err := http.Get("http://127.0.0.1:5012/debug/vars")
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+	assert.EqualValues(t, resp.StatusCode, http.StatusOK, "failed to read expvars from local server")
+
+	if resp.StatusCode == http.StatusOK {
+		var out map[string]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&out)
+		assert.NoError(t, err)
+		assert.NotNil(t, out["receiver"])
+	}
 }
