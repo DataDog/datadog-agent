@@ -303,7 +303,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	if planCacheRetention == 0 {
 		planCacheRetention = 1
 	}
-	c.planCache.SetTTL(time.Duration(time.Duration(planCacheRetention) * time.Minute))
+	c.planCache.SetTTL(time.Duration(planCacheRetention) * time.Minute)
 
 	return nil
 }
