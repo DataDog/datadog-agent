@@ -976,7 +976,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
     // since we don't have it everywhere for udp port bindings
     // (see sys_enter_bind/sys_exit_bind below)
     port_binding_t pb = {};
-    pb.netns = 0;
+    pb.netns = get_netns_from_sock(skp);
     pb.port = lport;
     remove_port_bind(&pb, &udp_port_bindings);
     return 0;
@@ -1092,9 +1092,10 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     }
 
     port_binding_t pb = {};
-    pb.netns = 0; // don't have net ns info in this context
+    pb.netns = get_netns_from_sock(sk);
     pb.port = sin_port;
     add_port_bind(&pb, udp_port_bindings);
+    log_debug("sys_exit_bind: netns=%u\n", pb.netns);
     log_debug("sys_exit_bind: bound UDP port %u\n", sin_port);
 
     return 0;

@@ -125,6 +125,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         u32 *port_count = NULL;
         port_binding_t pb = {};
         pb.port = t->sport;
+        pb.netns = t->netns;
         if (t->metadata & CONN_TYPE_TCP) {
             pb.netns = t->netns;
             port_count = bpf_map_lookup_elem(&port_bindings, &pb);
