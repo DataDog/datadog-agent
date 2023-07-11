@@ -6,6 +6,8 @@
 package workloadmeta
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -19,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// DuplicateConnectionErr is an error that explains the connection was closed because another client tried to connect
+var DuplicateConnectionErr = errors.New("the stream was closed because another client called StreamEntities")
+
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
 	config    config.ConfigReader
@@ -28,6 +33,9 @@ type GRPCServer struct {
 	addr net.Addr
 
 	wg sync.WaitGroup
+
+	streamMutex         *sync.Mutex
+	closeExistingStream context.CancelFunc
 
 	invalidVersionError telemetry.SimpleCounter
 	streamServerError   telemetry.SimpleCounter
@@ -39,6 +47,7 @@ func NewGRPCServer(config config.ConfigReader, extractor *WorkloadMetaExtractor)
 		config:              config,
 		extractor:           extractor,
 		server:              grpc.NewServer(),
+		streamMutex:         &sync.Mutex{},
 		invalidVersionError: telemetry.NewSimpleCounter(subsystem, "invalid_version_errors", "The number of times the grpc server receives an entity diff that has an invalid version."),
 		streamServerError:   telemetry.NewSimpleCounter(subsystem, "stream_send_errors", "The number of times the grpc server has failed to send an entity diff to the core agent."),
 	}
@@ -94,6 +103,8 @@ func (l *GRPCServer) Stop() {
 
 // StreamEntities streams Process Entities collected through the WorkloadMetaExtractor
 func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
+	streamCtx := l.acquireStreamCtx()
+
 	// When connection is created, send a snapshot of all processes detected on the host so far as "SET" events
 	procs, snapshotVersion := l.extractor.GetAllProcessEntities()
 	setEvents := make([]*pbgo.ProcessEventSet, 0, len(procs))
@@ -117,6 +128,13 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	for {
 		select {
 		case diff := <-l.extractor.ProcessCacheDiff():
+			// Ensure that if streamCtx.Done() is closed, we always choose that path.
+			select {
+			case <-streamCtx.Done():
+				return DuplicateConnectionErr
+			default:
+			}
+
 			// Do not send diff if it has the same or older version of the cache snapshot sent on the connection creation
 			if diff.cacheVersion <= snapshotVersion {
 				continue
@@ -147,6 +165,8 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 		case <-out.Context().Done():
 			return nil
+		case <-streamCtx.Done():
+			return DuplicateConnectionErr
 		}
 	}
 }
@@ -183,4 +203,18 @@ func processEntityToEventSet(proc *ProcessEntity) *pbgo.ProcessEventSet {
 		CreationTime: proc.CreationTime,
 		Language:     language,
 	}
+}
+
+// acquireStreamCtx is responsible for handling locking and cancelling running streams. This ensures that whenever a
+// new client connects, the stream is unique.
+func (l *GRPCServer) acquireStreamCtx() context.Context {
+	l.streamMutex.Lock()
+	defer l.streamMutex.Unlock()
+
+	if l.closeExistingStream != nil {
+		l.closeExistingStream()
+	}
+	streamCtx, cancel := context.WithCancel(context.Background())
+	l.closeExistingStream = cancel
+	return streamCtx
 }
