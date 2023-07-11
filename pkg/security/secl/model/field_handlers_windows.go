@@ -48,6 +48,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "dns":
 	case "exec":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)

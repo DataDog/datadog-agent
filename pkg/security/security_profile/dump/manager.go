@@ -354,7 +354,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 	}
 
 	// loop through the process cache entry tree and push traced pids if necessary
-	adm.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
+	adm.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessContextCallback(newDump))
 
 	// Delay the activity dump snapshot to reduce the overhead on the main goroutine
 	select {
@@ -613,9 +613,9 @@ func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
 	}
 }
 
-// SearchTracedProcessCacheEntryCallback inserts traced pids if necessary
-func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *ActivityDump) func(entry *model.ProcessCacheEntry) {
-	return func(entry *model.ProcessCacheEntry) {
+// SearchTracedProcessContextCallback inserts traced pids if necessary
+func (adm *ActivityDumpManager) SearchTracedProcessContextCallback(ad *ActivityDump) func(entry *model.ProcessContext) {
+	return func(entry *model.ProcessContext) {
 		ad.Lock()
 		defer ad.Unlock()
 
@@ -625,11 +625,11 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		}
 
 		// compute the list of ancestors, we need to start inserting them from the root
-		ancestors := []*model.ProcessCacheEntry{entry}
-		parent := activity_tree.GetNextAncestorBinaryOrArgv0(&entry.ProcessContext)
+		ancestors := []*model.ProcessContext{entry}
+		parent := activity_tree.GetNextAncestorBinaryOrArgv0(entry)
 		for parent != nil {
-			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
-			parent = activity_tree.GetNextAncestorBinaryOrArgv0(&parent.ProcessContext)
+			ancestors = append([]*model.ProcessContext{parent}, ancestors...)
+			parent = activity_tree.GetNextAncestorBinaryOrArgv0(parent)
 		}
 
 		for _, parent = range ancestors {
