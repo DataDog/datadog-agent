@@ -44,12 +44,6 @@ func TestHasEnv(t *testing.T) {
 }
 
 func TestGetWindowsRuntime(t *testing.T) {
-	dotnet := getRuntime("windows", func(s string) string {
-		if s == "DOTNET_CLI_TELEMETRY_PROFILE" {
-			return "AzureKudu"
-		}
-		return ""
-	})
 	java := getRuntime("windows", func(s string) string {
 		if s == "WEBSITE_STACK" {
 			return "JAVA"
@@ -62,12 +56,12 @@ func TestGetWindowsRuntime(t *testing.T) {
 		}
 		return ""
 	})
-	unknown := getRuntime("windows", func(s string) string { return "" })
+	dotnet := getRuntime("windows", func(s string) string { return "" })
 
 	assert.Equal(t, ".NET", dotnet)
 	assert.Equal(t, "Java", java)
 	assert.Equal(t, "Node.js", node)
-	assert.Equal(t, "unknown", unknown)
+	assert.Equal(t, ".NET", dotnet)
 }
 
 func TestGetLinuxRuntime(t *testing.T) {

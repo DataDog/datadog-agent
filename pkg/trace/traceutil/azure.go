@@ -115,10 +115,10 @@ func getWindowsRuntime(getenv func(string) string) (rt string) {
 		rt = javaFramework
 	} else if hasEnv("WEBSITE_NODE_DEFAULT_VERSION", getenv) {
 		rt = nodeFramework
-	} else if hasEnv("DOTNET_CLI_TELEMETRY_PROFILE", getenv) {
-		rt = dotnetFramework
 	} else {
-		rt = unknown
+		// Windows AAS only supports Java, Node, and .NET so we can infer this
+		// Needs to be inferred because no other env vars give us context
+		rt = dotnetFramework
 	}
 
 	return rt
