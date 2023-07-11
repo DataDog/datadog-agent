@@ -161,8 +161,8 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 
 	begin, end := network.EphemeralRange()
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
-		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: begin},
-		manager.ConstantEditor{Name: "ephemeral_range_end", Value: end})
+		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
+		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
 
 	closedChannelSize := defaultClosedChannelSize
 	if config.ClosedChannelSize > 0 {

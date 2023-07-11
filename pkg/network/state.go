@@ -881,6 +881,8 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 			_, conn.IntraHost = lAddrs[keyWithRAddr]
 		}
 
+		fixConnectionDirection(conn)
+
 		if conn.IntraHost &&
 			conn.Direction == INCOMING &&
 			conn.IPTranslation != nil {
@@ -910,6 +912,35 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 				conn.IPTranslation = nil
 			}
 		}
+	}
+}
+
+// fixConnectionDirection fixes connection direction
+// for UDP incoming connections.
+//
+// Some UDP connections can be assigned an incoming
+// direction incorrectly since we cannot reliably
+// distinguish between a server and client for UDP
+// in eBPF. Both clients and servers can call
+// the system call bind() for source ports, but
+// UDP servers don't call listen() or accept()
+// like TCP.
+//
+// This function fixes only a very specific case:
+// incoming local UDP connections, when the source
+// port is ephemeral but the destination port is not.
+// This is the only case where we can be sure the
+// connection has the incorrect direction of incoming.
+func fixConnectionDirection(c *ConnectionStats) {
+	// fix only local incoming UDP connections
+	if !c.IntraHost || c.Direction != INCOMING || c.Type != UDP {
+		return
+	}
+
+	sourceEphemeral := IsEphemeralPort(int(c.SPort))
+	destEphemeral := IsEphemeralPort(int(c.DPort))
+	if sourceEphemeral && !destEphemeral {
+		c.Direction = OUTGOING
 	}
 }
 
