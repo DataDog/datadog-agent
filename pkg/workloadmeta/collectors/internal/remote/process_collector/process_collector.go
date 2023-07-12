@@ -106,9 +106,6 @@ type streamHandler struct {
 }
 
 func init() {
-	if flavor.GetFlavor() != flavor.DefaultAgent {
-		return
-	}
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
 	// The collector can not be registered in the init function because it needs to be registered only in the core agent.
 	// Thus it is registered in LoadComponents.
@@ -120,6 +117,13 @@ func init() {
 			Insecure:      true, // wlm extractor currently does not support TLS
 		}
 	})
+}
+
+func (s *streamHandler) IsEnabled() bool {
+	if flavor.GetFlavor() != flavor.DefaultAgent {
+		return false
+	}
+	return config.Datadog.GetBool("workloadmeta.remote_process_collector.enabled")
 }
 
 func (s *streamHandler) Port() int {
