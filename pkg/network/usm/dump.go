@@ -66,6 +66,16 @@ func (e *ebpfProgram) dumpMapsHandler(manager *manager.Manager, mapName string, 
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
+
+	case connectionStatesMap: // maps/connection_states (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.__u32
+		output.WriteString("Map: '" + mapName + "', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
+		iter := currentMap.Iterate()
+		var key http.ConnTuple
+		var value uint32
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
+
 	default: // Go through enabled protocols in case one of them now how to handle the current map
 		for _, p := range e.enabledProtocols {
 			p.DumpMaps(&output, mapName, currentMap)

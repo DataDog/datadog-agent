@@ -28,14 +28,14 @@ SYSCALL_KPROBE2(kill, int, pid, int, type) {
     return 0;
 }
 
-SEC("kprobe/kill_pid_info")
-int kprobe_kill_pid_info(struct pt_regs *ctx) {
+HOOK_ENTRY("kill_pid_info")
+int hook_kill_pid_info(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SIGNAL);
     if (!syscall || syscall->signal.pid) {
         return 0;
     }
 
-    struct pid *pid = (struct pid *)PT_REGS_PARM3(ctx);
+    struct pid *pid = (struct pid *)CTX_PARM3(ctx);
     if (!pid) {
         return 0;
     }

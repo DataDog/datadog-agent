@@ -38,6 +38,12 @@ namespace WixSetup.Datadog
 
         public ManagedAction ConfigureUser { get; }
 
+        public ManagedAction ConfigureUserRollback { get; }
+
+        public ManagedAction UninstallUser { get; }
+
+        public ManagedAction UninstallUserRollback { get; }
+
         public ManagedAction OpenMsiLog { get; }
 
         public ManagedAction SendFlare { get; }
@@ -76,8 +82,7 @@ namespace WixSetup.Datadog
                 // It is executed on the Welcome screen of the installer.
                 When.After,
                 Step.AppSearch,
-                // Not needed during uninstall, but since it runs before InstallValidate the recommended
-                // REMOVE=ALL condition does not work, so always run it.
+                // Creates properties used by both install+uninstall
                 Condition.Always,
                 // Run in either sequence so our CA is also run in non-UI installs
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence
@@ -90,24 +95,24 @@ namespace WixSetup.Datadog
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
             ReadConfig = new CustomAction<ConfigCustomActions>(
-                new Id(nameof(ReadConfig)),
-                ConfigCustomActions.ReadConfig,
-                Return.ignore,
-                When.After,
-                // Must execute after CostFinalize since we depend
-                // on APPLICATIONDATADIRECTORY being set.
-                Step.CostFinalize,
-                // Not needed during uninstall, but since it runs before InstallValidate the recommended
-                // REMOVE=ALL condition does not work, so always run it.
-                Condition.Always,
-                // Run in either sequence so our CA is also run in non-UI installs
-                Sequence.InstallExecuteSequence | Sequence.InstallUISequence
-            )
-            {
-                // Ensure we only run in one sequence
-                Execute = Execute.firstSequence
-            }
-            .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+                    new Id(nameof(ReadConfig)),
+                    ConfigCustomActions.ReadConfig,
+                    Return.ignore,
+                    When.After,
+                    // Must execute after CostFinalize since we depend
+                    // on APPLICATIONDATADIRECTORY being set.
+                    Step.CostFinalize,
+                    // Not needed during uninstall, but since it runs before InstallValidate the recommended
+                    // REMOVE=ALL condition does not work, so always run it.
+                    Condition.Always,
+                    // Run in either sequence so our CA is also run in non-UI installs
+                    Sequence.InstallExecuteSequence | Sequence.InstallUISequence
+                )
+                {
+                    // Ensure we only run in one sequence
+                    Execute = Execute.firstSequence
+                }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             PatchInstaller = new CustomAction<PatchInstallerCustomAction>(
                 new Id(nameof(PatchInstaller)),
@@ -123,18 +128,18 @@ namespace WixSetup.Datadog
             };
 
             ReportInstallFailure = new CustomAction<Telemetry>(
-                new Id(nameof(ReportInstallFailure)),
-                Telemetry.ReportFailure,
-                Return.ignore,
-                When.After,
-                Step.InstallInitialize
-            )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-            .HideTarget(true);
+                    new Id(nameof(ReportInstallFailure)),
+                    Telemetry.ReportFailure,
+                    Return.ignore,
+                    When.After,
+                    Step.InstallInitialize
+                )
+                {
+                    Execute = Execute.rollback,
+                    Impersonate = false
+                }
+                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
+                .HideTarget(true);
 
             EnsureNpmServiceDepdendency = new CustomAction<ServiceCustomAction>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
@@ -150,75 +155,76 @@ namespace WixSetup.Datadog
             };
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
-                new Id(nameof(WriteConfig)),
-                ConfigCustomActions.WriteConfig,
-                Return.check,
-                When.Before,
-                Step.InstallServices,
-                Conditions.FirstInstall
-            )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-            .SetProperties(
-                "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
-                "PROJECTLOCATION=[PROJECTLOCATION], " +
-                "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
-                "APIKEY=[APIKEY], " +
-                "TAGS=[TAGS], " +
-                "HOSTNAME=[HOSTNAME], " +
-                "PROXY_HOST=[PROXY_HOST], " +
-                "PROXY_PORT=[PROXY_PORT], " +
-                "PROXY_USER=[PROXY_USER], " +
-                "PROXY_PASSWORD=[PROXY_PASSWORD], " +
-                "LOGS_ENABLED=[LOGS_ENABLED], " +
-                "APM_ENABLED=[APM_ENABLED], " +
-                "PROCESS_ENABLED=[PROCESS_ENABLED], " +
-                "PROCESS_DISCOVERY_ENABLED=[PROCESS_DISCOVERY_ENABLED], " +
-                "CMD_PORT=[CMD_PORT], " +
-                "SITE=[SITE], " +
-                "DD_URL=[DD_URL], " +
-                "LOGS_DD_URL=[LOGS_DD_URL], " +
-                "PROCESS_DD_URL=[PROCESS_DD_URL], " +
-                "TRACE_DD_URL=[TRACE_DD_URL], " +
-                "PYVER=[PYVER], " +
-                "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
-                "NPM=[NPM], " +
-                "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
-            .HideTarget(true);
+                    new Id(nameof(WriteConfig)),
+                    ConfigCustomActions.WriteConfig,
+                    Return.check,
+                    When.Before,
+                    Step.InstallServices,
+                    Conditions.FirstInstall
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties(
+                    "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                    "PROJECTLOCATION=[PROJECTLOCATION], " +
+                    "SYSPROBE_PRESENT=[SYSPROBE_PRESENT], " +
+                    "APIKEY=[APIKEY], " +
+                    "TAGS=[TAGS], " +
+                    "HOSTNAME=[HOSTNAME], " +
+                    "PROXY_HOST=[PROXY_HOST], " +
+                    "PROXY_PORT=[PROXY_PORT], " +
+                    "PROXY_USER=[PROXY_USER], " +
+                    "PROXY_PASSWORD=[PROXY_PASSWORD], " +
+                    "LOGS_ENABLED=[LOGS_ENABLED], " +
+                    "APM_ENABLED=[APM_ENABLED], " +
+                    "PROCESS_ENABLED=[PROCESS_ENABLED], " +
+                    "PROCESS_DISCOVERY_ENABLED=[PROCESS_DISCOVERY_ENABLED], " +
+                    "CMD_PORT=[CMD_PORT], " +
+                    "SITE=[SITE], " +
+                    "DD_URL=[DD_URL], " +
+                    "LOGS_DD_URL=[LOGS_DD_URL], " +
+                    "PROCESS_DD_URL=[PROCESS_DD_URL], " +
+                    "TRACE_DD_URL=[TRACE_DD_URL], " +
+                    "PYVER=[PYVER], " +
+                    "HOSTNAME_FQDN_ENABLED=[HOSTNAME_FQDN_ENABLED], " +
+                    "NPM=[NPM], " +
+                    "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
+                .HideTarget(true);
 
             // Cleanup leftover files on rollback
             // must be before the DecompressPythonDistributions custom action.
             // That way, if DecompressPythonDistributions fails, this will get executed.
             CleanupOnRollback = new CustomAction<CleanUpFilesCustomAction>(
-                new Id(nameof(CleanupOnRollback)),
-                CleanUpFilesCustomAction.CleanupFiles,
-                Return.check,
-                When.After,
-                new Step(WriteConfig.Id),
-                // Only on first install otherwise we risk ruining the existing install
-                Conditions.FirstInstall
-            )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+                    new Id(nameof(CleanupOnRollback)),
+                    CleanUpFilesCustomAction.CleanupFiles,
+                    Return.check,
+                    When.After,
+                    new Step(WriteConfig.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+                {
+                    Execute = Execute.rollback,
+                    Impersonate = false
+                }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             DecompressPythonDistributions = new CustomAction<PythonDistributionCustomAction>(
-                new Id(nameof(DecompressPythonDistributions)),
-                PythonDistributionCustomAction.DecompressPythonDistributions,
-                Return.check,
-                When.After,
-                new Step(CleanupOnRollback.Id),
-                Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
-            )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
+                    new Id(nameof(DecompressPythonDistributions)),
+                    PythonDistributionCustomAction.DecompressPythonDistributions,
+                    Return.check,
+                    When.After,
+                    new Step(CleanupOnRollback.Id),
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
 
             PrepareDecompressPythonDistributions = new CustomAction<PythonDistributionCustomAction>(
                 new Id(nameof(PrepareDecompressPythonDistributions)),
@@ -235,61 +241,105 @@ namespace WixSetup.Datadog
 
             // Cleanup leftover files on uninstall
             CleanupOnUninstall = new CustomAction<CleanUpFilesCustomAction>(
-                new Id(nameof(CleanupOnUninstall)),
-                CleanUpFilesCustomAction.CleanupFiles,
-                Return.check,
-                When.Before,
-                Step.RemoveFiles,
-                Conditions.Uninstalling
-            )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+                    new Id(nameof(CleanupOnUninstall)),
+                    CleanUpFilesCustomAction.CleanupFiles,
+                    Return.check,
+                    When.Before,
+                    Step.RemoveFiles,
+                    Conditions.Uninstalling
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties(
+                    "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            ConfigureUser = new CustomAction<UserCustomActions>(
-                new Id(nameof(ConfigureUser)),
-                UserCustomActions.ConfigureUser,
-                Return.check,
-                When.After,
-                new Step(DecompressPythonDistributions.Id),
-                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-            )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-            .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
-                           "PROJECTLOCATION=[PROJECTLOCATION], " +
-                           "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
-                           "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
-                           "DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
-                           "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
-                           "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
-                           "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD]")
-            .HideTarget(true);
+            ConfigureUser = new CustomAction<ConfigureUserCustomActions>(
+                    new Id(nameof(ConfigureUser)),
+                    ConfigureUserCustomActions.ConfigureUser,
+                    Return.check,
+                    When.After,
+                    new Step(DecompressPythonDistributions.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                               "PROJECTLOCATION=[PROJECTLOCATION], " +
+                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
+                               "DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
+                               "DDAGENTUSER_FOUND=[DDAGENTUSER_FOUND], " +
+                               "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
+                               "DDAGENTUSER_RESET_PASSWORD=[DDAGENTUSER_RESET_PASSWORD], " +
+                               "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]")
+                .HideTarget(true);
 
-            ProcessDdAgentUserCredentials = new CustomAction<UserCustomActions>(
-                new Id(nameof(ProcessDdAgentUserCredentials)),
-                UserCustomActions.ProcessDdAgentUserCredentials,
-                Return.check,
-                // Run at end of "config phase", right before the "make changes" phase.
-                // Ensure no actions that modify the input properties are run after this action.
-                When.Before,
-                Step.InstallInitialize,
-                // Run unless we are being uninstalled.
-                // This CA produces properties used for services, accounts, and permissions.
-                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-            )
-            .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], " +
-                           "DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD], " +
-                           "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
-            .HideTarget(true);
+            ConfigureUserRollback = new CustomAction<ConfigureUserCustomActions>(
+                    new Id(nameof(ConfigureUserRollback)),
+                    ConfigureUserCustomActions.ConfigureUserRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(ConfigureUser.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+                {
+                    Execute = Execute.rollback,
+                    Impersonate = false,
+                };
 
-            ProcessDdAgentUserCredentialsUI = new CustomAction<UserCustomActions>(
+            UninstallUser = new CustomAction<ConfigureUserCustomActions>(
+                    new Id(nameof(UninstallUser)),
+                    ConfigureUserCustomActions.UninstallUser,
+                    Return.check,
+                    When.After,
+                    Step.StopServices,
+                    Conditions.Uninstalling | Conditions.RemovingForUpgrade
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                               "PROJECTLOCATION=[PROJECTLOCATION], " +
+                               "DDAGENTUSER_NAME=[DDAGENTUSER_NAME]");
+
+            UninstallUserRollback = new CustomAction<ConfigureUserCustomActions>(
+                    new Id(nameof(UninstallUserRollback)),
+                    ConfigureUserCustomActions.UninstallUserRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(UninstallUser.Id),
+                    Conditions.Uninstalling | Conditions.RemovingForUpgrade
+                )
+                {
+                    Execute = Execute.rollback,
+                    Impersonate = false,
+                };
+
+            ProcessDdAgentUserCredentials = new CustomAction<ProcessUserCustomActions>(
+                    new Id(nameof(ProcessDdAgentUserCredentials)),
+                    ProcessUserCustomActions.ProcessDdAgentUserCredentials,
+                    Return.check,
+                    // Run at end of "config phase", right before the "make changes" phase.
+                    // Ensure no actions that modify the input properties are run after this action.
+                    When.Before,
+                    Step.InstallInitialize,
+                    // Run unless we are being uninstalled.
+                    // This CA produces properties used for services, accounts, and permissions.
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+                .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], " +
+                               "DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD], " +
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
+                .HideTarget(true);
+
+            ProcessDdAgentUserCredentialsUI = new CustomAction<ProcessUserCustomActions>(
                 new Id(nameof(ProcessDdAgentUserCredentialsUI)),
-                UserCustomActions.ProcessDdAgentUserCredentialsUI
+                ProcessUserCustomActions.ProcessDdAgentUserCredentialsUI
             )
             {
                 // Not run in a sequence, run when Next is clicked on ddagentuserdlg
@@ -315,55 +365,54 @@ namespace WixSetup.Datadog
             };
 
             WriteInstallInfo = new CustomAction<InstallInfoCustomActions>(
-                new Id(nameof(WriteInstallInfo)),
-                InstallInfoCustomActions.WriteInstallInfo,
-                Return.ignore,
-                When.Before,
-                Step.StartServices,
-                // Include "Being_Reinstalled" so that if customer changes install method
-                // the install_info reflects that.
-                Conditions.FirstInstall | Conditions.Upgrading
-            )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-            .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
-                           "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
+                    new Id(nameof(WriteInstallInfo)),
+                    InstallInfoCustomActions.WriteInstallInfo,
+                    Return.ignore,
+                    When.Before,
+                    Step.StartServices,
+                    // Include "Being_Reinstalled" so that if customer changes install method
+                    // the install_info reflects that.
+                    Conditions.FirstInstall | Conditions.Upgrading
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]," +
+                               "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]");
 
             // Hitting this CustomAction always means the install succeeded
             // because when an install fails, it rollbacks from the `InstallFinalize`
             // step.
             ReportInstallSuccess = new CustomAction<Telemetry>(
-                new Id(nameof(ReportInstallSuccess)),
-                Telemetry.ReportSuccess,
-                Return.ignore,
-                When.After,
-                Step.InstallFinalize,
-                Conditions.FirstInstall | Conditions.Upgrading
-            )
-            .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-            .HideTarget(true);
+                    new Id(nameof(ReportInstallSuccess)),
+                    Telemetry.ReportSuccess,
+                    Return.ignore,
+                    When.After,
+                    Step.InstallFinalize,
+                    Conditions.FirstInstall | Conditions.Upgrading
+                )
+                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
+                .HideTarget(true);
 
             // Enables the user to change the service accounts during upgrade/change
             // Relies on StopDDServices/StartDDServices to ensure the services are restarted
             // so that the new configuration is used.
             ConfigureServiceUsers = new CustomAction<ServiceCustomAction>(
-                new Id(nameof(ConfigureServiceUsers)),
-                ServiceCustomAction.ConfigureServiceUsers,
-                Return.check,
-                When.After,
-                Step.InstallServices,
-                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-
-            )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-            .SetProperties("DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
-                           "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
-            .HideTarget(true);
+                    new Id(nameof(ConfigureServiceUsers)),
+                    ServiceCustomAction.ConfigureServiceUsers,
+                    Return.check,
+                    When.After,
+                    Step.InstallServices,
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties("DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
+                .HideTarget(true);
 
             // WiX built-in StopServices only stops services if the component is changing.
             // This means that the services associated with MainApplication won't be restarted
@@ -420,14 +469,13 @@ namespace WixSetup.Datadog
                     Step.StartServices,
                     // Run unless we are being uninstalled.
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-            )
-            {
-                Execute = Execute.deferred,
-                Impersonate = false
-            }
-            .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
-                           "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
-
+                )
+                {
+                    Execute = Execute.deferred,
+                    Impersonate = false
+                }
+                .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
+                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
         }
     }
 }

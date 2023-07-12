@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
+	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -317,8 +318,8 @@ func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
 		path:  path,
 		data:  data,
 		perms: perms,
-		user:  getFileUser(info),
-		group: getFileGroup(info),
+		user:  utils.GetFileUser(info),
+		group: utils.GetFileGroup(info),
 	}
 	r.filesCache = append(r.filesCache, *file)
 	if len(r.filesCache) > maxFilesCached {

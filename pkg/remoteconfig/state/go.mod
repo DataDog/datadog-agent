@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
+	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0
 	github.com/stretchr/testify v1.8.1
 )

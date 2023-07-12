@@ -9,12 +9,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -33,6 +37,7 @@ type rcClient struct {
 	client        *remote.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
+	configState   *state.AgentConfigState
 
 	listeners []RCAgentTaskListener
 }
@@ -40,23 +45,33 @@ type rcClient struct {
 type dependencies struct {
 	fx.In
 
+	Log log.Component
+
 	Listeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
 func newRemoteConfigClient(deps dependencies) (Component, error) {
+	level, err := pkglog.GetLogLevel()
+	if err != nil {
+		return nil, err
+	}
+
 	rc := rcClient{
 		listeners: deps.Listeners,
 		m:         &sync.Mutex{},
-		client:    nil,
+		configState: &state.AgentConfigState{
+			FallbackLogLevel: level.String(),
+		},
+		client: nil,
 	}
 
 	return rc, nil
 }
 
 // Listen start the remote config client to listen to AGENT_TASK configurations
-func (rc rcClient) Listen() error {
+func (rc rcClient) Listen(clientName string, products []data.Product) error {
 	c, err := remote.NewUnverifiedGRPCClient(
-		"core-agent", version.AgentVersion, []data.Product{data.ProductAgentTask}, 1*time.Second,
+		clientName, version.AgentVersion, products, 1*time.Second,
 	)
 	if err != nil {
 		return err
@@ -65,11 +80,62 @@ func (rc rcClient) Listen() error {
 	rc.client = c
 	rc.taskProcessed = map[string]bool{}
 
-	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
+	for _, product := range products {
+		switch product {
+		case state.ProductAgentTask:
+			rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
+			break
+		case state.ProductAgentConfig:
+			rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
+			break
+		default:
+			pkglog.Infof("remote config client %s started unsupported product: %s", clientName, product)
+		}
+	}
 
 	rc.client.Start()
 
 	return nil
+}
+
+func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig) {
+	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
+	if err != nil {
+		return
+	}
+
+	// TODO RCM-1064: implement priority between CLI and remote-config
+	// If there is no error, override the configs
+	if len(mergedConfig.LogLevel) > 0 && mergedConfig.LogLevel != rc.configState.LatestLogLevel {
+		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
+		// Get the current log level
+		var newFallback seelog.LogLevel
+		newFallback, err = pkglog.GetLogLevel()
+		if err == nil {
+			rc.configState.FallbackLogLevel = newFallback.String()
+			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
+			rc.configState.LatestLogLevel = mergedConfig.LogLevel
+		}
+	} else {
+		var currentLogLevel seelog.LogLevel
+		currentLogLevel, err = pkglog.GetLogLevel()
+		if err == nil && currentLogLevel.String() == rc.configState.LatestLogLevel {
+			pkglog.Infof("Removing remote-config log level override, falling back to %s", rc.configState.FallbackLogLevel)
+			err = settings.SetRuntimeSetting("log_level", rc.configState.FallbackLogLevel)
+		}
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if err == nil {
+			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			rc.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
+	}
 }
 
 // agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
@@ -105,7 +171,11 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 				// Check if the task was processed at least once
 				processed = oneProcessed || processed
 				if oneErr != nil {
-					err = errors.Wrap(err, oneErr.Error())
+					if err == nil {
+						err = oneErr
+					} else {
+						err = errors.Wrap(oneErr, err.Error())
+					}
 				}
 			}
 			if processed && err != nil {

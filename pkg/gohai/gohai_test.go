@@ -54,11 +54,6 @@ type gohaiPayload struct {
 		MountedOn string `json:"mounted_on"`
 		Name      string `json:"name"`
 	} `json:"filesystem"`
-	Memory struct {
-		// SwapTotal is not reported on Windows
-		SwapTotal string `json:"swap_total"`
-		Total     string `json:"total"`
-	} `json:"memory"`
 	Network struct {
 		Interfaces []struct {
 			Ipv4        []string `json:"ipv4"`
@@ -133,11 +128,6 @@ func TestGohaiSerialization(t *testing.T) {
 		assert.NotEmpty(t, payload.Filesystem[0].KbSize, 0)
 		assert.NotEmpty(t, payload.Filesystem[0].Name, 0)
 	}
-	if runtime.GOOS != "windows" {
-		// Not reported on Windows
-		assert.NotEmpty(t, payload.Memory.SwapTotal)
-	}
-	assert.NotEmpty(t, payload.Memory.Total)
 
 	if assert.NotEmpty(t, payload.Network.Interfaces) {
 		for _, itf := range payload.Network.Interfaces {

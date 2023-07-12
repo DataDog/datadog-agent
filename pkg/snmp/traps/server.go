@@ -7,24 +7,12 @@ package traps
 
 import (
 	"fmt"
-	"net"
 	"time"
 
-	"github.com/gosnmp/gosnmp"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// SnmpPacket is the type of packets yielded by server listeners.
-type SnmpPacket struct {
-	Content   *gosnmp.SnmpPacket
-	Addr      *net.UDPAddr
-	Timestamp int64
-}
-
-// PacketsChannel is the type of channels of trap packets.
-type PacketsChannel = chan *SnmpPacket
 
 // TrapServer manages an SNMP trap listener.
 type TrapServer struct {
@@ -53,7 +41,7 @@ func StartServer(agentHostname string, demux aggregator.Demultiplexer) error {
 	if err != nil {
 		return err
 	}
-	formatter, err := NewJSONFormatter(oidResolver, config.Namespace)
+	formatter, err := NewJSONFormatter(oidResolver, sender)
 	if err != nil {
 		return err
 	}
@@ -78,10 +66,10 @@ func IsRunning() bool {
 }
 
 // NewTrapServer configures and returns a running SNMP traps server.
-func NewTrapServer(config Config, formatter Formatter, aggregator aggregator.Sender) (*TrapServer, error) {
+func NewTrapServer(config Config, formatter Formatter, aggregator sender.Sender) (*TrapServer, error) {
 	packets := make(PacketsChannel, packetsChanSize)
 
-	listener, err := startSNMPTrapListener(config, packets)
+	listener, err := startSNMPTrapListener(config, aggregator, packets)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +87,7 @@ func NewTrapServer(config Config, formatter Formatter, aggregator aggregator.Sen
 	return server, nil
 }
 
-func startSNMPTrapForwarder(formatter Formatter, aggregator aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
+func startSNMPTrapForwarder(formatter Formatter, aggregator sender.Sender, packets PacketsChannel) (*TrapForwarder, error) {
 	trapForwarder, err := NewTrapForwarder(formatter, aggregator, packets)
 	if err != nil {
 		return nil, err
@@ -107,8 +95,8 @@ func startSNMPTrapForwarder(formatter Formatter, aggregator aggregator.Sender, p
 	trapForwarder.Start()
 	return trapForwarder, nil
 }
-func startSNMPTrapListener(c Config, packets PacketsChannel) (*TrapListener, error) {
-	trapListener, err := NewTrapListener(c, packets)
+func startSNMPTrapListener(c Config, aggregator sender.Sender, packets PacketsChannel) (*TrapListener, error) {
+	trapListener, err := NewTrapListener(c, aggregator, packets)
 	if err != nil {
 		return nil, err
 	}

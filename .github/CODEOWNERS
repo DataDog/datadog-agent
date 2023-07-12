@@ -49,11 +49,11 @@
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-platform
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-platform @DataDog/windows-agent
 
-/.gitlab/deploy_6/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/deploy_6/container.yml                      @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_6/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/deploy_7/cluster_agent_cloudfoundry.yml     @DataDog/platform-integrations @DataDog/agent-platform
-/.gitlab/deploy_7/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/deploy_7/container.yml                      @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/deploy_7/winget.yml                         @DataDog/agent-platform @DataDog/windows-agent
 
@@ -112,6 +112,7 @@
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/network-device-monitoring
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-metrics-logs
+/cmd/agent/subcommands/streamep         @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist       @DataDog/container-integrations
 /cmd/agent/subcommands/workloadlist     @DataDog/container-integrations
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
@@ -168,7 +169,7 @@
 /docs/dogstatsd/                        @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
-/docs/dev/checks/                       @DataDog/documentation @DataDog/agent-shared-components
+/docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
 /google-marketplace/                    @DataDog/container-integrations
@@ -182,8 +183,10 @@
 /Makefile.trace                         @DataDog/agent-apm
 
 /omnibus/                               @DataDog/agent-platform
+/omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations @DataDog/software-integrity-and-trust
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
+/omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
 /omnibus/config/software/snmp-traps.rb                    @DataDog/network-device-monitoring
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
 
@@ -221,6 +224,7 @@
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
+/pkg/trace/telemetry/                   @DataDog/telemetry-and-analytics
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
@@ -232,6 +236,7 @@
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
+/pkg/clusteragent/telemetry/            @DataDog/telemetry-and-analytics
 /pkg/collector/                         @DataDog/agent-metrics-logs
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
@@ -329,13 +334,11 @@
 /pkg/network/encoding/*_windows*.go     @DataDog/windows-kernel-integrations
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
 /pkg/network/go/                        @DataDog/universal-service-monitoring
-/pkg/network/java/                      @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
 /pkg/network/protocols/http/driver_*.go         @DataDog/windows-kernel-integrations
 /pkg/network/protocols/http/etw_*.go            @DataDog/windows-kernel-integrations
 /pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
 /pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
-/pkg/network/tracer/testutil/gotls_client       @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/postgres           @DataDog/universal-service-monitoring
 /pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
@@ -373,6 +376,7 @@
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/ebpf-platform
+/tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/systray.py                       @DataDog/windows-agent
@@ -425,3 +429,5 @@
 /tools/agent_QA/                        @DataDog/agent-metrics-logs
 
 /internal/tools/                        @DataDog/agent-platform
+/internal/third_party/client-go         @DataDog/container-integrations
+/internal/third_party/kubernetes        @DataDog/container-integrations

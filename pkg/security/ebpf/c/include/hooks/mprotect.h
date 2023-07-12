@@ -20,8 +20,8 @@ SYSCALL_KPROBE0(mprotect) {
     return 0;
 }
 
-SEC("kprobe/security_file_mprotect")
-int kprobe_security_file_mprotect(struct pt_regs *ctx) {
+HOOK_ENTRY("security_file_mprotect")
+int hook_security_file_mprotect(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MPROTECT);
     if (!syscall) {
         return 0;
@@ -31,11 +31,11 @@ int kprobe_security_file_mprotect(struct pt_regs *ctx) {
     LOAD_CONSTANT("vm_area_struct_flags_offset", flags_offset);
 
     // Retrieve vma information
-    struct vm_area_struct *vma = (struct vm_area_struct *)PT_REGS_PARM1(ctx);
+    struct vm_area_struct *vma = (struct vm_area_struct *)CTX_PARM1(ctx);
     bpf_probe_read(&syscall->mprotect.vm_protection, sizeof(syscall->mprotect.vm_protection), (char*)vma + flags_offset);
     bpf_probe_read(&syscall->mprotect.vm_start, sizeof(syscall->mprotect.vm_start), &vma->vm_start);
     bpf_probe_read(&syscall->mprotect.vm_end, sizeof(syscall->mprotect.vm_end), &vma->vm_end);
-    syscall->mprotect.req_protection = (u64)PT_REGS_PARM2(ctx);
+    syscall->mprotect.req_protection = (u64)CTX_PARM2(ctx);
     return 0;
 }
 

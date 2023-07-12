@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -529,7 +529,7 @@ func (k *KSMCheck) Cancel() {
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
-func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
+func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksmstore.DDMetricsFam, labelJoiner *labelJoiner, now time.Time) {
 	for _, metricsList := range metrics {
 		for _, metricFamily := range metricsList {
 			// First check for aggregator, because the check use _labels metrics to aggregate values.
@@ -819,7 +819,7 @@ func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) 
 }
 
 // sendTelemetry converts the cached telemetry values and forwards them as telemetry metrics
-func (k *KSMCheck) sendTelemetry(s aggregator.Sender) {
+func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	if !k.instance.Telemetry {
 		return
 	}

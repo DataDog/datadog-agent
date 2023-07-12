@@ -14,14 +14,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStartServerAndStopServer(t *testing.T) {
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 
 	port := testutil.GetFreePort()
@@ -78,7 +81,8 @@ network_devices:
 	require.NoError(t, err)
 
 	// Setup Netflow Server
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	sender, err := demux.GetDefaultSender()
 	require.NoError(t, err, "cannot get default sender")

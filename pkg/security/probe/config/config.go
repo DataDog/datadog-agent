@@ -92,6 +92,9 @@ type Config struct {
 	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
 	EventStreamBufferSize int
 
+	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
+	EventStreamUseFentry bool
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -150,6 +153,7 @@ func NewConfig() (*Config, error) {
 		NetworkClassifierHandle:      uint16(getInt("network.classifier_handle")),
 		EventStreamUseRingBuffer:     getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:        getInt("event_stream.buffer_size"),
+		EventStreamUseFentry:         getBool("event_stream.use_fentry"),
 		EnvsWithValue:                getStringSlice("envs_with_value"),
 		NetworkEnabled:               getBool("network.enabled"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,

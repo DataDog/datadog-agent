@@ -16,10 +16,14 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
+
+const defaultProfilesFolder = "default_profiles"
+const userProfilesFolder = "profiles"
 
 // DeviceMeta holds device related static metadata
 // DEPRECATED in favour of profile metadata syntax
@@ -75,7 +79,28 @@ func loadDefaultProfiles() (profileConfigMap, error) {
 }
 
 func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
-	profilesRoot := getProfileConfdRoot()
+	// Get default profiles
+	profiles, err := getProfilesDefinitionFiles(defaultProfilesFolder)
+	if err != nil {
+		log.Warnf("failed to read default_profiles: %s", err)
+		profiles = make(profileConfigMap)
+	}
+	// Get user profiles
+	// User profiles have precedence over default profiles
+	userProfiles, err := getProfilesDefinitionFiles(userProfilesFolder)
+	if err != nil {
+		log.Warnf("failed to read user_profiles: %s", err)
+	} else {
+		for profileName, profileDef := range userProfiles {
+			profileDef.isUserProfile = true
+			profiles[profileName] = profileDef
+		}
+	}
+	return profiles, nil
+}
+
+func getProfilesDefinitionFiles(profilesFolder string) (profileConfigMap, error) {
+	profilesRoot := getProfileConfdRoot(profilesFolder)
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
@@ -101,24 +126,22 @@ func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
 func loadProfiles(pConfig profileConfigMap) (profileConfigMap, error) {
 	profiles := make(profileConfigMap, len(pConfig))
 
-	for name, profile := range pConfig {
-		if profile.DefinitionFile != "" {
-			profileDefinition, err := readProfileDefinition(profile.DefinitionFile)
+	for name, profConfig := range pConfig {
+		if profConfig.DefinitionFile != "" {
+			profDefinition, err := readProfileDefinition(profConfig.DefinitionFile)
 			if err != nil {
 				log.Warnf("failed to read profile definition `%s`: %s", name, err)
 				continue
 			}
 
-			err = recursivelyExpandBaseProfiles(profileDefinition, profileDefinition.Extends, []string{})
+			err = recursivelyExpandBaseProfiles(profConfig.DefinitionFile, profDefinition, profDefinition.Extends, []string{})
 			if err != nil {
 				log.Warnf("failed to expand profile `%s`: %s", name, err)
 				continue
 			}
-			profile.Definition = *profileDefinition
-			profiles[name] = profile
-		} else {
-			profiles[name] = profile
+			profConfig.Definition = *profDefinition
 		}
+		profiles[name] = profConfig
 	}
 	return profiles, nil
 }
@@ -149,30 +172,40 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 	if filepath.IsAbs(definitionFile) {
 		return definitionFile
 	}
-	return filepath.Join(getProfileConfdRoot(), definitionFile)
+	userProfile := filepath.Join(getProfileConfdRoot(userProfilesFolder), definitionFile)
+	if filesystem.FileExists(userProfile) {
+		return userProfile
+	}
+	return filepath.Join(getProfileConfdRoot(defaultProfilesFolder), definitionFile)
 }
 
-func getProfileConfdRoot() string {
+func getProfileConfdRoot(profileFolderName string) string {
 	confdPath := config.Datadog.GetString("confd_path")
-	return filepath.Join(confdPath, "snmp.d", "profiles")
+	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func recursivelyExpandBaseProfiles(definition *profileDefinition, extends []string, extendsHistory []string) error {
-	for _, basePath := range extends {
+func recursivelyExpandBaseProfiles(parentPath string, definition *profileDefinition, extends []string, extendsHistory []string) error {
+	parentBasePath := filepath.Base(parentPath)
+	for _, extendEntry := range extends {
+		// User profile can extend default profile by extending the default profile.
+		// If the extend entry has the same name as the profile name, we assume the extend entry is referring to a default profile.
+		if extendEntry == parentBasePath {
+			extendEntry = filepath.Join(getProfileConfdRoot(defaultProfilesFolder), extendEntry)
+		}
 		for _, extend := range extendsHistory {
-			if extend == basePath {
-				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", basePath, extendsHistory)
+			if extend == extendEntry {
+				return fmt.Errorf("cyclic profile extend detected, `%s` has already been extended, extendsHistory=`%v`", extendEntry, extendsHistory)
 			}
 		}
-		baseDefinition, err := readProfileDefinition(basePath)
+		baseDefinition, err := readProfileDefinition(extendEntry)
 		if err != nil {
 			return err
 		}
 
 		mergeProfileDefinition(definition, baseDefinition)
 
-		newExtendsHistory := append(common.CopyStrings(extendsHistory), basePath)
-		err = recursivelyExpandBaseProfiles(definition, baseDefinition.Extends, newExtendsHistory)
+		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
+		err = recursivelyExpandBaseProfiles(extendEntry, definition, baseDefinition.Extends, newExtendsHistory)
 		if err != nil {
 			return err
 		}

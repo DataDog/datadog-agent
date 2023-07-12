@@ -16,8 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
@@ -185,8 +187,8 @@ func TestSendAPMStats(t *testing.T) {
 // MockSerializer implements a no-op serializer.MetricSerializer.
 type MockSerializer struct{}
 
-func (m *MockSerializer) SendEvents(_ metrics.Events) error                       { return nil }
-func (m *MockSerializer) SendServiceChecks(_ metrics.ServiceChecks) error         { return nil }
+func (m *MockSerializer) SendEvents(_ event.Events) error                         { return nil }
+func (m *MockSerializer) SendServiceChecks(_ servicecheck.ServiceChecks) error    { return nil }
 func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error          { return nil }
 func (m *MockSerializer) AreSeriesEnabled() bool                                  { return true }
 func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error               { return nil }
@@ -196,10 +198,10 @@ func (m *MockSerializer) SendHostMetadata(_ marshaler.JSONMarshaler) error      
 func (m *MockSerializer) SendProcessesMetadata(_ interface{}) error               { return nil }
 func (m *MockSerializer) SendAgentchecksMetadata(_ marshaler.JSONMarshaler) error { return nil }
 
-func (m *MockSerializer) SendOrchestratorMetadata(_ []serializer.ProcessMessageBody, _, _ string, _ int) error {
+func (m *MockSerializer) SendOrchestratorMetadata(_ []types.ProcessMessageBody, _, _ string, _ int) error {
 	return nil
 }
 
-func (m *MockSerializer) SendOrchestratorManifests(_ []serializer.ProcessMessageBody, _, _ string) error {
+func (m *MockSerializer) SendOrchestratorManifests(_ []types.ProcessMessageBody, _, _ string) error {
 	return nil
 }

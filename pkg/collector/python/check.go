@@ -19,9 +19,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,7 +41,7 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
-	id             check.ID
+	id             checkid.ID
 	version        string
 	instance       *C.rtloader_pyobject_t
 	class          *C.rtloader_pyobject_t
@@ -73,7 +75,7 @@ func NewPythonCheck(name string, class *C.rtloader_pyobject_t) (*PythonCheck, er
 		class:        class,
 		interval:     defaults.DefaultCheckInterval,
 		lastWarnings: []error{},
-		telemetry:    telemetry_utils.IsCheckEnabled(name),
+		telemetry:    utils.IsCheckTelemetryEnabled(name),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -216,7 +218,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 // Configure the Python check from YAML data
 func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
-	c.id = check.BuildID(c.String(), integrationConfigDigest, data, initConfig)
+	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
 	commonGlobalOptions := integration.CommonGlobalConfig{}
 	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {
@@ -321,10 +323,10 @@ func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration
 }
 
 // GetSenderStats returns the stats from the last run of the check
-func (c *PythonCheck) GetSenderStats() (check.SenderStats, error) {
+func (c *PythonCheck) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
-		return check.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}
 	return sender.GetSenderStats(), nil
 }
@@ -335,7 +337,7 @@ func (c *PythonCheck) Interval() time.Duration {
 }
 
 // ID returns the ID of the check
-func (c *PythonCheck) ID() check.ID {
+func (c *PythonCheck) ID() checkid.ID {
 	return c.id
 }
 

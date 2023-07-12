@@ -81,9 +81,8 @@ func TestSELinux(t *testing.T) {
 	})
 
 	t.Run("sel_disable", func(t *testing.T) {
-		checkKernelCompatibility(t, "Amazon Linux 2023 kernels", func(kv *kernel.Version) bool {
-			// al2023 does not support writing to this part of the selinuxfs
-			return kv.IsAmazonLinux2023Kernel()
+		checkKernelCompatibility(t, ">= 5.10 kernels", func(kv *kernel.Version) bool {
+			return kv.Code >= kernel.Kernel5_10
 		})
 
 		test.WaitSignal(t, func() error {

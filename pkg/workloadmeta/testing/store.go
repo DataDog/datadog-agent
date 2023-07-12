@@ -113,21 +113,35 @@ func (s *Store) GetKubernetesPod(id string) (*workloadmeta.KubernetesPod, error)
 // GetKubernetesPodForContainer returns a KubernetesPod that contains the
 // specified containerID.
 func (s *Store) GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
-	entities, ok := s.store[workloadmeta.KindKubernetesPod]
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	containerEntities, ok := s.store[workloadmeta.KindContainer]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	for _, e := range entities {
-		pod := e.(*workloadmeta.KubernetesPod)
-		for _, podContainer := range pod.Containers {
-			if podContainer.ID == containerID {
-				return pod, nil
-			}
-		}
+	containerEntity, ok := containerEntities[containerID]
+	if !ok {
+		return nil, errors.NewNotFound(containerID)
 	}
 
-	return nil, errors.NewNotFound(containerID)
+	container := containerEntity.(*workloadmeta.Container)
+	if container.Owner == nil || container.Owner.Kind != workloadmeta.KindKubernetesPod {
+		return nil, errors.NewNotFound(containerID)
+	}
+
+	podEntities, ok := s.store[workloadmeta.KindKubernetesPod]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	pod, ok := podEntities[container.Owner.ID]
+	if !ok {
+		return nil, errors.NewNotFound(container.Owner.ID)
+	}
+
+	return pod.(*workloadmeta.KubernetesPod), nil
 }
 
 // GetKubernetesNode returns metadata about a Kubernetes node.
@@ -227,6 +241,10 @@ func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
 
 // Reset is not implemented in the testing store.
 func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
+	panic("not implemented")
+}
+
+func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
 	panic("not implemented")
 }
 

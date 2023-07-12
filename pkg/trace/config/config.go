@@ -94,7 +94,7 @@ type ObfuscationConfig struct {
 
 	// Redis holds the configuration for obfuscating the "redis.raw_command" tag
 	// for spans of type "redis".
-	Redis Enablable `mapstructure:"redis"`
+	Redis RedisObfuscationConfig `mapstructure:"redis"`
 
 	// Memcached holds the configuration for obfuscating the "memcached.command" tag
 	// for spans of type "memcached".
@@ -138,6 +138,10 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			RemoveQueryString: o.HTTP.RemoveQueryString,
 			RemovePathDigits:  o.HTTP.RemovePathDigits,
 		},
+		Redis: obfuscate.RedisConfig{
+			Enabled:       o.Redis.Enabled,
+			RemoveAllArgs: o.Redis.RemoveAllArgs,
+		},
 		Logger: new(debugLogger),
 	}
 }
@@ -172,6 +176,16 @@ type HTTPObfuscationConfig struct {
 // Enablable can represent any option that has an "enabled" boolean sub-field.
 type Enablable struct {
 	Enabled bool `mapstructure:"enabled"`
+}
+
+// RedisObfuscationConfig holds the configuration settings for Redis obfuscation
+type RedisObfuscationConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveAllArgs specifies whether all arguments to a given Redis
+	// command should be obfuscated.
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
 
 // TelemetryConfig holds Instrumentation telemetry Endpoints information
@@ -425,8 +439,8 @@ type AgentConfig struct {
 	// catalog. If not set (0) it will default to 5000.
 	MaxCatalogEntries int
 
-	// RemoteSamplingClient retrieves sampling updates from the remote config backend
-	RemoteSamplingClient RemoteClient `json:"-"`
+	// RemoteConfigClient retrieves sampling updates from the remote config backend
+	RemoteConfigClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
@@ -444,6 +458,7 @@ type RemoteClient interface {
 	Close()
 	Start()
 	Subscribe(string, func(update map[string]state.RawConfig))
+	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 
 // Tag represents a key/value pair.

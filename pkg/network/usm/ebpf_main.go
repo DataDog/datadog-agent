@@ -57,6 +57,8 @@ type ebpfProgram struct {
 
 	enabledProtocols  map[protocols.ProtocolType]protocols.Protocol
 	disabledProtocols []*protocols.ProtocolSpec
+
+	buildMode buildMode
 }
 
 type probeResolver interface {
@@ -85,7 +87,17 @@ type probeResolver interface {
 	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
 }
 
+type buildMode string
+
+const (
+	Prebuilt        buildMode = "prebuilt"
+	RuntimeCompiled buildMode = "runtime-compilation"
+	CORE            buildMode = "CO-RE"
+)
+
 type subprogram interface {
+	Name() string
+	IsBuildModeSupported(buildMode) bool
 	ConfigureManager(*errtelemetry.Manager)
 	ConfigureOptions(*manager.Options)
 	Start()
@@ -221,6 +233,7 @@ func (e *ebpfProgram) Init() error {
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
 		if err == nil {
+			e.buildMode = CORE
 			return nil
 		}
 
@@ -233,6 +246,7 @@ func (e *ebpfProgram) Init() error {
 	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
 		err = e.initRuntimeCompiler()
 		if err == nil {
+			e.buildMode = RuntimeCompiled
 			return nil
 		}
 
@@ -242,7 +256,11 @@ func (e *ebpfProgram) Init() error {
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 	}
 
-	return e.initPrebuilt()
+	err = e.initPrebuilt()
+	if err == nil {
+		e.buildMode = Prebuilt
+	}
+	return err
 }
 
 func (e *ebpfProgram) Start() error {
@@ -252,7 +270,12 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	for _, s := range e.subprograms {
-		s.Start()
+		if s.IsBuildModeSupported(e.buildMode) {
+			s.Start()
+			log.Infof("launched %s subprogram", s.Name())
+		} else {
+			log.Infof("%s subprogram does not support %s build mode", s.Name(), e.buildMode)
+		}
 	}
 
 	return nil
@@ -359,11 +382,14 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	// Set some eBPF constants to tell the protocol dispatcher which ones are
 	// enabled. These needs to be set here, even if some protocols are not
-	// enabled, to make sure they exists. Without this, the dispatcher would try
+	// enabled, to make sure they exist. Without this, the dispatcher would try
 	// to check non-existing constants, which is not possible and an error.
 	addBoolConst(&options, e.cfg.EnableHTTPMonitoring, "http_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableHTTP2Monitoring, "http2_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableKafkaMonitoring, "kafka_monitoring_enabled")
+	// Some parts of USM (https capturing, and part of the classification) use `read_conn_tuple`, and has some if
+	// clauses that handled IPV6, for USM we care (ATM) only from TCP connections, so adding the sole config about tcpv6.
+	addBoolConst(&options, e.cfg.CollectTCPv6Conns, "tcpv6_enabled")
 
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
