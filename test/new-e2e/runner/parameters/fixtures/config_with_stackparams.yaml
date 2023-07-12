@@ -11,7 +11,8 @@ configParams:
     # use the public key you registered on aws account
     # required to configure Windows EC2 instances
     publicKeyPath: "/Users/totoro/.ssh/id_rsa.pub"
-    # team tag labeling all resources
+    # team tag labeling all resources. In real config this
+    # would be the github team name
     teamTag: "miyazaki"
   agent:
     apiKey: "00000000000000000000000000000000"
