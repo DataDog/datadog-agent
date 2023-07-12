@@ -25,20 +25,17 @@ type Telemetry struct {
 }
 
 func NewTelemetry() *Telemetry {
-	metricGroup := libtelemetry.NewMetricGroup(
-		"usm.http",
-		libtelemetry.OptExpvar,
-	)
+	metricGroup := libtelemetry.NewMetricGroup("usm.http")
 
 	return &Telemetry{
 		metricGroup: metricGroup,
 
-		hits1XX:      metricGroup.NewMetric("hits1xx"),
-		hits2XX:      metricGroup.NewMetric("hits2xx"),
-		hits3XX:      metricGroup.NewMetric("hits3xx"),
-		hits4XX:      metricGroup.NewMetric("hits4xx"),
-		hits5XX:      metricGroup.NewMetric("hits5xx"),
-		aggregations: metricGroup.NewMetric("aggregations"),
+		hits1XX:      metricGroup.NewMetric("hits", "status:100", libtelemetry.OptPrometheus),
+		hits2XX:      metricGroup.NewMetric("hits", "status:200", libtelemetry.OptPrometheus),
+		hits3XX:      metricGroup.NewMetric("hits", "status:300", libtelemetry.OptPrometheus),
+		hits4XX:      metricGroup.NewMetric("hits", "status:400", libtelemetry.OptPrometheus),
+		hits5XX:      metricGroup.NewMetric("hits", "status:500", libtelemetry.OptPrometheus),
+		aggregations: metricGroup.NewMetric("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
 		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),

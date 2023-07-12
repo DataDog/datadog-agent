@@ -168,7 +168,6 @@ func (bc *USMConnectionIndex[K, V]) Close() {
 
 		telemetry.NewMetric(
 			fmt.Sprintf("usm.%s.orphan_aggregations", bc.protocol),
-			telemetry.OptExpvar,
 			telemetry.OptStatsd,
 		).Add(int64(total))
 	})

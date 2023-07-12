@@ -12,9 +12,6 @@ const (
 	// OptStatsd designates a metric that should be emitted using statsd
 	OptStatsd = "_statsd"
 
-	// OptExpvar designates a metric that should be emitted using expvar
-	OptExpvar = "_expvar"
-
 	// OptPrometheus designates a metric that should be emitted using prometheus
 	OptPrometheus = "_prometheus"
 

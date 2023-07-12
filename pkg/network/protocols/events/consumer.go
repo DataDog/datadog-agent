@@ -80,7 +80,6 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 	metricGroup := telemetry.NewMetricGroup(
 		fmt.Sprintf("usm.%s", proto),
 		telemetry.OptStatsd,
-		telemetry.OptExpvar,
 	)
 
 	eventsCount := metricGroup.NewMetric("events_captured")

@@ -8,7 +8,6 @@ package telemetry
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -50,34 +49,6 @@ func ReportPayloadTelemetry(clientID string) map[string]int64 {
 		result[metric.name] = previousValues.ValueFor(metric)
 	}
 	return result
-}
-
-var expvarDelta deltaCalculator
-
-// ReportExpvar returns a nested map structure with all metrics tagged with `OptExpvar`
-func ReportExpvar() map[string]interface{} {
-	metrics := GetMetrics(OptExpvar)
-	previousValues := expvarDelta.GetState("")
-	root := make(map[string]interface{})
-	seen := make(map[string]struct{})
-
-	for _, m := range metrics {
-		if _, ok := seen[m.name]; ok {
-			log.Debugf(
-				"metric %q has multiple instances with different tag sets which is not suitable for expvar.",
-				m.name,
-			)
-			continue
-		}
-
-		seen[m.name] = struct{}{}
-		err := insertNestedValueFor(m.name, previousValues.ValueFor(m), root)
-		if err != nil {
-			log.Errorf("error inserting metric %s into expvar map: %s", m.name, err)
-		}
-	}
-
-	return root
 }
 
 var clientMux sync.Mutex
