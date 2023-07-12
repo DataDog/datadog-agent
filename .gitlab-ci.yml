@@ -27,6 +27,7 @@ include:
   - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
+  - /.gitlab/e2e_test_junit_upload.yml
   - /.gitlab/fakeintake.yml
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
@@ -41,6 +42,7 @@ include:
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
   - /.gitlab/benchmarks/benchmarks.yml
+  - /.gitlab/benchmarks/macrobenchmarks.yml
 
 default:
   retry:
@@ -79,6 +81,7 @@ stages:
   - choco_deploy
   - internal_image_deploy
   - e2e
+  - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
@@ -115,13 +118,13 @@ variables:
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
-  BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
+  BUCKET_BRANCH: nightly # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
+  DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
@@ -146,21 +149,21 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v17363909-e96f160
+  DATADOG_AGENT_BUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v17363909-e96f160
+  DATADOG_AGENT_WINBUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v17363909-e96f160
+  DATADOG_AGENT_ARMBUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v17363909-e96f160
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v14597610-8d767dd
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v17363909-e96f160
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v17363909-e96f160
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_BUILDERS: v16852259-65c480c
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: dd71020f100d
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: efed150be993
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -859,6 +862,9 @@ workflow:
       - .gitlab/kernel_version_testing/system_probe.yml
       - test/new-e2e/system-probe/**/*
       - test/new-e2e/scenarios/system-probe/**/*
+      - test/new-e2e/runner/**/*
+      - test/new-e2e-utils/**/*
+      - test/new-e2e/go.mod
     when: on_success
   - when: manual
     allow_failure: true

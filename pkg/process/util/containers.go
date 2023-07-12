@@ -195,11 +195,15 @@ func computeContainerStats(hostCPUCount float64, inStats *metrics.ContainerStats
 		outPreviousStats.UserCPU = statValue(inStats.CPU.User, -1)
 		outPreviousStats.SystemCPU = statValue(inStats.CPU.System, -1)
 
-		outStats.CpuLimit = float32(statValue(inStats.CPU.Limit, 0))
 		outStats.TotalPct = float32(cpuRatePctValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 		outStats.UserPct = float32(cpuRatePctValue(outPreviousStats.UserCPU, previousStats.UserCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 		outStats.SystemPct = float32(cpuRatePctValue(outPreviousStats.SystemCPU, previousStats.SystemCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 		outStats.CpuUsageNs = float32(cpuRateValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+
+		// We only emit limit if it was not defaulted
+		if !inStats.CPU.DefaultedLimit {
+			outStats.CpuLimit = float32(statValue(inStats.CPU.Limit, 0))
+		}
 	}
 
 	if inStats.Memory != nil {

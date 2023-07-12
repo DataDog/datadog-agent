@@ -116,6 +116,9 @@ void __attribute__((always_inline)) fill_resolver_mnt(struct pt_regs *ctx, struc
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(syscall->type);
 }
 
 int __attribute__((always_inline)) get_pipefs_mount_id(void) {

@@ -51,7 +51,7 @@ func TestCPUHigh(t *testing.T) {
 			runtime.GC()
 
 			done := make(chan struct{}, 1)
-			c, _ := CPU(time.Now())
+			_, _ = CPU(time.Now())
 			globalCurrentInfo.cacheDelay = testDuration
 			for i := 0; i < tc.n; i++ {
 				go func() {
@@ -67,7 +67,7 @@ func TestCPUHigh(t *testing.T) {
 				}()
 			}
 			time.Sleep(testDuration)
-			c, _ = CPU(time.Now())
+			c, _ := CPU(time.Now())
 			for i := 0; i < tc.n; i++ {
 				done <- struct{}{}
 			}

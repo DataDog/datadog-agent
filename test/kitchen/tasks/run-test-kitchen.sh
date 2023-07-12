@@ -151,7 +151,6 @@ test_suites=".*"
 for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   bundle exec kitchen verify "$test_suites" -c -d always 2>&1 | tee "/tmp/runlog${attempt}"
   result=${PIPESTATUS[0]}
-
   # Before destroying the kitchen machines, get the list of failed suites,
   # as their status will be reset to non-failing once they're destroyed.
   # failing_test_suites is a newline-separated list of the failing test suite names.
@@ -172,11 +171,12 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   fi
 
   if [ "$result" -eq 0 ]; then
-      # if kitchen test succeeded, exit with 0
+      echo "Kitchen test succeeded exiting 0"
       exit 0
   else
-    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}"; then
+    if ! invoke kitchen.should-rerun-failed "/tmp/runlog${attempt}" ; then
       # if kitchen test failed and shouldn't be rerun, exit with 1
+      echo "Kitchen tests failed and it should not be an infrastructure problem"
       exit 1
     else
       cp -R "${DD_AGENT_TESTING_DIR}"/.kitchen/logs "${DD_AGENT_TESTING_DIR}/.kitchen/logs-${attempt}"
