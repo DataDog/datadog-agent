@@ -8,7 +8,6 @@ package inferredspan
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -220,120 +219,109 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload eve
 	}
 }
 
-type DatadogPayload struct {
-	Type        string `json:"Type"`
-	Value       string `json:"Value"`
-	DataType    string `json:"dataType"`
-	BinaryValue string `json:"binaryValue"`
-	StringValue string `json:"stringValue"`
+type rawTraceContext struct {
+	TraceID  string `json:"x-datadog-trace-id"`
+	ParentID string `json:"x-datadog-parent-id"`
 }
 
-type TraceHeader struct {
-	TraceID          string `json:"x-datadog-trace-id"`
-	ParentID         string `json:"x-datadog-parent-id"`
-	SamplingPriority string `json:"x-datadog-sampling-priority"`
-	Sampled          string `json:"x-datadog-sampled"`
+type convertedTraceContext struct {
+	TraceID  *uint64 `json:"x-datadog-trace-id"`
+	ParentID *uint64 `json:"x-datadog-parent-id"`
 }
 
 type customMessageAttributeStruct struct {
 	Type  string `json:"Type"`
 	Value string `json:"Value"`
 }
-type BodyStruct struct {
-	Message           string                                  `json:"Message"`
+type bodyStruct struct {
 	MessageAttributes map[string]customMessageAttributeStruct `json:"MessageAttributes"`
 }
-type CustomDatadogPayload struct {
-	Type        string `json:"Type"`
-	Value       string `json:"Value"`
-	DataType    string `json:"dataType"`
-	BinaryValue string `json:"binaryValue"`
-	StringValue string `json:"stringValue"`
-}
 
-func extractContextFromSNSSQSEvent(firstRecord events.SQSMessage) (string, string, string, error) {
-	var bodyStruct BodyStruct
-	if err := json.Unmarshal([]byte(firstRecord.Body), &bodyStruct); err != nil {
-		return "", "", "", err
+func extractTraceContextFromSNSSQSEvent(firstRecord events.SQSMessage) *rawTraceContext {
+	var messageBody bodyStruct
+	err := json.Unmarshal([]byte(firstRecord.Body), &messageBody)
+	if err != nil {
+		log.Debug("Error unmarshaling the message body: ", err)
+		return nil
 	}
-	var ddCustomPayloadValue, ok = bodyStruct.MessageAttributes["_datadog"]
+
+	ddCustomPayloadValue, ok := messageBody.MessageAttributes["_datadog"]
 	if !ok {
-		return "", "", "", errors.New("no Datadog trace context found")
+		log.Debug("No Datadog trace context found")
+		return nil
 	}
 
-	var traceData TraceHeader
+	var traceData rawTraceContext
 	if ddCustomPayloadValue.Type == "Binary" {
 		decodedBinary, err := base64.StdEncoding.DecodeString(string(ddCustomPayloadValue.Value))
 		if err != nil {
-			return "", "", "", err
+			log.Debug("Error decoding binary: ", err)
+			return nil
 		}
-		if err := json.Unmarshal(decodedBinary, &traceData); err != nil {
-			return "", "", "", err
+		err = json.Unmarshal(decodedBinary, &traceData)
+		if err != nil {
+			log.Debug("Error unmarshaling the decoded binary: ", err)
+			return nil
 		}
 	} else {
-		return "", "", "", errors.New("unsupported DataType in _datadog payload")
+		log.Debug("Unsupported DataType in _datadog payload")
+		return nil
 	}
 
-	return traceData.TraceID, traceData.ParentID, traceData.SamplingPriority, nil
+	return &traceData
 }
 
-func extractContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribute) (string, string, string, error) {
-	var traceData TraceHeader
+func extractTraceContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribute) *rawTraceContext {
+	var traceData rawTraceContext
 	if ddPayloadValue.DataType == "String" {
-		if err := json.Unmarshal([]byte(*ddPayloadValue.StringValue), &traceData); err != nil {
-			return "", "", "", err
+		err := json.Unmarshal([]byte(*ddPayloadValue.StringValue), &traceData)
+		if err != nil {
+			log.Debug("Error unmarshaling payload value: ", err)
+			return nil
 		}
 	} else {
-		return "", "", "", errors.New("unsupported DataType in _datadog payload")
+		log.Debug("Unsupported DataType in _datadog payload")
+		return nil
 	}
 
-	return traceData.TraceID, traceData.ParentID, traceData.SamplingPriority, nil
+	return &traceData
 }
 
-func convertToUint64(str string) (uint64, error) {
-	converted, err := strconv.ParseUint(str, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	return converted, nil
-}
+func convertRawTraceContext(rawTrace *rawTraceContext) *convertedTraceContext {
+	var uint64TraceID, uint64ParentID *uint64
 
-func convertToFloat64(str string) (float64, error) {
-	converted, err := strconv.ParseFloat(str, 64)
-	if err != nil {
-		return 0, err
-	}
-	return converted, nil
-}
-
-func convertValues(traceID, parentID, samplingPriority string) (uint64, uint64, float64, error) {
-	uint64TraceID, err := convertToUint64(traceID)
-	if err != nil {
-		return 0, 0, 0.0, err
+	if rawTrace.TraceID != "" {
+		parsedTraceID, err := strconv.ParseUint(rawTrace.TraceID, 10, 64)
+		if err != nil {
+			log.Debug("Error parsing trace ID: ", err)
+			return nil
+		}
+		uint64TraceID = &parsedTraceID
 	}
 
-	uint64ParentID, err := convertToUint64(parentID)
-	if err != nil {
-		return 0, 0, 0.0, err
+	if rawTrace.ParentID != "" {
+		parsedParentID, err := strconv.ParseUint(rawTrace.ParentID, 10, 64)
+		if err != nil {
+			log.Debug("Error parsing parent ID: ", err)
+			return nil
+		}
+		uint64ParentID = &parsedParentID
 	}
 
-	samplingPriorityFloat64, err := convertToFloat64(samplingPriority)
-	if err != nil {
-		return 0, 0, 0.0, err
+	if uint64TraceID == nil || uint64ParentID == nil {
+		return nil
 	}
 
-	return uint64TraceID, uint64ParentID, samplingPriorityFloat64, nil
+	return &convertedTraceContext{
+		TraceID:  uint64TraceID,
+		ParentID: uint64ParentID,
+	}
 }
 
 // EnrichInferredSpanWithSQSEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an SQS event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload events.SQSEvent) {
-	var traceID, parentID, samplingPriority string
-	var err error
-	var uint64TraceID, uint64ParentID uint64
-	var samplingPriorityFloat64 float64
-
 	eventRecord := eventPayload.Records[0]
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
 	parsedQueueName := splitArn[len(splitArn)-1]
@@ -354,28 +342,24 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 		receiptHandle:  eventRecord.ReceiptHandle,
 		senderID:       eventRecord.Attributes["SenderId"],
 	}
+	var rawTrace *rawTraceContext
 	if ddMessageAttribute, ok := eventRecord.MessageAttributes["_datadog"]; ok {
-		traceID, parentID, samplingPriority, err = extractContextFromPureSqsEvent(ddMessageAttribute)
+		rawTrace = extractTraceContextFromPureSqsEvent(ddMessageAttribute)
 	} else {
-		traceID, parentID, samplingPriority, err = extractContextFromSNSSQSEvent(eventRecord)
+		rawTrace = extractTraceContextFromSNSSQSEvent(eventRecord)
 	}
 
-	if err != nil {
-		log.Errorf("Failed to extract context: %v", err)
+	if rawTrace == nil {
+		log.Debug("No raw trace context found")
 		return
 	}
 
-	uint64TraceID, uint64ParentID, samplingPriorityFloat64, err = convertValues(traceID, parentID, samplingPriority)
-	if err != nil {
-		log.Errorf("%v", err)
-		return
+	convertedTrace := convertRawTraceContext(rawTrace)
+	if convertedTrace.TraceID != nil {
+		inferredSpan.Span.TraceID = *convertedTrace.TraceID
 	}
-	if err == nil {
-		inferredSpan.Span.TraceID = uint64TraceID
-		inferredSpan.Span.ParentID = uint64ParentID
-		inferredSpan.Span.Metrics = map[string]float64{
-			"_sampling_priority_v1": samplingPriorityFloat64,
-		}
+	if convertedTrace.ParentID != nil {
+		inferredSpan.Span.ParentID = *convertedTrace.ParentID
 	}
 }
 

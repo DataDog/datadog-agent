@@ -711,12 +711,11 @@ func TestExtractContextFromSNSSQSEvent_ValidBinaryTraceData(t *testing.T) {
         }`,
 	}
 
-	traceID, parentID, samplingPriority, err := extractContextFromSNSSQSEvent(mockSQSMessage)
+	rawTraceContext := extractTraceContextFromSNSSQSEvent(mockSQSMessage)
 
-	assert.NoError(t, err)
-	assert.Equal(t, "1728904347387697031", traceID)
-	assert.Equal(t, "353722510835624345", parentID)
-	assert.Equal(t, "1", samplingPriority)
+	assert.NotNil(t, rawTraceContext)
+	assert.Equal(t, "1728904347387697031", rawTraceContext.TraceID)
+	assert.Equal(t, "353722510835624345", rawTraceContext.ParentID)
 }
 
 func TestExtractContextFromSNSSQSEvent_InvalidBinaryTraceData(t *testing.T) {
@@ -733,9 +732,9 @@ func TestExtractContextFromSNSSQSEvent_InvalidBinaryTraceData(t *testing.T) {
         }`,
 	}
 
-	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
+	rawTraceContext := extractTraceContextFromSNSSQSEvent(mockSQSMessage)
 
-	assert.Error(t, err)
+	assert.Nil(t, rawTraceContext)
 }
 
 func TestExtractContextFromSNSSQSEvent_InvalidJsonBody(t *testing.T) {
@@ -743,8 +742,8 @@ func TestExtractContextFromSNSSQSEvent_InvalidJsonBody(t *testing.T) {
 		Body: `invalid json`,
 	}
 
-	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
-	assert.Error(t, err)
+	rawTraceContext := extractTraceContextFromSNSSQSEvent(mockSQSMessage)
+	assert.Nil(t, rawTraceContext)
 }
 
 func TestExtractContextFromSNSSQSEvent_NoDatadogTraceContext(t *testing.T) {
@@ -755,9 +754,19 @@ func TestExtractContextFromSNSSQSEvent_NoDatadogTraceContext(t *testing.T) {
         }`,
 	}
 
-	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
-	assert.Error(t, err)
-	assert.Equal(t, "no Datadog trace context found", err.Error())
+	rawTraceContext := extractTraceContextFromSNSSQSEvent(mockSQSMessage)
+	assert.Nil(t, rawTraceContext)
+}
+
+func TestExtractContextFromSQSEvent_NoDatadogTraceContext(t *testing.T) {
+	stringValue := "mock message"
+	mockSQSMessage := events.SQSMessageAttribute{
+		StringValue: &stringValue,
+		DataType:    "String",
+	}
+
+	rawTraceContext := extractTraceContextFromPureSqsEvent(mockSQSMessage)
+	assert.Nil(t, rawTraceContext)
 }
 
 func TestExtractContextFromSNSSQSEvent_UnsupportedDataType(t *testing.T) {
@@ -773,29 +782,8 @@ func TestExtractContextFromSNSSQSEvent_UnsupportedDataType(t *testing.T) {
         }`,
 	}
 
-	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
-	assert.Error(t, err)
-	assert.Equal(t, "unsupported DataType in _datadog payload", err.Error())
-}
-
-func TestExtractContextFromSNSSQSEvent_InvalidParentIdValidSamplingPriority(t *testing.T) {
-	// The x-datadog-parent-id field is invalid, but the x-datadog-sampling-priority is valid.
-	mockSQSMessage := events.SQSMessage{
-		Body: `{
-            "Message": "mock message",
-            "MessageAttributes": {
-                "_datadog": {
-                    "Type": "Binary",
-                    "Value": "eyJ4LWRhdGFkb2ctdHJhY2UtaWQiOiAiMTIzNDU2Nzg5MCIsIngtZGF0YWRvZy1wYXJlbnQtaWQi
-					OiAiaW52YWxpZE51bWJlciIsIngtZGF0YWRvZy1zYW1wbGluZy1wcmlvcml0eSI6ICIxLjAifQ="
-                }
-            }
-        }`,
-	}
-
-	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
-
-	assert.Error(t, err)
+	rawTraceContext := extractTraceContextFromSNSSQSEvent(mockSQSMessage)
+	assert.Nil(t, rawTraceContext)
 }
 
 func TestExtractContextFromSNSSQSEvent_InvalidBase64(t *testing.T) {
@@ -811,26 +799,22 @@ func TestExtractContextFromSNSSQSEvent_InvalidBase64(t *testing.T) {
         }`,
 	}
 
-	_, _, _, err := extractContextFromSNSSQSEvent(mockSQSMessage)
-	assert.Error(t, err)
+	rawTraceContext := extractTraceContextFromSNSSQSEvent(mockSQSMessage)
+	assert.Nil(t, rawTraceContext)
 }
 
 func TestExtractContextFromPureSqsEvent_ValidStringTraceData(t *testing.T) {
+	str := `{"x-datadog-trace-id": "3754030949214830614", "x-datadog-parent-id": "9807017789787771839", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.dm=-0", "traceparent": "00-00000000000000003418ff4233c5c016-881986b8523c93bf-01", "tracestate": "dd=s:1;t.dm:-0"}`
 	mockSQSMessageAttribute := events.SQSMessageAttribute{
-		DataType: "String",
-		StringValue: aws.String(`{
-            "x-datadog-trace-id": "1234567890",
-            "x-datadog-parent-id": "1234567890",
-            "x-datadog-sampling-priority": "1.0"
-        }`),
+		DataType:    "String",
+		StringValue: &str,
 	}
 
-	traceID, parentID, samplingPriority, err := extractContextFromPureSqsEvent(mockSQSMessageAttribute)
+	rawTraceContext := extractTraceContextFromPureSqsEvent(mockSQSMessageAttribute)
 
-	assert.NoError(t, err)
-	assert.Equal(t, "1234567890", traceID)
-	assert.Equal(t, "1234567890", parentID)
-	assert.Equal(t, "1.0", samplingPriority)
+	assert.NotNil(t, rawTraceContext)
+	assert.Equal(t, "3754030949214830614", rawTraceContext.TraceID)
+	assert.Equal(t, "9807017789787771839", rawTraceContext.ParentID)
 }
 
 func TestExtractContextFromPureSqsEvent_InvalidStringTraceData(t *testing.T) {
@@ -840,9 +824,9 @@ func TestExtractContextFromPureSqsEvent_InvalidStringTraceData(t *testing.T) {
 		StringValue: aws.String(`invalid string data`),
 	}
 
-	_, _, _, err := extractContextFromPureSqsEvent(mockSQSMessageAttribute)
+	rawTraceContext := extractTraceContextFromPureSqsEvent(mockSQSMessageAttribute)
 
-	assert.Error(t, err)
+	assert.Nil(t, rawTraceContext)
 }
 
 func TestExtractContextFromPureSqsEvent_InvalidJson(t *testing.T) {
@@ -851,8 +835,8 @@ func TestExtractContextFromPureSqsEvent_InvalidJson(t *testing.T) {
 		StringValue: aws.String(`invalid json`),
 	}
 
-	_, _, _, err := extractContextFromPureSqsEvent(mockSQSMessageAttribute)
-	assert.Error(t, err)
+	rawTraceContext := extractTraceContextFromPureSqsEvent(mockSQSMessageAttribute)
+	assert.Nil(t, rawTraceContext)
 }
 
 func TestExtractContextFromPureSqsEvent_UnsupportedDataType(t *testing.T) {
@@ -865,62 +849,30 @@ func TestExtractContextFromPureSqsEvent_UnsupportedDataType(t *testing.T) {
         }`),
 	}
 
-	_, _, _, err := extractContextFromPureSqsEvent(mockSQSMessageAttribute)
-	assert.Error(t, err)
-	assert.Equal(t, "unsupported DataType in _datadog payload", err.Error())
+	rawTraceContext := extractTraceContextFromPureSqsEvent(mockSQSMessageAttribute)
+	assert.Nil(t, rawTraceContext)
+}
+func TestConvertRawTraceContext_ValidInput(t *testing.T) {
+	rawTrace := &rawTraceContext{
+		TraceID:  "1234567890",
+		ParentID: "1234567890",
+	}
+
+	convertedTraceContext := convertRawTraceContext(rawTrace)
+
+	assert.Equal(t, uint64(1234567890), *convertedTraceContext.ParentID)
+	assert.Equal(t, uint64(1234567890), *convertedTraceContext.TraceID)
 }
 
-func TestConvertToUint64_ValidInput(t *testing.T) {
-	str := "1234567890"
-	result, err := convertToUint64(str)
+func TestConvertRawTraceContext_InvalidInput(t *testing.T) {
+	rawTrace := &rawTraceContext{
+		TraceID:  "invalid",
+		ParentID: "invalid",
+	}
 
-	assert.NoError(t, err)
-	assert.Equal(t, uint64(1234567890), result)
-}
+	convertedTraceContext := convertRawTraceContext(rawTrace)
 
-func TestConvertToUint64_InvalidInput(t *testing.T) {
-	str := "invalid"
-	_, err := convertToUint64(str)
-
-	assert.Error(t, err)
-}
-
-func TestConvertToFloat64_ValidInput(t *testing.T) {
-	str := "123.45"
-	result, err := convertToFloat64(str)
-
-	assert.NoError(t, err)
-	assert.Equal(t, float64(123.45), result)
-}
-
-func TestConvertToFloat64_InvalidInput(t *testing.T) {
-	str := "invalid"
-	_, err := convertToFloat64(str)
-
-	assert.Error(t, err)
-}
-
-func TestConvertValues_ValidInput(t *testing.T) {
-	traceID := "1234567890"
-	parentID := "1234567890"
-	samplingPriority := "1.0"
-
-	uint64TraceID, uint64ParentID, samplingPriorityFloat64, err := convertValues(traceID, parentID, samplingPriority)
-
-	assert.NoError(t, err)
-	assert.Equal(t, uint64(1234567890), uint64TraceID)
-	assert.Equal(t, uint64(1234567890), uint64ParentID)
-	assert.Equal(t, float64(1.0), samplingPriorityFloat64)
-}
-
-func TestConvertValues_InvalidInput(t *testing.T) {
-	traceID := "invalid"
-	parentID := "invalid"
-	samplingPriority := "invalid"
-
-	_, _, _, err := convertValues(traceID, parentID, samplingPriority)
-
-	assert.Error(t, err)
+	assert.Nil(t, convertedTraceContext)
 }
 
 func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
@@ -931,7 +883,7 @@ func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
 	span := inferredSpan.Span
 	assert.Equal(t, uint64(2684756524522091840), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
-	assert.Equal(t, map[string]float64(map[string]float64{"_sampling_priority_v1": 1.0}), span.Metrics)
+	assert.Equal(t, uint64(7431398482019833808), span.ParentID)
 	assert.Equal(t, int64(1634662094538000000), span.Start)
 	assert.Equal(t, "sqs", span.Service)
 	assert.Equal(t, "aws.sqs", span.Name)
