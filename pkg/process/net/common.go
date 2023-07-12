@@ -152,16 +152,6 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 			log.Errorf("Failed to get response: %v", err)
 		}
 
-		//f, err := os.Create("memory-with-grpc.prof")
-		//if err != nil {
-		//	return nil, err
-		//}
-		//defer f.Close()
-		//runtime.GC() // Perform garbage collection before profiling
-		//if err := pprof.WriteHeapProfile(f); err != nil {
-		//	return nil, err
-		//}
-
 		conns, err = netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
 		if err != nil {
 			return nil, err
@@ -185,16 +175,6 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.path, connectionsURL, resp.StatusCode)
 		}
-		//
-		//f, err := os.Create("memory-with-http.prof")
-		//if err != nil {
-		//	return nil, err
-		//}
-		//defer f.Close()
-		//runtime.GC() // Perform garbage collection before profiling
-		//if err := pprof.WriteHeapProfile(f); err != nil {
-		//	return nil, err
-		//}
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {

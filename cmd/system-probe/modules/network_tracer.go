@@ -178,15 +178,6 @@ func (nt *networkTracer) GetConnections(req *test2.GetConnectionsRequest, s2 tes
 
 	//	iterate over all the connections
 	s2.Send(&test2.Connection{Data: finalConn})
-	//f, err := os.Create("memory.prof")
-	//if err != nil {
-	//	return err
-	//}
-	//defer f.Close()
-	//runtime.GC() // Perform garbage collection before profiling
-	//if err := pprof.WriteHeapProfile(f); err != nil {
-	//	return err
-	//}
 
 	return nil
 }
@@ -212,15 +203,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
 
-		//f, err := os.Create("memory-with-http2.prof")
-		//if err != nil {
-		//	log.Errorf("%s", err)
-		//}
-		//defer f.Close()
-		//runtime.GC() // Perform garbage collection before profiling
-		//if err := pprof.WriteHeapProfile(f); err != nil {
-		//	log.Errorf("%s", err)
-		//}
 		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
 	}))
