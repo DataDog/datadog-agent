@@ -111,13 +111,10 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 	}
 
 	go func() {
-		trimTicker := time.NewTicker(30 * time.Second)
 		for {
 			select {
 			case <-pc.stopped:
 				return
-			case <-trimTicker.C:
-				pc.trim()
 			case p := <-pc.in:
 				pc.add(p)
 			}
@@ -198,7 +195,7 @@ func (pc *processCache) processEvent(entry *smodel.ProcessContext) *process {
 	}
 }
 
-func (pc *processCache) trim() {
+func (pc *processCache) Trim() {
 	if pc == nil {
 		return
 	}
