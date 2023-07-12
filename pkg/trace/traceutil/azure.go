@@ -116,8 +116,8 @@ func getWindowsRuntime(getenv func(string) string) (rt string) {
 	} else if val := getenv("WEBSITE_NODE_DEFAULT_VERSION"); val != "" {
 		rt = nodeFramework
 	} else {
-		// Windows AAS only supports Java, Node, and .NET so we can infer this
-		// Needs to be inferred because no other env vars give us context
+		// FIXME: Windows AAS only supports Java, Node, and .NET so we can infer this
+		// Needs to be inferred because no other env vars give us context on the runtime
 		rt = dotnetFramework
 	}
 
