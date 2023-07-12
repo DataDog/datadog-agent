@@ -1,5 +1,5 @@
-#ifndef __SOWATCHER_H
-#define __SOWATCHER_H
+#ifndef __SHARED_LIBRARIES_PROBES_H
+#define __SHARED_LIBRARIES_PROBES_H
 
 #include "bpf_telemetry.h"
 #include "shared-libraries/types.h"

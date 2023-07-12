@@ -72,12 +72,13 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		return nil
 	}
 
-	watcher := NewWatcher(config.New(), nil,
+	watcher, err := NewWatcher(config.New(), nil,
 		Rule{
 			Re:         regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB: callback,
 		},
 	)
+	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
@@ -152,12 +153,13 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 		return nil
 	}
 
-	watcher := NewWatcher(config.New(), nil,
+	watcher, err := NewWatcher(config.New(), nil,
 		Rule{
 			Re:         regexp.MustCompile(`fooroot-crypto.so`),
 			RegisterCB: callback,
 		},
 	)
+	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
@@ -213,12 +215,13 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 		return nil
 	}
 
-	watcher := NewWatcher(config.New(), nil,
+	watcher, err := NewWatcher(config.New(), nil,
 		Rule{
 			Re:         regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB: callback,
 		},
 	)
+	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
@@ -274,7 +277,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	registerCB := func(id PathIdentifier, root string, path string) error { return nil }
 	unregisterCB := func(id PathIdentifier) error { return errors.New("fake unregisterCB error") }
 
-	watcher := NewWatcher(config.New(), nil,
+	watcher, err := NewWatcher(config.New(), nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -286,6 +289,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 			UnregisterCB: unregisterCB,
 		},
 	)
+	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
@@ -371,7 +375,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	registerCB := func(id PathIdentifier, root string, path string) error { return nil }
 	unregisterCB := func(id PathIdentifier) error { return nil }
 
-	watcher := NewWatcher(config.New(), nil,
+	watcher, err := NewWatcher(config.New(), nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -383,6 +387,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 			UnregisterCB: unregisterCB,
 		},
 	)
+	require.NoError(t, err)
 
 	// create files
 	clientBin := buildSOWatcherClientBin(t)

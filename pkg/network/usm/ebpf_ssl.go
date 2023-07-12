@@ -218,7 +218,7 @@ func newSSLProgram(c *config.Config, m *manager.Manager, sockFDMap *ebpf.Map, bp
 		return nil
 	}
 
-	watcher := sharedlibraries.NewWatcher(c, bpfTelemetry,
+	watcher, err := sharedlibraries.NewWatcher(c, bpfTelemetry,
 		sharedlibraries.Rule{
 			Re:           regexp.MustCompile(`libssl.so`),
 			RegisterCB:   addHooks(m, openSSLProbes),
@@ -235,6 +235,10 @@ func newSSLProgram(c *config.Config, m *manager.Manager, sockFDMap *ebpf.Map, bp
 			UnregisterCB: removeHooks(m, gnuTLSProbes),
 		},
 	)
+	if err != nil {
+		log.Errorf("error initializating shared library watcher: %s", err)
+		return nil
+	}
 
 	return &sslProgram{
 		cfg:       c,
@@ -270,12 +274,11 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 }
 
 func (o *sslProgram) Start() {
-	// Setup shared library watcher and configure the appropriate callbacks
-
 	o.watcher.Start()
 }
 
 func (o *sslProgram) Stop() {
+	o.watcher.Stop()
 }
 
 func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedlibraries.PathIdentifier, string, string) error {

@@ -9,6 +9,7 @@
 
 #include "shared-libraries/types.h"
 #include "shared-libraries/maps.h"
+// all probes are shared among prebuilt and runtime, and can be found here
 #include "shared-libraries/probes.h"
 
-char _license[] SEC("license") = "GPL"; // NOLINT(bugprone-reserved-identifier)
+char _license[] SEC("license") = "GPL";

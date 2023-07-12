@@ -60,12 +60,11 @@ type Watcher struct {
 	ebpfProgram    *ebpfProgram
 }
 
-func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) *Watcher {
+func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
 	ebpfProgram := newEBPFProgram(cfg, bpfTelemetry)
 	err := ebpfProgram.Init()
 	if err != nil {
-		log.Errorf("error initializing shared library program: %s", err)
-		return nil
+		return nil, fmt.Errorf("error initializing shared library program: %w", err)
 	}
 
 	metricGroup := telemetry.NewMetricGroup(
@@ -100,7 +99,7 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, ru
 				libMatches:                  metricGroup.NewMetric("matches"),
 			},
 		},
-	}
+	}, nil
 }
 
 type soRegistryTelemetry struct {

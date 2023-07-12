@@ -16,7 +16,7 @@ import (
 //go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/shared-libraries.c pkg/ebpf/bytecode/build/runtime/shared-libraries.c pkg/ebpf/c pkg/network/ebpf/c/runtime pkg/network/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/shared-libraries.c pkg/ebpf/bytecode/runtime/shared-libraries.go runtime
 
-func getRuntimeCompiledUSM(config *config.Config) (runtime.CompiledOutput, error) {
+func getRuntimeCompiledSharedLibraries(config *config.Config) (runtime.CompiledOutput, error) {
 	return runtime.SharedLibraries.Compile(&config.Config, getCFlags(config), statsd.Client)
 }
 

@@ -32,6 +32,7 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/usm.c $CI_PROJECT_DIR/.tmp/binary-ebpf/usm.c
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/shared-libraries.c $CI_PROJECT_DIR/.tmp/binary-ebpf/shared-libraries.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c

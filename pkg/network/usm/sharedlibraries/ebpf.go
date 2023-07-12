@@ -146,7 +146,7 @@ func (e *ebpfProgram) initCORE() error {
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
-	bc, err := getRuntimeCompiledUSM(e.cfg)
+	bc, err := getRuntimeCompiledSharedLibraries(e.cfg)
 	if err != nil {
 		return err
 	}

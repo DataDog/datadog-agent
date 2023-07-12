@@ -1,5 +1,5 @@
-#ifndef __SHARED_LIBRARIES_H
-#define __SHARED_LIBRARIES_H
+#ifndef __SHARED_LIBRARIES_TYPES_H
+#define __SHARED_LIBRARIES_TYPES_H
 
 #include "ktypes.h"
 
