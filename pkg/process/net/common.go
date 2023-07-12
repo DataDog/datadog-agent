@@ -129,67 +129,75 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 	return results, nil
 }
 
+func (r *RemoteSysProbeUtil) getConnectionWithRPC(unixSockPath, clientID string) (*model.Connections, error) {
+	conn, err := grpc.Dial(unixSockPath, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
+
+	client := connectionserver.NewSystemProbeClient(conn)
+
+	response, err := client.GetConnections(context.Background(), &connectionserver.GetConnectionsRequest{ClientID: clientID})
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := response.Recv()
+	if err != nil {
+		return nil, err
+	}
+
+	conns, err := netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("[GetConnections-rpc] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
+	return conns, nil
+}
+
+func (r *RemoteSysProbeUtil) getConnectionWithHTTP(clientID string) (*model.Connections, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Accept", contentTypeProtobuf)
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.path, connectionsURL, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	contentType := resp.Header.Get("Content-type")
+	conns, err := netEncoding.GetUnmarshaler(contentType).Unmarshal(body)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("[slavin] we are in the http mode, found %d conns with the grpc server\n", len(conns.Conns))
+	return conns, nil
+}
+
 // GetConnections returns a set of active network connections, retrieved from the system probe service, supports the
 // grpc server as well as the http server.
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
-	var conns *model.Connections
 	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
+	unixSockPath := dd_config.SystemProbe.GetString("service_monitoring_config.grpc_socket_file_path")
+
 	if useGRPCServer {
-		conn, err := grpc.Dial("unix:///tmp/my_grpc.sock", grpc.WithInsecure())
-		if err != nil {
-			return nil, err
-		}
-
-		client := connectionserver.NewSystemProbeClient(conn)
-
-		response, err := client.GetConnections(context.Background(), &connectionserver.GetConnectionsRequest{ClientID: clientID})
-		if err != nil {
-			return nil, err
-		}
-
-		res, err := response.Recv()
-		if err != nil {
-			return nil, err
-		}
-
-		conns, err = netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
-		if err != nil {
-			return nil, err
-		}
-		fmt.Printf("[GetConnections-rpc] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
-
+		return r.getConnectionWithRPC(unixSockPath, clientID)
 	} else {
-		req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
-		if err != nil {
-			return nil, err
-		}
-
-		req.Header.Set("Accept", contentTypeProtobuf)
-		resp, err := r.httpClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.path, connectionsURL, resp.StatusCode)
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		contentType := resp.Header.Get("Content-type")
-		conns, err = netEncoding.GetUnmarshaler(contentType).Unmarshal(body)
-		if err != nil {
-			return nil, err
-		}
-		fmt.Printf("[slavin] we are in the http mode, found %d conns with the grpc server\n", len(conns.Conns))
+		return r.getConnectionWithHTTP(clientID)
 	}
-
-	return conns, nil
 }
 
 // GetStats returns the expvar stats of the system probe
