@@ -201,7 +201,12 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	fi.safeAppendPayload(req.URL.Path, payload, req.Header.Get("Content-Encoding"))
+	encoding := req.Header.Get("Content-Encoding")
+	if req.URL.Path == "/support/flare" {
+		encoding = req.Header.Get("Content-Type")
+	}
+
+	fi.safeAppendPayload(req.URL.Path, payload, encoding)
 
 	response := buildSuccessResponse(req.URL.Path)
 	writeHttpResponse(w, response)
