@@ -88,7 +88,7 @@ kitchen_test_dummy_job_tmp:
   needs: []
   tags: ["arch:amd64"]
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_changes ]
   script:
     - 'true'
 

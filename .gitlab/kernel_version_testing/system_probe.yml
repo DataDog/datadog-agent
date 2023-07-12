@@ -323,7 +323,7 @@ kernel_matrix_testing_setup_env:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
   rules:
-    !reference [ .on_system_probe_changes_or_manual ]
+    !reference [ .on_system_probe_changes ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
