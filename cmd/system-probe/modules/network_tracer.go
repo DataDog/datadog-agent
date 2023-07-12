@@ -175,7 +175,10 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	logRequests(id, count, len(cs.Conns), start)
 
 	// iterate over all the connections
-	s2.Send(&connectionserver.Connection{Data: conns})
+	err = s2.Send(&connectionserver.Connection{Data: conns})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
