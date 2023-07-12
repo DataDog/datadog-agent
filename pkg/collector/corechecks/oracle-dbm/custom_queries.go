@@ -10,6 +10,7 @@ package oracle
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"strconv"
 )
 
 type Method func(string, float64, string, []string)
@@ -63,13 +64,19 @@ func (c *Check) CustomQueries() error {
 					tags = append(tags, fmt.Sprintf("%s:%s", q.Columns[i].Name, v))
 				} else if methodFunc, ok := methods[q.Columns[i].Type]; ok {
 					metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
-					if f, ok := v.(float64); ok {
-						metricRow.value = f
+					if v_str, ok := v.(string); ok {
+						metricRow.value, err = strconv.ParseFloat(v_str, 64)
+						if err != nil {
+							log.Errorf("Metric value %v for metricRow.name %s is not a number", v, metricRow.name)
+							errInQuery = true
+							break
+						}
 					} else {
-						log.Errorf("Metric value for metricRow.name %s is not float64", metricRow.name)
+						log.Errorf("Can't parse metric value %v for metricRow.name %sr", v, metricRow.name)
 						errInQuery = true
 						break
 					}
+
 					metricRow.method = methodFunc
 				} else {
 					log.Errorf("Unknown column type %s in custom query %s", q.Columns[i].Type, metricRow.name)
