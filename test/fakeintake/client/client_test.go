@@ -29,6 +29,9 @@ var apiV1CheckRunResponse []byte
 //go:embed fixtures/api_v2_logs_response
 var apiV2LogsResponse []byte
 
+//go:embed fixtures/api_support_flare_response
+var supportFlareResponse []byte
+
 func TestClient(t *testing.T) {
 	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -216,5 +219,20 @@ func TestClient(t *testing.T) {
 		client := NewClient(ts.URL)
 		err := client.FlushServerAndResetAggregators()
 		assert.NoError(t, err)
+	})
+
+	t.Run("getFlare", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(supportFlareResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		flare, err := client.getFlare()
+		assert.NoError(t, err)
+		assert.Equal(t, flare.email, "test")
+		assert.Equal(t, flare.agentVersion, "7.45.1+commit.102cdaf")
+		assert.Equal(t, flare.hostname, "test-hostname")
+		assert.NotEmpty(t, flare.zipFileMap)
 	})
 }
