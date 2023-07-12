@@ -33,6 +33,7 @@ func registerCoreAgentCollectors() {
 	if !config.Datadog.GetBool("workloadmeta.remote_process_collector.enabled") {
 		return
 	}
+	log.Debug("Registering remote process collector")
 	workloadmeta.RegisterCollector(process_collector.CollectorID, func() workloadmeta.Collector {
 		return &remotecollector.GenericCollector{
 			CollectorID:   process_collector.CollectorID,
