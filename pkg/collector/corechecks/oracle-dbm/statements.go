@@ -566,9 +566,15 @@ func (c *Check) StatementMetrics() (int, error) {
 			var SQLStatement string
 
 			if statementMetricRow.SQLTextLength == 1000 {
-				getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.RandomSQLID)
+				err := getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.RandomSQLID)
+				if err != nil {
+					log.Errorf("failed to get the full text %s for sql_id %s", err, statementMetricRow.RandomSQLID)
+				}
 				if SQLStatement == "" && statementMetricRow.ForceMatchingSignature != "" {
-					getFullSQLText(c, &SQLStatement, "force_matching_signature", statementMetricRow.ForceMatchingSignature)
+					err := getFullSQLText(c, &SQLStatement, "force_matching_signature", statementMetricRow.ForceMatchingSignature)
+					if err != nil {
+						log.Errorf("failed to get the full text %s for force_matching_signature %s", err, statementMetricRow.ForceMatchingSignature)
+					}
 				}
 				if SQLStatement != "" {
 					statementMetricRow.SQLText = SQLStatement
