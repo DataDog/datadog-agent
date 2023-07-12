@@ -20,7 +20,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -150,13 +149,16 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 		return nil, err
 	}
 
-	contentType := resp.Header.Get("Content-type")
-	conns, err := netEncoding.GetUnmarshaler(contentType).Unmarshal(body)
+	conns := model.Connections{}
+	err = conns.UnmarshalVT(body)
+	if err != nil {
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	return conns, nil
+	return &conns, nil
 }
 
 // GetStats returns the expvar stats of the system probe

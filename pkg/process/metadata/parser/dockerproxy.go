@@ -49,11 +49,10 @@ func (d *DockerProxy) Extract(processes map[int32]*procutil.Process) {
 		}
 
 		if proxy := extractProxyTarget(p); proxy != nil {
-			log.Debugf("detected docker-proxy with pid=%d target.ip=%s target.port=%d target.proto=%s",
+			log.Debugf("detected docker-proxy with pid=%d target.ip=%s target.port=%d",
 				proxy.pid,
 				proxy.target.Ip,
 				proxy.target.Port,
-				proxy.target.Protocol,
 			)
 
 			// Add proxy to cache
