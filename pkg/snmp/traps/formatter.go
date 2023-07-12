@@ -8,7 +8,7 @@ package traps
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"strings"
 	"unicode"
 
@@ -27,7 +27,7 @@ type Formatter interface {
 // JSONFormatter is a Formatter implementation that transforms Traps into JSON
 type JSONFormatter struct {
 	oidResolver OIDResolver
-	aggregator  aggregator.Sender
+	aggregator  sender.Sender
 }
 
 type trapVariable struct {
@@ -46,7 +46,7 @@ const (
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver OIDResolver, aggregator aggregator.Sender) (JSONFormatter, error) {
+func NewJSONFormatter(oidResolver OIDResolver, aggregator sender.Sender) (JSONFormatter, error) {
 	if oidResolver == nil {
 		return JSONFormatter{}, fmt.Errorf("NewJSONFormatter called with a nil OIDResolver")
 	}
