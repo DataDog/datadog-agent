@@ -23,6 +23,7 @@ import (
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/core-agent"
 )
 
 // LoadComponents configures several common Agent components:
