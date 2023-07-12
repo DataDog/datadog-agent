@@ -81,7 +81,7 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
     for owner in owners:
         codeowner = CODEOWNERS_ORG_PREFIX + owner
         slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
-        jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[1:]
+        jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
         args = [
             "--service",
             "datadog-agent",
