@@ -972,9 +972,6 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
         return 0;
     }
 
-    // although we have net ns info, we don't use it in the key
-    // since we don't have it everywhere for udp port bindings
-    // (see sys_enter_bind/sys_exit_bind below)
     port_binding_t pb = {};
     pb.netns = get_netns_from_sock(skp);
     pb.port = lport;
