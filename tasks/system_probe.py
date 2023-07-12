@@ -1506,15 +1506,16 @@ def print_failed_tests(_, output_dir):
                             package = json_test['Package']
                             action = json_test["Action"]
 
-                            test_key = f"{package}.{name}"
-                            res = test_results.get(test_key)
-                            if res is None:
-                                test_results[test_key] = action
-                                continue
+                            if action == "pass" or action == "fail":
+                                test_key = f"{package}.{name}"
+                                res = test_results.get(test_key)
+                                if res is None:
+                                    test_results[test_key] = action
+                                    continue
 
-                            print(f"re-ran [{test_platform}] {package} {name}: {action}")
-                            if action == "pass" and res == "fail":
-                                test_results[test_key] = action
+                                print(f"re-ran [{test_platform}] {package} {name}: {action}")
+                                if action == "pass" and res == "fail":
+                                    test_results[test_key] = action
 
         for key, res in test_results.items():
             if res == "fail":
