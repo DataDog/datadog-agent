@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
@@ -51,7 +50,6 @@ var NetworkTracer = module.Factory{
 	ConfigNamespaces: []string{"network_config", "service_monitoring_config", "data_streams_config"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
-		useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
 
 		// Checking whether the current OS + kernel version is supported by the tracer
 		if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
@@ -80,13 +78,17 @@ var NetworkTracer = module.Factory{
 		}
 		nt.done = done
 
-		if useGRPCServer {
-			go func() {
-				err := startRPCServer(nt)
-				if err != nil {
-					log.Errorf("Failed to start gRPC server: %v", err)
-				}
-			}()
+		if ncfg.UseGRPC {
+			if ncfg.GRPCSocketFilePath == "" {
+				log.Errorf("unable to create a grpc server without a path for the socket file")
+			} else {
+				go func() {
+					err := startRPCServer(nt, ncfg.GRPCSocketFilePath)
+					if err != nil {
+						log.Errorf("Failed to start gRPC server: %v", err)
+					}
+				}()
+			}
 		}
 
 		return &nt, err
@@ -102,13 +104,11 @@ type networkTracer struct {
 }
 
 // startRPCServer is used to start a gRPC server using Unix sockets.
-func startRPCServer(tracer networkTracer) error {
-	socketFile := dd_config.SystemProbe.GetString("service_monitoring_config.grpc_socket_file_path")
-
+func startRPCServer(tracer networkTracer, socketFilePath string) error {
 	// Remove existing socket file if it exists
-	os.Remove(socketFile)
+	os.Remove(socketFilePath)
 
-	listener, err := net.Listen("unix", socketFile)
+	listener, err := net.Listen("unix", socketFilePath)
 	if err != nil {
 		return err
 	}
@@ -116,17 +116,14 @@ func startRPCServer(tracer networkTracer) error {
 	server := grpc.NewServer()
 	connectionserver.RegisterSystemProbeServer(server, &tracer)
 
-	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
-	if useGRPCServer {
-		go func() {
-			log.Info("gRPC server listening on Unix domain socket...")
+	go func() {
+		log.Info("gRPC server listening on Unix domain socket...")
 
-			err = server.Serve(listener)
-			if err != nil {
-				log.Errorf("unable to serve gRPC server %v", err)
-			}
-		}()
-	}
+		err = server.Serve(listener)
+		if err != nil {
+			log.Errorf("unable to serve gRPC server %v", err)
+		}
+	}()
 
 	// Wait for interrupt signal to gracefully stop the server
 	sigCh := make(chan os.Signal, 1)

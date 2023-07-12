@@ -37,6 +37,13 @@ type Config struct {
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
 
+	// UseGRPC is whether we are using grpc server for system probe and process agent communication
+	UseGRPC bool
+
+	// GRPCSocketFilePath specifies the unix socket path for the gRPC server of the system probe and process agent
+	// communication
+	GRPCSocketFilePath string
+
 	// DataStreamsEnabled is whether the data streams feature is enabled or not
 	DataStreamsEnabled bool
 
@@ -301,6 +308,8 @@ func New() *Config {
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
+		UseGRPC:               cfg.GetBool(join(smNS, "use_grpc")),
+		GRPCSocketFilePath:    cfg.GetString(join(smNS, "grpc_socket_file_path")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
