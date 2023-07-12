@@ -7,6 +7,8 @@ package client
 
 import (
 	"errors"
+	"fmt"
+	"path"
 	"regexp"
 	"testing"
 	"time"
@@ -56,6 +58,18 @@ func (agent *Agent) Version(commandArgs ...AgentArgsOption) string {
 
 func (agent *Agent) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
+}
+
+func (agent *Agent) Health(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("health", commandArgs...)
+}
+
+func (agent *Agent) Hostname(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("hostname", commandArgs...)
+}
+
+func (agent *Agent) CheckConfig(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("checkconfig", commandArgs...)
 }
 
 type Status struct {
@@ -111,4 +125,39 @@ func (a *Agent) WaitForReadyTimeout(timeout time.Duration) error {
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
 	return err
+}
+
+func (a *Agent) Restart() error {
+	for _, cmd := range a.os.GetServiceManager().RestartAgentCmd() {
+		_, err := a.vmClient.ExecuteWithError(cmd)
+		if err != nil {
+			return err
+		}
+	}
+	err := a.WaitForReady()
+	return err
+}
+
+func (a *Agent) SetConfigValue(config string) (string, error) {
+	agentConfigFullPath := path.Join(a.os.GetAgentConfigFolder(), "datadog.yaml")
+
+	// TODO: make this an exported API in test-infra-definitions instead of shell call
+	output, err := a.vmClient.ExecuteWithError(fmt.Sprintf(`echo "%v" | sudo tee %s`, config, agentConfigFullPath))
+	if err != nil {
+		return "", err
+	}
+
+	return output, nil
+}
+
+func (a *Agent) UnsetConfigValue(key string) (string, error) {
+	agentConfigFullPath := path.Join(a.os.GetAgentConfigFolder(), "datadog.yaml")
+
+	// TODO: make this an exported API in test-infra-definitions instead of shell call
+	output, err := a.vmClient.ExecuteWithError(fmt.Sprintf(`sudo sed -i 's|\(# \)*%v:||' %s`, key, agentConfigFullPath))
+	if err != nil {
+		return "", err
+	}
+
+	return output, nil
 }

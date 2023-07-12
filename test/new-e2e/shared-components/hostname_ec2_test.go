@@ -1,0 +1,105 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package testinfradefinition
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/stretchr/testify/assert"
+)
+
+type agentSuite struct {
+	e2e.Suite[e2e.AgentEnv]
+}
+
+func TestAgentHostnameEC2Suite(t *testing.T) {
+	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(nil)) //, params.WithDevMode())
+}
+
+// https://github.com/DataDog/datadog-agent/blob/main/pkg/util/hostname/README.md#the-current-logic
+func (v *agentSuite) TestAgentHostnameDefaultsToResourceId() {
+	_, err := v.Env().Agent.SetConfigValue("")
+	assert.NoError(v.T(), err)
+
+	metadata := client.NewEC2Metadata(v.Env().VM)
+	err = v.Env().Agent.WaitForReady()
+	assert.NoError(v.T(), err)
+
+	hostname := v.Env().Agent.Hostname()
+
+	// Default configuration of hostname for EC2 instances is the resource-id
+	resourceId := metadata.Get("instance-id")
+	assert.Contains(v.T(), hostname, resourceId)
+}
+
+func (v *agentSuite) TestAgentConfigHostnameVarOverride() {
+	err := v.Env().Agent.WaitForReady()
+	assert.NoError(v.T(), err)
+
+	_, err = v.Env().Agent.SetConfigValue("hostname: hostname.from.var")
+	assert.NoError(v.T(), err)
+
+	hostname := v.Env().Agent.Hostname()
+	assert.Contains(v.T(), hostname, "hostname.from.var")
+}
+
+func (v *agentSuite) TestAgentConfigHostnameFileOverride() {
+	err := v.Env().Agent.WaitForReady()
+	assert.NoError(v.T(), err)
+
+	fileContent := "hostname.from.file"
+	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | tee /tmp/hostname`, fileContent))
+	_, err = v.Env().Agent.SetConfigValue("hostname_file: /tmp/hostname")
+	assert.NoError(v.T(), err)
+
+	hostname := v.Env().Agent.Hostname()
+	assert.Contains(v.T(), hostname, fileContent)
+}
+
+// hostname_force_config_as_canonical stops throwing a warning but doesn't change behavior
+func (v *agentSuite) TestAgentConfigHostnameForceAsCanonical() {
+	err := v.Env().Agent.WaitForReady()
+	assert.NoError(v.T(), err)
+
+	config := `hostname: ip-172-29-113-35.ec2.internal
+hostname_force_config_as_canonical: true`
+	_, err = v.Env().Agent.SetConfigValue(config)
+	assert.NoError(v.T(), err)
+
+	hostname := v.Env().Agent.Hostname()
+	assert.Contains(v.T(), hostname, "ip-172-29-113-35.ec2.internal")
+}
+
+func (v *agentSuite) TestAgentConfigPrioritizeEC2Id() {
+	err := v.Env().Agent.WaitForReady()
+	assert.NoError(v.T(), err)
+
+	// ec2_prioritize_instance_id_as_hostname doesn't override higher priority providers
+	config := `hostname: hostname.from.var
+ec2_prioritize_instance_id_as_hostname: true`
+	_, err = v.Env().Agent.SetConfigValue(config)
+	assert.NoError(v.T(), err)
+
+	hostname := v.Env().Agent.Hostname()
+	assert.Contains(v.T(), hostname, "hostname.from.var")
+}
+
+func (v *agentSuite) TestAgentConfigPreferImdsv2() {
+	// e2e metadata provider already uses IMDSv2
+	metadata := client.NewEC2Metadata(v.Env().VM)
+	err := v.Env().Agent.WaitForReady()
+	assert.NoError(v.T(), err)
+
+	_, err = v.Env().Agent.SetConfigValue("ec2_prefer_imdsv2: true")
+	assert.NoError(v.T(), err)
+
+	hostname := v.Env().Agent.Hostname()
+	resourceId := metadata.Get("instance-id")
+	assert.Contains(v.T(), hostname, resourceId)
+}
