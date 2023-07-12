@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -21,16 +22,19 @@ import (
 	"go.uber.org/fx"
 )
 
-func fulfillDeps(t testing.TB) Component {
+func fulfillDeps(t testing.TB, overrides map[string]interface{}) Component {
 	return fxutil.Test[Component](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(core.BundleParams{}),
+		fx.Replace(configComponent.MockParams{Overrides: overrides}),
 		Module,
 	))
 }
 
 func TestDebugStatsSpike(t *testing.T) {
-	debug := fulfillDeps(t)
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_logging_enabled"] = false
+	debug := fulfillDeps(t, cfg)
 	d := debug.(*serverDebug)
 
 	assert := assert.New(t)
@@ -83,10 +87,13 @@ func TestDebugStatsSpike(t *testing.T) {
 
 	// it is no more considered a spike because we had another second with 500 metrics
 	assert.False(d.hasSpike())
+
 }
 
 func TestDebugStats(t *testing.T) {
-	debug := fulfillDeps(t)
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_logging_enabled"] = false
+	debug := fulfillDeps(t, cfg)
 	d := debug.(*serverDebug)
 
 	clk := clock.NewMock()
@@ -156,4 +163,5 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric4.Tags, "c b")
 	require.Equal(t, metric5.Tags, "c b")
 	require.Equal(t, hash4, hash5)
+
 }

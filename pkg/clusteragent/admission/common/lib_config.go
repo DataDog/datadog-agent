@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package common
 
@@ -41,6 +40,7 @@ type LibConfig struct {
 	TracingMethods                 []string                 `yaml:"tracing_methods" json:"tracing_methods,omitempty"`
 	TracingPropagationStyleInject  []string                 `yaml:"tracing_propagation_style_inject" json:"tracing_propagation_style_inject,omitempty"`
 	TracingPropagationStyleExtract []string                 `yaml:"tracing_propagation_style_extract" json:"tracing_propagation_style_extract,omitempty"`
+	DataStreams                    *bool                    `yaml:"data_streams_enabled" json:"data_streams_enabled,omitempty"`
 }
 
 // TracingServiceMapEntry holds service mapping config
@@ -172,6 +172,12 @@ func (lc LibConfig) ToEnvs() []corev1.EnvVar {
 		envs = append(envs, corev1.EnvVar{
 			Name:  "DD_PROPAGATION_STYLE_EXTRACT",
 			Value: strings.Join(lc.TracingPropagationStyleExtract, ","),
+		})
+	}
+	if val, defined := checkFormatVal(lc.DataStreams); defined {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_DATA_STREAMS_ENABLED",
+			Value: val,
 		})
 	}
 	return envs

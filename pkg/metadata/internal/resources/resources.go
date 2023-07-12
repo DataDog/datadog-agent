@@ -4,12 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || darwin
-// +build linux darwin
 
 package resources
 
 import (
-	"github.com/DataDog/gohai/processes"
+	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

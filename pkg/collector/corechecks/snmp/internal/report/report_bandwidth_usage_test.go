@@ -303,9 +303,12 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				MatchValue: "eth0",
 				InSpeed:    160_000_000,
 				OutSpeed:   40_000_000,
+				Tags:       []string{"muted", "customIfTagKey:customIfTagValue"},
 			}},
 			tags: []string{
 				"interface:eth0",
+				"muted",
+				"customIfTagKey:customIfTagValue",
 			},
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -348,9 +351,12 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				MatchValue: "9",
 				InSpeed:    160_000_000,
 				OutSpeed:   40_000_000,
+				Tags:       []string{"muted", "customIfTagKey:customIfTagValue"},
 			}},
 			tags: []string{
 				"interface:eth0",
+				"muted",
+				"customIfTagKey:customIfTagValue",
 			},
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -442,6 +448,33 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			expectedMetric: []Metric{
 				{"snmp.ifInSpeed", 160_000_000, []string{"interface:eth0", "speed_source:custom"}},
 				{"snmp.ifOutSpeed", 40_000_000, []string{"interface:eth0", "speed_source:custom"}},
+			},
+		},
+		{
+			name:      "InSpeed and OutSpeed Override with custom tags",
+			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			fullIndex: "9",
+			interfaceConfigs: []snmpintegration.InterfaceConfig{{
+				MatchField: "index",
+				MatchValue: "9",
+				InSpeed:    160_000_000,
+				OutSpeed:   40_000_000,
+				Tags:       []string{"muted", "customKey:customValue"},
+			}},
+			tags: []string{"interface:eth0"},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 80.0,
+						},
+					},
+				},
+			},
+			expectedMetric: []Metric{
+				{"snmp.ifInSpeed", 160_000_000, []string{"interface:eth0", "speed_source:custom", "muted", "customKey:customValue"}},
+				{"snmp.ifOutSpeed", 40_000_000, []string{"interface:eth0", "speed_source:custom", "muted", "customKey:customValue"}},
 			},
 		},
 		{

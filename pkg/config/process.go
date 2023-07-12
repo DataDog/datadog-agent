@@ -35,14 +35,23 @@ const (
 	// DefaultProcessMaxPerMessage is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxPerMessage = 100
 
+	// ProcessMaxPerMessageLimit is the maximum allowed value for maximum number of processes, or containers per message.
+	ProcessMaxPerMessageLimit = 10000
+
 	// DefaultProcessMaxMessageBytes is the default max for size of a message containing processes or container data. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxMessageBytes = 1000000
+
+	// ProcessMaxMessageBytesLimit is the maximum allowed value for the maximum size of a message containing processes or container data.
+	ProcessMaxMessageBytesLimit = 4000000
 
 	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
 	DefaultProcessExpVarPort = 6062
 
 	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
 	DefaultProcessCmdPort = 6162
+
+	// DefaultProcessEntityStreamPort is the default port used by the process-agent to expose Process Entities
+	DefaultProcessEntityStreamPort = 6262
 
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
 	DefaultProcessEndpoint = "https://process.datadoghq.com"
@@ -192,6 +201,9 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.event_collection.interval", DefaultProcessEventsCheckInterval)
 
 	procBindEnvAndSetDefault(config, "process_config.cache_lookupid", false)
+
+	procBindEnvAndSetDefault(config, "process_config.language_detection.enabled", false)
+	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
 
 	processesAddOverrideOnce.Do(func() {
 		AddOverrideFunc(loadProcessTransforms)

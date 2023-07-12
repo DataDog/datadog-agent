@@ -22,9 +22,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -44,6 +44,8 @@ type CaptureBuffer struct {
 }
 
 // for testing purposes
+//
+//nolint:unused
 type backendFs struct {
 	fs afero.Fs
 
@@ -51,6 +53,8 @@ type backendFs struct {
 }
 
 // captureFs, used exclusively for testing purposes
+//
+//nolint:unused
 var captureFs = backendFs{
 	fs: afero.NewOsFs(),
 }
@@ -331,7 +335,7 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 			continue
 		}
 
-		entityID, err := utils.Tagger2PbEntityID(entity.ID)
+		entityID, err := protoutils.Tagger2PbEntityID(entity.ID)
 		if err != nil {
 			log.Warnf("unable to compute valid EntityID for %v", id)
 			continue

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package modules
 
@@ -34,6 +33,7 @@ var EventMonitor = module.Factory{
 		}
 
 		opts := eventmonitor.Opts{}
+		secmoduleOpts := secmodule.Opts{}
 
 		// adapt options
 		if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
@@ -47,7 +47,7 @@ var EventMonitor = module.Factory{
 		}
 
 		if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-			cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity)
+			cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, secmoduleOpts)
 			if err != nil {
 				return nil, err
 			}

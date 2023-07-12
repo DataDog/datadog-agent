@@ -7,7 +7,7 @@
 
 #include "offsets.h"
 #include "conntrack.h"
-#include "conntrack-maps.h"
+#include "conntrack/maps.h"
 #include "ip.h"
 #include "ipv6.h"
 

@@ -51,14 +51,6 @@ custom:
   altArchitectureNames:
     amd64: "x86_64"
     arm64: "arm64"
-  pythonRequirements:
-    fileName: src/requirements.txt
-    layer:
-      compatibleRuntimes:
-        - python3.8
-
-plugins:
-  - serverless-python-requirements
 
 layers:
   recorderExtension:
@@ -412,13 +404,17 @@ functions:
 
   otlp-python:
     runtime: python3.8
-    handler: datadog_lambda.handler.handler
+    # a bug in opentelemetry instrumentation makes it impossible to define a
+    # handler inside of a directory
+    # see https://github.com/open-telemetry/opentelemetry-lambda/issues/655
+    handler: otlpPython.simple_test
     layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLambdaPythonLayerFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      - { Ref: PythonRequirementsLambdaLayer }
+      - arn:aws:lambda:${self:provider.region}:184161586896:layer:opentelemetry-python-0_1_0:1
     environment:
-      DD_LAMBDA_HANDLER: src/otlpPython.simple_test
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
       DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT: localhost:4318
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_TRACES_EXPORTER: otlp

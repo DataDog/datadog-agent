@@ -11,7 +11,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/twmb/murmur3"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -81,24 +80,17 @@ func FormatConnection(
 	c.IntraHost = conn.IntraHost
 	c.LastTcpEstablished = conn.Last.TCPEstablished
 	c.LastTcpClosed = conn.Last.TCPClosed
-	c.Protocol = formatProtocol(conn.Protocol, conn.StaticTags)
+	c.Protocol = formatProtocolStack(conn.ProtocolStack, conn.StaticTags)
 
 	c.RouteIdx = formatRouteIdx(conn.Via, routes)
 	dnsFormatter.FormatConnectionDNS(conn, c)
 	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
-	if httpStats != nil {
-		c.HttpAggregations, _ = proto.Marshal(httpStats)
-	}
+	c.HttpAggregations = httpStats
 
-	httpStats2, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
-	if httpStats2 != nil {
-		c.Http2Aggregations, _ = proto.Marshal(httpStats2)
-	}
+	http2Stats, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)
+	c.Http2Aggregations = http2Stats
 
-	kafkaStats := kafkaEncoder.GetKafkaAggregations(conn)
-	if kafkaStats != nil {
-		c.DataStreamsAggregations, _ = proto.Marshal(kafkaStats)
-	}
+	c.DataStreamsAggregations = kafkaEncoder.GetKafkaAggregations(conn)
 
 	conn.StaticTags |= staticTags
 	c.Tags, c.TagsChecksum = formatTags(tagsSet, conn, dynamicTags)
@@ -125,14 +117,18 @@ func FormatCompilationTelemetry(telByAsset map[string]network.RuntimeCompilation
 
 // FormatConnectionTelemetry converts telemetry from its internal representation to a protobuf message
 func FormatConnectionTelemetry(tel map[network.ConnTelemetryType]int64) map[string]int64 {
-	if tel == nil {
-		return nil
-	}
+	// Fetch USM payload telemetry
+	ret := GetUSMPayloadTelemetry()
 
-	ret := make(map[string]int64)
+	// Merge it with NPM telemetry
 	for k, v := range tel {
 		ret[string(k)] = v
 	}
+
+	if len(ret) == 0 {
+		return nil
+	}
+
 	return ret
 }
 
@@ -297,26 +293,4 @@ func unsafeStringSlice(key string) []byte {
 	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
 	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
 	return unsafe.Slice((*byte)(unsafe.Pointer(sh.Data)), len(key))
-}
-
-// formatProtocol converts a single protocol into a protobuf representation of protocol stack.
-// i.e: the input is ProtocolHTTP2 and the output should be:
-//
-//	&model.ProtocolStack{
-//			Stack: []model.ProtocolType{
-//				model.ProtocolType_protocolHTTP2,
-//			},
-//		}
-func formatProtocol(protocol network.ProtocolType, staticTags uint64) *model.ProtocolStack {
-	if protocol == network.ProtocolUnclassified {
-		protocol = network.ProtocolUnknown
-	}
-
-	stack := []model.ProtocolType{}
-	if network.IsTLSTag(staticTags) {
-		stack = append(stack, model.ProtocolType(network.ProtocolTLS))
-	}
-	return &model.ProtocolStack{
-		Stack: append(stack, model.ProtocolType(protocol)),
-	}
 }

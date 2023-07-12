@@ -8,7 +8,9 @@ package trace
 import (
 	"os"
 	"sync"
+	"time"
 
+	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -36,12 +38,13 @@ type ColdStartSpanCreator struct {
 	TraceAgent            *ServerlessTraceAgent
 	createSpan            sync.Once
 	LambdaSpanChan        <-chan *pb.Span
-	InitDurationChan      <-chan float64
+	LambdaInitMetricChan  <-chan *serverlessLog.LambdaInitMetric
 	syncSpanDurationMutex sync.Mutex
 	ColdStartSpanId       uint64
 	lambdaSpan            *pb.Span
 	initDuration          float64
 	StopChan              chan struct{}
+	initStartTime         time.Time
 }
 
 func (c *ColdStartSpanCreator) Run() {
@@ -50,9 +53,8 @@ func (c *ColdStartSpanCreator) Run() {
 			select {
 			case traceAgentSpan := <-c.LambdaSpanChan:
 				c.handleLambdaSpan(traceAgentSpan)
-
-			case initDuration := <-c.InitDurationChan:
-				c.handleInitDuration(initDuration)
+			case initMetric := <-c.LambdaInitMetricChan:
+				c.handleInitMetric(initMetric)
 
 			case <-c.StopChan:
 				log.Debugf("[ColdStartCreator] - shutting down")
@@ -78,10 +80,16 @@ func (c *ColdStartSpanCreator) handleLambdaSpan(traceAgentSpan *pb.Span) {
 	c.createIfReady()
 }
 
-func (c *ColdStartSpanCreator) handleInitDuration(initDuration float64) {
+func (c *ColdStartSpanCreator) handleInitMetric(initMetric *serverlessLog.LambdaInitMetric) {
 	c.syncSpanDurationMutex.Lock()
 	defer c.syncSpanDurationMutex.Unlock()
-	c.initDuration = initDuration
+	// Duration and start time come as two separate logs, so we expect this method to be called twice
+	if initMetric.InitDurationTelemetry != 0 {
+		c.initDuration = initMetric.InitDurationTelemetry
+	}
+	if !initMetric.InitStartTime.IsZero() {
+		c.initStartTime = initMetric.InitStartTime
+	}
 	c.createIfReady()
 }
 
@@ -93,6 +101,10 @@ func (c *ColdStartSpanCreator) createIfReady() {
 	}
 	if c.lambdaSpan == nil {
 		log.Debug("[ColdStartCreator] No lambda span, passing")
+		return
+	}
+	if c.initStartTime.IsZero() {
+		log.Debug("[ColdStartCreator] No init start time, passing")
 		return
 	}
 	c.create()
@@ -108,6 +120,13 @@ func (c *ColdStartSpanCreator) create() {
 	// APM spans are in nanoseconds
 	// millis = nanos * 1e6
 	durationNs := c.initDuration * 1e6
+	var spanStartTime int64
+	durationInt := int64(durationNs)
+	if (c.initStartTime.UnixNano() + durationInt) < c.lambdaSpan.Start {
+		spanStartTime = c.initStartTime.UnixNano()
+	} else {
+		spanStartTime = c.lambdaSpan.Start - durationInt
+	}
 
 	coldStartSpan := &pb.Span{
 		Service:  service,
@@ -116,7 +135,7 @@ func (c *ColdStartSpanCreator) create() {
 		SpanID:   c.ColdStartSpanId,
 		TraceID:  c.lambdaSpan.TraceID,
 		ParentID: c.lambdaSpan.ParentID,
-		Start:    c.lambdaSpan.Start - int64(durationNs),
+		Start:    spanStartTime,
 		Duration: int64(durationNs),
 		Type:     "serverless",
 	}

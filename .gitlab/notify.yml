@@ -48,7 +48,7 @@ send_pipeline_stats:
   when: always
   dependencies: []
   script:
-    - source /root/.bashrc && conda activate ddpy3
+    - source /root/.bashrc
     - set +x
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_read_api_token --with-decryption --query "Parameter.Value" --out text)
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)

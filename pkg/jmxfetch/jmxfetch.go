@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 package jmxfetch
 
@@ -40,6 +39,7 @@ const (
 	jvmContainerSupport               = " -XX:+UseContainerSupport"
 	defaultJavaBinPath                = "java"
 	defaultLogLevel                   = "info"
+	jmxAllowAttachSelf                = " -Djdk.attach.allowAttachSelf=true"
 )
 
 var (
@@ -165,6 +165,11 @@ func (j *JMXFetch) setDefaults() {
 	}
 	if j.Output == nil {
 		j.Output = log.JMXInfo
+	}
+	if j.JavaOptions == "" {
+		j.JavaOptions = jmxAllowAttachSelf
+	} else if !strings.Contains(j.JavaOptions, strings.TrimSpace(jmxAllowAttachSelf)) {
+		j.JavaOptions += jmxAllowAttachSelf
 	}
 }
 

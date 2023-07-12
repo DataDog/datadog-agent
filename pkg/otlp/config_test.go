@@ -4,7 +4,6 @@
 // Copyright 2021-present Datadog, Inc.
 
 //go:build otlp && test
-// +build otlp,test
 
 package otlp
 
@@ -54,10 +53,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		{
 			path: "receiver/noprotocols.yaml",
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
+				OTLPReceiverConfig:       map[string]interface{}{},
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -74,9 +74,10 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 						"http": nil,
 					},
 				},
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -93,9 +94,10 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 						"http": nil,
 					},
 				},
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -117,6 +119,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 									"min_time": "10m",
 								},
 							},
+							"max_recv_msg_size_mib": 10,
 						},
 						"http": map[string]interface{}{
 							"endpoint": "localhost:1234",
@@ -127,9 +130,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 						},
 					},
 				},
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
+				OpenCensusEnabled:        true,
+				OpenCensusReceiverConfig: map[string]interface{}{"endpoint": "0.0.0.0:55678"},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -173,9 +178,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				TracePort:      5003,
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -200,9 +206,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				TracePort:      5003,
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -230,9 +237,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				TracePort:      5003,
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"instrumentation_scope_metadata_as_tags": "true",
@@ -259,9 +267,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				TracePort:      5003,
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -285,9 +294,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						},
 					},
 				},
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				TracePort:      5003,
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -295,6 +305,58 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				Debug: map[string]interface{}{
 					"verbosity": "normal",
 				},
+			},
+		},
+		{
+			name: "only gRPC, max receive message size 10",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":              "0.0.0.0:9999",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB": "10",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint":              "0.0.0.0:9999",
+							"max_recv_msg_size_mib": "10",
+						},
+					},
+				},
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				TracePort:                5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
+		{
+			name: "opencensus",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
+				"DD_OTLP_CONFIG_OPENCENSUS_ENDPOINT":              "0.0.0.0:55678",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9999",
+						},
+					},
+				},
+				OpenCensusEnabled:        true,
+				OpenCensusReceiverConfig: map[string]interface{}{"endpoint": "0.0.0.0:55678"},
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				TracePort:                5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{},
 			},
 		},
 	}
@@ -324,10 +386,11 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		{
 			path: "metrics/allconfig.yaml",
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
+				OTLPReceiverConfig:       testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
 				Metrics: map[string]interface{}{
 					"enabled":                     true,
 					"delta_ttl":                   2400,
@@ -373,48 +436,52 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			path:      "debug/empty_but_set_debug.yaml",
 			shouldSet: true,
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Debug:              map[string]interface{}{},
-				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+				OTLPReceiverConfig:       map[string]interface{}{},
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				Debug:                    map[string]interface{}{},
+				Metrics:                  map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
 		},
 		{
 			path:      "debug/loglevel_debug.yaml",
 			shouldSet: true,
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Debug:              map[string]interface{}{"loglevel": "debug"},
-				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+				OTLPReceiverConfig:       map[string]interface{}{},
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				Debug:                    map[string]interface{}{"loglevel": "debug"},
+				Metrics:                  map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
 		},
 		{
 			path:      "debug/loglevel_disabled.yaml",
 			shouldSet: false,
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Debug:              map[string]interface{}{"loglevel": "disabled"},
-				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+				OTLPReceiverConfig:       map[string]interface{}{},
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				Debug:                    map[string]interface{}{"loglevel": "disabled"},
+				Metrics:                  map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
 		},
 		{
 			path:      "debug/verbosity_normal.yaml",
 			shouldSet: true,
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				Debug:              map[string]interface{}{"verbosity": "normal"},
-				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+				OTLPReceiverConfig:       map[string]interface{}{},
+				OpenCensusReceiverConfig: map[string]interface{}{},
+				TracePort:                5003,
+				MetricsEnabled:           true,
+				TracesEnabled:            true,
+				Debug:                    map[string]interface{}{"verbosity": "normal"},
+				Metrics:                  map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
 		},
 	}

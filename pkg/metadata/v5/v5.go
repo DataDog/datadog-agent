@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows || darwin
-// +build linux windows darwin
 
 package v5
 

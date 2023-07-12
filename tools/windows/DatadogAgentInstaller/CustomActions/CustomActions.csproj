@@ -57,14 +57,16 @@
   <ItemGroup>
     <Compile Include="CiInfo.cs" />
     <Compile Include="CleanUpFilesCustomAction.cs" />
-    <Compile Include="ClosedSourceComponentsCustomActions.cs" />
     <Compile Include="ConfigCustomActions.cs" />
+    <Compile Include="ConfigureUserCustomActions.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Flare.cs" />
     <Compile Include="Interfaces\IFeatureInfo.cs" />
+    <Compile Include="Interfaces\IFileSystemServices.cs" />
     <Compile Include="Interfaces\IInstallerHttpClient.cs" />
     <Compile Include="Interfaces\InstallerWebClient.cs" />
     <Compile Include="Interfaces\InstallInfoCustomActions.cs" />
+    <Compile Include="Interfaces\IRollbackAction.cs" />
     <Compile Include="MsiLogCustomActions.cs" />
     <Compile Include="Native\DirectoryServices.cs" />
     <Compile Include="Native\FeatureInfoAdapter.cs" />
@@ -76,12 +78,15 @@
     <Compile Include="Interfaces\IRegistryServices.cs" />
     <Compile Include="Interfaces\IServiceController.cs" />
     <Compile Include="Interfaces\IWindowsService.cs" />
+    <Compile Include="Native\FileSystemServices.cs" />
     <Compile Include="Native\Registries.cs" />
     <Compile Include="Native\RegistryKey.cs" />
     <Compile Include="Native\RegistryServices.cs" />
     <Compile Include="Native\ServiceController.cs" />
     <Compile Include="Native\ServiceControllerExtensions.cs" />
     <Compile Include="Native\WindowsService.cs" />
+    <Compile Include="Rollback\FilePermissionRollbackData.cs" />
+    <Compile Include="Rollback\RollbackDataStore.cs" />
     <Compile Include="ServiceCustomAction.cs" />
     <Compile Include="PatchInstallerCustomAction.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />
@@ -90,7 +95,7 @@
     <Compile Include="InstallStateCustomActions.cs" />
     <Compile Include="SessionWrapper.cs" />
     <Compile Include="Telemetry.cs" />
-    <Compile Include="UserCustomActions.cs" />
+    <Compile Include="ProcessUserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -100,6 +105,9 @@
   <ItemGroup>
     <PackageReference Include="LZMA-SDK">
       <Version>22.1.1</Version>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json">
+      <Version>13.0.3</Version>
     </PackageReference>
     <PackageReference Include="SharpZipLib" GeneratePathProperty="true">
       <Version>1.3.3</Version>

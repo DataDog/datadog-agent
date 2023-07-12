@@ -121,7 +121,7 @@ func (s *Launcher) cleanup() {
 }
 
 // scan checks all the files we're expected to tail, compares them to the currently tailed files,
-// and triggeres the required updates.
+// and triggers the required updates.
 // For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
 // The Scanner needs to stop that previous tailer, and start a new one for the new file.
 func (s *Launcher) scan() {
@@ -338,7 +338,16 @@ func (s *Launcher) restartTailerAfterFileRotation(tailer *tailer.Tailer, file *t
 // createTailer returns a new initialized tailer
 func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message) *tailer.Tailer {
 	tailerInfo := status.NewInfoRegistry()
-	return tailer.NewTailer(outputChan, file, s.tailerSleepDuration, decoder.NewDecoderFromSource(file.Source, tailerInfo), tailerInfo)
+
+	tailerOptions := &tailer.TailerOptions{
+		OutputChan:    outputChan,
+		File:          file,
+		SleepDuration: s.tailerSleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
+		Info:          tailerInfo,
+	}
+
+	return tailer.NewTailer(tailerOptions)
 }
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {

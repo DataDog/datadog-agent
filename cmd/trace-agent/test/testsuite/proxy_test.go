@@ -60,7 +60,7 @@ proxy:
 	if err := r.Post(p); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.PostMsgpack("/v0.6/stats", &testdata.ClientStatsTests[0].In); err != nil {
+	if err := r.PostMsgpack("/v0.6/stats", testdata.ClientStatsTests[0].In); err != nil {
 		t.Fatal(err)
 	}
 	defer r.KillAgent()
@@ -71,9 +71,9 @@ proxy:
 		select {
 		case p := <-out:
 			switch p.(type) {
-			case pb.StatsPayload:
+			case *pb.StatsPayload:
 				gots = true
-			case pb.AgentPayload:
+			case *pb.AgentPayload:
 				gott = true
 			}
 			if gott && gots {

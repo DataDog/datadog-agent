@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -14,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/module"
+	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +26,7 @@ func TestSECLRuleFilter(t *testing.T) {
 		Code:         kernel.Kernel5_9,
 	}
 
-	m := module.NewRuleFilterModel()
+	m := rulesmodule.NewRuleFilterModel()
 	m.Version = kv
 	seclRuleFilter := rules.NewSECLRuleFilter(m)
 

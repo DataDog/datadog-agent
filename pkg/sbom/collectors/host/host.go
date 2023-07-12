@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build trivy
-// +build trivy
 
 package host
 
@@ -16,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
@@ -56,13 +56,18 @@ func (c *HostCollector) Init(cfg config.Config) error {
 	return nil
 }
 
-func (c *HostCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) (sbom.Report, error) {
+func (c *HostCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
 	hostScanRequest, ok := request.(*ScanRequest)
 	if !ok {
-		return nil, fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)
+		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
 	}
+	log.Infof("host scan request [%v]", hostScanRequest.ID())
 
-	return c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, opts)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, opts)
+	return sbom.ScanResult{
+		Error:  err,
+		Report: report,
+	}
 }
 
 func init() {

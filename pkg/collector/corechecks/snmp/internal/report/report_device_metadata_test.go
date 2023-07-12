@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -257,6 +258,16 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
+		interfaceConfigs: []snmpintegration.InterfaceConfig{
+			{
+				MatchField: "index",
+				MatchValue: "2",
+				Tags: []string{
+					"muted",
+					"someKey:someValue",
+				},
+			},
+		},
 	}
 
 	config := &checkconfig.CheckConfig{
@@ -313,7 +324,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
-	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down"}
+	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
 
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags1)
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)

@@ -4,8 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd && (linux || windows)
-// +build containerd
-// +build linux windows
 
 package containerd
 

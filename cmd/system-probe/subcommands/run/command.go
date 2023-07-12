@@ -25,15 +25,18 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,7 +70,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfig.WithConfigLoadSecrets(true))),
 				fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				config.Module,
+				telemetry.Module,
 				sysprobeconfig.Module,
+				rcclient.Module,
 				// use system-probe config instead of agent config for logging
 				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 					return log.NewLogger(lc, params, sysprobeconfig)
@@ -81,16 +86,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams) error {
 	defer func() {
 		stopSystemProbe(cliParams)
 	}()
 
 	// prepare go runtime
 	ddruntime.SetMaxProcs()
-	if err := ddruntime.SetGoMemLimit(ddconfig.IsContainerized()); err != nil {
-		log.Debugf("Couldn't set Go memory limit: %s", err)
-	}
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -125,7 +127,7 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 		}
 	}()
 
-	if err := startSystemProbe(cliParams, log, sysprobeconfig); err != nil {
+	if err := startSystemProbe(cliParams, log, telemetry, sysprobeconfig, rcclient); err != nil {
 		if err == ErrNotEnabled {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -142,14 +144,16 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 func StartSystemProbeWithDefaults() error {
 	// run startSystemProbe in an app, so that the log and config components get initialized
 	return fxutil.OneShot(
-		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component) error {
-			return startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, sysprobeconfig)
+		func(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
+			return startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, telemetry, sysprobeconfig, rcclient)
 		},
 		// no config file path specification in this situation
 		fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
 		fx.Supply(sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(""), sysprobeconfig.WithConfigLoadSecrets(true))),
 		fx.Supply(log.LogForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		rcclient.Module,
 		config.Module,
+		telemetry.Module,
 		sysprobeconfig.Module,
 		// use system-probe config instead of agent config for logging
 		fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
@@ -159,7 +163,7 @@ func StartSystemProbeWithDefaults() error {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sysprobeconfig.Component) error {
+func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
 	var err error
 	var ctx context.Context
 	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
@@ -177,11 +181,30 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 		log.Warnf("cannot setup core dumps: %s, core dumps might not be available after a crash", err)
 	}
 
+	if sysprobeconfig.GetBool("system_probe_config.memory_controller.enabled") {
+		memoryPressureLevels := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
+		memoryThresholds := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.thresholds")
+		hierarchy := sysprobeconfig.GetString("system_probe_config.memory_controller.hierarchy")
+		common.MemoryMonitor, err = utils.NewMemoryMonitor(hierarchy, ddconfig.IsContainerized(), memoryPressureLevels, memoryThresholds)
+		if err != nil {
+			log.Warnf("cannot set up memory controller: %s", err)
+		} else {
+			common.MemoryMonitor.Start()
+		}
+	}
+
 	if err := initRuntimeSettings(); err != nil {
 		log.Warnf("cannot initialize the runtime settings: %s", err)
 	}
 
 	setupInternalProfiling(sysprobeconfig, configPrefix, log)
+
+	if ddconfig.Datadog.GetBool("remote_configuration.enabled") {
+		err = rcclient.Listen("system-probe", []data.Product{data.ProductAgentConfig})
+		if err != nil {
+			return log.Criticalf("unable to start remote configuration client: %s", err)
+		}
+	}
 
 	if cliParams.pidfilePath != "" {
 		if err := pidfile.WritePID(cliParams.pidfilePath); err != nil {
@@ -195,7 +218,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 		return log.Criticalf("unable to configure auto-exit: %s", err)
 	}
 
-	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
+	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort, true); err != nil {
 		return log.Criticalf("error configuring statsd: %s", err)
 	}
 
@@ -214,7 +237,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, sysprobeconfig sy
 		}()
 	}
 
-	if err = api.StartServer(cfg); err != nil {
+	if err = api.StartServer(cfg, telemetry); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil
@@ -234,7 +257,9 @@ func stopSystemProbe(cliParams *cliParams) {
 		}
 	}
 	profiling.Stop()
-
+	if common.MemoryMonitor != nil {
+		common.MemoryMonitor.Stop()
+	}
 	_ = os.Remove(cliParams.pidfilePath)
 
 	// gracefully shut down any component

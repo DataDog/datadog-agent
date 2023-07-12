@@ -344,7 +344,7 @@ func (c *DCAClient) doJSONQuery(ctx context.Context, path, method string, body i
 
 	err = json.Unmarshal(respBody, obj)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal JSON from URL: %s, err: %w", path, err)
+		return fmt.Errorf("failed to unmarshal JSON from URL: %s, err: %w, raw message: %q", path, err, respBody)
 	}
 
 	return nil

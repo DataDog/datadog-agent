@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet && kubeapiserver
-// +build kubelet,kubeapiserver
 
 package hostinfo
 
@@ -17,20 +16,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
-// GetTags gets the tags from the kubernetes apiserver
+// GetTags gets the tags from the kubernetes apiserver and the kubelet
 func GetTags(ctx context.Context) (tags []string, err error) {
 	labelsToTags := getLabelsToTags()
 
-	if len(labelsToTags) > 0 {
+	nodeInfo, e := NewNodeInfo()
+	if e != nil {
+		err = e
+	}
+	nodeName, e := nodeInfo.GetNodeName(ctx)
+	if e == nil && nodeName != "" {
+		tags = append(tags, "kube_node:"+nodeName)
+	}
+
+	if len(labelsToTags) > 0 && err == nil {
 		var nodeLabels map[string]string
-		nodeInfo, e := NewNodeInfo()
+		nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
 		if e != nil {
 			err = e
-		} else {
-			nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
-			if e != nil {
-				err = e
-			}
 		}
 
 		if len(nodeLabels) > 0 {

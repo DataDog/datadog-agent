@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -22,9 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const firstRunnerStatsMinutes = 2  // collect runner stats after the first 2 minutes
-const secondRunnerStatsMinutes = 5 // collect runner stats after the first 7 minutes
-const finalRunnerStatsMinutes = 10 // collect runner stats endlessly every 10 minutes
+const (
+	firstRunnerStatsMinutes  = 2  // collect runner stats after the first 2 minutes
+	secondRunnerStatsMinutes = 5  // collect runner stats after the first 7 minutes
+	finalRunnerStatsMinutes  = 10 // collect runner stats endlessly every 10 minutes
+)
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
@@ -33,6 +34,7 @@ type dispatcher struct {
 	extraTags             []string
 	clcRunnersClient      clusteragent.CLCRunnerClientInterface
 	advancedDispatching   bool
+	excludedChecks        map[string]struct{}
 }
 
 func newDispatcher() *dispatcher {
@@ -41,6 +43,15 @@ func newDispatcher() *dispatcher {
 	}
 	d.nodeExpirationSeconds = config.Datadog.GetInt64("cluster_checks.node_expiration_timeout")
 	d.extraTags = config.Datadog.GetStringSlice("cluster_checks.extra_tags")
+
+	excludedChecks := config.Datadog.GetStringSlice("cluster_checks.exclude_checks")
+	// This option will almost always be empty
+	if len(excludedChecks) > 0 {
+		d.excludedChecks = make(map[string]struct{}, len(excludedChecks))
+		for _, checkName := range excludedChecks {
+			d.excludedChecks[checkName] = struct{}{}
+		}
+	}
 
 	hname, _ := hostname.Get(context.TODO())
 	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
@@ -75,6 +86,11 @@ func (d *dispatcher) Stop() {
 // Schedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Schedule(configs []integration.Config) {
 	for _, c := range configs {
+		if _, found := d.excludedChecks[c.Name]; found {
+			log.Infof("Excluding check due to config: %s", c.Name)
+			continue
+		}
+
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}

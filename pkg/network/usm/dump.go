@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
@@ -16,23 +15,13 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
-func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {
+func (e *ebpfProgram) dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {
 	var output strings.Builder
 
 	switch mapName {
-	case httpInFlightMap: // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
-		iter := currentMap.Iterate()
-		var key ddebpf.ConnTuple
-		var value http.HttpTX
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
-		}
-
 	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
 		output.WriteString("Map: '" + mapName + "', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
 		iter := currentMap.Iterate()
@@ -76,6 +65,20 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 		var value uintptr // C.void *
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
+		}
+
+	case connectionStatesMap: // maps/connection_states (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.__u32
+		output.WriteString("Map: '" + mapName + "', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
+		iter := currentMap.Iterate()
+		var key http.ConnTuple
+		var value uint32
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
+
+	default: // Go through enabled protocols in case one of them now how to handle the current map
+		for _, p := range e.enabledProtocols {
+			p.DumpMaps(&output, mapName, currentMap)
 		}
 	}
 	return output.String()

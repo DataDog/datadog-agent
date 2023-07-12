@@ -4,16 +4,16 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
 import (
 	"context"
+	"math"
 	"net"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/vishvananda/netns"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -26,9 +26,9 @@ import (
 )
 
 const (
-	maxRouteCacheSize       = int(^uint(0) >> 1) // max int
+	maxRouteCacheSize       = uint32(math.MaxUint32)
 	maxSubnetCacheSize      = 1024
-	gatewayLookupModuleName = "gateway_lookup"
+	gatewayLookupModuleName = "network_tracer__gateway_lookup"
 )
 
 // Telemetry
@@ -50,7 +50,7 @@ type gatewayLookup struct {
 	procRoot            string
 	rootNetNs           netns.NsHandle
 	routeCache          network.RouteCache
-	subnetCache         *simplelru.LRU // interface index to subnet cache
+	subnetCache         *simplelru.LRU[int, interface{}] // interface index to subnet cache
 	subnetForHwAddrFunc func(net.HardwareAddr) (network.Subnet, error)
 }
 
@@ -93,14 +93,14 @@ func newGatewayLookup(config *config.Config) *gatewayLookup {
 	}
 
 	routeCacheSize := maxRouteCacheSize
-	if config.MaxTrackedConnections <= uint(maxRouteCacheSize) {
-		routeCacheSize = int(config.MaxTrackedConnections)
+	if config.MaxTrackedConnections <= maxRouteCacheSize {
+		routeCacheSize = config.MaxTrackedConnections
 	} else {
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, config.MaxTrackedConnections)
 	}
 
-	gl.subnetCache, _ = simplelru.NewLRU(maxSubnetCacheSize, nil)
-	gl.routeCache = network.NewRouteCache(routeCacheSize, router)
+	gl.subnetCache, _ = simplelru.NewLRU[int, interface{}](maxSubnetCacheSize, nil)
+	gl.routeCache = network.NewRouteCache(int(routeCacheSize), router)
 	return gl
 }
 

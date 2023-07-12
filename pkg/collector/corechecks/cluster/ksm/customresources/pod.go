@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package customresources
 
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -79,6 +79,100 @@ func (f *extendedPodFactory) MetricFamilyGenerators(allowAnnotationsList, allowL
 				return f.customResourceGenerator(p, resourcelimits)
 			}),
 		),
+		*generator.NewFamilyGenerator(
+			"kube_pod_container_resource_with_owner_tag_requests",
+			"The number of requested request resource by a container, including pod owner information.",
+			metric.Gauge,
+			"",
+			wrapPodFunc(func(p *v1.Pod) *metric.Family {
+				return f.customResourceOwnerGenerator(p, resourceRequests)
+			}),
+		),
+		*generator.NewFamilyGenerator(
+			"kube_pod_container_resource_with_owner_tag_limits",
+			"The number of requested limit resource by a container, including pod owner information.",
+			metric.Gauge,
+			"",
+			wrapPodFunc(func(p *v1.Pod) *metric.Family {
+				return f.customResourceOwnerGenerator(p, resourcelimits)
+			}),
+		),
+	}
+}
+
+// customResourceOwnerGenerator is used to generate metrics related to resource requests or limits, tagged by the top-most
+// owner of the pod.
+func (f *extendedPodFactory) customResourceOwnerGenerator(p *v1.Pod, resourceType string) *metric.Family {
+	// We want to omit pods that have succeeded, as those no longer count towards resource allocation
+	if p.Status.Phase == v1.PodSucceeded || p.Status.Phase == v1.PodFailed {
+		return &metric.Family{}
+	}
+
+	ms := []*metric.Metric{}
+
+	for _, c := range p.Spec.Containers {
+		var resources v1.ResourceList
+		switch resourceType {
+		case resourceRequests:
+			resources = c.Resources.Requests
+		case resourcelimits:
+			resources = c.Resources.Limits
+		default:
+			log.Warnf("unknown resource type requested for pod container resources: %s", resourceType)
+		}
+		var kind, name string
+
+		owners := p.GetOwnerReferences()
+		if len(owners) == 0 {
+			kind = "<none>"
+			name = "<none>"
+		}
+
+		for _, owner := range owners {
+			kind = owner.Kind
+			name = owner.Name
+			if owner.Controller != nil {
+				break
+			}
+		}
+
+		// because of the way we handle aggregation (based on labels), if we want to drop the job / replicaset tag in the
+		// final metric being pushed up, then we should do it here. Otherwise, each job or replicaset will not be combined
+		// properly
+		switch kind {
+		case kubernetes.JobKind:
+			if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
+				kind = kubernetes.CronJobKind
+				name = cronjob
+			}
+		case kubernetes.ReplicaSetKind:
+			if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
+				kind = kubernetes.DeploymentKind
+				name = deployment
+			}
+		}
+
+		for resourceName, val := range resources {
+			if resourceName == v1.ResourceCPU {
+				ms = append(ms, &metric.Metric{
+					LabelValues: []string{c.Name, p.Spec.NodeName, sanitizeLabelName(string(resourceName)), string(constant.UnitCore), kind, name},
+					Value:       float64(val.MilliValue()) / 1000,
+				})
+			} else if resourceName == v1.ResourceMemory {
+				ms = append(ms, &metric.Metric{
+					LabelValues: []string{c.Name, p.Spec.NodeName, sanitizeLabelName(string(resourceName)), string(constant.UnitByte), kind, name},
+					Value:       float64(val.Value()),
+				})
+			}
+		}
+	}
+
+	for _, metric := range ms {
+		metric.LabelKeys = []string{"container", "node", "resource", "unit", "owner_kind", "owner_name"}
+	}
+
+	return &metric.Family{
+		Metrics: ms,
 	}
 }
 

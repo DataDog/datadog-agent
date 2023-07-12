@@ -6,33 +6,45 @@
 package client
 
 import (
+	"testing"
+
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
+type clientService[T any] interface {
+	stackInitializer
+	clientServiceInitializer[T]
+}
+
+type clientServiceInitializer[T any] interface {
+	initService(*testing.T, *T) error
+}
+
 // UpResultDeserializer is an helper to build a new type that can be used in an environment.
-// It is designed to be used as an embeded field.
+// It is designed to be used as an embedded field.
 // See VM type in this package for an example of usage.
 type UpResultDeserializer[T any] struct {
-	deserializer func(auto.UpResult) (*T, error)
-	init         func(*Authentification, *T) error
+	initializer  clientServiceInitializer[T]
+	deserializer utils.RemoteServiceDeserializer[T]
 }
 
 // NewUpResultDeserializer creates a new instance of UpResultDeserializer.
 // deserializer is a function that deserializes the output of a stack
 // init is a function that initializes the parent struct.
 func NewUpResultDeserializer[T any](
-	deserializer func(auto.UpResult) (*T, error),
-	init func(*Authentification, *T) error) *UpResultDeserializer[T] {
+	deserializer utils.RemoteServiceDeserializer[T],
+	initializer clientServiceInitializer[T]) *UpResultDeserializer[T] {
 	return &UpResultDeserializer[T]{
+		initializer:  initializer,
 		deserializer: deserializer,
-		init:         init,
 	}
 }
 
-func (d *UpResultDeserializer[T]) setStack(auth *Authentification, stackResult auto.UpResult) error {
-	value, err := d.deserializer(stackResult)
+func (d *UpResultDeserializer[T]) setStack(t *testing.T, stackResult auto.UpResult) error {
+	value, err := d.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err
 	}
-	return d.init(auth, value)
+	return d.initializer.initService(t, value)
 }

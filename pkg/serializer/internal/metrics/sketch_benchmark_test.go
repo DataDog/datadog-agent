@@ -4,7 +4,6 @@
 // Copyright 2016-2021 Datadog, Inc.
 
 //go:build test
-// +build test
 
 package metrics
 

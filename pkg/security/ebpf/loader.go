@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package ebpf
 
@@ -24,15 +23,17 @@ type ProbeLoader struct {
 	bytecodeReader    bytecode.AssetReader
 	useSyscallWrapper bool
 	useRingBuffer     bool
+	useFentry         bool
 	statsdClient      statsd.ClientInterface
 }
 
 // NewProbeLoader returns a new Loader
-func NewProbeLoader(config *config.Config, useSyscallWrapper, useRingBuffer bool, statsdClient statsd.ClientInterface) *ProbeLoader {
+func NewProbeLoader(config *config.Config, useSyscallWrapper, useRingBuffer bool, useFentry bool, statsdClient statsd.ClientInterface) *ProbeLoader {
 	return &ProbeLoader{
 		config:            config,
 		useSyscallWrapper: useSyscallWrapper,
 		useRingBuffer:     useRingBuffer,
+		useFentry:         useFentry,
 		statsdClient:      statsdClient,
 	}
 }
@@ -62,7 +63,9 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 	// fallback to pre-compiled version
 	if l.bytecodeReader == nil {
 		asset := "runtime-security"
-		if l.useSyscallWrapper {
+		if l.useFentry {
+			asset += "-fentry"
+		} else if l.useSyscallWrapper {
 			asset += "-syscall-wrapper"
 		}
 

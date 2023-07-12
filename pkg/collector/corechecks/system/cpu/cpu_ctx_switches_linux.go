@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build linux
-// +build linux
 
 package cpu
 
@@ -15,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -42,7 +41,7 @@ func readCtxSwitches(procStatPath string) (ctxSwitches int64, err error) {
 	return 0, fmt.Errorf("could not find the context switches in stat file")
 }
 
-func (c *Check) collectCtxSwitches(sender aggregator.Sender) error {
+func (c *Check) collectCtxSwitches(sender sender.Sender) error {
 	procfsPath := "/proc"
 	if config.Datadog.IsSet("procfs_path") {
 		procfsPath = config.Datadog.GetString("procfs_path")

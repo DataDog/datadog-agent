@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
 
 package http
 
@@ -21,13 +20,13 @@ type Telemetry struct {
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 
 	totalHits    *libtelemetry.Metric
-	dropped      *libtelemetry.Metric // this happens when httpStatKeeper reaches capacity
+	dropped      *libtelemetry.Metric // this happens when statKeeper reaches capacity
 	rejected     *libtelemetry.Metric // this happens when an user-defined reject-filter matches a request
 	malformed    *libtelemetry.Metric // this happens when the request doesn't have the expected format
 	aggregations *libtelemetry.Metric
 }
 
-func NewTelemetry() (*Telemetry, error) {
+func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
 		libtelemetry.OptExpvar,
@@ -44,7 +43,7 @@ func NewTelemetry() (*Telemetry, error) {
 		aggregations: metricGroup.NewMetric("aggregations"),
 
 		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd),
+		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
 		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
 		rejected:  metricGroup.NewMetric("rejected", libtelemetry.OptStatsd),
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
@@ -52,10 +51,10 @@ func NewTelemetry() (*Telemetry, error) {
 
 	t.LastCheck.Store(time.Now().Unix())
 
-	return t, nil
+	return t
 }
 
-func (t *Telemetry) Count(tx HttpTX) {
+func (t *Telemetry) Count(tx Transaction) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
 	case 100:

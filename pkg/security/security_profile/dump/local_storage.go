@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package dump
 
@@ -20,7 +19,7 @@ import (
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
@@ -58,17 +57,17 @@ func (s dumpFilesSlice) Less(i, j int) bool {
 
 // ActivityDumpLocalStorage is used to manage ActivityDumps storage
 type ActivityDumpLocalStorage struct {
-	localDumps *simplelru.LRU[string, []string]
+	localDumps *simplelru.LRU[string, *[]string]
 }
 
 // NewActivityDumpLocalStorage creates a new ActivityDumpLocalStorage instance
 func NewActivityDumpLocalStorage(cfg *config.Config) (ActivityDumpStorage, error) {
-	lru, err := simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files []string) {
-		if len(files) == 0 {
+	lru, err := simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files *[]string) {
+		if len(*files) == 0 {
 			return
 		}
 		// remove everything
-		for _, f := range files {
+		for _, f := range *files {
 			_ = os.Remove(f)
 		}
 	})
@@ -126,7 +125,8 @@ func NewActivityDumpLocalStorage(cfg *config.Config) (ActivityDumpStorage, error
 		sort.Sort(dumps)
 		// insert the dumps in cache (will trigger clean up if necessary)
 		for _, ad := range dumps {
-			lru.Add(ad.Name, ad.Files)
+			newFiles := ad.Files
+			lru.Add(ad.Name, &newFiles)
 		}
 	}
 
@@ -159,9 +159,9 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 	if storage.localDumps != nil {
 		files, ok := storage.localDumps.Get(ad.Metadata.Name)
 		if !ok {
-			storage.localDumps.Add(ad.Metadata.Name, []string{outputPath})
+			storage.localDumps.Add(ad.Metadata.Name, &[]string{outputPath})
 		} else {
-			storage.localDumps.Add(ad.Metadata.Name, append(files, outputPath))
+			*files = append(*files, outputPath)
 		}
 	}
 
@@ -192,4 +192,4 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpLocalStorage) SendTelemetry(sender aggregator.Sender) {}
+func (storage *ActivityDumpLocalStorage) SendTelemetry(sender sender.Sender) {}

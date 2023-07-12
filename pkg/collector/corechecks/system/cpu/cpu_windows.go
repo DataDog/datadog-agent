@@ -8,7 +8,6 @@
 // copyright WAKAYAMA Shirou, and the gopsutil contributors
 
 //go:build windows
-// +build windows
 
 package cpu
 
@@ -16,7 +15,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/DataDog/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"

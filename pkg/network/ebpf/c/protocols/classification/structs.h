@@ -2,7 +2,8 @@
 #define __PROTOCOL_CLASSIFICATION_STRUCTS_H
 
 #include "ktypes.h"
-#include "tracer.h"
+
+#include "conn_tuple.h"
 
 typedef struct {
     __s32   message_length; // total message size, including this

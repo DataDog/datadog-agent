@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
 
 package dns
 
@@ -53,6 +52,7 @@ type socketFilterSnooper struct {
 	exit            chan struct{}
 	wg              sync.WaitGroup
 	collectLocalDNS bool
+	once            sync.Once
 
 	// cache translation object to avoid allocations
 	translation *translation
@@ -114,7 +114,7 @@ func newSocketFilterSnooper(cfg *config.Config, source packetSource) (*socketFil
 }
 
 // Resolve IPs to DNS addresses
-func (s *socketFilterSnooper) Resolve(ips []util.Address) map[util.Address][]Hostname {
+func (s *socketFilterSnooper) Resolve(ips map[util.Address]struct{}) map[util.Address][]Hostname {
 	return s.cache.Get(ips)
 }
 
@@ -133,13 +133,15 @@ func (s *socketFilterSnooper) Start() error {
 
 // Close terminates the DNS traffic snooper as well as the underlying socket and the attached filter
 func (s *socketFilterSnooper) Close() {
-	close(s.exit)
-	s.wg.Wait()
-	s.source.Close()
-	s.cache.Close()
-	if s.statKeeper != nil {
-		s.statKeeper.Close()
-	}
+	s.once.Do(func() {
+		close(s.exit)
+		s.wg.Wait()
+		s.source.Close()
+		s.cache.Close()
+		if s.statKeeper != nil {
+			s.statKeeper.Close()
+		}
+	})
 }
 
 // processPacket retrieves DNS information from the received packet data and adds it to

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package profile
 
@@ -13,20 +12,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
-func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
+// ProtoToSecurityProfile decodes a Security Profile from its protobuf representation
+func ProtoToSecurityProfile(output *SecurityProfile, pathsReducer *activity_tree.PathsReducer, input *proto.SecurityProfile) {
 	if input == nil {
 		return
 	}
 
 	output.Status = model.Status(input.Status)
 	output.Version = input.Version
-	if input.Version == "local_profile" {
-		output.autolearnEnabled = true
-	}
-	output.Metadata = dump.ProtoMetadataToMetadata(input.Metadata)
+	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
 
 	output.Tags = make([]string, len(input.Tags))
 	copy(output.Tags, input.Tags)
@@ -34,6 +31,6 @@ func protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfil
 	output.Syscalls = make([]uint32, len(input.Syscalls))
 	copy(output.Syscalls, input.Syscalls)
 
-	output.ActivityTree = activity_tree.NewActivityTree(output, "security_profile")
+	output.ActivityTree = activity_tree.NewActivityTree(output, pathsReducer, "security_profile")
 	activity_tree.ProtoDecodeActivityTree(output.ActivityTree, input.Tree)
 }

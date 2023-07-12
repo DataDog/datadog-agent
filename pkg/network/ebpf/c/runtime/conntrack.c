@@ -11,7 +11,7 @@
 
 #include "defs.h"
 #include "conntrack.h"
-#include "conntrack-maps.h"
+#include "conntrack/maps.h"
 #include "netns.h"
 #include "ip.h"
 

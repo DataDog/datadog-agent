@@ -31,6 +31,10 @@ Package log implements a component to handle logging internal to the agent.
 Package sysprobeconfig implements a component to handle system-probe configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/telemetry)
+
+Package telemetry implements a component for all agent telemetry.
+
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
@@ -81,6 +85,10 @@ Package containercheck implements a component to handle Container data collectio
 
 Package expvars initializes the expvar server of the process agent.
 
+### [comp/process/forwarders](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/forwarders)
+
+Package forwarders implements a component to provide forwarders used by the process agent.
+
 ### [comp/process/hostinfo](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process/hostinfo)
 
 Package hostinfo wraps the hostinfo inside a component. This is useful because it is relied on by other components.
@@ -117,6 +125,16 @@ Package runner implements a component to run data collection checks in the Proce
 
 Package submitter implements a component to submit collected data in the Process Agent to
 supported Datadog intakes.
+
+## [comp/remote-config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/remote-config) (Component Bundle)
+
+*Datadog Team*: remote-config
+
+
+
+### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/remote-config/rcclient)
+
+
 
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray) (Component Bundle)
 

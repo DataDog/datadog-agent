@@ -52,6 +52,7 @@ func TestMonitor(t *testing.T) {
 	}
 
 	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
+	t.Setenv("DD_APPSEC_WAF_TIMEOUT", "2s")
 	asm, err := newAppSec()
 	require.NoError(t, err)
 	require.Nil(t, err)

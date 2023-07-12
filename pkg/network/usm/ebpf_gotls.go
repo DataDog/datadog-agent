@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
@@ -105,7 +104,7 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 	bininspect.StructOffsetPollFdSysfd: lookup.GetFD_SysfdOffset,
 }
 
-type pid = uint32
+type pid = int
 
 type binaryID = gotls.TlsBinaryId
 
@@ -126,6 +125,8 @@ type runningBinary struct {
 }
 
 type GoTLSProgram struct {
+	wg      sync.WaitGroup
+	done    chan struct{}
 	cfg     *config.Config
 	manager *errtelemetry.Manager
 
@@ -134,6 +135,7 @@ type GoTLSProgram struct {
 
 	// Process monitor channels
 	procMonitor struct {
+		monitor     *monitor.ProcessMonitor
 		cleanupExec func()
 		cleanupExit func()
 	}
@@ -175,6 +177,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	}
 
 	p := &GoTLSProgram{
+		done:      make(chan struct{}),
 		cfg:       c,
 		procRoot:  c.ProcRoot,
 		binaries:  make(map[binaryID]*runningBinary),
@@ -184,6 +187,14 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	p.binAnalysisMetric = libtelemetry.NewMetric("gotls.analysis_time", libtelemetry.OptStatsd)
 
 	return p
+}
+
+func (p *GoTLSProgram) Name() string {
+	return "go-tls"
+}
+
+func (p *GoTLSProgram) IsBuildModeSupported(mode buildMode) bool {
+	return mode == CORE || mode == RuntimeCompiled
 }
 
 func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
@@ -199,7 +210,7 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
-		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 }
@@ -221,43 +232,87 @@ func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 
 func (p *GoTLSProgram) Start() {
 	var err error
-	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
-	if err != nil {
-		log.Errorf("could not get offsets_data map: %s", err)
-		return
-	}
-
-	mon := monitor.GetProcessMonitor()
-	p.procMonitor.cleanupExec, err = mon.Subscribe(&monitor.ProcessCallback{
-		Event:    monitor.EXEC,
-		Metadata: monitor.ANY,
-		Callback: p.handleProcessStart,
-	})
-	if err != nil {
-		log.Errorf("failed to subscribe Exec process monitor error: %s", err)
-		return
-	}
-	p.procMonitor.cleanupExit, err = mon.Subscribe(&monitor.ProcessCallback{
-		Event:    monitor.EXIT,
-		Metadata: monitor.ANY,
-		Callback: p.handleProcessStop,
-	})
-	if err != nil {
-		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
-
+	defer func() {
+		if err == nil {
+			return
+		}
+		// In case of an error, we should cleanup the callbacks.
 		if p.procMonitor.cleanupExec != nil {
 			p.procMonitor.cleanupExec()
 		}
 		if p.procMonitor.cleanupExit != nil {
 			p.procMonitor.cleanupExit()
 		}
+	}()
+
+	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
+	if err != nil {
+		log.Errorf("could not get offsets_data map: %s", err)
+		return
 	}
 
+	p.procMonitor.monitor = monitor.GetProcessMonitor()
+	p.procMonitor.cleanupExec, err = p.procMonitor.monitor.SubscribeExec(p.handleProcessStart)
+
+	if err != nil {
+		log.Errorf("failed to subscribe Exec process monitor error: %s", err)
+		return
+	}
+	p.procMonitor.cleanupExit, err = p.procMonitor.monitor.SubscribeExit(p.handleProcessStop)
+
+	if err != nil {
+		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
+		return
+	}
+
+	p.wg.Add(1)
+	go func() {
+		processSync := time.NewTicker(scanTerminatedProcessesInterval)
+
+		defer func() {
+			processSync.Stop()
+			p.wg.Done()
+		}()
+
+		for {
+			select {
+			case <-p.done:
+				return
+			case <-processSync.C:
+				processSet := make(map[int32]struct{})
+				p.lock.RLock()
+				for pid := range p.processes {
+					processSet[int32(pid)] = struct{}{}
+				}
+				p.lock.RUnlock()
+
+				deletedPids := monitor.FindDeletedProcesses(processSet)
+				for deletedPid := range deletedPids {
+					p.unregisterProcess(int(deletedPid))
+				}
+			}
+		}
+	}()
 }
 
 func (p *GoTLSProgram) Stop() {
-	p.procMonitor.cleanupExec()
-	p.procMonitor.cleanupExit()
+	close(p.done)
+	// Waiting for the main event loop to finish.
+	p.wg.Wait()
+	if p.procMonitor.cleanupExec != nil {
+		p.procMonitor.cleanupExec()
+	}
+	if p.procMonitor.cleanupExit != nil {
+		p.procMonitor.cleanupExit()
+	}
+	if p.procMonitor.monitor != nil {
+		p.procMonitor.monitor.Stop()
+	}
+
+	// Finally, remove all hooks.
+	for pid := range p.processes {
+		p.unregisterProcess(pid)
+	}
 }
 
 func (p *GoTLSProgram) handleProcessStart(pid pid) {

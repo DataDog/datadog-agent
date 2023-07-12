@@ -265,6 +265,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
 	config.BindEnvAndSetDefault("integration_profiling", false)
+	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
@@ -286,7 +287,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
 
 	// Remote config
-	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnv("remote_configuration.api_key")
 	config.BindEnv("remote_configuration.rc_dd_url")
@@ -518,6 +519,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
+	// Control how dogstatsd-stats logs can be generated
+	config.BindEnvAndSetDefault("dogstatsd_log_file", "")
+	config.BindEnvAndSetDefault("dogstatsd_logging_enabled", true)
+	config.BindEnvAndSetDefault("dogstatsd_log_file_max_rolls", 3)
+	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
 	// Control for how long counter would be sampled to 0 if not received
 	config.BindEnvAndSetDefault("dogstatsd_expiry_seconds", 300)
 	// Control how long we keep dogstatsd contexts in memory.
@@ -543,6 +549,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
+	config.BindEnvAndSetDefault("dogstatsd_max_metrics_tags", 0) // 0 = disabled.
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
@@ -556,6 +563,13 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.min", 0.01)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
+
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.limit", 0)         // 0 = disabled.
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.entry_timeout", 1) // number of flush intervals
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.key_tag_name", "pod_name")
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.telemetry_tag_names", []string{})
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.bytes_per_context", 1500)
+	config.BindEnvAndSetDefault("dogstatsd_context_limiter.cgroup_memory_ratio", 0.0)
 
 	config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
@@ -571,6 +585,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
+	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
+
 	// Autoconfig
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
@@ -700,6 +716,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_lease_duration", "60")
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("leader_lease_name", "datadog-leader-election")
+	config.BindEnvAndSetDefault("leader_election_default_resource", "configmap")
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
@@ -988,6 +1005,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.config", map[string]string{})        // list of options that can be used to configure the external metrics server
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30)        // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.chunk_size", 35)                     // Maximum number of queries to batch when querying Datadog.
+	config.BindEnvAndSetDefault("external_metrics_provider.split_batches_with_backoff", false)  // Splits batches and runs queries with errors individually with an exponential backoff
 	AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
@@ -997,6 +1015,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.extra_tags", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.advanced_dispatching_enabled", false)
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
+	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
+
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
 	config.BindEnvAndSetDefault("clc_runner_id", "")
@@ -1022,6 +1042,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_socket", "unix:///var/run/datadog/apm.socket")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.dogstatsd_socket", "unix:///var/run/datadog/dsd.socket")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
@@ -1044,6 +1065,7 @@ func InitConfig(config Config) {
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
+	config.BindEnvAndSetDefault("telemetry.dogstatsd_limiter", true)
 	config.BindEnvAndSetDefault("telemetry.python_memory", true)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
@@ -1082,14 +1104,39 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
 	// Container lifecycle configuration
+	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
+	config.BindEnvAndSetDefault("container_image.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
+	// Remote process collector
+	config.BindEnvAndSetDefault("workloadmeta.remote_process_collector.enabled", false)
+
 	// SBOM configuration
+	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
-	setupSBOMConfig(config, "sbom-agent")
+
+	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
+	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
+	config.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
+	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
+	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
+
+	// Container SBOM configuration
+	config.BindEnvAndSetDefault("sbom.container_image.enabled", false)
+	config.BindEnvAndSetDefault("sbom.container_image.use_mount", false)
+	config.BindEnvAndSetDefault("sbom.container_image.scan_interval", 0)    // Integer seconds
+	config.BindEnvAndSetDefault("sbom.container_image.scan_timeout", 10*60) // Integer seconds
+	config.BindEnvAndSetDefault("sbom.container_image.analyzers", []string{"os"})
+	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
+	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
+
+	// Host SBOM configuration
+	config.BindEnvAndSetDefault("sbom.host.enabled", false)
+	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1104,21 +1151,12 @@ func InitConfig(config Config) {
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
-	config.BindEnvAndSetDefault("inventories_configuration_enabled", false)        // controls the agent configurations
-	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false) // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)             // controls the agent configurations
+	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", false)     // controls the checks configurations
+	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
-
-	// container_image_collection
-	config.BindEnvAndSetDefault("container_image_collection.metadata.enabled", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.enabled", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.use_mount", false)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_interval", 0)    // Integer seconds
-	config.BindEnvAndSetDefault("container_image_collection.sbom.scan_timeout", 10*60) // Integer seconds
-	config.BindEnvAndSetDefault("container_image_collection.sbom.analyzers", []string{"os"})
-	config.BindEnvAndSetDefault("container_image_collection.sbom.check_disk_usage", true)
-	config.BindEnvAndSetDefault("container_image_collection.sbom.min_available_disk", "1Gb")
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1140,7 +1178,8 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
-	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
+	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
@@ -1155,6 +1194,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
+	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
@@ -1165,6 +1205,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
+	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")
@@ -1313,12 +1354,12 @@ func LoadProxyFromEnv(config Config) {
 
 // Load reads configs files and initializes the config module
 func Load() (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -1465,12 +1506,7 @@ func checkConflictingOptions(config Config) error {
 	return nil
 }
 
-// LoadDatadogCustom has several datadog.yaml customizations that other configs may not need with LoadCusto
-func LoadDatadogCustom(config Config, origin string, loadSecret bool) (*Warnings, error) {
-	return LoadDatadogCustomWithKnownEnvVars(config, origin, loadSecret, nil)
-}
-
-func LoadDatadogCustomWithKnownEnvVars(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1658,17 +1694,6 @@ func setupFipsLogsConfig(config Config, configPrefix string, url string) {
 	config.Set(configPrefix+"use_http", true)
 	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
 	config.Set(configPrefix+"logs_dd_url", url)
-}
-
-func setupSBOMConfig(config Config, cacheDir string) {
-	config.BindEnvAndSetDefault("sbom.enabled", false)
-	config.BindEnvAndSetDefault("sbom.analyzers", []string{"os"})
-	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, cacheDir))
-	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	config.BindEnvAndSetDefault("sbom.use_custom_cache", false)
-	config.BindEnvAndSetDefault("sbom.custom_cache_max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	config.BindEnvAndSetDefault("sbom.custom_cache_max_cache_entries", 10000)     // used by custom cache keys stored in memory
-	config.BindEnvAndSetDefault("sbom.cache_clean_interval", "30m")               // used by custom cache.
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -2058,4 +2083,13 @@ func GetTraceAgentDefaultEnv() string {
 	}
 
 	return defaultEnv
+}
+
+// IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
+func IsRemoteConfigEnabled(cfg ConfigReader) bool {
+	// Disable Remote Config for GovCloud
+	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
+		return false
+	}
+	return cfg.GetBool("remote_configuration.enabled")
 }

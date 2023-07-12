@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package disk
 
@@ -14,7 +13,7 @@ import (
 
 	"github.com/shirou/gopsutil/v3/disk"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -52,7 +51,7 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) collectPartitionMetrics(sender aggregator.Sender) error {
+func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	partitions, err := diskPartitions(true)
 	if err != nil {
 		return err
@@ -97,7 +96,7 @@ func (c *Check) collectPartitionMetrics(sender aggregator.Sender) error {
 	return nil
 }
 
-func (c *Check) collectDiskMetrics(sender aggregator.Sender) error {
+func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 	iomap, err := ioCounters()
 	if err != nil {
 		return err
@@ -116,7 +115,7 @@ func (c *Check) collectDiskMetrics(sender aggregator.Sender) error {
 	return nil
 }
 
-func (c *Check) sendPartitionMetrics(sender aggregator.Sender, usage *disk.UsageStat, tags []string) {
+func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *disk.UsageStat, tags []string) {
 	// Disk metrics
 	// For legacy reasons,  the standard unit it kB
 	sender.Gauge(fmt.Sprintf(diskMetric, "total"), float64(usage.Total)/1024, "", tags)
@@ -133,7 +132,7 @@ func (c *Check) sendPartitionMetrics(sender aggregator.Sender, usage *disk.Usage
 	sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
 }
 
-func (c *Check) sendDiskMetrics(sender aggregator.Sender, ioCounter disk.IOCountersStat, tags []string) {
+func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter disk.IOCountersStat, tags []string) {
 	sender.MonotonicCount(fmt.Sprintf(diskMetric, "read_time"), float64(ioCounter.ReadTime), "", tags)
 	sender.MonotonicCount(fmt.Sprintf(diskMetric, "write_time"), float64(ioCounter.WriteTime), "", tags)
 	// FIXME(8.x): These older metrics are kept here for backwards compatibility, but they are wrong: the value is not a percentage

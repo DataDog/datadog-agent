@@ -67,6 +67,8 @@ package 'netcat' do
     package_name 'nmap-ncat'
   when 'redhat', 'centos', 'fedora'
     package_name 'nc'
+  when 'debian', 'ubuntu'
+    package_name 'netcat-openbsd'
   else
     package_name 'netcat'
   end
@@ -80,7 +82,7 @@ package 'curl' do
   case node[:platform]
   when 'amazon'
     case node[:platform_version]
-    when '2022'
+    when '2022', '2023'
       package_name 'curl-minimal'
     else
       package_name 'curl'

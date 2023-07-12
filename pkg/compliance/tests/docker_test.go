@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package tests
 
@@ -12,8 +11,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/stretchr/testify/assert"
@@ -63,11 +61,11 @@ findings[f] {
 	)
 }
 `).
-		AssertPassedEvent(func(t *testing.T, e *event.Event) {
-			assert.Equal(t, "TaggedInfos", e.AgentRuleID)
+		AssertPassedEvent(func(t *testing.T, e *compliance.CheckEvent) {
+			assert.Equal(t, "TaggedInfos", e.RuleID)
 			assert.Equal(t, "my_resource_type", e.ResourceType)
 			assert.Equal(t, "my_resource_id", e.ResourceID)
-			assert.Equal(t, event.Data{"plop": dockerHostname}, e.Data)
+			assert.Equal(t, map[string]interface{}{"plop": dockerHostname}, e.Data)
 		})
 
 	b.AddRule("RegoContext").
@@ -101,10 +99,10 @@ findings[f] {
 	)
 }
 `).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
 			assert.Equal(t, "valid_context", evt.ResourceType)
 			assert.Equal(t, "valid_context_id", evt.ResourceID)
-			assert.Equal(t, event.Data{"foo": "bar"}, evt.Data)
+			assert.Equal(t, map[string]interface{}{"foo": "bar"}, evt.Data)
 		})
 
 	b.
@@ -154,8 +152,8 @@ findings[f] {
 	)
 }
 `).
-		AssertPassedEvent(func(t *testing.T, evt *event.Event) {
-			assert.NotEmpty(t, evt.Data.(event.Data)["ids"])
+		AssertPassedEvent(func(t *testing.T, evt *compliance.CheckEvent) {
+			assert.NotEmpty(t, evt.Data["ids"])
 		})
 
 	b.
@@ -188,6 +186,7 @@ findings[f] {
 		WithInput(`
 - docker:
 		kind: version
+	type: array
 	tag: version
 `).
 		WithRego(`
@@ -195,12 +194,13 @@ package datadog
 import data.datadog as dd
 
 findings[f] {
-	_ := input.version.apiVersion
-	_ := input.version.arch
-	_ := input.version.kernelVersion
-	_ := input.version.os
-	_ := input.version.platform
-	_ := input.version.version
+	version := input.version[_]
+	_ := version.apiVersion
+	_ := version.arch
+	_ := version.kernelVersion
+	_ := version.os
+	_ := version.platform
+	_ := version.version
 	f := dd.passed_finding(
 		"version_resource",
 		"version_resource_id",

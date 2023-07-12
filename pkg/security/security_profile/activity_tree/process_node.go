@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package activity_tree
 
@@ -12,7 +11,9 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -22,6 +23,7 @@ import (
 type ProcessNode struct {
 	Process        model.Process
 	GenerationType NodeGenerationType
+	IsExecChild    bool
 	MatchedRules   []*model.MatchedRule
 
 	Files    map[string]*FileNode
@@ -32,17 +34,37 @@ type ProcessNode struct {
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
-	label := fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
+	var label string
+	if sprocess.IsBusybox(pn.Process.FileEvent.PathnameStr) {
+		arg0, _ := sprocess.GetProcessArgv0(&pn.Process)
+		label = fmt.Sprintf("%s %s", arg0, args)
+	} else {
+		label = fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
+	}
 	if len(pn.Process.FileEvent.PkgName) != 0 {
 		label += fmt.Sprintf(" \\{%s %s\\}", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion)
+	}
+	// add hashes
+	if len(pn.Process.FileEvent.Hashes) > 0 {
+		label += fmt.Sprintf("|%v", strings.Join(pn.Process.FileEvent.Hashes, "|"))
+	} else {
+		label += fmt.Sprintf("|(%s)", pn.Process.FileEvent.HashState)
 	}
 	return label
 }
 
 // NewProcessNode returns a new ProcessNode instance
-func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) *ProcessNode {
+func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.Resolvers) *ProcessNode {
+	// call the callback to resolve additional fields before copying them
+	if resolvers != nil {
+		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent)
+		if entry.ProcessContext.HasInterpreter() {
+			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
+		}
+	}
 	return &ProcessNode{
 		Process:        entry.Process,
+		IsExecChild:    entry.IsExecChild(),
 		GenerationType: generationType,
 		Files:          make(map[string]*FileNode),
 		DNSNames:       make(map[string]*DNSNode),
@@ -66,6 +88,12 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 			f.debug(w, fmt.Sprintf("%s    -", prefix))
 		}
 	}
+	if len(pn.DNSNames) > 0 {
+		fmt.Fprintf(w, "%s  dns:\n", prefix)
+		for dnsName := range pn.DNSNames {
+			fmt.Fprintf(w, "%s    - %s\n", prefix, dnsName)
+		}
+	}
 	if len(pn.Children) > 0 {
 		fmt.Fprintf(w, "%s  children:\n", prefix)
 		for _, child := range pn.Children {
@@ -77,15 +105,13 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 // scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
 func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 	if pn.Process.ArgsEntry != nil {
-		_, _ = resolver.GetProcessScrubbedArgv(&pn.Process)
-		pn.Process.Argv0, _ = resolver.GetProcessArgv0(&pn.Process)
+		resolver.GetProcessScrubbedArgv(&pn.Process)
+		sprocess.GetProcessArgv0(&pn.Process)
 		pn.Process.ArgsEntry = nil
 
 	}
 	if pn.Process.EnvsEntry != nil {
-		envs, envsTruncated := resolver.GetProcessEnvs(&pn.Process)
-		pn.Process.Envs = envs
-		pn.Process.EnvsTruncated = envsTruncated
+		resolver.GetProcessEnvs(&pn.Process)
 		pn.Process.EnvsEntry = nil
 	}
 }
@@ -93,45 +119,33 @@ func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.Resolver) {
 // Matches return true if the process fields used to generate the dump are identical with the provided model.Process
 func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool) bool {
 	if pn.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr {
+		if sprocess.IsBusybox(entry.FileEvent.PathnameStr) {
+			panArg0, _ := sprocess.GetProcessArgv0(&pn.Process)
+			entryArg0, _ := sprocess.GetProcessArgv0(entry)
+			if panArg0 != entryArg0 {
+				return false
+			}
+		}
 		if matchArgs {
-			var panArgs, entryArgs []string
-			if pn.Process.ArgsEntry != nil {
-				panArgs, _ = sprocess.GetProcessArgv(&pn.Process)
-			} else {
-				panArgs = pn.Process.Argv
-			}
-			if entry.ArgsEntry != nil {
-				entryArgs, _ = sprocess.GetProcessArgv(entry)
-			} else {
-				entryArgs = entry.Argv
-			}
+			panArgs, _ := sprocess.GetProcessArgv(&pn.Process)
+			entryArgs, _ := sprocess.GetProcessArgv(entry)
 			if len(panArgs) != len(entryArgs) {
 				return false
 			}
-
-			var found bool
-			for _, arg1 := range panArgs {
-				found = false
-				for _, arg2 := range entryArgs {
-					if arg1 == arg2 {
-						found = true
-						break
-					}
-				}
-				if !found {
+			for i, arg := range panArgs {
+				if arg != entryArgs[i] {
 					return false
 				}
 			}
 			return true
 		}
-
 		return true
 	}
 	return false
 }
 
 // InsertSyscalls inserts the syscall of the process in the dump
-func (pn *ProcessNode) InsertSyscalls(e *model.Event, syscallMask map[int]int) (bool, error) {
+func (pn *ProcessNode) InsertSyscalls(e *model.Event, syscallMask map[int]int) bool {
 	var hasNewSyscalls bool
 newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
@@ -145,12 +159,12 @@ newSyscallLoop:
 		syscallMask[int(newSyscall)] = int(newSyscall)
 		hasNewSyscalls = true
 	}
-	return hasNewSyscalls, nil
+	return hasNewSyscalls
 }
 
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
-func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, shadowInsertion bool) (bool, error) {
+func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.Resolvers) bool {
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
@@ -158,73 +172,93 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		filePath = fileEvent.PathnameStr
 	}
 
+	if reducer != nil {
+		filePath = reducer.ReducePath(filePath, fileEvent, pn)
+	}
+
 	parent, nextParentIndex := ExtractFirstParent(filePath)
 	if nextParentIndex == 0 {
-		return false, nil
+		return false
 	}
 
 	child, ok := pn.Files[parent]
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, shadowInsertion), nil
+		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], generationType, stats, dryRun, filePath, resolvers)
 	}
 
-	if !shadowInsertion {
+	if !dryRun {
 		// create new child
 		if len(fileEvent.PathnameStr) <= nextParentIndex+1 {
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
-			node := NewFileNode(fileEvent, event, parent, generationType)
+			node := NewFileNode(fileEvent, event, parent, generationType, filePath, resolvers)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
-			stats.fileNodes++
+			stats.FileNodes++
 			pn.Files[parent] = node
 		} else {
 			// This is an intermediary node in the branch that leads to the leaf we want to add. Create a node without the
 			// fileEvent context.
-			newChild := NewFileNode(nil, nil, parent, generationType)
-			newChild.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, shadowInsertion)
-			stats.fileNodes++
+			newChild := NewFileNode(nil, nil, parent, generationType, filePath, resolvers)
+			newChild.InsertFileEvent(fileEvent, event, fileEvent.PathnameStr[nextParentIndex:], generationType, stats, dryRun, filePath, resolvers)
+			stats.FileNodes++
 			pn.Files[parent] = newChild
 		}
 	}
-	return true, nil
+	return true
+}
+
+func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType uint16) bool {
+	if DNSMatchMaxDepth == 0 {
+		_, ok := pn.DNSNames[DNSName]
+		return ok
+	}
+
+	toSearch := dnsFilterSubdomains(DNSName, DNSMatchMaxDepth)
+	for name, dnsNode := range pn.DNSNames {
+		if dnsFilterSubdomains(name, DNSMatchMaxDepth) == toSearch {
+			for _, req := range dnsNode.Requests {
+				if req.Type == DNSType {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // InsertDNSEvent inserts a DNS event in a process node
-func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, shadowInsertion bool) (bool, error) {
-	if !shadowInsertion {
-		DNSNames.Insert(evt.DNS.Name)
+func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
+	if dryRun {
+		// Use DNSMatchMaxDepth only when searching for a node, not when trying to insert
+		return !pn.findDNSNode(evt.DNS.Name, dnsMatchMaxDepth, evt.DNS.Type)
 	}
 
-	if dnsNode, ok := pn.DNSNames[evt.DNS.Name]; ok {
+	DNSNames.Insert(evt.DNS.Name)
+	dnsNode, ok := pn.DNSNames[evt.DNS.Name]
+	if ok {
 		// update matched rules
-		if !shadowInsertion {
-			dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
-		}
+		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
 			if req.Type == evt.DNS.Type {
-				return false, nil
+				return false
 			}
 		}
 
-		if !shadowInsertion {
-			// insert the new request
-			dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
-		}
-		return true, nil
+		// insert the new request
+		dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
+		return true
 	}
 
-	if !shadowInsertion {
-		pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
-		stats.dnsNodes++
-	}
-	return true, nil
+	pn.DNSNames[evt.DNS.Name] = NewDNSNode(&evt.DNS, evt.Rules, generationType)
+	stats.DNSNodes++
+	return true
 }
 
 // InsertBindEvent inserts a bind event in a process node
-func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, shadowInsertion bool) (bool, error) {
+func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGenerationType, stats *ActivityTreeStats, dryRun bool) bool {
 	if evt.Bind.SyscallEvent.Retval != 0 {
-		return false, nil
+		return false
 	}
 	var newNode bool
 	evtFamily := model.AddressFamily(evt.Bind.AddrFamily).String()
@@ -238,17 +272,17 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, generationType NodeGene
 	}
 	if sock == nil {
 		sock = NewSocketNode(evtFamily, generationType)
-		if !shadowInsertion {
-			stats.socketNodes++
+		if !dryRun {
+			stats.SocketNodes++
 			pn.Sockets = append(pn.Sockets, sock)
 		}
 		newNode = true
 	}
 
 	// Insert bind event
-	if sock.InsertBindEvent(&evt.Bind, generationType, evt.Rules, shadowInsertion) {
+	if sock.InsertBindEvent(&evt.Bind, generationType, evt.Rules, dryRun) {
 		newNode = true
 	}
 
-	return newNode, nil
+	return newNode
 }

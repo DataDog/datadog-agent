@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	compagent "github.com/DataDog/datadog-agent/pkg/compliance/agent"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -30,11 +30,11 @@ import (
 // Agent handles REST API calls
 type Agent struct {
 	runtimeAgent    *secagent.RuntimeSecurityAgent
-	complianceAgent *compagent.Agent
+	complianceAgent *compliance.Agent
 }
 
 // NewAgent returns a new Agent
-func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compagent.Agent) *Agent {
+func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent) *Agent {
 	return &Agent{
 		runtimeAgent:    runtimeAgent,
 		complianceAgent: complianceAgent,

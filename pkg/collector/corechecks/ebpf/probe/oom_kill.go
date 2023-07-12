@@ -4,10 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
-//go:generate go run ../../../../ebpf/include_headers.go ../c/runtime/oom-kill-kern.c ../../../../ebpf/bytecode/build/runtime/oom-kill.c ../../../../ebpf/c
-//go:generate go run ../../../../ebpf/bytecode/runtime/integrity.go ../../../../ebpf/bytecode/build/runtime/oom-kill.c ../../../../ebpf/bytecode/runtime/oom-kill.go runtime
+//go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern.c pkg/ebpf/bytecode/build/runtime/oom-kill.c pkg/ebpf/c
+//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/oom-kill.c pkg/ebpf/bytecode/runtime/oom-kill.go runtime
 
 package probe
 
@@ -147,14 +146,16 @@ func (k *OOMKillProbe) GetAndFlush() (results []OOMKillStats) {
 	it := k.oomMap.Iterate()
 	for it.Next(unsafe.Pointer(&pid), unsafe.Pointer(&stat)) {
 		results = append(results, convertStats(stat))
-
-		if err := k.oomMap.Delete(unsafe.Pointer(&pid)); err != nil {
-			log.Warnf("failed to delete stat: %s", err)
-		}
 	}
 
 	if err := it.Err(); err != nil {
 		log.Warnf("failed to iterate on OOM stats while flushing: %s", err)
+	}
+
+	for _, r := range results {
+		if err := k.oomMap.Delete(unsafe.Pointer(&r.Pid)); err != nil {
+			log.Warnf("failed to delete stat: %s", err)
+		}
 	}
 
 	return results

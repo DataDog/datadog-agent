@@ -40,13 +40,11 @@ func (pt *ProcessedTrace) Clone() *ProcessedTrace {
 	ptClone := new(ProcessedTrace)
 	*ptClone = *pt
 	if pt.TraceChunk != nil {
-		c := new(pb.TraceChunk)
-		*c = *pt.TraceChunk
+		c := pt.TraceChunk.ShallowCopy()
 		ptClone.TraceChunk = c
 	}
 	if pt.Root != nil {
-		r := new(pb.Span)
-		*r = *pt.Root
+		r := pt.Root.ShallowCopy()
 		ptClone.Root = r
 	}
 	return ptClone

@@ -1380,6 +1380,50 @@ func TestFieldValues(t *testing.T) {
 	}
 }
 
+func TestArithmeticOperation(t *testing.T) {
+	// time reliability issue
+	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	now := time.Now().UnixNano()
+
+	event := &testEvent{
+		process: testProcess{
+			name:      "ls",
+			createdAt: now,
+		},
+		open: testOpen{
+			openedAt: now + int64(time.Second*2),
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `1 + 2 == 5 - 2 && process.name == "ls"`, Expected: true},
+		{Expr: `1 + 2 != 3 && process.name == "ls"`, Expected: false},
+		{Expr: `1 + 2 - 3 + 4  == 4 && process.name == "ls"`, Expected: true},
+		{Expr: `1 - 2 + 3 - (1 - 4) - (1 - 5) == 9 &&  process.name == "ls"`, Expected: true},
+		{Expr: `10s + 40s == 50s && process.name == "ls"`, Expected: true},
+		{Expr: `process.created_at < 5s && process.name == "ls"`, Expected: true},
+		{Expr: `open.opened_at - process.created_at + 3s <= 5s && process.name == "ls"`, Expected: true},
+		{Expr: `open.opened_at - process.created_at + 3s <= 1s && process.name == "ls"`, Expected: false},
+	}
+
+	for _, test := range tests {
+		result, _, err := eval(t, event, test.Expr)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+
+		if result != test.Expected {
+			t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+		}
+	}
+}
+
 func BenchmarkArray(b *testing.B) {
 	event := &testEvent{
 		process: testProcess{

@@ -4,14 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -36,9 +35,9 @@ type unbundledTransformer struct {
 	collectedEventTypes map[string]struct{}
 }
 
-func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]metrics.Event, []error) {
+func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]event.Event, []error) {
 	var (
-		datadogEvs []metrics.Event
+		datadogEvs []event.Event
 		errors     []error
 	)
 
@@ -47,9 +46,9 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]met
 			continue
 		}
 
-		alertType := metrics.EventAlertTypeInfo
+		alertType := event.EventAlertTypeInfo
 		if isAlertTypeError(ev.Action) {
-			alertType = metrics.EventAlertTypeError
+			alertType = event.EventAlertTypeError
 		}
 
 		emittedEvents.Inc(string(alertType))
@@ -64,11 +63,11 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]met
 
 		tags = append(tags, fmt.Sprintf("event_type:%s", ev.Action))
 
-		datadogEvs = append(datadogEvs, metrics.Event{
+		datadogEvs = append(datadogEvs, event.Event{
 			Title:          fmt.Sprintf("Container %s: %s", ev.ContainerID, ev.Action),
 			Text:           fmt.Sprintf("Container %s (running image %q): %s", ev.ContainerID, ev.ImageName, ev.Action),
 			Tags:           tags,
-			Priority:       metrics.EventPriorityNormal,
+			Priority:       event.EventPriorityNormal,
 			Host:           t.hostname,
 			SourceTypeName: dockerCheckName,
 			EventType:      dockerCheckName,

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && !windows
-// +build clusterchecks,!windows
 
 package cloudfoundry
 
@@ -16,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudfoundry-community/go-cfclient"
+	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/stretchr/testify/assert"
 )
 

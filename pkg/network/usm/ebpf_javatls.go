@@ -4,11 +4,11 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package usm
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"os"
@@ -20,22 +20,38 @@ import (
 
 	"github.com/cilium/ebpf"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/java"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
-	agentUSMJar           = "agent-usm.jar"
-	javaTLSConnectionsMap = "java_tls_connections"
+	agentUSMJar                 = "agent-usm.jar"
+	javaTLSConnectionsMap       = "java_tls_connections"
+	javaDomainsToConnectionsMap = "java_conn_tuple_by_peer"
+	eRPCHandlersMap             = "java_tls_erpc_handlers"
+)
+
+const (
+	// SyncPayload is the key to the program that handles the SYNCHRONOUS_PAYLOAD eRPC operation
+	SyncPayload uint32 = iota
+	// CloseConnection is the key to the program that handles the CLOSE_CONNECTION eRPC operation
+	CloseConnection
+	// ConnectionByPeer is the key to the program that handles the CONNECTION_BY_PEER eRPC operation
+	ConnectionByPeer
+	// AsyncPayload is the key to the program that handles the ASYNC_PAYLOAD eRPC operation
+	AsyncPayload
 )
 
 var (
+	javaProcessName = []byte("java")
+
 	// path to our java USM agent TLS tracer
 	javaUSMAgentJarPath = ""
 
@@ -65,48 +81,95 @@ type JavaTLSProgram struct {
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &JavaTLSProgram{}
 
+func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
+	return []manager.TailCallRoute{
+		{
+			ProgArrayName: eRPCHandlersMap,
+			Key:           SyncPayload,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe_handle_sync_payload",
+			},
+		},
+		{
+			ProgArrayName: eRPCHandlersMap,
+			Key:           CloseConnection,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe_handle_close_connection",
+			},
+		},
+		{
+			ProgArrayName: eRPCHandlersMap,
+			Key:           ConnectionByPeer,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe_handle_connection_by_peer",
+			},
+		},
+		{
+			ProgArrayName: eRPCHandlersMap,
+			Key:           AsyncPayload,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe_handle_async_payload",
+			},
+		},
+	}
+}
+
+func IsJavaSubprogramEnabled(c *config.Config) bool {
+	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+		return false
+	}
+
+	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
+	jar, err := os.Open(javaUSMAgentJarPath)
+	if err != nil {
+		log.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
+		return false
+	}
+	jar.Close()
+	return true
+}
+
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	var err error
 
-	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+	if !IsJavaSubprogramEnabled(c) {
 		log.Info("java tls is not enabled")
 		return nil
 	}
 
 	log.Info("java tls is enabled")
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
 	javaUSMAgentDebug = c.JavaAgentDebug
 	javaUSMAgentArgs = c.JavaAgentArgs
-
 	javaAgentAllowRegex = nil
 	javaAgentBlockRegex = nil
 	if c.JavaAgentAllowRegex != "" {
 		javaAgentAllowRegex, err = regexp.Compile(c.JavaAgentAllowRegex)
 		if err != nil {
 			javaAgentAllowRegex = nil
-			log.Errorf("JavaAgentAllowRegex regex can't be compiled %s", err)
+			log.Errorf("allow regex can't be compiled %s", err)
 		}
 	}
 	if c.JavaAgentBlockRegex != "" {
 		javaAgentBlockRegex, err = regexp.Compile(c.JavaAgentBlockRegex)
 		if err != nil {
 			javaAgentBlockRegex = nil
-			log.Errorf("JavaAgentBlockRegex regex can't be compiled %s", err)
+			log.Errorf("block regex can't be compiled %s", err)
 		}
 	}
-
-	jar, err := os.Open(javaUSMAgentJarPath)
-	if err != nil {
-		log.Errorf("java TLS can't access to agent-usm.jar file %s : %s", javaUSMAgentJarPath, err)
-		return nil
-	}
-	jar.Close()
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
 		cfg:            c,
 		processMonitor: mon,
 	}
+}
+
+func (p *JavaTLSProgram) Name() string {
+	return "java-tls"
+}
+
+func (p *JavaTLSProgram) IsBuildModeSupported(buildMode) bool {
+	return true
 }
 
 func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
@@ -130,9 +193,15 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
+		Type:       ebpf.Hash,
 		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
 		EditorFlag: manager.EditMaxEntries,
 	}
+
 	options.ActivatedProbes = append(options.ActivatedProbes,
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -143,7 +212,37 @@ func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
 }
 
 func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
-	return []manager.ProbeIdentificationPair{{EBPFFuncName: "kprobe__do_vfs_ioctl"}}
+	return []manager.ProbeIdentificationPair{
+		{EBPFFuncName: "kprobe__do_vfs_ioctl"},
+		{EBPFFuncName: "kprobe_handle_sync_payload"},
+		{EBPFFuncName: "kprobe_handle_close_connection"},
+		{EBPFFuncName: "kprobe_handle_connection_by_peer"},
+		{EBPFFuncName: "kprobe_handle_async_payload"},
+	}
+}
+
+// isJavaProcess checks if the given PID comm's name is java.
+// The method is much faster and efficient that using process.NewProcess(pid).Name().
+func isJavaProcess(pid int) bool {
+	filePath := filepath.Join(util.GetProcRoot(), strconv.Itoa(pid), "comm")
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		// Waiting a bit, as we might get the event of process creation before the directory was created.
+		for i := 0; i < 3; i++ {
+			time.Sleep(10 * time.Millisecond)
+			// reading again.
+			content, err = os.ReadFile(filePath)
+			if err == nil {
+				break
+			}
+		}
+	}
+
+	if err != nil {
+		// short living process can hit here, or slow start of another process.
+		return false
+	}
+	return bytes.Equal(bytes.TrimSpace(content), javaProcessName)
 }
 
 // isAttachmentAllowed will return true if the pid can be attached
@@ -154,7 +253,7 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 // /                 match  | not match
 // allowRegex only    true  | false
 // blockRegex only    false | true
-func isAttachmentAllowed(pid uint32) bool {
+func isAttachmentAllowed(pid int) bool {
 	allowIsSet := javaAgentAllowRegex != nil
 	blockIsSet := javaAgentBlockRegex != nil
 	// filter is disabled (default configuration)
@@ -187,7 +286,10 @@ func isAttachmentAllowed(pid uint32) bool {
 	return true
 }
 
-func newJavaProcess(pid uint32) {
+func newJavaProcess(pid int) {
+	if !isJavaProcess(pid) {
+		return
+	}
 	if !isAttachmentAllowed(pid) {
 		log.Debugf("java pid %d attachment rejected", pid)
 		return
@@ -201,26 +303,36 @@ func newJavaProcess(pid uint32) {
 		allArgs = append(allArgs, "dd.trace.debug=true")
 	}
 	args := strings.Join(allArgs, ",")
-	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, args); err != nil {
+	if err := java.InjectAgent(pid, javaUSMAgentJarPath, args); err != nil {
 		log.Error(err)
 	}
 }
 
 func (p *JavaTLSProgram) Start() {
 	var err error
-	p.cleanupExec, err = p.processMonitor.Subscribe(&monitor.ProcessCallback{
-		Event:    monitor.EXEC,
-		Metadata: monitor.NAME,
-		Regex:    regexp.MustCompile("^java$"),
-		Callback: newJavaProcess,
-	})
+	defer func() {
+		if err == nil {
+			return
+		}
+		// In case of an error, we should cleanup the callbacks.
+		if p.cleanupExec != nil {
+			p.cleanupExec()
+		}
+	}()
+
+	p.cleanupExec, err = p.processMonitor.SubscribeExec(newJavaProcess)
 	if err != nil {
 		log.Errorf("process monitor Subscribe() error: %s", err)
+		return
 	}
 }
 
 func (p *JavaTLSProgram) Stop() {
 	if p.cleanupExec != nil {
 		p.cleanupExec()
+	}
+
+	if p.processMonitor != nil {
+		p.processMonitor.Stop()
 	}
 }

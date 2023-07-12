@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -82,10 +81,10 @@ type ebpfConntracker struct {
 }
 
 var ebpfConntrackerRCCreator func(cfg *config.Config) (runtime.CompiledOutput, error) = getRuntimeCompiledConntracker
-var ebpfConntrackerPrebuiltCreator func(*config.Config, []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
+var ebpfConntrackerPrebuiltCreator func(*config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableEbpfConntracker {
 		return nil, fmt.Errorf("ebpf conntracker is disabled")
 	}
@@ -110,8 +109,9 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelem
 	}
 
 	var isPrebuilt bool
+	var constants []manager.ConstantEditor
 	if buf == nil {
-		buf, constants, err = ebpfConntrackerPrebuiltCreator(cfg, constants)
+		buf, constants, err = ebpfConntrackerPrebuiltCreator(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
 		}
@@ -299,17 +299,22 @@ func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTup
 }
 
 func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
+	start := time.Now()
 	if err := e.ctMap.Delete(unsafe.Pointer(key)); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
+			}
 			return
 		}
 		log.Warnf("unable to delete conntrack entry from eBPF map: %s", err)
+	} else {
+		conntrackerTelemetry.unregistersTotal.Inc()
+		conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
 	}
 }
 
 func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
-	start := time.Now()
 	key := tuplePool.Get().(*netebpf.ConntrackTuple)
 	defer tuplePool.Put(key)
 
@@ -321,8 +326,6 @@ func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 		e.delete(dst)
 		tuplePool.Put(dst)
 	}
-	conntrackerTelemetry.unregistersTotal.Inc()
-	conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
 }
 
 // Refreshes conntracker telemetry on a loop
@@ -424,6 +427,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 					EBPFFuncName: probes.ConntrackFillInfo,
 					UID:          "conntracker",
 				},
+				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
 			},
 		},
 	}
@@ -493,7 +497,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 	return mgr, nil
 }
 
-func getPrebuiltConntracker(cfg *config.Config, constants []manager.ConstantEditor) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
 	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %s", err)
@@ -505,8 +509,8 @@ func getPrebuiltConntracker(cfg *config.Config, constants []manager.ConstantEdit
 	}
 	defer offsetBuf.Close()
 
-	constants, err = runOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
-		return offsetguess.NewConntrackOffsetGuesser(constants)
+	constants, err := offsetguess.RunOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
+		return offsetguess.NewConntrackOffsetGuesser(cfg)
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not guess offsets for ebpf conntracker: %w", err)

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd && linux
-// +build containerd,linux
 
 package containerd
 
@@ -44,8 +43,9 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			},
 		},
 		Memory: &v1.MemoryStat{
-			Cache: 20,
-			RSS:   100,
+			Cache:        20,
+			RSS:          100,
+			InactiveFile: 10,
 			Usage: &v1.MemoryEntry{
 				Limit: 2000,
 				Usage: 1000,
@@ -124,13 +124,14 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			NrThrottled:   1,
 		},
 		Memory: &v2.MemoryStat{
-			File:        20,
-			Anon:        100,
-			Usage:       1000,
-			UsageLimit:  2000,
-			SwapUsage:   10,
-			Slab:        400,
-			KernelStack: 100,
+			File:         20,
+			Anon:         100,
+			InactiveFile: 10,
+			Usage:        1000,
+			UsageLimit:   2000,
+			SwapUsage:    10,
+			Slab:         400,
+			KernelStack:  100,
 		},
 		Io: &v2.IOStat{
 			Usage: []*v2.IOEntry{
@@ -177,6 +178,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 				},
 				Memory: &provider.ContainerMemStats{
 					UsageTotal:   pointer.Ptr(1000.0),
+					WorkingSet:   pointer.Ptr(990.0),
 					KernelMemory: pointer.Ptr(500.0),
 					Limit:        pointer.Ptr(2000.0),
 					RSS:          pointer.Ptr(100.0),
@@ -221,6 +223,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 				},
 				Memory: &provider.ContainerMemStats{
 					UsageTotal:   pointer.Ptr(1000.0),
+					WorkingSet:   pointer.Ptr(990.0),
 					KernelMemory: pointer.Ptr(500.0),
 					Limit:        pointer.Ptr(2000.0),
 					RSS:          pointer.Ptr(100.0),
@@ -440,7 +443,8 @@ func Test_fillStatsFromSpec(t *testing.T) {
 			},
 			expected: &provider.ContainerStats{
 				CPU: &provider.ContainerCPUStats{
-					Limit: pointer.Ptr(100 * float64(system.HostCPUCount())),
+					Limit:          pointer.Ptr(100 * float64(system.HostCPUCount())),
+					DefaultedLimit: true,
 				},
 			},
 		},

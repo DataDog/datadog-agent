@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -29,6 +30,7 @@ const (
 	eventTypeDBMSamples  = "dbm-samples"
 	eventTypeDBMMetrics  = "dbm-metrics"
 	eventTypeDBMActivity = "dbm-activity"
+	eventTypeDBMMetadata = "dbm-metadata"
 
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
@@ -63,6 +65,22 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		endpointsConfigPrefix:  "database_monitoring.metrics.",
 		hostnameEndpointPrefix: "dbm-metrics-intake.",
 		intakeTrackType:        "dbmmetrics",
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    20e6,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
+	{
+		eventType:   eventTypeDBMMetadata,
+		contentType: http.JSONContentType,
+		// set the endpoint config to "metrics" since metadata will hit the same endpoint
+		// as metrics, so there is no need to add an extra config endpoint.
+		// As a follow-on PR, we should clean this up to have a single config for each track type since
+		// all of our data now flows through the same intake
+		endpointsConfigPrefix:  "database_monitoring.metrics.",
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		intakeTrackType:        "dbmmetadata",
 		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 		defaultBatchMaxConcurrentSend: 10,
 		defaultBatchMaxContentSize:    20e6,
@@ -160,6 +178,8 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 	},
 }
 
+var globalReceiver *diagnostic.BufferedMessageReceiver
+
 // An EventPlatformForwarder forwards Messages to a destination based on their event type
 type EventPlatformForwarder interface {
 	SendEventPlatformEvent(e *message.Message, eventType string) error
@@ -182,6 +202,10 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
+
+	// Stream to console if debug mode is enabled
+	p.diagnosticMessageReceiver.HandleMessage(*e, eventType, nil)
+
 	select {
 	case p.in <- e:
 		return nil
@@ -197,6 +221,10 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *messag
 	if !ok {
 		return fmt.Errorf("unknown eventType=%s", eventType)
 	}
+
+	// Stream to console if debug mode is enabled
+	p.diagnosticMessageReceiver.HandleMessage(*e, eventType, nil)
+
 	p.in <- e
 	return nil
 }
@@ -250,10 +278,11 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender   *sender.Sender
-	strategy sender.Strategy
-	in       chan *message.Message
-	auditor  auditor.Auditor
+	sender                    *sender.Sender
+	strategy                  sender.Strategy
+	in                        chan *message.Message
+	auditor                   auditor.Auditor
+	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 }
 
 type passthroughPipelineDesc struct {
@@ -331,10 +360,11 @@ func newHTTPPassthroughPipeline(desc passthroughPipelineDesc, destinationsContex
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:   sender.NewSender(senderInput, a.Channel(), destinations, 10),
-		strategy: strategy,
-		in:       inputChan,
-		auditor:  a,
+		sender:                    sender.NewSender(senderInput, a.Channel(), destinations, 10),
+		strategy:                  strategy,
+		in:                        inputChan,
+		auditor:                   a,
+		diagnosticMessageReceiver: GetGlobalReceiver(),
 	}, nil
 }
 
@@ -392,4 +422,12 @@ func NewNoopEventPlatformForwarder() EventPlatformForwarder {
 		p.strategy = nil
 	}
 	return f
+}
+
+func GetGlobalReceiver() *diagnostic.BufferedMessageReceiver {
+	if globalReceiver == nil {
+		globalReceiver = diagnostic.NewBufferedMessageReceiver(&epFormatter{})
+	}
+
+	return globalReceiver
 }

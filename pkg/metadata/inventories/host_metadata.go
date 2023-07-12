@@ -6,10 +6,10 @@
 package inventories
 
 import (
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/memory"
-	"github.com/DataDog/gohai/network"
-	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
+	"github.com/DataDog/datadog-agent/pkg/gohai/network"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -18,7 +18,7 @@ import (
 // for testing purpose
 var (
 	cpuGet      = cpu.Get
-	memoryGet   = memory.Get
+	memoryGet   = memory.CollectInfo
 	networkGet  = network.Get
 	platformGet = platform.Get
 )
@@ -53,10 +53,12 @@ type HostMetadata struct {
 	MacAddress  string `json:"mac_address"`
 
 	// from the agent itself
-	AgentVersion        string `json:"agent_version"`
-	CloudProvider       string `json:"cloud_provider"`
-	CloudProviderSource string `json:"cloud_provider_source"`
-	OsVersion           string `json:"os_version"`
+	AgentVersion           string `json:"agent_version"`
+	CloudProvider          string `json:"cloud_provider"`
+	CloudProviderSource    string `json:"cloud_provider_source"`
+	CloudProviderAccountID string `json:"cloud_provider_account_id"`
+	CloudProviderHostID    string `json:"cloud_provider_host_id"`
+	OsVersion              string `json:"os_version"`
 
 	// From file system
 	HypervisorGuestUUID string `json:"hypervisor_guest_uuid"`
@@ -118,14 +120,17 @@ func getHostMetadata() *HostMetadata {
 		metadata.CPUArchitecture = platformInfo.HardwarePlatform
 	}
 
-	memoryInfo, warnings, err := memoryGet()
+	memoryInfo := memoryGet()
+	_, warnings, err = memoryInfo.AsJSON()
 	if err != nil {
 		logErrorf("failed to retrieve host memory metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.MemoryTotalKb = memoryInfo.TotalBytes / 1024
-		metadata.MemorySwapTotalKb = memoryInfo.SwapTotalBytes / 1024
+		// Value() returns the default value of the type in case of error so we can use it directly
+		memoryTotalKb, _ := memoryInfo.TotalBytes.Value()
+		metadata.MemoryTotalKb = memoryTotalKb / 1024
+		metadata.MemorySwapTotalKb, _ = memoryInfo.SwapTotalKb.Value()
 	}
 
 	networkInfo, warnings, err := networkGet()
@@ -143,7 +148,10 @@ func getHostMetadata() *HostMetadata {
 
 	metadata.CloudProvider = fetchFromMetadata(string(HostCloudProvider), agentMetadata)
 	metadata.CloudProviderSource = fetchFromMetadata(string(HostCloudProviderSource), hostMetadata)
+	metadata.CloudProviderHostID = fetchFromMetadata(string(HostCloudProviderHostID), hostMetadata)
 	metadata.OsVersion = fetchFromMetadata(string(HostOSVersion), hostMetadata)
+
+	metadata.CloudProviderAccountID = fetchFromMetadata(string(HostCloudProviderAccountID), hostMetadata)
 
 	metadata.HypervisorGuestUUID = dmi.GetHypervisorUUID()
 	metadata.DmiProductUUID = dmi.GetProductUUID()

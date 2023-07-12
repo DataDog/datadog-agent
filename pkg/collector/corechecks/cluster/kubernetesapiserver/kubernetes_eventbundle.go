@@ -4,7 +4,6 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package kubernetesapiserver
 
@@ -16,19 +15,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 type kubernetesEventBundle struct {
-	involvedObject v1.ObjectReference     // Parent object for this event bundle
-	component      string                 // Used to identify the Kubernetes component which generated the event
-	timeStamp      float64                // Used for the new events in the bundle to specify when they first occurred
-	lastTimestamp  float64                // Used for the modified events in the bundle to specify when they last occurred
-	countByAction  map[string]int         // Map of count per action to aggregate several events from the same ObjUid in one event
-	alertType      metrics.EventAlertType // The Datadog event type
-	hostInfo       eventHostInfo          // Host information extracted from the event, where applicable
+	involvedObject v1.ObjectReference   // Parent object for this event bundle
+	component      string               // Used to identify the Kubernetes component which generated the event
+	timeStamp      float64              // Used for the new events in the bundle to specify when they first occurred
+	lastTimestamp  float64              // Used for the modified events in the bundle to specify when they last occurred
+	countByAction  map[string]int       // Map of count per action to aggregate several events from the same ObjUid in one event
+	alertType      event.EventAlertType // The Datadog event type
+	hostInfo       eventHostInfo        // Host information extracted from the event, where applicable
 }
 
 func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesEventBundle {
@@ -56,9 +54,9 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	return nil
 }
 
-func (b *kubernetesEventBundle) formatEvents() (metrics.Event, error) {
+func (b *kubernetesEventBundle) formatEvents() (event.Event, error) {
 	if len(b.countByAction) == 0 {
-		return metrics.Event{}, errors.New("no event to export")
+		return event.Event{}, errors.New("no event to export")
 	}
 
 	readableKey := buildReadableKey(b.involvedObject)
@@ -70,9 +68,9 @@ func (b *kubernetesEventBundle) formatEvents() (metrics.Event, error) {
 	}
 
 	// If hostname was not defined, the aggregator will then set the local hostname
-	output := metrics.Event{
+	output := event.Event{
 		Title:          fmt.Sprintf("Events from the %s", readableKey),
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		Host:           b.hostInfo.hostname,
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,

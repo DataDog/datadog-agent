@@ -14,6 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
@@ -29,8 +31,10 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
-	HostInfo hostinfo.Component
-	Config   config.Component
+	HostInfo   hostinfo.Component
+	Config     config.Component
+	Log        log.Component
+	Forwarders forwarders.Component
 }
 
 type result struct {
@@ -41,7 +45,7 @@ type result struct {
 }
 
 func newSubmitter(deps dependencies) (result, error) {
-	s, err := processRunner.NewSubmitter(deps.Config, deps.HostInfo.Object().HostName)
+	s, err := processRunner.NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.HostInfo.Object().HostName)
 	if err != nil {
 		return result{}, err
 	}

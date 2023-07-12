@@ -17,9 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/runner"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -37,7 +38,8 @@ type dependencies struct {
 	SysProbeConfig sysprobeconfig.Component
 	HostInfo       hostinfo.Component
 
-	Log log.Component
+	Log       log.Component
+	Telemetry telemetry.Component
 }
 
 func newExpvarServer(deps dependencies) (Component, error) {
@@ -91,10 +93,10 @@ func initStatus(deps dependencies) error {
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
 	_, processModuleEnabled := deps.SysProbeConfig.Object().EnabledModules[sysconfig.ProcessModule]
-	eps, err := runner.GetAPIEndpoints(deps.Config)
+	eps, err := endpoint.GetAPIEndpoints(deps.Config)
 	if err != nil {
 		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
-	status.InitExpvars(deps.Config, deps.HostInfo.Object().HostName, processModuleEnabled, eps)
+	status.InitExpvars(deps.Config, deps.Telemetry, deps.HostInfo.Object().HostName, processModuleEnabled, eps)
 	return nil
 }

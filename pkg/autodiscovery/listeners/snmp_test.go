@@ -170,6 +170,10 @@ func TestExtraConfig(t *testing.T) {
 				MatchValue: "eth0",
 				InSpeed:    25,
 				OutSpeed:   10,
+				Tags: []string{
+					"customTag1",
+					"customTag2:value2",
+				},
 			}},
 		},
 	}
@@ -253,7 +257,7 @@ func TestExtraConfig(t *testing.T) {
 
 	info, err = svc.GetExtraConfig("interface_configs")
 	assert.Equal(t, nil, err)
-	assert.Equal(t, `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10}]`, info)
+	assert.Equal(t, `[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10,"tags":["customTag1","customTag2:value2"]}]`, info)
 
 	svc = SNMPService{
 		adIdentifier: "snmp",

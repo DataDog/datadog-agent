@@ -49,7 +49,7 @@ apm_config:
     - /health
     - /500
 
-  filter_tags:    
+  filter_tags:
     require: ["env:prod", "db:mongodb"]
     reject: ["outcome:success"]
 
@@ -78,8 +78,9 @@ apm_config:
     remove_stack_traces: true
     redis:
       enabled: true
+      remove_all_args: true
     memcached:
       enabled: true
     credit_cards:
-      enabled: true 
+      enabled: true
       luhn: true

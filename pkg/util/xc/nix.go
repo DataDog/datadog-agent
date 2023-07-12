@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && cgo
-// +build !windows,cgo
 
 package xc
 

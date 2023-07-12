@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver && orchestrator
-// +build kubeapiserver,orchestrator
 
 package k8s
 
@@ -52,12 +51,9 @@ func (c *CronJobV1Collector) Informer() cache.SharedInformer {
 
 // Init is used to initialize the collector.
 func (c *CronJobV1Collector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Batch().V1().CronJobs()
+	c.informer = rcfg.OrchestratorInformerFactory.InformerFactory.Batch().V1().CronJobs()
 	c.lister = c.informer.Lister()
 }
-
-// IsAvailable returns whether the collector is available.
-func (c *CronJobV1Collector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
 func (c *CronJobV1Collector) Metadata() *collectors.CollectorMetadata {

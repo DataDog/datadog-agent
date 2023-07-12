@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd && trivy
-// +build containerd,trivy
 
 package containerd
 
@@ -21,7 +20,7 @@ import (
 )
 
 func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("container_image_collection.sbom.enabled")
+	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("sbom.container_image.enabled")
 }
 
 func (c *collector) startSBOMCollection(ctx context.Context) error {
@@ -44,12 +43,13 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 			workloadmeta.EventTypeSet,
 		),
 	)
-
+	resultChan := make(chan sbom.ScanResult, 2000)
 	go func() {
 		for {
 			select {
 			// We don't want to keep scanning if image channel is not empty but context is expired
 			case <-ctx.Done():
+				close(resultChan)
 				return
 
 			case eventBundle := <-imgEventsCh:
@@ -65,7 +65,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 						continue
 					}
 
-					if err := c.extractBOMWithTrivy(ctx, image); err != nil {
+					if err := c.extractSBOMWithTrivy(ctx, image, resultChan); err != nil {
 						log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
 					}
 				}
@@ -73,41 +73,18 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		}
 	}()
 
-	return nil
-}
-
-func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata) error {
-	containerdImage, err := c.containerdClient.Image(storedImage.Namespace, storedImage.Name)
-	if err != nil {
-		return err
-	}
-
-	scanRequest := &containerd.ScanRequest{
-		Image:            containerdImage,
-		ImageMeta:        storedImage,
-		ContainerdClient: c.containerdClient,
-		FromFilesystem:   config.Datadog.GetBool("container_image_collection.sbom.use_mount"),
-	}
-
-	ch := make(chan sbom.ScanResult, 1)
-	if err = c.sbomScanner.Scan(scanRequest, c.scanOptions, ch); err != nil {
-		log.Errorf("Failed to trigger SBOM generation for containerd: %s", err)
-		return err
-	}
-
 	go func() {
-		select {
-		case <-ctx.Done():
-		case result := <-ch:
+		for result := range resultChan {
 			if result.Error != nil {
-				log.Errorf("Failed to generate SBOM for containerd: %s", result.Error)
-				return
+				// TODO: add a retry mechanism for retryable errors
+				log.Errorf("Failed to generate SBOM for containerd image: %s", result.Error)
+				continue
 			}
 
 			bom, err := result.Report.ToCycloneDX()
 			if err != nil {
 				log.Errorf("Failed to extract SBOM from report")
-				return
+				continue
 			}
 
 			sbom := workloadmeta.SBOM{
@@ -118,11 +95,31 @@ func (c *collector) extractBOMWithTrivy(ctx context.Context, storedImage *worklo
 
 			// Updating workloadmeta entities directly is not thread-safe, that's why we
 			// generate an update event here instead.
-			if err := c.handleImageCreateOrUpdate(ctx, storedImage.Namespace, storedImage.Name, &sbom); err != nil {
-				log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", storedImage.Namespace, storedImage.Name, err)
+			if err := c.handleImageCreateOrUpdate(ctx, result.ImgMeta.Namespace, result.ImgMeta.Name, &sbom); err != nil {
+				log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
 			}
 		}
 	}()
+
+	return nil
+}
+
+func (c *collector) extractSBOMWithTrivy(ctx context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) error {
+	containerdImage, err := c.containerdClient.Image(storedImage.Namespace, storedImage.Name)
+	if err != nil {
+		return err
+	}
+
+	scanRequest := &containerd.ScanRequest{
+		Image:            containerdImage,
+		ImageMeta:        storedImage,
+		ContainerdClient: c.containerdClient,
+		FromFilesystem:   config.Datadog.GetBool("sbom.container_image.use_mount"),
+	}
+	if err = c.sbomScanner.Scan(scanRequest, c.scanOptions, resultChan); err != nil {
+		log.Errorf("Failed to trigger SBOM generation for containerd: %s", err)
+		return err
+	}
 
 	return nil
 }

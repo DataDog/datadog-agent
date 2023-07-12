@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package dump
 
@@ -23,13 +22,14 @@ import (
 var (
 	// TracedEventTypesReductionOrder is the order by which event types are reduced
 	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
-	// MinDumpTimeout is the shortest timeout for a dump
-	MinDumpTimeout = 10 * time.Minute
+
+	absoluteMinimumDumpTimeout = 10 * time.Second
 )
 
 // ActivityDumpLoadController is a load controller allowing dynamic change of Activity Dump configuration
 type ActivityDumpLoadController struct {
-	adm *ActivityDumpManager
+	adm            *ActivityDumpManager
+	minDumpTimeout time.Duration
 
 	// eBPF maps
 	activityDumpConfigDefaults *ebpf.Map
@@ -45,25 +45,35 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 		return nil, fmt.Errorf("couldn't find activity_dump_config_defaults map")
 	}
 
+	minDumpTimeout := adm.config.RuntimeSecurity.ActivityDumpLoadControlMinDumpTimeout
+	if minDumpTimeout < absoluteMinimumDumpTimeout {
+		minDumpTimeout = absoluteMinimumDumpTimeout
+	}
+
 	return &ActivityDumpLoadController{
 		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
 		adm:                        adm,
+		minDumpTimeout:             minDumpTimeout,
 	}, nil
 }
 
-// PushCurrentConfig pushes the current load controller config to kernel space
-func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
-	// push default load config values
+func (lc *ActivityDumpLoadController) getDefaultLoadConfig() *model.ActivityDumpLoadConfig {
 	defaults := NewActivityDumpLoadConfig(
 		lc.adm.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
 		lc.adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout,
 		0,
 		lc.adm.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		time.Now(),
-		lc.adm.timeResolver,
+		lc.adm.resolvers.TimeResolver,
 	)
 	defaults.WaitListTimestampRaw = uint64(lc.adm.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout)
-	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {
+	return defaults
+}
+
+// PushCurrentConfig pushes the current load controller config to kernel space
+func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
+	// push default load config values
+	if err := lc.activityDumpConfigDefaults.Put(uint32(0), lc.getDefaultLoadConfig()); err != nil {
 		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}
 	return nil
@@ -100,19 +110,19 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	newDump.LoadConfig.Rate = ad.LoadConfig.Rate
 	newDump.LoadConfigCookie = ad.LoadConfigCookie
 
-	if timeToThreshold < MinDumpTimeout {
+	if timeToThreshold < lc.minDumpTimeout {
 		if err := lc.reduceDumpRate(ad, newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}
 	}
 
-	if timeToThreshold < MinDumpTimeout/2 && ad.LoadConfig.Timeout > MinDumpTimeout {
+	if timeToThreshold < lc.minDumpTimeout/2 && ad.LoadConfig.Timeout > lc.minDumpTimeout {
 		if err := lc.reduceDumpTimeout(newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}
 	}
 
-	if timeToThreshold < MinDumpTimeout/4 {
+	if timeToThreshold < lc.minDumpTimeout/4 {
 		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}
@@ -145,10 +155,9 @@ reductionOrder:
 	}
 
 	for _, evt := range old.LoadConfig.TracedEventTypes {
-		if evt == evtToRemove {
-			continue
+		if evt != evtToRemove {
+			new.LoadConfig.TracedEventTypes = append(new.LoadConfig.TracedEventTypes, evt)
 		}
-		new.LoadConfig.TracedEventTypes = append(new.LoadConfig.TracedEventTypes, evt)
 	}
 
 	// send metric
@@ -163,8 +172,8 @@ reductionOrder:
 // reduceDumpTimeout reduces the dump timeout configuration
 func (lc *ActivityDumpLoadController) reduceDumpTimeout(new *ActivityDump) error {
 	newTimeout := new.LoadConfig.Timeout * 3 / 4 // reduce by 25%
-	if newTimeout < MinDumpTimeout {
-		newTimeout = MinDumpTimeout
+	if minTimeout := lc.adm.config.RuntimeSecurity.ActivityDumpLoadControlMinDumpTimeout; newTimeout < minTimeout {
+		newTimeout = minTimeout
 	}
 	new.SetTimeout(newTimeout)
 

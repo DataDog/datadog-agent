@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package probe
 
@@ -21,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 )
-
-var eventZero model.Event
 
 type PlatformProbe struct {
 	pm      *procmon.WinProcmon

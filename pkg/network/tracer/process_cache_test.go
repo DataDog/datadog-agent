@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package tracer
 
@@ -56,11 +55,12 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		{envs: []string{ddService, ddVersion, ddEnv}},
 	}
 
-	testFunc := func(t *testing.T, entry *smodel.ProcessCacheEntry) {
+	testFunc := func(t *testing.T, entry *smodel.ProcessContext) {
 		for i, te := range tests {
 			t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 				pc, err := newProcessCache(10, te.filter)
 				require.NoError(t, err)
+				t.Cleanup(pc.Stop)
 
 				var values []string
 				for _, e := range te.envs {
@@ -88,21 +88,17 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 						assert.Equal(t, envs[e], p.Envs[e])
 					}
 				}
-
-				pc.Stop()
 			})
 		}
 	}
 
 	t.Run("without container id", func(t *testing.T) {
-		entry := smodel.ProcessCacheEntry{
-			ProcessContext: smodel.ProcessContext{
-				Process: smodel.Process{
-					PIDContext: smodel.PIDContext{
-						Pid: 1234,
-					},
-					EnvsEntry: &smodel.EnvsEntry{},
+		entry := smodel.ProcessContext{
+			Process: smodel.Process{
+				PIDContext: smodel.PIDContext{
+					Pid: 1234,
 				},
+				EnvsEntry: &smodel.EnvsEntry{},
 			},
 		}
 
@@ -110,15 +106,13 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 	})
 
 	t.Run("with container id", func(t *testing.T) {
-		entry := smodel.ProcessCacheEntry{
-			ProcessContext: smodel.ProcessContext{
-				Process: smodel.Process{
-					PIDContext: smodel.PIDContext{
-						Pid: 1234,
-					},
-					ContainerID: "container",
-					EnvsEntry:   &smodel.EnvsEntry{},
+		entry := smodel.ProcessContext{
+			Process: smodel.Process{
+				PIDContext: smodel.PIDContext{
+					Pid: 1234,
 				},
+				ContainerID: "container",
+				EnvsEntry:   &smodel.EnvsEntry{},
 			},
 		}
 
@@ -131,6 +125,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(5, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		pc.add(&process{
 			Pid:       1234,
@@ -148,6 +143,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(10, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		for i := 0; i < maxProcessListSize+1; i++ {
 			pc.add(&process{
@@ -173,6 +169,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(2, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		pc.add(&process{
 			Pid:       1234,
@@ -223,6 +220,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(1, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		pc.add(&process{
 			Pid:       1234,
@@ -249,6 +247,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc, err := newProcessCache(1, nil)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
+		t.Cleanup(pc.Stop)
 
 		pc.add(&process{
 			Pid:       1234,
@@ -285,6 +284,7 @@ func TestProcessCacheGet(t *testing.T) {
 	pc, err := newProcessCache(10, nil)
 	require.NoError(t, err)
 	require.NotNil(t, pc)
+	t.Cleanup(pc.Stop)
 
 	pc.add(&process{
 		Pid:       1234,

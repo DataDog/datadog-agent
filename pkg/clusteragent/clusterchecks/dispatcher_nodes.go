@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -14,12 +13,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultBusynessValue int = -1
+const (
+	defaultBusynessValue int = -1
+)
 
 // getClusterCheckConfigs returns configurations dispatched to a given node
 func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Config, int64, error) {
@@ -50,8 +51,11 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 
 	node.Lock()
 	defer node.Unlock()
-	node.lastStatus = status
 	node.heartbeat = timestampNow()
+	// When we receive ExtraHeartbeatLastChangeValue, we only update heartbeat
+	if status.LastChange == types.ExtraHeartbeatLastChangeValue {
+		return true, nil
+	}
 
 	if node.lastConfigChange == status.LastChange {
 		// Node-agent is up to date
@@ -184,7 +188,7 @@ func (d *dispatcher) updateRunnersStats() {
 			// Stats contain info about all the running checks on a node
 			// Node checks must be filtered from Cluster Checks
 			// so they can be included in calculating node Agent busyness and excluded from rebalancing decisions.
-			if _, found := d.store.idToDigest[check.ID(id)]; found {
+			if _, found := d.store.idToDigest[checkid.ID(id)]; found {
 				// Cluster check detected (exists in the Cluster Agent checks store)
 				log.Tracef("Check %s running on node %s is a cluster check", id, node.name)
 				checkStats.IsClusterCheck = true

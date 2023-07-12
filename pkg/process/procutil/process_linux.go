@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package procutil
 
@@ -12,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -705,13 +705,31 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
+// PROC_SUPER_MAGIC is the superblock magic value (its unique identifier) of procfs filesystem
+const PROC_SUPER_MAGIC = 0x9fa0
+
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
 func (p *probe) getFDCount(pidPath string) int32 {
 	path := filepath.Join(pidPath, "fd")
 
-	if err := p.ensurePathReadable(path); err != nil {
+	fi, err := os.Lstat(path)
+	if err != nil {
 		return -1
+	}
+
+	if err := p.ensurePathReadableFromFileInfo(fi); err != nil {
+		return -1
+	}
+
+	// Starting with kernel 6.2, we can use a simpler fast path
+	// see https://github.com/torvalds/linux/commit/f1f1f2569901ec5b9d425f2e91c09a0e320768f3
+	if count := fi.Size(); count > 0 {
+		// ensure the FS type is `procfs`
+		buf := new(syscall.Statfs_t)
+		if err := syscall.Statfs(path, buf); err == nil && buf.Type == PROC_SUPER_MAGIC {
+			return int32(count)
+		}
 	}
 
 	d, err := os.Open(path)
@@ -755,6 +773,15 @@ func (p *probe) ensurePathReadable(path string) error {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
+	}
+
+	return p.ensurePathReadableFromFileInfo(info)
+}
+
+func (p *probe) ensurePathReadableFromFileInfo(info fs.FileInfo) error {
+	// User is (effectively or actually) root
+	if p.euid == 0 {
+		return nil
 	}
 
 	// File mode is world readable and not a symlink

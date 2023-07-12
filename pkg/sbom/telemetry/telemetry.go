@@ -38,9 +38,19 @@ var (
 	SBOMGenerationDuration = telemetry.NewHistogramWithOpts(
 		subsystem,
 		"generation_duration",
-		[]string{},
+		[]string{"source", "scan_type"},
 		"SBOM generation duration (in seconds)",
 		[]float64{10, 30, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600},
+		commonOpts,
+	)
+
+	// SBOMExportSize is the size of the archive written on disk
+	SBOMExportSize = telemetry.NewHistogramWithOpts(
+		subsystem,
+		"export_size",
+		[]string{"source", "scan_ref"},
+		"Size of the archive written on disk",
+		[]float64{10_000_000, 50_000_000, 100_000_000, 200_000_000, 400_000_000, 600_000_000, 800_000_000, 1_000_000_000, 1_500_000_000},
 		commonOpts,
 	)
 

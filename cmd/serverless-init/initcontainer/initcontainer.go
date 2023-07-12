@@ -4,12 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package initcontainer
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -47,13 +45,11 @@ func execute(cloudService cloudservice.CloudService, config *serverlessLog.Confi
 	commandName, commandArgs := buildCommandParam(args)
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &serverlessLog.CustomWriter{
-		LogConfig:  config,
-		LineBuffer: bytes.Buffer{},
+		LogConfig: config,
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
-		LogConfig:  config,
-		LineBuffer: bytes.Buffer{},
-		IsError:    true,
+		LogConfig: config,
+		IsError:   true,
 	}
 	err := cmd.Start()
 	if err != nil {
@@ -88,6 +84,12 @@ func handleSignals(cloudService cloudservice.CloudService, process *os.Process, 
 			if sig != syscall.SIGCHLD {
 				if process != nil {
 					_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
+					_, err := process.Wait()
+					if err != nil {
+						serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
+					} else {
+						serverlessLog.Write(config, []byte("[datadog init process] exiting successfully"), false)
+					}
 				}
 			}
 			if sig == syscall.SIGTERM {

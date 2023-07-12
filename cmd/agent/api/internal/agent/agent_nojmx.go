@@ -8,7 +8,6 @@
 // at the agent level.
 
 //go:build !jmx
-// +build !jmx
 
 package agent
 

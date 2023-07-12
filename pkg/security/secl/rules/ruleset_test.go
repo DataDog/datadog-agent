@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package rules
 
@@ -39,7 +38,8 @@ func (rs *RuleSet) setRuleSetTagValue(value eval.RuleSetTagValue) error {
 	return nil
 }
 
-func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) {
+func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) bool {
+	return true
 }
 
 func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string, eventType eval.EventType) {

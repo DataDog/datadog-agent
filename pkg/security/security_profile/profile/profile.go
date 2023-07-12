@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package profile
 
@@ -13,16 +12,27 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+type EventTypeState struct {
+	lastAnomalyNano uint64
+	state           EventFilteringProfileState
+}
 
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
@@ -32,8 +42,8 @@ type SecurityProfile struct {
 	selector               cgroupModel.WorkloadSelector
 	profileCookie          uint64
 	anomalyDetectionEvents []model.EventType
-	lastAnomalyNano        uint64
-	autolearnEnabled       bool
+	eventTypeState         map[model.EventType]*EventTypeState
+	eventTypeStateLock     sync.Mutex
 
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
@@ -45,7 +55,7 @@ type SecurityProfile struct {
 	Version string
 
 	// Metadata contains metadata for the current profile
-	Metadata dump.Metadata
+	Metadata mtdt.Metadata
 
 	// Tags defines the tags used to compute this profile
 	Tags []string
@@ -67,12 +77,16 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, anomalyDetectionE
 	return &SecurityProfile{
 		selector:               selector,
 		anomalyDetectionEvents: anomalyDetectionEvents,
+		eventTypeState:         make(map[model.EventType]*EventTypeState),
 	}
 }
 
 // reset empties all internal fields so that this profile can be used again in the future
 func (p *SecurityProfile) reset() {
 	p.loadedInKernel = false
+	p.loadedNano = 0
+	p.profileCookie = 0
+	p.eventTypeState = make(map[model.EventType]*EventTypeState)
 	p.Instances = nil
 }
 
@@ -120,13 +134,6 @@ func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode
 	// TODO: debounce and regenerate profile filters & programs
 }
 
-// IsAnomalyDetectionEvent returns true if the provided event type is a kernel generated anomaly detection event type
-func IsAnomalyDetectionEvent(eventyType model.EventType) bool {
-	return slices.Contains([]model.EventType{
-		model.AnomalyDetectionSyscallEventType,
-	}, eventyType)
-}
-
 func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 	f, err := os.Open(filepath)
 	if err != nil {
@@ -148,4 +155,60 @@ func LoadProfileFromFile(filepath string) (*proto.SecurityProfile, error) {
 		profile.Tags = append(profile.Tags, "image_tag:latest")
 	}
 	return profile, nil
+}
+
+// SendStats sends profile stats
+func (profile *SecurityProfile) SendStats(client statsd.ClientInterface) error {
+	profile.Lock()
+	defer profile.Unlock()
+	return profile.ActivityTree.SendStats(client)
+}
+
+// ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
+func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Resolver, cfg *config.RuntimeSecurityConfig) *api.SecurityProfileMessage {
+	msg := &api.SecurityProfileMessage{
+		LoadedInKernel:          p.loadedInKernel,
+		LoadedInKernelTimestamp: timeResolver.ResolveMonotonicTimestamp(p.loadedNano).String(),
+		Selector: &api.WorkloadSelectorMessage{
+			Name: p.selector.Image,
+			Tag:  p.selector.Tag,
+		},
+		ProfileCookie: p.profileCookie,
+		Status:        p.Status.String(),
+		Version:       p.Version,
+		Metadata: &api.MetadataMessage{
+			Name: p.Metadata.Name,
+		},
+		Tags: p.Tags,
+	}
+	if p.ActivityTree != nil {
+		msg.Stats = &api.ActivityTreeStatsMessage{
+			ProcessNodesCount: p.ActivityTree.Stats.ProcessNodes,
+			FileNodesCount:    p.ActivityTree.Stats.FileNodes,
+			DNSNodesCount:     p.ActivityTree.Stats.DNSNodes,
+			SocketNodesCount:  p.ActivityTree.Stats.SocketNodes,
+			ApproximateSize:   p.ActivityTree.Stats.ApproximateSize(),
+		}
+	}
+
+	for _, evt := range p.anomalyDetectionEvents {
+		msg.AnomalyDetectionEvents = append(msg.AnomalyDetectionEvents, evt.String())
+	}
+
+	for evt, state := range p.eventTypeState {
+		lastAnomaly := timeResolver.ResolveMonotonicTimestamp(state.lastAnomalyNano)
+		msg.LastAnomalies = append(msg.LastAnomalies, &api.LastAnomalyTimestampMessage{
+			EventType:         evt.String(),
+			Timestamp:         lastAnomaly.String(),
+			IsStableEventType: time.Since(lastAnomaly) >= cfg.GetAnomalyDetectionMinimumStablePeriod(evt),
+		})
+	}
+
+	for _, inst := range p.Instances {
+		msg.Instances = append(msg.Instances, &api.InstanceMessage{
+			ContainerID: inst.ID,
+			Tags:        inst.Tags,
+		})
+	}
+	return msg
 }

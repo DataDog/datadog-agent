@@ -6,12 +6,12 @@
 require './lib/cmake.rb'
 
 name 'openscap'
-default_version '1.3.7'
+default_version '1.3.8'
 
 license "LGPL-3.0-or-later"
 license_file "COPYING"
 
-version("1.3.7") { source sha256: "a74f5bfb420b748916d2f88941bb6e04cad4c67a4cafc78c96409cc15c54d1d3" }
+version("1.3.8") { source sha256: "d4bf0dd35e7f595f34a440ebf4234df24faa2602c302b96c43274dbb317803b3" }
 
 ship_source_offer true
 
@@ -21,6 +21,7 @@ dependency 'apt'
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
+dependency 'dbus'
 dependency 'libacl'
 dependency 'libgcrypt'
 dependency 'libselinux'
@@ -38,24 +39,16 @@ relative_path "openscap-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  # Fixes since release 1.3.7
-  patch source: "0006-Use-correct-format-specifier.patch", env: env
-  patch source: "0007-Fix-leaked-variable.patch", env: env
-  patch source: "0008-Fix-a-leaked-variable.patch", env: env
-  patch source: "0009-Fix-Wint-conversion-error-building-with-clang.patch", env: env
-  patch source: "0010-Remove-reference-to-PROC_CHECK.patch", env: env
-  patch source: "0015-Fix-leak-of-session-skip_rules.patch", env: env
-  patch source: "0016-Fix-leak-of-dpkginfo_reply_t-fields.patch", env: env
-
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
-  patch source: "session_result_free.patch", env: env # add a function to free results from session
-  patch source: "source_free_xml.patch", env: env # free XML DOM after loading session
+  patch source: "session_result_reset.patch", env: env # add a function to reset results from session
+  patch source: "session_reset_syschar.patch", env: env # also reset system characteristics
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
-  patch source: "oval_component_evaluate_CONCAT_leak.patch", env: env # fix memory leak
   patch source: "dpkginfo-init.patch", env: env # fix memory leak of pkgcache in dpkginfo probe
-  patch source: "shadow-chroot.patch", env: env # handle shadow probe in offline mode
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
+  patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
+  patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
+  patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
@@ -77,6 +70,8 @@ build do
     "-DBZIP2_LIBRARY_RELEASE:FILEPATH=#{install_dir}/embedded/lib/libbz2.so",
     "-DCURL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DCURL_LIBRARY_RELEASE:FILEPATH=#{install_dir}/embedded/lib/libcurl.so",
+    "-DDBUS_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/dbus-1.0",
+    "-DDBUS_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libdbus-1.so",
     "-DGCRYPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DGCRYPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libgcrypt.so",
     "-DLIBXML2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/libxml2",
@@ -108,5 +103,5 @@ build do
   cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")
 
   # Remove OpenSCAP XML schemas, since they are not useful when XSD validation is disabled.
-  command "rm -rf #{install_dir}/embedded/share/openscap/schemas"
+  delete "#{install_dir}/embedded/share/openscap/schemas"
 end

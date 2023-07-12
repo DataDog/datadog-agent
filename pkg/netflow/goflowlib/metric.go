@@ -66,7 +66,7 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 	},
 	"flow_process_nf_count": {
-		name:           "processor.flows",
+		name:           "processor.processed",
 		allowedTagKeys: []string{"router", "version"},
 		keyRemapper: map[string]string{
 			"router": "exporter_ip",
@@ -79,6 +79,14 @@ var metricNameMapping = map[string]mappedMetric{
 		valueRemapper: map[string]remapperType{
 			"type": remapFlowset,
 		},
+		keyRemapper: map[string]string{
+			"router": "exporter_ip",
+		},
+		extraTags: []string{"flow_protocol:netflow"},
+	},
+	"flow_process_nf_errors_count": {
+		name:           "processor.errors",
+		allowedTagKeys: []string{"router", "error"},
 		keyRemapper: map[string]string{
 			"router": "exporter_ip",
 		},
@@ -109,7 +117,7 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 	},
 	"flow_process_sf_count": {
-		name:           "processor.flows",
+		name:           "processor.processed",
 		allowedTagKeys: []string{"router", "version"},
 		keyRemapper: map[string]string{
 			"router": "exporter_ip",

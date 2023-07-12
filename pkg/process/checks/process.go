@@ -17,6 +17,8 @@ import (
 	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -35,12 +37,28 @@ const (
 	configDisallowList         = configPrefix + "blacklist_patterns"
 )
 
-// NewProcessCehck returns an instance of the ProcessCheck.
+// NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
+	var extractors []metadata.Extractor
+	var wlmServer *workloadmeta.GRPCServer
+	if workloadmeta.Enabled(config) {
+		wlmExtractor := workloadmeta.NewWorkloadMetaExtractor(config)
+		srv := workloadmeta.NewGRPCServer(config, wlmExtractor)
+		err := srv.Start()
+		if err != nil {
+			log.Error("Failed to start the workload meta gRPC server:", err)
+		} else {
+			extractors = append(extractors, wlmExtractor)
+			wlmServer = srv
+		}
+	}
+
 	return &ProcessCheck{
-		config:        config,
-		scrubber:      procutil.NewDefaultDataScrubber(),
-		lookupIdProbe: NewLookupIdProbe(config),
+		config:             config,
+		scrubber:           procutil.NewDefaultDataScrubber(),
+		lookupIdProbe:      NewLookupIdProbe(config),
+		extractors:         extractors,
+		workloadMetaServer: wlmServer,
 	}
 }
 
@@ -82,8 +100,7 @@ type ProcessCheck struct {
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
 
-	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
-	SysprobeProcessModuleEnabled bool
+	sysProbeConfig *SysProbeConfig
 
 	maxBatchSize  int
 	maxBatchBytes int
@@ -95,12 +112,15 @@ type ProcessCheck struct {
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
 	lookupIdProbe *LookupIdProbe
+
+	extractors         []metadata.Extractor
+	workloadMetaServer *workloadmeta.GRPCServer
 }
 
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.hostInfo = info
-	p.SysprobeProcessModuleEnabled = syscfg.ProcessModuleEnabled
+	p.sysProbeConfig = syscfg
 	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
@@ -177,7 +197,11 @@ func (p *ProcessCheck) Realtime() bool { return false }
 func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 
 // Cleanup frees any resource held by the ProcessCheck before the agent exits
-func (p *ProcessCheck) Cleanup() {}
+func (p *ProcessCheck) Cleanup() {
+	if p.workloadMetaServer != nil {
+		p.workloadMetaServer.Stop()
+	}
+}
 
 func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
 	start := time.Now()
@@ -192,6 +216,10 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	procs, err := p.probe.ProcessesByPID(time.Now(), true)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, extractor := range p.extractors {
+		extractor.Extract(procs)
 	}
 
 	// stores lastPIDs to be used by RTProcess
@@ -559,13 +587,11 @@ func skipProcess(
 }
 
 func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
-	// if the Process module is disabled, we allow Probe to collect
-	// fields that require elevated permission to collect with best effort
-	if !p.SysprobeProcessModuleEnabled {
+	if !p.sysProbeConfig.ProcessModuleEnabled {
 		return nil
 	}
 
-	pu, err := net.GetRemoteSystemProbeUtil()
+	pu, err := net.GetRemoteSystemProbeUtil(p.sysProbeConfig.SystemProbeAddress)
 	if err != nil {
 		if p.notInitializedLogLimit.ShouldLog() {
 			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)

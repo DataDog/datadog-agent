@@ -9,6 +9,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
+const (
+	// ExtraHeartbeatLastChangeValue is used to instruct the Cluster Agent that we're still alive
+	// despite that the polling loop on CLC side is delayed.
+	ExtraHeartbeatLastChangeValue int64 = -1
+)
+
 // NodeStatus holds the status report from the node-agent
 type NodeStatus struct {
 	LastChange int64 `json:"last_change"`
@@ -78,6 +84,8 @@ type CLCRunnersStats map[string]CLCRunnerStats
 type CLCRunnerStats struct {
 	AverageExecutionTime int  `json:"AverageExecutionTime"`
 	MetricSamples        int  `json:"MetricSamples"`
+	HistogramBuckets     int  `json:"HistogramBuckets"`
+	Events               int  `json:"Events"`
 	IsClusterCheck       bool `json:"IsClusterCheck"`
 	LastExecFailed       bool `json:"LastExecFailed"`
 }

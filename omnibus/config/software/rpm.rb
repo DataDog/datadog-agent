@@ -49,6 +49,7 @@ build do
   env["CFLAGS"] << " -fPIC"
 
   patch source: "0001-Include-fcntl.patch", env: env # fix build
+  patch source: "rpmdb-no-create.patch", env: env # don't create db if it doesn't exist already
 
   update_config_guess
   

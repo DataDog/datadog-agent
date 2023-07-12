@@ -12,7 +12,7 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from .build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from .licenses import get_licenses_list
 from .modules import DEFAULT_MODULES, generate_dummy_package
 from .utils import get_build_flags
@@ -37,7 +37,7 @@ def run_golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="
     for target in targets:
         print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-        tags_arg = " ".join(tags)
+        tags_arg = " ".join(set(tags))
         result = ctx.run(
             f'golangci-lint run --timeout 20m0s {concurrency_arg} --build-tags "{tags_arg}" {target}/...',
             env=env,
@@ -289,7 +289,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.19.7 linux/amd64"
+    # result is like "go version go1.20.5 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
@@ -300,3 +300,16 @@ def check_go_version(ctx):
 
     if dot_go_version != running_go_version:
         raise Exit(message=f"Expected {dot_go_version} (from `.go-version`), but running {running_go_version}")
+
+
+@task
+def go_fix(ctx, fix=None):
+    if fix:
+        fixarg = f" -fix {fix}"
+    oslist = ["linux", "windows", "darwin"]
+
+    for mod in DEFAULT_MODULES.values():
+        with ctx.cd(mod.full_path()):
+            for osname in oslist:
+                tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
+                ctx.run(f"go fix{fixarg} -tags {','.join(tags)} ./...")

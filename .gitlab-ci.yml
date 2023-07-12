@@ -27,6 +27,7 @@ include:
   - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
+  - /.gitlab/e2e_test_junit_upload.yml
   - /.gitlab/fakeintake.yml
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
@@ -41,6 +42,7 @@ include:
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
   - /.gitlab/benchmarks/benchmarks.yml
+  - /.gitlab/benchmarks/macrobenchmarks.yml
 
 default:
   retry:
@@ -79,6 +81,7 @@ stages:
   - choco_deploy
   - internal_image_deploy
   - e2e
+  - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
@@ -115,13 +118,13 @@ variables:
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
-  BUCKET_BRANCH: nightly  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
+  BUCKET_BRANCH: nightly # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
-  DEB_RPM_TESTING_BUCKET_BRANCH: testing  # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
+  DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_OPTIONS: --only-show-errors --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
@@ -145,18 +148,21 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v15101851-1eecc1f
+  DATADOG_AGENT_BUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v15101851-1eecc1f
+  DATADOG_AGENT_WINBUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v15101851-1eecc1f
+  DATADOG_AGENT_ARMBUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v15101851-1eecc1f
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v14597610-8d767dd
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v15101851-1eecc1f
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v15101851-1eecc1f
-  DATADOG_AGENT_BUILDERS: v9930706-ef9d493
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_BUILDERS: v16852259-65c480c
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: efed150be993
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -179,6 +185,8 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-08d9716d20480186e"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-044d1c0f7ab0e3537"
 
 #
 # Condition mixins for simplification of rules
@@ -271,6 +279,9 @@ variables:
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+
+.if_scheduled_main: &if_scheduled_main
+  if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
 
 #
 # Workflow rules
@@ -486,6 +497,19 @@ workflow:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
+
+# rule to trigger job for internal image deployment if deploy is set or
+# manually if not
+.on_deploy_a7_internal_or_manual:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    variables:
+      RELEASE_PROD: "true"
+  - when: manual
+    allow_failure: true
+    variables:
+      RELEASE_PROD: "false"
 
 # Same as on_deploy_a7_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
@@ -858,5 +882,11 @@ workflow:
       - pkg/trace/**/*
       - .gitlab/benchmarks/*
     when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_scheduled_main_or_manual:
+  - <<: *if_scheduled_main
+    when: always
   - when: manual
     allow_failure: true

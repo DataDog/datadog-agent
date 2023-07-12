@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package resolvers
 
@@ -25,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -42,6 +42,7 @@ import (
 // ResolversOpts defines common options
 type ResolversOpts struct {
 	PathResolutionEnabled bool
+	TagsResolver          tags.Resolver
 }
 
 // Resolvers holds the list of the event attribute resolvers
@@ -51,7 +52,7 @@ type Resolvers struct {
 	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
 	UserGroupResolver *usergroup.Resolver
-	TagsResolver      *tags.Resolver
+	TagsResolver      tags.Resolver
 	DentryResolver    *dentry.Resolver
 	ProcessResolver   *process.Resolver
 	NamespaceResolver *netns.Resolver
@@ -59,6 +60,7 @@ type Resolvers struct {
 	TCResolver        *tc.Resolver
 	PathResolver      path.ResolverInterface
 	SBOMResolver      *sbom.Resolver
+	HashResolver      *hash.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -94,7 +96,12 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		}
 	}
 
-	tagsResolver := tags.NewResolver(config.Probe)
+	var tagsResolver tags.Resolver
+	if opts.TagsResolver != nil {
+		tagsResolver = opts.TagsResolver
+	} else {
+		tagsResolver = tags.NewResolver(config.Probe)
+	}
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
 	if err != nil {
 		return nil, err
@@ -126,6 +133,10 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 	if err != nil {
 		return nil, err
 	}
+	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient, cgroupsResolver)
+	if err != nil {
+		return nil, err
+	}
 
 	resolvers := &Resolvers{
 		manager:           manager,
@@ -141,6 +152,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		ProcessResolver:   processResolver,
 		PathResolver:      pathResolver,
 		SBOMResolver:      sbomResolver,
+		HashResolver:      hashResolver,
 	}
 
 	return resolvers, nil

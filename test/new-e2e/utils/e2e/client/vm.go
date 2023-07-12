@@ -3,29 +3,33 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package client contains clients used to communicate with the remote service
 package client
 
 import (
-	commonvm "github.com/DataDog/test-infra-definitions/common/vm"
+	"testing"
+
+	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
 )
 
-var _ stackInitializer = (*VM)(nil)
+var _ clientService[commonvm.ClientData] = (*VM)(nil)
 
-// A client VM that is connected to a VM defined in test-infra-definition.
+// VM is a client VM that is connected to a VM defined in test-infra-definition.
 type VM struct {
 	*UpResultDeserializer[commonvm.ClientData]
-	*sshClient
+	*vmClient
 }
 
-// Create a new instance of VM
+// NewVM creates a new instance of VM
 func NewVM(infraVM commonvm.VM) *VM {
 	vm := &VM{}
-	vm.UpResultDeserializer = NewUpResultDeserializer(infraVM.GetClientDataDeserializer(), vm.init)
+	vm.UpResultDeserializer = NewUpResultDeserializer[commonvm.ClientData](infraVM, vm)
 	return vm
 }
 
-func (vm *VM) init(auth *Authentification, data *commonvm.ClientData) error {
+//lint:ignore U1000 Ignore unused function as this function is call using reflection
+func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 	var err error
-	vm.sshClient, err = newSSHClient(auth, &data.Connection)
+	vm.vmClient, err = newVMClient(t, "", &data.Connection)
 	return err
 }

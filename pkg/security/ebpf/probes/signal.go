@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probes
 
@@ -30,8 +29,7 @@ func getSignalProbes() []*manager.Probe {
 	signalProbes = append(signalProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/kill_pid_info",
-			EBPFFuncName: "kprobe_kill_pid_info",
+			EBPFFuncName: "hook_kill_pid_info",
 		},
 	})
 	return signalProbes

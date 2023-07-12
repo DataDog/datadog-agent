@@ -1,7 +1,7 @@
 #ifndef __HTTP_TYPES_H
 #define __HTTP_TYPES_H
 
-#include "tracer.h"
+#include "conn_tuple.h"
 
 // This determines the size of the payload fragment that is captured for each HTTP request
 #define HTTP_BUFFER_SIZE (8 * 20)
@@ -82,13 +82,5 @@ typedef struct {
     conn_tuple_t tup;
     __u32 fd;
 } ssl_sock_t;
-
-#define LIB_PATH_MAX_SIZE 120
-
-typedef struct {
-    __u32 pid;
-    __u32 len;
-    char buf[LIB_PATH_MAX_SIZE];
-} lib_path_t;
 
 #endif

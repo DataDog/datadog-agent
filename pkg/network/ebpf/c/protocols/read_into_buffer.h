@@ -20,8 +20,9 @@
         for (; i < ((total_size) / (blk_size)); i++) {                                                              \
             if (offset + (blk_size) - 1 >= end) { break; }                                                          \
                                                                                                                     \
-            bpf_skb_load_bytes_with_telemetry(skb, offset, &buffer[i * (blk_size)], (blk_size));                    \
+            bpf_skb_load_bytes_with_telemetry(skb, offset, buffer, (blk_size));                                     \
             offset += (blk_size);                                                                                   \
+            buffer += (blk_size);                                                                                   \
         }                                                                                                           \
         if ((i * (blk_size)) >= total_size) {                                                                       \
             return;                                                                                                 \
@@ -40,7 +41,7 @@
         /* verifier so it can be assured we are not exceeding the memory limits. */                                 \
         const s64 left_buffer = (s64)(total_size) < (s64)(i*(blk_size)) ? 0 : total_size - i*(blk_size);            \
         if (read_size <= left_buffer) {                                                                             \
-            bpf_skb_load_bytes_with_telemetry(skb, offset, &buffer[i * (blk_size)], read_size);                     \
+            bpf_skb_load_bytes_with_telemetry(skb, offset, buffer, read_size);                                      \
         }                                                                                                           \
         return;                                                                                                     \
     }                                                                                                               \

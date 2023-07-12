@@ -22,6 +22,7 @@ type ContainerMemStats struct {
 	SwapLimit    *float64 // Memory+Swap Limit (>= Limit)
 
 	// Linux-only fields
+	WorkingSet       *float64 // Following cAdvisor/Kubernetes: defined as UsageTotal - InactiveFiles
 	RSS              *float64
 	Cache            *float64
 	OOMEvents        *float64 // Number of events where memory allocation failed
@@ -36,10 +37,11 @@ type ContainerMemStats struct {
 // ContainerCPUStats stores CPU stats.
 type ContainerCPUStats struct {
 	// Common fields
-	Total  *float64
-	System *float64
-	User   *float64
-	Limit  *float64 // Percentage 0-100*numCPU
+	Total          *float64
+	System         *float64
+	User           *float64
+	Limit          *float64 // Percentage 0-100*numCPU
+	DefaultedLimit bool     // If Limit != nil, indicated if limit was explicit from container or defaulted to # of host CPUs
 
 	// Linux-only fields
 	Shares           *float64

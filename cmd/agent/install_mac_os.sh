@@ -5,7 +5,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.1.0
+install_script_version=1.2.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
@@ -40,6 +40,11 @@ if [ -n "$DD_SITE" ]; then
     site=$DD_SITE
 fi
 
+agent_dist_channel=
+if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
+    agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
+fi
+
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
   #  - 20   = defaults to highest patch version x.20.2
@@ -67,6 +72,21 @@ function find_latest_patch_version_for() {
     # and finally take the first (== the latest) patch version
     latest_patch=$(echo "$patch_versions" | cut -d. -f3 | cut -d- -f1 | sort -rn | head -n 1)
     echo "$latest_patch"
+}
+
+function prepare_dmg_file() {
+    dmg_file_to_prepare=$1
+    $sudo_cmd rm -f "$dmg_file_to_prepare"
+    $sudo_cmd touch "$dmg_file_to_prepare"
+    $sudo_cmd chmod 600 "$dmg_file_to_prepare"
+
+    file_owner=$(stat -c %u "$dmg_file_to_prepare")
+    file_permission=$(stat -c %a "$dmg_file_to_prepare")
+    file_size=$(stat -c %s "$dmg_file_to_prepare")
+    if [[ "$file_owner" -ne 0 ]] || [[ "$file_permission" -ne 600 ]] || [[ "$file_size" -ne 0 ]]; then
+        echo -e "\033[31mFailed to prepare datadog-agent dmg file\033[0m\n"
+        exit 1;
+    fi
 }
 
 systemdaemon_install=false
@@ -172,7 +192,12 @@ if [ -z "$dmg_version" ]; then
         dmg_version="${agent_major_version}.${agent_minor_version}-1"
     fi
 fi
-dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
+
+if [ -z "$agent_dist_channel" ]; then
+    dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
+else
+    dmg_url="$dmg_base_url/$agent_dist_channel/datadog-agent-${dmg_version}.dmg"
+fi
 
 if [ "$upgrade" ]; then
     if [ ! -f $etc_dir/datadog.conf ]; then
@@ -317,8 +342,8 @@ function plist_modify_user_group() {
 
 # # Install the agent
 printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
-rm -f $dmg_file
-if ! curl --fail --progress-bar "$dmg_url" > $dmg_file; then
+prepare_dmg_file $dmg_file
+if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" --output $dmg_file; then
     printf "\033[31mCouldn't download the installer for macOS Agent version ${dmg_version}.\033[0m\n"
     exit 1;
 fi

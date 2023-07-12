@@ -121,6 +121,20 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 	})
 }
 
+// addRuntimeTelemetryMetric to know if an Agent is using OTLP runtime metrics.
+func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, languageTags []string) {
+	for _, lang := range languageTags {
+		c.series = append(c.series, &metrics.Serie{
+			Name:           "datadog.agent.otlp.runtime_metrics",
+			Points:         []metrics.Point{{Value: 1, Ts: float64(time.Now().Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("language:%v", lang)}),
+			Host:           hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
+}
+
 // Send exports all data recorded by the consumer. It does not reset the consumer.
 func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 	var serieErr, sketchesErr error

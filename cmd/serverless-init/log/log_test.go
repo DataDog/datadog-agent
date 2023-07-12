@@ -6,7 +6,6 @@
 package log
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
@@ -14,66 +13,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCustomWriterBuffered(t *testing.T) {
+func TestCustomWriterUnbuffered(t *testing.T) {
+	// Custom writer should pass-through buffering behaviour of target process
 	testContent := []byte("log line\nlog line\n")
 	config := &Config{
 		channel:   make(chan *config.ChannelMessage, 2),
 		isEnabled: true,
 	}
 	cw := &CustomWriter{
-		LogConfig:  config,
-		LineBuffer: bytes.Buffer{},
+		LogConfig: config,
 	}
 	go cw.Write(testContent)
 	numMessages := 0
 	select {
 	case message := <-config.channel:
-		assert.Equal(t, []byte("log line"), message.Content)
+		assert.Equal(t, []byte("log line\nlog line\n"), message.Content)
 		numMessages++
 	case <-time.After(100 * time.Millisecond):
 		t.FailNow()
 	}
 
-	select {
-	case message := <-config.channel:
-		assert.Equal(t, []byte("log line"), message.Content)
-		numMessages++
-	case <-time.After(100 * time.Millisecond):
-		t.FailNow()
-	}
-
-	assert.Equal(t, 2, numMessages)
-}
-
-func TestCustomWriterBufferedConsecutiveNewlines(t *testing.T) {
-	testContent := []byte("\nlog line\n\n\n\nlog line2\n\n\n")
-	config := &Config{
-		channel:   make(chan *config.ChannelMessage, 2),
-		isEnabled: true,
-	}
-	cw := &CustomWriter{
-		LogConfig:  config,
-		LineBuffer: bytes.Buffer{},
-	}
-	go cw.Write(testContent)
-	numMessages := 0
-	select {
-	case message := <-config.channel:
-		assert.Equal(t, []byte("log line"), message.Content)
-		numMessages++
-	case <-time.After(100 * time.Millisecond):
-		t.FailNow()
-	}
-
-	select {
-	case message := <-config.channel:
-		assert.Equal(t, []byte("log line2"), message.Content)
-		numMessages++
-	case <-time.After(100 * time.Millisecond):
-		t.FailNow()
-	}
-
-	assert.Equal(t, 2, numMessages)
+	assert.Equal(t, 1, numMessages)
 }
 
 func TestWriteEnabled(t *testing.T) {

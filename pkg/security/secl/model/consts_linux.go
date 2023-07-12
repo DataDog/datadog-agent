@@ -177,35 +177,55 @@ var (
 		"O_RSYNC":    syscall.O_RSYNC,
 	}
 
-	// chmodModeConstants are the supported modes for the chmod syscall
-	// generate_constants:Chmod mode constants,Chmod mode constants are the supported modes for the chmod syscall.
-	chmodModeConstants = map[string]int{
-		// "S_IEXEC":  syscall.S_IEXEC, deprecated
-		"S_IFBLK":  syscall.S_IFBLK,
-		"S_IFCHR":  syscall.S_IFCHR,
-		"S_IFDIR":  syscall.S_IFDIR,
-		"S_IFIFO":  syscall.S_IFIFO,
-		"S_IFLNK":  syscall.S_IFLNK,
-		"S_IFMT":   syscall.S_IFMT,
-		"S_IFREG":  syscall.S_IFREG,
-		"S_IFSOCK": syscall.S_IFSOCK,
+	// fileModeConstants contains the constants describing file permissions as well as the set-user-ID, set-group-ID, and sticky bits.
+	// generate_constants:File mode constants,File mode constants are the supported file permissions as well as constants for the set-user-ID, set-group-ID, and sticky bits.
+	fileModeConstants = map[string]int{
 		// "S_IREAD":  syscall.S_IREAD, deprecated
-		"S_IRGRP": syscall.S_IRGRP,
-		"S_IROTH": syscall.S_IROTH,
-		"S_IRUSR": syscall.S_IRUSR,
-		"S_IRWXG": syscall.S_IRWXG,
-		"S_IRWXO": syscall.S_IRWXO,
-		"S_IRWXU": syscall.S_IRWXU,
-		"S_ISGID": syscall.S_ISGID,
 		"S_ISUID": syscall.S_ISUID,
+		"S_ISGID": syscall.S_ISGID,
 		"S_ISVTX": syscall.S_ISVTX,
-		"S_IWGRP": syscall.S_IWGRP,
-		"S_IWOTH": syscall.S_IWOTH,
-		// "S_IWRITE": syscall.S_IWRITE, deprecated
+		"S_IRWXU": syscall.S_IRWXU,
+		"S_IRUSR": syscall.S_IRUSR,
 		"S_IWUSR": syscall.S_IWUSR,
-		"S_IXGRP": syscall.S_IXGRP,
-		"S_IXOTH": syscall.S_IXOTH,
 		"S_IXUSR": syscall.S_IXUSR,
+		"S_IRWXG": syscall.S_IRWXG,
+		"S_IRGRP": syscall.S_IRGRP,
+		"S_IWGRP": syscall.S_IWGRP,
+		"S_IXGRP": syscall.S_IXGRP,
+		"S_IRWXO": syscall.S_IRWXO,
+		"S_IROTH": syscall.S_IROTH,
+		"S_IWOTH": syscall.S_IWOTH,
+		"S_IXOTH": syscall.S_IXOTH,
+		// "S_IWRITE": syscall.S_IWRITE, deprecated
+	}
+
+	// inodeModeConstants are the supported file types and file modes
+	// generate_constants:Inode mode constants,Inode mode constants are the supported file type constants as well as the file mode constants.
+	inodeModeConstants = map[string]int{
+		// "S_IEXEC":  syscall.S_IEXEC, deprecated
+		"S_IFMT":   syscall.S_IFMT,
+		"S_IFSOCK": syscall.S_IFSOCK,
+		"S_IFLNK":  syscall.S_IFLNK,
+		"S_IFREG":  syscall.S_IFREG,
+		"S_IFBLK":  syscall.S_IFBLK,
+		"S_IFDIR":  syscall.S_IFDIR,
+		"S_IFCHR":  syscall.S_IFCHR,
+		"S_IFIFO":  syscall.S_IFIFO,
+		"S_ISUID":  syscall.S_ISUID,
+		"S_ISGID":  syscall.S_ISGID,
+		"S_ISVTX":  syscall.S_ISVTX,
+		"S_IRWXU":  syscall.S_IRWXU,
+		"S_IRUSR":  syscall.S_IRUSR,
+		"S_IWUSR":  syscall.S_IWUSR,
+		"S_IXUSR":  syscall.S_IXUSR,
+		"S_IRWXG":  syscall.S_IRWXG,
+		"S_IRGRP":  syscall.S_IRGRP,
+		"S_IWGRP":  syscall.S_IWGRP,
+		"S_IXGRP":  syscall.S_IXGRP,
+		"S_IRWXO":  syscall.S_IRWXO,
+		"S_IROTH":  syscall.S_IROTH,
+		"S_IWOTH":  syscall.S_IWOTH,
+		"S_IXOTH":  syscall.S_IXOTH,
 	}
 
 	// KernelCapabilityConstants list of kernel capabilities

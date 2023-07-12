@@ -21,7 +21,7 @@
 
 DEFAULT_NODE_LAYER_VERSION=67
 DEFAULT_PYTHON_LAYER_VERSION=50
-DEFAULT_JAVA_TRACE_LAYER_VERSION=4
+DEFAULT_JAVA_TRACE_LAYER_VERSION=11
 DEFAULT_DOTNET_TRACE_LAYER_VERSION=3
 DEFAULT_ARCHITECTURE=amd64
 
@@ -111,8 +111,15 @@ function remove_stack() {
 # always remove the stack before exiting, no matter what
 trap remove_stack EXIT
 
+# a bug in opentelemetry instrumentation makes it impossible to define a
+# handler inside of a directory
+# see https://github.com/open-telemetry/opentelemetry-lambda/issues/655
+cp $SERVERLESS_INTEGRATION_TESTS_DIR/src/otlpPython.py $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
+
 # deploy the stack
 serverless deploy --stage "${stage}"
+
+rm $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
 
 metric_functions=(
     "metric-node"

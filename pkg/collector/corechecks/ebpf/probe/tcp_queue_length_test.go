@@ -4,67 +4,65 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package probe
 
 import (
 	"net"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestTCPQueueLengthCompile(t *testing.T) {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if kv < kernel.VersionCode(4, 8, 0) {
-		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
-	}
+	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
+		if kv < kernel.VersionCode(4, 8, 0) {
+			t.Skipf("Kernel version %v is not supported by the TCP Queue Length probe", kv)
+		}
 
-	cfg := ebpf.NewConfig()
-	cfg.BPFDebug = true
-	_, err = runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
-	require.NoError(t, err)
+		cfg := ebpf.NewConfig()
+		cfg.BPFDebug = true
+		out, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+		require.NoError(t, err)
+		_ = out.Close()
+	})
 }
 
 func TestTCPQueueLengthTracer(t *testing.T) {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if kv < kernel.VersionCode(4, 8, 0) {
-		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
-	}
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		if kv < kernel.VersionCode(4, 8, 0) {
+			t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
+		}
 
-	cfg := ebpf.NewConfig()
-	tcpTracer, err := NewTCPQueueLengthTracer(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+		cfg := ebpf.NewConfig()
+		tcpTracer, err := NewTCPQueueLengthTracer(cfg)
+		require.NoError(t, err)
+		t.Cleanup(tcpTracer.Close)
 
-	beforeStats := extractGlobalStats(t, tcpTracer)
-	if beforeStats.ReadBufferMaxUsage > 10 {
-		t.Errorf("max usage of read buffer is too big before the stress test: %d > 10", beforeStats.ReadBufferMaxUsage)
-	}
+		beforeStats := extractGlobalStats(t, tcpTracer)
+		if beforeStats.ReadBufferMaxUsage > 10 {
+			t.Errorf("max usage of read buffer is too big before the stress test: %d > 10", beforeStats.ReadBufferMaxUsage)
+		}
 
-	runTCPLoadTest()
+		err = runTCPLoadTest()
+		require.NoError(t, err)
+		if total != msgLen {
+			require.Equal(t, msgLen, total, "message length")
+		}
 
-	afterStats := extractGlobalStats(t, tcpTracer)
-	if afterStats.ReadBufferMaxUsage < 1000 {
-		t.Errorf("max usage of read buffer is too low after the stress test: %d < 1000", afterStats.ReadBufferMaxUsage)
-	}
-
-	defer tcpTracer.Close()
+		afterStats := extractGlobalStats(t, tcpTracer)
+		if afterStats.ReadBufferMaxUsage < 1000 {
+			t.Errorf("max usage of read buffer is too low after the stress test: %d < 1000", afterStats.ReadBufferMaxUsage)
+		}
+	})
 }
 
 func extractGlobalStats(t *testing.T, tracer *TCPQueueLengthTracer) TCPQueueLengthStatsValue {
@@ -77,7 +75,8 @@ func extractGlobalStats(t *testing.T, tracer *TCPQueueLengthTracer) TCPQueueLeng
 
 	globalStats := TCPQueueLengthStatsValue{}
 
-	for _, cgroupStats := range stats {
+	for cgroup, cgroupStats := range stats {
+		t.Logf("%s: read=%d write=%d", cgroup, cgroupStats.ReadBufferMaxUsage, cgroupStats.WriteBufferMaxUsage)
 		if cgroupStats.ReadBufferMaxUsage > globalStats.ReadBufferMaxUsage {
 			globalStats.ReadBufferMaxUsage = cgroupStats.ReadBufferMaxUsage
 		}
@@ -100,16 +99,16 @@ var Addr *net.TCPAddr = &net.TCPAddr{
 	Port: 25568,
 }
 
+const msgLen = 10000
+
 var (
-	isInSlowMode    = true
-	wg              sync.WaitGroup
-	serverReadyLock sync.Mutex
-	serverReadyCond = sync.NewCond(&serverReadyLock)
+	isInSlowMode = true
+	total        int
+	serverReady  chan struct{}
 )
 
 func handleRequest(conn *net.TCPConn) error {
-	defer wg.Done()
-	total := 0
+	defer conn.Close()
 outer:
 	for {
 		buf := make([]byte, 10)
@@ -131,7 +130,6 @@ outer:
 		}
 	}
 
-	conn.Close()
 	return nil
 }
 
@@ -142,10 +140,9 @@ func server() error {
 	}
 	defer listener.Close()
 
-	serverReadyCond.Broadcast()
+	close(serverReady)
 
 	conn, err := listener.AcceptTCP()
-
 	if err != nil {
 		return err
 	}
@@ -155,10 +152,7 @@ func server() error {
 }
 
 func client() error {
-	defer wg.Done()
-	const msgLen = 10000
-
-	serverReadyCond.Wait()
+	<-serverReady
 
 	conn, err := net.DialTCP("tcp", nil, Addr)
 	if err != nil {
@@ -178,11 +172,12 @@ func client() error {
 	return nil
 }
 
-func runTCPLoadTest() {
-	serverReadyLock.Lock()
+func runTCPLoadTest() error {
+	serverReady = make(chan struct{})
+	total = 0
 
-	wg.Add(2)
-	go server()
-	go client()
-	wg.Wait()
+	g := new(errgroup.Group)
+	g.Go(server)
+	g.Go(client)
+	return g.Wait()
 }

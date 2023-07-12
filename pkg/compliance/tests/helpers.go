@@ -17,10 +17,9 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
-	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
-	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	docker "github.com/docker/docker/client"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/dynamic"
 )
@@ -30,8 +29,8 @@ type suite struct {
 	hostname string
 	rootDir  string
 
-	dockerClient env.DockerClient
-	auditClient  env.AuditClient
+	dockerClient docker.CommonAPIClient
+	auditClient  compliance.LinuxAuditClient
 	kubeClient   dynamic.Interface
 
 	rules []*assertedRule
@@ -46,8 +45,8 @@ type assertedRule struct {
 	scope    string
 
 	setups  []func(*testing.T, context.Context)
-	asserts []func(*testing.T, *event.Event)
-	events  []*event.Event
+	asserts []func(*testing.T, *compliance.CheckEvent)
+	events  []*compliance.CheckEvent
 
 	noEvent   bool
 	expectErr bool
@@ -66,12 +65,12 @@ func (s *suite) WithHostname(hostname string) *suite {
 	return s
 }
 
-func (s *suite) WithDockerClient(cl env.DockerClient) *suite {
+func (s *suite) WithDockerClient(cl docker.CommonAPIClient) *suite {
 	s.dockerClient = cl
 	return s
 }
 
-func (s *suite) WithAuditClient(cl env.AuditClient) *suite {
+func (s *suite) WithAuditClient(cl compliance.LinuxAuditClient) *suite {
 	s.auditClient = cl
 	return s
 }
@@ -102,16 +101,17 @@ func (s *suite) Run() {
 	}
 	for _, c := range s.rules {
 		s.t.Run(c.name, func(t *testing.T) {
-			var options []checks.BuilderOption
-			options = append(options, checks.WithHostname(s.hostname))
+			options := compliance.ResolverOptions{
+				Hostname: s.hostname,
+			}
 			if s.auditClient != nil {
-				options = append(options, checks.WithAuditClient(s.auditClient))
+				options.LinuxAuditProvider = func(ctx context.Context) (compliance.LinuxAuditClient, error) { return s.auditClient, nil }
 			}
 			if s.dockerClient != nil {
-				options = append(options, checks.WithDockerClient(s.dockerClient))
+				options.DockerProvider = func(ctx context.Context) (docker.CommonAPIClient, error) { return s.dockerClient, nil }
 			}
 			if s.kubeClient != nil {
-				options = append(options, checks.WithKubernetesClient(s.kubeClient, ""))
+				options.KubernetesProvider = func(ctx context.Context) (dynamic.Interface, error) { return s.kubeClient, nil }
 			}
 			c.run(t, options)
 		})
@@ -178,9 +178,9 @@ func (c *assertedRule) WithRego(rego string, args ...any) *assertedRule {
 	return c
 }
 
-func (c *assertedRule) AssertPassedEvent(f func(t *testing.T, evt *event.Event)) *assertedRule {
-	c.asserts = append(c.asserts, func(t *testing.T, evt *event.Event) {
-		if assert.Equal(t, "passed", evt.Result) {
+func (c *assertedRule) AssertPassedEvent(f func(t *testing.T, evt *compliance.CheckEvent)) *assertedRule {
+	c.asserts = append(c.asserts, func(t *testing.T, evt *compliance.CheckEvent) {
+		if assert.Equal(t, compliance.CheckPassed, evt.Result) {
 			if f != nil {
 				f(t, evt)
 			}
@@ -191,9 +191,9 @@ func (c *assertedRule) AssertPassedEvent(f func(t *testing.T, evt *event.Event))
 	return c
 }
 
-func (c *assertedRule) AssertFailedEvent(f func(t *testing.T, evt *event.Event)) *assertedRule {
-	c.asserts = append(c.asserts, func(t *testing.T, evt *event.Event) {
-		if assert.Equal(t, "failed", evt.Result) {
+func (c *assertedRule) AssertFailedEvent(f func(t *testing.T, evt *compliance.CheckEvent)) *assertedRule {
+	c.asserts = append(c.asserts, func(t *testing.T, evt *compliance.CheckEvent) {
+		if assert.Equal(t, compliance.CheckFailed, evt.Result) {
 			if f != nil {
 				f(t, evt)
 			}
@@ -205,9 +205,9 @@ func (c *assertedRule) AssertFailedEvent(f func(t *testing.T, evt *event.Event))
 }
 
 func (c *assertedRule) AssertErrorEvent() *assertedRule {
-	c.asserts = append(c.asserts, func(t *testing.T, evt *event.Event) {
-		if assert.Equal(t, "error", evt.Result) {
-			assert.NotNil(t, evt.Data.(event.Data)["error"])
+	c.asserts = append(c.asserts, func(t *testing.T, evt *compliance.CheckEvent) {
+		if assert.Equal(t, compliance.CheckError, evt.Result) {
+			assert.NotNil(t, evt.Data["error"])
 		}
 	})
 	return c
@@ -223,7 +223,7 @@ func (c *assertedRule) AssertError() *assertedRule {
 	return c
 }
 
-func (c *assertedRule) run(t *testing.T, options []checks.BuilderOption) {
+func (c *assertedRule) run(t *testing.T, options compliance.ResolverOptions) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -235,9 +235,9 @@ func (c *assertedRule) run(t *testing.T, options []checks.BuilderOption) {
 	suiteData := buildSuite(suiteName, c)
 
 	_ = c.WriteFile(t, suiteName+".rego", c.rego)
-	file := c.WriteFile(t, suiteName+".yaml", suiteData)
+	_ = c.WriteFile(t, suiteName+".yaml", suiteData)
 
-	err := agent.RunChecksFromFile(c, file, options...)
+	benchmarks, err := compliance.LoadBenchmarks(c.rootDir, suiteName+".yaml", nil)
 	if c.expectErr {
 		if err == nil {
 			t.Fatalf("expected to fail running checks but resulting in no error")
@@ -247,6 +247,9 @@ func (c *assertedRule) run(t *testing.T, options []checks.BuilderOption) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(benchmarks) != 1 {
+		t.Fatalf("expected to load one benchmark, found %d", len(benchmarks))
+	}
 
 	if c.noEvent && len(c.asserts) > 0 {
 		t.Fatalf("no event expected: asserts should be empty")
@@ -255,35 +258,36 @@ func (c *assertedRule) run(t *testing.T, options []checks.BuilderOption) {
 		t.Fatalf("missing assertions")
 	}
 
-	events := c.events
-	if c.noEvent {
-		if len(events) > 0 {
-			for _, event := range events {
-				t.Logf("unexpected event: %+v", event)
+	resolver := compliance.NewResolver(ctx, options)
+	defer resolver.Close()
+	benchmark := benchmarks[0]
+	for _, rule := range benchmark.Rules {
+		events := compliance.ResolveAndEvaluateRegoRule(ctx, resolver, benchmark, rule)
+		if c.noEvent {
+			if len(events) > 0 {
+				for _, event := range events {
+					t.Logf("unexpected event: %+v", event)
+				}
+				t.Fatalf("expected no event on this rule: received %d", len(events))
 			}
-			t.Fatalf("expected no event on this rule: received %d", len(events))
-		}
-	} else if len(events) != len(c.asserts) {
-		t.Logf("expected %d events but received %d", len(c.asserts), len(events))
-		t.Fail()
-	}
-
-	for i, event := range events {
-		if i < len(c.asserts) {
-			c.asserts[i](t, event)
-		} else {
-			t.Logf("unexpected event %d", i)
+		} else if len(events) != len(c.asserts) {
+			t.Logf("expected %d events but received %d", len(c.asserts), len(events))
 			t.Fail()
 		}
+
+		for i, event := range events {
+			if i < len(c.asserts) {
+				c.asserts[i](t, event)
+			} else {
+				t.Logf("unexpected event %d", i)
+				t.Fail()
+			}
+		}
 	}
 }
 
-func (c *assertedRule) Report(event *event.Event) {
+func (c *assertedRule) Report(event *compliance.CheckEvent) {
 	c.events = append(c.events, event)
-}
-
-func (c *assertedRule) ReportRaw(content []byte, service string, tags ...string) {
-	panic("should not have been called")
 }
 
 func buildSuite(name string, rules ...*assertedRule) string {

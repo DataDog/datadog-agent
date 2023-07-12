@@ -60,14 +60,6 @@ var uptimeMetricConfig = MetricsConfig{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.
 // DeviceDigest is the digest of a minimal config used for autodiscovery
 type DeviceDigest string
 
-// InterfaceConfig interface related configs (e.g. interface speed override)
-type InterfaceConfig struct {
-	MatchField string `yaml:"match_field"` // e.g. name, index
-	MatchValue string `yaml:"match_value"` // e.g. eth0 (name), 10 (index)
-	InSpeed    uint64 `yaml:"in_speed"`    // inbound speed override in bits per sec
-	OutSpeed   uint64 `yaml:"out_speed"`   // outbound speed override in bits per sec
-}
-
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	Profiles                     profileConfigMap `yaml:"profiles"`
@@ -166,7 +158,7 @@ type CheckConfig struct {
 	MetricTags            []MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
-	Profiles              profileDefinitionMap
+	Profiles              profileConfigMap
 	ProfileTags           []string
 	Profile               string
 	ProfileDef            *profileDefinition
@@ -201,7 +193,7 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	}
 	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
-	definition := c.Profiles[profile]
+	definition := c.Profiles[profile].Definition
 	c.ProfileDef = &definition
 	c.Profile = profile
 
@@ -302,7 +294,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
-	initConfig.CollectTopology = false // TODO: Make CollectTopology default to true when GA
+	initConfig.CollectTopology = true
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -500,7 +492,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
 
 	// Profile Configs
-	var profiles profileDefinitionMap
+	var profiles profileConfigMap
 	if len(initConfig.Profiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
@@ -518,7 +510,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	for _, profileDef := range profiles {
-		normalizeMetrics(profileDef.Metrics)
+		normalizeMetrics(profileDef.Definition.Metrics)
 	}
 
 	c.Profiles = profiles
@@ -719,12 +711,12 @@ func (c *CheckConfig) parseColumnOids(metrics []MetricsConfig, metadataConfigs M
 }
 
 // GetProfileForSysObjectID return a profile for a sys object id
-func GetProfileForSysObjectID(profiles profileDefinitionMap, sysObjectID string) (string, error) {
+func GetProfileForSysObjectID(profiles profileConfigMap, sysObjectID string) (string, error) {
 	tmpSysOidToProfile := map[string]string{}
 	var matchedOids []string
 
-	for profile, definition := range profiles {
-		for _, oidPattern := range definition.SysObjectIds {
+	for profile, profConfig := range profiles {
+		for _, oidPattern := range profConfig.Definition.SysObjectIds {
 			found, err := filepath.Match(oidPattern, sysObjectID)
 			if err != nil {
 				log.Debugf("pattern error: %s", err)
@@ -733,8 +725,13 @@ func GetProfileForSysObjectID(profiles profileDefinitionMap, sysObjectID string)
 			if !found {
 				continue
 			}
-			if matchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
-				return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, matchedProfile)
+			if prevMatchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
+				if profiles[prevMatchedProfile].isUserProfile && !profConfig.isUserProfile {
+					continue
+				}
+				if profiles[prevMatchedProfile].isUserProfile == profConfig.isUserProfile {
+					return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, prevMatchedProfile)
+				}
 			}
 			tmpSysOidToProfile[oidPattern] = profile
 			matchedOids = append(matchedOids, oidPattern)

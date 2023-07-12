@@ -7,9 +7,10 @@ package compliance
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
@@ -17,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -28,8 +30,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Compliance Agent utility commands",
 	}
 
-	complianceCmd.AddCommand(complianceEventCommand(globalParams))
 	complianceCmd.AddCommand(check.SecurityAgentCommands(globalParams)...)
+	complianceCmd.AddCommand(complianceEventCommand(globalParams))
 
 	return []*cobra.Command{complianceCmd}
 }
@@ -39,7 +41,7 @@ type cliParams struct {
 
 	sourceName string
 	sourceType string
-	event      event.Event
+	event      compliance.CheckEvent
 	data       []string
 }
 
@@ -66,7 +68,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 
 	eventCmd.Flags().StringVarP(&eventArgs.sourceType, flags.SourceType, "", "compliance", "Log source name")
 	eventCmd.Flags().StringVarP(&eventArgs.sourceName, flags.SourceName, "", "compliance-agent", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.event.AgentRuleID, flags.RuleID, "", "", "Rule ID")
+	eventCmd.Flags().StringVarP(&eventArgs.event.RuleID, flags.RuleID, "", "", "Rule ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, flags.ResourceID, "", "", "Resource ID")
 	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, flags.ResourceType, "", "", "Resource type")
 	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, flags.Tags, "t", []string{"security:compliance"}, "Tags")
@@ -79,18 +81,18 @@ func eventRun(log log.Component, config config.Component, eventArgs *cliParams) 
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := command.NewLogContextCompliance(log)
+	endpoints, dstContext, err := common.NewLogContextCompliance()
 	if err != nil {
 		return err
 	}
 
 	runPath := config.GetString("compliance_config.run_path")
-	reporter, err := event.NewLogReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
+	reporter, err := compliance.NewLogReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
 	if err != nil {
 		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
 	}
 
-	eventData := event.Data{}
+	eventData := make(map[string]interface{})
 	for _, d := range eventArgs.data {
 		kv := strings.SplitN(d, ":", 2)
 		if len(kv) != 2 {
@@ -99,8 +101,6 @@ func eventRun(log log.Component, config config.Component, eventArgs *cliParams) 
 		eventData[kv[0]] = kv[1]
 	}
 	eventArgs.event.Data = eventData
-
-	reporter.Report(&eventArgs.event)
-
+	reporter.ReportEvent(eventData)
 	return nil
 }

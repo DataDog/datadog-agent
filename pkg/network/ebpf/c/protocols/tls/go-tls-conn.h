@@ -8,9 +8,6 @@
 #include "protocols/http/maps.h"
 #include "protocols/tls/go-tls-types.h"
 
-// Implemented either in c/sock.h or c/prebuilt/sock.h
-static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
-
 // get_conn_fd returns the poll.FD field offset in the nested conn struct.
 static __always_inline int get_conn_fd(tls_conn_layout_t* cl, void* tls_conn_ptr, int32_t* dest) {
     void* tls_conn_inner_conn_ptr = tls_conn_ptr + cl->tls_conn_inner_conn_offset;

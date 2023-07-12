@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks && kubeapiserver
-// +build clusterchecks,kubeapiserver
 
 package providers
 
@@ -110,6 +109,7 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 
 	if endpointsInformer != nil {
 		endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    p.invalidateIfAddedEndpoints,
 			UpdateFunc: p.invalidateIfChangedEndpoints,
 		})
 	}
@@ -140,6 +140,11 @@ func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integ
 	var configs []integration.Config
 	for _, svc := range services {
 		for _, check := range p.checks {
+			if !check.IsIncluded(svc.Annotations) {
+				log.Tracef("Service %s/%s does not have matching annotations, skipping", svc.Namespace, svc.Name)
+				continue
+			}
+
 			if !p.collectEndpoints {
 				// Only generates Service checks is Endpoints checks are not active
 				serviceConfigs := utils.ConfigsForService(check, svc)
@@ -150,25 +155,25 @@ func (p *PrometheusServicesConfigProvider) Collect(ctx context.Context) ([]integ
 			} else {
 				ep, err := p.api.GetEndpoints(svc.GetNamespace(), svc.GetName())
 				if err != nil {
-					// This can happen if we encounter an headless service.
+					// This can happen if a service does not have an endpoint just yet
+					// Or on headless/external services.
 					if k8serrors.IsNotFound(err) {
 						continue
 					}
 					return nil, err
 				}
 
-				endpointConfigs := utils.ConfigsForServiceEndpoints(check, svc, ep)
-
-				if len(endpointConfigs) == 0 {
-					continue
-				}
-
-				configs = append(configs, endpointConfigs...)
-
+				// Add endpoint to tracking as soon as there are annotations (even if no config yet due to no endpoints)
+				// Otherwise if `Collect` happens to run before Endpoint object has at least one target
+				// It will be ignored forever.
+				// Note: a race can still happen and delay the check scheduling for 5 minutes (first creation of the service)
 				endpointsID := apiserver.EntityForEndpoints(ep.GetNamespace(), ep.GetName(), "")
 				p.Lock()
 				p.monitoredEndpoints[endpointsID] = true
 				p.Unlock()
+
+				endpointConfigs := utils.ConfigsForServiceEndpoints(check, svc, ep)
+				configs = append(configs, endpointConfigs...)
 			}
 		}
 	}
@@ -247,6 +252,11 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChanged(old, obj interfac
 	}
 }
 
+func (p *PrometheusServicesConfigProvider) invalidateIfAddedEndpoints(obj interface{}) {
+	// An endpoint can be added after a service is created, in which case we need to re-run Collect
+	p.setUpToDate(false)
+}
+
 func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj interface{}) {
 	// Cast the updated object, don't invalidate on casting error.
 	// nil pointers are safely handled by the casting logic.
@@ -259,7 +269,6 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected a Endpoints type, got: %T", old)
 		p.setUpToDate(false)
 		return
 	}

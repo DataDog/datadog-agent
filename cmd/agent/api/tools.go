@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build tools
-// +build tools
 
 // we won't really ever use the tools build tag we use it to ignore this file
 // but track the dependencies in go.mod

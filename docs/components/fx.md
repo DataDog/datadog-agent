@@ -181,16 +181,12 @@ Note that annotations are also possible with [`fx.Annotate`](https://pkg.go.dev/
 
 ### Value Groups
 
-[Value groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) allow a requirement to be satisfied with a slice of values from different providers.
+[Value groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) make it easier to produce and consume many values of
+the same type. A component can add any type into groups which can be consumed by other components.
+
 For example:
 
-```go
-// server/server.go
-type dependencies struct {
-    fx.In
-    Endpoints []Endpoint `group:"server"`
-}
-```
+Here, two components add a `server.Endpoint` type to the `server` group (note the `group` label in the `fx.Out` struct).
 ```go
 // todolist/todolist.go
 type provides struct {
@@ -209,9 +205,15 @@ type provides struct {
 }
 ```
 
-Here the `server` component's constructor will get, in `deps.Endpoints`, a slice of all `server.Endpoint` instances provided by other components -- in this case, by `todolist` and `users`.
-Value groups must be named, but typically there is only one group of a given type, so the choice of name isn't critical.
-Using the name of the package defining the type (in this case, `server`) is a good convention.
+Here, a component requests all the types added to the `server` group. This takes the form of a slice received at
+instantiation (note once again the `group` label but in `fx.In` struct).
+```go
+// server/server.go
+type dependencies struct {
+    fx.In
+    Endpoints []Endpoint `group:"server"`
+}
+```
 
 # Day-to-Day Usage
 

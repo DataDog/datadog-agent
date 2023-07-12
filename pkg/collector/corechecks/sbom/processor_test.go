@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build trivy
-// +build trivy
 
 package sbom
 
@@ -400,7 +399,7 @@ func TestProcessEvents(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(cacheDir)
 	cfg.Set("sbom.cache_directory", cacheDir)
-	cfg.Set("container_image_collection.sbom.enabled", true)
+	cfg.Set("sbom.container_image.enabled", true)
 	_, err = sbomscanner.CreateGlobalScanner(cfg)
 	assert.Nil(t, err)
 

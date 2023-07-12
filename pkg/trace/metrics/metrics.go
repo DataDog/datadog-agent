@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !benchmarking
-// +build !benchmarking
 
 // Package metrics exposes utilities for setting up and using a sub-set of Datadog's dogstatsd
 // client.

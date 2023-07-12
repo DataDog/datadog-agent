@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package cgroup
 
@@ -40,7 +39,7 @@ type CGroupListener func(workload *cgroupModel.CacheEntry)
 type Resolver struct {
 	sync.RWMutex
 	workloads            *simplelru.LRU[string, *cgroupModel.CacheEntry]
-	tagsResolver         *tags.Resolver
+	tagsResolver         tags.Resolver
 	workloadsWithoutTags chan *cgroupModel.CacheEntry
 
 	listenersLock sync.Mutex
@@ -48,13 +47,14 @@ type Resolver struct {
 }
 
 // NewResolver returns a new cgroups monitor
-func NewResolver(tagsResolver *tags.Resolver) (*Resolver, error) {
+func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
 	cr := &Resolver{
 		tagsResolver:         tagsResolver,
 		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
 		listeners:            make(map[CGroupEvent][]CGroupListener),
 	}
-	workloads, err := simplelru.NewLRU[string, *cgroupModel.CacheEntry](1024, func(key string, value *cgroupModel.CacheEntry) {
+	workloads, err := simplelru.NewLRU(1024, func(key string, value *cgroupModel.CacheEntry) {
+		value.CallReleaseCallback()
 		value.Deleted.Store(true)
 
 		cr.listenersLock.Lock()
@@ -130,7 +130,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
 		return
 	}
-	newCGroup.CreationTime = uint64(process.ProcessContext.ExecTime.UnixNano())
+	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
 	cr.workloads.Add(process.ContainerID, newCGroup)
@@ -209,15 +209,10 @@ func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEnt
 	workload.Lock()
 	defer workload.Unlock()
 
-	for _, workloadPID := range workload.PIDs.Keys() {
-		if pid == workloadPID {
-			workload.PIDs.Remove(pid)
-			break
-		}
-	}
+	delete(workload.PIDs, pid)
 
 	// check if the workload should be deleted
-	if workload.PIDs.Len() <= 0 {
+	if len(workload.PIDs) <= 0 {
 		cr.workloads.Remove(workload.ID)
 	}
 }
