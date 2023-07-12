@@ -261,3 +261,53 @@ func BenchmarkHashProcess(b *testing.B) {
 		}
 	})
 }
+
+func TestLateContainerId(t *testing.T) {
+	extractor := NewWorkloadMetaExtractor(config.Mock(t))
+
+	var (
+		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
+	)
+
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1,
+	})
+	assert.EqualValues(t, &ProcessCacheDiff{
+		cacheVersion: 1,
+		creation: []*ProcessEntity{
+			{
+				Pid:          proc1.Pid,
+				ContainerId:  "",
+				NsPid:        proc1.NsPid,
+				CreationTime: proc1.Stats.CreateTime,
+				Language:     &languagemodels.Language{Name: languagemodels.Java},
+			},
+		},
+		deletion: []*ProcessEntity{},
+	}, <-extractor.ProcessCacheDiff())
+
+	// Silly test container id's for fun, doesn't matter what they are they just have to be unique.
+	var (
+		ctrId1 = "containers-are-awesome"
+	)
+	extractor.SetLastPidToCid(map[int]string{
+		Pid1: ctrId1,
+	})
+
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1,
+	})
+	assert.EqualValues(t, &ProcessCacheDiff{
+		cacheVersion: 2,
+		creation: []*ProcessEntity{
+			{
+				Pid:          proc1.Pid,
+				ContainerId:  ctrId1,
+				NsPid:        proc1.NsPid,
+				CreationTime: proc1.Stats.CreateTime,
+				Language:     &languagemodels.Language{Name: languagemodels.Java},
+			},
+		},
+		deletion: []*ProcessEntity{},
+	}, <-extractor.ProcessCacheDiff())
+}

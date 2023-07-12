@@ -102,9 +102,9 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 
 	deadProcs := getDifference(w.cache, newCache)
 
-	// If no process has been created or terminated, there's no need to update the cache
+	// If no process has been created, terminated, or updated, there's no need to update the cache
 	// or generate a new diff
-	if len(newProcs) == 0 && len(deadProcs) == 0 {
+	if len(newProcs) == 0 && len(deadProcs) == 0 && len(newEntities) == 0 {
 		return
 	}
 
