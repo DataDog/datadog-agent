@@ -222,10 +222,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, err
 	}
 
-	for _, extractor := range p.extractors {
-		extractor.Extract(procs)
-	}
-
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
 	for pid := range procs {
@@ -254,6 +250,10 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	// Notify the workload meta extractor that the mapping between pid and cid has changed
 	if p.workloadmetaExtractor != nil {
 		p.workloadmetaExtractor.SetLastPidToCid(pidToCid)
+	}
+
+	for _, extractor := range p.extractors {
+		extractor.Extract(procs)
 	}
 
 	// Keep track of containers addresses

@@ -81,12 +81,19 @@ func (w *WorkloadMetaExtractor) SetLastPidToCid(pidToCid map[int]string) {
 func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	defer w.reportTelemetry()
 
+	newEntities := make([]*ProcessEntity, 0, len(procs))
 	newProcs := make([]*procutil.Process, 0, len(procs))
 	newCache := make(map[string]*ProcessEntity, len(procs))
 	for pid, proc := range procs {
 		hash := hashProcess(pid, proc.Stats.CreateTime)
 		if entity, ok := w.cache[hash]; ok {
 			newCache[hash] = entity
+
+			// Sometimes the containerID can be late to initialize. If this is the case add it to the list of changed procs
+			if cid, ok := w.pidToCid[int(proc.Pid)]; ok && entity.ContainerId == "" {
+				entity.ContainerId = cid
+				newEntities = append(newEntities, entity)
+			}
 			continue
 		}
 
@@ -101,7 +108,6 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 		return
 	}
 
-	newEntities := make([]*ProcessEntity, 0, len(newProcs))
 	languages := languagedetection.DetectLanguage(newProcs)
 	for i, lang := range languages {
 		pid := newProcs[i].Pid

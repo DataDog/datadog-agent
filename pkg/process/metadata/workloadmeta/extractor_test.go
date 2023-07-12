@@ -43,6 +43,7 @@ func TestExtractor(t *testing.T) {
 		proc4 = testProc(Pid4, []string{"python", "test.py"})
 	)
 
+	// Silly test container id's for fun, doesn't matter what they are they just have to be unique.
 	var (
 		ctrId1 = "containers-are-awesome"
 		ctrId2 = "we-all-live-in-a-yellow-container"
