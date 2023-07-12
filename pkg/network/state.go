@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,6 +40,7 @@ var stateTelemetry = struct {
 	http2StatsDropped     *nettelemetry.StatCounterWrapper
 	kafkaStatsDropped     *nettelemetry.StatCounterWrapper
 	dnsPidCollisions      *nettelemetry.StatCounterWrapper
+	udpDirectionFixes     telemetry.Counter
 }{
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{}, "Counter measuring the number of dropped closed connections"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
@@ -50,6 +52,7 @@ var stateTelemetry = struct {
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	telemetry.NewCounter(stateModuleName, "udp_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes"),
 }
 
 const (
@@ -941,6 +944,7 @@ func fixConnectionDirection(c *ConnectionStats) {
 	destEphemeral := IsEphemeralPort(int(c.DPort))
 	if sourceEphemeral && !destEphemeral {
 		c.Direction = OUTGOING
+		stateTelemetry.udpDirectionFixes.Inc()
 	}
 }
 
