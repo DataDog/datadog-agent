@@ -21,6 +21,8 @@ import (
 // units used by the concentrator.
 const defaultBufferLen = 2
 
+var conf *config.AgentConfig
+
 // Concentrator produces time bucketed statistics from a stream of raw traces.
 // https://en.wikipedia.org/wiki/Knelson_concentrator
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
@@ -48,6 +50,7 @@ type Concentrator struct {
 	agentVersion           string
 	peerSvcAggregation     bool // flag to enable peer.service aggregation
 	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
+	customTags             map[string][]string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -69,7 +72,10 @@ func NewConcentrator(conf *config.AgentConfig, out chan pb.StatsPayload, now tim
 		agentVersion:           conf.AgentVersion,
 		peerSvcAggregation:     conf.PeerServiceAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
+		customTags:             conf.CustomTags,
 	}
+	c.customTags = conf.CustomTags
+
 	return &c
 }
 
@@ -201,7 +207,13 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation)
+
+		traceutil.SetName(s, "testtwo")
+		traceutil.SetMeta(s, "test", "hi")
+		traceutil.SetMeta(s, "georegion", "amer")
+		traceutil.SetMeta(s, "costcenter", "accounting")
+
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation, c.customTags)
 	}
 }
 

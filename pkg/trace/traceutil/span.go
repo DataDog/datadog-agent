@@ -140,3 +140,7 @@ func GetMetric(s *pb.Span, key string) (float64, bool) {
 	val, ok := s.Metrics[key]
 	return val, ok
 }
+
+func SetName(s *pb.Span, name string) {
+	s.Name = name
+}

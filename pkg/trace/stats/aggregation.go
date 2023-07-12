@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,7 @@ const (
 type Aggregation struct {
 	BucketsAggregationKey
 	PayloadAggregationKey
+	CustomTagKey
 }
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
@@ -47,6 +49,20 @@ type PayloadAggregationKey struct {
 	ContainerID string
 }
 
+type CustomTagKey string
+
+func NewCustomTagKey(customTags []string) CustomTagKey {
+	var tags []string
+
+	for _, tag := range customTags {
+		tags = append(tags, strings.TrimSpace(tag))
+	}
+
+	sort.Strings(tags)
+
+	return CustomTagKey(strings.Join(tags, ","))
+}
+
 func getStatusCode(s *pb.Span) uint32 {
 	code, ok := traceutil.GetMetric(s, tagStatusCode)
 	if ok {
@@ -66,8 +82,31 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTagConf map[string][]string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
+
+	customTagString := []string{}
+
+	spanTags, ok := customTagConf[s.Name]
+
+	if ok {
+		for k := range spanTags {
+			customTagString = append(customTagString, spanTags[k]+":"+s.Meta[spanTags[k]])
+		}
+	}
+
+	emptySpanTags, ok := customTagConf[""]
+
+	if ok {
+		for k := range emptySpanTags {
+			customTagString = append(customTagString, emptySpanTags[k]+":"+s.Meta[emptySpanTags[k]])
+		}
+	}
+
+	customKey := NewCustomTagKey(customTagString)
+
+	log.Info("tag key: " + customKey)
+
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
@@ -79,6 +118,7 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 			StatusCode: getStatusCode(s),
 			Synthetics: synthetics,
 		},
+		CustomTagKey: customKey,
 	}
 	if enablePeerSvcAgg {
 		agg.PeerService = s.Meta[tagPeerService]
