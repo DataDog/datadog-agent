@@ -81,7 +81,7 @@ def read_owners(owners_file):
         return CodeOwners(f.read())
 
 
-def check_for_missing_owners_slack(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
+def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
     error = False
     for path in owners.paths:
@@ -91,6 +91,10 @@ def check_for_missing_owners_slack(print_missing_teams=True, owners_file=".githu
             error = True
             if print_missing_teams:
                 print(f"The team {path[2][0][1]} doesn't have a slack team assigned !!")
+        if path[2][0][1].lower() not in GITHUB_JIRA_MAP:
+            error = True
+            if print_missing_teams:
+                print(f"The team {path[2][0][1]} doesn't have a jira project assigned !!")
     return error
 
 
