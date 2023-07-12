@@ -154,7 +154,9 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 
 		// Initialize the remote-config client to update the runtime settings
 		fx.Invoke(func(rc rcclient.Component) {
-			rc.Listen("process-agent", []data.Product{data.ProductAgentConfig})
+			if err := rc.Listen("process-agent", []data.Product{data.ProductAgentConfig}); err != nil {
+				log.Errorf("Couldn't start the remote-config client of the process agent: %s", err)
+			}
 		}),
 	)
 
