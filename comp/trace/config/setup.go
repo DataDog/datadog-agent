@@ -103,7 +103,6 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	if p := coreconfig.Datadog.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
-	cfg.ConfigPath = path
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote.NewGRPCClient(
 			rcClientName,
@@ -307,6 +306,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if otlp.IsEnabled(coreconfig.Datadog) {
 		grpcPort = core.GetInt(coreconfig.OTLPTracePort)
 	}
+	fmt.Printf("DOING OTLP STUFF: %v\n", core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"))
 	c.OTLPReceiver = &config.OTLP{
 		BindHost:               c.ReceiverHost,
 		GRPCPort:               grpcPort,
@@ -768,25 +768,6 @@ func SetHandler() http.Handler {
 
 func httpError(w http.ResponseWriter, status int, err error) {
 	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
-}
-
-// setMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.
-// If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
-// Resource limits are better handled by container runtimes and orchestrators.
-func setMaxMemCPU(c *config.AgentConfig, isContainerized bool) {
-	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
-		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
-	} else if isContainerized {
-		log.Debug("Running in a container and apm_config.max_cpu_percent is not set, setting it to 0")
-		c.MaxCPU = 0
-	}
-
-	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
-		c.MaxMemory = coreconfig.Datadog.GetFloat64("apm_config.max_memory")
-	} else if isContainerized {
-		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
-		c.MaxMemory = 0
-	}
 }
 
 func isObsPipelineEnabled(core corecompcfg.Component) (bool, string) {

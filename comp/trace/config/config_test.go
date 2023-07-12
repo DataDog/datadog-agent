@@ -1578,7 +1578,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED"
 	t.Run(env, func(t *testing.T) {
-		t.Setenv(env, "false")
+		t.Setenv(env, "true")
 
 		c := fxutil.Test[Component](t, fx.Options(
 			corecomp.MockModule,
@@ -1591,7 +1591,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
 		assert.True(t, cfg.Obfuscation.ES.Enabled)
 	})
 
@@ -1894,8 +1894,8 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
-		assert.True(cfg.Obfuscation.SQLExecPlanNormalize.Enabled)
+		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
+		assert.True(t, cfg.Obfuscation.SQLExecPlanNormalize.Enabled)
 	})
 
 	env = "DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES"
