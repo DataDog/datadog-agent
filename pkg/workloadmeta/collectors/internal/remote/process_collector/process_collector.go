@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -24,7 +25,7 @@ import (
 )
 
 const (
-	CollectorID = "process-collector"
+	collectorID = "process-collector"
 )
 
 func toLanguage(proto *pbgo.Language) *languagemodels.Language {
@@ -76,7 +77,7 @@ func WorkloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) 
 
 type client struct {
 	cl              pbgo.ProcessEntityStreamClient
-	parentCollector *StreamHandler
+	parentCollector *streamHandler
 }
 
 func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) {
@@ -100,17 +101,28 @@ func (s *stream) Recv() (interface{}, error) {
 	return s.cl.Recv()
 }
 
-type StreamHandler struct {
+type streamHandler struct {
 	port int
 }
 
 func init() {
+	if flavor.GetFlavor() != flavor.DefaultAgent {
+		return
+	}
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
 	// The collector can not be registered in the init function because it needs to be registered only in the core agent.
 	// Thus it is registered in LoadComponents.
+	log.Debug("Registering remote process collector")
+	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
+		return &remote.GenericCollector{
+			CollectorID:   collectorID,
+			StreamHandler: &streamHandler{},
+			Insecure:      true, // wlm extractor currently does not support TLS
+		}
+	})
 }
 
-func (s *StreamHandler) Port() int {
+func (s *streamHandler) Port() int {
 	if s.port == 0 {
 		return config.Datadog.GetInt("process_config.language_detection.grpc_port")
 	}
@@ -118,12 +130,12 @@ func (s *StreamHandler) Port() int {
 	return s.port
 }
 
-func (s *StreamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
+func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpcClient {
 	log.Debug("creating grpc client")
 	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
-func (s *StreamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	log.Trace("handling response")
 	response, ok := resp.(*pbgo.ProcessStreamResponse)
 	if !ok {
@@ -157,7 +169,7 @@ func handleEvents[T any](collectorEvents []workloadmeta.CollectorEvent, setEvent
 	return collectorEvents
 }
 
-func (s *StreamHandler) HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
+func (s *streamHandler) HandleResync(store workloadmeta.Store, events []workloadmeta.CollectorEvent) {
 	var processes []workloadmeta.Entity
 	for _, event := range events {
 		processes = append(processes, event.Entity)
