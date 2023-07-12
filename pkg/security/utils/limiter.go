@@ -14,8 +14,8 @@ import (
 )
 
 type cacheEntry struct {
-	count int
-	last  time.Time
+	count         int
+	timeFirstSeen time.Time // marks the beginning of the time window during which a limited number of tokens are allowed
 }
 
 // LimiterStat return stats
@@ -25,40 +25,40 @@ type LimiterStat struct {
 	Tags    []string
 }
 
-// Limiter defines a rate limiter which limits tokens to 'numAllowedTokensPerDuration' per 'duration'
+// Limiter defines a rate limiter which limits tokens to 'numAllowedTokensPerPeriod' per 'period'
 type Limiter[K comparable] struct {
-	cache                       *simplelru.LRU[K, *cacheEntry]
-	numAllowedTokensPerDuration int
-	duration                    time.Duration
+	cache                     *simplelru.LRU[K, *cacheEntry]
+	numAllowedTokensPerPeriod int
+	period                    time.Duration
 
 	// stats
 	dropped *atomic.Uint64
 	allowed *atomic.Uint64
 }
 
-// NewLimiter returns a rate limiter that is sized to the configured number of unique tokens, and each unique token is allowed 'numAllowedTokensPerDuration' times per 'duration'.
-func NewLimiter[K comparable](numUniqueTokens int, numAllowedTokensPerDuration int, duration time.Duration) (*Limiter[K], error) {
+// NewLimiter returns a rate limiter that is sized to the configured number of unique tokens, and each unique token is allowed 'numAllowedTokensPerPeriod' times per 'period'.
+func NewLimiter[K comparable](numUniqueTokens int, numAllowedTokensPerPeriod int, period time.Duration) (*Limiter[K], error) {
 	cache, err := simplelru.NewLRU[K, *cacheEntry](numUniqueTokens, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Limiter[K]{
-		cache:                       cache,
-		numAllowedTokensPerDuration: numAllowedTokensPerDuration,
-		duration:                    duration,
-		dropped:                     atomic.NewUint64(0),
-		allowed:                     atomic.NewUint64(0),
+		cache:                     cache,
+		numAllowedTokensPerPeriod: numAllowedTokensPerPeriod,
+		period:                    period,
+		dropped:                   atomic.NewUint64(0),
+		allowed:                   atomic.NewUint64(0),
 	}, nil
 }
 
 // Allow returns whether an entry is allowed or not
 func (l *Limiter[K]) Allow(k K) bool {
 	if entry, ok := l.cache.Get(k); ok {
-		if time.Now().Sub(entry.last) >= l.duration {
-			// If time elapsed between now and the last cache entry is longer than allowed duration, reset the count and allow
+		if time.Now().Sub(entry.timeFirstSeen) >= l.period {
+			// If time elapsed between now and the first cache entry is longer than allowed period, reset the count and allow
 			l.init(k)
-		} else if entry.count < l.numAllowedTokensPerDuration {
+		} else if entry.count < l.numAllowedTokensPerPeriod {
 			l.Count(k)
 		} else {
 			l.dropped.Inc()
@@ -82,16 +82,16 @@ func (l *Limiter[K]) SwapStats() []LimiterStat {
 	}
 }
 
-// Init marks the key as used
+// init marks the key as used with a count of 1
 func (l *Limiter[K]) init(k K) {
 	entry := &cacheEntry{
-		count: 1,
-		last:  time.Now(),
+		count:         1,
+		timeFirstSeen: time.Now(),
 	}
 	l.cache.Add(k, entry)
 }
 
-// Count marks the key as used
+// Count marks the key as used and increments the count
 func (l *Limiter[K]) Count(k K) {
 	// use get to mark it as used so that it won't be evicted
 	if entry, ok := l.cache.Get(k); ok {
