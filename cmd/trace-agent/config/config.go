@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -199,8 +200,14 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.ConnectionLimit = coreconfig.Datadog.GetInt("apm_config.connection_limit")
 	}
 
-	c.CustomTags = coreconfig.Datadog.GetStringMapString("apm_config.custom_tags")
+	var customTagsMap = coreconfig.Datadog.GetStringMapStringSlice("apm_config.custom_tags")
 
+	// Sort the custom tags for each span name specified in the map from the config YAML file
+	for _, customTags := range customTagsMap {
+		sort.Strings(customTags)
+	}
+
+	c.CustomTags = customTagsMap
 	c.PeerServiceAggregation = coreconfig.Datadog.GetBool("apm_config.peer_service_aggregation")
 	c.ComputeStatsBySpanKind = coreconfig.Datadog.GetBool("apm_config.compute_stats_by_span_kind")
 	if coreconfig.Datadog.IsSet("apm_config.extra_sample_rate") {

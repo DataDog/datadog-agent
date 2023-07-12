@@ -89,3 +89,29 @@ func TestNewAggregationPeerService(t *testing.T) {
 		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerSvcAgg))
 	}
 }
+
+func TestNewAggregationCustomTags(t *testing.T) {
+
+	customTagsMap := make(map[string][]string)
+
+	customTagsMap["a"] = []string{"georegion"}
+
+	for _, tt := range []struct {
+		in  *pb.Span
+		res Aggregation
+	}{
+		{
+			&pb.Span{},
+			Aggregation{},
+		},
+		{
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"georegion": "amer"},
+			},
+			Aggregation{CustomTagKey: "georegion:amer"},
+		},
+	} {
+		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, false, customTagsMap))
+	}
+}

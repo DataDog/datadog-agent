@@ -80,34 +80,30 @@ func getStatusCode(s *pb.Span) uint32 {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTagConf []string, customTagSpanNames []string) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTagConf map[string][]string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 
-	i := 0
+	customTagString := []string{}
 
-	customKey := CustomTagKey("")
+	spanTags, ok := customTagConf[s.Name]
 
-	if len(customTagSpanNames) == 0 {
-		customTags := make([]string, len(customTagConf))
-		for k := range customTagConf {
-			customTags[i] = customTagConf[k]
-			i++
-		}
-
-		customKey = NewCustomTagKey(customTags)
-
-	} else {
-		for _, spanName := range customTagSpanNames {
-			if s.Name == spanName {
-				customTags := make([]string, len(customTagConf))
-				for k := range customTagConf {
-					customTags[i] = customTagConf[k]
-					i++
-				}
-				customKey = NewCustomTagKey(customTags)
-			}
+	if ok {
+		for k := range spanTags {
+			customTagString = append(customTagString, spanTags[k]+":"+s.Meta[spanTags[k]])
 		}
 	}
+
+	emptySpanTags, ok := customTagConf[""]
+
+	if ok {
+		for k := range emptySpanTags {
+			customTagString = append(customTagString, emptySpanTags[k]+":"+s.Meta[emptySpanTags[k]])
+		}
+	}
+
+	customKey := NewCustomTagKey(customTagString)
+
+	log.Info("tag key: " + customKey)
 
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,

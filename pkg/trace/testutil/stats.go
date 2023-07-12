@@ -32,7 +32,7 @@ func BucketWithSpans(spans []*pb.Span, conf *config.AgentConfig) pb.ClientStatsB
 	for _, s := range spans {
 		// override version to ensure all buckets will have the same payload key.
 		s.Meta["version"] = ""
-		srb.HandleSpan(s, 0, true, "", aggKey, true, conf.CustomTags, conf.SpanNamesForCustomTags)
+		srb.HandleSpan(s, 0, true, "", aggKey, true, conf.CustomTags)
 	}
 	buckets := srb.Export()
 	if len(buckets) != 1 {

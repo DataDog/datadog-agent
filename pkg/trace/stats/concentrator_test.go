@@ -607,6 +607,55 @@ func TestPeerServiceStats(t *testing.T) {
 	})
 }
 
+// func TestCustomTagStats(t *testing.T) {
+// 	assert := assert.New(t)
+// 	now := time.Now()
+
+// 	sp := &pb.Span{
+// 		ParentID: 0,
+// 		SpanID:   1,
+// 		Service:  "myservice",
+// 		Name:     "http.server.request",
+// 		Resource: "GET /users",
+// 		Duration: 100,
+// 	}
+
+// 	customTagSp := &pb.Span{
+// 		ParentID: sp.SpanID,
+// 		SpanID:   2,
+// 		Service:  "myservice",
+// 		Name:     "postgres.query",
+// 		Resource: "SELECT user_id from users WHERE user_name = ?",
+// 		Duration: 75,
+// 		Metrics:  map[string]float64{"_dd.measured": 1.0},
+// 		Meta:     map[string]string{"georegion": "amer", "costcenter": "canada"},
+// 	}
+// 	t.Run("enabled", func(t *testing.T) {
+// 		spans := []*pb.Span{sp, customTagSp}
+// 		traceutil.ComputeTopLevel(spans)
+// 		testTrace := toProcessedTrace(spans, "none", "")
+// 		c := NewTestConcentrator(now)
+
+// 		keyList := make([]string, 0, len(customTagSp.Meta))
+// 		for key := range customTagSp.Meta {
+// 			keyList = append(keyList, key)
+// 		}
+
+// 		c.customTags[customTagSp.Name] = keyList
+
+// 		c.addNow(testTrace, "")
+// 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+// 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
+// 		for _, st := range stats.Stats[0].Stats[0].Stats {
+// 			if st.Name == "postgres.query" {
+// 				assert.Equal("amer", st.CustomTags)
+// 			} else {
+// 				assert.Equal("", st.PeerService)
+// 			}
+// 		}
+// 	})
+// }
+
 // TestComputeStatsThroughSpanKindCheck ensures that we generate stats for spans that have an eligible span.kind.
 func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 	assert := assert.New(t)
