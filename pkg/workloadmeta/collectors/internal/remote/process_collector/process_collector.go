@@ -51,7 +51,7 @@ func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (wor
 			},
 			NsPid:        protoEvent.GetNspid(),
 			ContainerId:  protoEvent.GetContainerId(),
-			CreationTime: time.Unix(protoEvent.GetCreationTime(), 0), // TODO: confirm what we receive as creation time here
+			CreationTime: time.UnixMilli(protoEvent.GetCreationTime()), // TODO: confirm what we receive as creation time here
 			Language:     toLanguage(protoEvent.GetLanguage()),
 		},
 	}, nil
