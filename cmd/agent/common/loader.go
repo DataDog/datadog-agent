@@ -20,10 +20,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	remotecollector "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote/process_collector"
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
+
+// registerCoreAgentCollectors registers the workloadmeta collectors specific to the core agent
+// Since this function is called only by the core agent, we need to register it here.
+func registerCoreAgentCollectors() {
+	if !config.Datadog.GetBool("workloadmeta.remote_process_collector.enabled") {
+		return
+	}
+	workloadmeta.RegisterCollector(process_collector.CollectorID, func() workloadmeta.Collector {
+		return &remotecollector.GenericCollector{
+			CollectorID:   process_collector.CollectorID,
+			StreamHandler: &process_collector.StreamHandler{},
+			Insecure:      true, // wlm extractor currently does not support TLS
+		}
+	})
+}
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery

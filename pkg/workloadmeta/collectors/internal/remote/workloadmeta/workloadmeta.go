@@ -77,11 +77,6 @@ func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.RemoteGrpc
 	return &client{cl: pb.NewAgentSecureClient(cc)}
 }
 
-// IsEnabled always return true for the remote workloadmeta because it uses the remote catalog
-func (s *streamHandler) IsEnabled() bool {
-	return true
-}
-
 func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	response, ok := resp.(*pb.WorkloadmetaStreamResponse)
 	if !ok {
