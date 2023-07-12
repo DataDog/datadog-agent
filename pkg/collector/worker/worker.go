@@ -167,8 +167,13 @@ func (w *Worker) Run() {
 			serviceCheckStatus = servicecheck.ServiceCheckCritical
 		}
 
-		if sender != nil && !longRunning && config.Datadog.GetBool("integration_check_status_enabled") {
-			sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+		if sender != nil && !longRunning {
+			if config.Datadog.GetBool("integration_check_status_enabled") {
+				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+			}
+			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
+			// it here for now to make sure it's not breaking any historical behavior
+			// with the shared default sender.
 			sender.Commit()
 		}
 
