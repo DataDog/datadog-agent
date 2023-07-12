@@ -262,6 +262,9 @@ func BenchmarkHashProcess(b *testing.B) {
 	})
 }
 
+// Occasionally, WorkloadMeta will not have the ContainerID by the first time a process collection is executed. This test
+// asserts that the extractor is able to properly handle updating a ContainerID from "" to a valid cid, and
+// will re-generate the EventSet for that process once the pidToCid mapping is up-to-date.
 func TestLateContainerId(t *testing.T) {
 	extractor := NewWorkloadMetaExtractor(config.Mock(t))
 
@@ -286,7 +289,6 @@ func TestLateContainerId(t *testing.T) {
 		deletion: []*ProcessEntity{},
 	}, <-extractor.ProcessCacheDiff())
 
-	// Silly test container id's for fun, doesn't matter what they are they just have to be unique.
 	var (
 		ctrId1 = "containers-are-awesome"
 	)
