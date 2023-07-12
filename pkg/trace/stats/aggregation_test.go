@@ -54,6 +54,8 @@ func TestGetStatusCode(t *testing.T) {
 }
 
 func TestNewAggregationPeerService(t *testing.T) {
+
+	customTagsMap := make(map[string][]string)
 	for _, tt := range []struct {
 		in               *pb.Span
 		enablePeerSvcAgg bool
@@ -86,7 +88,7 @@ func TestNewAggregationPeerService(t *testing.T) {
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", PeerService: "remote-service"}},
 		},
 	} {
-		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerSvcAgg))
+		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerSvcAgg, customTagsMap))
 	}
 }
 
@@ -106,10 +108,10 @@ func TestNewAggregationCustomTags(t *testing.T) {
 		},
 		{
 			&pb.Span{
-				Service: "a",
-				Meta:    map[string]string{"georegion": "amer"},
+				Name: "a",
+				Meta: map[string]string{"georegion": "amer"},
 			},
-			Aggregation{CustomTagKey: "georegion:amer"},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Name: "a"}, CustomTagKey: "georegion:amer"},
 		},
 	} {
 		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, false, customTagsMap))

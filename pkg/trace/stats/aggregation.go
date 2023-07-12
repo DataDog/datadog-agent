@@ -134,5 +134,6 @@ func NewAggregationFromGroup(g pb.ClientGroupedStats) Aggregation {
 			StatusCode:  g.HTTPStatusCode,
 			Synthetics:  g.Synthetics,
 		},
+		CustomTagKey: CustomTagKey(g.CustomTags),
 	}
 }

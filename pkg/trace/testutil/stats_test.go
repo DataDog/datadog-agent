@@ -8,12 +8,16 @@ package testutil
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 )
 
+var conf = &config.AgentConfig{}
+
 func TestRandomBucket(t *testing.T) {
+
 	for i := 10; i < 100; i += 10 {
-		b := RandomBucket(i)
+		b := RandomBucket(i, conf)
 		assert.False(t, len(b.Stats) == 0)
 	}
 }

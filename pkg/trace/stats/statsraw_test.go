@@ -14,13 +14,14 @@ import (
 )
 
 func TestGrain(t *testing.T) {
+	customTagsMap := make(map[string][]string)
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
 	aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
 		Env:         "default",
 		Hostname:    "default",
 		ContainerID: "cid",
-	}, false)
+	}, false, customTagsMap)
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Env:         "default",
@@ -37,13 +38,14 @@ func TestGrain(t *testing.T) {
 
 func TestGrainWithPeerService(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
+		customTagsMap := make(map[string][]string)
 		assert := assert.New(t)
 		s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"peer.service": "remote-service"}}
 		aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, false)
+		}, false, customTagsMap)
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
 				Env:         "default",
@@ -59,13 +61,14 @@ func TestGrainWithPeerService(t *testing.T) {
 		}, aggr)
 	})
 	t.Run("enabled", func(t *testing.T) {
+		customTagsMap := make(map[string][]string)
 		assert := assert.New(t)
 		s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"peer.service": "remote-service"}}
 		aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, true)
+		}, true, customTagsMap)
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
 				Env:         "default",
@@ -83,6 +86,7 @@ func TestGrainWithPeerService(t *testing.T) {
 }
 
 func TestGrainWithExtraTags(t *testing.T) {
+	customTagsMap := make(map[string][]string)
 	assert := assert.New(t)
 	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagStatusCode: "418"}}
 	aggr := NewAggregationFromSpan(&s, "synthetics-browser", PayloadAggregationKey{
@@ -90,7 +94,7 @@ func TestGrainWithExtraTags(t *testing.T) {
 		Version:     "v0",
 		Env:         "default",
 		ContainerID: "cid",
-	}, false)
+	}, false, customTagsMap)
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Hostname:    "host-id",
@@ -109,12 +113,14 @@ func TestGrainWithExtraTags(t *testing.T) {
 }
 
 func BenchmarkHandleSpanRandom(b *testing.B) {
+
+	customTagsMap := make(map[string][]string)
 	sb := NewRawBucket(0, 1e9)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, span := range benchSpans {
-			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"}, true)
+			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"}, true, customTagsMap)
 		}
 	}
 }
