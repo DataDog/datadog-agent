@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed fixtures/config_with_stackparams.yaml
+//go:embed testfixtures/test_config_with_stackparams.yaml
 var config_with_stackparams []byte
 
-//go:embed fixtures/config_no_aws_account.yaml
+//go:embed testfixtures/test_config_no_aws_account.yaml
 var config_no_aws_account []byte
 
 func Test_parseConfigFileContent(t *testing.T) {
