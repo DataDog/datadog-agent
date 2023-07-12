@@ -10,6 +10,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -22,6 +23,9 @@ type Component interface {
 
 	// IsRunning returns true if the logs agent is running
 	IsRunning() bool
+
+	// GetMessageReceiver gets the diagnostic message receiver
+	GetMessageReceiver() *diagnostic.BufferedMessageReceiver
 }
 
 // Mock implements mock-specific methods.

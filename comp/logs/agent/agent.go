@@ -12,6 +12,7 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"go.uber.org/fx"
 )
@@ -73,4 +74,8 @@ func (a *agent) AddScheduler(ac *autodiscovery.AutoConfig) {
 
 func (a *agent) IsRunning() bool {
 	return logs.IsAgentRunning()
+}
+
+func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
+	return logs.GetMessageReceiver()
 }

@@ -27,11 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
@@ -48,13 +48,20 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router, flareComp flare.Component, server dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) *mux.Router {
+func SetupHandlers(
+	r *mux.Router,
+	flareComp flare.Component,
+	server dogstatsdServer.Component,
+	serverDebug dogstatsdDebug.Component,
+	logsAgent logsAgent.Component,
+) *mux.Router {
+
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	r.HandleFunc("/stream-logs", streamLogs()).Methods("POST")
+	r.HandleFunc("/stream-logs", streamLogs(logsAgent)).Methods("POST")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
@@ -192,8 +199,8 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-func streamLogs() func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(logs.GetMessageReceiver, "logs", "logs agent")
+func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(logsAgent.GetMessageReceiver, "logs", "logs agent")
 }
 
 func streamEventPlatform() func(w http.ResponseWriter, r *http.Request) {

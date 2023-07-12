@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"go.uber.org/fx"
 )
 
@@ -42,4 +43,8 @@ func (a *mockLogsAgent) AddScheduler(ac *autodiscovery.AutoConfig) {
 
 func (a *mockLogsAgent) IsRunning() bool {
 	return a.isRunning
+}
+
+func (a *mockLogsAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
+	return nil
 }
