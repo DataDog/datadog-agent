@@ -1513,7 +1513,8 @@ def print_failed_tests(_, output_dir):
                                     test_results[test_key] = action
                                     continue
 
-                                print(f"re-ran [{test_platform}] {package} {name}: {action}")
+                                if res == "fail":
+                                    print(f"re-ran [{test_platform}] {package} {name}: {action}")
                                 if action == "pass" and res == "fail":
                                     test_results[test_key] = action
 
