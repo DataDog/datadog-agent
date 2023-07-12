@@ -11,8 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	dd_config "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/proto/test2"
 	"google.golang.org/grpc"
 	"net"
 	"net/http"
@@ -28,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
@@ -36,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,6 +51,7 @@ var NetworkTracer = module.Factory{
 	ConfigNamespaces: []string{"network_config", "service_monitoring_config", "data_streams_config"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		ncfg := networkconfig.New()
+		useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
 
 		// Checking whether the current OS + kernel version is supported by the tracer
 		if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
@@ -77,15 +78,16 @@ var NetworkTracer = module.Factory{
 		nt := networkTracer{
 			tracer: t,
 		}
-
-		go func() {
-			err := startRPCServer(nt)
-			if err != nil {
-				log.Errorf("Failed to start gRPC server: %v", err)
-			}
-		}()
-
 		nt.done = done
+
+		if useGRPCServer {
+			go func() {
+				err := startRPCServer(nt)
+				if err != nil {
+					log.Errorf("Failed to start gRPC server: %v", err)
+				}
+			}()
+		}
 
 		return &nt, err
 	},
@@ -99,8 +101,9 @@ type networkTracer struct {
 	restartTimer *time.Timer
 }
 
+// startRPCServer is used to start a gRPC server using Unix sockets.
 func startRPCServer(tracer networkTracer) error {
-	socketFile := "/tmp/my_grpc.sock"
+	socketFile := dd_config.SystemProbe.GetString("service_monitoring_config.grpc_socket_file_path")
 
 	// Remove existing socket file if it exists
 	os.Remove(socketFile)
@@ -111,7 +114,7 @@ func startRPCServer(tracer networkTracer) error {
 	}
 
 	server := grpc.NewServer()
-	test2.RegisterSystemProbeServer(server, &tracer)
+	connectionserver.RegisterSystemProbeServer(server, &tracer)
 
 	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
 	if useGRPCServer {
@@ -120,7 +123,7 @@ func startRPCServer(tracer networkTracer) error {
 
 			err = server.Serve(listener)
 			if err != nil {
-				return
+				log.Errorf("unable to serve gRPC server %v", err)
 			}
 		}()
 	}
@@ -140,7 +143,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 	return stats
 }
 
-func writeConnectionsTogRPC(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
+func getConnectionsFromMarshal(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
 	defer network.Reclaim(cs)
 
 	buf, err := marshaler.Marshal(cs)
@@ -149,24 +152,22 @@ func writeConnectionsTogRPC(marshaler encoding.Marshaler, cs *network.Connection
 		return nil, err
 	}
 
-	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	log.Tracef("/GetConnections: %d connections, %d bytes", len(cs.Conns), len(buf))
 	return buf, nil
 }
 
-func (nt *networkTracer) GetConnections(req *test2.GetConnectionsRequest, s2 test2.SystemProbe_GetConnectionsServer) error {
+func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
 	start := time.Now()
-	var runCounter = atomic.NewUint64(0)
+	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
 	if err != nil {
-		log.Errorf("unable to retrieve connections: %s", err)
 		return err
 	}
 
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
-	finalConn, err := writeConnectionsTogRPC(marshaler, cs)
+	conns, err := getConnectionsFromMarshal(marshaler, cs)
 	if err != nil {
-		log.Errorf("unable to writeConnectionsTogRPC: %s", err)
 		return err
 	}
 
@@ -176,8 +177,8 @@ func (nt *networkTracer) GetConnections(req *test2.GetConnectionsRequest, s2 tes
 	count := runCounter.Inc()
 	logRequests(id, count, len(cs.Conns), start)
 
-	//	iterate over all the connections
-	s2.Send(&test2.Connection{Data: finalConn})
+	// iterate over all the connections
+	s2.Send(&connectionserver.Connection{Data: conns})
 
 	return nil
 }

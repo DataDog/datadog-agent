@@ -12,7 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/proto/test2"
+	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	"google.golang.org/grpc"
 	"io"
 	"net"
@@ -137,26 +137,26 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	if useGRPCServer {
 		conn, err := grpc.Dial("unix:///tmp/my_grpc.sock", grpc.WithInsecure())
 		if err != nil {
-			log.Errorf("Failed to connect: %v", err)
+			return nil, err
 		}
 
-		client := test2.NewSystemProbeClient(conn)
+		client := connectionserver.NewSystemProbeClient(conn)
 
-		response, err := client.GetConnections(context.Background(), &test2.GetConnectionsRequest{ClientID: clientID})
+		response, err := client.GetConnections(context.Background(), &connectionserver.GetConnectionsRequest{ClientID: clientID})
 		if err != nil {
-			log.Errorf("Failed to call get connections: %v", err)
+			return nil, err
 		}
 
 		res, err := response.Recv()
 		if err != nil {
-			log.Errorf("Failed to get response: %v", err)
+			return nil, err
 		}
 
 		conns, err = netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("[slavin] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
+		fmt.Printf("[GetConnections-rpc] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
 
 	} else {
 		req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
