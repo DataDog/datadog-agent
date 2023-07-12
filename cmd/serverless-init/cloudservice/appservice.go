@@ -8,7 +8,6 @@ package cloudservice
 import (
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -56,8 +55,4 @@ func (a *AppService) GetPrefix() string {
 // Init is empty for AppService
 func (a *AppService) Init() error {
 	return nil
-}
-
-func isAppService() bool {
-	return config.InAzureAppServices(os.LookupEnv)
 }

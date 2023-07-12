@@ -35,14 +35,6 @@ func TestGetEnvOrUnknown(t *testing.T) {
 	assert.Equal(t, "unknown", unknownEnvVar)
 }
 
-func TestHasEnv(t *testing.T) {
-	has := hasEnv("WEBSITE_STACK", mockGetEnvVar)
-	notHas := hasEnv("DD_SERVICE", mockGetEnvVar)
-
-	assert.Equal(t, true, has)
-	assert.Equal(t, false, notHas)
-}
-
 func TestGetWindowsRuntime(t *testing.T) {
 	java := getRuntime("windows", func(s string) string {
 		if s == "WEBSITE_STACK" {

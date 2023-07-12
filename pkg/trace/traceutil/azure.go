@@ -77,12 +77,12 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 
 	// Remove the Java and .NET logic once non-universal extensions are deprecated
 	if websiteOS == "windows" {
-		if len(extensionVersion) > 0 {
+		if extensionVersion != "" {
 			tags[aasExtensionVersion] = extensionVersion
-		} else if hasEnv("DD_AAS_JAVA_EXTENSION_VERSION", getenv) {
-			tags[aasExtensionVersion] = getenv("DD_AAS_JAVA_EXTENSION_VERSION")
-		} else if hasEnv("DD_AAS_DOTNET_EXTENSION_VERSION", getenv) {
-			tags[aasExtensionVersion] = getenv("DD_AAS_DOTNET_EXTENSION_VERSION")
+		} else if val := getenv("DD_AAS_JAVA_EXTENSION_VERSION"); val != "" {
+			tags[aasExtensionVersion] = val
+		} else if val := getenv("DD_AAS_DOTNET_EXTENSION_VERSION"); val != "" {
+			tags[aasExtensionVersion] = val
 		}
 	}
 
@@ -113,7 +113,7 @@ func getRuntime(websiteOS string, getenv func(string) string) (rt string) {
 func getWindowsRuntime(getenv func(string) string) (rt string) {
 	if getenv("WEBSITE_STACK") == "JAVA" {
 		rt = javaFramework
-	} else if hasEnv("WEBSITE_NODE_DEFAULT_VERSION", getenv) {
+	} else if val := getenv("WEBSITE_NODE_DEFAULT_VERSION"); val != "" {
 		rt = nodeFramework
 	} else {
 		// Windows AAS only supports Java, Node, and .NET so we can infer this
@@ -131,7 +131,7 @@ func getLinuxRuntime(getenv func(string) string) (rt string) {
 	case "DOCKER":
 		rt = containerFramework
 	case "":
-		if hasEnv("DOCKER_SERVER_VERSION", getenv) {
+		if val := getenv("DOCKER_SERVER_VERSION"); val != "" {
 			rt = containerFramework
 		}
 	case "NODE":
@@ -147,10 +147,6 @@ func getLinuxRuntime(getenv func(string) string) (rt string) {
 	}
 
 	return rt
-}
-
-func hasEnv(env string, getenv func(string) string) bool {
-	return len(getenv(env)) > 0
 }
 
 func parseAzureSubscriptionID(subID string) (id string) {

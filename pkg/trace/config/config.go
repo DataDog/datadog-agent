@@ -537,7 +537,7 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		InAzureAppServices: InAzureAppServices(os.LookupEnv),
+		InAzureAppServices: InAzureAppServices(),
 
 		Features: make(map[string]struct{}),
 	}
@@ -599,8 +599,8 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
-func InAzureAppServices(lookupEnv func(string) (string, bool)) bool {
-	_, existsLinux := lookupEnv(RunZip)
-	_, existsWin := lookupEnv(AppLogsTrace)
+func InAzureAppServices() bool {
+	_, existsLinux := os.LookupEnv(RunZip)
+	_, existsWin := os.LookupEnv(AppLogsTrace)
 	return existsLinux || existsWin
 }
