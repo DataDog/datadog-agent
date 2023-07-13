@@ -12,7 +12,7 @@ dependency 'datadog-agent'
 dependency 'pip2'
 
 
-if arm?
+if arm? && !osx?
   # psycopg2 doesn't come with pre-built wheel on the arm architecture.
   # to compile from source, it requires the `pg_config` executable present on the $PATH
   dependency 'postgresql'
