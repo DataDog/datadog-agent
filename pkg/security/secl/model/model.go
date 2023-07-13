@@ -956,14 +956,6 @@ func ProcessSourceToString(source uint64) string {
 	return ProcessSources[source]
 }
 
-// IsExecChild returns whether the current entry was execed directly from its parent (no fork)
-func (pc *ProcessCacheEntry) IsExecChild() bool {
-	if pc.ProcessContext.IsExecChild {
-		return true
-	}
-	return pc.Ancestor != nil && !pc.ExecTime.IsZero() && pc.ExecTime.Equal(pc.Ancestor.ExitTime)
-}
-
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
