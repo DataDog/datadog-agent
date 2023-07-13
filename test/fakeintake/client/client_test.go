@@ -251,5 +251,17 @@ func TestClient(t *testing.T) {
 		assert.True(t, flare.FileExists("etc/confd/"))
 		assert.True(t, flare.FileExists("etc/confd"))
 		assert.False(t, flare.FileExists("does/not/exist.log"))
+
+		// IsFile()
+		assert.True(t, flare.IsFile("install_info"))
+		assert.True(t, flare.IsFile("logs/agent.log"))
+		assert.False(t, flare.IsFile("expvar"))
+		assert.False(t, flare.IsFile("does/not/exist.log"))
+
+		// IsDir()
+		assert.True(t, flare.IsDir("expvar/"))
+		assert.True(t, flare.IsDir("etc/confd/cpu.d"))
+		assert.False(t, flare.IsDir("health.yaml"))
+		assert.False(t, flare.IsDir("does/not/exist"))
 	})
 }

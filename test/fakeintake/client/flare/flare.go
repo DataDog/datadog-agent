@@ -7,6 +7,7 @@ package flare
 
 import (
 	"archive/zip"
+	"io/fs"
 	"os"
 	"strings"
 )
@@ -25,6 +26,26 @@ type Flare struct {
 func (flare *Flare) FileExists(filename string) bool {
 	_, found := flare.ZipFileMap[trimTrailingSlash(filename)]
 	return found
+}
+
+// IsFile returns true if filename exists and is a regular file.
+func (flare *Flare) IsFile(filename string) bool {
+	return flare.FileExists(filename) && flare.getFileInfo(filename).Mode().IsRegular()
+}
+
+// IsFile returns true if filename exists and is a directory.
+func (flare *Flare) IsDir(dirname string) bool {
+	return flare.FileExists(dirname) && flare.getFileInfo(dirname).Mode().IsDir()
+}
+
+// getFile returns a *zip.File whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
+func (flare *Flare) getFile(path string) *zip.File {
+	return flare.ZipFileMap[trimTrailingSlash(path)]
+}
+
+// getFileInfo returns a fs.FileInfo associated to the file whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
+func (flare *Flare) getFileInfo(path string) fs.FileInfo {
+	return flare.getFile(path).FileInfo()
 }
 
 func trimTrailingSlash(path string) string {
