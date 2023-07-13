@@ -130,7 +130,7 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 }
 
 func (r *RemoteSysProbeUtil) getConnectionWithRPC(unixSockPath, clientID string) (*model.Connections, error) {
-	conn, err := grpc.Dial(unixSockPath, grpc.WithInsecure())
+	conn, err := grpc.Dial("unix://"+unixSockPath, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +192,7 @@ func (r *RemoteSysProbeUtil) getConnectionWithHTTP(clientID string) (*model.Conn
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
 	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
 	unixSockPath := dd_config.SystemProbe.GetString("service_monitoring_config.grpc_socket_file_path")
+	println(unixSockPath)
 
 	if useGRPCServer {
 		return r.getConnectionWithRPC(unixSockPath, clientID)
