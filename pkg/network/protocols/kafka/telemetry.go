@@ -15,20 +15,18 @@ import (
 type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
-	totalHits *libtelemetry.Metric
-	dropped   *libtelemetry.Metric // this happens when KafkaStatKeeper reaches capacity
+	totalHits *libtelemetry.Counter
+	dropped   *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
 }
 
 func NewTelemetry() *Telemetry {
-	metricGroup := libtelemetry.NewMetricGroup(
-		"usm.kafka",
-		libtelemetry.OptExpvar,
-	)
+	metricGroup := libtelemetry.NewMetricGroup("usm.kafka", libtelemetry.OptStatsd)
 
 	return &Telemetry{
+		metricGroup: metricGroup,
 		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd),
-		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
+		totalHits: metricGroup.NewCounter("total_hits"),
+		dropped:   metricGroup.NewCounter("dropped"),
 	}
 }
 

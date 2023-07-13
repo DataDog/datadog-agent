@@ -52,17 +52,20 @@ type clientState struct {
 	lastSeen   time.Time
 }
 
-func (c *clientState) ValueFor(m *Metric) int64 {
-	if m.metricType == typeGauge {
-		return m.Get()
+func (c *clientState) ValueFor(m metric) int64 {
+	base := m.base()
+	if _, ok := m.(*Gauge); ok {
+		// If metric is of type `*Gauge` we return its value as it is
+		return base.Get()
 	}
 
-	name := m.Name()
-	current := m.Get()
+	name := base.Name()
+	current := base.Get()
 
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
+	// If the metric is of type `*Counter` we calculate the delta
 	prev := c.prevValues[name]
 	c.prevValues[name] = current
 	return current - prev

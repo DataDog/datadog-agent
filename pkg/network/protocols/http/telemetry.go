@@ -15,13 +15,13 @@ import (
 type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
-	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
+	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Counter
 
-	totalHits    *libtelemetry.Metric
-	dropped      *libtelemetry.Metric // this happens when statKeeper reaches capacity
-	rejected     *libtelemetry.Metric // this happens when an user-defined reject-filter matches a request
-	malformed    *libtelemetry.Metric // this happens when the request doesn't have the expected format
-	aggregations *libtelemetry.Metric
+	totalHits    *libtelemetry.Counter
+	dropped      *libtelemetry.Counter // this happens when statKeeper reaches capacity
+	rejected     *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
+	malformed    *libtelemetry.Counter // this happens when the request doesn't have the expected format
+	aggregations *libtelemetry.Counter
 }
 
 func NewTelemetry() *Telemetry {
@@ -30,18 +30,18 @@ func NewTelemetry() *Telemetry {
 	return &Telemetry{
 		metricGroup: metricGroup,
 
-		hits1XX:      metricGroup.NewMetric("hits", "status:100", libtelemetry.OptPrometheus),
-		hits2XX:      metricGroup.NewMetric("hits", "status:200", libtelemetry.OptPrometheus),
-		hits3XX:      metricGroup.NewMetric("hits", "status:300", libtelemetry.OptPrometheus),
-		hits4XX:      metricGroup.NewMetric("hits", "status:400", libtelemetry.OptPrometheus),
-		hits5XX:      metricGroup.NewMetric("hits", "status:500", libtelemetry.OptPrometheus),
-		aggregations: metricGroup.NewMetric("aggregations", libtelemetry.OptPrometheus),
+		hits1XX:      metricGroup.NewCounter("hits", "status:100", libtelemetry.OptPrometheus),
+		hits2XX:      metricGroup.NewCounter("hits", "status:200", libtelemetry.OptPrometheus),
+		hits3XX:      metricGroup.NewCounter("hits", "status:300", libtelemetry.OptPrometheus),
+		hits4XX:      metricGroup.NewCounter("hits", "status:400", libtelemetry.OptPrometheus),
+		hits5XX:      metricGroup.NewCounter("hits", "status:500", libtelemetry.OptPrometheus),
+		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
-		totalHits: metricGroup.NewMetric("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
-		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
-		rejected:  metricGroup.NewMetric("rejected", libtelemetry.OptStatsd),
-		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
+		totalHits: metricGroup.NewCounter("total_hits", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+		dropped:   metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
+		rejected:  metricGroup.NewCounter("rejected", libtelemetry.OptStatsd),
+		malformed: metricGroup.NewCounter("malformed", libtelemetry.OptStatsd),
 	}
 }
 

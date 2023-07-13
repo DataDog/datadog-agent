@@ -11,14 +11,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMonotonicDeltas(t *testing.T) {
+func TestDeltas(t *testing.T) {
 	assert := assert.New(t)
 	Clear()
 
 	var deltas deltaCalculator
 	t.Run("gauge metric", func(t *testing.T) {
+		// Delta calculator always returns the current value of a `Gauge` metric
 		state := deltas.GetState("")
-		m := NewMetric("cache_size", OptGauge)
+		m := NewGauge("cache_size")
 
 		m.Set(10)
 		assert.Equal(int64(10), state.ValueFor(m))
@@ -27,9 +28,9 @@ func TestMonotonicDeltas(t *testing.T) {
 		assert.Equal(int64(5), state.ValueFor(m))
 	})
 
-	t.Run("monotonic metric", func(t *testing.T) {
+	t.Run("counter metric", func(t *testing.T) {
 		state := deltas.GetState("")
-		m := NewMetric("requests_processed")
+		m := NewCounter("requests_processed")
 
 		m.Add(10)
 		assert.Equal(int64(10), state.ValueFor(m))
@@ -41,7 +42,7 @@ func TestMonotonicDeltas(t *testing.T) {
 	t.Run("one metric, multiple clients", func(t *testing.T) {
 		stateA := deltas.GetState("clientA")
 		stateB := deltas.GetState("clientB")
-		m := NewMetric("connections_closed")
+		m := NewCounter("connections_closed")
 
 		m.Add(10)
 		assert.Equal(int64(10), stateA.ValueFor(m))

@@ -6,116 +6,100 @@
 package telemetry
 
 import (
-	"encoding/json"
 	"strings"
 
 	"go.uber.org/atomic"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-type metricType string
-
-const (
-	typeCounter = metricType("counter")
-	typeGauge   = metricType("gauge")
-)
-
-// Metric represents a named piece of telemetry
-type Metric struct {
-	name       string
-	metricType metricType
-	tags       sets.String
-	opts       sets.String
-	value      *atomic.Int64
+// Counter is a cumulative metric that grows monotonically
+type Counter struct {
+	*metricBase
 }
 
-// NewMetric returns a new `Metric` instance
-func NewMetric(name string, tagsAndOptions ...string) *Metric {
-	tags, opts := splitTagsAndOptions(tagsAndOptions)
-	mtype := parseMetricType(opts)
-
-	m := &Metric{
-		name:       name,
-		metricType: mtype,
-		value:      atomic.NewInt64(0),
-		tags:       tags,
-		opts:       opts,
+// NewCounter returns a new metric of type `Counter`
+func NewCounter(name string, tagsAndOptions ...string) *Counter {
+	c := &Counter{
+		newMetricBase(name, tagsAndOptions),
 	}
 
-	globalRegistry.Lock()
-	defer globalRegistry.Unlock()
-	// Ensure we only have one intance per (name, tags). If there is an existing
-	// `Metric` instance matching the params we simply return it. For now we're
-	// doing a brute-force search here because calls to `NewMetric` are almost
-	// always restriced to program initialization
-	for _, other := range globalRegistry.metrics {
-		if other.isEqual(m) {
-			return other
-		}
-	}
-
-	globalRegistry.metrics = append(globalRegistry.metrics, m)
-	return m
-}
-
-// Name of the `Metric` (including tags)
-func (m *Metric) Name() string {
-	return strings.Join(append([]string{m.name}, m.tags.List()...), ",")
-}
-
-// Set value atomically
-func (m *Metric) Set(v int64) {
-	if m.metricType != typeGauge {
-		return
-	}
-
-	m.value.Store(v)
+	return globalRegistry.FindOrCreate(c).(*Counter)
 }
 
 // Add value atomically
-func (m *Metric) Add(v int64) {
+func (c *Counter) Add(v int64) {
 	if v < 0 {
+		// Counters are always monotonic so we don't allow negative numbers. We
+		// could enforce this by using an unsigned type, but that would make the
+		// API a little bit more cumbersome to use.
 		return
 	}
 
-	m.value.Add(v)
+	c.value.Add(v)
+}
+
+// Gauge is a metric that represents a numerical value that can arbitrarily go up and down
+type Gauge struct {
+	*metricBase
+}
+
+// NewGauge returns a new metric of type `Gauge`
+func NewGauge(name string, tagsAndOptions ...string) *Gauge {
+	c := &Gauge{
+		newMetricBase(name, tagsAndOptions),
+	}
+
+	return globalRegistry.FindOrCreate(c).(*Gauge)
+}
+
+// Set value atomically
+func (g *Gauge) Set(v int64) {
+	g.value.Store(v)
+}
+
+// Add value atomically
+func (g *Gauge) Add(v int64) {
+	g.value.Add(v)
+}
+
+type metricBase struct {
+	name  string
+	tags  sets.String
+	opts  sets.String
+	value *atomic.Int64
+}
+
+func newMetricBase(name string, tagsAndOptions []string) *metricBase {
+	tags, opts := splitTagsAndOptions(tagsAndOptions)
+
+	return &metricBase{
+		name:  name,
+		value: atomic.NewInt64(0),
+		tags:  tags,
+		opts:  opts,
+	}
+}
+
+// Name of the `Metric` (including tags)
+func (m *metricBase) Name() string {
+	return strings.Join(append([]string{m.name}, m.tags.List()...), ",")
 }
 
 // Get value atomically
-func (m *Metric) Get() int64 {
+func (m *metricBase) Get() int64 {
 	return m.value.Load()
 }
 
-// MarshalJSON returns a json representation of the current `Metric`. We
-// implement our own method so we don't need to export the fields.
-// This is mostly inteded for serving a list of the existing
-// metrics under /network_tracer/debug/telemetry endpoint
-func (m *Metric) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		Name string
-		Tags []string `json:",omitempty"`
-		Opts []string
-	}{
-		Name: m.name,
-		Tags: m.tags.List(),
-		Opts: m.opts.List(),
-	})
+// this method is used to essentially convert the `metric`
+// interface to the underlying `metricBase` in the code
+// that has to deal with both `Counter` and `Gauge` types
+func (m *metricBase) base() *metricBase {
+	return m
 }
 
-func (m *Metric) isEqual(other *Metric) bool {
-	return m.name == other.name && m.tags.Equal(other.tags)
-}
-
-func parseMetricType(opts sets.String) metricType {
-	defer func() {
-		// remove type parameters from the options set
-		opts.Delete(OptGauge)
-		opts.Delete(OptCounter)
-	}()
-
-	if opts.Has(OptGauge) {
-		return typeGauge
-	}
-
-	return typeCounter
+// metric is the private interface shared by `Counter` and `Gauge`
+// the base() method simply returns the embedded `*metricBase` struct
+// which is all we need in the internal code
+type metric interface {
+	base() *metricBase
 }

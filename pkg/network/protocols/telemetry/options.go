@@ -17,10 +17,4 @@ const (
 
 	// OptPayloadTelemetry designates a metric that should be emitted as agent payload telemetry
 	OptPayloadTelemetry = "_telemetry"
-
-	// OptGauge represents a gauge-type metric
-	OptGauge = "_gauge"
-
-	// OptCounter represents a counter-type metric
-	OptCounter = "_counter"
 )

@@ -41,9 +41,9 @@ type Consumer struct {
 
 	// telemetry
 	metricGroup      *telemetry.MetricGroup
-	eventsCount      *telemetry.Metric
-	missesCount      *telemetry.Metric
-	kernelDropsCount *telemetry.Metric
+	eventsCount      *telemetry.Counter
+	missesCount      *telemetry.Counter
+	kernelDropsCount *telemetry.Counter
 	batchSize        *atomic.Int64
 }
 
@@ -82,9 +82,9 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 		telemetry.OptStatsd,
 	)
 
-	eventsCount := metricGroup.NewMetric("events_captured")
-	missesCount := metricGroup.NewMetric("events_missed")
-	kernelDropsCount := metricGroup.NewMetric("kernel_dropped_events")
+	eventsCount := metricGroup.NewCounter("events_captured")
+	missesCount := metricGroup.NewCounter("events_missed")
+	kernelDropsCount := metricGroup.NewCounter("kernel_dropped_events")
 
 	return &Consumer{
 		proto:       proto,

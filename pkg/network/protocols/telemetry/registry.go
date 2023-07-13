@@ -15,27 +15,45 @@ var globalRegistry *registry
 
 type registry struct {
 	sync.Mutex
-	metrics []*Metric
+	metrics map[string]metric
+}
+
+func (r *registry) FindOrCreate(m metric) metric {
+	r.Lock()
+	defer r.Unlock()
+
+	if r.metrics == nil {
+		r.metrics = make(map[string]metric)
+	}
+
+	name := m.base().Name()
+	if v, ok := r.metrics[name]; ok {
+		return v
+	}
+
+	r.metrics[name] = m
+	return m
 }
 
 // GetMetrics returns all metrics matching a certain criteria
-func GetMetrics(params ...string) []*Metric {
+func (r *registry) GetMetrics(params ...string) []metric {
 	filters := sets.NewString()
 	filters.Insert(params...)
 
-	globalRegistry.Lock()
-	defer globalRegistry.Unlock()
+	r.Lock()
+	defer r.Unlock()
 
-	result := make([]*Metric, 0, len(globalRegistry.metrics))
-	if filters.Len() == 0 {
-		// if no filters were provided we return all metrics
-		result = append(result, globalRegistry.metrics...)
-		return result
-	}
+	result := make([]metric, 0, len(globalRegistry.metrics))
+	for _, metricInterface := range r.metrics {
+		m := metricInterface.base()
+		if filters.Len() == 0 {
+			// if no filters were provided we return all metrics
+			result = append(result, metricInterface)
+			continue
+		}
 
-	for _, m := range globalRegistry.metrics {
 		if m.opts.IsSuperset(filters) {
-			result = append(result, m)
+			result = append(result, metricInterface)
 		}
 	}
 

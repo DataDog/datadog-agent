@@ -20,7 +20,7 @@ type MetricGroup struct {
 	mux        sync.Mutex
 	namespace  string
 	commonTags []string
-	metrics    []*Metric
+	metrics    []metric
 
 	// used for the purposes of building the Summary() string
 	deltas deltaCalculator
@@ -36,24 +36,49 @@ func NewMetricGroup(namespace string, commonTags ...string) *MetricGroup {
 	}
 }
 
-// NewMetric returns a new `Metric` using the provided namespace and common tags
-func (mg *MetricGroup) NewMetric(name string, tags ...string) *Metric {
+// NewCounter returns a new `Counter` using the provided namespace and common
+// tags and associates it with the current metric group
+func (mg *MetricGroup) NewCounter(name string, tags ...string) *Counter {
 	if mg.namespace != "" {
 		name = fmt.Sprintf("%s.%s", mg.namespace, name)
 	}
 
-	m := NewMetric(
+	m := NewCounter(
 		name,
 		append(mg.commonTags, tags...)...,
 	)
 
 	mg.mux.Lock()
-	mg.metrics = append(mg.metrics, m)
+	mg.metrics = append(mg.metrics, metric(m))
 	mg.mux.Unlock()
 
 	return m
 }
 
+// NewGauge returns a new `Gauge` using the provided namespace and common
+// tags and associates it with the current metric group
+func (mg *MetricGroup) NewGauge(name string, tags ...string) *Gauge {
+	if mg.namespace != "" {
+		name = fmt.Sprintf("%s.%s", mg.namespace, name)
+	}
+
+	m := NewGauge(
+		name,
+		append(mg.commonTags, tags...)...,
+	)
+
+	mg.mux.Lock()
+	mg.metrics = append(mg.metrics, metric(m))
+	mg.mux.Unlock()
+
+	return m
+}
+
+// Summary builds and returns a summary string all metrics beloging to the
+// current `MetricGroup`.
+// The string looks like:
+// m1=100(50/s) m2=0(0.00/s)
+// Where the values are calculated based on the deltas between calls of this method.
 func (mg *MetricGroup) Summary() string {
 	mg.mux.Lock()
 	defer mg.mux.Unlock()
@@ -70,26 +95,17 @@ func (mg *MetricGroup) Summary() string {
 
 	valueDeltas := mg.deltas.GetState("")
 	var b strings.Builder
-	for _, m := range mg.metrics {
+	for _, metric := range mg.metrics {
+		m := metric.base()
 		v := valueDeltas.ValueFor(m)
 		b.WriteString(fmt.Sprintf("%s=%d", m.Name(), v))
 
 		// If the metric is counter we also calculate the rate
-		if m.metricType == typeCounter {
+		if _, ok := metric.(*Counter); ok {
 			b.WriteString(fmt.Sprintf("(%.2f/s)", float64(v)/timeDelta))
 		}
 		b.WriteByte(' ')
 	}
 	mg.then = now
 	return b.String()
-}
-
-// Clear all metrics belonging to this `MetricGroup`
-func (mg *MetricGroup) Clear() {
-	mg.mux.Lock()
-	defer mg.mux.Unlock()
-
-	for _, m := range mg.metrics {
-		m.Set(0)
-	}
 }

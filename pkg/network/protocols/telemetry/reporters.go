@@ -23,17 +23,18 @@ func ReportStatsd() {
 		return
 	}
 
-	metrics := GetMetrics(OptStatsd)
+	metrics := globalRegistry.GetMetrics(OptStatsd)
 	previousValues := statsdDelta.GetState("")
 	for _, metric := range metrics {
 		v := previousValues.ValueFor(metric)
-		tags := metric.tags.List()
-		if metric.metricType == typeGauge {
-			client.Gauge(statsdPrefix+metric.name, float64(v), tags, 1.0) //nolint:errcheck
+		base := metric.base()
+		tags := base.tags.List()
+		if _, ok := metric.(*Gauge); ok {
+			client.Gauge(statsdPrefix+base.name, float64(v), tags, 1.0) //nolint:errcheck
 			continue
 		}
 
-		client.Count(statsdPrefix+metric.name, v, tags, 1.0) //nolint:errcheck
+		client.Count(statsdPrefix+base.name, v, tags, 1.0) //nolint:errcheck
 	}
 }
 
@@ -42,11 +43,11 @@ var telemetryDelta deltaCalculator
 // ReportPayloadTelemetry returns a map with all metrics tagged with `OptPayloadTelemetry`
 // The return format is consistent with what we use in the protobuf messages sent to the backend
 func ReportPayloadTelemetry(clientID string) map[string]int64 {
-	metrics := GetMetrics(OptPayloadTelemetry)
+	metrics := globalRegistry.GetMetrics(OptPayloadTelemetry)
 	previousValues := telemetryDelta.GetState(clientID)
 	result := make(map[string]int64, len(metrics))
 	for _, metric := range metrics {
-		result[metric.name] = previousValues.ValueFor(metric)
+		result[metric.base().name] = previousValues.ValueFor(metric)
 	}
 	return result
 }

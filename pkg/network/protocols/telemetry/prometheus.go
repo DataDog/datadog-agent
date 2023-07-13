@@ -26,29 +26,30 @@ func ReportPrometheus() {
 	}
 
 	deltas := prometheusDelta.GetState("")
-	metrics := GetMetrics(OptPrometheus)
-	for _, m := range metrics {
-		name := m.name
-		pm, ok := prometheusMetrics[name]
+	metrics := globalRegistry.GetMetrics(OptPrometheus)
+	for _, metric := range metrics {
+		base := metric.base()
+		pm, ok := prometheusMetrics[base.name]
 		if !ok {
-			pm = metricToPrometheus(m)
-			prometheusMetrics[name] = pm
+			pm = metricToPrometheus(metric)
+			prometheusMetrics[base.name] = pm
 		}
 
 		switch v := pm.(type) {
 		case libtelemetry.Counter:
-			deltaValue := deltas.ValueFor(m)
-			v.Add(float64(deltaValue), tagVals(m)...)
+			deltaValue := deltas.ValueFor(metric)
+			v.Add(float64(deltaValue), tagVals(base)...)
 		case libtelemetry.Gauge:
-			v.Set(float64(m.Get()), tagVals(m)...)
+			v.Set(float64(base.Get()), tagVals(base)...)
 		default:
 		}
 	}
 }
 
-func metricToPrometheus(m *Metric) any {
+func metricToPrometheus(m metric) any {
+	base := m.base()
 	subsystem := ""
-	name := m.name
+	name := base.name
 
 	// Parse subsystem and name following convention used in the codebase
 	//
@@ -62,15 +63,15 @@ func metricToPrometheus(m *Metric) any {
 		subsystem = strings.ReplaceAll(subsystem, ".", "__")
 	}
 
-	keys := tagKeys(m)
-	if m.metricType == typeCounter {
+	keys := tagKeys(base)
+	if _, ok := m.(*Counter); ok {
 		return libtelemetry.NewCounter(subsystem, name, keys, "")
 	}
 
 	return libtelemetry.NewGauge(subsystem, name, keys, "")
 }
 
-func withTag(m *Metric, fn func(k, v string)) {
+func withTag(m *metricBase, fn func(k, v string)) {
 	for _, t := range m.tags.List() {
 		pos := strings.IndexByte(t, ':')
 		if pos <= 0 {
@@ -81,7 +82,7 @@ func withTag(m *Metric, fn func(k, v string)) {
 	}
 }
 
-func tagKeys(m *Metric) []string {
+func tagKeys(m *metricBase) []string {
 	keys := make([]string, 0, len(m.tags))
 	withTag(m, func(k, v string) {
 		keys = append(keys, k)
@@ -89,7 +90,7 @@ func tagKeys(m *Metric) []string {
 	return keys
 }
 
-func tagVals(m *Metric) []string {
+func tagVals(m *metricBase) []string {
 	vals := make([]string, 0, len(m.tags))
 	withTag(m, func(k, v string) {
 		vals = append(vals, v)
