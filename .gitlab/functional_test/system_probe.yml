@@ -9,15 +9,13 @@
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
-  needs:
-    job: get_file_diff
-    artifacts: true
   stage: functional_test
   timeout: 3h
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
+  needs: ["get_file_diff"]
   rules:
     !reference [.on_system_probe_changes]
   before_script:
@@ -70,7 +68,7 @@ kitchen_test_system_probe_linux_x64:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
+  needs: ["get_file_diff", "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64"]
   variables:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
@@ -127,13 +125,14 @@ kitchen_test_system_probe_linux_x64_manual:
   extends:
     - kitchen_test_system_probe_linux_x64
     - .system_probe_manual_job
+  needs: ["get_file_diff", "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64_manual"]
 
 kitchen_test_system_probe_linux_arm64:
   extends:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64", "pull_test_dockers_arm64" ]
+  needs: ["get_file_diff", "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64", "pull_test_dockers_arm64"]
   variables:
     ARCH: arm64
     KITCHEN_ARCH: arm64
@@ -182,6 +181,7 @@ kitchen_test_system_probe_linux_arm64_manual:
   extends:
     - kitchen_test_system_probe_linux_arm64
     - .system_probe_manual_job
+  needs: ["get_file_diff", "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64", "pull_test_dockers_arm64_manual"]
 
 kitchen_test_system_probe_windows_x64:
   extends:
@@ -190,7 +190,7 @@ kitchen_test_system_probe_windows_x64:
     - .kitchen_test_system_probe
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
-  needs: [ "tests_windows_sysprobe_x64" ]
+  needs: ["get_file_diff", "tests_windows_sysprobe_x64"]
   variables:
     KITCHEN_ARCH: x86_64
     KITCHEN_OSVERS: "win2012r2"
