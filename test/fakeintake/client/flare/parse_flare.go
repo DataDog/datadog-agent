@@ -77,16 +77,16 @@ func ParseRawFlare(flarePayload api.Payload) (Flare, error) {
 
 	// flare_file is the only part that needs a special parsing as it's the flare zip content.
 	suffixToTrim := string(parsedFlareData["hostname"]) + string(os.PathSeparator)
-	zipFileMap, err := parseRawZIP(parsedFlareData["flare_file"], suffixToTrim)
+	zipFiles, err := parseRawZIP(parsedFlareData["flare_file"], suffixToTrim)
 	if err != nil {
 		return Flare{}, err
 	}
 
 	return Flare{
-		Email:        string(parsedFlareData["email"]),
-		ZipFileMap:   zipFileMap,
-		AgentVersion: string(parsedFlareData["agent_version"]),
-		Hostname:     string(parsedFlareData["hostname"]),
+		email:        string(parsedFlareData["email"]),
+		zipFiles:     zipFiles,
+		agentVersion: string(parsedFlareData["agent_version"]),
+		hostname:     string(parsedFlareData["hostname"]),
 	}, nil
 }
 
@@ -173,12 +173,12 @@ func parseFlareMultipartData(data string, boundary string) (map[string][]byte, e
 //		"etc/confd/activemq.d":  <...>,
 //	}
 func parseRawZIP(rawContent []byte, prefixToTrim string) (map[string]*zip.File, error) {
-	var zipFileMap = make(map[string]*zip.File)
+	var zipFiles = make(map[string]*zip.File)
 
 	buffer := bytes.NewReader(rawContent)
 	reader, err := zip.NewReader(buffer, int64(len(rawContent)))
 	if err != nil {
-		return zipFileMap, err
+		return zipFiles, err
 	}
 
 	for _, file := range reader.File {
@@ -188,11 +188,11 @@ func parseRawZIP(rawContent []byte, prefixToTrim string) (map[string]*zip.File, 
 		// Remove redundant root folder name to avoid clutter and make the query API simpler
 		filename = strings.TrimPrefix(filename, prefixToTrim)
 
-		zipFileMap[filename] = file
+		zipFiles[filename] = file
 	}
 
 	// Create an alias for root folder since its name was completely trimmed
-	zipFileMap["."] = zipFileMap[""]
+	zipFiles["."] = zipFiles[""]
 
-	return zipFileMap, nil
+	return zipFiles, nil
 }
