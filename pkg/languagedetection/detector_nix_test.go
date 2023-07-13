@@ -86,24 +86,29 @@ func TestLanguageFromCommandline(t *testing.T) {
 			expected: languagemodels.Dotnet,
 		},
 		{
-			name:    "rails",
-			cmdline: []string{"ruby", "bin/rails", "asdf"},
+			name:     "rails",
+			cmdline:  []string{"bin/rails", "asdf"},
+			expected: languagemodels.Ruby,
 		},
 		{
-			name:    "ruby",
-			cmdline: []string{"ruby", "myapp.rb"},
+			name:     "ruby",
+			cmdline:  []string{"ruby", "myapp.rb"},
+			expected: languagemodels.Ruby,
 		},
 		{
-			name:    "rubyw",
-			cmdline: []string{"rubyw", "myapp.rb"},
+			name:     "rubyw",
+			cmdline:  []string{"rubyw", "myapp.rb"},
+			expected: languagemodels.Ruby,
 		},
 		{
-			name:    "ruby interactive shell",
-			cmdline: []string{"irb"},
+			name:     "ruby interactive shell",
+			cmdline:  []string{"irb"},
+			expected: languagemodels.Ruby,
 		},
 		{
-			name:    "sidekiq",
-			cmdline: []string{"sidekiq"},
+			name:     "sidekiq",
+			cmdline:  []string{"sidekiq"},
+			expected: languagemodels.Ruby,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
