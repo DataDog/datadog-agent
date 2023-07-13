@@ -246,7 +246,10 @@ func TestClient(t *testing.T) {
 		flare, err := client.getFlare()
 		assert.NoError(t, err)
 
+		// FileExists()
 		assert.True(t, flare.FileExists("diagnose.log"))
-		assert.True(t, flare.FileExists("expvar/aggregator"))
+		assert.True(t, flare.FileExists("etc/confd/"))
+		assert.True(t, flare.FileExists("etc/confd"))
+		assert.False(t, flare.FileExists("does/not/exist.log"))
 	})
 }

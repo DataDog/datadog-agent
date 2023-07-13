@@ -13,6 +13,7 @@ import (
 	"log"
 	"mime"
 	"mime/multipart"
+	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -53,7 +54,7 @@ import (
 	hostname123
 	--0cf50bf933f0ddecdd8cbfada84c4d6fa4cb226fd5893493f51fd01dfea5--
 */
-// On this example the pattern '0cf50bf933f0ddecdd8cbfada84c4d6fa4cb226fd5893493f51fd01dfea5' is the second argument `boundary` and
+// In this example the pattern '0cf50bf933f0ddecdd8cbfada84c4d6fa4cb226fd5893493f51fd01dfea5' is the second argument `boundary` and
 // each content between two boundaries is fetched with `mimeReader.NextPart()` in the function below.
 // The boundary is provided by the initial flare request from the Agent in the `Content-Type` header,
 // 	for example: Content-Type: multipart/form-data; boundary=0cf50bf933f0ddecdd8cbfada84c4d6fa4cb226fd5893493f51fd01dfea5
@@ -75,7 +76,8 @@ func ParseRawFlare(flarePayload api.Payload) (Flare, error) {
 	}
 
 	// flare_file is the only part that needs a special parsing as it's the flare zip content.
-	zipFileMap, err := parseRawZIP(parsedFlareData["flare_file"])
+	suffixToTrim := string(parsedFlareData["hostname"]) + string(os.PathSeparator)
+	zipFileMap, err := parseRawZIP(parsedFlareData["flare_file"], suffixToTrim)
 	if err != nil {
 		return Flare{}, err
 	}
@@ -146,7 +148,31 @@ func parseFlareMultipartData(data string, boundary string) (map[string][]byte, e
 
 // decodeRawZip takes the raw content of a zip file, reads it and then creates a mapping between filenames and *zip.File.
 // We create this mapping (instead of just using []*zip.File provided by zip.Reader) to easily query a specific file and verify assertions on it.
-func parseRawZIP(rawContent []byte) (map[string]*zip.File, error) {
+// Root directory name 'prefixToTrim' is removed from filenames
+//
+// # Example
+//
+// test-hostname
+// ├── diagnose.log
+// ├── expvar
+// │   └── CheckScheduler
+// └── etc
+//
+//	  └── confd
+//		   └── activemq.d
+//
+// For the above file structure, the resulting map will look like (<...> being *zip.File):
+//
+//	{
+//		".":                     <...>,
+//		"diagnose.log":          <...>,
+//		"expvar"                 <...>,
+//		"expvar/CheckScheduler": <...>,
+//		"etc":                   <...>,
+//		"etc/confd":             <...>,
+//		"etc/confd/activemq.d":  <...>,
+//	}
+func parseRawZIP(rawContent []byte, prefixToTrim string) (map[string]*zip.File, error) {
 	var zipFileMap = make(map[string]*zip.File)
 
 	buffer := bytes.NewReader(rawContent)
@@ -156,8 +182,17 @@ func parseRawZIP(rawContent []byte) (map[string]*zip.File, error) {
 	}
 
 	for _, file := range reader.File {
-		zipFileMap[file.Name] = file
+		// Remove trailing '/'s from folder names. Methods that will lookup the files list will also trim the '/' so that a search for 'path' and 'path/' will provide the same result
+		filename := strings.TrimRight(file.Name, string(os.PathSeparator))
+
+		// Remove redundant root folder name to avoid clutter and make the query API simpler
+		filename = strings.TrimPrefix(filename, prefixToTrim)
+
+		zipFileMap[filename] = file
 	}
+
+	// Create an alias for root folder since its name was completely trimmed
+	zipFileMap["."] = zipFileMap[""]
 
 	return zipFileMap, nil
 }

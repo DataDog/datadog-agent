@@ -7,7 +7,8 @@ package flare
 
 import (
 	"archive/zip"
-	"path/filepath"
+	"os"
+	"strings"
 )
 
 // Flare contains all the information sent by the Datadog Agent when using the Flare command
@@ -20,9 +21,12 @@ type Flare struct {
 }
 
 // FileExists returns true if the filename exists in the flare archive
+// If the file is within subfolders, the full path should be provided
 func (flare *Flare) FileExists(filename string) bool {
-	fullpath := filepath.Join(flare.Hostname, filename)
-
-	_, found := flare.ZipFileMap[fullpath]
+	_, found := flare.ZipFileMap[trimTrailingSlash(filename)]
 	return found
+}
+
+func trimTrailingSlash(path string) string {
+	return strings.TrimRight(path, string(os.PathSeparator))
 }
