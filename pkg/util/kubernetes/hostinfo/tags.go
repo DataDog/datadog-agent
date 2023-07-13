@@ -41,20 +41,16 @@ func appendNodeInfoTags(ctx context.Context, tags []string) []string {
 		return tags
 	}
 
-	nodeName, e := nodeInfo.GetNodeName(ctx)
-	if e == nil && nodeName != "" {
+	nodeName, err := nodeInfo.GetNodeName(ctx)
+	if err == nil && nodeName != "" {
 		tags = append(tags, "kube_node:"+nodeName)
 	}
 
 	labelsToTags := getLabelsToTags()
 	if len(labelsToTags) > 0 {
 		var nodeLabels map[string]string
-		nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
-		if e != nil {
-			err = e
-		}
-
-		if len(nodeLabels) > 0 {
+		nodeLabels, err = nodeInfo.GetNodeLabels(ctx)
+		if err == nil && len(nodeLabels) > 0 {
 			tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
 		}
 	}
