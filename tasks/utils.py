@@ -558,6 +558,12 @@ def check_upstream_branch(github, branch):
     return github_branch and github_branch.get('name', False)
 
 
+def get_changed_files(ctx):
+    return ctx.run(
+        "git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD", hide=True
+    ).stdout.strip().splitlines()
+
+
 @contextlib.contextmanager
 def timed(name=""):
     """Context manager that prints how long it took"""

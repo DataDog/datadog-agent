@@ -15,7 +15,8 @@ get_file_diff:
   stage: setup
   script:
     - git fetch origin main:main
-    - echo "DIFF_FILES=$(inv agent.generate-git-file-diff)" > file_diff.env
+    - inv system-probe.has-changed-files || system_probe_no_changes=$?
+    - echo "SYSTEM_PROBE_NO_CHANGES=${system_probe_no_changes}" > file_diff.env
     - cat file_diff.env
   artifacts:
     reports:

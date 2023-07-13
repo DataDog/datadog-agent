@@ -1,37 +1,20 @@
 ---
 .system_probe_file_diff_check:
-  before_script:
-    - set +e
-    - |+
-      for path in $SYSTEM_PROBE_SRC_PATH
-      do
-        echo "Checking $path..."
-        echo "$DIFF_FILES" | grep "$path"
-        export file_diff_check_exit_code=$?
-        if [ ${file_diff_check_exit_code} -eq 0 ]; then
-          break
-        fi
-      done
-    - set -e
   script_start:
-    - if [ ${file_diff_check_exit_code} -eq 0 ]; then
+    - if [ ${SYSTEM_PROBE_NO_CHANGES} -eq 0 ]; then
   script_end:
     - fi
 
 .system_probe_manual_job:
   when: manual
   before_script:
-    - export file_diff_check_exit_code=0
+    - export SYSTEM_PROBE_NO_CHANGES=0
 
 .pull_test_dockers:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   needs: ["get_file_diff"]
-  rules:
-    !reference [ .on_system_probe_changes ]
-  before_script:
-    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
     - !reference [ .system_probe_file_diff_check, script_start ]
     # Build dependencies directory
@@ -106,10 +89,6 @@ pull_test_dockers_arm64_manual:
   allow_failure: true
   tags: ["arch:amd64"]
   needs: ["get_file_diff"]
-  rules:
-    !reference [.on_system_probe_changes]
-  before_script:
-    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
     - !reference [ .system_probe_file_diff_check, script_start ]
     - !reference [ .kernel_matrix_testing_new_profile ]
@@ -173,10 +152,6 @@ upload_dependencies_arm64_manual:
   allow_failure: true
   tags: ["arch:amd64"]
   needs: ["get_file_diff"]
-  rules:
-    !reference [ .on_system_probe_changes ]
-  before_script:
-    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
     - !reference [ .system_probe_file_diff_check, script_start ]
     - !reference [ .retrieve_linux_go_deps ]
@@ -267,10 +242,6 @@ upload_system_probe_tests_arm64_manual:
   tags: ["arch:amd64"]
   allow_failure: true
   needs: ["get_file_diff"]
-  rules:
-    !reference [ .on_system_probe_changes ]
-  before_script:
-    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
     - !reference [ .system_probe_file_diff_check, script_start ]
     # Build dependencies directory
@@ -360,10 +331,6 @@ kernel_matrix_testing_setup_env:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
-  rules:
-    !reference [ .on_system_probe_changes ]
-  before_script:
-    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
     - !reference [ .system_probe_file_diff_check, script_start ]
     - !reference [ .retrieve_linux_go_deps ]
@@ -399,10 +366,6 @@ kernel_matrix_testing_setup_env_manual:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
   needs: ["get_file_diff"]
-  rules:
-    !reference [ .on_system_probe_changes ]
-  before_script:
-    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
     - !reference [ .system_probe_file_diff_check, script_start ]
     - !reference [ .kernel_matrix_testing_new_profile ]
@@ -467,10 +430,6 @@ kernel_matrix_testing_cleanup:
   needs: ["get_file_diff", "kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
   when: always
   tags: ["arch:amd64"]
-  rules:
-    !reference [ .on_system_probe_changes ]
-  before_script:
-    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
     - !reference [ .system_probe_file_diff_check, script_start ]
     - !reference [.kernel_matrix_testing_new_profile]

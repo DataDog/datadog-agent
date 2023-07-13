@@ -949,12 +949,3 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     print(f"Caching wheel {target_name}")
     # NOTE: on Windows, the awscli is usually in program files, so we have the executable
     ctx.run(f"\"{awscli}\" s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
-
-
-@task
-def generate_git_file_diff(ctx):
-    file_diff = ctx.run(
-        "git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD", hide=True
-    )
-    file_diff_lines = file_diff.stdout.replace("\n", "\\n")
-    print(file_diff_lines)

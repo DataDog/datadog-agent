@@ -16,10 +16,6 @@
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
   needs: ["get_file_diff"]
-  rules:
-    !reference [.on_system_probe_changes]
-  before_script:
-    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
     - !reference [ .system_probe_file_diff_check, script_start ]
     - pushd $DD_AGENT_TESTING_DIR

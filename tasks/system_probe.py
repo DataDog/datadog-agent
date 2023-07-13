@@ -19,7 +19,7 @@ from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
-from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
+from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only, get_changed_files
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -56,6 +56,24 @@ arch_mapping = {
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
+
+SYSTEM_PROBE_FILES = [
+    "^pkg/collector/corechecks/ebpf/",
+    "^pkg/ebpf/",
+    "^pkg/network/",
+    "^pkg/util/kernel/",
+    "^test/kitchen/site-cookbooks/dd-system-probe-check/",
+    "^test/kitchen/test/integration/system-probe-test/",
+    "^test/kitchen/test/integration/win-sysprobe-test/",
+    "^.gitlab/functional_test/system_probe.yml$",
+    "^.gitlab/kernel_version_testing/system_probe.yml$",
+    "^test/new-e2e/system-probe/",
+    "^test/new-e2e/scenarios/system-probe/",
+    "^test/new-e2e/runner/",
+    "^test/new-e2e-utils/",
+    "^test/new-e2e/go.mod$",
+    "^tasks/system_probe.py$",
+]
 
 
 def ninja_define_windows_resources(ctx, nw, major_version):
@@ -1580,3 +1598,15 @@ def start_microvms(
     ctx.run(
         f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
     )
+
+
+@task
+def has_changed_files(ctx):
+    files = get_changed_files(ctx)
+    for f in files:
+        for path in SYSTEM_PROBE_FILES:
+            if re.search(path, f) is not None:
+                print(f"{f} changed")
+                return
+
+    exit("no changed files")
