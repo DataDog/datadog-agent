@@ -433,7 +433,7 @@ def check_notify_teams(_):
         )
         raise Exit(code=1)
     else:
-        print("All CODEOWNERS teams have their slack notification channel and jira project specified !")
+        print("All CODEOWNERS teams have their slack notification channel and jira project specified !!")
 
 
 @task
