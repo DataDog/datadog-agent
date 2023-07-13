@@ -1,0 +1,3 @@
+---
+features:
+  - Add support for detecting ruby processes via commandline.
