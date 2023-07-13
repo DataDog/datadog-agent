@@ -39,6 +39,14 @@ var exactMatches = map[string]languageFromCLI{
 	"node": {name: languagemodels.Node},
 
 	"dotnet": {name: languagemodels.Dotnet},
+
+	"rails":   {name: languagemodels.Ruby},
+	"ruby":    {name: languagemodels.Ruby},
+	"rubyw":   {name: languagemodels.Ruby},
+	"sidekiq": {name: languagemodels.Ruby},
+	"irb":     {name: languagemodels.Ruby},
+	"puma":    {name: languagemodels.Ruby},
+	"puma:":   {name: languagemodels.Ruby},
 }
 
 func languageNameFromCommandLine(cmdline []string) languagemodels.LanguageName {

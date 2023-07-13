@@ -85,6 +85,26 @@ func TestLanguageFromCommandline(t *testing.T) {
 			cmdline:  []string{"dotnet", "myApp"},
 			expected: languagemodels.Dotnet,
 		},
+		{
+			name:    "rails",
+			cmdline: []string{"ruby", "bin/rails", "asdf"},
+		},
+		{
+			name:    "ruby",
+			cmdline: []string{"ruby", "myapp.rb"},
+		},
+		{
+			name:    "rubyw",
+			cmdline: []string{"rubyw", "myapp.rb"},
+		},
+		{
+			name:    "ruby interactive shell",
+			cmdline: []string{"irb"},
+		},
+		{
+			name:    "sidekiq",
+			cmdline: []string{"sidekiq"},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, languageNameFromCommandLine(tc.cmdline))
