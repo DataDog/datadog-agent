@@ -11,7 +11,7 @@ variables:
     - when: manual
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
   image: $BENCHMARKS_CI_IMAGE
-  needs: ["build_dogstatsd_static-binary_x64"]
+  needs: ["setup_agent_version"]
   script:
     - export ARTIFACTS_DIR="$(pwd)/reports" && (mkdir "${ARTIFACTS_DIR}" || :)
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.dd_api_key --with-decryption --query "Parameter.Value" --out text)
