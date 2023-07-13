@@ -56,6 +56,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -419,7 +420,7 @@ func startAgent(
 
 	// create and setup the Autoconfig instance
 	common.LoadComponents(common.MainCtx, pkgconfig.Datadog.GetString("confd_path"))
-	logsAgent.AddScheduler(common.AC)
+	logsAgent.AddScheduler(adScheduler.New(common.AC))
 
 	// start the cloudfoundry container tagger
 	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {

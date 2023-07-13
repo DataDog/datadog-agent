@@ -7,10 +7,12 @@
 package agent
 
 import (
+	"context"
+
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,13 +21,16 @@ import (
 // Component is the component type.
 type Component interface {
 	// AddScheduler adds an AD scheduler to the logs agent
-	AddScheduler(*autodiscovery.AutoConfig)
+	AddScheduler(scheduler schedulers.Scheduler)
 
 	// IsRunning returns true if the logs agent is running
 	IsRunning() bool
 
 	// GetMessageReceiver gets the diagnostic message receiver
 	GetMessageReceiver() *diagnostic.BufferedMessageReceiver
+
+	// Flush synchronously flushes the pipelines managed by the Logs Agent.
+	Flush(ctx context.Context)
 }
 
 // Mock implements mock-specific methods.

@@ -8,14 +8,14 @@ package agent
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"go.uber.org/fx"
 )
 
 type mockLogsAgent struct {
 	isRunning       bool
-	addedSchedulers []*autodiscovery.AutoConfig
+	addedSchedulers []schedulers.Scheduler
 }
 
 func newMock(deps dependencies) Component {
@@ -37,8 +37,8 @@ func (a *mockLogsAgent) stop(context.Context) error {
 	return nil
 }
 
-func (a *mockLogsAgent) AddScheduler(ac *autodiscovery.AutoConfig) {
-	a.addedSchedulers = append(a.addedSchedulers, ac)
+func (a *mockLogsAgent) AddScheduler(scheduler schedulers.Scheduler) {
+	a.addedSchedulers = append(a.addedSchedulers, scheduler)
 }
 
 func (a *mockLogsAgent) IsRunning() bool {
@@ -48,3 +48,5 @@ func (a *mockLogsAgent) IsRunning() bool {
 func (a *mockLogsAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 	return nil
 }
+
+func (a *mockLogsAgent) Flush(ctx context.Context) {}

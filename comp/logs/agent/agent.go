@@ -10,10 +10,9 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"go.uber.org/fx"
 )
 
@@ -66,9 +65,9 @@ func (a *agent) stop(context.Context) error {
 	return nil
 }
 
-func (a *agent) AddScheduler(ac *autodiscovery.AutoConfig) {
+func (a *agent) AddScheduler(scheduler schedulers.Scheduler) {
 	if a.logsAgent != nil {
-		a.logsAgent.AddScheduler(adScheduler.New(ac))
+		a.logsAgent.AddScheduler(scheduler)
 	}
 }
 
@@ -78,4 +77,8 @@ func (a *agent) IsRunning() bool {
 
 func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 	return logs.GetMessageReceiver()
+}
+
+func (a *agent) Flush(ctx context.Context) {
+	logs.Flush(ctx)
 }
