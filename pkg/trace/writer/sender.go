@@ -222,6 +222,13 @@ func (s *sender) Push(p *payload) {
 	s.inflight.Inc()
 }
 
+// maxRetries is the maximum number of retries that the sender will perform
+// before giving up. Note that the sender may not perform all maxRetries if
+// the agent is under load and the outgoing payload queue is full. In that
+// case, the sender will drop failed payloads when it is unable to enqueue
+// them for another retry.
+const maxRetries = 4
+
 // sendPayload sends the payload p to the destination URL.
 func (s *sender) sendPayload(p *payload) {
 	req, err := p.httpRequest(s.cfg.url)
@@ -258,7 +265,7 @@ func (s *sender) sendPayload(p *payload) {
 			// e.g. attempts 4, 8, 16, etc.
 			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
-		if p.retries.Load() >= 4 {
+		if p.retries.Load() >= maxRetries {
 			log.Warnf("Dropping Payload after %d retries.\n", p.retries.Load())
 			// queue is full; since this is the oldest payload, we drop it
 			s.releasePayload(p, eventTypeDropped, stats)
