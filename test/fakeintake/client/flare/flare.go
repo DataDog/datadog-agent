@@ -63,6 +63,11 @@ func (flare *Flare) HasPerm(filename string, perm fs.FileMode) bool {
 	return flare.FileExists(filename) && flare.getFileInfo(filename).Mode().Perm() == perm
 }
 
+// IsFile returns true if filename is a regular file and its content is not empty
+func (flare *Flare) FileHasContent(filename string) bool {
+	return flare.IsFile(filename) && flare.getFileInfo(filename).Size() > 0
+}
+
 // getFile returns a *zip.File whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
 func (flare *Flare) getFile(path string) *zip.File {
 	return flare.zipFiles[trimTrailingSlash(path)]

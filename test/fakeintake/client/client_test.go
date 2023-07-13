@@ -266,5 +266,9 @@ func TestClient(t *testing.T) {
 		// HasPerm()
 		assert.True(t, flare.HasPerm("diagnose.log", 0644))
 		assert.True(t, flare.HasPerm("etc/confd", 0755))
+
+		// HasContent()
+		assert.True(t, flare.FileHasContent("permissions.log"))
+		assert.False(t, flare.FileHasContent("local"))
 	})
 }
