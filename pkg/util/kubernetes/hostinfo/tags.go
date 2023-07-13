@@ -35,7 +35,6 @@ func GetTags(ctx context.Context) (tags []string, err error) {
 }
 
 func appendNodeInfoTags(ctx context.Context, tags []string) []string {
-	labelsToTags := getLabelsToTags()
 	nodeInfo, err := NewNodeInfo()
 	if err != nil {
 		log.Debugf("Unable to auto discover node info tags: %s", err)
@@ -47,7 +46,8 @@ func appendNodeInfoTags(ctx context.Context, tags []string) []string {
 		tags = append(tags, "kube_node:"+nodeName)
 	}
 
-	if len(labelsToTags) > 0 && err == nil {
+	labelsToTags := getLabelsToTags()
+	if len(labelsToTags) > 0 {
 		var nodeLabels map[string]string
 		nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
 		if e != nil {
