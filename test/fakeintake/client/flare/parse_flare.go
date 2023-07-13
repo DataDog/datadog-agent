@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package client
+package flare
 
 import (
 	"archive/zip"
@@ -64,30 +64,9 @@ import (
 //
 // The resulting output is a Flare struct that provides an API to verify assertions on the flare.
 
-// Flare contains all the information sent by the Datadog Agent when using the Flare command
-// zipFileMap is a mapping between filenames and *zip.File obtained from zip.Reader struct.
-type Flare struct {
-	email        string
-	zipFileMap   map[string]*zip.File
-	agentVersion string
-	hostname     string
-}
-
-// getFlare queries the Fake Intake to fetch flare that were sent by a Datadog Agent and returns a Flare struct
-// TODO: handle multiple flares
-func (c *Client) getFlare() (Flare, error) {
-	payloads, err := c.getFakePayloads("/support/flare")
-	if err != nil {
-		return Flare{}, err
-	}
-
-	// TODO: create a flare aggregator and populate flare after parsing it + return an error
-	return parseRawFlare(payloads[0])
-}
-
 // decodeRawFlare parses the flare payload sent by the Fake Intake into a manageable Flare struct
 // For that it parses the multipart data from the flare request and then parses the flare zip raw content.
-func parseRawFlare(flarePayload api.Payload) (Flare, error) {
+func ParseRawFlare(flarePayload api.Payload) (Flare, error) {
 	// flarePayload.Encoding contains the value of Content-Type header from the flare request
 	boundary := parseBoundaryFromContentTypeHeader(flarePayload.Encoding)
 	parsedFlareData, err := parseFlareMultipartData(string(flarePayload.Data), boundary)
@@ -102,10 +81,10 @@ func parseRawFlare(flarePayload api.Payload) (Flare, error) {
 	}
 
 	return Flare{
-		email:        string(parsedFlareData["email"]),
-		zipFileMap:   zipFileMap,
-		agentVersion: string(parsedFlareData["agent_version"]),
-		hostname:     string(parsedFlareData["hostname"]),
+		Email:        string(parsedFlareData["email"]),
+		ZipFileMap:   zipFileMap,
+		AgentVersion: string(parsedFlareData["agent_version"]),
+		Hostname:     string(parsedFlareData["hostname"]),
 	}, nil
 }
 

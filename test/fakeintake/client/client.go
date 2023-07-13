@@ -48,6 +48,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
 type Client struct {
@@ -91,6 +92,18 @@ func (c *Client) getLogs() error {
 		return err
 	}
 	return c.logAggregator.UnmarshallPayloads(payloads)
+}
+
+// getFlare queries the Fake Intake to fetch flare that were sent by a Datadog Agent and returns a Flare struct
+// TODO: handle multiple flares
+func (c *Client) getFlare() (flare.Flare, error) {
+	payloads, err := c.getFakePayloads("/support/flare")
+	if err != nil {
+		return flare.Flare{}, err
+	}
+
+	// TODO: create a flare aggregator and populate flare after parsing it + return an error
+	return flare.ParseRawFlare(payloads[0])
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {

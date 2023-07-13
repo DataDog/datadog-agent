@@ -230,9 +230,9 @@ func TestClient(t *testing.T) {
 		client := NewClient(ts.URL)
 		flare, err := client.getFlare()
 		assert.NoError(t, err)
-		assert.Equal(t, flare.email, "test")
-		assert.Equal(t, flare.agentVersion, "7.45.1+commit.102cdaf")
-		assert.Equal(t, flare.hostname, "test-hostname")
-		assert.NotEmpty(t, flare.zipFileMap)
+		assert.Equal(t, flare.Email, "test")
+		assert.Equal(t, flare.AgentVersion, "7.45.1+commit.102cdaf")
+		assert.Equal(t, flare.Hostname, "test-hostname")
+		assert.NotEmpty(t, flare.ZipFileMap)
 	})
 }
