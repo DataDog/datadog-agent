@@ -9,8 +9,6 @@
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
-  rules:
-    !reference [.on_system_probe_changes]
   needs:
     job: get_file_diff
     artifacts: true
@@ -20,10 +18,14 @@
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
+  rules:
+    !reference [.on_system_probe_changes]
   before_script:
-    - !reference [ .system_probe_file_diff_check ]
+    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
-    - if [ ${file_diff_check_exit_code} -eq 0 ]; then
+    - !reference [ .system_probe_file_diff_check, script_start ]
+    - pushd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
     - !reference [.retrieve_test_dockers]
     - !reference [.retrieve_minimized_btfs]
     # Build dependencies directory
@@ -32,7 +34,7 @@
     - tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
     - popd
     - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
-    - fi
+    - !reference [ .system_probe_file_diff_check, script_end ]
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -48,33 +50,6 @@
   - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz /tmp/minimized-btfs.tar.xz
   - cp /tmp/minimized-btfs.tar.xz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/minimized-btfs.tar.xz
 
-.kitchen_test_system_probe kitchen_test_system_probe_linux_x64:
-  extends:
-    - .kitchen_test_system_probe
-    - .kitchen_azure_x64
-    - .kitchen_azure_location_north_central_us
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
-  variables:
-    ARCH: amd64
-    KITCHEN_ARCH: x86_64
-    KITCHEN_IMAGE_SIZE: Standard_D11_v2
-    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
-    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
-    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-  before_script:
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-    - !reference [ .system_probe_file_diff_check ]
-  parallel:
-    matrix:
-      - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
-      - KITCHEN_PLATFORM: "debian"
-        KITCHEN_OSVERS: "debian-10,debian-11"
-      - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-76"
-        KITCHEN_CI_MOUNT_PATH: "/mnt/resource/ci"
-
 # This dummy job is added here because we want the functional_tests stage to start at the same time as kernel_matrix_testing stage.
 # The ebpf-platform team is trying to measure the time from the start of the pipeline to the completion of the kernel_matrix_testing and functional_tests stages, to measure improvement.
 # The CI visibility product currently does not provide a way to measure this in the datadog app.
@@ -87,12 +62,10 @@ kitchen_test_dummy_job_tmp:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   needs: []
   tags: ["arch:amd64"]
-  rules:
-    !reference [ .on_system_probe_changes ]
   script:
     - 'true'
 
-kitchen_test_system_probe_linux_x64_ec2:
+kitchen_test_system_probe_linux_x64:
   extends:
     - .kitchen_test_system_probe
     - .kitchen_ec2_location_us_east_1
@@ -105,10 +78,6 @@ kitchen_test_system_probe_linux_x64_ec2:
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-  before_script:
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-    - !reference [ .system_probe_file_diff_check ]
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
@@ -154,6 +123,11 @@ kitchen_test_system_probe_linux_x64_ec2:
         KITCHEN_OSVERS: "ubuntu-23-04"
         KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
 
+kitchen_test_system_probe_linux_x64_manual:
+  extends:
+    - kitchen_test_system_probe_linux_x64
+    - .system_probe_manual_job
+
 kitchen_test_system_probe_linux_arm64:
   extends:
     - .kitchen_test_system_probe
@@ -167,10 +141,6 @@ kitchen_test_system_probe_linux_arm64:
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-  before_script:
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-    - !reference [ .system_probe_file_diff_check ]
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
@@ -208,6 +178,11 @@ kitchen_test_system_probe_linux_arm64:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-23-04"
 
+kitchen_test_system_probe_linux_arm64_manual:
+  extends:
+    - kitchen_test_system_probe_linux_arm64
+    - .system_probe_manual_job
+
 kitchen_test_system_probe_windows_x64:
   extends:
     - .kitchen_agent_a7
@@ -220,127 +195,15 @@ kitchen_test_system_probe_windows_x64:
     KITCHEN_ARCH: x86_64
     KITCHEN_OSVERS: "win2012r2"
     CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
-  before_script:
+  script:
+    - !reference [ .system_probe_file_diff_check, script_start ]
     - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_DRIVER")
     - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_VERSION")
     - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_SHASUM")
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-    - !reference [ .system_probe_file_diff_check ]
-  script:
     - tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
-
-kitchen_test_system_probe_linux_x64_manual:
-  extends:
-    - .kitchen_test_system_probe
-    - .kitchen_azure_x64
-    - .kitchen_azure_location_north_central_us
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
-  rules:
-    - when: manual
-  variables:
-    ARCH: amd64
-    KITCHEN_ARCH: x86_64
-    KITCHEN_IMAGE_SIZE: Standard_D11_v2
-    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
-    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
-    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-  before_script:
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh 
-    - export file_diff_check_exit_code=0
-  parallel:
-    matrix:
-      - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
-      - KITCHEN_PLATFORM: "debian"
-        KITCHEN_OSVERS: "debian-10,debian-11"
-      - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-76"
-        KITCHEN_CI_MOUNT_PATH: "/mnt/resource/ci"
-
-kitchen_test_system_probe_linux_x64_ec2_manual:
-  extends:
-    - .kitchen_test_system_probe
-    - .kitchen_ec2_location_us_east_1
-    - .kitchen_ec2
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
-  rules:
-    - when: manual
-  variables:
-    ARCH: amd64
-    KITCHEN_ARCH: x86_64
-    KITCHEN_EC2_INSTANCE_TYPE: "t2.xlarge"
-    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
-    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
-    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-  before_script:
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-    - export file_diff_check_exit_code=0
-  parallel:
-    matrix:
-      - KITCHEN_PLATFORM: "amazonlinux"
-        KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
-      - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "rhel-86"
-        KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
-      - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-16-04-4.4"
-        KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
-
-kitchen_test_system_probe_linux_arm64_manual:
-  extends:
-    - .kitchen_test_system_probe
-    - .kitchen_ec2_location_us_east_1
-    - .kitchen_ec2_spot_instances
-  needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64", "pull_test_dockers_arm64" ]
-  rules:
-    - when: manual
-  variables:
-    ARCH: arm64
-    KITCHEN_ARCH: arm64
-    KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
-    KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
-    KITCHEN_CI_ROOT_PATH: "/tmp/ci"
-    KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-  before_script:
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-    - export file_diff_check_exit_code=0
-  parallel:
-    matrix:
-      - KITCHEN_PLATFORM: "ubuntu"
-        KITCHEN_OSVERS: "ubuntu-18-04,ubuntu-20-04,ubuntu-22-04"
-      - KITCHEN_PLATFORM: "debian"
-        KITCHEN_OSVERS: "debian-10,debian-11"
-        KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
-      - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "centos-79,rhel-86"
-      - KITCHEN_PLATFORM: "amazonlinux"
-        KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
-        KITCHEN_EC2_DEVICE_NAME: "/dev/xvda"
+    - !reference [ .system_probe_file_diff_check, script_end ]
 
 kitchen_test_system_probe_windows_x64_manual:
   extends:
-    - .kitchen_agent_a7
-    - .kitchen_os_windows
-    - .kitchen_test_system_probe
-    - .kitchen_azure_x64
-    - .kitchen_azure_location_north_central_us
-  needs: [ "tests_windows_sysprobe_x64" ]
-  rules:
-    - when: manual
-  variables:
-    KITCHEN_ARCH: x86_64
-    KITCHEN_OSVERS: "win2012r2"
-    CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
-  before_script:
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_DRIVER")
-    - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_VERSION")
-    - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_SHASUM")
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-    - export file_diff_check_exit_code=0
-  script:
-    - tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
+    - kitchen_test_system_probe_windows_x64
+    - .system_probe_manual_job

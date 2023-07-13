@@ -20,5 +20,3 @@ get_file_diff:
   artifacts:
     reports:
       dotenv: file_diff.env
-
-

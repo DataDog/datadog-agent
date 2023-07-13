@@ -1,20 +1,30 @@
 ---
 .system_probe_file_diff_check:
-  - set +e
-  - |+
-    for path in $SYSTEM_PROBE_SRC_PATH
-    do
-      echo "Checking $path..."
-      echo "$DIFF_FILES" | grep "$path"
-      export file_diff_check_exit_code=$?
-      if [ $file_diff_check_exit_code -eq 0 ]; then
-        break
-      fi
-    done
-  - set -e
+  before_script:
+    - set +e
+    - |+
+      for path in $SYSTEM_PROBE_SRC_PATH
+      do
+        echo "Checking $path..."
+        echo "$DIFF_FILES" | grep "$path"
+        export file_diff_check_exit_code=$?
+        if [ ${file_diff_check_exit_code} -eq 0 ]; then
+          break
+        fi
+      done
+    - set -e
+  script_start:
+    - if [ ${file_diff_check_exit_code} -eq 0 ]; then
+  script_end:
+    - fi
 
+.system_probe_manual_job:
+  when: manual
+  before_script:
+    - export file_diff_check_exit_code=0
 
 .pull_test_dockers:
+  stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs:
     job: get_file_diff
@@ -22,11 +32,10 @@
   tags: ["runner:docker"]
   rules:
     !reference [ .on_system_probe_changes ]
-  stage: kernel_matrix_testing
   before_script:
-    - !reference [ .system_probe_file_diff_check ]
+    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
-    - if [ ${file_diff_check_exit_code} -eq 0 ]; then
+    - !reference [ .system_probe_file_diff_check, script_start ]
     # Build dependencies directory
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
@@ -34,7 +43,7 @@
     # Pull base images
     - mkdir $KITCHEN_DOCKERS
     - inv -e system-probe.save-test-dockers --output-dir $KITCHEN_DOCKERS --arch $ARCH
-    - fi
+    - !reference [ .system_probe_file_diff_check, script_end ]
   artifacts:
     expire_in: 1 day
     paths:
@@ -47,28 +56,20 @@ pull_test_dockers_x64:
   variables:
     ARCH: amd64
 
+pull_test_dockers_x64_manual:
+  extends:
+    - pull_test_dockers_x64
+    - .system_probe_manual_job
+
 pull_test_dockers_arm64:
   extends: .pull_test_dockers
   variables:
     ARCH: arm64
 
-pull_test_dockers_x64_manual:
-  extends: .pull_test_dockers
-  rules:
-    - when: manual
-  before_script:
-    - export file_diff_check_exit_code=0
-  variables:
-    ARCH: amd64
-
 pull_test_dockers_arm64_manual:
-  extends: .pull_test_dockers
-  rules:
-    - when: manual
-  before_script:
-    - export file_diff_check_exit_code=0
-  variables:
-    ARCH: arm64
+  extends:
+    - pull_test_dockers_arm64
+    - .system_probe_manual_job
 
 .shared_filters_and_queries:
   - FILTER_TEAM="Name=tag:team,Values=ebpf-platform"
@@ -101,20 +102,22 @@ pull_test_dockers_arm64_manual:
     - echo "" >> $AWS_EC2_SSH_KEY_FILE
     - chmod 600 $AWS_EC2_SSH_KEY_FILE
 
-.package_dependencies:
+.upload_dependencies:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   allow_failure: true
-  rules:
-    !reference [.on_system_probe_changes]
   tags: ["arch:amd64"]
   needs:
     job: get_file_diff
     artifacts: true
+  rules:
+    !reference [.on_system_probe_changes]
   before_script:
-    - !reference [.kernel_matrix_testing_new_profile]
-    - !reference [.write_ssh_key_file]
+    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
+    - !reference [ .system_probe_file_diff_check, script_start ]
+    - !reference [ .kernel_matrix_testing_new_profile ]
+    - !reference [ .write_ssh_key_file ]
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
     - pushd $DEPENDENCIES
@@ -132,6 +135,7 @@ pull_test_dockers_arm64_manual:
     - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
     - echo "$ARCH-istance-ip" $INSTANCE_IP
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing/
+    - !reference [ .system_probe_file_diff_check, script_end ]
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
@@ -139,34 +143,46 @@ pull_test_dockers_arm64_manual:
 
 upload_dependencies_x64:
   extends:
-    - .package_dependencies
+    - .upload_dependencies
   needs: ["pull_test_dockers_x64"]
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
     INSTANCE_TYPE: m5.metal
 
+upload_dependencies_x64_manual:
+  extends:
+    - upload_dependencies_x64
+    - .system_probe_manual_job
+
 upload_dependencies_arm64:
   extends:
-    - .package_dependencies
+    - .upload_dependencies
   needs: ["pull_test_dockers_arm64"]
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
     INSTANCE_TYPE: m6g.metal
 
+upload_dependencies_arm64_manual:
+  extends:
+    - upload_dependencies_arm64
+    - .system_probe_manual_job
+
 .upload_system_probe_tests:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   allow_failure: true
   tags: ["arch:amd64"]
+  rules:
+    !reference [ .on_system_probe_changes ]
   before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.kernel_matrix_testing_new_profile]
-    - !reference [.write_ssh_key_file]
-    - !reference [ .system_probe_file_diff_check ]
+    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
-    - if [ ${file_diff_check_exit_code} -eq 0 ]; then
+    - !reference [ .system_probe_file_diff_check, script_start ]
+    - !reference [ .retrieve_linux_go_deps ]
+    - !reference [ .kernel_matrix_testing_new_profile ]
+    - !reference [ .write_ssh_key_file ]
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
     - pushd $DEPENDENCIES
@@ -198,7 +214,7 @@ upload_dependencies_arm64:
     - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
     - echo "$ARCH-istance-ip" $INSTANCE_IP
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing/
-    - fi
+    - !reference [ .system_probe_file_diff_check, script_end ]
   artifacts:
     when: always
     paths:
@@ -226,6 +242,11 @@ upload_system_probe_tests_x64:
     GOARCH: amd64
     INSTANCE_TYPE: m5.metal
 
+upload_system_probe_tests_x64_manual:
+  extends:
+    - upload_system_probe_tests_x64
+    - .system_probe_manual_job
+
 upload_system_probe_tests_arm64:
   extends:
     - .upload_system_probe_tests
@@ -236,36 +257,22 @@ upload_system_probe_tests_arm64:
     GOARCH: arm64
     INSTANCE_TYPE: m6g.metal
 
-package_dependencies_x64_manual:
+upload_system_probe_tests_arm64_manual:
   extends:
-    - .package_dependencies
-  needs: ["prepare_ebpf_functional_tests_x64", "tests_ebpf_x64", "pull_test_dockers_x64", "generate_minimized_btfs_x64"]
-  rules:
-    - when: manual
-  variables:
-    ARCHIVE_NAME: dependencies-x86_64.tar.gz
-    ARCH: amd64
-  before_script:
-    - export file_diff_check_exit_code=0
-
-package_dependencies_arm64_manual:
-  extends:
-    - .package_dependencies
-  needs: ["prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64", "pull_test_dockers_arm64", "generate_minimized_btfs_arm64"]
-  rules:
-    - when: manual
-  variables:
-    ARCHIVE_NAME: dependencies-arm64.tar.gz
-    ARCH: arm64
-  before_script:
-    - export file_diff_check_exit_code=0
+    - upload_system_probe_tests_arm64
+    - .system_probe_manual_job
 
 .upload_minimized_btfs:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   allow_failure: true
+  rules:
+    !reference [ .on_system_probe_changes ]
+  before_script:
+    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
+    - !reference [ .system_probe_file_diff_check, script_start ]
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
     - pushd $DEPENDENCIES
@@ -286,6 +293,7 @@ package_dependencies_arm64_manual:
     - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
     - echo "$ARCH-istance-ip" $INSTANCE_IP
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing/
+    - !reference [ .system_probe_file_diff_check, script_end ]
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
     BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
@@ -301,6 +309,11 @@ upload_minimized_btfs_x64:
     BTFS_ARCH: amd64
     INSTANCE_TYPE: m5.metal
 
+upload_minimized_btfs_x64_manual:
+  extends:
+    - upload_minimized_btfs_x64
+    - .system_probe_manual_job
+
 upload_minimized_btfs_arm64:
   extends:
     - .upload_minimized_btfs
@@ -310,6 +323,11 @@ upload_minimized_btfs_arm64:
     ARCH: arm64
     BTFS_ARCH: arm64
     INSTANCE_TYPE: m6g.metal
+
+upload_minimized_btfs_arm64_manual:
+  extends:
+    - upload_minimized_btfs_arm64
+    - .system_probe_manual_job
 
 .kernel_matrix_testing_new_profile:
   - mkdir -p ~/.aws
@@ -322,8 +340,6 @@ kernel_matrix_testing_setup_env:
   extends:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
-  rules:
-    !reference [ .on_system_probe_changes ]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
@@ -344,16 +360,21 @@ kernel_matrix_testing_setup_env:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
+  rules:
+    !reference [ .on_system_probe_changes ]
   before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.kernel_matrix_testing_new_profile]
-    - !reference [.write_ssh_key_file]
+    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
+    - !reference [ .system_probe_file_diff_check, script_start ]
+    - !reference [ .retrieve_linux_go_deps ]
+    - !reference [ .kernel_matrix_testing_new_profile ]
+    - !reference [ .write_ssh_key_file ]
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
     - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
+    - !reference [ .system_probe_file_diff_check, script_end ]
   artifacts:
     when: always
     paths:
@@ -364,6 +385,11 @@ kernel_matrix_testing_setup_env:
       - $STACK_DIR
       - $CI_PROJECT_DIR/stack.outputs
 
+kernel_matrix_testing_setup_env_manual:
+  extends:
+    - kernel_matrix_testing_setup_env
+    - .system_probe_manual_job
+
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
   allow_failure: true
@@ -372,10 +398,14 @@ kernel_matrix_testing_setup_env:
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
+  rules:
+    !reference [ .on_system_probe_changes ]
   before_script:
-    - !reference [.kernel_matrix_testing_new_profile]
-    - !reference [.write_ssh_key_file]
+    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
+    - !reference [ .system_probe_file_diff_check, script_start ]
+    - !reference [ .kernel_matrix_testing_new_profile ]
+    - !reference [ .write_ssh_key_file ]
     - ALL_INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
     - !reference [.shared_filters_and_queries]
     - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE "Name=private-ip-address,Values=$ALL_INSTANCE_IPS" --output text --query $QUERY_INSTANCE_IDS | wc -l )
@@ -394,6 +424,7 @@ kernel_matrix_testing_setup_env:
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson.tar.gz $DD_AGENT_TESTING_DIR/
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit.tar.gz $DD_AGENT_TESTING_DIR/
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} '/test-json-review'"
+    - !reference [ .system_probe_file_diff_check, script_end ]
 
 kernel_matrix_testing_run_tests_x64:
   extends:
@@ -406,6 +437,11 @@ kernel_matrix_testing_run_tests_x64:
     matrix:
       - TAG: ["bionic", "focal", "jammy"]
 
+kernel_matrix_testing_run_tests_x64_manual:
+  extends:
+    - kernel_matrix_testing_run_tests_x64
+    - .system_probe_manual_job
+
 kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
@@ -417,15 +453,24 @@ kernel_matrix_testing_run_tests_arm64:
     matrix:
       - TAG: ["focal", "jammy"]
 
+kernel_matrix_testing_run_tests_arm64_manual:
+  extends:
+    - kernel_matrix_testing_run_tests_arm64
+    - .system_probe_manual_job
+
 kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
   when: always
   tags: ["arch:amd64"]
+  rules:
+    !reference [ .on_system_probe_changes ]
   before_script:
-    - !reference [.kernel_matrix_testing_new_profile]
+    - !reference [ .system_probe_file_diff_check, before_script ]
   script:
+    - !reference [ .system_probe_file_diff_check, script_start ]
+    - !reference [.kernel_matrix_testing_new_profile]
     - |
       if [ -f $CI_PROJECT_DIR/stack.outputs ]; then
         INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
@@ -441,3 +486,9 @@ kernel_matrix_testing_cleanup:
       if [ $(echo $INSTANCE_IDS | wc -w) != "0" ]; then
         aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
       fi
+    - !reference [ .system_probe_file_diff_check, script_end ]
+
+kernel_matrix_testing_cleanup_manual:
+  extends:
+    - kernel_matrix_testing_cleanup
+    - .system_probe_manual_job
