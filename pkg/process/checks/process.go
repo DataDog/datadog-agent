@@ -39,29 +39,24 @@ const (
 
 // NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
-	var extractors []metadata.Extractor
-	var wlmServer *workloadmeta.GRPCServer
-	var wlmExtractor *workloadmeta.WorkloadMetaExtractor
+	check := &ProcessCheck{
+		config:        config,
+		scrubber:      procutil.NewDefaultDataScrubber(),
+		lookupIdProbe: NewLookupIdProbe(config),
+	}
+
 	if workloadmeta.Enabled(config) {
-		wlmExtractor = workloadmeta.NewWorkloadMetaExtractor(config)
-		srv := workloadmeta.NewGRPCServer(config, wlmExtractor)
-		err := srv.Start()
+		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(config)
+		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
+		err := check.workloadMetaServer.Start()
 		if err != nil {
-			log.Error("Failed to start the workload meta gRPC server:", err)
+			_ = log.Error("Failed to start the workload meta gRPC server:", err)
 		} else {
-			extractors = append(extractors, wlmExtractor)
-			wlmServer = srv
+			check.extractors = append(check.extractors, check.workloadMetaExtractor)
 		}
 	}
 
-	return &ProcessCheck{
-		config:                config,
-		scrubber:              procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:         NewLookupIdProbe(config),
-		extractors:            extractors,
-		workloadMetaServer:    wlmServer,
-		workloadmetaExtractor: wlmExtractor,
-	}
+	return check
 }
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
@@ -117,7 +112,7 @@ type ProcessCheck struct {
 
 	extractors []metadata.Extractor
 
-	workloadmetaExtractor *workloadmeta.WorkloadMetaExtractor
+	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
 	workloadMetaServer    *workloadmeta.GRPCServer
 }
 
@@ -248,8 +243,8 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	}
 
 	// Notify the workload meta extractor that the mapping between pid and cid has changed
-	if p.workloadmetaExtractor != nil {
-		p.workloadmetaExtractor.SetLastPidToCid(pidToCid)
+	if p.workloadMetaExtractor != nil {
+		p.workloadMetaExtractor.SetLastPidToCid(pidToCid)
 	}
 
 	for _, extractor := range p.extractors {
