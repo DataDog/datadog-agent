@@ -52,6 +52,7 @@ type Check struct {
 	core.CheckBase
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
+	dbCustomQueries                         *sqlx.DB
 	dbmEnabled                              bool
 	agentVersion                            string
 	checkInterval                           float64
@@ -71,6 +72,7 @@ type Check struct {
 	isRDS                                   bool
 	isOracleCloud                           bool
 	sqlTraceRunsCount                       int
+	connectedToPdb                          bool
 }
 
 // Run executes the check.
@@ -127,8 +129,7 @@ func (c *Check) Run() error {
 				return err
 			}
 		}
-
-		if len(c.config.CustomQueries) != 0 {
+		if len(c.config.CustomQueries) > 0 {
 			c.CustomQueries()
 		}
 	}
@@ -243,6 +244,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 	var cloudRows int
 	if connectionType == "PDB" {
+		c.connectedToPdb = true
 		r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
 		err := r.Scan(&cloudRows)
 		if err != nil {
@@ -298,6 +300,15 @@ func (c *Check) Teardown() {
 			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
 		}
 	}
+}
+
+func CloseDatabaseConnection(db *sqlx.DB) error {
+	if db != nil {
+		if err := db.Close(); err != nil {
+			return fmt.Errorf("failed to close oracle connection | server=[%s]: %s")
+		}
+	}
+	return nil
 }
 
 // Configure configures the Oracle check.

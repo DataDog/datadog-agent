@@ -67,6 +67,7 @@ type CustomQueryColumns struct {
 
 type CustomQueries struct {
 	MetricPrefix string               `yaml:"metric_prefix"`
+	Pdb          string               `yaml:"pdb"`
 	Query        string               `yaml:"query"`
 	Columns      []CustomQueryColumns `yaml:"columns"`
 	Tags         []string             `yaml:"tags"`

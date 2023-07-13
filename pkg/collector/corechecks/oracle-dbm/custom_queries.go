@@ -10,6 +10,8 @@ package oracle
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	godror "github.com/godror/godror"
+	"reflect"
 	"strconv"
 )
 
@@ -23,6 +25,19 @@ type metricRow struct {
 }
 
 func (c *Check) CustomQueries() error {
+	if c.dbCustomQueries == nil {
+		db, err := c.Connect()
+		if err != nil {
+			CloseDatabaseConnection(db)
+			return err
+		}
+		if db == nil {
+			return fmt.Errorf("empty connection")
+		}
+		c.dbCustomQueries = db
+		c.dbCustomQueries.SetMaxOpenConns(1)
+	}
+
 	var metricRows []metricRow
 	sender, err := c.GetSender()
 	if err != nil {
@@ -32,12 +47,23 @@ func (c *Check) CustomQueries() error {
 	for _, q := range c.config.CustomQueries {
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix
-		log.Tracef("custom query structure %+v", q)
+
 		if metricPrefix == "" {
 			log.Error("Undefined metric_prefix for a custom query")
 			continue
 		}
-		rows, err := c.db.Queryx(q.Query)
+		if !c.connectedToPdb {
+			pdb := q.Pdb
+			if pdb == "" {
+				pdb = "cdb$root"
+			}
+			_, err := c.dbCustomQueries.Exec(fmt.Sprintf("alter session set container = %s", pdb))
+			if err != nil {
+				log.Errorf("Can't set container to %s", pdb)
+				continue
+			}
+		}
+		rows, err := c.dbCustomQueries.Queryx(q.Query)
 		if rows != nil {
 			defer rows.Close()
 		}
@@ -71,8 +97,11 @@ func (c *Check) CustomQueries() error {
 							errInQuery = true
 							break
 						}
+					} else if v_gn, ok := v.(godror.Number); ok {
+						metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
+						//metricRow.value = Number(v_gn)
 					} else {
-						log.Errorf("Can't parse metric value %v for metricRow.name %sr", v, metricRow.name)
+						log.Errorf("Can't parse metric value %v, type %s for metricRow.name %s", v, reflect.TypeOf(v), metricRow.name)
 						errInQuery = true
 						break
 					}
