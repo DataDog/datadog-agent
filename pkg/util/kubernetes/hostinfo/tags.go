@@ -23,21 +23,22 @@ func GetTags(ctx context.Context) (tags []string, err error) {
 	nodeInfo, e := NewNodeInfo()
 	if e != nil {
 		err = e
-	}
-	nodeName, e := nodeInfo.GetNodeName(ctx)
-	if e == nil && nodeName != "" {
-		tags = append(tags, "kube_node:"+nodeName)
-	}
-
-	if len(labelsToTags) > 0 && err == nil {
-		var nodeLabels map[string]string
-		nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
-		if e != nil {
-			err = e
+	} else {
+		nodeName, e := nodeInfo.GetNodeName(ctx)
+		if e == nil && nodeName != "" {
+			tags = append(tags, "kube_node:"+nodeName)
 		}
 
-		if len(nodeLabels) > 0 {
-			tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
+		if len(labelsToTags) > 0 {
+			var nodeLabels map[string]string
+			nodeLabels, e = nodeInfo.GetNodeLabels(ctx)
+			if e != nil {
+				err = e
+			}
+
+			if len(nodeLabels) > 0 {
+				tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
+			}
 		}
 	}
 
