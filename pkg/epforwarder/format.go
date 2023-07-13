@@ -6,7 +6,9 @@
 package epforwarder
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/agent-payload/v5/contimage"
 	"github.com/DataDog/agent-payload/v5/contlcycle"
@@ -21,24 +23,42 @@ import (
 type epFormatter struct{}
 
 func (e *epFormatter) Format(m *message.Message, eventType string, redactedMsg []byte) string {
-	output := fmt.Sprintf("type: %v | ", eventType)
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("type: %v | ", eventType))
 
 	switch eventType {
 	case EventTypeContainerLifecycle:
 		var msg contlcycle.EventsPayload
-		_ = proto.Unmarshal(m.Content, &msg)
-		output += msg.String()
+		if err := proto.Unmarshal(m.Content, &msg); err != nil {
+			output.WriteString(err.Error())
+		} else {
+			prettyPrint(&output, &msg)
+		}
 	case EventTypeContainerImages:
 		var msg contimage.ContainerImagePayload
-		_ = proto.Unmarshal(m.Content, &msg)
-		output += msg.String()
+		if err := proto.Unmarshal(m.Content, &msg); err != nil {
+			output.WriteString(err.Error())
+		} else {
+			prettyPrint(&output, &msg)
+		}
 	case EventTypeContainerSBOM:
 		var msg sbom.SBOMPayload
-		_ = proto.Unmarshal(m.Content, &msg)
-		output += msg.String()
+		if err := proto.Unmarshal(m.Content, &msg); err != nil {
+			output.WriteString(err.Error())
+		} else {
+			prettyPrint(&output, &msg)
+		}
 	default:
-		output += string(m.Content[:])
+		output.Write(m.Content)
 	}
-	output += "\n"
-	return output
+	output.WriteRune('\n')
+	return output.String()
+}
+
+func prettyPrint(sb *strings.Builder, v any) {
+	encoder := json.NewEncoder(sb)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(v); err != nil {
+		sb.WriteString(err.Error())
+	}
 }
