@@ -58,6 +58,11 @@ func (flare *Flare) IsDir(dirname string) bool {
 	return flare.FileExists(dirname) && flare.getFileInfo(dirname).Mode().IsDir()
 }
 
+// IsFile returns true if filename exists and has the right permissions
+func (flare *Flare) HasPerm(filename string, perm fs.FileMode) bool {
+	return flare.FileExists(filename) && flare.getFileInfo(filename).Mode().Perm() == perm
+}
+
 // getFile returns a *zip.File whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
 func (flare *Flare) getFile(path string) *zip.File {
 	return flare.zipFiles[trimTrailingSlash(path)]
@@ -68,6 +73,7 @@ func (flare *Flare) getFileInfo(path string) fs.FileInfo {
 	return flare.getFile(path).FileInfo()
 }
 
+// trimTrailingSlash removes all '/' (or equivalent depending on the OS) at the end of 'path'
 func trimTrailingSlash(path string) string {
 	return strings.TrimRight(path, string(os.PathSeparator))
 }

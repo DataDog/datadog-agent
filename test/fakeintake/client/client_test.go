@@ -262,5 +262,9 @@ func TestClient(t *testing.T) {
 		assert.True(t, flare.IsDir("etc/confd/cpu.d"))
 		assert.False(t, flare.IsDir("health.yaml"))
 		assert.False(t, flare.IsDir("does/not/exist"))
+
+		// HasPerm()
+		assert.True(t, flare.HasPerm("diagnose.log", 0644))
+		assert.True(t, flare.HasPerm("etc/confd", 0755))
 	})
 }
