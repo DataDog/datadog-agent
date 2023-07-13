@@ -295,7 +295,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 	w.Write(buf) //nolint:errcheck
-	pool.Put(bs[:0])
+	pool.Put(bs)
 	log.Tracef("/connections: %d connections, %d bytes", len(cs.Conns), len(buf))
 }
 
