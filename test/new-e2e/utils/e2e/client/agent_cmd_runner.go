@@ -16,24 +16,26 @@ import (
 
 // AgentCommandRunner provides methods to run commands on the Agent.
 type AgentCommandRunner struct {
-	*vmClient
-	os os.OS
+	cmdRunner *vmClient
+	os        os.OS
 }
 
 // Create a new instance of Agent
 func newAgentCommandRunner(client *vmClient, os os.OS) *AgentCommandRunner {
-	return &AgentCommandRunner{
-		vmClient: client, os: os,
+	agent := &AgentCommandRunner{
+		cmdRunner: client, os: os,
 	}
+	agent.waitForReadyTimeout(1 * time.Minute)
+	return agent
 }
 
-func (agent *AgentCommandRunner) GetCommand(parameters string) string {
+func (agent *AgentCommandRunner) getCommand(parameters string) string {
 	return agent.os.GetRunAgentCmd(parameters)
 }
 
 func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
 	args := newAgentArgs(commandArgs...)
-	return agent.vmClient.Execute(agent.GetCommand(command) + " " + args.Args)
+	return agent.cmdRunner.Execute(agent.getCommand(command) + " " + args.Args)
 }
 
 func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string {
@@ -61,27 +63,14 @@ func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status 
 	return newStatus(agent.executeCommand("status", commandArgs...))
 }
 
-// IsReady runs status command and returns true if the agent is ready.
-// Use this to wait for agent to be ready before running any command.
-func (a *Agent) IsReady() (bool, error) {
-	return a.Status().isReady()
-}
-
-// WaitForReady blocks up to one minute waiting for agent to be ready.
-// Retries every 100 ms up to one minute.
-// Returns error on failure.
-func (a *Agent) WaitForReady() error {
-	return a.WaitForReadyTimeout(1 * time.Minute)
-}
-
 // WaitForReady blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
-func (a *Agent) WaitForReadyTimeout(timeout time.Duration) error {
+func (a *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
-		statusOutput, err := a.vmClient.ExecuteWithError(a.GetCommand("status"))
+		statusOutput, err := a.cmdRunner.ExecuteWithError(a.getCommand("status"))
 		if err != nil {
 			return err
 		}

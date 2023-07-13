@@ -32,9 +32,6 @@ func (v *agentSuite) TestAgentCommandNoArg() {
 }
 
 func (v *agentSuite) TestAgentCommandWithArg() {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
 	status := v.Env().Agent.Status(client.WithArgs("-h"))
 	assert.Contains(v.T(), status.Content, "Use \"datadog-agent status [command] --help\" for more information about a command.")
 }
