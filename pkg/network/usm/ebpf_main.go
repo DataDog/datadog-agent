@@ -412,6 +412,9 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	addBoolConst(&options, e.cfg.EnableHTTPMonitoring, "http_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableHTTP2Monitoring, "http2_monitoring_enabled")
 	addBoolConst(&options, e.cfg.EnableKafkaMonitoring, "kafka_monitoring_enabled")
+	// Some parts of USM (https capturing, and part of the classification) use `read_conn_tuple`, and has some if
+	// clauses that handled IPV6, for USM we care (ATM) only from TCP connections, so adding the sole config about tcpv6.
+	addBoolConst(&options, e.cfg.CollectTCPv6Conns, "tcpv6_enabled")
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 2 * 1024 * 1024
 

@@ -7,7 +7,9 @@ package encoding
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -185,11 +187,26 @@ func (gd *USMConnectionData[K, V]) IsPIDCollision(c network.ConnectionStats) boo
 // Close `USMConnectionIndex` and report orphan aggregations
 func (bc *USMConnectionIndex[K, V]) Close() {
 	bc.once.Do(func() {
+		oversizedLogLimit := util.NewLogLimit(50, 2*time.Minute)
+		defer oversizedLogLimit.Close()
+
 		// Determine count of orphan aggregations
 		var total int
-		for _, value := range bc.data {
+		for key, value := range bc.data {
 			if !value.claimed {
 				total += len(value.Data)
+
+				if oversizedLogLimit.ShouldLog() {
+					log.Debugf(
+						"orphan %s aggregation. key: %s:%d <-> %s:%d; value %#v",
+						bc.protocol,
+						util.FromLowHigh(key.SrcIPLow, key.SrcIPHigh),
+						key.SrcPort,
+						util.FromLowHigh(key.DstIPLow, key.DstIPHigh),
+						key.DstPort,
+						value.Data,
+					)
+				}
 			}
 		}
 
