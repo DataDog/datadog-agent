@@ -19,6 +19,7 @@ const (
 	tagStatusCode  = "http.status_code"
 	tagSynthetics  = "synthetics"
 	tagPeerService = "peer.service"
+	allSpanNames   = "*"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -83,27 +84,33 @@ func getStatusCode(s *pb.Span) uint32 {
 func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTagConf map[string][]string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 
-	customTagString := []string{}
+	customTagSlice := []string{}
 
 	spanTags, ok := customTagConf[s.Name]
 
 	if ok {
 		for k := range spanTags {
-			customTagString = append(customTagString, spanTags[k]+":"+s.Meta[spanTags[k]])
+			tags, ok := s.Meta[spanTags[k]]
+
+			if ok {
+				customTagSlice = append(customTagSlice, spanTags[k]+":"+tags)
+			}
 		}
 	}
 
-	emptySpanTags, ok := customTagConf[""]
+	AllSpanNameTags, ok := customTagConf[allSpanNames]
 
 	if ok {
-		for k := range emptySpanTags {
-			customTagString = append(customTagString, emptySpanTags[k]+":"+s.Meta[emptySpanTags[k]])
+		for k := range AllSpanNameTags {
+			tags, ok := s.Meta[AllSpanNameTags[k]]
+
+			if ok {
+				customTagSlice = append(customTagSlice, AllSpanNameTags[k]+":"+tags)
+			}
 		}
 	}
 
-	customKey := NewCustomTagKey(customTagString)
-
-	log.Info("tag key: " + customKey)
+	customKey := NewCustomTagKey(customTagSlice)
 
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,

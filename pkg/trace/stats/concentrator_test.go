@@ -33,9 +33,6 @@ func NewTestConcentrator(now time.Time) *Concentrator {
 		AgentVersion:   "0.99.0",
 		DefaultEnv:     "env",
 		Hostname:       "hostname",
-		CustomTags: map[string][]string{
-			"postgres.query": {"georegion", "costcenter"},
-		},
 	}
 	return NewConcentrator(&cfg, statsChan, now)
 }
@@ -639,7 +636,8 @@ func TestCustomTagStats(t *testing.T) {
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
 
-		fmt.Print(c.customTags)
+		c.customTags = map[string][]string{
+			"postgres.query": {"georegion", "costcenter"}}
 
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
