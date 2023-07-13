@@ -235,4 +235,18 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, flare.Hostname, "test-hostname")
 		assert.NotEmpty(t, flare.ZipFileMap)
 	})
+
+	t.Run("verifyAssertionsOnFlare", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(supportFlareResponse)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		flare, err := client.getFlare()
+		assert.NoError(t, err)
+
+		assert.True(t, flare.FileExists("diagnose.log"))
+		assert.True(t, flare.FileExists("expvar/aggregator"))
+	})
 }
