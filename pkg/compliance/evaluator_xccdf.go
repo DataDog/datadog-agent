@@ -239,7 +239,6 @@ func (p *oscapIO) Stop() {
 	oscapIOsMu.Lock()
 	defer oscapIOsMu.Unlock()
 	oscapIOs[p.File] = nil
-	close(p.ResultCh)
 	close(p.DoneCh)
 }
 
