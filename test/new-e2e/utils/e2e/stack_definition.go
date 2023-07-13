@@ -9,6 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/dockerparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/vm"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws"
@@ -96,6 +98,35 @@ func AgentStackDef(vmParams []ec2params.Option, agentParameters ...agentparams.O
 				VM:         client.NewVM(vm),
 				Agent:      client.NewAgent(installer),
 				Fakeintake: client.NewFakeintake(fakeintakeExporter),
+			}, nil
+		},
+	)
+}
+
+type DockerEnv struct {
+	Docker *client.Docker
+}
+
+// DockerStackDef creates a stack definition for Docker.
+//
+// See [dockerparams.Params] for available options for params.
+//
+// [dockerparams.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/dockerparams#Params
+func DockerStackDef(params ...dockerparams.Option) *StackDefinition[DockerEnv] {
+	return EnvFactoryStackDef(
+		func(ctx *pulumi.Context) (*DockerEnv, error) {
+			vm, err := ec2vm.NewUnixEc2VM(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			docker, err := docker.NewDaemon(vm.UnixVM, params...)
+			if err != nil {
+				return nil, err
+			}
+
+			return &DockerEnv{
+				Docker: client.NewDocker(docker),
 			}, nil
 		},
 	)
