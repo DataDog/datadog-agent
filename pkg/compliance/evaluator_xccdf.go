@@ -134,7 +134,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	}
 	defer stderr.Close()
 
-	log.Debugf("Executing %s in %s\n", cmd.String(), cmd.Dir)
+	log.Infof("Executing %s in %s\n", cmd.String(), cmd.Dir)
 
 	if err := cmd.Start(); err != nil {
 		return err
@@ -157,7 +157,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 				continue
 			}
 
-			log.Debugf("<- %s", s)
+			log.Infof("<- %s", s)
 			line := strings.Split(s, " ")
 			if len(line) != 2 {
 				p.ErrorCh <- fmt.Errorf("invalid output: '%v'", line)
@@ -216,7 +216,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 				if rule == nil {
 					return
 				}
-				log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
+				log.Infof("-> %s %s\n", rule.Profile, rule.Rule)
 				_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
 				if err != nil {
 					log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
@@ -239,7 +239,6 @@ func (p *oscapIO) Stop() {
 	oscapIOsMu.Lock()
 	defer oscapIOsMu.Unlock()
 	oscapIOs[p.File] = nil
-	close(p.ResultCh)
 	close(p.DoneCh)
 }
 
@@ -306,7 +305,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 		case <-ctx.Done():
 			return nil
 		case <-c:
-			log.Warnf("timed out waiting for expected results for rule %s", reqs[i])
+			log.Warnf("timed out waiting for expected results for rule %s", reqs[i].Rule)
 		case err := <-p.ErrorCh:
 			log.Warnf("error: %v", err)
 			events = append(events, NewCheckError(XCCDFEvaluator, err, hostname, "host", rule, benchmark))
