@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package process implements the "process" bundle, providing components for the Process Agent
+// Package trace implements the "trace" bundle, providing components for the Trace Agent
 //
 // The constituent components serve as utilities and are mostly independent of
 // one another.  Other components should depend on any components they need.
