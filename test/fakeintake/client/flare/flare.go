@@ -7,6 +7,7 @@ package flare
 
 import (
 	"archive/zip"
+	"io"
 	"io/fs"
 	"os"
 	"strings"
@@ -68,6 +69,16 @@ func (flare *Flare) FileHasContent(filename string) bool {
 	return flare.IsFile(filename) && flare.getFileInfo(filename).Size() > 0
 }
 
+// FileContains returns true if filename is a regular file and if its content contains a given pattern
+func (flare *Flare) FileContains(filename string, pattern string) bool {
+	if !flare.IsFile(filename) {
+		return false
+	}
+
+	fileContent := flare.getFileContent(filename)
+	return strings.Contains(fileContent, pattern)
+}
+
 // getFile returns a *zip.File whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
 func (flare *Flare) getFile(path string) *zip.File {
 	return flare.zipFiles[trimTrailingSlash(path)]
@@ -76,6 +87,23 @@ func (flare *Flare) getFile(path string) *zip.File {
 // getFileInfo returns a fs.FileInfo associated to the file whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
 func (flare *Flare) getFileInfo(path string) fs.FileInfo {
 	return flare.getFile(path).FileInfo()
+}
+
+// getFileContent gets the content from a file and returns it as a string
+func (flare *Flare) getFileContent(path string) string {
+	file := flare.getFile(path)
+	fileReader, err := file.Open()
+	if err != nil {
+		return ""
+	}
+
+	fileContent := make([]byte, file.UncompressedSize64)
+	_, err = io.ReadFull(fileReader, fileContent)
+	if err != nil {
+		return ""
+	}
+
+	return string(fileContent)
 }
 
 // trimTrailingSlash removes all '/' (or equivalent depending on the OS) at the end of 'path'

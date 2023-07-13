@@ -270,5 +270,9 @@ func TestClient(t *testing.T) {
 		// HasContent()
 		assert.True(t, flare.FileHasContent("permissions.log"))
 		assert.False(t, flare.FileHasContent("local"))
+
+		// FileContains()
+		assert.True(t, flare.FileContains("install_info", "install_method:"))
+		assert.False(t, flare.FileContains("install_info", "dpkg"))
 	})
 }
