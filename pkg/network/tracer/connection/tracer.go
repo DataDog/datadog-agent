@@ -504,7 +504,7 @@ func (t *tracer) Type() TracerType {
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {
-	tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectTCPv6Conns, true)
+	tcpPorts, err := network.ReadInitialState(config.ProcRoot, network.TCP, config.CollectTCPv6Conns)
 	if err != nil {
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	}
@@ -522,7 +522,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		}
 	}
 
-	udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectUDPv6Conns, false)
+	udpPorts, err := network.ReadInitialState(config.ProcRoot, network.UDP, config.CollectUDPv6Conns)
 	if err != nil {
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	}
@@ -533,8 +533,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	}
 	for p, count := range udpPorts {
 		log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
-		// UDP port bindings currently do not have network namespace numbers
-		pb := netebpf.PortBinding{Netns: 0, Port: p.Port}
+		pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
 		err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("failed to update UDP port binding map: %w", err)
