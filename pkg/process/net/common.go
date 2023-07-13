@@ -151,7 +151,7 @@ func (r *RemoteSysProbeUtil) getConnectionWithRPC(unixSockPath, clientID string)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("[GetConnections-rpc] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
+	fmt.Printf("[Getconnections-rpc] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
 	return conns, nil
 }
 
