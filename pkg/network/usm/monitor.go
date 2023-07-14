@@ -72,7 +72,7 @@ type Monitor struct {
 	kafkaEnabled    bool
 	kafkaConsumer   *events.Consumer
 	kafkaTelemetry  *kafka.Telemetry
-	kafkaStatkeeper *kafka.KafkaStatKeeper
+	kafkaStatkeeper *kafka.StatKeeper
 	// termination
 	closeFilterFn func()
 
@@ -165,7 +165,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	if c.EnableKafkaMonitoring {
 		// Kafka related
 		kafkaTelemetry := kafka.NewTelemetry()
-		kafkaStatkeeper := kafka.NewKafkaStatkeeper(c, kafkaTelemetry)
+		kafkaStatkeeper := kafka.NewStatkeeper(c, kafkaTelemetry)
 		usmMonitor.kafkaEnabled = true
 		usmMonitor.kafkaTelemetry = kafkaTelemetry
 		usmMonitor.kafkaStatkeeper = kafkaStatkeeper
@@ -390,7 +390,7 @@ func (m *Monitor) processHTTP2(data []byte) {
 }
 
 func (m *Monitor) kafkaProcess(data []byte) {
-	tx := (*kafka.EbpfKafkaTx)(unsafe.Pointer(&data[0]))
+	tx := (*kafka.EbpfTx)(unsafe.Pointer(&data[0]))
 	m.kafkaTelemetry.Count(tx)
 	m.kafkaStatkeeper.Process(tx)
 }

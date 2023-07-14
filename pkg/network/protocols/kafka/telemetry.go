@@ -41,7 +41,7 @@ func NewTelemetry() *Telemetry {
 	return t
 }
 
-func (t *Telemetry) Count(_ *EbpfKafkaTx) {
+func (t *Telemetry) Count(_ *EbpfTx) {
 	t.totalHits.Add(1)
 }
 
