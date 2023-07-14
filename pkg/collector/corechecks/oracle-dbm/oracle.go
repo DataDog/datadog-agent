@@ -130,7 +130,10 @@ func (c *Check) Run() error {
 			}
 		}
 		if len(c.config.CustomQueries) > 0 {
-			c.CustomQueries()
+			err := c.CustomQueries()
+			if err != nil {
+				log.Errorf("failed to execute custom queries %s", err)
+			}
 		}
 	}
 
@@ -305,7 +308,7 @@ func (c *Check) Teardown() {
 func CloseDatabaseConnection(db *sqlx.DB) error {
 	if db != nil {
 		if err := db.Close(); err != nil {
-			return fmt.Errorf("failed to close oracle connection | server=[%s]: %s")
+			return fmt.Errorf("failed to close oracle connection: %s")
 		}
 	}
 	return nil

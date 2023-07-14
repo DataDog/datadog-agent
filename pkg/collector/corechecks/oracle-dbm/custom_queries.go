@@ -28,7 +28,9 @@ func (c *Check) CustomQueries() error {
 	if c.dbCustomQueries == nil {
 		db, err := c.Connect()
 		if err != nil {
-			CloseDatabaseConnection(db)
+			if errClosing := CloseDatabaseConnection(db); err != nil {
+				log.Errorf("Error closing connection %s", errClosing)
+			}
 			return err
 		}
 		if db == nil {
@@ -104,7 +106,11 @@ func (c *Check) CustomQueries() error {
 						}
 					} else if v_gn, ok := v.(godror.Number); ok {
 						metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
-						//metricRow.value = Number(v_gn)
+						if err != nil {
+							log.Errorf("Metric value %v for metricRow.name %s is not a godror.Number", v, metricRow.name)
+							errInQuery = true
+							break
+						}
 					} else {
 						log.Errorf("Can't parse metric value %v, type %s for metricRow.name %s", v, reflect.TypeOf(v), metricRow.name)
 						errInQuery = true
@@ -126,7 +132,7 @@ func (c *Check) CustomQueries() error {
 			if len(q.Tags) > 0 {
 				tags = append(tags, q.Tags...)
 			}
-			for i, _ := range metricsFromSingleRow {
+			for i := range metricsFromSingleRow {
 				metricsFromSingleRow[i].tags = tags
 			}
 			metricRows = append(metricRows, metricsFromSingleRow...)
@@ -134,7 +140,7 @@ func (c *Check) CustomQueries() error {
 		}
 		rows.Close()
 		if errInQuery {
-			break
+			continue
 		}
 
 		for _, m := range metricRows {
