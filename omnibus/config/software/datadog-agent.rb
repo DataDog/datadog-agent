@@ -258,8 +258,10 @@ build do
     mkdir "#{app_temp_dir}/MacOS"
     systray_build_dir = "#{project_dir}/cmd/agent/gui/systray"
     # Target OSX 10.10 (it brings significant changes to Cocoa and Foundation APIs, and older versions of OSX are EOL'ed)
+    # or macos11 on arm, the first macOS release to support Apple Silicon
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
-    command 'swiftc -O -swift-version "5" -target "x86_64-apple-macosx10.10" -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui', cwd: systray_build_dir
+    target = intel? ? 'x86_64-apple-macosx10.10' : 'arm64-apple-macos11'
+    command "swiftc -O -swift-version 5 -target #{target} -Xlinker \'-rpath\' -Xlinker \'@executable_path/../Frameworks\' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
   end
