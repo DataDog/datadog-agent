@@ -225,8 +225,8 @@ type rawTraceContext struct {
 }
 
 type convertedTraceContext struct {
-	TraceID  *uint64 `json:"x-datadog-trace-id"`
-	ParentID *uint64 `json:"x-datadog-parent-id"`
+	TraceID  *uint64 
+	ParentID *uint64
 }
 
 type customMessageAttributeStruct struct {
