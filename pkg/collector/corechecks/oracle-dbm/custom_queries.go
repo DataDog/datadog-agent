@@ -52,8 +52,10 @@ func (c *Check) CustomQueries() error {
 			log.Error("Undefined metric_prefix for a custom query")
 			continue
 		}
+		log.Tracef("custom query configuration %v", q)
+		var pdb string
 		if !c.connectedToPdb {
-			pdb := q.Pdb
+			pdb = q.Pdb
 			if pdb == "" {
 				pdb = "cdb$root"
 			}
@@ -71,7 +73,9 @@ func (c *Check) CustomQueries() error {
 			log.Errorf("failed to fetch rows for the custom query %s %s", metricPrefix, err)
 			continue
 		}
+		var metricsFromSingleRow []metricRow
 		for rows.Next() {
+			tags := []string{fmt.Sprintf("pdb:%s", pdb)}
 			cols, err := rows.SliceScan()
 			if err != nil {
 				log.Errorf("failed to get values for the custom query %s %s", metricPrefix, err)
@@ -83,11 +87,12 @@ func (c *Check) CustomQueries() error {
 				errInQuery = true
 				break
 			}
-			var tags []string
 			var metricRow metricRow
 			for i, v := range cols {
 				if q.Columns[i].Type == "tag" {
-					tags = append(tags, fmt.Sprintf("%s:%s", q.Columns[i].Name, v))
+					if v != nil {
+						tags = append(tags, fmt.Sprintf("%s:%s", q.Columns[i].Name, v))
+					}
 				} else if methodFunc, ok := methods[q.Columns[i].Type]; ok {
 					metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
 					if v_str, ok := v.(string); ok {
@@ -107,6 +112,7 @@ func (c *Check) CustomQueries() error {
 					}
 
 					metricRow.method = methodFunc
+					metricsFromSingleRow = append(metricsFromSingleRow, metricRow)
 				} else {
 					log.Errorf("Unknown column type %s in custom query %s", q.Columns[i].Type, metricRow.name)
 					errInQuery = true
@@ -114,16 +120,27 @@ func (c *Check) CustomQueries() error {
 				}
 			}
 			if errInQuery {
-				continue
+				break
 			}
 			tags = append(c.tags, tags...)
 			if len(q.Tags) > 0 {
 				tags = append(tags, q.Tags...)
 			}
-			metricRow.tags = tags
-			metricRows = append(metricRows, metricRow)
+			for i, _ := range metricsFromSingleRow {
+				metricsFromSingleRow[i].tags = tags
+			}
+			metricRows = append(metricRows, metricsFromSingleRow...)
+
+		}
+		rows.Close()
+		if errInQuery {
+			break
+		}
+
+		for _, m := range metricRows {
+			log.Tracef("send metric %+v", m)
+			m.method(m.name, m.value, "", m.tags)
 		}
 	}
-	log.Tracef("Custom queries %v", metricRows)
 	return nil
 }
