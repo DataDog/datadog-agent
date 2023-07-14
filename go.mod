@@ -60,7 +60,7 @@ require (
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.2.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.5.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.2.3
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.2.3
 	github.com/DataDog/sketches-go v1.4.2
@@ -198,7 +198,7 @@ require (
 	go.opentelemetry.io/collector/exporter v0.75.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.75.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.75.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rcv0012
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0013
 	go.opentelemetry.io/collector/processor/batchprocessor v0.75.0
 	go.opentelemetry.io/collector/receiver v0.75.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.75.0
@@ -516,7 +516,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.75.0 // indirect
 	go.opentelemetry.io/collector/featuregate v0.75.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.78.1 // indirect
+	go.opentelemetry.io/collector/semconv v0.81.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.40.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.40.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.15.0 // indirect
@@ -568,6 +568,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.5.2
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
@@ -580,6 +581,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect

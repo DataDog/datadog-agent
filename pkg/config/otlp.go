@@ -11,6 +11,8 @@ const (
 	OTLPTracesSubSectionKey   = "traces"
 	OTLPTracePort             = OTLPSection + "." + OTLPTracesSubSectionKey + ".internal_port"
 	OTLPTracesEnabled         = OTLPSection + "." + OTLPTracesSubSectionKey + ".enabled"
+	OTLPLogsSubSectionKey     = "logs"
+	OTLPLogsEnabled           = OTLPSection + "." + OTLPLogsSubSectionKey + ".enabled"
 	OTLPReceiverSubSectionKey = "receiver"
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
 	OTLPCensusReceiverSection = OTLPSection + ".opencensus"
@@ -27,6 +29,7 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
+	config.BindEnvAndSetDefault(OTLPLogsEnabled, true)
 
 	// NOTE: This only partially works.
 	// The environment variable is also manually checked in pkg/otlp/config.go

@@ -11,6 +11,7 @@ import (
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -459,19 +460,6 @@ func startAgent(
 		pkgTelemetry.RegisterStatsSender(sender)
 	}
 
-	// Start OTLP intake
-	otlpEnabled := otlp.IsEnabled(pkgconfig.Datadog)
-	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
-	if otlpEnabled {
-		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, demux.Serializer())
-		if err != nil {
-			log.Errorf("Could not start OTLP: %s", err)
-		} else {
-			log.Debug("OTLP pipeline started")
-		}
-	}
-
 	// Start SNMP trap server
 	if traps.IsEnabled() {
 		err = traps.StartServer(hostnameDetected, demux)
@@ -503,16 +491,33 @@ func startAgent(
 		}
 	}
 
+	var logsAgentChannel chan *message.Message
+
 	// start logs-agent.  This must happen after AutoConfig is set up (via common.LoadComponents)
 	if pkgconfig.Datadog.GetBool("logs_enabled") || pkgconfig.Datadog.GetBool("log_enabled") {
 		if pkgconfig.Datadog.GetBool("log_enabled") {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
-		if _, err := logs.Start(common.AC); err != nil {
+		if logsAgent, err := logs.Start(common.AC); err != nil {
 			log.Error("Could not start logs-agent: ", err)
+		} else {
+			logsAgentChannel = logsAgent.GetPipelineProvider().NextPipelineChan()
 		}
 	} else {
 		log.Info("logs-agent disabled")
+	}
+
+	// Start OTLP intake
+	otlpEnabled := otlp.IsEnabled(pkgconfig.Datadog)
+	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
+	if otlpEnabled {
+		var err error
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, demux.Serializer(), logsAgentChannel)
+		if err != nil {
+			log.Errorf("Could not start OTLP: %s", err)
+		} else {
+			log.Debug("OTLP pipeline started")
+		}
 	}
 
 	// Start NetFlow server

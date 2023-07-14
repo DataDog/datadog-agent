@@ -43,3 +43,6 @@ func LoadConfig(path string) (config.Config, error) {
 
 	return cfg, nil
 }
+
+// JSONLogs is the type for the array of processed JSON log data from each request
+type JSONLogs []map[string]interface{}

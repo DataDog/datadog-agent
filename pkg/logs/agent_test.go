@@ -9,6 +9,7 @@ package logs
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"os"
 	"testing"
 	"time"
@@ -156,6 +157,41 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	assert.Equal(suite.T(), int64(0), metrics.LogsSent.Value())
 	assert.Equal(suite.T(), "2", metrics.DestinationLogsDropped.Get("fake:").String())
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
+}
+
+func (suite *AgentTestSuite) TestGetPipelineProvider() {
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, _, _ := createAgent(endpoints)
+
+	cfg := &config.LogsConfig{
+		Type:    "type",
+		Source:  "source",
+		Service: "service",
+	}
+	src := sources.NewLogSource("source", cfg)
+	origin := message.NewOrigin(src)
+	msg := message.NewMessage([]byte("a"), origin, "", 0)
+
+	agent.Start()
+	testChannel := agent.GetPipelineProvider().NextPipelineChan()
+	testChannel <- msg
+
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		return 1 == metrics.LogsProcessed.Value()
+	})
+	agent.Stop()
+
+	zero := int64(0)
+	one := int64(1)
+	assert.Equal(suite.T(), one, metrics.LogsDecoded.Value())
+	assert.Equal(suite.T(), one, metrics.LogsProcessed.Value())
+	assert.Equal(suite.T(), one, metrics.LogsSent.Value())
+	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
 }
 
 func TestAgentTestSuite(t *testing.T) {

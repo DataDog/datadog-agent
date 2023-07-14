@@ -48,3 +48,21 @@ service:
       receivers: [otlp]
       exporters: [serializer]
 `
+
+// defaultLogsConfig is the logs OTLP pipeline configuration.
+const defaultLogsConfig string = `
+receivers:
+  otlp:
+
+exporters:
+  logsagent:
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    logs:
+      receivers: [otlp]
+      exporters: [logsagent]
+`

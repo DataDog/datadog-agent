@@ -7,6 +7,8 @@ package main
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"os"
 	"os/signal"
 	"strconv"
@@ -25,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
@@ -232,20 +233,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
-	// starts otlp agent
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if !otlp.IsEnabled() {
-			log.Debug("otlp endpoint disabled")
-			return
-		}
-		otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
-		otlpAgent.Start()
-		serverlessDaemon.SetOTLPAgent(otlpAgent)
-	}()
-
 	// enable telemetry collection
+	var logsAgentChannel chan *message.Message
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -271,7 +261,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+			logsAgent := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+			logsAgentChannel = logsAgent.GetPipelineProvider().NextPipelineChan()
 		}
 	}()
 
@@ -295,6 +286,15 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	wg.Wait()
+
+	// starts otlp agent
+	if !otlp.IsEnabled() {
+		log.Debug("otlp endpoint disabled")
+	} else {
+		otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), logsAgentChannel)
+		otlpAgent.Start()
+		serverlessDaemon.SetOTLPAgent(otlpAgent)
+	}
 
 	coldStartSpanCreator := &trace.ColdStartSpanCreator{
 		LambdaSpanChan:       lambdaSpanChan,

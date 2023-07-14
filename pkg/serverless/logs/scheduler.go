@@ -17,15 +17,16 @@ import (
 var logsScheduler *channel.Scheduler
 
 // SetupLogAgent sets up the logs agent to handle messages on the given channel.
-func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string) {
+func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string) *logs.Agent {
 	agent, err := logs.StartServerless()
 	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)
-		return
+		return nil
 	}
 
 	logsScheduler = channel.NewScheduler(sourceName, source, logChannel)
 	agent.AddScheduler(logsScheduler)
+	return agent
 }
 
 // SetLogsTags updates the tags attached to logs messages.

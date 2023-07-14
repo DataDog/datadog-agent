@@ -58,6 +58,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:                5003,
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -78,6 +79,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:                5003,
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -98,6 +100,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:                5003,
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -135,6 +138,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				TracePort:                5003,
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
 					"tag_cardinality": "low",
@@ -181,6 +185,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OpenCensusReceiverConfig: map[string]interface{}{},
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -209,6 +214,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OpenCensusReceiverConfig: map[string]interface{}{},
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -240,6 +246,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OpenCensusReceiverConfig: map[string]interface{}{},
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
@@ -270,6 +277,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OpenCensusReceiverConfig: map[string]interface{}{},
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -297,6 +305,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OpenCensusReceiverConfig: map[string]interface{}{},
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -325,6 +334,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OpenCensusReceiverConfig: map[string]interface{}{},
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -351,6 +361,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				OpenCensusReceiverConfig: map[string]interface{}{"endpoint": "0.0.0.0:55678"},
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				TracePort:                5003,
 				Metrics: map[string]interface{}{
 					"enabled":         true,
@@ -391,6 +402,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 				TracePort:                5003,
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				Metrics: map[string]interface{}{
 					"enabled":                     true,
 					"delta_ttl":                   2400,
@@ -441,6 +453,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracePort:                5003,
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				Debug:                    map[string]interface{}{},
 				Metrics:                  map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
@@ -454,6 +467,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracePort:                5003,
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				Debug:                    map[string]interface{}{"loglevel": "debug"},
 				Metrics:                  map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
@@ -467,6 +481,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracePort:                5003,
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				Debug:                    map[string]interface{}{"loglevel": "disabled"},
 				Metrics:                  map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},
@@ -480,6 +495,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				TracePort:                5003,
 				MetricsEnabled:           true,
 				TracesEnabled:            true,
+				LogsEnabled:              true,
 				Debug:                    map[string]interface{}{"verbosity": "normal"},
 				Metrics:                  map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
 			},

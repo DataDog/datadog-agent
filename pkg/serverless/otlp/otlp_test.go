@@ -11,6 +11,7 @@ package otlp
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"os"
 	"strconv"
 	"testing"
@@ -75,7 +76,8 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert.True(metricAgent.IsReady())
 
 	// setup otlp agent
-	otlpAgent := NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
+	logsAgentChannel := make(chan *message.Message)
+	otlpAgent := NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), logsAgentChannel)
 	otlpAgent.Start()
 	defer otlpAgent.Stop()
 	assert.NotNil(otlpAgent.pipeline)
