@@ -65,7 +65,7 @@ type CustomQueryColumns struct {
 	Type string `yaml:"type"`
 }
 
-type CustomQueries struct {
+type CustomQuery struct {
 	MetricPrefix string               `yaml:"metric_prefix"`
 	Pdb          string               `yaml:"pdb"`
 	Query        string               `yaml:"query"`
@@ -98,7 +98,7 @@ type InstanceConfig struct {
 	SharedMemory           SharedMemoryConfig   `yaml:"shared_memory"`
 	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
 	AgentSQLTrace          AgentSQLTrace        `yaml:"agent_sql_trace"`
-	CustomQueries          []CustomQueries      `yaml:"custom_queries"`
+	CustomQueries          []CustomQuery        `yaml:"custom_queries"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
