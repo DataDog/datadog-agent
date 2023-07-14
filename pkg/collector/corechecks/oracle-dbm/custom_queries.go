@@ -147,6 +147,7 @@ func (c *Check) CustomQueries() error {
 			log.Tracef("send metric %+v", m)
 			m.method(m.name, m.value, "", m.tags)
 		}
+		sender.Commit()
 	}
 	return nil
 }
