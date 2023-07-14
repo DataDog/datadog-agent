@@ -308,7 +308,7 @@ func (c *Check) Teardown() {
 func CloseDatabaseConnection(db *sqlx.DB) error {
 	if db != nil {
 		if err := db.Close(); err != nil {
-			return fmt.Errorf("failed to close oracle connection: %s")
+			return fmt.Errorf("failed to close oracle connection: %s", err)
 		}
 	}
 	return nil
