@@ -24,6 +24,13 @@ type metricRow struct {
 	tags   []string
 }
 
+func logTypeError(prefix string, expectedType string, column string, value interface{}, query string) {
+	log.Errorf(
+		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s"`,
+		prefix, expectedType, column, value, reflect.TypeOf(value), query,
+	)
+}
+
 func (c *Check) CustomQueries() error {
 	if c.dbCustomQueries == nil {
 		db, err := c.Connect()
@@ -45,7 +52,14 @@ func (c *Check) CustomQueries() error {
 	if err != nil {
 		return fmt.Errorf("failed to get sender for custom queries %w", err)
 	}
-	methods := map[string]Method{"gauge": sender.Gauge, "count": sender.Count, "rate": sender.Rate}
+	methods := map[string]Method{
+		"gauge":           sender.Gauge,
+		"count":           sender.Count,
+		"rate":            sender.Rate,
+		"monotonic_count": sender.MonotonicCount,
+		"histogram":       sender.Histogram,
+		"historate":       sender.Historate,
+	}
 	for _, q := range c.config.CustomQueries {
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix
@@ -100,19 +114,19 @@ func (c *Check) CustomQueries() error {
 					if v_str, ok := v.(string); ok {
 						metricRow.value, err = strconv.ParseFloat(v_str, 64)
 						if err != nil {
-							log.Errorf("Metric value %v for metricRow.name %s is not a number", v, metricRow.name)
+							logTypeError(metricPrefix, "number", metricRow.name, v, q.Query)
 							errInQuery = true
 							break
 						}
 					} else if v_gn, ok := v.(godror.Number); ok {
 						metricRow.value, err = strconv.ParseFloat(string(v_gn), 64)
 						if err != nil {
-							log.Errorf("Metric value %v for metricRow.name %s is not a godror.Number", v, metricRow.name)
+							logTypeError(metricPrefix, "godror.Number", metricRow.name, v, q.Query)
 							errInQuery = true
 							break
 						}
 					} else {
-						log.Errorf("Can't parse metric value %v, type %s for metricRow.name %s", v, reflect.TypeOf(v), metricRow.name)
+						logTypeError(metricPrefix, "godror.Number", metricRow.name, v, q.Query)
 						errInQuery = true
 						break
 					}
