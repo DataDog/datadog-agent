@@ -33,9 +33,8 @@ const (
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
-	protocolDispatcherSocketFilterFunction   = "socket__protocol_dispatcher"
-	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
-	connectionStatesMap                      = "connection_states"
+	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
+	connectionStatesMap                    = "connection_states"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -43,8 +42,6 @@ const (
 	// the accept syscall).
 	maxActive = 128
 	probeUID  = "http"
-
-	kafkaLastTCPSeqPerConnectionMap = "kafka_last_tcp_seq_per_connection"
 )
 
 type ebpfProgram struct {
@@ -122,7 +119,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
 			{Name: connectionStatesMap},
-			{Name: protocolDispatcherClassificationPrograms},
 		},
 		Probes: []*manager.Probe{
 			{
@@ -174,25 +170,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 
 	if c.EnableHTTP2Monitoring {
 		tailCalls = append(tailCalls, http2TailCall)
-	}
-
-	// If Kafka monitoring is enabled, the kafka parsing function and the Kafka dispatching function are added to the dispatcher mechanism.
-	if c.EnableKafkaMonitoring {
-		tailCalls = append(tailCalls,
-			manager.TailCallRoute{
-				ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-				Key:           uint32(protocols.ProgramKafka),
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "socket__kafka_filter",
-				},
-			},
-			manager.TailCallRoute{
-				ProgArrayName: protocolDispatcherClassificationPrograms,
-				Key:           uint32(protocols.DispatcherKafkaProg),
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "socket__protocol_dispatcher_kafka",
-				},
-			})
 	}
 
 	if IsJavaSubprogramEnabled(c) {
@@ -339,11 +316,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		kafkaLastTCPSeqPerConnectionMap: {
-			Type:       ebpf.Hash,
-			MaxEntries: e.cfg.MaxTrackedConnections,
-			EditorFlag: manager.EditMaxEntries,
-		},
 	}
 	if e.connectionProtocolMap != nil {
 		if options.MapEditors == nil {
@@ -425,13 +397,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		events.Configure("http2", e.Manager.Manager, &options)
 	} else {
 		options.ExcludedFunctions = append(options.ExcludedFunctions, "socket__http2_filter")
-	}
-
-	if e.cfg.EnableKafkaMonitoring {
-		events.Configure("kafka", e.Manager.Manager, &options)
-	} else {
-		// If Kafka monitoring is not enabled, loading the program will cause a verifier issue and should be avoided.
-		options.ExcludedFunctions = append(options.ExcludedFunctions, "socket__kafka_filter", "socket__protocol_dispatcher_kafka")
 	}
 
 	return e.InitWithOptions(buf, options)

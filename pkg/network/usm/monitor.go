@@ -17,6 +17,8 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -28,7 +30,6 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 type monitorState = string
@@ -46,7 +47,8 @@ var (
 	// knownProtocols maps individual protocol types, to their specification,
 	// for the Monitor to use during its initialisation.
 	knownProtocols = map[protocols.ProtocolType]protocols.ProtocolSpec{
-		protocols.HTTP: http.Spec,
+		protocols.HTTP:  http.Spec,
+		protocols.Kafka: kafka.Spec,
 	}
 )
 
@@ -68,11 +70,6 @@ type Monitor struct {
 	http2Enabled   bool
 	httpTLSEnabled bool
 
-	// Kafka related
-	kafkaEnabled    bool
-	kafkaConsumer   *events.Consumer
-	kafkaTelemetry  *kafka.Telemetry
-	kafkaStatkeeper *kafka.StatKeeper
 	// termination
 	closeFilterFn func()
 
@@ -162,15 +159,6 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		httpTLSEnabled:   c.EnableHTTPSMonitoring,
 	}
 
-	if c.EnableKafkaMonitoring {
-		// Kafka related
-		kafkaTelemetry := kafka.NewTelemetry()
-		kafkaStatkeeper := kafka.NewStatkeeper(c, kafkaTelemetry)
-		usmMonitor.kafkaEnabled = true
-		usmMonitor.kafkaTelemetry = kafkaTelemetry
-		usmMonitor.kafkaStatkeeper = kafkaStatkeeper
-	}
-
 	usmMonitor.lastUpdateTime = atomic.NewInt64(time.Now().Unix())
 
 	return usmMonitor, nil
@@ -186,10 +174,10 @@ func (m *Monitor) Start() error {
 		err error
 
 		// This value is here so that both the new way of handling protocols and
-		// the old one (used here by kafka & http2 monitoring) can coexist in
+		// the old one (used here by http2 monitoring) can coexist in
 		// this function. It SHOULD be removed once every protocol has been
 		// refactored to use the new way.
-		enabledCount int = 0
+		enabledCount = 0
 	)
 
 	defer func() {
@@ -231,20 +219,6 @@ func (m *Monitor) Start() error {
 			log.Errorf("could not enable http2 monitoring: %s", err)
 		} else {
 			m.http2Consumer.Start()
-			enabledCount++
-		}
-	}
-
-	if m.kafkaEnabled {
-		m.kafkaConsumer, err = events.NewConsumer(
-			"kafka",
-			m.ebpfProgram.Manager.Manager,
-			m.kafkaProcess,
-		)
-		if err != nil {
-			log.Errorf("could not enable kafka monitoring: %s", err)
-		} else {
-			m.kafkaConsumer.Start()
 			enabledCount++
 		}
 	}
@@ -345,17 +319,6 @@ func (m *Monitor) GetHTTP2Stats() map[http.Key]*http.RequestStats {
 	return m.http2Statkeeper.GetAndResetAllStats()
 }
 
-// GetKafkaStats returns a map of Kafka stats
-func (m *Monitor) GetKafkaStats() map[kafka.Key]*kafka.RequestStat {
-	if m == nil || m.kafkaEnabled == false {
-		return nil
-	}
-
-	m.kafkaConsumer.Sync()
-	m.kafkaTelemetry.Log()
-	return m.kafkaStatkeeper.GetAndResetAllStats()
-}
-
 // Stop HTTP monitoring
 func (m *Monitor) Stop() {
 	if m == nil {
@@ -373,9 +336,7 @@ func (m *Monitor) Stop() {
 	if m.http2Enabled {
 		m.http2Consumer.Stop()
 	}
-	if m.kafkaEnabled {
-		m.kafkaConsumer.Stop()
-	}
+
 	if m.http2Statkeeper != nil {
 		m.http2Statkeeper.Close()
 	}
@@ -387,12 +348,6 @@ func (m *Monitor) processHTTP2(data []byte) {
 
 	m.http2Telemetry.Count(tx)
 	m.http2Statkeeper.Process(tx)
-}
-
-func (m *Monitor) kafkaProcess(data []byte) {
-	tx := (*kafka.EbpfTx)(unsafe.Pointer(&data[0]))
-	m.kafkaTelemetry.Count(tx)
-	m.kafkaStatkeeper.Process(tx)
 }
 
 // DumpMaps dumps the maps associated with the monitor
@@ -530,6 +485,7 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) (map[protocols.ProtocolTy
 
 			log.Infof("%v monitoring enabled", proto.String())
 		} else {
+			spec := spec
 			disabledProtocols = append(disabledProtocols, &spec)
 		}
 	}
