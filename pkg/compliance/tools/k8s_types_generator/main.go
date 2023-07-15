@@ -411,10 +411,10 @@ func printKomponentCode(komp *komponent) string {
 		s += fmt.Sprintf(" %s %s `json:\"%s\"` // versions: %s\n",
 			toGoField(c.flagName), c.goType, toGoJSONTag(c.flagName), strings.Join(c.versions, ", "))
 	}
-	s += fmt.Sprint(" SkippedFlags map[string]string `json:\"skippedFlags,omitempty\"`\n")
+	s += " SkippedFlags map[string]string `json:\"skippedFlags,omitempty\"`\n"
 	s += "}\n"
 	s += fmt.Sprintf("func (l *loader) newK8s%sConfig(flags map[string]string) *K8s%sConfig {\n", goStructName, goStructName)
-	s += fmt.Sprintf("if (flags == nil) { return nil }\n")
+	s += "if (flags == nil) { return nil }\n"
 	s += fmt.Sprintf("var res K8s%sConfig\n", goStructName)
 	for _, c := range komp.confs {
 		if !isKnownFlag(c.flagName) {
@@ -424,14 +424,14 @@ func printKomponentCode(komp *komponent) string {
 		s += fmt.Sprintf("delete(flags, \"--%s\")\n", c.flagName)
 		s += printAssignment(c, "v")
 		if c.flagDefault != "" {
-			s += fmt.Sprintf("\n} else {\n")
+			s += "\n} else {\n"
 			s += printAssignment(c, fmt.Sprintf("%q", c.flagDefault))
 		}
-		s += fmt.Sprintf("}\n")
+		s += "}\n"
 	}
-	s += fmt.Sprintf("if len(flags) > 0 { res.SkippedFlags = flags }\n")
-	s += fmt.Sprintf("return &res\n")
-	s += fmt.Sprintf("}\n")
+	s += "if len(flags) > 0 { res.SkippedFlags = flags }\n"
+	s += "return &res\n"
+	s += "}\n"
 	return s
 }
 
