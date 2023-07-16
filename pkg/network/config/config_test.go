@@ -258,7 +258,7 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 }
 
 func TestEnableGRPCCommunication(t *testing.T) {
-	t.Run("via ENV variable", func(t *testing.T) {
+	t.Run("enable grpc server via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USE_GRPC", "true")
 		_, err := sysconfig.New("")
@@ -266,6 +266,16 @@ func TestEnableGRPCCommunication(t *testing.T) {
 		cfg := New()
 
 		assert.True(t, cfg.UseGRPC)
+	})
+
+	t.Run("enable configurable sock path via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_GRPC_SOCKET_FILE_PATH", "/test.sock")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.NotNil(t, cfg.GRPCSocketFilePath)
 	})
 }
 
