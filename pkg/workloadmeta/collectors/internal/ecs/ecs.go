@@ -9,6 +9,7 @@ package ecs
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -214,32 +215,9 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 		return rt
 	}
 
-	var metaURI string
-	var metaVersion string
-	for _, taskContainer := range entity.Containers {
-		container, err := c.store.GetContainer(taskContainer.ID)
-		if err != nil {
-			log.Tracef("cannot find container %q found in task %q: %s", taskContainer, entity.ID, err)
-			continue
-		}
-
-		uri, ok := container.EnvVars[v3or4.DefaultMetadataURIv4EnvVariable]
-		if ok && uri != "" {
-			metaURI = uri
-			metaVersion = "v4"
-			break
-		}
-
-		uri, ok = container.EnvVars[v3or4.DefaultMetadataURIv3EnvVariable]
-		if ok && uri != "" {
-			metaURI = uri
-			metaVersion = "v3"
-			break
-		}
-	}
-
+	metaURI, metaVersion := c.getMetaURI(ctx, entity)
 	if metaURI == "" {
-		log.Errorf("failed to get client for metadata v3 or v4 API from task %q and the following containers: %v", entity.ID, entity.Containers)
+		log.Errorf("failed to get client for metadata v3 or v4 API from task %q", entity.ID)
 		return rt
 	}
 
@@ -258,4 +236,34 @@ func (c *collector) getResourceTags(ctx context.Context, entity *workloadmeta.EC
 	c.resourceTags[entity.ID] = rt
 
 	return rt
+}
+
+// getMetaURI tries to get the metadata URI from the environment variables of
+// the Datadog Agent itself first. If that fails, it tries to get it from the
+// environment variables of each container in the task.
+// The Amazon ECS container agent injects an environment variable into each container.
+// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint-v3.html
+// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint-v4.html
+func (c *collector) getMetaURI(ctx context.Context, entity *workloadmeta.ECSTask) (metaURI, metaVersion string) {
+	var ok bool
+	if metaURI, ok = os.LookupEnv(v3or4.DefaultMetadataURIv4EnvVariable); ok && metaURI != "" {
+		return metaURI, "v4"
+	}
+	if metaURI, ok = os.LookupEnv(v3or4.DefaultMetadataURIv3EnvVariable); ok && metaURI != "" {
+		return metaURI, "v3"
+	}
+	for _, taskContainer := range entity.Containers {
+		container, err := c.store.GetContainer(taskContainer.ID)
+		if err != nil {
+			log.Tracef("cannot find container %q found in task %q: %s", taskContainer, entity.ID, err)
+			continue
+		}
+		if metaURI, ok = container.EnvVars[v3or4.DefaultMetadataURIv4EnvVariable]; ok && metaURI != "" {
+			return metaURI, "v4"
+		}
+		if metaURI, ok = container.EnvVars[v3or4.DefaultMetadataURIv3EnvVariable]; ok && metaURI != "" {
+			return metaURI, "v3"
+		}
+	}
+	return "", ""
 }
