@@ -128,7 +128,7 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 
 func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
 	hops := hostHops[0]
-	var prevHop *traceroute.TracerouteHop
+	var prevHop traceroute.TracerouteHop
 	for _, hop := range hops {
 		ip := hop.AddressString()
 		durationMs := hop.ElapsedTime.Seconds() * 10e3
@@ -158,16 +158,16 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 			"hop_host:" + hop.HostOrAddressString(),
 			"ttl:" + strconv.Itoa(hop.TTL),
 		}
-		if prevHop != nil {
+		if prevHop.TTL > 0 {
 			prevIp := prevHop.AddressString()
 			tags = append(tags, "prev_hop_ip_address:"+prevIp)
-			tags = append(tags, "hop_host:"+prevHop.HostOrAddressString())
+			tags = append(tags, "prev_hop_host:"+prevHop.HostOrAddressString())
 		}
 		log.Infof("[netpath] tags: %s", tags)
 		sender.Gauge("netpath.hop.duration", durationMs, "", CopyStrings(tags))
 		sender.Gauge("netpath.hop.record", float64(1), "", CopyStrings(tags))
 
-		prevHop = &hop
+		prevHop = hop
 	}
 
 	return nil
