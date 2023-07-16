@@ -128,37 +128,9 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 	return results, nil
 }
 
-func (r *RemoteSysProbeUtil) getConnectionWithRPC(unixSockPath, clientID string) (*model.Connections, error) {
-	// Create a context with a timeout of 10 seconds
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	conn, err := grpc.Dial("unix://"+unixSockPath, grpc.WithInsecure())
-	if err != nil {
-		return nil, err
-	}
-
-	client := connectionserver.NewSystemProbeClient(conn)
-
-	response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: clientID, UnixSockPath: unixSockPath})
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := response.Recv()
-	if err != nil {
-		return nil, err
-	}
-
-	conns, err := netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("[Getconnections-rpc] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
-	return conns, nil
-}
-
-func (r *RemoteSysProbeUtil) getConnectionWithHTTP(clientID string) (*model.Connections, error) {
+// GetConnections returns a set of active network connections, retrieved from the system probe service, supports the
+// grpc server as well as the http server.
+func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s?client_id=%s", connectionsURL, clientID), nil)
 	if err != nil {
 		return nil, err
@@ -190,14 +162,34 @@ func (r *RemoteSysProbeUtil) getConnectionWithHTTP(clientID string) (*model.Conn
 	return conns, nil
 }
 
-// GetConnections returns a set of active network connections, retrieved from the system probe service, supports the
-// grpc server as well as the http server.
-func (r *RemoteSysProbeUtil) GetConnections(clientID, unixSockPath string) (*model.Connections, error) {
-	if unixSockPath != "" {
-		return r.getConnectionWithRPC(unixSockPath, clientID)
-	} else {
-		return r.getConnectionWithHTTP(clientID)
+func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixSockPath string) (*model.Connections, error) {
+	// Create a context with a timeout of 10 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conn, err := grpc.Dial("unix://"+unixSockPath, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
 	}
+
+	client := connectionserver.NewSystemProbeClient(conn)
+
+	response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: clientID, UnixSockPath: unixSockPath})
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := response.Recv()
+	if err != nil {
+		return nil, err
+	}
+
+	conns, err := netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("[Getconnections-rpc] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
+	return conns, nil
 }
 
 // GetStats returns the expvar stats of the system probe

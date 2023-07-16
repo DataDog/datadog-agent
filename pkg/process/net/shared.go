@@ -9,8 +9,9 @@ import model "github.com/DataDog/agent-payload/v5/process"
 
 // SysProbeUtil fetches info from the SysProbe running remotely
 type SysProbeUtil interface {
-	GetConnections(clientID, unixSockPath string) (*model.Connections, error)
+	GetConnections(clientID string) (*model.Connections, error)
 	GetStats() (map[string]interface{}, error)
 	GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error)
 	Register(clientID string) error
+	GetConnectionsGRPC(clientID, unixSockPath string) (*model.Connections, error)
 }
