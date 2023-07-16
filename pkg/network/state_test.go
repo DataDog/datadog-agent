@@ -1990,7 +1990,7 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	delta = state.GetDelta(client2, latestEpochTime(), nil, nil, getStats("my-topic2"), nil)
 	assert.Len(t, delta.Kafka, 2)
 
-	// Verify that the third client also accumulated both new HTTP stats
+	// Verify that the third client also accumulated Kafka stats.
 	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, getStats("my-topic2"), nil)
 	assert.Len(t, delta.Kafka, 2)
 }

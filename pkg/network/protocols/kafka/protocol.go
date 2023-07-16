@@ -27,9 +27,9 @@ type protocol struct {
 }
 
 const (
-	eventStream                              = "kafka"
+	eventStreamName                          = "kafka"
 	filterTailCall                           = "socket__kafka_filter"
-	dispatcherTailCAll                       = "socket__protocol_dispatcher_kafka"
+	dispatcherTailCall                       = "socket__protocol_dispatcher_kafka"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaLastTCPSeqPerConnectionMap          = "kafka_last_tcp_seq_per_connection"
 )
@@ -56,7 +56,7 @@ var Spec = protocols.ProtocolSpec{
 			ProgArrayName: protocolDispatcherClassificationPrograms,
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: dispatcherTailCAll,
+				EBPFFuncName: dispatcherTailCall,
 			},
 		},
 	},
@@ -67,21 +67,19 @@ func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		return nil, nil
 	}
 
-	telemetry := NewTelemetry()
-
 	return &protocol{
 		cfg:       cfg,
-		telemetry: telemetry,
+		telemetry: NewTelemetry(),
 	}, nil
 }
 
 // ConfigureOptions add the necessary options for the http monitoring to work,
 // to be used by the manager. These are:
-// - Set the `http_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
+// - Set the `kafka_last_tcp_seq_per_connection` map size to the value of the `max_tracked_connection` configuration variable.
 //
 // We also configure the http event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	events.Configure(eventStream, mgr, opts)
+	events.Configure(eventStreamName, mgr, opts)
 	opts.MapSpecEditors[kafkaLastTCPSeqPerConnectionMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
@@ -89,20 +87,21 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 }
 
-func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocol) PreStart(mgr *manager.Manager) error {
+	var err error
 	p.eventsConsumer, err = events.NewConsumer(
-		eventStream,
+		eventStreamName,
 		mgr,
 		p.processKafka,
 	)
 	if err != nil {
-		return
+		return err
 	}
 
 	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry)
 	p.eventsConsumer.Start()
 
-	return
+	return nil
 }
 
 func (p *protocol) PostStart(_ *manager.Manager) error {
@@ -123,7 +122,7 @@ func (p *protocol) processKafka(data []byte) {
 	p.statkeeper.Process(tx)
 }
 
-// GetStats returns a map of HTTP stats stored in the following format:
+// GetStats returns a map of Kafka stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
 func (p *protocol) GetStats() *protocols.ProtocolStats {
 	p.eventsConsumer.Sync()
