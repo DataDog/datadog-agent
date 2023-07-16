@@ -65,7 +65,7 @@ func (c *Check) Run() error {
 func (c *Check) traceroute(sender sender.Sender) error {
 	options := traceroute.TracerouteOptions{}
 	options.SetRetries(1)
-	options.SetMaxHops(30)
+	options.SetMaxHops(15)
 	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
 	times := 1
 	destinationHost := c.config.Hostname
