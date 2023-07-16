@@ -11,17 +11,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/grpc"
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -75,12 +73,12 @@ var NetworkTracer = module.Factory{
 
 		nt := networkTracer{
 			tracer: t,
+			done:   done,
 		}
-		nt.done = done
 
 		if ncfg.UseGRPC {
 			if ncfg.GRPCSocketFilePath == "" {
-				log.Errorf("unable to create a grpc server without a path for the socket file")
+				log.Error("grpc unix socket path is empty")
 			} else {
 				go func() {
 					err := startRPCServer(nt, ncfg.GRPCSocketFilePath)
@@ -103,7 +101,7 @@ type networkTracer struct {
 	restartTimer *time.Timer
 }
 
-// startRPCServer is used to start a gRPC server using Unix sockets.
+// startRPCServer starts a gRPC server using a unix socket.
 func startRPCServer(tracer networkTracer, socketFilePath string) error {
 	// Remove existing socket file if it exists
 	os.Remove(socketFilePath)
@@ -121,17 +119,10 @@ func startRPCServer(tracer networkTracer, socketFilePath string) error {
 
 		err = server.Serve(listener)
 		if err != nil {
-			log.Errorf("unable to serve gRPC server %v", err)
+			log.Errorf("unable to start the gRPC server %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully stop the server
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	<-sigCh
-
-	// Gracefully stop the server
-	server.GracefulStop()
 	return nil
 }
 
@@ -140,12 +131,11 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 	return stats
 }
 
-func getConnectionsFromMarshal(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
+func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
 	defer network.Reclaim(cs)
 
 	buf, err := marshaler.Marshal(cs)
 	if err != nil {
-		log.Errorf("unable to marshall connections with type %s: %s", marshaler.ContentType(), err)
 		return nil, err
 	}
 
@@ -163,7 +153,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	}
 
 	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
-	conns, err := getConnectionsFromMarshal(marshaler, cs)
+	conns, err := getConnectionsFromMarshaler(marshaler, cs)
 	if err != nil {
 		return err
 	}
@@ -175,12 +165,7 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	logRequests(id, count, len(cs.Conns), start)
 
 	// iterate over all the connections
-	err = s2.Send(&connectionserver.Connection{Data: conns})
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return s2.Send(&connectionserver.Connection{Data: conns})
 }
 
 // Register all networkTracer endpoints

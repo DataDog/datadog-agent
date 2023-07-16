@@ -56,7 +56,9 @@ type ConnectionsCheck struct {
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
 	tracerClientID         string
+	unixSockPath           string
 	networkID              string
+	useGRPCServer          bool
 	notInitializedLogLimit *putil.LogLimit
 
 	dockerFilter     *parser.DockerProxy
@@ -173,7 +175,8 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 		}
 		return nil, ErrTracerStillNotInitialized
 	}
-	return tu.GetConnections(c.tracerClientID)
+
+	return tu.GetConnections(c.tracerClientID, c.unixSockPath)
 }
 
 func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {

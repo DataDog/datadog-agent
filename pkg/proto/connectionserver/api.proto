@@ -1,9 +1,7 @@
 syntax = "proto3";
 package datadog.test.v1;
 
-import "google/protobuf/empty.proto";
-
-option go_package = "pkg/proto/test2"; // golang
+option go_package = "/connectionserver"; // golang
 
 message Connection {
     bytes data = 1;
@@ -11,6 +9,7 @@ message Connection {
 
 message GetConnectionsRequest {
     string clientID = 1;
+    string unixSockPath = 2;
 }
 
 service SystemProbe {

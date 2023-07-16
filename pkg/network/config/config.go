@@ -37,7 +37,7 @@ type Config struct {
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
 
-	// UseGRPC is whether we are using grpc server for system probe and process agent communication
+	// UseGRPC is whether system-probe exposes a gRPC server to extract its captured connection
 	UseGRPC bool
 
 	// GRPCSocketFilePath specifies the unix socket path for the gRPC server of the system probe and process agent

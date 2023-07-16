@@ -12,8 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
-	"google.golang.org/grpc"
 	"io"
 	"net"
 	"net/http"
@@ -21,11 +19,12 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"google.golang.org/grpc"
 
-	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
+	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -137,7 +136,7 @@ func (r *RemoteSysProbeUtil) getConnectionWithRPC(unixSockPath, clientID string)
 
 	client := connectionserver.NewSystemProbeClient(conn)
 
-	response, err := client.GetConnections(context.Background(), &connectionserver.GetConnectionsRequest{ClientID: clientID})
+	response, err := client.GetConnections(context.Background(), &connectionserver.GetConnectionsRequest{ClientID: clientID, UnixSockPath: unixSockPath})
 	if err != nil {
 		return nil, err
 	}
@@ -189,12 +188,8 @@ func (r *RemoteSysProbeUtil) getConnectionWithHTTP(clientID string) (*model.Conn
 
 // GetConnections returns a set of active network connections, retrieved from the system probe service, supports the
 // grpc server as well as the http server.
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
-	useGRPCServer := dd_config.SystemProbe.GetBool("service_monitoring_config.use_grpc")
-	unixSockPath := dd_config.SystemProbe.GetString("service_monitoring_config.grpc_socket_file_path")
-	println(unixSockPath)
-
-	if useGRPCServer {
+func (r *RemoteSysProbeUtil) GetConnections(clientID, unixSockPath string) (*model.Connections, error) {
+	if unixSockPath != "" {
 		return r.getConnectionWithRPC(unixSockPath, clientID)
 	} else {
 		return r.getConnectionWithHTTP(clientID)
