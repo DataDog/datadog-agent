@@ -152,6 +152,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 
 		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 		tags := []string{
+			"target_service:" + c.config.TargetService,
 			"agent_host:" + hname,
 			"destination_host:" + destinationHost,
 			"hop_ip_address:" + ip,
