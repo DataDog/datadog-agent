@@ -59,15 +59,26 @@ func (m PolicyMode) MarshalJSON() ([]byte, error) {
 
 // MarshalJSON returns the JSON encoding of the policy flags
 func (f PolicyFlag) MarshalJSON() ([]byte, error) {
+	flags := f.StringArray()
+
+	for _, flag := range flags {
+		flag = "\"" + flag + "\""
+	}
+
+	return []byte("[" + strings.Join(flags, ",") + "]"), nil
+}
+
+func (f PolicyFlag) StringArray() []string {
 	var flags []string
 	if f&PolicyFlagBasename != 0 {
-		flags = append(flags, `"basename"`)
+		flags = append(flags, "basename")
 	}
 	if f&PolicyFlagFlags != 0 {
-		flags = append(flags, `"flags"`)
+		flags = append(flags, "flags")
 	}
 	if f&PolicyFlagMode != 0 {
-		flags = append(flags, `"mode"`)
+		flags = append(flags, "mode")
 	}
-	return []byte("[" + strings.Join(flags, ",") + "]"), nil
+
+	return flags
 }
