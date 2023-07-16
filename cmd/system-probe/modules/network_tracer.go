@@ -139,7 +139,7 @@ func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Conne
 		return nil, err
 	}
 
-	log.Tracef("/GetConnections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	log.Tracef("GetConnections: %d connections, %d bytes", len(cs.Conns), len(buf))
 	return buf, nil
 }
 
