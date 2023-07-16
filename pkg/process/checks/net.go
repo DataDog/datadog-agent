@@ -79,6 +79,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = ProcessAgentClientID
+	c.unixSockPath = syscfg.GRPCUnixSocketPath
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
 	tu, err := net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)

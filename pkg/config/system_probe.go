@@ -105,6 +105,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "external"), false, "DD_SYSTEM_PROBE_EXTERNAL")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "sysprobe_socket"), defaultSystemProbeAddress, "DD_SYSPROBE_SOCKET")
+	cfg.BindEnvAndSetDefault(join(spNS, "grpc_socket_file_path"), defaultGRPCSystemProbeAddress, "DD_GRPC_SYSPROBE_SOCKET")
+
 	cfg.BindEnvAndSetDefault(join(spNS, "max_conns_per_message"), defaultConnsMessageBatchSize)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
