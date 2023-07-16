@@ -15,7 +15,7 @@ import (
 )
 
 const OSSTATS_QUERY = `SELECT stat_name, value
-  FROM v$osstats WHERE stat_name in ('NUM_CPUS','PHYSICAL_MEMORY_BYTES')`
+  FROM v$osstat WHERE stat_name in ('NUM_CPUS','PHYSICAL_MEMORY_BYTES')`
 
 type OSStatsRowDB struct {
 	StatName string  `db:"STAT_NAME"`
