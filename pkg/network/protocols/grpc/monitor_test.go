@@ -10,6 +10,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"strings"
 	"testing"
 	"time"
@@ -600,8 +601,13 @@ func testGRPCScenarios(t *testing.T) {
 
 				res := make(map[http.Key]int)
 				require.Eventually(t, func() bool {
-					stats := monitor.GetHTTP2Stats()
-					for key, stat := range stats {
+					stats := monitor.GetProtocolStats()
+					http2Stats, ok := stats[protocols.HTTP2]
+					if !ok {
+						return false
+					}
+					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+					for key, stat := range http2StatsTyped {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := stat.Data[200].Count
 							newKey := http.Key{
