@@ -257,6 +257,18 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 	})
 }
 
+func TestEnableGRPCCommunication(t *testing.T) {
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_USE_GRPC", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.UseGRPC)
+	})
+}
+
 func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
 	aconfig.ResetSystemProbeConfig(t)
 

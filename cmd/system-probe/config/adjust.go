@@ -41,7 +41,6 @@ func Adjust(cfg config.Config) {
 	}
 
 	validateString(cfg, spNS("sysprobe_socket"), defaultSystemProbeAddress, ValidateSocketAddress)
-	validateString(cfg, spNS("grpc_socket_file_path"), defaultGRPCSystemProbeAddress, ValidateSocketAddress)
 
 	adjustNetwork(cfg)
 	adjustUSM(cfg)
