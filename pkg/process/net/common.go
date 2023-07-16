@@ -129,6 +129,10 @@ func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPer
 }
 
 func (r *RemoteSysProbeUtil) getConnectionWithRPC(unixSockPath, clientID string) (*model.Connections, error) {
+	// Create a context with a timeout of 10 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	conn, err := grpc.Dial("unix://"+unixSockPath, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
@@ -136,7 +140,7 @@ func (r *RemoteSysProbeUtil) getConnectionWithRPC(unixSockPath, clientID string)
 
 	client := connectionserver.NewSystemProbeClient(conn)
 
-	response, err := client.GetConnections(context.Background(), &connectionserver.GetConnectionsRequest{ClientID: clientID, UnixSockPath: unixSockPath})
+	response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: clientID, UnixSockPath: unixSockPath})
 	if err != nil {
 		return nil, err
 	}
