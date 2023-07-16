@@ -74,48 +74,6 @@ type checkPoliciesCliParams struct {
 	dir string
 }
 
-// checkPoliciesCommands is deprecated
-func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &checkPoliciesCliParams{
-		GlobalParams: globalParams,
-	}
-
-	checkPoliciesCmd := &cobra.Command{
-		Use:   "check-policies",
-		Short: "check policies and return a report",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(checkPolicies,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
-			)
-		},
-		Deprecated: "please use `security-agent runtime policy check` instead",
-	}
-
-	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-
-	return []*cobra.Command{checkPoliciesCmd}
-}
-
-// reloadPoliciesCommands is deprecated
-func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	reloadPoliciesCmd := &cobra.Command{
-		Use:   "reload",
-		Short: "Reload policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(reloadRuntimePolicies,
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
-			)
-		},
-		Deprecated: "please use `security-agent runtime policy reload` instead",
-	}
-	return []*cobra.Command{reloadPoliciesCmd}
 }
 
 func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
