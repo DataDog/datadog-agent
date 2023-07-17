@@ -839,12 +839,14 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
   - changes:
-      - pkg/ebpf/**/*
-      - pkg/security/**/*
-      - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
-      - test/kitchen/test/integration/security-agent-test/**/*
-      - test/kitchen/test/integration/security-agent-stress/**/*
-      - .gitlab/functional_test/security_agent.yml
+      paths:
+        - pkg/ebpf/**/*
+        - pkg/security/**/*
+        - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
+        - test/kitchen/test/integration/security-agent-test/**/*
+        - test/kitchen/test/integration/security-agent-stress/**/*
+        - .gitlab/functional_test/security_agent.yml
+      compare_to: main
     when: on_success
   - when: manual
     allow_failure: true
