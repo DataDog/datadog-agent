@@ -258,7 +258,7 @@ func (corelogger) Trace(v ...interface{}) { log.TraceStackDepth(stackDepth, v...
 
 // Tracef implements Logger.
 func (corelogger) Tracef(format string, params ...interface{}) {
-	log.TracefStackDepth(format, stackDepth, params...)
+	log.TracefStackDepth(stackDepth, format, params...)
 }
 
 // Debug implements Logger.
@@ -266,7 +266,7 @@ func (corelogger) Debug(v ...interface{}) { log.DebugStackDepth(stackDepth, v...
 
 // Debugf implements Logger.
 func (corelogger) Debugf(format string, params ...interface{}) {
-	log.DebugfStackDepth(format, stackDepth, params...)
+	log.DebugfStackDepth(stackDepth, format, params...)
 }
 
 // Info implements Logger.
@@ -274,7 +274,7 @@ func (corelogger) Info(v ...interface{}) { log.InfoStackDepth(stackDepth, v...) 
 
 // Infof implements Logger.
 func (corelogger) Infof(format string, params ...interface{}) {
-	log.InfofStackDepth(format, stackDepth, params...)
+	log.InfofStackDepth(stackDepth, format, params...)
 }
 
 // Warn implements Logger.
@@ -282,7 +282,7 @@ func (corelogger) Warn(v ...interface{}) error { return log.WarnStackDepth(stack
 
 // Warnf implements Logger.
 func (corelogger) Warnf(format string, params ...interface{}) error {
-	return log.WarnfStackDepth(format, stackDepth, params...)
+	return log.WarnfStackDepth(stackDepth, format, params...)
 }
 
 // Error implements Logger.
@@ -290,7 +290,7 @@ func (corelogger) Error(v ...interface{}) error { return log.ErrorStackDepth(sta
 
 // Errorf implements Logger.
 func (corelogger) Errorf(format string, params ...interface{}) error {
-	return log.ErrorfStackDepth(format, stackDepth, params...)
+	return log.ErrorfStackDepth(stackDepth, format, params...)
 }
 
 // Critical implements Logger.
@@ -298,7 +298,7 @@ func (corelogger) Critical(v ...interface{}) error { return log.CriticalStackDep
 
 // Criticalf implements Logger.
 func (corelogger) Criticalf(format string, params ...interface{}) error {
-	return log.CriticalfStackDepth(format, stackDepth, params...)
+	return log.CriticalfStackDepth(stackDepth, format, params...)
 }
 
 // Flush implements Logger.

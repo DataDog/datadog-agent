@@ -463,7 +463,7 @@ func TestFuncVersions(t *testing.T) {
 }
 
 func TestStackDepthfLogging(t *testing.T) {
-	const stackDepth = 0
+	const stackDepth = 1
 
 	cases := []struct {
 		seelogLevel        seelog.LogLevel
@@ -488,12 +488,12 @@ func TestStackDepthfLogging(t *testing.T) {
 
 			SetupLogger(l, tc.strLogLevel)
 
-			TracefStackDepth("%s", stackDepth, "foo")
-			DebugfStackDepth("%s", stackDepth, "foo")
-			InfofStackDepth("%s", stackDepth, "foo")
-			WarnfStackDepth("%s", stackDepth, "foo")
-			ErrorfStackDepth("%s", stackDepth, "foo")
-			CriticalfStackDepth("%s", stackDepth, "foo")
+			TracefStackDepth(stackDepth, "%s", "foo")
+			DebugfStackDepth(stackDepth, "%s", "foo")
+			InfofStackDepth(stackDepth, "%s", "foo")
+			WarnfStackDepth(stackDepth, "%s", "foo")
+			ErrorfStackDepth(stackDepth, "%s", "foo")
+			CriticalfStackDepth(stackDepth, "%s", "foo")
 			w.Flush()
 
 			assert.Equal(t, tc.expectedToBeCalled, strings.Count(b.String(), "TestStackDepthfLogging"), tc)

@@ -535,11 +535,15 @@ func Tracef(format string, params ...interface{}) {
 }
 
 // TracefStackDepth logs with format at the trace level and the current stack depth plus the given depth
-func TracefStackDepth(format string, depth int, params ...interface{}) {
+func TracefStackDepth(depth int, format string, params ...interface{}) {
 	currentLevel, _ := GetLogLevel()
-	if currentLevel <= seelog.TraceLvl {
-		TraceStackDepth(depth+2, fmt.Sprintf(format, params...))
+	if currentLevel > seelog.TraceLvl {
+		return
 	}
+	msg := fmt.Sprintf(format, params...)
+	Log(seelog.TraceLvl, func() { TraceStackDepth(depth, msg) }, func(s string) {
+		Logger.traceStackDepth(s, depth)
+	}, msg)
 }
 
 // TracecStackDepth logs at the trace level with context and the current stack depth plus the additional given one
@@ -571,11 +575,15 @@ func Debugf(format string, params ...interface{}) {
 }
 
 // DebugfStackDepth logs with format at the debug level and the current stack depth plus the given depth
-func DebugfStackDepth(format string, depth int, params ...interface{}) {
+func DebugfStackDepth(depth int, format string, params ...interface{}) {
 	currentLevel, _ := GetLogLevel()
-	if currentLevel <= seelog.DebugLvl {
-		DebugStackDepth(depth+2, fmt.Sprintf(format, params...))
+	if currentLevel > seelog.DebugLvl {
+		return
 	}
+	msg := fmt.Sprintf(format, params...)
+	Log(seelog.DebugLvl, func() { DebugStackDepth(depth, msg) }, func(s string) {
+		Logger.debugStackDepth(s, depth)
+	}, msg)
 }
 
 // DebugcStackDepth logs at the debug level with context and the current stack depth plus the additional given one
@@ -607,11 +615,15 @@ func Infof(format string, params ...interface{}) {
 }
 
 // InfofStackDepth logs with format at the info level and the current stack depth plus the given depth
-func InfofStackDepth(format string, depth int, params ...interface{}) {
+func InfofStackDepth(depth int, format string, params ...interface{}) {
 	currentLevel, _ := GetLogLevel()
-	if currentLevel <= seelog.InfoLvl {
-		InfoStackDepth(depth+2, fmt.Sprintf(format, params...))
+	if currentLevel > seelog.InfoLvl {
+		return
 	}
+	msg := fmt.Sprintf(format, params...)
+	Log(seelog.InfoLvl, func() { InfoStackDepth(depth, msg) }, func(s string) {
+		Logger.infoStackDepth(s, depth)
+	}, msg)
 }
 
 // InfocStackDepth logs at the info level with context and the current stack depth plus the additional given one
@@ -643,8 +655,11 @@ func Warnf(format string, params ...interface{}) error {
 }
 
 // WarnfStackDepth logs with format at the warn level and the current stack depth plus the given depth
-func WarnfStackDepth(format string, depth int, params ...interface{}) error {
-	return WarnStackDepth(depth+2, fmt.Sprintf(format, params...))
+func WarnfStackDepth(depth int, format string, params ...interface{}) error {
+	msg := fmt.Sprintf(format, params...)
+	return logWithError(seelog.WarnLvl, func() { WarnStackDepth(depth, msg) }, func(s string) error {
+		return Logger.warnStackDepth(s, depth)
+	}, false, msg)
 }
 
 // WarncStackDepth logs at the warn level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
@@ -676,8 +691,11 @@ func Errorf(format string, params ...interface{}) error {
 }
 
 // ErrorfStackDepth logs with format at the error level and the current stack depth plus the given depth
-func ErrorfStackDepth(format string, depth int, params ...interface{}) error {
-	return ErrorStackDepth(depth+2, fmt.Sprintf(format, params...))
+func ErrorfStackDepth(depth int, format string, params ...interface{}) error {
+	msg := fmt.Sprintf(format, params...)
+	return logWithError(seelog.ErrorLvl, func() { ErrorStackDepth(depth, msg) }, func(s string) error {
+		return Logger.errorStackDepth(s, depth)
+	}, false, msg)
 }
 
 // ErrorcStackDepth logs at the error level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
@@ -709,8 +727,11 @@ func Criticalf(format string, params ...interface{}) error {
 }
 
 // CriticalfStackDepth logs with format at the critical level and the current stack depth plus the given depth
-func CriticalfStackDepth(format string, depth int, params ...interface{}) error {
-	return CriticalStackDepth(depth+2, fmt.Sprintf(format, params...))
+func CriticalfStackDepth(depth int, format string, params ...interface{}) error {
+	msg := fmt.Sprintf(format, params...)
+	return logWithError(seelog.CriticalLvl, func() { CriticalStackDepth(depth, msg) }, func(s string) error {
+		return Logger.criticalStackDepth(s, depth)
+	}, false, msg)
 }
 
 // CriticalcStackDepth logs at the critical level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
