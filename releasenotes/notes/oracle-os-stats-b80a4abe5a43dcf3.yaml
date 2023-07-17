@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Start collecting the number of CPUs and physical memory.
+    Collect the number of CPUs and physical memory.
