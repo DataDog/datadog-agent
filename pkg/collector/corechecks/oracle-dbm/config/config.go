@@ -69,6 +69,8 @@ type InstanceConfig struct {
 	Password               string               `yaml:"password"`
 	TnsAlias               string               `yaml:"tns_alias"`
 	TnsAdmin               string               `yaml:"tns_admin"`
+	Protocol               string               `yaml:"protocol"`
+	Wallet                 string               `yaml:"wallet"`
 	DBM                    bool                 `yaml:"dbm"`
 	Tags                   []string             `yaml:"tags"`
 	LogUnobfuscatedQueries bool                 `yaml:"log_unobfuscated_queries"`

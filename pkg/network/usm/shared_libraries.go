@@ -8,11 +8,13 @@
 package usm
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -20,7 +22,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/cihub/seelog"
 	"github.com/twmb/murmur3"
 	"golang.org/x/sys/unix"
@@ -116,7 +117,6 @@ type soWatcher struct {
 func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.so_watcher",
-		telemetry.OptMonotonic,
 		telemetry.OptPayloadTelemetry,
 	)
 	return &soWatcher{
@@ -132,17 +132,17 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 			blocklistByID: make(pathIdentifierSet),
 
 			telemetry: soRegistryTelemetry{
-				libHookFailed:               metricGroup.NewMetric("hook_failed"),
-				libRegistered:               metricGroup.NewMetric("registered"),
-				libAlreadyRegistered:        metricGroup.NewMetric("already_registered"),
-				libBlocked:                  metricGroup.NewMetric("blocked"),
-				libUnregistered:             metricGroup.NewMetric("unregistered"),
-				libUnregisterNoCB:           metricGroup.NewMetric("unregister_no_callback"),
-				libUnregisterErrors:         metricGroup.NewMetric("unregister_errors"),
-				libUnregisterFailedCB:       metricGroup.NewMetric("unregister_failed_cb"),
-				libUnregisterPathIDNotFound: metricGroup.NewMetric("unregister_path_id_not_found"),
-				libHits:                     metricGroup.NewMetric("hits"),
-				libMatches:                  metricGroup.NewMetric("matches"),
+				libHookFailed:               metricGroup.NewCounter("hook_failed"),
+				libRegistered:               metricGroup.NewCounter("registered"),
+				libAlreadyRegistered:        metricGroup.NewCounter("already_registered"),
+				libBlocked:                  metricGroup.NewCounter("blocked"),
+				libUnregistered:             metricGroup.NewCounter("unregistered"),
+				libUnregisterNoCB:           metricGroup.NewCounter("unregister_no_callback"),
+				libUnregisterErrors:         metricGroup.NewCounter("unregister_errors"),
+				libUnregisterFailedCB:       metricGroup.NewCounter("unregister_failed_cb"),
+				libUnregisterPathIDNotFound: metricGroup.NewCounter("unregister_path_id_not_found"),
+				libHits:                     metricGroup.NewCounter("hits"),
+				libMatches:                  metricGroup.NewCounter("matches"),
 			},
 		},
 	}
@@ -161,19 +161,19 @@ type soRegistryTelemetry struct {
 	//  o UnregisterErrors : we encounter an error during the unregistration, looks at the logs for further details
 	//  o UnregisterFailedCB : we encounter an error during the callback unregistration, looks at the logs for further details
 	//  o UnregisterPathIDNotFound : we can't find the pathID registration, it's a bug, this value should be always 0
-	libRegistered               *telemetry.Metric
-	libAlreadyRegistered        *telemetry.Metric
-	libHookFailed               *telemetry.Metric
-	libBlocked                  *telemetry.Metric
-	libUnregistered             *telemetry.Metric
-	libUnregisterNoCB           *telemetry.Metric
-	libUnregisterErrors         *telemetry.Metric
-	libUnregisterFailedCB       *telemetry.Metric
-	libUnregisterPathIDNotFound *telemetry.Metric
+	libRegistered               *telemetry.Counter
+	libAlreadyRegistered        *telemetry.Counter
+	libHookFailed               *telemetry.Counter
+	libBlocked                  *telemetry.Counter
+	libUnregistered             *telemetry.Counter
+	libUnregisterNoCB           *telemetry.Counter
+	libUnregisterErrors         *telemetry.Counter
+	libUnregisterFailedCB       *telemetry.Counter
+	libUnregisterPathIDNotFound *telemetry.Counter
 
 	// numbers of library events from the kernel filter (Hits) and matching (Matches) the registered rules
-	libHits    *telemetry.Metric
-	libMatches *telemetry.Metric
+	libHits    *telemetry.Counter
+	libMatches *telemetry.Counter
 }
 
 type soRegistry struct {
@@ -237,6 +237,40 @@ func (w *soWatcher) Stop() {
 	w.wg.Wait()
 }
 
+type parseMapsFileCB func(path string)
+
+// parseMapsFile takes in a bufio.Scanner representing a memory mapping of /proc/<PID>/maps file, and a callback to be
+// applied on the paths extracted from the file. We're extracting only actual paths on the file system, and ignoring
+// anonymous memory regions.
+//
+// Example for entries in the `maps` file:
+// 7f135146b000-7f135147a000 r--p 00000000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
+// 7f135147a000-7f1351521000 r-xp 0000f000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
+// 7f1351521000-7f13515b8000 r--p 000b6000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
+// 7f13515b8000-7f13515b9000 r--p 0014c000 fd:00 268743 /usr/lib/x86_64-linux-gnu/libm-2.31.so
+func parseMapsFile(scanner *bufio.Scanner, callback parseMapsFileCB) {
+	// The maps file can have multiple entries of the same loaded file, the cache is meant to ensure, we're not wasting
+	// time and memory on "duplicated" hooking.
+	cache := make(map[string]struct{})
+	for scanner.Scan() {
+		line := scanner.Text()
+		cols := strings.Fields(line)
+		// ensuring we have exactly 6 elements (skip '(deleted)' entries) in the line, and the 4th element (inode) is
+		// not zero (indicates it is a path, and not an anonymous path).
+		if len(cols) == 6 && cols[4] != "0" {
+			// Check if we've seen the same path before, if so, continue to the next.
+			if _, exists := cache[cols[5]]; exists {
+				continue
+			}
+			// We didn't process the path, so cache it to avoid future re-processing.
+			cache[cols[5]] = struct{}{}
+
+			// Apply the given callback on the path.
+			callback(cols[5])
+		}
+	}
+}
+
 // Start consuming shared-library events
 func (w *soWatcher) Start() {
 	thisPID, err := util.GetRootNSPID()
@@ -249,39 +283,32 @@ func (w *soWatcher) Start() {
 			return nil
 		}
 
-		// report silently parsing /proc error as this could happen
-		// just exit processes
-		proc, err := process.NewProcess(int32(pid))
+		mapsPath := fmt.Sprintf("%s/%d/maps", w.procRoot, pid)
+		maps, err := os.Open(mapsPath)
 		if err != nil {
 			log.Debugf("process %d parsing failed %s", pid, err)
 			return nil
 		}
-		mmaps, err := proc.MemoryMaps(true)
-		if err != nil {
-			if log.ShouldLog(seelog.TraceLvl) {
-				log.Tracef("process %d maps parsing failed %s", pid, err)
-			}
-			return nil
-		}
+		defer maps.Close()
 
-		root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
-		for _, m := range *mmaps {
+		// Creating a callback to be applied on the paths extracted from the `maps` file.
+		// We're creating the callback here, as we need the pid (which varies between iterations).
+		parseMapsFileCallback := func(path string) {
+			root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
+			// Iterate over the rule, and look for a match.
 			for _, r := range w.rules {
-				if r.re.MatchString(m.Path) {
-					w.registry.register(root, m.Path, uint32(pid), r)
+				if r.re.MatchString(path) {
+					w.registry.register(root, path, uint32(pid), r)
 					break
 				}
 			}
 		}
-
+		scanner := bufio.NewScanner(bufio.NewReader(maps))
+		parseMapsFile(scanner, parseMapsFileCallback)
 		return nil
 	})
 
-	cleanupExit, err := w.processMonitor.SubscribeExit(w.registry.unregister)
-	if err != nil {
-		log.Errorf("can't subscribe to process monitor exit event %s", err)
-		return
-	}
+	cleanupExit := w.processMonitor.SubscribeExit(w.registry.unregister)
 
 	w.wg.Add(1)
 	go func() {

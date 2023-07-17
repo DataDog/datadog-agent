@@ -17,6 +17,13 @@ const (
 )
 
 func adjustUSM(cfg config.Config) {
+	if cfg.GetBool(smNS("enabled")) {
+		applyDefault(cfg, netNS("enable_http_monitoring"), true)
+		applyDefault(cfg, netNS("enable_https_monitoring"), true)
+		applyDefault(cfg, spNS("enable_runtime_compiler"), true)
+		applyDefault(cfg, spNS("enable_kernel_header_download"), true)
+	}
+
 	deprecateBool(cfg, netNS("enable_http_monitoring"), smNS("enable_http_monitoring"))
 	deprecateGeneric(cfg, netNS("http_replace_rules"), smNS("http_replace_rules"))
 	deprecateInt64(cfg, netNS("max_tracked_http_connections"), smNS("max_tracked_http_connections"))
@@ -35,14 +42,6 @@ func adjustUSM(cfg config.Config) {
 	if cfg.GetBool(dsmNS("enabled")) {
 		// DSM infers USM
 		cfg.Set(smNS("enabled"), true)
-	}
-
-	if cfg.GetBool(smNS("enabled")) {
-		// USM infers HTTP
-		cfg.Set(smNS("enable_http_monitoring"), true)
-		applyDefault(cfg, netNS("enable_https_monitoring"), true)
-		applyDefault(cfg, spNS("enable_runtime_compiler"), true)
-		applyDefault(cfg, spNS("enable_kernel_header_download"), true)
 	}
 
 	if cfg.GetBool(smNS("process_service_inference", "enabled")) &&

@@ -815,7 +815,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
-			if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
+			if errors.Is(err, model.ErrDNSNameMalformatted) {
+				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Name)
+			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
 				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
 			} else {
 				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
@@ -928,7 +930,7 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Policy
 		return fmt.Errorf("unable to find policy table: %w", err)
 	}
 
-	et := model.ParseEvalEventType(eventType)
+	et := config.ParseEvalEventType(eventType)
 	if et == model.UnknownEventType {
 		return errors.New("unable to parse the eval event type")
 	}
@@ -1092,7 +1094,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	enabledEvents := uint64(0)
 	for _, eventName := range eventTypes {
 		if eventName != "*" {
-			eventType := model.ParseEvalEventType(eventName)
+			eventType := config.ParseEvalEventType(eventName)
 			if eventType == model.UnknownEventType {
 				return fmt.Errorf("unknown event type '%s'", eventName)
 			}

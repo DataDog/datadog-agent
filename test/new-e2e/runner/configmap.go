@@ -21,6 +21,7 @@ const (
 	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
 
 	InfraEnvironmentVariables = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraEnvironment
+	InfraExtraResourcesTags   = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraExtraResourcesTags
 
 	AWSKeyPairName    = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
 	AWSPublicKeyPath  = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDinfraDefaultPublicKeyPath
@@ -88,6 +89,11 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
+	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.ExtraResourcesTags, InfraExtraResourcesTags)
+	if err != nil {
+		return nil, err
+	}
+	// Secret parameters from profile store
 	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, AgentAPIKey)
 	if err != nil {
 		return nil, err
@@ -96,7 +102,6 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
-
 	// Merge with scenario variables
 	cm.Merge(scenarioConfig)
 

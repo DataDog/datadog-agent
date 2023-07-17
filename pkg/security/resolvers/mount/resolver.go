@@ -30,8 +30,9 @@ import (
 )
 
 const (
-	deleteDelayTime       = 5 * time.Second
-	fallbackLimiterPeriod = 5 * time.Second
+	deleteDelayTime                      = 5 * time.Second
+	numAllowedMountIDsToResolvePerPeriod = 75
+	fallbackLimiterPeriod                = 5 * time.Second
 )
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
@@ -376,9 +377,6 @@ func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (s
 
 func (mr *Resolver) syncCacheMiss(mountID uint32) {
 	mr.procMissStats.Inc()
-
-	// add to fallback limiter to avoid storm of file access
-	mr.fallbackLimiter.Count(mountID)
 }
 
 func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uint32) (string, error) {
@@ -411,7 +409,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pid uin
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.fallbackLimiter.IsAllowed(mountID) {
+	if !mr.fallbackLimiter.Allow(mountID) {
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -466,7 +464,7 @@ func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uin
 		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 
-	if !mr.fallbackLimiter.IsAllowed(mountID) {
+	if !mr.fallbackLimiter.Allow(mountID) {
 		return nil, &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -606,7 +604,8 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	}
 	mr.redemption = redemption
 
-	limiter, err := utils.NewLimiter[uint32](64, fallbackLimiterPeriod)
+	// create a rate limiter that allows for 64 mount IDs
+	limiter, err := utils.NewLimiter[uint32](64, numAllowedMountIDsToResolvePerPeriod, fallbackLimiterPeriod)
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,7 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -139,10 +140,14 @@ type RuntimeSecurityConfig struct {
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
-	// AnomalyDetectionMinimumStablePeriod defines the minimum amount of time during which the events
+	// AnomalyDetectionDefaultMinimumStablePeriod defines the default minimum amount of time during which the events
 	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
 	// event.
-	AnomalyDetectionMinimumStablePeriod time.Duration
+	AnomalyDetectionDefaultMinimumStablePeriod time.Duration
+	// AnomalyDetectionMinimumStablePeriods defines the minimum amount of time per event type during which the events
+	// that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection
+	// event.
+	AnomalyDetectionMinimumStablePeriods map[model.EventType]time.Duration
 	// AnomalyDetectionUnstableProfileTimeThreshold defines the maximum amount of time to wait until a profile that
 	// hasn't reached a stable state is considered as unstable.
 	AnomalyDetectionUnstableProfileTimeThreshold time.Duration
@@ -152,8 +157,12 @@ type RuntimeSecurityConfig struct {
 	// AnomalyDetectionWorkloadWarmupPeriod defines the duration we ignore the anomaly detections for
 	// because of workload warm up
 	AnomalyDetectionWorkloadWarmupPeriod time.Duration
-	// AnomalyDetectionRateLimiter limit number of anomaly event, one every N second
-	AnomalyDetectionRateLimiter time.Duration
+	// AnomalyDetectionRateLimiterPeriod is the duration during which a limited number of anomaly detection events are allowed
+	AnomalyDetectionRateLimiterPeriod time.Duration
+	// AnomalyDetectionRateLimiterNumEventsAllowed is the number of anomaly detection events allowed per duration by the rate limiter
+	AnomalyDetectionRateLimiterNumEventsAllowed int
+	// AnomalyDetectionRateLimiterNumKeys is the number of keys in the rate limiter
+	AnomalyDetectionRateLimiterNumKeys int
 	// AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the
 	// rules they might have matched.
 	AnomalyDetectionTagRulesEnabled bool
@@ -241,7 +250,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpLoadControlPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.load_controller_period"),
 		ActivityDumpLoadControlMinDumpTimeout: coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.min_timeout"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
+		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.dump_duration"),
 		ActivityDumpRateLimiter:               coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.rate_limiter"),
 		ActivityDumpCgroupWaitListTimeout:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
@@ -269,9 +278,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// Hash resolver
 		HashResolverEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.hash_resolver.enabled"),
-		HashResolverEventTypes:     model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.event_types")),
+		HashResolverEventTypes:     parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.event_types")),
 		HashResolverMaxFileSize:    coreconfig.SystemProbe.GetInt64("runtime_security_config.hash_resolver.max_file_size"),
-		HashResolverHashAlgorithms: model.ParseHashAlgorithmStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
+		HashResolverHashAlgorithms: parseHashAlgorithmStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
 		HashResolverMaxHashBurst:   coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
 		HashResolverMaxHashRate:    coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
 		HashResolverCacheSize:      coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.cache_size"),
@@ -286,12 +295,15 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileDNSMatchMaxDepth: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 
 		// anomaly detection
-		AnomalyDetectionEventTypes:                   model.ParseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
-		AnomalyDetectionMinimumStablePeriod:          coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
+		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
+		AnomalyDetectionDefaultMinimumStablePeriod:   coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
+		AnomalyDetectionMinimumStablePeriods:         parseEventTypeDurations(coreconfig.SystemProbe, "runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
 		AnomalyDetectionWorkloadWarmupPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
 		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
-		AnomalyDetectionRateLimiter:                  coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter"),
+		AnomalyDetectionRateLimiterPeriod:            coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter.period"),
+		AnomalyDetectionRateLimiterNumKeys:           coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys"),
+		AnomalyDetectionRateLimiterNumEventsAllowed:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
 		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
 	}
 
@@ -305,6 +317,14 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
+}
+
+// GetAnomalyDetectionMinimumStablePeriod returns the minimum stable period for a given event type
+func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType model.EventType) time.Duration {
+	if minimumStablePeriod, found := c.AnomalyDetectionMinimumStablePeriods[eventType]; found {
+		return minimumStablePeriod
+	}
+	return c.AnomalyDetectionDefaultMinimumStablePeriod
 }
 
 // sanitize ensures that the configuration is properly setup
@@ -364,4 +384,63 @@ func ActivityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType l
 		seclog.Infof("activity dump remote storage endpoint: %v\n", status)
 	}
 	return endpoints, nil
+}
+
+// ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
+// the current algorithm is not efficient but allows us to reduce the number of conversion functions
+func ParseEvalEventType(eventType eval.EventType) model.EventType {
+	for i := uint64(0); i != uint64(model.MaxAllEventType); i++ {
+		if model.EventType(i).String() == eventType {
+			return model.EventType(i)
+		}
+	}
+
+	return model.UnknownEventType
+}
+
+// parseEventTypeStringSlice converts a string list to a list of event types
+func parseEventTypeStringSlice(eventTypes []string) []model.EventType {
+	var output []model.EventType
+	for _, eventTypeStr := range eventTypes {
+		if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
+			output = append(output, eventType)
+		}
+	}
+	return output
+}
+
+// parseEventTypeDurations converts a map of durations indexed by event types
+func parseEventTypeDurations(cfg coreconfig.Config, prefix string) map[model.EventType]time.Duration {
+	eventTypeMap := cfg.GetStringMap(prefix)
+	eventTypeDurations := make(map[model.EventType]time.Duration, len(eventTypeMap))
+	for eventType := range eventTypeMap {
+		eventTypeDurations[ParseEvalEventType(eventType)] = cfg.GetDuration(prefix + "." + eventType)
+	}
+	return eventTypeDurations
+}
+
+// parseHashAlgorithmStringSlice converts a string list to a list of hash algorithms
+func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
+	var output []model.HashAlgorithm
+	for _, hashAlgorithm := range algorithms {
+		for i := model.HashAlgorithm(0); i < model.MaxHashAlgorithm; i++ {
+			if i.String() == hashAlgorithm {
+				output = append(output, i)
+				break
+			}
+		}
+	}
+	return output
+}
+
+var (
+	eventTypeStrings = map[string]model.EventType{}
+)
+
+func init() {
+	var eventType model.EventType
+	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
+		eventType = model.EventType(i)
+		eventTypeStrings[eventType.String()] = eventType
+	}
 }

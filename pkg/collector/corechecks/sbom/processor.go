@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -49,7 +49,7 @@ type processor struct {
 	hostname          string
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
 	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
 	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
