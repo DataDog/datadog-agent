@@ -308,6 +308,8 @@ func TestInfoReceiverStats(t *testing.T) {
 	conf := testInit(t)
 	assert.NotNil(conf)
 
+	assert.NotNil(publishReceiverStats())
+
 	stats := NewReceiverStats()
 	t1 := &TagStats{
 		Tags{Lang: "python"},
