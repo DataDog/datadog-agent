@@ -12,6 +12,9 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -565,6 +568,129 @@ func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPolici
 	}
 	return &api.ReloadPoliciesResultMessage{}, nil
 }
+
+// GetRuleSetReport reports the ruleset loaded
+func (a *APIServer) GetRuleSetReport(ctx context.Context, params *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
+		return nil, errors.New("no rule engine")
+	}
+
+	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
+	if ruleSet == nil {
+		return nil, fmt.Errorf("failed to get rule set")
+	}
+
+	cfg := &pconfig.Config{
+		EnableKernelFilters: true,
+		EnableApprovers:     true,
+		EnableDiscarders:    true,
+		PIDCacheSize:        1,
+	}
+
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("Report:%+v\n", report)
+
+	return &api.GetRuleSetReportResultMessage{
+		RuleSetReportMessage: &api.RuleSetReportMessage{
+			Policies: ToEventTypePolicyMessage(report),
+		}}, nil
+}
+
+// ToEventTypePolicyMessage returns a pointer to a PolicyMessage
+func ToEventTypePolicyMessage(ruleSetReport *kfilters.ApplyRuleSetReport) []*api.EventTypePolicy {
+	var ruleEventDetails []*api.EventTypePolicy
+
+	for key, policyReport := range ruleSetReport.Policies {
+		fmt.Printf("Key:%+v\n", key)
+		fmt.Printf("Policy:%+v\n", policyReport)
+		detail := &api.EventTypePolicy{
+			EventType: key,
+			Mode:      policyReport.Mode.String(),
+			Flags:     policyReport.Flags.StringArray(),
+			Approvers: ToApprovers(policyReport.Approvers),
+		}
+
+		ruleEventDetails = append(ruleEventDetails, detail)
+	}
+
+	return ruleEventDetails
+}
+
+func ToApprovers(approvers rules.Approvers) *api.Approvers {
+
+	apiApprovers := new(api.Approvers)
+
+	for field, filterValues := range approvers {
+		for _, filterValue := range filterValues {
+			apiApprovers.Field = field
+			stringFilterValue, ok := filterValue.Value.(string)
+			if !ok {
+				intFilterValue := filterValue.Value.(int)
+				apiApprovers.ApproverDetails = append(apiApprovers.ApproverDetails, &api.ApproverDetails{
+					Field: filterValue.Field,
+					Value: strconv.Itoa(intFilterValue),
+					Type:  int32(filterValue.Type),
+				})
+			} else {
+				apiApprovers.ApproverDetails = append(apiApprovers.ApproverDetails, &api.ApproverDetails{
+					Field: filterValue.Field,
+					Value: stringFilterValue,
+					Type:  int32(filterValue.Type),
+				})
+			}
+		}
+	}
+
+	return apiApprovers
+}
+
+//// ToRuleMessage returns a pointer to a PolicyMessage
+//func (a *APIServer) ToRuleMessage() *api.RuleMessage {
+//	var storage []*api.StorageRequestMessage
+//	for _, requests := range ad.StorageRequests {
+//		for _, request := range requests {
+//			storage = append(storage, request.ToRuleMessage(ad.Metadata.Name))
+//		}
+//	}
+//
+//	msg := &api.ActivityDumpMessage{
+//		Host:    ad.Host,
+//		Source:  ad.Source,
+//		Service: ad.Service,
+//		Tags:    ad.Tags,
+//		Storage: storage,
+//		Metadata: &api.MetadataMessage{
+//			AgentVersion:      ad.Metadata.AgentVersion,
+//			AgentCommit:       ad.Metadata.AgentCommit,
+//			KernelVersion:     ad.Metadata.KernelVersion,
+//			LinuxDistribution: ad.Metadata.LinuxDistribution,
+//			Name:              ad.Metadata.Name,
+//			ProtobufVersion:   ad.Metadata.ProtobufVersion,
+//			DifferentiateArgs: ad.Metadata.DifferentiateArgs,
+//			Comm:              ad.Metadata.Comm,
+//			ContainerID:       ad.Metadata.ContainerID,
+//			Start:             ad.Metadata.Start.Format(time.RFC822),
+//			Timeout:           ad.LoadConfig.Timeout.String(),
+//			Size:              ad.Metadata.Size,
+//			Arch:              ad.Metadata.Arch,
+//		},
+//		DNSNames: ad.DNSNames.Keys(),
+//	}
+//	if ad.ActivityTree != nil {
+//		msg.Stats = &api.ActivityTreeStatsMessage{
+//			ProcessNodesCount: ad.ActivityTree.Stats.ProcessNodes,
+//			FileNodesCount:    ad.ActivityTree.Stats.FileNodes,
+//			DNSNodesCount:     ad.ActivityTree.Stats.DNSNodes,
+//			SocketNodesCount:  ad.ActivityTree.Stats.SocketNodes,
+//			ApproximateSize:   ad.ActivityTree.Stats.ApproximateSize(),
+//		}
+//	}
+//	return msg
+//}
 
 // Apply a rule set
 func (a *APIServer) Apply(ruleIDs []rules.RuleID) {

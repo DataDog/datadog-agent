@@ -105,6 +105,15 @@ func (c *RuntimeSecurityClient) ReloadPolicies() (*api.ReloadPoliciesResultMessa
 	return response, nil
 }
 
+// GetRuleSetReport gets the currently loaded policies from the system probe
+func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error) {
+	response, err := c.apiClient.GetRuleSetReport(context.Background(), &api.GetRuleSetReportParams{})
+	if err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
 // GetEvents returns a stream of events
 func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
 	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
