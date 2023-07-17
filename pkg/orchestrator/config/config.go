@@ -165,7 +165,8 @@ func NewOrchestratorForwarder(log log.Component) forwarder.Forwarder {
 	if !config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
 		return nil
 	}
-	if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
+	fl := flavor.GetFlavor()
+	if (fl == flavor.DefaultAgent || fl == flavor.ProcessAgent) && !config.IsCLCRunner() {
 		return nil
 	}
 	orchestratorCfg := NewDefaultOrchestratorConfig()
