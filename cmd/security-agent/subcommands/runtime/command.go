@@ -21,8 +21,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -45,6 +43,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -71,9 +70,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 type checkPoliciesCliParams struct {
 	*command.GlobalParams
 
-	dir string
-}
-
+	dir                      string
+	evaluateAllPolicySources bool
 }
 
 func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -148,6 +146,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 	}
 
 	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, flags.EvaluateAllPoliciesSources, false, "Evaluate policies in directory and from remote-config")
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
@@ -388,64 +387,78 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func checkPoliciesInner(policiesDir string) error {
-	cfg := &pconfig.Config{
-		EnableKernelFilters: true,
-		EnableApprovers:     true,
-		EnableDiscarders:    true,
-		PIDCacheSize:        1,
-	}
-
-	// enabled all the rules
-	enabled := map[eval.EventType]bool{"*": true}
-
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
-
-	ruleOpts.WithLogger(seclog.DefaultLogger)
-
-	agentVersionFilter, err := newAgentVersionFilter()
-	if err != nil {
-		return fmt.Errorf("failed to create agent version filter: %w", err)
-	}
-
-	loaderOpts := rules.PolicyLoaderOpts{
-		MacroFilters: []rules.MacroFilter{
-			agentVersionFilter,
-		},
-		RuleFilters: []rules.RuleFilter{
-			agentVersionFilter,
-		},
-	}
-
-	provider, err := rules.NewPoliciesDirProvider(policiesDir, false)
-	if err != nil {
-		return err
-	}
-
-	loader := rules.NewPolicyLoader(provider)
-
-	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
-	if err != nil {
-		return err
-	}
-	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
-		return err
-	}
-
-	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
-	if err != nil {
-		return err
-	}
-
-	content, _ := json.MarshalIndent(report, "", "\t")
-	fmt.Printf("%s\n", string(content))
-
-	return nil
-}
-
 func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
-	return checkPoliciesInner(args.dir)
+	if args.evaluateAllPolicySources {
+		client, err := secagent.NewRuntimeSecurityClient()
+		if err != nil {
+			return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+		}
+		defer client.Close()
+
+		output, err := client.GetRuleSetReport()
+		if err != nil {
+			return fmt.Errorf("unable to send request to system-probe: %w", err)
+		}
+		if len(output.Error) > 0 {
+			return fmt.Errorf("get policies request failed: %s", output.Error)
+		}
+
+		content, _ := json.MarshalIndent(output, "", "\t")
+		fmt.Printf("%s\n", string(content))
+	} else {
+		cfg := &pconfig.Config{
+			EnableKernelFilters: true,
+			EnableApprovers:     true,
+			EnableDiscarders:    true,
+			PIDCacheSize:        1,
+		}
+
+		// enabled all the rules
+		enabled := map[eval.EventType]bool{"*": true}
+
+		ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+
+		ruleOpts.WithLogger(seclog.DefaultLogger)
+
+		agentVersionFilter, err := newAgentVersionFilter()
+		if err != nil {
+			return fmt.Errorf("failed to create agent version filter: %w", err)
+		}
+
+		loaderOpts := rules.PolicyLoaderOpts{
+			MacroFilters: []rules.MacroFilter{
+				agentVersionFilter,
+			},
+			RuleFilters: []rules.RuleFilter{
+				agentVersionFilter,
+			},
+		}
+
+		provider, err := rules.NewPoliciesDirProvider(args.dir, false)
+		if err != nil {
+			return err
+		}
+
+		loader := rules.NewPolicyLoader(provider)
+
+		ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+		evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
+		if err != nil {
+			return err
+		}
+		if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+			return err
+		}
+
+		report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+		if err != nil {
+			return err
+		}
+
+		content, _ := json.MarshalIndent(report, "", "\t")
+		fmt.Printf("%s\n", string(content))
+	}
+	return nil
 }
 
 // EvalReport defines a report of an evaluation
@@ -714,7 +727,7 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	}
 
 	if downloadPolicyArgs.check {
-		if err := checkPoliciesInner(tempDir); err != nil {
+		if err := checkPolicies(log, config, &checkPoliciesCliParams{dir: tempDir}); err != nil {
 			return err
 		}
 	}

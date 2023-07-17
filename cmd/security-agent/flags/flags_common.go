@@ -31,6 +31,9 @@ const (
 	SnapshotInterfaces = "snapshot-interfaces"
 	RuleID             = "rule-id" // Also for compliance subcommand
 
+	// Runtime Policy Check Subcommand
+	EvaluateAllPoliciesSources = "all-policies-sources"
+
 	// Runtime Activity Dump Subcommand
 	Name              = "name"
 	ContainerID       = "containerID"
