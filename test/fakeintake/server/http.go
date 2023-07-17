@@ -26,20 +26,10 @@ func writeHttpResponse(w http.ResponseWriter, response httpResponse) {
 	}
 }
 
-type errorResponse struct {
-	Errors []string `json:"errors"`
-}
-
-// Same struct as in datadog-agent/comp/core/flare/helpers/send_flare.go
-type flareResponse struct {
-	CaseID int    `json:"case_id,omitempty"`
-	Error  string `json:"error,omitempty"`
-}
-
 func buildErrorResponse(responseError error) httpResponse {
 	statusCode := http.StatusAccepted
 
-	resp := errorResponse{}
+	resp := errorResponseBody{}
 	if responseError != nil {
 		statusCode = http.StatusBadRequest
 		resp.Errors = []string{responseError.Error()}
@@ -48,14 +38,7 @@ func buildErrorResponse(responseError error) httpResponse {
 	return buildResponse(resp, statusCode, "application/json")
 }
 
-func buildSuccessResponse(urlPath string) httpResponse {
-	var body interface{}
-	if urlPath == "/support/flare" {
-		body = flareResponse{}
-	} else {
-		body = errorResponse{}
-	}
-
+func buildSuccessResponse(body interface{}) httpResponse {
 	return buildResponse(body, http.StatusOK, "application/json")
 }
 
