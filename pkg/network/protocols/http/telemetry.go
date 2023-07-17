@@ -13,6 +13,7 @@ import (
 )
 
 type Telemetry struct {
+	// metricGroup is used here mostly for building the log message below
 	metricGroup *libtelemetry.MetricGroup
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Counter
@@ -30,11 +31,11 @@ func NewTelemetry() *Telemetry {
 	return &Telemetry{
 		metricGroup: metricGroup,
 
-		hits1XX:      metricGroup.NewCounter("hits", "status:100", libtelemetry.OptPrometheus),
-		hits2XX:      metricGroup.NewCounter("hits", "status:200", libtelemetry.OptPrometheus),
-		hits3XX:      metricGroup.NewCounter("hits", "status:300", libtelemetry.OptPrometheus),
-		hits4XX:      metricGroup.NewCounter("hits", "status:400", libtelemetry.OptPrometheus),
-		hits5XX:      metricGroup.NewCounter("hits", "status:500", libtelemetry.OptPrometheus),
+		hits1XX:      metricGroup.NewCounter("hits", "status:1xx", libtelemetry.OptPrometheus),
+		hits2XX:      metricGroup.NewCounter("hits", "status:2xx", libtelemetry.OptPrometheus),
+		hits3XX:      metricGroup.NewCounter("hits", "status:3xx", libtelemetry.OptPrometheus),
+		hits4XX:      metricGroup.NewCounter("hits", "status:4xx", libtelemetry.OptPrometheus),
+		hits5XX:      metricGroup.NewCounter("hits", "status:5xx", libtelemetry.OptPrometheus),
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
