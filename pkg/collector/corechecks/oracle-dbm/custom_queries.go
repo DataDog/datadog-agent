@@ -89,8 +89,8 @@ func (c *Check) CustomQueries() error {
 			log.Errorf("failed to fetch rows for the custom query %s %s", metricPrefix, err)
 			continue
 		}
-		var metricsFromSingleRow []metricRow
 		for rows.Next() {
+			var metricsFromSingleRow []metricRow
 			tags := []string{fmt.Sprintf("pdb:%s", pdb)}
 			cols, err := rows.SliceScan()
 			if err != nil {
