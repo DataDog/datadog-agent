@@ -15,10 +15,6 @@ require (
 	gotest.tools/gotestsum v1.8.2
 )
 
-// we want to force this version, since 1.0.6 changed the public API
-// remove once golangci-lint is updated to v1.49.0 (requires go1.19)
-replace github.com/sylvia7788/contextcheck => github.com/sylvia7788/contextcheck v1.0.4
-
 require (
 	4d63.com/gocheckcompilerdirectives v1.2.1 // indirect
 	4d63.com/gochecknoglobals v0.2.1 // indirect
