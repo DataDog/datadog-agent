@@ -14,7 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRebalance(t *testing.T) {
@@ -1463,4 +1465,46 @@ func TestMoveCheck(t *testing.T) {
 			requireNotLocked(t, dispatcher.store)
 		})
 	}
+}
+
+func TestCalculateAvg(t *testing.T) {
+	// checkMetricSamplesWeight affects this test. To avoid coupling this test
+	// with the actual value, overwrite here and restore after the test.
+	originalMetricSamplesWeight := checkMetricSamplesWeight
+	checkMetricSamplesWeight = 1
+	defer func() {
+		checkMetricSamplesWeight = originalMetricSamplesWeight
+	}()
+
+	testDispatcher := newDispatcher()
+
+	// The busyness of this node is 3 (1 + 2)
+	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
+	testDispatcher.store.nodes["node1"].clcRunnerStats = types.CLCRunnersStats{
+		"check1": types.CLCRunnerStats{
+			MetricSamples:  1,
+			IsClusterCheck: true,
+		},
+		"check2": types.CLCRunnerStats{
+			MetricSamples:  2,
+			IsClusterCheck: true,
+		},
+	}
+
+	// The busyness of this node is 7 (3 + 4)
+	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "")
+	testDispatcher.store.nodes["node2"].clcRunnerStats = types.CLCRunnersStats{
+		"check3": types.CLCRunnerStats{
+			MetricSamples:  3,
+			IsClusterCheck: true,
+		},
+		"check4": types.CLCRunnerStats{
+			MetricSamples:  4,
+			IsClusterCheck: true,
+		},
+	}
+
+	avg, err := testDispatcher.calculateAvg()
+	require.NoError(t, err)
+	assert.Equal(t, 5, avg)
 }
