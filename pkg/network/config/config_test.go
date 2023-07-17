@@ -275,7 +275,7 @@ func TestEnableGRPCCommunication(t *testing.T) {
 		require.NoError(t, err)
 		cfg := New()
 
-		assert.NotNil(t, cfg.GRPCSocketFilePath)
+		assert.NotEmpty(t, cfg.GRPCSocketFilePath)
 	})
 }
 

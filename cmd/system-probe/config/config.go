@@ -56,7 +56,7 @@ type Config struct {
 	StatsdHost string
 	StatsdPort int
 
-	GRPCUnixSocketPath string
+	GRPCSocketFilePath string
 }
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -119,7 +119,7 @@ func load() (*Config, error) {
 		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
 		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
-		GRPCUnixSocketPath: cfg.GetString(spNS("grpc_socket_file_path")),
+		GRPCSocketFilePath: cfg.GetString(spNS("grpc_socket_file_path")),
 		MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")),
 
 		LogFile:          cfg.GetString("log_file"),

@@ -201,6 +201,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "use_grpc"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "grpc_socket_file_path"), false)
 
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
