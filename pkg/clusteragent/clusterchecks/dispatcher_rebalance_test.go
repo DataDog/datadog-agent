@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -1366,8 +1365,14 @@ func TestRebalance(t *testing.T) {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
 			// Tests have been written with this value hardcoded
 			// Changing the values rather than re-writing all the tests.
+			originalCheckExecutionTimeWeight := checkExecutionTimeWeight
+			originalMetricSamplesWeight := checkMetricSamplesWeight
 			checkExecutionTimeWeight = 0.8
 			checkMetricSamplesWeight = 0.2
+			defer func() {
+				checkExecutionTimeWeight = originalCheckExecutionTimeWeight
+				checkMetricSamplesWeight = originalMetricSamplesWeight
+			}()
 
 			dispatcher := newDispatcher()
 
