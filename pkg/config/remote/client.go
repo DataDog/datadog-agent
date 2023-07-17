@@ -251,7 +251,7 @@ func (c *Client) startFn() {
 // pollLoop should never be called manually and only be called via the client's `sync.Once`
 // structure in startFn.
 func (c *Client) pollLoop() {
-	succcessfulFirstRun := false
+	successfulFirstRun := false
 	for {
 		interval := c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
 		select {
@@ -260,7 +260,7 @@ func (c *Client) pollLoop() {
 		case <-time.After(c.pollInterval + interval):
 			err := c.update()
 			if err != nil {
-				if !succcessfulFirstRun {
+				if !successfulFirstRun {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as a debug log as the race is expected. If the error persists, we log with error logs
 					log.Infof("retrying the first update of remote-config state (%v)", err)
@@ -271,7 +271,7 @@ func (c *Client) pollLoop() {
 				}
 			} else {
 				c.lastUpdateError = nil
-				succcessfulFirstRun = true
+				successfulFirstRun = true
 				c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
 		}
