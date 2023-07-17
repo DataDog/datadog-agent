@@ -221,7 +221,7 @@ func TestClient(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("getFlare", func(t *testing.T) {
+	t.Run("GetLatestFlare", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(supportFlareResponse)
 		}))
