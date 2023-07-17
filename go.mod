@@ -613,7 +613,7 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
-replace github.com/golang/glog v1.1.0 => github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1
+replace github.com/golang/glog v1.1.1 => github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20230703150631-f11d5ab05838
 
