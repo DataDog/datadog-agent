@@ -930,19 +930,30 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 // like TCP.
 //
 // This function fixes only a very specific case:
-// incoming local UDP connections, when the source
+// incoming UDP connections, when the source
 // port is ephemeral but the destination port is not.
 // This is the only case where we can be sure the
-// connection has the incorrect direction of incoming.
+// connection has the incorrect direction of
+// incoming. For remote connections, only
+// destination ports < 1024 are considered
+// non-ephemeral.
 func fixConnectionDirection(c *ConnectionStats) {
-	// fix only local incoming UDP connections
-	if !c.IntraHost || c.Direction != INCOMING || c.Type != UDP {
+	// fix only incoming UDP connections
+	if c.Direction != INCOMING || c.Type != UDP {
 		return
 	}
 
 	sourceEphemeral := IsEphemeralPort(int(c.SPort))
-	destEphemeral := IsEphemeralPort(int(c.DPort))
-	if sourceEphemeral && !destEphemeral {
+	var destNotEphemeral bool
+	if c.IntraHost {
+		destNotEphemeral = !IsEphemeralPort(int(c.DPort))
+	} else {
+		// use a much more restrictive range
+		// for non-ephemeral ports if the
+		// connection is not local
+		destNotEphemeral = c.DPort < 1024
+	}
+	if sourceEphemeral && destNotEphemeral {
 		c.Direction = OUTGOING
 		stateTelemetry.udpDirectionFixes.Inc()
 	}
