@@ -1,11 +1,6 @@
 root_dir = "/tmp/ci/system-probe"
 tests_dir = ::File.join(root_dir, "tests")
 
-file "/tmp/color_idx" do
-  content node[:color_idx].to_s
-  mode 644
-end
-
 if platform?('centos')
   case node['platform_version'].to_i
   when 7
