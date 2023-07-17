@@ -852,28 +852,6 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
 
 #endif // COMPILE_CORE || COMPILE_RUNTIME
 
-SEC("kprobe/tcp_set_state")
-int kprobe__tcp_set_state(struct pt_regs *ctx) {
-    u8 state = (u8)PT_REGS_PARM2(ctx);
-
-    // For now we're tracking only TCP_ESTABLISHED
-    if (state != TCP_ESTABLISHED) {
-        return 0;
-    }
-
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    tcp_stats_t stats = { .state_transitions = (1 << state) };
-    update_tcp_stats(&t, stats);
-
-    return 0;
-}
-
 SEC("kprobe/tcp_connect")
 int kprobe__tcp_connect(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();

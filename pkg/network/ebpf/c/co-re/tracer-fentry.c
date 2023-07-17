@@ -445,26 +445,6 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
     return handle_retransmit(sk, retrans_out-retrans_out_pre);
 }
 
-SEC("fentry/tcp_set_state")
-int BPF_PROG(tcp_set_state, struct sock *sk, int state) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_set_state");
-    // For now we're tracking only TCP_ESTABLISHED
-    if (state != TCP_ESTABLISHED) {
-        return 0;
-    }
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    tcp_stats_t stats = { .state_transitions = (1 << state) };
-    update_tcp_stats(&t, stats);
-
-    return 0;
-}
-
 SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_connect");

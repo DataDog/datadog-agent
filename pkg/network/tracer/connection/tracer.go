@@ -91,6 +91,7 @@ var ConnTracerTelemetry = struct {
 	UdpSendsProcessed *nettelemetry.StatCounterWrapper
 	UdpSendsMissed    *nettelemetry.StatCounterWrapper
 	UdpDroppedConns   *nettelemetry.StatCounterWrapper
+	TcpDroppedConns   *netebpf.StatCounterWrapper
 	PidCollisions     *nettelemetry.StatCounterWrapper
 	iterationDups     telemetry.Counter
 	iterationAborts   telemetry.Counter
@@ -103,6 +104,7 @@ var ConnTracerTelemetry = struct {
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_processed", []string{}, "Counter measuring the number of processed UDP sends in EBPF"),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_sends_missed", []string{}, "Counter measuring failures to process UDP sends in EBPF"),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "udp_dropped_conns", []string{}, "Counter measuring the number of dropped UDP connections in the EBPF map"),
+	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "tcp_dropped_conns", []string{}, "Counter measuring the number of dropped TCP connections in the EBPF map"),
 	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
@@ -111,9 +113,10 @@ var ConnTracerTelemetry = struct {
 type tracer struct {
 	m *manager.Manager
 
-	conns    *ebpf.Map
-	tcpStats *ebpf.Map
-	config   *config.Config
+	conns          *ebpf.Map
+	tcpStats       *ebpf.Map
+	tcpRetransmits *ebpf.Map
+	config         *config.Config
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
@@ -146,6 +149,7 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			probes.ConnMap:                           {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPStatsMap:                       {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TCPRetransmitsMap:                 {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.PortBindingsMap:                   {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.UDPPortBindingsMap:                {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.SockByPidFDMap:                    {Type: ebpf.Hash, MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
@@ -215,6 +219,11 @@ func NewTracer(config *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
+	}
+
+	if tr.tcpRetransmits, _, err = m.GetMap(probes.TCPRetransmitsMap); err != nil {
+		tr.Stop()
+		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPRetransmitsMap, err)
 	}
 
 	if bpfTelemetry != nil {
@@ -352,8 +361,11 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 			continue
 		}
 
-		if t.getTCPStats(tcp, key, seen) {
-			updateTCPStats(conn, tcp)
+		if t.getTCPStats(tcp, key) {
+			updateTCPStats(conn, tcp, 0)
+		}
+		if retrans, ok := t.getTCPRetransmits(key, seen); ok {
+			updateTCPStats(conn, nil, retrans)
 		}
 
 		*buffer.Next() = *conn
@@ -486,6 +498,7 @@ func (t *tracer) refreshProbeTelemetry() {
 	ConnTracerTelemetry.UdpSendsProcessed.Add(int64(ebpfTelemetry.Udp_sends_processed) - ConnTracerTelemetry.UdpSendsProcessed.Load())
 	ConnTracerTelemetry.UdpSendsMissed.Add(int64(ebpfTelemetry.Udp_sends_missed) - ConnTracerTelemetry.UdpSendsMissed.Load())
 	ConnTracerTelemetry.UdpDroppedConns.Add(int64(ebpfTelemetry.Udp_dropped_conns) - ConnTracerTelemetry.UdpDroppedConns.Load())
+	ConnTracerTelemetry.TcpDroppedConns.Add(int64(ebpfTelemetry.Tcp_dropped_conns) - ConnTracerTelemetry.TcpDroppedConns.Load())
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
@@ -538,31 +551,37 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	return nil
 }
 
-// getTCPStats reads tcp related stats for the given ConnTuple
-func (t *tracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) bool {
+func (t *tracer) getTCPRetransmits(tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) (uint32, bool) {
 	if tuple.Type() != netebpf.TCP {
-		return false
+		return 0, false
 	}
 
 	// The PID isn't used as a key in the stats map, we will temporarily set it to 0 here and reset it when we're done
 	pid := tuple.Pid
 	tuple.Pid = 0
 
-	*stats = netebpf.TCPStats{}
-	err := t.tcpStats.Lookup(unsafe.Pointer(tuple), unsafe.Pointer(stats))
-	if err == nil {
+	var retransmits uint32
+	if err := t.tcpRetransmits.Lookup(unsafe.Pointer(tuple), unsafe.Pointer(&retransmits)); err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
 		if _, reported := seen[*tuple]; reported {
 			ConnTracerTelemetry.PidCollisions.Inc()
-			stats.Retransmits = 0
-			stats.State_transitions = 0
+			retransmits = 0
 		} else {
 			seen[*tuple] = struct{}{}
 		}
 	}
 
 	tuple.Pid = pid
-	return true
+	return retransmits, true
+}
+
+// getTCPStats reads tcp related stats for the given ConnTuple
+func (t *tracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple) bool {
+	if tuple.Type() != netebpf.TCP {
+		return false
+	}
+
+	return t.tcpStats.Lookup(unsafe.Pointer(tuple), unsafe.Pointer(stats)) == nil
 }
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {
@@ -618,16 +637,20 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 }
 
-func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats) {
+func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats, retransmits uint32) {
 	if conn.Type != network.TCP {
 		return
 	}
 
-	conn.Monotonic.Retransmits = tcpStats.Retransmits
-	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
-	conn.RTT = tcpStats.Rtt
-	conn.RTTVar = tcpStats.Rtt_var
+	if retransmits > 0 {
+		conn.Monotonic.Retransmits = retransmits
+	}
+	if tcpStats != nil {
+		conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+		conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+		conn.RTT = tcpStats.Rtt
+		conn.RTTVar = tcpStats.Rtt_var
+	}
 }
 
 type cookieHasher struct {
