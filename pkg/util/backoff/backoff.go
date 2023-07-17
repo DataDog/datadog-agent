@@ -116,10 +116,12 @@ func (c *ConstantBackoffPolicy) GetBackoffDuration(numErrors int) time.Duration 
 
 // IncError is a no-op here
 func (c *ConstantBackoffPolicy) IncError(numErrors int) int {
-	return 0
+	numErrors++
+	return numErrors
 }
 
 // DecError is a no-op here
 func (c *ConstantBackoffPolicy) DecError(numErrors int) int {
-	return 0
+	numErrors--
+	return numErrors
 }
