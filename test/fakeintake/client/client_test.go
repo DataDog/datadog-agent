@@ -228,7 +228,7 @@ func TestClient(t *testing.T) {
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
-		flare, err := client.getFlare()
+		flare, err := client.GetLatestFlare()
 		assert.NoError(t, err)
 		assert.Equal(t, flare.GetEmail(), "test")
 		assert.Equal(t, flare.GetAgentVersion(), "7.45.1+commit.102cdaf")
@@ -242,7 +242,7 @@ func TestClient(t *testing.T) {
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
-		flare, err := client.getFlare()
+		flare, err := client.GetLatestFlare()
 		assert.NoError(t, err)
 
 		// FileExists()

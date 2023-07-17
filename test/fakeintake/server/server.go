@@ -201,6 +201,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	// TODO: store all headers directly, and fetch Content-Type/Content-Encoding values when parsing
 	encoding := req.Header.Get("Content-Encoding")
 	if req.URL.Path == "/support/flare" {
 		encoding = req.Header.Get("Content-Type")
