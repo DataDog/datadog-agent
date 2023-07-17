@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strings"
 )
 
@@ -34,6 +35,7 @@ func (c *Check) OS_Stats() error {
 		return fmt.Errorf("failed to collect OS stats: %w", err)
 	}
 
+	var numCPUsFound bool
 	for _, r := range OSStatsRows {
 		var name string
 		var value float64
@@ -44,7 +46,19 @@ func (c *Check) OS_Stats() error {
 			name = strings.ToLower(r.StatName)
 			value = r.Value
 		}
+		if r.StatName == "NUM_CPUS" {
+			numCPUsFound = true
+		}
 		s.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, name), value, "", c.tags)
+	}
+
+	var cpuCount float64
+	if !numCPUsFound {
+		if err := c.db.Get(&cpuCount, "SELECT value FROM v$parameter WHERE name = 'cpu_count'"); err == nil {
+			s.Gauge(fmt.Sprintf("%s.num_cpus", common.IntegrationName), cpuCount, "", c.tags)
+		} else {
+			log.Errorf("failed to get cpu_count: %s", err)
+		}
 	}
 
 	s.Commit()
