@@ -309,11 +309,7 @@ func (w *soWatcher) Start() {
 		return nil
 	})
 
-	cleanupExit, err := w.processMonitor.SubscribeExit(w.registry.unregister)
-	if err != nil {
-		log.Errorf("can't subscribe to process monitor exit event %s", err)
-		return
-	}
+	cleanupExit := w.processMonitor.SubscribeExit(w.registry.unregister)
 
 	w.wg.Add(1)
 	go func() {
