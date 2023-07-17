@@ -1520,7 +1520,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
     if windows:
         return
 
-    docker_compose_paths = glob.glob("./pkg/network/protocols/*/testdata/docker-compose.yml")
+    docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
@@ -1537,6 +1537,8 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
     )
 
+    # Special use-case in javatls
+    images.remove("${IMAGE_VERSION}")
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
