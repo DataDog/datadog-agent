@@ -73,11 +73,11 @@ func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
-// ConfigureOptions add the necessary options for the http monitoring to work,
+// ConfigureOptions add the necessary options for the kafka monitoring to work,
 // to be used by the manager. These are:
 // - Set the `kafka_last_tcp_seq_per_connection` map size to the value of the `max_tracked_connection` configuration variable.
 //
-// We also configure the http event stream with the manager and its options.
+// We also configure the kafka event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	events.Configure(eventStreamName, mgr, opts)
 	opts.MapSpecEditors[kafkaLastTCPSeqPerConnectionMap] = manager.MapSpecEditor{
