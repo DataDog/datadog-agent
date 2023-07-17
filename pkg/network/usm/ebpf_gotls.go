@@ -155,7 +155,7 @@ type GoTLSProgram struct {
 
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
-	binAnalysisMetric *libtelemetry.Metric
+	binAnalysisMetric *libtelemetry.Counter
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -184,7 +184,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		processes: make(map[pid]binaryID),
 	}
 
-	p.binAnalysisMetric = libtelemetry.NewMetric("gotls.analysis_time", libtelemetry.OptStatsd)
+	p.binAnalysisMetric = libtelemetry.NewCounter("gotls.analysis_time", libtelemetry.OptStatsd)
 
 	return p
 }
@@ -400,7 +400,7 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 
 	elapsed := time.Since(start)
 
-	p.binAnalysisMetric.Set(elapsed.Milliseconds())
+	p.binAnalysisMetric.Add(elapsed.Milliseconds())
 	log.Debugf("attached hooks on %s (%v) in %s", binPath, binID, elapsed)
 }
 

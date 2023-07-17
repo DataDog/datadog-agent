@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -321,6 +322,7 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 		// Update update time
 		now := time.Now().Unix()
 		m.lastUpdateTime.Swap(now)
+		telemetry.ReportPrometheus()
 	}()
 
 	ret := make(map[protocols.ProtocolType]interface{})

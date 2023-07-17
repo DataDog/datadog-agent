@@ -238,10 +238,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, cache)
 	})
 
-	httpMux.HandleFunc("/debug/telemetry", func(w http.ResponseWriter, req *http.Request) {
-		metrics := telemetry.GetMetrics()
-		utils.WriteAsJSON(w, metrics)
-	})
+	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
