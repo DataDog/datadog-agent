@@ -70,12 +70,7 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
-		nt := networkTracer{
-			tracer: t,
-			done:   done,
-		}
-
-		return &nt, err
+		return &networkTracer{tracer: t, done: done}, err
 	},
 }
 

@@ -16,6 +16,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -39,8 +42,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 // ErrNotEnabled represents the case in which system-probe is not enabled
@@ -239,7 +240,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 	if err = api.StartServer(cfg, telemetry); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
-
 	return nil
 }
 
