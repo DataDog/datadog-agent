@@ -8,6 +8,7 @@
 package trivy
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,12 +18,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/go-redis/redis/v8"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
 	"github.com/hashicorp/golang-lru/simplelru"
 )
+
+func init() {
+	redis.SetLogger(redisLogger{})
+}
+
+type redisLogger struct{}
+
+func (l redisLogger) Printf(_ context.Context, format string, v ...interface{}) {
+	log.Infof(format, v)
+}
 
 // telemetryTick is the frequency at which the cache usage metrics are collected.
 var telemetryTick = 1 * time.Minute
@@ -606,4 +618,93 @@ func (c *memoryCache) Close() (err error) {
 
 func (c *memoryCache) Clear() (err error) {
 	return c.Close()
+}
+
+// redisCache uses a local cache and a redis cache
+type redisCache struct {
+	ctx          context.Context
+	localCache   Cache
+	remoteClient *redis.Client
+	expiration   time.Duration
+}
+
+func NewRedisCache(ctx context.Context, options *redis.Options, expiration time.Duration, localCache Cache) cache.Cache {
+	return &TrivyCache{Cache: &redisCache{
+		ctx:          ctx,
+		localCache:   localCache,
+		remoteClient: redis.NewClient(options),
+		expiration:   expiration,
+	}}
+}
+
+func (c *redisCache) Contains(key string) bool {
+	localContains := c.localCache.Contains(key)
+	cmdVal, err := c.remoteClient.Exists(c.ctx, key).Result()
+	if err != nil {
+		return localContains
+	}
+	remoteContains := cmdVal == 1
+
+	// sync local and remote
+	if localContains && !remoteContains {
+		item, err := c.localCache.Get(key)
+		if err == nil {
+			var val interface{}
+			val = item
+			c.remoteClient.Set(c.ctx, key, val, c.expiration)
+		}
+	} else if !localContains && remoteContains {
+		item, err := c.remoteClient.Get(c.ctx, key).Bytes()
+		if err == nil {
+			c.localCache.Set(key, item)
+		}
+	}
+
+	return localContains || remoteContains
+}
+
+// Remove removes local entries only
+func (c *redisCache) Remove(keys []string) error {
+	return c.localCache.Remove(keys)
+}
+
+// Set is local and remote
+func (c *redisCache) Set(key string, value []byte) error {
+	if err := c.localCache.Set(key, value); err != nil {
+		return err
+	}
+	var val interface{}
+	val = value
+	if err := c.remoteClient.Set(c.ctx, key, val, c.expiration).Err(); err != nil {
+		log.Errorf("failed to set item to remote cache %s", err)
+	}
+	return nil
+}
+
+// Get only looks at the local db because remote items should be downloaded in MissingBlobs
+func (c *redisCache) Get(key string) ([]byte, error) {
+	return c.localCache.Get(key)
+}
+
+// Keys returns the local cached keys. Required for the cache cleaning logic.
+func (c *redisCache) Keys() []string {
+	return c.localCache.Keys()
+}
+
+// Len returns the length of the local cache. Required for the cache cleaning logic.
+func (c *redisCache) Len() int {
+	return c.localCache.Len()
+}
+
+// Close closes the local cache
+func (c *redisCache) Close() error {
+	if err := c.localCache.Close(); err != nil {
+		log.Errorf("failed to close local cache")
+	}
+	return c.remoteClient.Close()
+}
+
+// Clear only clears the local cache
+func (c *redisCache) Clear() error {
+	return c.localCache.Clear()
 }

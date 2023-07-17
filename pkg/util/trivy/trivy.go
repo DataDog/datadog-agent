@@ -20,6 +20,7 @@ import (
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/go-redis/redis/v8"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/detector/ospkg"
@@ -102,19 +103,38 @@ func defaultCollectorConfig(cacheLocation string) CollectorConfig {
 		ClearCacheOnClose: true,
 	}
 
-	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"))
+	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"), config.Datadog.GetBool("sbom.cache.remote"))
 
 	return collectorConfig
 }
 
-func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
+func cacheProvider(cacheLocation string, useCustomCache, remote bool) func() (cache.Cache, CacheCleaner, error) {
 	if useCustomCache {
+		customCache, customCacheCleaner, err := NewCustomBoltCache(
+			cacheLocation,
+			config.Datadog.GetInt("sbom.cache.max_cache_entries"),
+			config.Datadog.GetInt("sbom.cache.max_disk_size"),
+		)
+
+		if !remote {
+			return func() (cache.Cache, CacheCleaner, error) {
+				return customCache, customCacheCleaner, err
+			}
+		}
+
 		return func() (cache.Cache, CacheCleaner, error) {
-			return NewCustomBoltCache(
-				cacheLocation,
-				config.Datadog.GetInt("sbom.cache.max_cache_entries"),
-				config.Datadog.GetInt("sbom.cache.max_disk_size"),
-			)
+			return NewRedisCache(
+				context.Background(),
+				&redis.Options{
+					Addr:            config.Datadog.GetString("sbom.cache.remote.addr"),
+					Password:        config.Datadog.GetString("sbom.cache.remote.password"),
+					DB:              config.Datadog.GetInt("sbom.cache.remote.DB"),
+					MaxRetries:      100,
+					MaxRetryBackoff: 10 * time.Second,
+				},
+				config.Datadog.GetDuration("sbom.cache.remote.ttl"),
+				customCache.(*TrivyCache).Cache,
+			), customCacheCleaner, err
 		}
 	}
 

@@ -66,6 +66,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
 	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	cfg.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	cfg.BindEnvAndSetDefault("sbom.cache.remote", false)
 	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	cfg.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
