@@ -22,7 +22,7 @@ import (
 	gorilla "github.com/gorilla/mux"
 )
 
-// StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
+// StartServer starts the HTTP and gRPC server for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *config.Config, telemetry telemetry.Component) error {
 	conn, err := net.NewListener(cfg.SocketAddress)
 	if err != nil {

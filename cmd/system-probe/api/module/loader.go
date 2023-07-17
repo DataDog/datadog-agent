@@ -87,7 +87,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, server *grpc.Server, fact
 				continue
 			}
 		}
-		
+
 		l.routers[factory.Name] = subRouter
 		l.modules[factory.Name] = module
 
