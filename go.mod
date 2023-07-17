@@ -42,7 +42,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/agent-payload/v5 v5.0.89-0.20230704083421-b45a1d578078
+	github.com/DataDog/agent-payload/v5 v5.0.90-0.20230717070528-bfb5d051f2ab
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
 	github.com/DataDog/datadog-agent/pkg/gohai v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.47.0-rc.3
@@ -613,7 +613,7 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
-replace github.com/golang/glog v1.1.0 => github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1
+replace github.com/golang/glog v1.1.1 => github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20230703150631-f11d5ab05838
 

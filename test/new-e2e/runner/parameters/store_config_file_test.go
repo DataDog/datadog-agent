@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed fixtures/config_with_stackparams.yaml
+//go:embed testfixtures/test_config_with_stackparams.yaml
 var config_with_stackparams []byte
 
-//go:embed fixtures/config_no_aws_account.yaml
+//go:embed testfixtures/test_config_no_aws_account.yaml
 var config_no_aws_account []byte
 
 func Test_parseConfigFileContent(t *testing.T) {
@@ -27,6 +27,7 @@ func Test_parseConfigFileContent(t *testing.T) {
 	assert.Equal(t, "/Users/totoro/.ssh/id_rsa.pub", store.config.ConfigParams.AWS.PublicKeyPath)
 	assert.Equal(t, "kiki", store.config.ConfigParams.AWS.Account)
 	assert.Equal(t, "00000000000000000000000000000000", store.config.ConfigParams.Agent.APIKey)
+	assert.Equal(t, "miyazaki", store.config.ConfigParams.AWS.TeamTag)
 
 	stackParamsStr, err := store.get(StackParameters)
 	require.NoError(t, err)
@@ -60,6 +61,10 @@ func Test_parseConfigFileStoreContent(t *testing.T) {
 	value, err = store.Get(APIKey)
 	assert.NoError(t, err)
 	assert.Equal(t, "00000000000000000000000000000000", value)
+
+	value, err = store.Get(ExtraResourcesTags)
+	assert.NoError(t, err)
+	assert.Equal(t, "team:miyazaki", value)
 }
 
 func Test_parseConfigFileStoreContentNoAWSAccount(t *testing.T) {
