@@ -306,7 +306,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if otlp.IsEnabled(coreconfig.Datadog) {
 		grpcPort = core.GetInt(coreconfig.OTLPTracePort)
 	}
-	fmt.Printf("DOING OTLP STUFF: %v\n", core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"))
 	c.OTLPReceiver = &config.OTLP{
 		BindHost:               c.ReceiverHost,
 		GRPCPort:               grpcPort,
