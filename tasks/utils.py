@@ -559,9 +559,14 @@ def check_upstream_branch(github, branch):
 
 
 def get_changed_files(ctx):
-    return ctx.run(
-        "git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD", hide=True
-    ).stdout.strip().splitlines()
+    return (
+        ctx.run(
+            "git diff --name-only $(git merge-base $(inv release.get-release-json-value base_branch) HEAD) HEAD",
+            hide=True,
+        )
+        .stdout.strip()
+        .splitlines()
+    )
 
 
 @contextlib.contextmanager

@@ -19,7 +19,7 @@ from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
-from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only, get_changed_files
+from .utils import REPO_PATH, bin_name, get_build_flags, get_changed_files, get_gobin, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
