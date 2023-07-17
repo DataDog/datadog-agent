@@ -58,7 +58,6 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	unixSockPath           string
 	networkID              string
-	useGRPCServer          bool
 	notInitializedLogLimit *putil.LogLimit
 
 	dockerFilter     *parser.DockerProxy
@@ -136,8 +135,12 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
+	useGRPCServer := false
 
-	conns, err := c.getConnections(c.useGRPCServer)
+	if c.unixSockPath != "" {
+		useGRPCServer = true
+	}
+	conns, err := c.getConnections(useGRPCServer)
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
 		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
