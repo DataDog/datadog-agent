@@ -34,7 +34,7 @@ type SysProbeConfig struct {
 	// System probe process module on/off configuration
 	ProcessModuleEnabled bool
 	// Unix sock path of the gRPC server in system probe
-	GRPCUnixSocketPath string
+	GRPCSocketFilePath string
 }
 
 // Check is an interface for Agent checks that collect data. Each check returns

@@ -240,6 +240,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 	if err = api.StartServer(cfg, telemetry); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
+
 	return nil
 }
 

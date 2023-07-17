@@ -101,7 +101,7 @@ func NewRunner(config ddconfig.ConfigReader, sysCfg *sysconfig.Config, hostInfo 
 		cfg.ProcessModuleEnabled = processModuleEnabled
 		cfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = sysCfg.SocketAddress
-		cfg.GRPCUnixSocketPath = sysCfg.GRPCUnixSocketPath
+		cfg.GRPCSocketFilePath = sysCfg.GRPCSocketFilePath
 	}
 
 	for _, c := range enabledChecks {
