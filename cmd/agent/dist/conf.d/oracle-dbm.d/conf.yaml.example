@@ -197,7 +197,7 @@ instances:
     ##                b. type - The submission method (gauge, monotonic_count, etc.) or tag.
     ## 3. tags (optional) - A list of tags to apply to each metric.
     ## 4. pdb (optional) - A PDB against which the query will be run. Default is CDB$ROOT.
-                           The parameter can be defined on a self-managed instance which
+                           The parameter can be defined on a self-managed instance, which
                            connects to CDB.
     # custom_queries:
     #   - query: SELECT foo, COUNT(*) FROM table.events GROUP BY foo
