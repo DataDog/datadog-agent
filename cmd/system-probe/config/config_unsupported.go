@@ -10,8 +10,9 @@ package config
 import "fmt"
 
 const (
-	defaultConfigDir          = ""
-	defaultSystemProbeAddress = ""
+	defaultConfigDir              = ""
+	defaultSystemProbeAddress     = ""
+	defaultGRPCSystemProbeAddress = ""
 )
 
 // ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.

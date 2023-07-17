@@ -144,7 +144,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
-
 		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
 	}))
