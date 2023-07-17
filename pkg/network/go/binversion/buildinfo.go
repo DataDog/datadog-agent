@@ -195,6 +195,8 @@ func (x *elfExe) ReadData(addr, size uint64) ([]byte, error) {
 	return nil, errUnrecognizedFormat
 }
 
+// ReadDataWithPool is an implementation of ReadData, but without allocating arrays, we get a pooled array from the
+// caller and spare allocations.
 func (x *elfExe) ReadDataWithPool(addr uint64, data []byte) error {
 	for _, prog := range x.f.Progs {
 		if prog.Vaddr <= addr && addr <= prog.Vaddr+prog.Filesz-1 {
