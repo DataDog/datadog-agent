@@ -18,6 +18,12 @@ var mapModuleMapping = make(map[uint32]string)
 var progNameMapping = make(map[uint32]string)
 var progModuleMapping = make(map[uint32]string)
 
+// AddProgramNameMapping manually adds a program name mapping
+func AddProgramNameMapping(progid uint32, name string, module string) {
+	progNameMapping[progid] = name
+	progModuleMapping[progid] = module
+}
+
 // AddNameMappings adds the full name mappings for ebpf maps in the manager
 func AddNameMappings(mgr *manager.Manager, module string) {
 	maps, err := mgr.GetMaps()
@@ -70,6 +76,12 @@ func RemoveNameMappings(mgr *manager.Manager) {
 		delete(progNameMapping, progid)
 		delete(progModuleMapping, progid)
 	})
+
+	for _, p := range mgr.Probes {
+		progid := p.ID()
+		delete(progNameMapping, progid)
+		delete(progModuleMapping, progid)
+	}
 }
 
 // RemoveNameMappingsCollection removes the full name mappings for ebpf maps in the collection
