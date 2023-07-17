@@ -56,6 +56,7 @@ type Config struct {
 	StatsdHost string
 	StatsdPort int
 
+	GRPCServerEnabled  bool
 	GRPCSocketFilePath string
 }
 
@@ -119,6 +120,7 @@ func load() (*Config, error) {
 		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
 		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
+		GRPCServerEnabled:  cfg.GetBool(spNS("use_grpc")),
 		GRPCSocketFilePath: cfg.GetString(spNS("grpc_socket_file_path")),
 		MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")),
 

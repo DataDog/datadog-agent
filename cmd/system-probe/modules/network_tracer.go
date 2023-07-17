@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -76,19 +75,6 @@ var NetworkTracer = module.Factory{
 			done:   done,
 		}
 
-		if ncfg.UseGRPC {
-			if ncfg.GRPCSocketFilePath == "" {
-				log.Error("grpc unix socket path is empty")
-			} else {
-				go func() {
-					err := startRPCServer(nt, ncfg.GRPCSocketFilePath)
-					if err != nil {
-						log.Errorf("Failed to start gRPC server: %v", err)
-					}
-				}()
-			}
-		}
-
 		return &nt, err
 	},
 }
@@ -99,31 +85,6 @@ type networkTracer struct {
 	tracer       *tracer.Tracer
 	done         chan struct{}
 	restartTimer *time.Timer
-}
-
-// startRPCServer starts a gRPC server using a unix socket.
-func startRPCServer(tracer networkTracer, socketFilePath string) error {
-	// Remove existing socket file if it exists
-	os.Remove(socketFilePath)
-
-	listener, err := net.Listen("unix", socketFilePath)
-	if err != nil {
-		return err
-	}
-
-	server := grpc.NewServer()
-	connectionserver.RegisterSystemProbeServer(server, &tracer)
-
-	go func() {
-		log.Info("gRPC server listening on Unix domain socket...")
-
-		err = server.Serve(listener)
-		if err != nil {
-			log.Errorf("unable to start the gRPC server %v", err)
-		}
-	}()
-
-	return nil
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -344,6 +305,11 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		})
 	}
 
+	return nil
+}
+
+func (nt *networkTracer) RegisterGRPC(server *grpc.Server) error {
+	connectionserver.RegisterSystemProbeServer(server, nt)
 	return nil
 }
 
