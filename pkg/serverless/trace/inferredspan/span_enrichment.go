@@ -225,7 +225,7 @@ type rawTraceContext struct {
 }
 
 type convertedTraceContext struct {
-	TraceID  *uint64 
+	TraceID  *uint64
 	ParentID *uint64
 }
 
