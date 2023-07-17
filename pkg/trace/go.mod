@@ -10,9 +10,8 @@ go 1.18
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.47.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-20230613-devel
+	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3.0.20230717151521-271965684571
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.47.0-rc.3
