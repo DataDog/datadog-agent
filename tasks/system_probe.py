@@ -380,7 +380,7 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/collector/corechecks/ebpf/probe/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
-			],
+            ],
             "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
             ],
