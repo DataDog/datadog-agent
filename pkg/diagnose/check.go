@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -54,8 +55,10 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
 	opts.UseNoopOrchestratorForwarder = true
-	forwarder := forwarder.NewDefaultForwarder(config.Datadog, forwarder.NewOptions(config.Datadog, nil))
-	aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hostnameDetected)
+	log := log.NewTemporaryLoggerWithoutInit()
+
+	forwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
+	aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
 	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
