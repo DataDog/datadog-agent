@@ -36,10 +36,18 @@ const (
 	SecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
 	BackupAZ    = "subnet-071213aedb0e1ae54"
 
+	SandboxPrimaryAz   = "subnet-b89e00e2"
+	SandboxSecondaryAz = "subnet-8ee8b1c6"
+	SandboxBackupAz    = "subnet-3f5db45b"
+
 	DatadogAgentQAEnv = "aws/agent-qa"
+	Sandbox           = "aws/sandbox"
 )
 
-var availabilityZones = []string{PrimaryAZ, SecondaryAZ, BackupAZ}
+var availabilityZones = map[string][]string{
+	DatadogAgentQAEnv: []string{PrimaryAZ, SecondaryAZ, BackupAZ},
+	Sandbox:           []string{SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
+}
 
 type SystemProbeEnvOpts struct {
 	X86AmiID              string
@@ -119,12 +127,12 @@ func credentials() (string, error) {
 	return password, nil
 }
 
-func isCIRun(env string) bool {
-	return env == DatadogAgentQAEnv
-}
+func getAvailabilityZone(env string, azIndx int) string {
+	if zones, ok := availabilityZones[env]; ok {
+		return zones[azIndx%len(zones)]
+	}
 
-func getAvailabilityZone(azIndx int) string {
-	return availabilityZones[azIndx%len(availabilityZones)]
+	return ""
 }
 
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
@@ -186,10 +194,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	// connection issues in the worst case.
 	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
-		// Set AZ in retry block so we can change if needed.
-		// Only set the default subnets if this is a CI run.
-		if isCIRun(opts.InfraEnv) {
-			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: getAvailabilityZone(currentAZ)}
+		if az := getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
+			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
 		}
 
 		_, upResult, err = stackManager.GetStack(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
@@ -209,8 +215,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 				// Retry if we have capacity issues in our current AZ.
 				// We switch to a different AZ and attempt to launch the instance again.
-			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") && isCIRun(opts.InfraEnv) {
-				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(currentAZ), getAvailabilityZone(currentAZ+1))
+			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
+				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(opts.InfraEnv, currentAZ), getAvailabilityZone(opts.InfraEnv, currentAZ+1))
 				currentAZ += 1
 				return retry.RetryableError(err)
 			} else {
