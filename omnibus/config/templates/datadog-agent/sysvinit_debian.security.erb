@@ -28,7 +28,7 @@ if [ ! -x $AGENTPATH ]; then
 	exit 0
 fi
 
-if [ ! -x $SECURITY_AGENT_CONFIG_FILE ]; then
+if [ ! -e $SECURITY_AGENT_CONFIG_FILE ]; then
 	echo "$SECURITY_AGENT_CONFIG_FILE not found. Exiting $NAME"
 	exit 0
 fi

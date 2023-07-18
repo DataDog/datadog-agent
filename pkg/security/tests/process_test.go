@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build functionaltests
-// +build functionaltests
 
 package tests
 
@@ -29,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/gocapability/capability"
@@ -234,8 +232,7 @@ func TestProcessContext(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
-			entry, _ := event.ResolveProcessCacheEntry()
-			assert.Equal(t, getInode(t, executable), entry.FileEvent.Inode, "wrong inode")
+			assert.Equal(t, getInode(t, executable), event.ProcessContext.FileEvent.Inode, "wrong inode")
 		})
 	})
 
@@ -696,10 +693,8 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			entry, _ := event.ResolveProcessCacheEntry()
-
-			if inode := getInode(t, executable); inode != entry.FileEvent.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", entry.FileEvent.Inode, inode, event)
+			if inode := getInode(t, executable); inode != event.ProcessContext.FileEvent.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", event.ProcessContext.FileEvent.Inode, inode, event)
 			}
 
 			str, err := test.marshalEvent(event)
@@ -807,7 +802,7 @@ func TestProcessContext(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_rule_inode", rule.ID, "wrong rule triggered")
 
-			service := event.GetProcessServiceTag()
+			service := event.GetProcessService()
 			assert.Equal(t, service, "myservice")
 		})
 	})
@@ -853,19 +848,19 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].args"); err == nil {
-				t.Errorf("shouldn't have args, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("shouldn't have args, got %+v %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[0].envs"); err == nil {
-				t.Errorf("shouldn't have envs, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("shouldn't have envs, got %+v : %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].args"); err != nil {
-				t.Errorf("should have args, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("should have args, got %+v %s", json, serialized)
 			}
 
 			if json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors[1].envs"); err != nil {
-				t.Errorf("should have envs, got %+v (%s)", json, spew.Sdump(data))
+				t.Errorf("should have envs, got %+v %s", json, serialized)
 			}
 		}))
 	})
@@ -916,9 +911,9 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, "test_rule_container", rule.ID, "wrong rule triggered")
 
 			if kind == dockerWrapperType {
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.Ancestor.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.Parent.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Ancestor.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Parent.ContainerID)
 			}
 		}))
 	})
@@ -990,7 +985,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_exec_ctime",
-		Expression: "exec.file.change_time < 5s",
+		Expression: "exec.file.change_time < 30s",
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -1038,7 +1033,7 @@ func TestProcessPIDVariable(t *testing.T) {
 	}
 }
 
-func TestProcessMutableVariable(t *testing.T) {
+func TestProcessScopedVariable(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_mutable_vars",
 		Expression: `open.file.path == "{{.Root}}/test-open"`,
@@ -1145,6 +1140,53 @@ func TestProcessMutableVariable(t *testing.T) {
 		t.Error(err)
 	}
 	defer os.Remove(filename3)
+}
+
+func TestTimestampVariable(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_set_timestamp_var",
+		Expression: `open.file.path == "{{.Root}}/test-open"`,
+		Actions: []rules.ActionDefinition{{
+			Set: &rules.SetDefinition{
+				Name:  "timestamp1",
+				Field: "event.timestamp",
+				Scope: "process",
+			},
+		}},
+	}, {
+		ID:         "test_rule_test_timestamp_var",
+		Expression: `open.file.path == "{{.Root}}/test-open-2" && ${process.timestamp1} > 0s && ${process.timestamp1} < 3s`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var filename1, filename2 string
+
+	test.WaitSignal(t, func() error {
+		filename1, _, err = test.Create("test-open")
+		return err
+	}, func(event *model.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_set_timestamp_var", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename1)
+
+	test.WaitSignal(t, func() error {
+		filename2, _, err = test.Create("test-open-2")
+		return err
+	}, func(event *model.Event, rule *rules.Rule) {
+		assert.Equal(t, "test_rule_test_timestamp_var", rule.ID, "wrong rule triggered")
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	defer os.Remove(filename2)
 }
 
 func TestProcessExec(t *testing.T) {
@@ -1303,7 +1345,7 @@ func TestProcessExecExit(t *testing.T) {
 
 		case model.ExitEventType:
 			// assert that exit time >= exec time
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 			if execPid != 0 && event.ProcessContext.Pid == execPid {
 				return true
 			}
@@ -1617,7 +1659,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1636,7 +1678,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(1), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1655,7 +1697,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1674,7 +1716,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1692,7 +1734,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1710,7 +1752,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 }
@@ -1796,12 +1838,11 @@ func TestProcessBusybox(t *testing.T) {
 	})
 }
 
-func TestProcessIdentifyInterpreter(t *testing.T) {
+func TestProcessInterpreter(t *testing.T) {
 	python, whichPythonErr := whichNonFatal("python")
 	if whichPythonErr != nil {
 		python = which(t, "python3")
 	}
-	perl := which(t, "perl")
 
 	tests := []struct {
 		name            string
@@ -1838,7 +1879,7 @@ echo "Back to bash"`, python, python),
 			name: "regular exec without interpreter rule",
 			rule: &rules.RuleDefinition{
 				ID:         "test_regular_exec_without_interpreter_rule",
-				Expression: `exec.file.name == "perl" && exec.interpreter.file.name == ""`,
+				Expression: `exec.file.name == ~"*python*" && exec.interpreter.file.name == ""`,
 			},
 			scriptName: "regularExecWithInterpreterRule.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
@@ -1848,10 +1889,10 @@ echo "Executing echo inside a bash script"
 %s <<__HERE__
 #!%s
 
-print "Executing print inside a perl (%s) script inside a bash script\n";
+print('Executing print inside a python (%s) script inside a bash script')
 __HERE__
 
-echo "Back to bash"`, perl, perl, perl),
+echo "Back to bash"`, python, python, python),
 			check: func(event *model.Event) {
 				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
 				assertFieldEqual(t, event, "process.parent.file.name", "regularExecWithInterpreterRule.sh", "wrong process parent file name")
@@ -1930,6 +1971,7 @@ chmod 755 pyscript.py
 
 	var ruleList []*rules.RuleDefinition
 	for _, test := range tests {
+		test.rule.Expression += "  && process.parent.file.name == \"" + test.scriptName + "\""
 		ruleList = append(ruleList, test.rule)
 	}
 
@@ -2052,7 +2094,7 @@ func TestProcessResolution(t *testing.T) {
 			t.Errorf("not able to resolve the entry")
 		}
 
-		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid)
+		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid, inode)
 		if mapsEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}

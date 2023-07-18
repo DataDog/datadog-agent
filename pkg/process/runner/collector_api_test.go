@@ -19,6 +19,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -87,7 +88,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/connections", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		apiEps, err := GetAPIEndpoints(cfg)
+		apiEps, err := endpoint.GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, apiEps[0].APIKey, req.headers.Get("DD-Api-Key"))
 
@@ -127,7 +128,7 @@ func TestSendContainerMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/container", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := GetAPIEndpoints(cfg)
+		eps, err := endpoint.GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -165,7 +166,7 @@ func TestSendProcMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/collector", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := GetAPIEndpoints(cfg)
+		eps, err := endpoint.GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -206,7 +207,7 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 		assert.Equal(t, "/api/v1/discovery", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := GetAPIEndpoints(cfg)
+		eps, err := endpoint.GetAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
@@ -256,7 +257,7 @@ func TestSendProcessEventMessage(t *testing.T) {
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
 
 		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-		eps, err := getEventsAPIEndpoints(cfg)
+		eps, err := endpoint.GetEventsAPIEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 		assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
@@ -304,7 +305,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 		timestamps := make(map[string]struct{})
 		for _, req := range requests {
 			assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-			eps, err := GetAPIEndpoints(cfg)
+			eps, err := endpoint.GetAPIEndpoints(cfg)
 			assert.NoError(t, err)
 			assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
 			assert.Equal(t, "1", req.headers.Get(headers.ContainerCountHeader))
@@ -571,7 +572,8 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	c, err := NewRunnerWithChecks(mockConfig, []checks.Check{check}, true, nil)
 	check.Init(nil, hostInfo)
 	assert.NoError(t, err)
-	c.Submitter, err = NewSubmitter(mockConfig, hostInfo.HostName)
+	deps := newSubmitterDepsWithConfig(t, mockConfig)
+	c.Submitter, err = NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
 	require.NoError(t, err)
 
 	err = c.Submitter.Start()

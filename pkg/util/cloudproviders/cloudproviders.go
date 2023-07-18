@@ -29,26 +29,41 @@ import (
 )
 
 type cloudProviderDetector struct {
-	name     string
-	callback func(context.Context) bool
+	name              string
+	callback          func(context.Context) bool
+	accountIdCallback func(context.Context) (string, error)
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
 func DetectCloudProvider(ctx context.Context) {
 	detectors := []cloudProviderDetector{
-		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn},
-		{name: gce.CloudProviderName, callback: gce.IsRunningOn},
-		{name: azure.CloudProviderName, callback: azure.IsRunningOn},
+		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn, accountIdCallback: ec2.GetAccountID},
+		{name: gce.CloudProviderName, callback: gce.IsRunningOn, accountIdCallback: gce.GetProjectID},
+		{name: azure.CloudProviderName, callback: azure.IsRunningOn, accountIdCallback: azure.GetSubscriptionID},
 		{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
 		{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
 		{name: oracle.CloudProviderName, callback: oracle.IsRunningOn},
 		{name: ibm.CloudProviderName, callback: ibm.IsRunningOn},
 	}
 
+	collectAccountID := config.Datadog.GetBool("inventories_collect_cloud_provider_account_id")
+
 	for _, cloudDetector := range detectors {
 		if cloudDetector.callback(ctx) {
 			inventories.SetAgentMetadata(inventories.HostCloudProvider, cloudDetector.name)
 			log.Infof("Cloud provider %s detected", cloudDetector.name)
+
+			// fetch the account ID for this cloud provider
+			if collectAccountID && cloudDetector.accountIdCallback != nil {
+				accountID, err := cloudDetector.accountIdCallback(ctx)
+				if err != nil {
+					log.Debugf("Could not detect cloud provider account ID: %v", err)
+				} else if accountID != "" {
+					log.Infof("Detecting `%s` from %s cloud provider: %+q", inventories.HostCloudProviderAccountID, cloudDetector.name, accountID)
+					inventories.SetHostMetadata(inventories.HostCloudProviderAccountID, accountID)
+				}
+			}
+
 			return
 		}
 	}
@@ -132,9 +147,9 @@ func GetHostAliases(ctx context.Context) []string {
 // GetPublicIPv4 returns the public IPv4 from different providers
 func GetPublicIPv4(ctx context.Context) (string, error) {
 	publicIPProvider := map[string]func(context.Context) (string, error){
-		"EC2":   ec2.GetPublicIPv4,
-		"GCE":   gce.GetPublicIPv4,
-		"Azure": azure.GetPublicIPv4,
+		ec2.CloudProviderName:   ec2.GetPublicIPv4,
+		gce.CloudProviderName:   gce.GetPublicIPv4,
+		azure.CloudProviderName: azure.GetPublicIPv4,
 	}
 	for name, fetcher := range publicIPProvider {
 		publicIPv4, err := fetcher(ctx)

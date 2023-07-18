@@ -32,7 +32,7 @@ namespace Datadog.CustomActions.Interfaces
         /// <summary>
         /// see <see cref="Session.Features"/>
         /// </summary>
-        FeatureInfoCollection Features { get; }
+        IFeatureInfo Feature(string FeatureName);
 
         /// <summary>
         /// see <see cref="Session.CustomActionData"/>

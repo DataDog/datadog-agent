@@ -3,13 +3,13 @@
 
 #include "bpf_helpers.h"
 #include "map-defs.h"
-#include "tracer.h"
 
 #include "protocols/http/types.h"
 #include "protocols/tls/go-tls-types.h"
+#include "protocols/tls/sowatcher-types.h"
 
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
-BPF_LRU_MAP(http_in_flight, conn_tuple_t, http_transaction_t, 0)
+BPF_HASH_MAP(http_in_flight, conn_tuple_t, http_transaction_t, 0)
 
 BPF_LRU_MAP(ssl_sock_by_ctx, void *, ssl_sock_t, 1)
 
@@ -41,14 +41,10 @@ BPF_LRU_MAP(go_tls_read_args, go_tls_function_args_key_t, go_tls_read_args_data_
 BPF_LRU_MAP(go_tls_write_args, go_tls_function_args_key_t, go_tls_write_args_data_t, 2048)
 
 /* This map associates crypto/tls.(*Conn) values to the corresponding conn_tuple_t* value.
-   It is used to implement a simplified version of tup_from_ssl_ctx from http.c
+   It is used to implement a simplified version of tup_from_ssl_ctx from usm.c
    Map size is set to 1 as goTLS is optional, this will be overwritten to MaxTrackedConnections
    if goTLS is enabled. */
 BPF_HASH_MAP(conn_tup_by_go_tls_conn, __u32, conn_tuple_t, 1)
-
-// A set (map from a key to a const bool value, we care only if the key exists in the map, and not its value) to
-// mark if we've seen a specific java tls connection.
-BPF_LRU_MAP(java_tls_connections, conn_tuple_t, bool, 1)
 
 /* This map used for notifying userspace of a shared library being loaded */
 BPF_PERF_EVENT_ARRAY_MAP(shared_libraries, __u32)

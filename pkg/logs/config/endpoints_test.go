@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 type EndpointsTestSuite struct {
@@ -24,35 +25,35 @@ func (suite *EndpointsTestSuite) SetupTest() {
 }
 
 func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {
-	suite.Equal("agent-intake.logs.datadoghq.com", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.com", utils.GetMainEndpoint(coreConfig.Datadog, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err := BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.com", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.Set("site", "datadoghq.com")
-	suite.Equal("agent-intake.logs.datadoghq.com", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.com", utils.GetMainEndpoint(coreConfig.Datadog, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.com", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.Set("site", "datadoghq.eu")
-	suite.Equal("agent-intake.logs.datadoghq.eu", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.eu", utils.GetMainEndpoint(coreConfig.Datadog, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.eu", endpoints.Main.Host)
 	suite.Equal(443, endpoints.Main.Port)
 
 	suite.config.Set("logs_config.dd_url", "lambda.logs.datadoghq.co.jp")
-	suite.Equal("lambda.logs.datadoghq.co.jp", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("lambda.logs.datadoghq.co.jp", utils.GetMainEndpoint(coreConfig.Datadog, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("lambda.logs.datadoghq.co.jp", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.Set("logs_config.logs_dd_url", "azure.logs.datadoghq.co.uk:1234")
-	suite.Equal("azure.logs.datadoghq.co.uk:1234", coreConfig.GetMainEndpoint(tcpEndpointPrefix, "logs_config.logs_dd_url"))
+	suite.Equal("azure.logs.datadoghq.co.uk:1234", utils.GetMainEndpoint(coreConfig.Datadog, tcpEndpointPrefix, "logs_config.logs_dd_url"))
 	endpoints, err = BuildEndpoints(HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("azure.logs.datadoghq.co.uk", endpoints.Main.Host)

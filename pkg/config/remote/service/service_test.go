@@ -10,7 +10,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"errors"
-	"os"
+	"fmt"
 	"testing"
 	"time"
 
@@ -45,6 +45,11 @@ func (m *mockAPI) Fetch(ctx context.Context, request *pbgo.LatestConfigsRequest)
 func (m *mockAPI) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(*pbgo.OrgDataResponse), args.Error(1)
+}
+
+func (m *mockAPI) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusResponse, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(*pbgo.OrgStatusResponse), args.Error(1)
 }
 
 type mockUptane struct {
@@ -106,12 +111,12 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	config.Datadog.Set("hostname", "test-hostname")
 	defer config.Datadog.Set("hostname", "")
 
-	dir, err := os.MkdirTemp("", "testdbdir")
-	assert.NoError(t, err)
+	dir := t.TempDir()
 	config.Datadog.Set("run_path", dir)
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
 	config.Datadog.Set("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	service, err := NewService()
+	t.Cleanup(func() { service.Stop() })
 	assert.NoError(t, err)
 	service.api = api
 	service.clock = clock
@@ -828,4 +833,34 @@ func TestConfigExpiration(t *testing.T) {
 
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
+}
+
+func TestOrgStatus(t *testing.T) {
+	api := &mockAPI{}
+	clock := clock.NewMock()
+	uptaneClient := &mockUptane{}
+	service := newTestService(t, api, uptaneClient, clock)
+
+	response := &pbgo.OrgStatusResponse{
+		Enabled:    true,
+		Authorized: true,
+	}
+
+	assert.Nil(t, service.previousOrgStatus)
+	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
+
+	service.pollOrgStatus()
+	assert.True(t, service.previousOrgStatus.Enabled)
+	assert.True(t, service.previousOrgStatus.Authorized)
+
+	api.On("FetchOrgStatus", mock.Anything).Return(nil, fmt.Errorf("Error"))
+	service.pollOrgStatus()
+	assert.True(t, service.previousOrgStatus.Enabled)
+	assert.True(t, service.previousOrgStatus.Authorized)
+
+	response.Authorized = false
+	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
+	service.pollOrgStatus()
+	assert.True(t, service.previousOrgStatus.Enabled)
+	assert.False(t, service.previousOrgStatus.Authorized)
 }

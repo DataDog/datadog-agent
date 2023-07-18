@@ -123,5 +123,5 @@ func getStrategy(inputChan chan *message.Message, outputChan chan *message.Paylo
 		}
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
-	return sender.NewStreamStrategy(inputChan, outputChan)
+	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
 }

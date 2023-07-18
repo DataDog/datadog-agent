@@ -11,9 +11,9 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TransactionDiskStorage is an interface to store and load transactions from disk
@@ -44,6 +44,7 @@ type TransactionRetryQueue struct {
 
 // BuildTransactionRetryQueue builds a new instance of TransactionRetryQueue
 func BuildTransactionRetryQueue(
+	log log.Component,
 	maxMemSizeInBytes int,
 	flushToStorageRatio float64,
 	optionalDomainFolderPath string,
@@ -56,8 +57,8 @@ func BuildTransactionRetryQueue(
 	domain := resolver.GetBaseDomain()
 
 	if optionalDomainFolderPath != "" && optionalDiskUsageLimit != nil {
-		serializer := NewHTTPTransactionsSerializer(resolver)
-		storage, err = newOnDiskRetryQueue(serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()), pointCountTelemetry)
+		serializer := NewHTTPTransactionsSerializer(log, resolver)
+		storage, err = newOnDiskRetryQueue(log, serializer, optionalDomainFolderPath, optionalDiskUsageLimit, newOnDiskRetryQueueTelemetry(resolver.GetBaseDomain()), pointCountTelemetry)
 
 		// If the storage on disk cannot be used, log the error and continue.
 		// Returning `nil, err` would mean not using `TransactionRetryQueue` and so not using `forwarder_retry_queue_payloads_max_size` config.
@@ -205,6 +206,20 @@ func (tc *TransactionRetryQueue) GetDiskSpaceUsed() int64 {
 		return tc.optionalStorage.GetDiskSpaceUsed()
 	}
 	return 0
+}
+
+// FlushToDisk is called on shutdown and persists all transactions to disk. The normal limits
+// on capacity still apply, and the same rules are followed as during normal operation in terms
+// of which transactions are dropped and which are persisted.
+func (tc *TransactionRetryQueue) FlushToDisk() error {
+	if tc.optionalStorage == nil {
+		return nil
+	}
+	tc.mutex.RLock()
+	defer tc.mutex.RUnlock()
+
+	transactions := tc.extractTransactionsFromMemory(tc.GetMaxMemSizeInBytes())
+	return tc.optionalStorage.Store(transactions)
 }
 
 func (tc *TransactionRetryQueue) extractTransactionsForDisk(payloadSize int) [][]transaction.Transaction {

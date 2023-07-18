@@ -52,6 +52,6 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 	return
 }
 
-func (ps *PatternScanner) PrintLogs(t *testing.T) {
+func (ps *PatternScanner) PrintLogs(t testing.TB) {
 	t.Log(strings.Join(ps.buffers, ""))
 }

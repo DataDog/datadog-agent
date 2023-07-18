@@ -4,6 +4,25 @@
 #include "constants/enums.h"
 #include "maps.h"
 
+void __attribute__((always_inline)) monitor_event_approved(u64 event_type, u32 approver_type) {
+    struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
+    if (approver_stats == NULL) {
+        return;
+    }
+
+    u32 key = event_type;
+    struct approver_stats_t *stats = bpf_map_lookup_elem(approver_stats, &key);
+    if (stats == NULL) {
+        return;
+    }
+
+    if (approver_type == BASENAME_APPROVER_TYPE) {
+        __sync_fetch_and_add(&stats->event_approved_by_basename, 1);
+    } else if (approver_type == FLAG_APPROVER_TYPE) {
+        __sync_fetch_and_add(&stats->event_approved_by_flag, 1);
+    }
+}
+
 void get_dentry_name(struct dentry *dentry, void *buffer, size_t n);
 
 int __attribute__((always_inline)) approve_by_basename(struct dentry *dentry, u64 event_type) {
@@ -12,6 +31,7 @@ int __attribute__((always_inline)) approve_by_basename(struct dentry *dentry, u6
 
     struct basename_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &basename);
     if (filter && filter->event_mask & (1 << (event_type-1))) {
+        monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return 1;
     }
     return 0;
@@ -36,6 +56,7 @@ int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t 
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&mmap_flags_approvers, &key);
     if (flags != NULL && (syscall->mmap.flags & *flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
     return 0;
@@ -45,6 +66,7 @@ int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cac
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&mmap_protection_approvers, &key);
     if (flags != NULL && (syscall->mmap.protection & *flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
     return 0;
@@ -80,6 +102,7 @@ int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct sysc
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&mprotect_vm_protection_approvers, &key);
     if (flags != NULL && (syscall->mprotect.vm_protection & *flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
     return 0;
@@ -89,6 +112,7 @@ int __attribute__((always_inline)) approve_mprotect_by_req_protection(struct sys
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&mprotect_req_protection_approvers, &key);
     if (flags != NULL && (syscall->mprotect.req_protection & *flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
     return 0;
@@ -110,6 +134,7 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
     if (flags != NULL && (syscall->open.flags & *flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
 #ifdef DEBUG
         bpf_printk("open flags %d approved\n", syscall->open.flags);
 #endif
@@ -145,6 +170,7 @@ int __attribute__((always_inline)) approve_splice_by_entry_flags(struct syscall_
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&splice_entry_flags_approvers, &key);
     if (flags != NULL && (syscall->splice.pipe_entry_flag & *flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
     return 0;
@@ -154,6 +180,7 @@ int __attribute__((always_inline)) approve_splice_by_exit_flags(struct syscall_c
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&splice_exit_flags_approvers, &key);
     if (flags != NULL && (syscall->splice.pipe_exit_flag & *flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
     return 0;

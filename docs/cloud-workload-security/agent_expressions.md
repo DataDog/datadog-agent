@@ -168,10 +168,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Definition |
 | -------- | ------------- |
-| [`async`](#async-doc) | True if the syscall was asynchronous |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
+| [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
+| [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
@@ -203,6 +204,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.ancestors.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`process.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -228,6 +230,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.ancestors.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`process.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -273,6 +276,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`process.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -298,6 +302,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`process.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -337,6 +342,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.parent.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`process.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -362,6 +368,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`process.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`process.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.parent.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`process.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`process.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -442,6 +449,7 @@ A file’s permissions were changed
 | [`chmod.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`chmod.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`chmod.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`chmod.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`chmod.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`chmod.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`chmod.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -473,6 +481,7 @@ A file’s owner was changed
 | [`chown.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`chown.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`chown.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`chown.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`chown.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`chown.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`chown.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -532,6 +541,7 @@ A process was executed or forked
 | [`exec.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exec.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exec.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exec.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exec.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`exec.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -557,6 +567,7 @@ A process was executed or forked
 | [`exec.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exec.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exec.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exec.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exec.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`exec.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -611,6 +622,7 @@ A process was terminated
 | [`exit.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exit.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exit.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exit.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exit.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`exit.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -636,6 +648,7 @@ A process was terminated
 | [`exit.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`exit.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`exit.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exit.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exit.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`exit.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exit.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -671,6 +684,7 @@ Create a new name/alias for a file
 | [`link.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`link.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`link.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`link.file.destination.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`link.file.destination.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`link.file.destination.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`link.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -689,6 +703,7 @@ Create a new name/alias for a file
 | [`link.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`link.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`link.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`link.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`link.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`link.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`link.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -719,6 +734,7 @@ A new kernel module was loaded
 | [`load_module.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`load_module.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`load_module.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`load_module.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`load_module.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`load_module.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`load_module.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -750,6 +766,7 @@ A directory was created
 | [`mkdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`mkdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`mkdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`mkdir.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`mkdir.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`mkdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`mkdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -777,6 +794,7 @@ A mmap command was executed
 | [`mmap.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`mmap.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`mmap.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`mmap.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`mmap.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`mmap.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`mmap.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -830,6 +848,7 @@ A file was opened
 | [`open.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`open.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`open.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`open.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`open.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`open.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`open.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -878,6 +897,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.ancestors.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`ptrace.tracee.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -903,6 +923,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.ancestors.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`ptrace.tracee.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -948,6 +969,7 @@ A ptrace command was executed
 | [`ptrace.tracee.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`ptrace.tracee.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -973,6 +995,7 @@ A ptrace command was executed
 | [`ptrace.tracee.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`ptrace.tracee.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1012,6 +1035,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.parent.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`ptrace.tracee.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1037,6 +1061,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`ptrace.tracee.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`ptrace.tracee.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.parent.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`ptrace.tracee.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`ptrace.tracee.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1079,6 +1104,7 @@ Remove extended attributes
 | [`removexattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`removexattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`removexattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`removexattr.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`removexattr.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`removexattr.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`removexattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1107,6 +1133,7 @@ A file/directory was renamed
 | [`rename.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`rename.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`rename.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`rename.file.destination.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`rename.file.destination.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`rename.file.destination.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`rename.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1125,6 +1152,7 @@ A file/directory was renamed
 | [`rename.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`rename.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`rename.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`rename.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`rename.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`rename.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`rename.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1152,6 +1180,7 @@ A directory was removed
 | [`rmdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`rmdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`rmdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`rmdir.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`rmdir.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`rmdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`rmdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1218,6 +1247,7 @@ Set exteneded attributes
 | [`setxattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`setxattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`setxattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`setxattr.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`setxattr.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`setxattr.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setxattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1265,6 +1295,7 @@ A signal was sent
 | [`signal.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.ancestors.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`signal.target.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1290,6 +1321,7 @@ A signal was sent
 | [`signal.target.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.ancestors.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`signal.target.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1335,6 +1367,7 @@ A signal was sent
 | [`signal.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`signal.target.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1360,6 +1393,7 @@ A signal was sent
 | [`signal.target.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`signal.target.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1399,6 +1433,7 @@ A signal was sent
 | [`signal.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.parent.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`signal.target.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1424,6 +1459,7 @@ A signal was sent
 | [`signal.target.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`signal.target.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`signal.target.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.parent.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`signal.target.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`signal.target.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1465,6 +1501,7 @@ A splice command was executed
 | [`splice.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`splice.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`splice.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`splice.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`splice.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`splice.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`splice.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1494,6 +1531,7 @@ A file was deleted
 | [`unlink.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`unlink.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`unlink.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`unlink.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`unlink.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`unlink.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`unlink.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1531,6 +1569,7 @@ Change file access/modification times
 | [`utimes.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
 | [`utimes.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
 | [`utimes.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`utimes.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`utimes.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`utimes.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`utimes.file.mode`](#common-filefields-mode-doc) | Mode of the file |
@@ -1872,6 +1911,15 @@ Definition: Group of the file's owner
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.hashes` {#common-fileevent-hashes-doc}
+Type: string
+
+Definition: [Experimental] List of cryptographic hashes computed for this file
+
+`*.hashes` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
 ### `*.in_upper_layer` {#common-filefields-in_upper_layer-doc}
 Type: bool
 
@@ -1933,6 +1981,9 @@ Definition: Mode of the file
 
 `*.mode` has 38 possible prefixes:
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+Constants: [Inode mode constants](#inode-mode-constants)
+
 
 
 ### `*.modification_time` {#common-filefields-modification_time-doc}
@@ -2071,7 +2122,7 @@ Definition: Rights of the file
 `*.rights` has 38 possible prefixes:
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2136,13 +2187,6 @@ Definition: User of the file's owner
 
 `*.user` has 38 possible prefixes:
 `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
-
-
-### `async` {#async-doc}
-Type: bool
-
-Definition: True if the syscall was asynchronous
-
 
 
 ### `bind.addr.family` {#bind-addr-family-doc}
@@ -2249,7 +2293,7 @@ Type: int
 Definition: New mode of the chmod-ed file
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2259,7 +2303,7 @@ Type: int
 Definition: New rights of the chmod-ed file
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2360,6 +2404,20 @@ Constants: [DNS qtypes](#dns-qtypes)
 
 
 
+### `event.async` {#event-async-doc}
+Type: bool
+
+Definition: True if the syscall was asynchronous
+
+
+
+### `event.timestamp` {#event-timestamp-doc}
+Type: int
+
+Definition: Timestamp of the event
+
+
+
 ### `exit.cause` {#exit-cause-doc}
 Type: int
 
@@ -2415,7 +2473,7 @@ Type: int
 Definition: Mode of the new directory
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2425,7 +2483,7 @@ Type: int
 Definition: Rights of the new directory
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -2537,7 +2595,7 @@ Type: int
 Definition: Mode of the created file
 
 
-Constants: [Chmod mode constants](#chmod-mode-constants)
+Constants: [File mode constants](#file-mode-constants)
 
 
 
@@ -3064,35 +3122,6 @@ BPF program types are the supported eBPF program types.
 | `BPF_PROG_TYPE_LSM` | all |
 | `BPF_PROG_TYPE_SK_LOOKUP` | all |
 
-### `Chmod mode constants` {#chmod-mode-constants}
-Chmod mode constants are the supported modes for the chmod syscall.
-
-| Name | Architectures |
-| ---- |---------------|
-| `S_IFBLK` | all |
-| `S_IFCHR` | all |
-| `S_IFDIR` | all |
-| `S_IFIFO` | all |
-| `S_IFLNK` | all |
-| `S_IFMT` | all |
-| `S_IFREG` | all |
-| `S_IFSOCK` | all |
-| `S_IRGRP` | all |
-| `S_IROTH` | all |
-| `S_IRUSR` | all |
-| `S_IRWXG` | all |
-| `S_IRWXO` | all |
-| `S_IRWXU` | all |
-| `S_ISGID` | all |
-| `S_ISUID` | all |
-| `S_ISVTX` | all |
-| `S_IWGRP` | all |
-| `S_IWOTH` | all |
-| `S_IWUSR` | all |
-| `S_IXGRP` | all |
-| `S_IXOTH` | all |
-| `S_IXUSR` | all |
-
 ### `DNS qclasses` {#dns-qclasses}
 DNS qclasses are the supported DNS query classes.
 
@@ -3334,6 +3363,56 @@ Error constants are the supported error constants.
 | `EXDEV` | all |
 | `EXFULL` | all |
 
+### `File mode constants` {#file-mode-constants}
+File mode constants are the supported file permissions as well as constants for the set-user-ID, set-group-ID, and sticky bits.
+
+| Name | Architectures |
+| ---- |---------------|
+| `S_ISUID` | all |
+| `S_ISGID` | all |
+| `S_ISVTX` | all |
+| `S_IRWXU` | all |
+| `S_IRUSR` | all |
+| `S_IWUSR` | all |
+| `S_IXUSR` | all |
+| `S_IRWXG` | all |
+| `S_IRGRP` | all |
+| `S_IWGRP` | all |
+| `S_IXGRP` | all |
+| `S_IRWXO` | all |
+| `S_IROTH` | all |
+| `S_IWOTH` | all |
+| `S_IXOTH` | all |
+
+### `Inode mode constants` {#inode-mode-constants}
+Inode mode constants are the supported file type constants as well as the file mode constants.
+
+| Name | Architectures |
+| ---- |---------------|
+| `S_IFMT` | all |
+| `S_IFSOCK` | all |
+| `S_IFLNK` | all |
+| `S_IFREG` | all |
+| `S_IFBLK` | all |
+| `S_IFDIR` | all |
+| `S_IFCHR` | all |
+| `S_IFIFO` | all |
+| `S_ISUID` | all |
+| `S_ISGID` | all |
+| `S_ISVTX` | all |
+| `S_IRWXU` | all |
+| `S_IRUSR` | all |
+| `S_IWUSR` | all |
+| `S_IXUSR` | all |
+| `S_IRWXG` | all |
+| `S_IRGRP` | all |
+| `S_IWGRP` | all |
+| `S_IXGRP` | all |
+| `S_IRWXO` | all |
+| `S_IROTH` | all |
+| `S_IWOTH` | all |
+| `S_IXOTH` | all |
+
 ### `Kernel Capability constants` {#kernel-capability-constants}
 Kernel Capability constants are the supported Linux Kernel Capability.
 
@@ -3353,7 +3432,6 @@ Kernel Capability constants are the supported Linux Kernel Capability.
 | `CAP_IPC_LOCK` | all |
 | `CAP_IPC_OWNER` | all |
 | `CAP_KILL` | all |
-| `CAP_LAST_CAP` | all |
 | `CAP_LEASE` | all |
 | `CAP_LINUX_IMMUTABLE` | all |
 | `CAP_MAC_ADMIN` | all |

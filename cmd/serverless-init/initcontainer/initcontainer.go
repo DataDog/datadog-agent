@@ -4,12 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package initcontainer
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -30,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/spf13/afero"
 )
 
 // Run is the entrypoint of the init process. It will spawn the customer process
@@ -45,15 +44,18 @@ func Run(cloudService cloudservice.CloudService, logConfig *serverlessLog.Config
 
 func execute(cloudService cloudservice.CloudService, config *serverlessLog.Config, metricAgent *metrics.ServerlessMetricAgent, traceAgent *trace.ServerlessTraceAgent, args []string) error {
 	commandName, commandArgs := buildCommandParam(args)
+
+	// Add our tracer settings
+	fs := afero.NewOsFs()
+	AutoInstrumentTracer(fs)
+
 	cmd := exec.Command(commandName, commandArgs...)
 	cmd.Stdout = &serverlessLog.CustomWriter{
-		LogConfig:  config,
-		LineBuffer: bytes.Buffer{},
+		LogConfig: config,
 	}
 	cmd.Stderr = &serverlessLog.CustomWriter{
-		LogConfig:  config,
-		LineBuffer: bytes.Buffer{},
-		IsError:    true,
+		LogConfig: config,
+		IsError:   true,
 	}
 	err := cmd.Start()
 	if err != nil {
@@ -88,6 +90,12 @@ func handleSignals(cloudService cloudservice.CloudService, process *os.Process, 
 			if sig != syscall.SIGCHLD {
 				if process != nil {
 					_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
+					_, err := process.Wait()
+					if err != nil {
+						serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
+					} else {
+						serverlessLog.Write(config, []byte("[datadog init process] exiting successfully"), false)
+					}
 				}
 			}
 			if sig == syscall.SIGTERM {

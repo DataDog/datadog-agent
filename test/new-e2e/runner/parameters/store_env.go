@@ -10,21 +10,27 @@ import (
 	"strings"
 )
 
-type envStore struct {
+var _ valueStore = &envValueStore{}
+
+type envValueStore struct {
 	prefix string
 }
 
 func NewEnvStore(prefix string) Store {
-	return newStore(envStore{
+	return newStore(NewEnvValueStore(prefix))
+}
+
+func NewEnvValueStore(prefix string) envValueStore {
+	return envValueStore{
 		prefix: prefix,
-	})
+	}
 }
 
 // Get returns parameter value.
 // For env Store, the key is upper cased and added to prefix
-func (s envStore) get(key string) (string, error) {
-	key = strings.ToUpper(s.prefix + key)
-	val, found := os.LookupEnv(strings.ToUpper(key))
+func (s envValueStore) get(key StoreKey) (string, error) {
+	envValueStoreKey := strings.ToUpper(s.prefix + string(key))
+	val, found := os.LookupEnv(strings.ToUpper(envValueStoreKey))
 	if !found {
 		return "", ParameterNotFoundError{key: key}
 	}

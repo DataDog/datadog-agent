@@ -17,6 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -32,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -104,7 +105,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, params *Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
+func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, forwarder defaultforwarder.Component) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -116,7 +117,7 @@ func start(cliParams *CLIParams, config config.Component, params *Params, server
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := RunAgent(ctx, cliParams, config, params, components, forwarder)
+	err := RunAgent(ctx, cliParams, config, log, params, components, forwarder)
 	if err != nil {
 		return err
 	}
@@ -127,7 +128,7 @@ func start(cliParams *CLIParams, config config.Component, params *Params, server
 	return nil
 }
 
-func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params, components *DogstatsdComponents, forwarder defaultforwarder.Component) (err error) {
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, forwarder defaultforwarder.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -200,7 +201,7 @@ func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component
 		hname = ""
 	}
 	log.Debugf("Using hostname: %s", hname)
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hname)
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hname)
 	demux.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// setup the metadata collector
@@ -248,7 +249,7 @@ func handleSignals(stopCh chan struct{}) {
 			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
 			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
 		default:
-			log.Infof("Received signal '%s', shutting down...", signo)
+			pkglog.Infof("Received signal '%s', shutting down...", signo)
 			stopCh <- struct{}{}
 			return
 		}
@@ -260,9 +261,9 @@ func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
 	if err != nil {
-		log.Warnf("Dogstatsd health unknown: %s", err)
+		pkglog.Warnf("Dogstatsd health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
-		log.Warnf("Some components were unhealthy: %v", health.Unhealthy)
+		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
 	// gracefully shut down any component
@@ -275,12 +276,12 @@ func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 
 	if components.DogstatsdStats != nil {
 		if err := components.DogstatsdStats.Shutdown(context.Background()); err != nil {
-			log.Errorf("Error shutting down dogstatsd stats server: %s", err)
+			pkglog.Errorf("Error shutting down dogstatsd stats server: %s", err)
 		}
 	}
 
 	components.DogstatsdServer.Stop()
 
-	log.Info("See ya!")
-	log.Flush()
+	pkglog.Info("See ya!")
+	pkglog.Flush()
 }

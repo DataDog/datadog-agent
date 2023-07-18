@@ -19,7 +19,7 @@ from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
+from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -33,6 +33,11 @@ KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
 TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+TEST_TIMEOUTS = {
+    "pkg/network/tracer$": "0",
+    "pkg/network/protocols/http$": "0",
+    "pkg/network/protocols": "5m",
+}
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = [5, 8, 0]
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
 EMBEDDED_SHARE_JAVA_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "java")
@@ -178,6 +183,20 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     )
     outfiles.append(syscall_wrapper_outfile)
 
+    # fentry + syscall wrapper
+    root, ext = os.path.splitext(outfile)
+    syscall_wrapper_outfile = f"{root}-fentry{ext}"
+    ninja_ebpf_program(
+        nw,
+        infile=infile,
+        outfile=syscall_wrapper_outfile,
+        variables={
+            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1 -DUSE_FENTRY=1",
+            "kheaders": kheaders,
+        },
+    )
+    outfiles.append(syscall_wrapper_outfile)
+
     # offset guesser
     offset_guesser_outfile = os.path.join(build_dir, "runtime-security-offset-guesser.o")
     ninja_ebpf_program(
@@ -209,15 +228,21 @@ def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
 def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
-    network_prebuilt_dir = os.path.join(network_c_dir, "prebuilt")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test", "conntrack"]
-    network_co_re_programs = ["co-re/tracer-fentry", "runtime/http"]
+    network_programs = [
+        "prebuilt/dns",
+        "prebuilt/offset-guess",
+        "tracer",
+        "prebuilt/usm",
+        "prebuilt/usm_events_test",
+        "prebuilt/conntrack",
+    ]
+    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm"]
 
     for prog in network_programs:
-        infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{prog}.o")
+        infile = os.path.join(network_c_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
         ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
     for prog_path in network_co_re_programs:
@@ -239,16 +264,36 @@ def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(
+            nw, infile, f"{root}-debug{ext}", {"flags": container_integrations_co_re_flags + " -DDEBUG=1"}
+        )
 
 
-def ninja_runtime_compilation_files(nw):
+def ninja_runtime_compilation_files(nw, gobin):
     bc_dir = os.path.join("pkg", "ebpf", "bytecode")
     build_dir = os.path.join(bc_dir, "build")
+
+    rc_tools = {
+        "pkg/ebpf/include_headers.go": "include_headers",
+        "pkg/ebpf/bytecode/runtime/integrity.go": "integrity",
+    }
+
+    toolpaths = []
+    nw.rule(name="rctool", command="go install $in")
+    for in_path, toolname in rc_tools.items():
+        toolpath = os.path.join(gobin, toolname)
+        toolpaths.append(toolpath)
+        nw.build(
+            inputs=[in_path],
+            outputs=[toolpath],
+            rule="rctool",
+        )
 
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/network/protocols/http/compile.go": "http",
+        "pkg/network/usm/compile.go": "usm",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
@@ -258,17 +303,16 @@ def ninja_runtime_compilation_files(nw):
     nw.rule(name="headerincl", command="go generate -mod=mod -tags linux_bpf $in", depfile="$out.d")
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
-    rc_outputs = []
     for in_path, out_filename in runtime_compiler_files.items():
         c_file = os.path.join(rc_dir, f"{out_filename}.c")
         hash_file = os.path.join(hash_dir, f"{out_filename}.go")
         nw.build(
             inputs=[in_path],
             outputs=[c_file],
+            implicit=toolpaths,
             implicit_outputs=[hash_file],
             rule="headerincl",
         )
-        rc_outputs.extend([c_file, hash_file])
 
 
 def ninja_cgo_type_files(nw, windows):
@@ -299,10 +343,10 @@ def ninja_cgo_type_files(nw, windows):
     else:
         go_platform = "linux"
         def_files = {
-            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack-types.h"],
-            "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer.h"],
+            "pkg/network/ebpf/conntrack_types.go": ["pkg/network/ebpf/c/conntrack/types.h"],
+            "pkg/network/ebpf/tuple_types.go": ["pkg/network/ebpf/c/tracer/tracer.h"],
             "pkg/network/ebpf/kprobe_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/tcp_states.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
@@ -310,18 +354,19 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
-            "pkg/network/protocols/http/http_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+            "pkg/network/protocols/http/types.go": [
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/tls/tags-types.h",
+                "pkg/network/ebpf/c/protocols/tls/sowatcher-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
-            "pkg/network/protocols/http/http2_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+            "pkg/network/protocols/http2/types.go": [
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],
             "pkg/network/protocols/kafka/kafka_types.go": [
-                "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
             "pkg/network/telemetry/telemetry_types.go": [
@@ -332,6 +377,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/tcp_queue_length_kern_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
             ],
         }
         nw.rule(
@@ -391,12 +439,13 @@ def ninja_generate(
             nw.build(inputs=[in_path], outputs=[rcout], rule="windmc", variables={"rcdir": in_dir})
             nw.build(inputs=[rcout], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
+            gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
             ninja_define_co_re_compiler(nw)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
-            ninja_runtime_compilation_files(nw)
+            ninja_runtime_compilation_files(nw, gobin)
 
         ninja_cgo_type_files(nw, windows)
 
@@ -519,6 +568,7 @@ def test(
     windows=is_windows,
     failfast=False,
     kernel_release=None,
+    timeout=None,
 ):
     """
     Run tests on eBPF parts
@@ -554,10 +604,10 @@ def test(
     args = {
         "build_tags": ",".join(build_tags),
         "output_params": f"-c -o {output_path}" if output_path else "",
-        "pkgs": packages,
         "run": f"-run {run}" if run else "",
         "failfast": "-failfast" if failfast else "",
         "go": "go",
+        "sudo": "sudo -E " if not windows and not output_path and not is_root() else "",
     }
 
     _, _, env = get_build_flags(ctx)
@@ -575,11 +625,30 @@ def test(
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
 
-    cmd = '{go} test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
-    if not windows and not output_path and not is_root():
-        cmd = 'sudo -E ' + cmd
+    failed_pkgs = list()
+    package_dirs = go_package_dirs(packages.split(" "), build_tags)
+    # we iterate over the packages here to get the nice streaming test output
+    for pdir in package_dirs:
+        args["dir"] = pdir
+        testto = timeout if timeout else get_test_timeout(pdir)
+        args["timeout"] = f"-timeout {testto}" if testto else ""
+        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {output_params} {dir} {run}'
+        res = ctx.run(cmd.format(**args), env=env, warn=True)
+        if res.exited is None or res.exited > 0:
+            failed_pkgs.append(os.path.relpath(pdir, ctx.cwd))
+            if failfast:
+                break
 
-    ctx.run(cmd.format(**args), env=env)
+    if len(failed_pkgs) > 0:
+        print(color_message("failed packages:\n" + "\n".join(failed_pkgs), "red"))
+        raise Exit(code=1, message="system-probe tests failed")
+
+
+def get_test_timeout(pkg):
+    for tt, to in TEST_TIMEOUTS.items():
+        if re.search(tt, pkg) is not None:
+            return to
+    return None
 
 
 @contextlib.contextmanager
@@ -591,6 +660,27 @@ def chdir(dirname=None):
         yield
     finally:
         os.chdir(curdir)
+
+
+def go_package_dirs(packages, build_tags):
+    """
+    Retrieve a list of all packages we want to test
+    This handles the ellipsis notation (eg. ./pkg/ebpf/...)
+    """
+
+    target_packages = []
+    for pkg in packages:
+        target_packages += (
+            check_output(
+                f"go list -find -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
+                shell=True,
+            )
+            .decode('utf-8')
+            .strip()
+            .split("\n")
+        )
+
+    return target_packages
 
 
 @task
@@ -607,19 +697,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
     if not windows:
         build_tags.append(BPF_TAG)
 
-    # Retrieve a list of all packages we want to test
-    # This handles the elipsis notation (eg. ./pkg/ebpf/...)
-    target_packages = []
-    for pkg in TEST_PACKAGES_LIST:
-        target_packages += (
-            check_output(
-                f"go list -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
-                shell=True,
-            )
-            .decode('utf-8')
-            .strip()
-            .split("\n")
-        )
+    target_packages = go_package_dirs(TEST_PACKAGES_LIST, build_tags)
 
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
@@ -652,13 +730,12 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        gotls_client_dir = os.path.join("testutil", "gotls_client")
-        gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
-        gotls_extra_path = os.path.join(pkg, gotls_client_dir)
-        if not windows and os.path.isdir(gotls_extra_path):
-            gotls_binary_path = os.path.join(target_path, gotls_client_binary)
-            with chdir(gotls_extra_path):
-                ctx.run(f"go build -o {gotls_binary_path} -ldflags=\"-extldflags '-static'\" gotls_client.go")
+        for gobin in ["gotls_client", "sowatcher_client", "prefetch_file"]:
+            src_file_path = os.path.join(pkg, f"{gobin}.go")
+            if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
+                binary_path = os.path.join(target_path, gobin)
+                with chdir(pkg):
+                    ctx.run(f"go build -o {binary_path} -ldflags=\"-extldflags '-static'\" {gobin}.go")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
@@ -1087,6 +1164,9 @@ def setup_runtime_clang(ctx):
 
 
 def verify_system_clang_version(ctx):
+    if os.getenv('DD_SYSPROBE_SKIP_CLANG_CHECK') == "true":
+        return
+
     clang_res = ctx.run("clang --version", warn=True)
     clang_version_str = ""
     if clang_res.ok:
@@ -1141,7 +1221,7 @@ def build_object_files(
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
 
-        java_dir = os.path.join("pkg", "network", "java")
+        java_dir = os.path.join("pkg", "network", "protocols", "tls", "java")
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_JAVA_DIR}")
         ctx.run(f"{sudo} install -m644 -oroot -groot {java_dir}/agent-usm.jar {EMBEDDED_SHARE_JAVA_DIR}/agent-usm.jar")
 
@@ -1411,13 +1491,13 @@ def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+        test_results = {}
 
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:
                 tgz.extractall(path=unpack_dir)
 
             for test_json in glob.glob(f"{unpack_dir}/*.json"):
-                bundle, _ = os.path.splitext(os.path.basename(test_json))
                 with open(test_json) as tf:
                     for line in tf:
                         json_test = json.loads(line.strip())
@@ -1426,9 +1506,23 @@ def print_failed_tests(_, output_dir):
                             package = json_test['Package']
                             action = json_test["Action"]
 
-                            if action == "fail":
-                                print(f"FAIL: [{test_platform}] [{bundle}] {package} {name}")
-                                fail_count += 1
+                            if action == "pass" or action == "fail":
+                                test_key = f"{package}.{name}"
+                                res = test_results.get(test_key)
+                                if res is None:
+                                    test_results[test_key] = action
+                                    continue
+
+                                if res == "fail":
+                                    print(f"re-ran [{test_platform}] {package} {name}: {action}")
+                                if action == "pass" and res == "fail":
+                                    test_results[test_key] = action
+
+        for key, res in test_results.items():
+            if res == "fail":
+                package, name = key.split(".")
+                print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
+                fail_count += 1
 
     if fail_count > 0:
         raise Exit(code=1)
@@ -1441,7 +1535,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
     if windows:
         return
 
-    docker_compose_paths = glob.glob("./pkg/network/protocols/*/testdata/docker-compose.yml")
+    docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
@@ -1454,9 +1548,12 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
             images.add(docker_compose["services"][component]["image"])
 
     # Java tests have dynamic images in docker-compose.yml
-    for image in ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]:
-        images.add(image)
+    images.update(
+        ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
+    )
 
+    # Special use-case in javatls
+    images.remove("${IMAGE_VERSION}")
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")
@@ -1464,29 +1561,39 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
 
 @task
-def test_microvms(
+def start_microvms(
     ctx,
-    security_groups=None,
-    subnets=None,
+    infra_env,
     instance_type_x86=None,
     instance_type_arm=None,
     x86_ami_id=None,
     arm_ami_id=None,
     destroy=False,
-    upload_dependencies=False,
+    ssh_key_name=None,
+    ssh_key_path=None,
+    dependencies_dir=None,
+    shutdown_period=320,
+    stack_name="kernel-matrix-testing-system",
+    vmconfig=None,
+    local=False,
 ):
     args = [
-        f"--sgs {security_groups}" if security_groups is not None else "",
-        f"--subnets {subnets}" if subnets is not None else "",
-        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 is not None else "",
-        f"--instance-type-arm {instance_type_arm}" if instance_type_arm is not None else "",
-        f"--x86-ami-id {x86_ami_id}" if x86_ami_id is not None else "",
-        f"--arm-ami-id {arm_ami_id}" if arm_ami_id is not None else "",
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id else "",
         "--destroy" if destroy else "",
-        "--upload-dependencies" if upload_dependencies else "",
+        f"--ssh-key-path {ssh_key_path}" if ssh_key_path else "",
+        f"--ssh-key-name {ssh_key_name}" if ssh_key_name else "",
+        f"--infra-env {infra_env}",
+        f"--shutdown-period {shutdown_period}",
+        f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
+        f"--name {stack_name}",
+        f"--vmconfig {vmconfig}" if vmconfig else "",
+        "--local" if local else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
     ctx.run(
-        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go --name usama-saqib-test {go_args} --shutdown-period 720",
+        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
     )

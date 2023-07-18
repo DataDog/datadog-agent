@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package procutil
 
@@ -555,7 +554,6 @@ func OpenProcessHandle(pid int32) (windows.Handle, error) {
 
 // GetUsernameForProcess returns username for a process
 func GetUsernameForProcess(h windows.Handle) (name string, err error) {
-	err = nil
 	var t windows.Token
 	err = windows.OpenProcessToken(h, windows.TOKEN_QUERY, &t)
 	if err != nil {

@@ -4,10 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
-//go:generate go run ../../../../ebpf/include_headers.go ../c/runtime/tcp-queue-length-kern.c ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/c
-//go:generate go run ../../../../ebpf/bytecode/runtime/integrity.go ../../../../ebpf/bytecode/build/runtime/tcp-queue-length.c ../../../../ebpf/bytecode/runtime/tcp-queue-length.go runtime
+//go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern.c pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/c
+//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c pkg/ebpf/bytecode/runtime/tcp-queue-length.go runtime
 
 package probe
 
@@ -16,7 +15,6 @@ import (
 	"math"
 	"unsafe"
 
-	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -29,12 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-/*
-#include <string.h>
-#include "../c/runtime/tcp-queue-length-kern-user.h"
-*/
-import "C"
 
 const (
 	statsMapName = "tcp_queue_stats"
@@ -113,44 +105,39 @@ func (t *TCPQueueLengthTracer) Close() {
 }
 
 func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
-	cpus, err := cpupossible.Get()
+	nbCpus, err := kernel.PossibleCPUs()
 	if err != nil {
 		log.Errorf("Failed to get online CPUs: %v", err)
 		return TCPQueueLengthStats{}
 	}
-	nbCpus := len(cpus)
 
 	result := make(TCPQueueLengthStats)
 
-	var statsKey C.struct_stats_key
-	statsValue := make([]C.struct_stats_value, nbCpus)
+	var statsKey StructStatsKey
+	var keys []StructStatsKey
+	statsValue := make([]StructStatsValue, nbCpus)
 	it := t.statsMap.Iterate()
-	for it.Next(unsafe.Pointer(&statsKey), unsafe.Pointer(&statsValue[0])) {
-		cgroupName := C.GoString(&statsKey.cgroup_name[0])
-		// This cannot happen because statsKey.cgroup_name is filled by bpf_probe_read_str which ensures a NULL-terminated string
-		if len(cgroupName) >= C.sizeof_struct_stats_key {
-			log.Critical("statsKey.cgroup_name wasn’t properly NULL-terminated")
-			break
-		}
-
+	for it.Next(unsafe.Pointer(&statsKey), &statsValue) {
+		cgroupName := string(statsKey.Cgroup[:])
 		max := TCPQueueLengthStatsValue{}
-		for _, cpu := range cpus {
-			if uint32(statsValue[cpu].read_buffer_max_usage) > max.ReadBufferMaxUsage {
-				max.ReadBufferMaxUsage = uint32(statsValue[cpu].read_buffer_max_usage)
+		for cpu := 0; cpu < nbCpus; cpu++ {
+			if statsValue[cpu].Read_buffer_max_usage > max.ReadBufferMaxUsage {
+				max.ReadBufferMaxUsage = statsValue[cpu].Read_buffer_max_usage
 			}
-			if uint32(statsValue[cpu].write_buffer_max_usage) > max.WriteBufferMaxUsage {
-				max.WriteBufferMaxUsage = uint32(statsValue[cpu].write_buffer_max_usage)
+			if statsValue[cpu].Write_buffer_max_usage > max.WriteBufferMaxUsage {
+				max.WriteBufferMaxUsage = statsValue[cpu].Write_buffer_max_usage
 			}
 		}
 		result[cgroupName] = max
-
-		if err := t.statsMap.Delete(unsafe.Pointer(&statsKey)); err != nil {
-			log.Warnf("failed to delete stat: %s", err)
-		}
+		keys = append(keys, statsKey)
 	}
-
 	if err := it.Err(); err != nil {
 		log.Warnf("failed to iterate on TCP queue length stats while flushing: %s", err)
+	}
+	for _, k := range keys {
+		if err := t.statsMap.Delete(unsafe.Pointer(&k)); err != nil {
+			log.Warnf("failed to delete stat: %s", err)
+		}
 	}
 
 	return result
@@ -165,8 +152,13 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error
 		return nil, fmt.Errorf("detected kernel version %s, but tcp-queue-length probe requires a kernel version of at least 4.8.0", kv)
 	}
 
+	filename := "tcp-queue-length.o"
+	if cfg.BPFDebug {
+		filename = "tcp-queue-length-debug.o"
+	}
+
 	var probe *TCPQueueLengthTracer
-	err = ebpf.LoadCOREAsset(cfg, "tcp-queue-length.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ebpf.LoadCOREAsset(cfg, filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		probe, err = startTCPQueueLengthProbe(buf, opts)
 		return err
 	})

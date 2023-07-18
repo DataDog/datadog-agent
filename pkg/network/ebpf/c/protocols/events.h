@@ -23,7 +23,16 @@
         return batch && batch->len == batch_size;                                       \
     }                                                                                   \
                                                                                         \
+    static __always_inline bool is_##name##_monitoring_enabled() {                      \
+        __u64 val = 0;                                                                  \
+        LOAD_CONSTANT(_STR(name##_monitoring_enabled), val);                            \
+        return val > 0;                                                                 \
+    }                                                                                   \
+                                                                                        \
     static __always_inline void name##_batch_flush(struct pt_regs *ctx) {               \
+        if (!is_##name##_monitoring_enabled()) {                                        \
+            return;                                                                     \
+        }                                                                               \
         u32 zero = 0;                                                                   \
         batch_state_t *batch_state = bpf_map_lookup_elem(&name##_batch_state, &zero);   \
         if (!batch_state) {                                                             \

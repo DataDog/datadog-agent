@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package patch
 
@@ -13,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 )
 
 // TargetObjKind represents the supported k8s object kinds
@@ -39,6 +39,7 @@ const (
 type PatchRequest struct {
 	ID            string `json:"id"`
 	Revision      int64  `json:"revision"`
+	RcVersion     uint64 `json:"rc_version"`
 	SchemaVersion string `json:"schema_version"`
 	Action        Action `json:"action"`
 
@@ -58,6 +59,37 @@ func (pr PatchRequest) Validate(clusterName string) error {
 		return errors.New("library version is empty")
 	}
 	return pr.K8sTarget.validate(clusterName)
+}
+
+func (pr PatchRequest) getApmRemoteConfigEvent(err error, errorCode int) telemetry.ApmRemoteConfigEvent {
+	env := ""
+	if pr.LibConfig.Env != nil {
+		env = *pr.LibConfig.Env
+	}
+	errorMessage := ""
+	if err != nil {
+		errorMessage = err.Error()
+	}
+	return telemetry.ApmRemoteConfigEvent{
+		RequestType: "apm-remote-config-event",
+		ApiVersion:  "v2",
+		Payload: telemetry.ApmRemoteConfigEventPayload{
+			Tags: telemetry.ApmRemoteConfigEventTags{
+				Env:                 env,
+				RcId:                pr.ID,
+				RcRevision:          pr.Revision,
+				RcVersion:           pr.RcVersion,
+				KubernetesCluster:   pr.K8sTarget.Cluster,
+				KubernetesNamespace: pr.K8sTarget.Namespace,
+				KubernetesKind:      string(pr.K8sTarget.Kind),
+				KubernetesName:      pr.K8sTarget.Name,
+			},
+			Error: telemetry.ApmRemoteConfigEventError{
+				Code:    errorCode,
+				Message: errorMessage,
+			},
+		},
+	}
 }
 
 // K8sTarget represent the targetet k8s object

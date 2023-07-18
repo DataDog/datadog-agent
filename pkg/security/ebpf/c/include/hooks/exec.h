@@ -5,6 +5,7 @@
 #include "constants/offsets/filesystem.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "constants/fentry_macro.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, const char **argv, const char **env) {
     struct syscall_cache_t syscall = {
@@ -48,7 +49,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
 
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, &file->f_path);
-    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(0);
+    syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
 #ifdef DEBUG
     bpf_printk("interpreter file: %llx\n", file);
@@ -99,7 +100,7 @@ SYSCALL_KPROBE0(vfork) {
 
 #define DO_FORK_STRUCT_INPUT 1
 
-int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
+int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
     if (!syscall) {
         return 0;
@@ -110,7 +111,7 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     LOAD_CONSTANT("do_fork_input", input);
 
     if (input == DO_FORK_STRUCT_INPUT) {
-        void *args = (void *)PT_REGS_PARM1(ctx);
+        void *args = (void *)CTX_PARM1(ctx);
         int exit_signal;
         bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
 
@@ -118,7 +119,7 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
             syscall->fork.is_thread = 0;
         }
     } else {
-        u64 flags = (u64)PT_REGS_PARM1(ctx);
+        u64 flags = (u64)CTX_PARM1(ctx);
         if ((flags & SIGCHLD) == SIGCHLD) {
             syscall->fork.is_thread = 0;
         }
@@ -127,33 +128,22 @@ int __attribute__((always_inline)) handle_do_fork(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/kernel_clone")
-int kprobe_kernel_clone(struct pt_regs *ctx) {
+HOOK_ENTRY("kernel_clone")
+int hook_kernel_clone(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
 
-SEC("kprobe/do_fork")
-int kprobe_do_fork(struct pt_regs *ctx) {
+#ifndef USE_FENTRY
+HOOK_ENTRY("do_fork")
+int hook_do_fork(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
 
-SEC("kprobe/_do_fork")
-int kprobe__do_fork(struct pt_regs *ctx) {
+HOOK_ENTRY("_do_fork")
+int hook__do_fork(ctx_t *ctx) {
     return handle_do_fork(ctx);
 }
-
-SEC("kretprobe/alloc_pid")
-int kretprobe_alloc_pid(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (!syscall) {
-        return 0;
-    }
-
-    // cache the struct pid in the syscall cache, it will be populated by `alloc_pid`
-    struct pid *pid = (struct pid *) PT_REGS_RC(ctx);
-    bpf_probe_read(&syscall->fork.pid, sizeof(syscall->fork.pid), &pid);
-    return 0;
-}
+#endif
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
@@ -180,18 +170,19 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
     // if this is a thread, leave
     if (syscall->fork.is_thread) {
+        pop_syscall(EVENT_FORK);
         return 0;
     }
 
     u64 ts = bpf_ktime_get_ns();
     struct process_event_t *event = new_process_event(1);
     if (event == NULL) {
+        pop_syscall(EVENT_FORK);
         return 0;
     }
 
     event->pid_entry.fork_timestamp = ts;
 
-    bpf_get_current_comm(event->proc_entry.comm, sizeof(event->proc_entry.comm));
     struct process_context_t *on_stack_process = &event->process;
     fill_process_context(on_stack_process);
     fill_span_context(&event->span);
@@ -206,6 +197,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
 
     // ignore kthreads
     if (IS_KTHREAD(ppid, pid)) {
+        pop_syscall(EVENT_FORK);
         return 0;
     }
 
@@ -222,7 +214,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         struct proc_cache_t *parent_pc = get_proc_from_cookie(on_stack_cookie);
         if (parent_pc) {
             fill_container_context(parent_pc, &event->container);
-            copy_proc_entry_except_comm(&parent_pc->entry, &event->proc_entry);
+            copy_proc_entry(&parent_pc->entry, &event->proc_entry);
         }
     }
 
@@ -236,11 +228,13 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
 
+    pop_syscall(EVENT_FORK);
+
     return 0;
 }
 
-SEC("kprobe/do_coredump")
-int kprobe_do_coredump(struct pt_regs *ctx) {
+HOOK_ENTRY("do_coredump")
+int hook_do_coredump(ctx_t *ctx) {
     u64 key = bpf_get_current_pid_tgid();
     u8 in_coredump = 1;
 
@@ -249,8 +243,8 @@ int kprobe_do_coredump(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/do_exit")
-int kprobe_do_exit(struct pt_regs *ctx) {
+HOOK_ENTRY("do_exit")
+int hook_do_exit(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
@@ -281,7 +275,7 @@ int kprobe_do_exit(struct pt_regs *ctx) {
         struct proc_cache_t *pc = fill_process_context(&event.process);
         fill_container_context(pc, &event.container);
         fill_span_context(&event.span);
-        event.exit_code = (u32)PT_REGS_PARM1(ctx);
+        event.exit_code = (u32)(u64)CTX_PARM1(ctx);
         u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &pid_tgid);
         if (in_coredump) {
             event.exit_code |= 0x80;
@@ -298,9 +292,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/exit_itimers")
-int kprobe_exit_itimers(struct pt_regs *ctx) {
-    void *signal = (void *)PT_REGS_PARM1(ctx);
+HOOK_ENTRY("exit_itimers")
+int hook_exit_itimers(ctx_t *ctx) {
+    void *signal = (void *)CTX_PARM1(ctx);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
@@ -323,21 +317,24 @@ int kprobe_exit_itimers(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("kprobe/prepare_binprm")
-int kprobe_prepare_binprm(struct pt_regs *ctx) {
-    return fill_exec_context(ctx);
+#ifndef USE_FENTRY
+HOOK_ENTRY("prepare_binprm")
+int hook_prepare_binprm(ctx_t *ctx) {
+    return fill_exec_context();
+}
+#endif
+
+HOOK_ENTRY("bprm_execve")
+int hook_bprm_execve(ctx_t *ctx) {
+    return fill_exec_context();
 }
 
-SEC("kprobe/bprm_execve")
-int kprobe_bprm_execve(struct pt_regs *ctx) {
-    return fill_exec_context(ctx);
+HOOK_ENTRY("security_bprm_check")
+int hook_security_bprm_check(ctx_t *ctx) {
+    return fill_exec_context();
 }
 
-SEC("kprobe/security_bprm_check")
-int kprobe_security_bprm_check(struct pt_regs *ctx) {
-    return fill_exec_context(ctx);
-}
-
+// fentry blocked by: tail call
 SEC("kprobe/get_envs_offset")
 int kprobe_get_envs_offset(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -455,6 +452,7 @@ void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct 
     }
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/parse_args_envs_split")
 int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -484,6 +482,7 @@ int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/parse_args_envs")
 int kprobe_parse_args_envs(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -539,12 +538,14 @@ int __attribute__((always_inline)) fetch_interpreter(struct pt_regs *ctx, struct
     return handle_interpreted_exec_event(ctx, syscall, interpreter);
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/setup_new_exec")
 int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
     struct linux_binprm *bprm = (struct linux_binprm *) PT_REGS_PARM1(ctx);
     return fetch_interpreter(ctx, bprm);
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/setup_new_exec")
 int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -585,6 +586,7 @@ int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kprobe/setup_arg_pages")
 int kprobe_setup_arg_pages(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -601,7 +603,7 @@ int kprobe_setup_arg_pages(struct pt_regs *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
+int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -614,47 +616,89 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
 
     bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
-    if (pid_entry) {
-        u32 cookie = pid_entry->cookie;
-        struct proc_cache_t *pc = bpf_map_lookup_elem(&proc_cache, &cookie);
-        if (pc) {
-            struct process_event_t *event = new_process_event(0);
-            if (event == NULL) {
-                return 0;
-            }
+    struct proc_cache_t pc = {
+        .entry = {
+            .executable = {
+                .path_key = {
+                    .ino = syscall->exec.file.path_key.ino,
+                    .mount_id = syscall->exec.file.path_key.mount_id,
+                    .path_id = syscall->exec.file.path_key.path_id,
+                },
+                .flags = syscall->exec.file.flags
+            },
+            .exec_timestamp = bpf_ktime_get_ns(),
+        },
+        .container = {},
+    };
+    fill_file_metadata(syscall->exec.dentry, &pc.entry.executable.metadata);
+    bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
 
-            // copy proc_cache data
-            fill_container_context(pc, &event->container);
-            copy_proc_entry_except_comm(&pc->entry, &event->proc_entry);
-            bpf_get_current_comm(&event->proc_entry.comm, sizeof(event->proc_entry.comm));
-
-            // copy pid_cache entry data
-            copy_pid_cache_except_exit_ts(pid_entry, &event->pid_entry);
-
-            // add pid / tid context
-            struct process_context_t *on_stack_process = &event->process;
-            fill_process_context(on_stack_process);
-
-            copy_span_context(&syscall->exec.span_context, &event->span);
-            fill_args_envs(event, syscall);
-
-            // [activity_dump] check if this process should be traced
-            should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);
-
-            // add interpreter path info
-            event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
-
-            // send the entry to maintain userspace cache
-            send_event_ptr(ctx, EVENT_EXEC, event);
+    // select the previous cookie entry in cache of the current process
+    // (this entry was created by the fork of the current process)
+    struct pid_cache_t *fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+    if (fork_entry) {
+        // Fetch the parent proc cache entry
+        u32 parent_cookie = fork_entry->cookie;
+        struct proc_cache_t *parent_pc = get_proc_from_cookie(parent_cookie);
+        if (parent_pc) {
+            // inherit the parent container context
+            fill_container_context(parent_pc, &pc.container);
         }
     }
+
+    // Insert new proc cache entry (Note: do not move the order of this block with the previous one, we need to inherit
+    // the container ID before saving the entry in proc_cache. Modifying entry after insertion won't work.)
+    u32 cookie = bpf_get_prandom_u32();
+    bpf_map_update_elem(&proc_cache, &cookie, &pc, BPF_ANY);
+
+    // update pid <-> cookie mapping
+    if (fork_entry) {
+        fork_entry->cookie = cookie;
+    } else {
+        struct pid_cache_t new_pid_entry = {
+            .cookie = cookie,
+        };
+        bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_ANY);
+        fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+        if (fork_entry == NULL) {
+            // should never happen, ignore
+            return 0;
+        }
+    }
+
+    struct process_event_t *event = new_process_event(0);
+    if (event == NULL) {
+        return 0;
+    }
+
+    // copy proc_cache data
+    fill_container_context(&pc, &event->container);
+    copy_proc_entry(&pc.entry, &event->proc_entry);
+
+    // copy pid_cache entry data
+    copy_pid_cache_except_exit_ts(fork_entry, &event->pid_entry);
+
+    // add pid / tid context
+    struct process_context_t *on_stack_process = &event->process;
+    fill_process_context(on_stack_process);
+
+    copy_span_context(&syscall->exec.span_context, &event->span);
+    fill_args_envs(event, syscall);
+
+    // [activity_dump] check if this process should be traced
+    should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);
+
+    // add interpreter path info
+    event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
+
+    // send the entry to maintain userspace cache
+    send_event_ptr(ctx, EVENT_EXEC, event);
 
     return 0;
 }
 
-SEC("kprobe/mprotect_fixup")
-int kprobe_mprotect_fixup(struct pt_regs *ctx) {
+HOOK_ENTRY("mprotect_fixup")
+int hook_mprotect_fixup(ctx_t *ctx) {
     return send_exec_event(ctx);
 }
 

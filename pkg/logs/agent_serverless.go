@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build serverless
-// +build serverless
 
 package logs
 
@@ -15,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/channel"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -29,10 +29,10 @@ import (
 // NewAgent returns a Logs Agent instance to run in a serverless environment.
 // The Serverless Logs Agent has only one input being the channel to receive the logs to process.
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
-func NewAgent(sources *sources.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the a null auditor, not tracking data in any registry
 	auditor := auditor.NewNullAuditor()
@@ -42,7 +42,7 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, auditor, processingRules, endpoints, destinationsCtx)
 
 	// setup the sole launcher for this agent
-	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
+	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor, tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())
 
 	return &Agent{

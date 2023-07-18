@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -14,10 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -31,7 +31,7 @@ type dockerEventBundle struct {
 	events        []*docker.ContainerEvent
 	maxTimestamp  time.Time
 	countByAction map[string]int
-	alertType     metrics.EventAlertType
+	alertType     event.EventAlertType
 }
 
 func newDockerEventBundler(imageName string) *dockerEventBundle {
@@ -39,7 +39,7 @@ func newDockerEventBundler(imageName string) *dockerEventBundle {
 		imageName:     imageName,
 		events:        []*docker.ContainerEvent{},
 		countByAction: make(map[string]int),
-		alertType:     metrics.EventAlertTypeInfo,
+		alertType:     event.EventAlertTypeInfo,
 	}
 }
 
@@ -56,24 +56,24 @@ func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
 	}
 
 	if isAlertTypeError(event.Action) {
-		b.alertType = metrics.EventAlertTypeError
+		b.alertType = metricsevent.EventAlertTypeError
 	}
 
 	return nil
 }
 
-func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, error) {
+func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error) {
 	if len(b.events) == 0 {
-		return metrics.Event{}, errors.New("no event to export")
+		return event.Event{}, errors.New("no event to export")
 	}
 
-	output := metrics.Event{
+	output := event.Event{
 		Title: fmt.Sprintf("%s %s on %s",
 			b.imageName,
 			formatStringIntMap(b.countByAction),
 			hostname,
 		),
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       event.EventPriorityNormal,
 		Host:           hostname,
 		SourceTypeName: dockerCheckName,
 		EventType:      dockerCheckName,

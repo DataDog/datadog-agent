@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && kubeapiserver
-// +build !windows,kubeapiserver
 
 // Package clusterchecks implements 'cluster-agent clusterchecks'.
 package clusterchecks

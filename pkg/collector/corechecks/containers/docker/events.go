@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -14,8 +13,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -60,7 +59,7 @@ func (d *DockerCheck) retrieveEvents(du docker.Client) ([]*docker.ContainerEvent
 }
 
 // reportExitCodes monitors events for non zero exit codes and sends service checks
-func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender aggregator.Sender) {
+func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender sender.Sender) {
 	for _, ev := range events {
 		// Filtering
 		if ev.Action != "die" {
@@ -79,9 +78,9 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 
 		// Building and sending message
 		message := fmt.Sprintf("Container %s exited with %d", ev.ContainerName, exitCodeInt)
-		status := metrics.ServiceCheckOK
+		status := servicecheck.ServiceCheckOK
 		if _, ok := d.okExitCodes[int(exitCodeInt)]; !ok {
-			status = metrics.ServiceCheckCritical
+			status = servicecheck.ServiceCheckCritical
 		}
 
 		tags, err := tagger.Tag(containers.BuildTaggerEntityName(ev.ContainerID), collectors.HighCardinality)
@@ -96,7 +95,7 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 }
 
 // reportEvents aggregates and sends events to the Datadog event feed
-func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggregator.Sender) error {
+func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender sender.Sender) error {
 	datadogEvs, errs := d.eventTransformer.Transform(events)
 
 	for _, err := range errs {

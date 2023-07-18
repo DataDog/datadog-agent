@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package patch
 
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 )
@@ -20,9 +20,9 @@ type patchProvider interface {
 	subscribe(kind TargetObjKind) chan PatchRequest
 }
 
-func newPatchProvider(rcClient *remote.Client, isLeaderNotif <-chan struct{}, clusterName string) (patchProvider, error) {
-	if config.Datadog.GetBool("remote_configuration.enabled") {
-		return newRemoteConfigProvider(rcClient, isLeaderNotif, clusterName)
+func newPatchProvider(rcClient *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (patchProvider, error) {
+	if config.IsRemoteConfigEnabled(config.Datadog) {
+		return newRemoteConfigProvider(rcClient, isLeaderNotif, telemetryCollector, clusterName)
 	}
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider") {
 		// Use the file config provider for e2e testing only (it replaces RC as a source of configs)

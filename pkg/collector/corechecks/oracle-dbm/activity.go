@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package oracle
 
 import (
@@ -38,7 +40,7 @@ const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
     osuser,
     process, 
     machine,
---	port,
+	port,
     program,
     type,
     sql_id,
@@ -101,6 +103,87 @@ WHERE
 	)
 	AND status = 'ACTIVE'`
 
+const ACTIVITY_QUERY_DIRECT = `SELECT /* DD_ACTIVITY_SAMPLING */
+s.sid,
+s.serial#,
+s.username,
+s.status,
+s.osuser,
+s.process,
+s.machine,
+s.port,
+s.program,
+s.type,
+s.sql_id,
+sq.force_matching_signature as force_matching_signature,
+sq.plan_hash_value sql_plan_hash_value,
+s.sql_exec_start,
+s.sql_address,
+s.prev_sql_id,
+sq_prev.plan_hash_value prev_sql_plan_hash_value,
+s.prev_exec_start as prev_sql_exec_start,
+sq_prev.force_matching_signature as prev_force_matching_signature,
+s.prev_sql_addr prev_sql_address,
+s.module,
+s.action,
+s.client_info,
+s.logon_time,
+s.client_identifier,
+CASE WHEN blocking_session_status = 'VALID' THEN
+blocking_instance
+ELSE
+null
+END blocking_instance,
+CASE WHEN blocking_session_status = 'VALID' THEN
+  blocking_session
+ELSE
+  null
+END blocking_session,
+CASE WHEN final_blocking_session_status = 'VALID' THEN
+  final_blocking_instance
+ELSE
+  null
+END final_blocking_instance,
+CASE WHEN final_blocking_session_status = 'VALID' THEN
+  final_blocking_session
+ELSE
+  null
+END final_blocking_session,
+CASE WHEN state = 'WAITING' THEN
+  event
+ELSE
+  'CPU'
+END event,
+CASE WHEN state = 'WAITING' THEN
+  wait_class
+ELSE
+  'CPU'
+END wait_class,
+s.wait_time_micro,
+c.name as pdb_name,
+sq.sql_fulltext as sql_fulltext,
+sq_prev.sql_fulltext as prev_sql_fulltext,
+comm.command_name
+FROM
+v$session s,
+v$sql sq,
+v$sql sq_prev,
+v$containers c,
+v$sqlcommand comm
+WHERE
+sq.sql_id(+)   = s.sql_id
+AND sq.child_number(+) = s.sql_child_number
+AND sq_prev.sql_id(+)   = s.prev_sql_id
+AND sq_prev.child_number(+) = s.prev_child_number
+AND ( sq.sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sq.sql_text is NULL ) 
+AND (
+	NOT (state = 'WAITING' AND wait_class = 'Idle')
+	OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
+)
+AND status = 'ACTIVE'
+AND s.con_id = c.con_id(+)
+AND s.command = comm.command_type(+)`
+
 type RowMetadata struct {
 	Commands       []string `json:"dd_commands,omitempty"`
 	Tables         []string `json:"dd_tables,omitempty"`
@@ -133,7 +216,7 @@ type OracleActivityRow struct {
 	OsUser        string `json:"os_user,omitempty"`
 	Process       string `json:"process,omitempty"`
 	Client        string `json:"client,omitempty"`
-	Port          uint64 `json:"port,omitempty"`
+	Port          string `json:"port,omitempty"`
 	Program       string `json:"program,omitempty"`
 	Type          string `json:"type,omitempty"`
 	OracleSQLRow
@@ -237,13 +320,26 @@ func (c *Check) SampleSession() error {
 	if c.statementsFilter.ForceMatchingSignatures == nil {
 		c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
 	}
+	if c.statementsCache.SQLIDs == nil {
+		c.statementsCache.SQLIDs = make(map[string]StatementsCacheData)
+	}
+	if c.statementsCache.forceMatchingSignatures == nil {
+		c.statementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
+	}
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
-	err := c.db.Select(&sessionSamples, ACTIVITY_QUERY)
+	var activityQuery string
+	if c.isRDS || c.isOracleCloud {
+		activityQuery = ACTIVITY_QUERY_DIRECT
+	} else {
+		activityQuery = ACTIVITY_QUERY
+	}
+
+	err := selectWrapper(c, &sessionSamples, activityQuery)
 
 	if err != nil {
-		return fmt.Errorf("failed to collect session sampling activity: %w", err)
+		return fmt.Errorf("failed to collect session sampling activity: %w \n%s", err, activityQuery)
 	}
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
@@ -268,7 +364,7 @@ func (c *Check) SampleSession() error {
 			sessionRow.Client = sample.Client.String
 		}
 		if sample.Port.Valid {
-			sessionRow.Port = uint64(sample.Port.Int64)
+			sessionRow.Port = strconv.FormatInt(int64(sample.Port.Int64), 10)
 		}
 
 		program := ""
@@ -349,8 +445,10 @@ func (c *Check) SampleSession() error {
 
 		statement := ""
 		obfuscate := true
+		var hasRealSQLText bool
 		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
 			statement = sample.Statement.String
+			hasRealSQLText = true
 		} else if previousSQL {
 			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
 				statement = sample.PrevSQLFullText.String
@@ -362,6 +460,9 @@ func (c *Check) SampleSession() error {
 				err = c.db.Get(&statement, "SELECT sql_fulltext FROM v$sqlstats WHERE sql_id = :1 AND rownum=1", sqlPrevSQL.SQLID)
 				if err != nil {
 					log.Errorf("sql_text for the previous statement: %s", err)
+				}
+				if statement != "" {
+					hasRealSQLText = true
 				}
 			}
 		} else if (sample.OpFlags & 8) == 8 {
@@ -388,6 +489,23 @@ func (c *Check) SampleSession() error {
 				sessionRow.Tables = obfuscatedStatement.Tables
 				sessionRow.Comments = obfuscatedStatement.Comments
 				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
+			}
+			if hasRealSQLText {
+				if sessionRow.OracleSQLRow.ForceMatchingSignature != 0 {
+					c.statementsCache.forceMatchingSignatures[strconv.FormatUint(sessionRow.OracleSQLRow.ForceMatchingSignature, 10)] = StatementsCacheData{
+						statement:      obfuscatedStatement.Statement,
+						querySignature: obfuscatedStatement.QuerySignature,
+						commands:       obfuscatedStatement.Commands,
+						tables:         obfuscatedStatement.Tables,
+					}
+				} else if sessionRow.OracleSQLRow.SQLID != "" {
+					c.statementsCache.SQLIDs[sessionRow.OracleSQLRow.SQLID] = StatementsCacheData{
+						statement:      obfuscatedStatement.Statement,
+						querySignature: obfuscatedStatement.QuerySignature,
+						commands:       obfuscatedStatement.Commands,
+						tables:         obfuscatedStatement.Tables,
+					}
+				}
 			}
 		} else {
 			sessionRow.Statement = statement

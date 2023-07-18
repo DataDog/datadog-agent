@@ -17,14 +17,16 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/mapper"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -212,7 +214,10 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, captur
 	}
 
 	metricPrefixBlacklist := cfg.GetStringSlice("statsd_metric_namespace_blacklist")
-	metricBlocklist := cfg.GetStringSlice("statsd_metric_blocklist")
+	metricBlocklist := newBlocklist(
+		cfg.GetStringSlice("statsd_metric_blocklist"),
+		cfg.GetBool("statsd_metric_blocklist_match_prefix"),
+	)
 
 	defaultHostname, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -314,7 +319,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	socketPath := s.config.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, s.tCapture)
+		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
 		if err != nil {
 			s.log.Errorf(err.Error())
 		} else {
@@ -323,7 +328,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 		}
 	}
 	if s.config.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.tCapture)
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
 		if err != nil {
 			s.log.Errorf(err.Error())
 		} else {
@@ -333,7 +338,7 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 
 	pipeName := s.config.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
-		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.tCapture)
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
 		if err != nil {
 			s.log.Errorf("named pipe error: %v", err.Error())
 		} else {
@@ -712,7 +717,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	return metricSamples, nil
 }
 
-func (s *server) parseEventMessage(parser *parser, message []byte, origin string) (*metrics.Event, error) {
+func (s *server) parseEventMessage(parser *parser, message []byte, origin string) (*event.Event, error) {
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
@@ -726,7 +731,7 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 	return event, nil
 }
 
-func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*metrics.ServiceCheck, error) {
+func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*servicecheck.ServiceCheck, error) {
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)

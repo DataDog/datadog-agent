@@ -8,7 +8,6 @@ package subcommands
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/check"
-	cmdclosedsourceconsent "github.com/DataDog/datadog-agent/cmd/agent/subcommands/closedsourceconsent"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/subcommands/config"
 	cmdconfigcheck "github.com/DataDog/datadog-agent/cmd/agent/subcommands/configcheck"
 	cmdcontrolsvc "github.com/DataDog/datadog-agent/cmd/agent/subcommands/controlsvc"
@@ -30,6 +29,7 @@ import (
 	cmdsnmp "github.com/DataDog/datadog-agent/cmd/agent/subcommands/snmp"
 	cmdstatus "github.com/DataDog/datadog-agent/cmd/agent/subcommands/status"
 	cmdstop "github.com/DataDog/datadog-agent/cmd/agent/subcommands/stop"
+	cmdstreamep "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamep"
 	cmdstreamlogs "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
 	cmdtaggerlist "github.com/DataDog/datadog-agent/cmd/agent/subcommands/taggerlist"
 	cmdversion "github.com/DataDog/datadog-agent/cmd/agent/subcommands/version"
@@ -58,6 +58,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdsnmp.Commands,
 		cmdstatus.Commands,
 		cmdstreamlogs.Commands,
+		cmdstreamep.Commands,
 		cmdtaggerlist.Commands,
 		cmdversion.Commands,
 		cmdworkloadlist.Commands,
@@ -66,6 +67,5 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdintegrations.Commands,
 		cmdstop.Commands,
 		cmdcontrolsvc.Commands,
-		cmdclosedsourceconsent.Commands,
 	}
 }

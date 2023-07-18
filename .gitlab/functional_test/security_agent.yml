@@ -7,7 +7,6 @@
 
 # Expect warning: github.com/DataDog/datadog-agent/pkg/config.LoadCustom:1501 Unknown environment variable: DD_SYSTEM_PROBE_BPF_DIR
 .kitchen_test_security_agent:
-  allow_failure: true
   extends:
     - .kitchen_common
     - .kitchen_datadog_agent_flavor
@@ -48,7 +47,9 @@ kitchen_test_security_agent_x64:
         KITCHEN_OSVERS: "centos-77"
         KITCHEN_CWS_PLATFORM: [host, docker]
       - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "rhel-85"
+        KITCHEN_OSVERS: "rhel-85,rhel-91"
+        KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
+        KITCHEN_CI_ROOT_PATH: "/tmp/ci"
         KITCHEN_CWS_PLATFORM: [host]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04-0,ubuntu-18-04,ubuntu-18-04-3"
@@ -92,19 +93,19 @@ kitchen_test_security_agent_arm64:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04-2,ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [host, docker, ad]
 
 kitchen_test_security_agent_amazonlinux_x64:
   extends:
     - .kitchen_test_security_agent
     - .kitchen_ec2_location_us_east_1
-    - .kitchen_ec2_spot_instances
+    - .kitchen_ec2
   rules:
     !reference [.on_security_agent_changes_or_manual]
   needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
-    KITCHEN_EC2_INSTANCE_TYPE: "[t3.medium, t2.xlarge, t3.xlarge]"
+    KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
   before_script:
@@ -113,7 +114,10 @@ kitchen_test_security_agent_amazonlinux_x64:
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
-        KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10,amazonlinux2022-5-15"
+        KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10"
+        KITCHEN_CWS_PLATFORM: [host, docker]
+      - KITCHEN_PLATFORM: "amazonlinux"
+        KITCHEN_OSVERS: "amazonlinux2022-5-15,amazonlinux2023"
         KITCHEN_CWS_PLATFORM: [host, docker]
 
 kitchen_stress_security_agent:

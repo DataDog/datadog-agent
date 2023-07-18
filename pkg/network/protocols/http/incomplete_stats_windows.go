@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package http
 
@@ -18,9 +17,9 @@ import (
 // see both directions of traffic
 type incompleteBuffer struct{}
 
-func newIncompleteBuffer(c *config.Config, telemetry *telemetry) *incompleteBuffer {
+func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuffer {
 	return &incompleteBuffer{}
 }
 
-func (b *incompleteBuffer) Add(tx httpTX)                {}
-func (b *incompleteBuffer) Flush(now time.Time) []httpTX { return nil }
+func (b *incompleteBuffer) Add(tx Transaction)                {}
+func (b *incompleteBuffer) Flush(now time.Time) []Transaction { return nil }

@@ -197,3 +197,41 @@ func TestTelemetryConfig(t *testing.T) {
 		assert.Equal(t, "OK", recordedResponse(t, rec))
 	})
 }
+
+func TestExtractFargateTask(t *testing.T) {
+	t.Run("contains-tag", func(t *testing.T) {
+		tags := "foo:bar,baz:,task_arn:123"
+
+		taskArn, ok := extractFargateTask(tags)
+
+		assert.True(t, ok)
+		assert.Equal(t, "123", taskArn)
+	})
+
+	t.Run("doesnt-contain-tag", func(t *testing.T) {
+		tags := "foo:bar,,"
+
+		taskArn, ok := extractFargateTask(tags)
+
+		assert.False(t, ok)
+		assert.Equal(t, "", taskArn)
+	})
+
+	t.Run("contain-empty-tag", func(t *testing.T) {
+		tags := "foo:bar,task_arn:,baz:abc"
+
+		taskArn, ok := extractFargateTask(tags)
+
+		assert.True(t, ok)
+		assert.Equal(t, "", taskArn)
+	})
+
+	t.Run("empty-string", func(t *testing.T) {
+		tags := ""
+
+		taskArn, ok := extractFargateTask(tags)
+
+		assert.False(t, ok)
+		assert.Equal(t, "", taskArn)
+	})
+}

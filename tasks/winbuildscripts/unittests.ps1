@@ -17,6 +17,22 @@ $Env:PATH="$Env:BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Py
 
 & inv -e invoke-unit-tests
 
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[Error]: Some unit tests failed"
+    exit $LASTEXITCODE
+}
+
+& pushd "test\kitchen"
+
+& inv -e kitchen.invoke-unit-tests
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[Error]: Some kitchen unit tests failed"
+    exit $LASTEXITCODE
+}
+
+& popd
+
 $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
@@ -89,7 +105,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e test --skip-linters --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --cpus 4 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\test_output.json
+& inv -e test --skip-linters --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\test_output.json
 
 $err = $LASTEXITCODE
 Write-Host Test result is $err

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jmx
-// +build jmx
 
 // Package jmx implements 'agent jmx'.
 package jmx
@@ -88,7 +87,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		}
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
-			LogParams:    log.LogForOneShot("CORE", cliParams.jmxLogLevel, false)}
+			LogParams:    log.LogForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
 		}

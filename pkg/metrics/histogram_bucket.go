@@ -18,6 +18,7 @@ type HistogramBucket struct {
 	Host            string
 	Timestamp       float64
 	FlushFirstValue bool
+	Source          MetricSource
 }
 
 // Implement the MetricSampleContext interface
@@ -48,4 +49,9 @@ func (m *HistogramBucket) GetMetricType() MetricType {
 // IsNoIndex returns if the metric must not be indexed.
 func (m *HistogramBucket) IsNoIndex() bool {
 	return false
+}
+
+// GetSource returns the currently set MetricSource
+func (m *HistogramBucket) GetSource() MetricSource {
+	return m.Source
 }

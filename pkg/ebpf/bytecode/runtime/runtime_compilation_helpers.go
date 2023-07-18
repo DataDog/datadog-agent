@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package runtime
 

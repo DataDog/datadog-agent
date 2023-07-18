@@ -276,7 +276,7 @@ int kprobe__ip6_make_skb(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("kprobe/ip6_make_skb/pre_4_7_0")
+SEC("kprobe/ip6_make_skb")
 int kprobe__ip6_make_skb__pre_4_7_0(struct pt_regs* ctx) {
     u64 zero = 0;
     tracer_status_t* status = bpf_map_lookup_elem(&tracer_status, &zero);

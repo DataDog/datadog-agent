@@ -66,6 +66,11 @@ message OrgDataResponse {
   string uuid = 1;
 }
 
+message OrgStatusResponse {
+  bool enabled = 1;
+  bool authorized = 2;
+}
+
 // Client definitions
 
 message Client {
@@ -86,6 +91,7 @@ message ClientTracer {
   string language = 2;
   string tracer_version = 3;
   string service = 4;
+  repeated string extra_services = 8;
   string env = 5;
   string app_version = 6;
   repeated string tags = 7;
@@ -96,6 +102,7 @@ message ClientAgent {
   string version = 2;
   string cluster_name = 3;
   string cluster_id = 4;
+  repeated string cws_workloads = 5;
 }
 
 message ConfigState {

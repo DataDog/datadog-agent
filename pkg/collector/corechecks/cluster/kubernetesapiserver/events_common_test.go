@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package kubernetesapiserver
 
@@ -13,7 +12,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 )
@@ -22,22 +21,22 @@ func TestGetDDAlertType(t *testing.T) {
 	tests := []struct {
 		name    string
 		k8sType string
-		want    metrics.EventAlertType
+		want    event.EventAlertType
 	}{
 		{
 			name:    "normal",
 			k8sType: "Normal",
-			want:    metrics.EventAlertTypeInfo,
+			want:    event.EventAlertTypeInfo,
 		},
 		{
 			name:    "warning",
 			k8sType: "Warning",
-			want:    metrics.EventAlertTypeWarning,
+			want:    event.EventAlertTypeWarning,
 		},
 		{
 			name:    "unknown",
 			k8sType: "Unknown",
-			want:    metrics.EventAlertTypeInfo,
+			want:    event.EventAlertTypeInfo,
 		},
 	}
 	for _, tt := range tests {

@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package http
 
@@ -21,10 +20,9 @@ import (
 func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries can be joined even after flushing", func(t *testing.T) {
 		now := time.Now()
-		tel, err := newTelemetry()
-		require.NoError(t, err)
+		tel := NewTelemetry()
 		buffer := newIncompleteBuffer(config.New(), tel)
-		request := &ebpfHttpTx{
+		request := &EbpfTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
 			Request_started:  uint64(now.UnixNano()),
 		}
@@ -35,7 +33,7 @@ func TestOrphanEntries(t *testing.T) {
 		complete := buffer.Flush(now)
 		assert.Len(t, complete, 0)
 
-		response := &ebpfHttpTx{
+		response := &EbpfTx{
 			Response_status_code: 200,
 			Response_last_seen:   uint64(now.UnixNano()),
 		}
@@ -51,12 +49,11 @@ func TestOrphanEntries(t *testing.T) {
 	})
 
 	t.Run("orphan entries are not kept indefinitely", func(t *testing.T) {
-		tel, err := newTelemetry()
-		require.NoError(t, err)
+		tel := NewTelemetry()
 		buffer := newIncompleteBuffer(config.New(), tel)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
-		request := &ebpfHttpTx{
+		request := &EbpfTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
 			Request_started:  uint64(now.UnixNano()),
 		}

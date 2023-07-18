@@ -28,9 +28,9 @@ const (
 // symDBProxyHandler returns an http.Handler proxying requests to the logs intake. If the logs intake url cannot be
 // parsed, the returned handler will always return http.StatusInternalServerError with a clarifying message.
 func (r *HTTPReceiver) symDBProxyHandler() http.Handler {
-	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
+	hostTags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
-		tags = tags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
+		hostTags = hostTags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
 	}
 	intake := fmt.Sprintf(debuggerIntakeURLTemplate, r.conf.Site)
 	if v := r.conf.SymDBProxy.DDURL; v != "" {
@@ -49,7 +49,7 @@ func (r *HTTPReceiver) symDBProxyHandler() http.Handler {
 	}
 	transport := newMeasuringForwardingTransport(
 		config.New().NewHTTPTransport(), target, apiKey, r.conf.SymDBProxy.AdditionalEndpoints, "datadog.trace_agent.debugger.", []string{})
-	return newSymDBProxy(r.conf, transport, tags)
+	return newSymDBProxy(r.conf, transport, hostTags)
 }
 
 // symDBErrorHandler always returns http.StatusInternalServerError with a clarifying message.
@@ -61,22 +61,23 @@ func symDBErrorHandler(err error) http.Handler {
 }
 
 // newSymDBProxy returns a new httputil.ReverseProxy proxying and augmenting requests with headers containing the tags.
-func newSymDBProxy(conf *config.AgentConfig, transport http.RoundTripper, tags string) *httputil.ReverseProxy {
+func newSymDBProxy(conf *config.AgentConfig, transport http.RoundTripper, hostTags string) *httputil.ReverseProxy {
 	cidProvider := NewIDProvider(conf.ContainerProcRoot)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director:  getSymDBDirector(tags, cidProvider, conf.ContainerTags),
+		Director:  getSymDBDirector(hostTags, cidProvider, conf.ContainerTags),
 		ErrorLog:  stdlog.New(logger, "symdb.Proxy: ", 0),
 		Transport: transport,
 	}
 }
 
-func getSymDBDirector(tags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*http.Request) {
+func getSymDBDirector(hostTags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*http.Request) {
 	return func(req *http.Request) {
 		req.Header.Set("DD-REQUEST-ID", uuid.New().String())
 		req.Header.Set("DD-EVP-ORIGIN", "agent-symdb")
 		q := req.URL.Query()
 		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
+		tags := hostTags
 		if ctags := getContainerTags(containerTags, containerID); ctags != "" {
 			tags = fmt.Sprintf("%s,%s", tags, ctags)
 		}

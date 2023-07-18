@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package integrations
 
@@ -28,6 +27,17 @@ func TestInstallCommand(t *testing.T) {
 			require.Equal(t, 1, cliParams.verbose)
 			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 			require.Equal(t, true, coreParams.ConfigMissingOK())
+		})
+}
+
+func TestInstallSkipVerificationCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"integration", "install", "foo==1.0", "--unsafe-disable-verification"},
+		install,
+		func(cliParams *cliParams, coreParams core.BundleParams) {
+			require.Equal(t, []string{"foo==1.0"}, cliParams.args)
+			require.Equal(t, true, cliParams.unsafeDisableVerification)
 		})
 }
 

@@ -11,10 +11,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,10 +36,10 @@ type Worker struct {
 	Name string
 
 	checksTracker           *tracker.RunningChecksTracker
-	getDefaultSenderFunc    func() (aggregator.Sender, error)
+	getDefaultSenderFunc    func() (sender.Sender, error)
 	pendingChecksChan       chan check.Check
 	runnerID                int
-	shouldAddCheckStatsFunc func(id check.ID) bool
+	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 }
 
@@ -46,7 +49,7 @@ func NewWorker(
 	ID int,
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
-	shouldAddCheckStatsFunc func(id check.ID) bool,
+	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 ) (*Worker, error) {
 
 	if checksTracker == nil {
@@ -80,8 +83,8 @@ func newWorkerWithOptions(
 	ID int,
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
-	shouldAddCheckStatsFunc func(id check.ID) bool,
-	getDefaultSenderFunc func() (aggregator.Sender, error),
+	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	getDefaultSenderFunc func() (sender.Sender, error),
 	utilizationTickInterval time.Duration,
 ) (*Worker, error) {
 
@@ -148,24 +151,29 @@ func (w *Worker) Run() {
 		if err != nil {
 			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 		}
-		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String())}
-		serviceCheckStatus := metrics.ServiceCheckOK
+		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
+		serviceCheckStatus := servicecheck.ServiceCheckOK
 
 		hname, _ := hostname.Get(context.TODO())
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))
-			serviceCheckStatus = metrics.ServiceCheckWarning
+			serviceCheckStatus = servicecheck.ServiceCheckWarning
 		}
 
 		if checkErr != nil {
 			checkLogger.Error(checkErr)
 			expvars.AddErrorsCount(1)
-			serviceCheckStatus = metrics.ServiceCheckCritical
+			serviceCheckStatus = servicecheck.ServiceCheckCritical
 		}
 
 		if sender != nil && !longRunning {
-			sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+			if config.Datadog.GetBool("integration_check_status_enabled") {
+				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+			}
+			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
+			// it here for now to make sure it's not breaking any historical behavior
+			// with the shared default sender.
 			sender.Commit()
 		}
 

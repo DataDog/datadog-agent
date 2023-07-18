@@ -4,19 +4,20 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && kubeapiserver
-// +build !windows,kubeapiserver
 
 package check
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"k8s.io/client-go/dynamic"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
@@ -25,9 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
-	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -46,9 +48,7 @@ type CliParams struct {
 	verbose           bool
 	report            bool
 	overrideRegoInput string
-	dumpRegoInput     string
 	dumpReports       string
-	skipRegoEval      bool
 }
 
 func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -94,79 +94,18 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 	cmd.Flags().BoolVarP(&checkArgs.verbose, flags.Verbose, "v", false, "Include verbose details")
 	cmd.Flags().BoolVarP(&checkArgs.report, flags.Report, "r", false, "Send report")
 	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, flags.OverrideRegoInput, "", "", "Rego input to use when running rego checks")
-	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, flags.DumpRegoInput, "", "", "Path to file where to dump the Rego input JSON")
 	cmd.Flags().StringVarP(&checkArgs.dumpReports, flags.DumpReports, "", "", "Path to file where to dump reports")
-	cmd.Flags().BoolVarP(&checkArgs.skipRegoEval, flags.SkipRegoEval, "", false, "Skip rego evaluation")
 
 	return []*cobra.Command{cmd}
 }
 
 func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) error {
-	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
-		return errors.New("skipping the rego evaluation does not allow the generation of reports")
-	}
-
-	configDir := pkgconfig.Datadog.GetString("compliance_config.dir")
-	options := []checks.BuilderOption{}
-
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		log.Info("Waiting for APIClient")
-		apiCl, err := apiserver.WaitForAPIClient(ctx)
-		if err != nil {
-			return err
-		}
-		options = append(options, checks.MayFail(checks.WithKubernetesClient(apiCl.DynamicCl, "")))
-	} else {
-		options = append(options, []checks.BuilderOption{
-			checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
-			checks.MayFail(checks.WithDocker()),
-			checks.MayFail(checks.WithAudit()),
-			checks.WithConfigDir(configDir),
-		}...)
-	}
-
-	var ruleID string
-	if len(checkArgs.args) != 0 {
-		ruleID = checkArgs.args[0]
-	}
-
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
 	}
 
-	options = append(options, checks.WithHostname(hname))
-
-	stopper := startstop.NewSerialStopper()
-	defer stopper.Stop()
-
-	reporter, err := NewCheckReporter(log, config, stopper, checkArgs.report, checkArgs.dumpReports)
-	if err != nil {
-		return err
-	}
-
-	if ruleID != "" {
-		log.Infof("Looking for rule with ID=%s", ruleID)
-		options = append(options, checks.WithMatchRule(checks.IsRuleID(ruleID)))
-	}
-
-	if checkArgs.framework != "" {
-		log.Infof("Looking for rules with framework=%s", checkArgs.framework)
-		options = append(options, checks.WithMatchSuite(checks.IsFramework(checkArgs.framework)))
-	}
-
-	if checkArgs.overrideRegoInput != "" {
-		log.Infof("Running on provided rego input: path=%s", checkArgs.overrideRegoInput)
-		options = append(options, checks.WithRegoInput(checkArgs.overrideRegoInput))
-	}
-
-	if checkArgs.dumpRegoInput != "" {
-		options = append(options, checks.WithRegoInputDumpPath(checkArgs.dumpRegoInput))
-	}
-
+	var statsdClient *ddgostatsd.Client
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
 	if metricsEnabled {
 		// Create a statsd Client
@@ -177,33 +116,171 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			statsdPort := config.GetInt("dogstatsd_port")
 			statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
 		}
-		statsdClient, err := ddgostatsd.New(statsdAddr)
+		cl, err := ddgostatsd.New(statsdAddr)
 		if err != nil {
 			log.Warnf("Error creating statsd Client: %s", err)
 		} else {
-			defer statsdClient.Flush()
-			options = append(options, checks.WithStatsd(statsdClient))
+			statsdClient = cl
+			defer cl.Flush()
 		}
 	}
 
-	options = append(options, checks.WithRegoEvalSkip(checkArgs.skipRegoEval))
+	if len(checkArgs.args) == 1 && checkArgs.args[0] == "k8sconfig" {
+		_, resourceData := k8sconfig.LoadConfiguration(context.Background(), os.Getenv("HOST_ROOT"))
+		b, _ := json.MarshalIndent(resourceData, "", "  ")
+		fmt.Println(string(b))
+		return nil
+	}
 
-	if checkArgs.file != "" {
-		err = agent.RunChecksFromFile(reporter, checkArgs.file, options...)
+	var resolver compliance.Resolver
+	if checkArgs.overrideRegoInput != "" {
+		resolver = newFakeResolver(checkArgs.overrideRegoInput)
+	} else if flavor.GetFlavor() == flavor.ClusterAgent {
+		resolver = compliance.NewResolver(context.Background(), compliance.ResolverOptions{
+			Hostname:           hname,
+			DockerProvider:     compliance.DefaultDockerProvider,
+			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
+			KubernetesProvider: complianceKubernetesProvider,
+			StatsdClient:       statsdClient,
+		})
 	} else {
-		configDir := config.GetString("compliance_config.dir")
-		err = agent.RunChecks(reporter, configDir, options...)
+		resolver = compliance.NewResolver(context.Background(), compliance.ResolverOptions{
+			Hostname:           hname,
+			HostRoot:           os.Getenv("HOST_ROOT"),
+			DockerProvider:     compliance.DefaultDockerProvider,
+			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
+			StatsdClient:       statsdClient,
+		})
+	}
+	defer resolver.Close()
+
+	configDir := config.GetString("compliance_config.dir")
+	var benchDir, benchGlob string
+	var ruleFilter compliance.RuleFilter
+	if checkArgs.file != "" {
+		benchDir, benchGlob = filepath.Dir(checkArgs.file), filepath.Base(checkArgs.file)
+	} else if checkArgs.framework != "" {
+		benchDir, benchGlob = configDir, fmt.Sprintf("%s.yaml", checkArgs.framework)
+	} else {
+		ruleFilter = compliance.DefaultRuleFilter
+		benchDir, benchGlob = configDir, "*.yaml"
 	}
 
+	log.Infof("Loading compliance rules from %s", benchDir)
+	benchmarks, err := compliance.LoadBenchmarks(benchDir, benchGlob, func(r *compliance.Rule) bool {
+		if ruleFilter != nil && !ruleFilter(r) {
+			return false
+		}
+		if len(checkArgs.args) > 0 {
+			return r.ID == checkArgs.args[0]
+		}
+		return true
+	})
 	if err != nil {
-		log.Errorf("Failed to run checks: %v", err)
-		return err
+		return fmt.Errorf("could not load benchmark files %q: %w", filepath.Join(benchDir, benchGlob), err)
+	}
+	if len(benchmarks) == 0 {
+		return fmt.Errorf("could not find any benchmark in %q", filepath.Join(benchDir, benchGlob))
 	}
 
-	if err := reporter.dumpReports(); err != nil {
-		log.Errorf("Failed to dump reports %v", err)
-		return err
+	events := make([]*compliance.CheckEvent, 0)
+	for _, benchmark := range benchmarks {
+		for _, rule := range benchmark.Rules {
+			log.Infof("Running check: %s: %s [version=%s]", rule.ID, rule.Description, benchmark.Version)
+			var ruleEvents []*compliance.CheckEvent
+			switch {
+			case rule.IsXCCDF():
+				ruleEvents = compliance.EvaluateXCCDFRule(context.Background(), hname, statsdClient, benchmark, rule)
+			case rule.IsRego():
+				ruleEvents = compliance.ResolveAndEvaluateRegoRule(context.Background(), resolver, benchmark, rule)
+			}
+			for _, event := range ruleEvents {
+				b, _ := json.MarshalIndent(event, "", "\t")
+				fmt.Println(string(b))
+				if event.Result != compliance.CheckSkipped {
+					events = append(events, event)
+				}
+			}
+		}
 	}
 
+	if checkArgs.dumpReports != "" {
+		if err := dumpComplianceEvents(checkArgs.dumpReports, events); err != nil {
+			log.Error(err)
+			return err
+		}
+	}
+	if checkArgs.report {
+		if err := reportComplianceEvents(log, config, events); err != nil {
+			log.Error(err)
+			return err
+		}
+	}
 	return nil
+}
+
+func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) error {
+	eventsMap := make(map[string][]*compliance.CheckEvent)
+	for _, event := range events {
+		eventsMap[event.RuleID] = append(eventsMap[event.RuleID], event)
+	}
+	b, err := json.MarshalIndent(eventsMap, "", "\t")
+	if err != nil {
+		return fmt.Errorf("could not marshal events map: %w", err)
+	}
+	if err := os.WriteFile(reportFile, b, 0644); err != nil {
+		return fmt.Errorf("could not write report file in %q: %w", reportFile, err)
+	}
+	return nil
+}
+
+func reportComplianceEvents(log log.Component, config config.Component, events []*compliance.CheckEvent) error {
+	stopper := startstop.NewSerialStopper()
+	defer stopper.Stop()
+	runPath := config.GetString("compliance_config.run_path")
+	endpoints, context, err := common.NewLogContextCompliance()
+	if err != nil {
+		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
+	}
+	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
+	if err != nil {
+		return fmt.Errorf("reporter: could not create: %w", err)
+	}
+	for _, event := range events {
+		reporter.ReportEvent(event)
+	}
+	return nil
+}
+
+func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, error) {
+	ctx, cancel := context.WithTimeout(_ctx, 2*time.Second)
+	defer cancel()
+	apiCl, err := apiserver.WaitForAPIClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return apiCl.DynamicCl, nil
+}
+
+type fakeResolver struct {
+	regoInputPath string
+}
+
+func newFakeResolver(regoInputPath string) compliance.Resolver {
+	return &fakeResolver{regoInputPath}
+}
+
+func (r *fakeResolver) ResolveInputs(ctx context.Context, rule *compliance.Rule) (compliance.ResolvedInputs, error) {
+	var fixtures map[string]compliance.ResolvedInputs
+	data, err := os.ReadFile(r.regoInputPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(data), &fixtures); err != nil {
+		return nil, fmt.Errorf("could not unmarshal faked rego input: %w", err)
+	}
+	return fixtures[rule.ID], nil
+}
+
+func (r *fakeResolver) Close() {
 }

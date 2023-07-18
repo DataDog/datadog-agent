@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -38,7 +39,7 @@ func benchmarkAutoMultiLineHandler(b *testing.B, logs int, line string) {
 	}
 
 	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
-	h := NewAutoMultilineHandler(func(*Message) {}, defaultContentLenLimit, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{})
+	h := NewAutoMultilineHandler(func(*Message) {}, defaultContentLenLimit, 1000, 0.9, 30*time.Second, 1000*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {

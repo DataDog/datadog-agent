@@ -385,35 +385,13 @@ def get_conf_file(conf_path)
 end
 
 def read_conf_file(conf_path = "")
-  if conf_path == ""
-    conf_path = get_conf_file("datadog.yaml")
-  end
-  if os == :windows
-    f = File.read(conf_path)
-  else
-    f = `sudo cat #{conf_path}`
-  end
-  confYaml = YAML.load(f)
-  confYaml || {}
-end
-
-def write_conf_file(conf_path, data)
-  if os == :windows
-    File.write(conf_path, data)
-  else
-    file = Tempfile.new(File.basename(conf_path))
-    begin
-      file.write(data)
-      file.close
-      system "sudo cp #{file.path} #{conf_path}"
-      system "sudo chown :dd-agent #{conf_path}"
-      system "sudo chmod 640 #{conf_path}"
-      system "sudo chmod +x #{File.dirname(conf_path)}"
-    ensure
-      file.close
-      file.unlink
+    if conf_path == ""
+      conf_path = get_conf_file("datadog.yaml")
     end
-  end
+    puts "cp is #{conf_path}"
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
+    confYaml
 end
 
 def fetch_python_version(timeout = 15)
@@ -435,7 +413,9 @@ def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
-  signature_hash = "33ACB4126192A96253EBF0616F222844E0E3EF0D"
+  ##
+  ## signature below is for new cert acquired May 2023 using new hsm-backed signing method
+  signature_hash = "B03F29CC07566505A718583E9270A6EE17678742"
   if output.upcase.strip == signature_hash.upcase.strip
     return true
   end
@@ -453,14 +433,18 @@ shared_examples_for 'Agent install' do
   it_behaves_like 'an installed Datadog Signing Keys'
 end
 
-shared_examples_for 'Agent behavior' do
+shared_examples_for 'Basic Agent behavior' do
   it_behaves_like 'a running Agent with no errors'
-  it_behaves_like 'a running Agent with APM'
-  it_behaves_like 'a running Agent with APM manually disabled'
-  it_behaves_like 'an Agent with python3 enabled'
   it_behaves_like 'an Agent with integrations'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
+  it_behaves_like 'an Agent with Python'
+end
+
+shared_examples_for 'Agent behavior' do
+  include_examples 'Basic Agent behavior'
+  it_behaves_like 'a running Agent with APM'
+  it_behaves_like 'a running Agent with APM manually disabled'
   if deploy_cws?
     it_behaves_like 'a running Agent with CWS enabled'
   end
@@ -514,6 +498,11 @@ shared_examples_for "an installed Agent" do
       expect(is_signed).to be_truthy
 
       program_files = safe_program_files
+      # The glob in the bottom makes sure we add the full Python version dll, e.g.
+      # python39.dll or python310.dll. Thanks to this, we don't have to fix this test case
+      # manually when we upgrade the Python version. Additionally, some scenarios like
+      # win-upgrade-rollback might test two Agents with two different Python versions,
+      # so hardcoding just one dll wouldn't work in these cases.
       verify_signature_files = [
         # TODO: Uncomment this when we start shipping the security agent on Windows
         # "#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\security-agent.exe",
@@ -525,8 +514,7 @@ shared_examples_for "an installed Agent" do
         "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\pythonw.exe",
         "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3.dll",
-        "#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python38.dll"
-      ]
+      ] + Dir.glob("#{program_files}\\DataDog\\Datadog Agent\\embedded3\\python3?*.dll")
       libdatadog_agent_two = "#{program_files}\\DataDog\\Datadog Agent\\bin\\libdatadog-agent-two.dll"
       if File.file?(libdatadog_agent_two)
         verify_signature_files += [
@@ -632,12 +620,13 @@ shared_examples_for "a running Agent with APM manually disabled" do
   it 'is not bound to the port that receives traces when apm_enabled is set to false' do
     conf_path = get_conf_file("datadog.yaml")
 
-    confYaml = read_conf_file()
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
     if !confYaml.key("apm_config")
       confYaml["apm_config"] = {}
     end
     confYaml["apm_config"]["enabled"] = false
-    write_conf_file(conf_path, confYaml.to_yaml)
+    File.write(conf_path, confYaml.to_yaml)
 
     output = restart "datadog-agent"
     if os != :windows
@@ -711,12 +700,15 @@ shared_examples_for 'an Agent that restarts' do
   end
 end
 
-shared_examples_for 'an Agent with python3 enabled' do
+# Checks that the Agent can run Python 3.
+# If running on an Agent 6, also check that it can run Python 2.
+shared_examples_for 'an Agent with Python' do
   it 'restarts after python_version is set to 3' do
     conf_path = get_conf_file("datadog.yaml")
-    confYaml = read_conf_file(conf_path)
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
     confYaml["python_version"] = 3
-    write_conf_file(conf_path, confYaml.to_yaml)
+    File.write(conf_path, confYaml.to_yaml)
 
     output = restart "datadog-agent"
     expect(output).to be_truthy
@@ -731,18 +723,19 @@ shared_examples_for 'an Agent with python3 enabled' do
     expect(result).to be_truthy
   end
 
-  it 'restarts after python_version is set back to 2' do
+  it 'restarts after python_version is set to 2' do
     skip if info.include? "v7."
     conf_path = get_conf_file("datadog.yaml")
-    confYaml = read_conf_file(conf_path)
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
     confYaml["python_version"] = 2
-    write_conf_file(conf_path, confYaml.to_yaml)
+    File.write(conf_path, confYaml.to_yaml)
 
     output = restart "datadog-agent"
     expect(output).to be_truthy
   end
 
-  it 'runs Python 2 after python_version is set back to 2' do
+  it 'runs Python 2 after python_version is set to 2' do
     skip if info.include? "v7."
     result = false
     python_version = fetch_python_version
@@ -765,7 +758,7 @@ shared_examples_for 'an Agent with integrations' do
   before do
     freeze_content = File.read(integrations_freeze_file)
     freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==2.2.1')
-    write_conf_file(integrations_freeze_file, freeze_content)
+    File.write(integrations_freeze_file, freeze_content)
 
     integration_remove('datadog-cilium')
   end
@@ -992,7 +985,8 @@ end
 
 def enable_cws(conf_path, state)
   begin
-    confYaml = read_conf_file(conf_path)
+    f = File.read(conf_path)
+    confYaml = YAML.load(f)
     if !confYaml.key("runtime_security_config")
       confYaml["runtime_security_config"] = {}
     end
@@ -1000,7 +994,7 @@ def enable_cws(conf_path, state)
   rescue
     confYaml = {'runtime_security_config' => {'enabled' => state}}
   ensure
-    write_conf_file(conf_path, confYaml.to_yaml)
+    File.write(conf_path, confYaml.to_yaml)
   end
 end
 

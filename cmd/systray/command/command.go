@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
-// +build windows
 
 // Package command implements the top-level `systray` binary, including its subcommands.
 package command
@@ -88,6 +87,13 @@ func MakeCommand() *cobra.Command {
 				}),
 				core.Bundle,
 				// flare
+				fx.Supply(flare.NewParams(
+					path.GetDistPath(),
+					path.PyChecksPath,
+					path.DefaultLogFile,
+					path.DefaultJmxLogFile,
+					path.DefaultDogstatsDLogFile,
+				)),
 				flare.Module,
 				// systray
 				fx.Supply(systrayParams),

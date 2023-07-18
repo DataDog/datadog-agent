@@ -54,7 +54,7 @@ func Test_makeFlare(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			router := mux.NewRouter()
-			agentHandler(router)
+			agentHandler(router, nil)
 			router.ServeHTTP(rr, req)
 
 			resp := rr.Result()
@@ -92,7 +92,7 @@ func Test_getConfigSetting(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			router := mux.NewRouter()
-			agentHandler(router)
+			agentHandler(router, nil)
 			router.ServeHTTP(rr, req)
 
 			resp := rr.Result()

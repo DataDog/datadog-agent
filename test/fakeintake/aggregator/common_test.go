@@ -102,4 +102,12 @@ func TestCommonAggregator(t *testing.T) {
 		assert.Empty(t, FilterByTags(items, []string{"age:123", "country:it"}))
 		assert.NotEmpty(t, FilterByTags(items, []string{"age:43"}))
 	})
+
+	t.Run("Reset", func(t *testing.T) {
+		_, err := generateTestData()
+		require.NoError(t, err)
+		agg := newAggregator(parseMockPayloadItem)
+		agg.Reset()
+		assert.Equal(t, 0, len(agg.payloadsByName))
+	})
 }

@@ -6,8 +6,6 @@
 package log
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -40,9 +38,8 @@ type Config struct {
 
 // CustomWriter wraps the log config to allow stdout/stderr redirection
 type CustomWriter struct {
-	LogConfig  *Config
-	LineBuffer bytes.Buffer
-	IsError    bool
+	LogConfig *Config
+	IsError   bool
 }
 
 // CreateConfig builds and returns a log config
@@ -96,17 +93,7 @@ func SetupLog(conf *Config, tags map[string]string) {
 
 func (cw *CustomWriter) Write(p []byte) (n int, err error) {
 	fmt.Print(string(p))
-	cw.LineBuffer.Write(p)
-	scanner := bufio.NewScanner(&cw.LineBuffer)
-	for scanner.Scan() {
-		logLine := scanner.Bytes()
-		// Don't write anything if we don't actually have a message.
-		// This can happen in the case of consecutive newlines.
-		if len(logLine) == 0 {
-			continue
-		}
-		Write(cw.LogConfig, logLine, cw.IsError)
-	}
+	Write(cw.LogConfig, p, cw.IsError)
 	return len(p), nil
 }
 

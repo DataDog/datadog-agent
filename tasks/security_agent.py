@@ -111,20 +111,6 @@ def gen_mocks(ctx):
     """
 
     interfaces = {
-        "./pkg/compliance": [
-            "AuditClient",
-            "Builder",
-            "Clients",
-            "Configuration",
-            "DockerClient",
-            "Env",
-            "Evaluatable",
-            "Iterator",
-            "KubeClient",
-            "RegoConfiguration",
-            "Reporter",
-            "Scheduler",
-        ],
         "./pkg/security/proto/api": [
             "SecurityModuleServer",
             "SecurityModuleClient",
@@ -144,8 +130,11 @@ def gen_mocks(ctx):
 
 
 @task
-def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
+def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=False):
     cmd = '{testsuite} {verbose_opt} {testflags}'
+    if fentry:
+        cmd = "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY=true " + cmd
+
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -415,6 +404,7 @@ def functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
+    fentry=False,
 ):
     build_functional_tests(
         ctx,
@@ -432,6 +422,7 @@ def functional_tests(
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
+        fentry=fentry,
     )
 
 
@@ -790,3 +781,11 @@ def print_failed_tests(_, output_dir):
 
     if fail_count > 0:
         raise Exit(code=1)
+
+
+@task
+def print_fentry_stats(ctx):
+    fentry_o_path = "pkg/ebpf/bytecode/build/runtime-security-fentry.o"
+
+    for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
+        ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")

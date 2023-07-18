@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package ebpf
 
@@ -102,4 +101,6 @@ var (
 	BufferSelectorERPCMonitorKey = Uint32MapItem(1)
 	// BufferSelectorDiscarderMonitorKey is the key used to select the active discarder monitor buffer key
 	BufferSelectorDiscarderMonitorKey = Uint32MapItem(2)
+	// BufferSelectorApproverMonitorKey is the key used to select the active approver monitor buffer key
+	BufferSelectorApproverMonitorKey = Uint32MapItem(3)
 )

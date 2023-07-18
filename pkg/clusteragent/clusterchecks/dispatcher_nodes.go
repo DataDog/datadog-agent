@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -14,12 +13,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultBusynessValue int = -1
+const (
+	defaultBusynessValue int = -1
+)
 
 // getClusterCheckConfigs returns configurations dispatched to a given node
 func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Config, int64, error) {
@@ -38,7 +39,7 @@ func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Conf
 
 // processNodeStatus keeps the node's status in the store, and returns true
 // if the last configuration change matches the one sent by the node agent.
-func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.NodeStatus) (bool, error) {
+func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.NodeStatus) bool {
 	var warmingUp bool
 
 	d.store.Lock()
@@ -50,24 +51,27 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 
 	node.Lock()
 	defer node.Unlock()
-	node.lastStatus = status
 	node.heartbeat = timestampNow()
+	// When we receive ExtraHeartbeatLastChangeValue, we only update heartbeat
+	if status.LastChange == types.ExtraHeartbeatLastChangeValue {
+		return true
+	}
 
 	if node.lastConfigChange == status.LastChange {
 		// Node-agent is up to date
-		return true, nil
+		return true
 	}
 	if warmingUp {
 		// During the initial warmup phase, we are counting active nodes
 		// without dispatching configurations.
 		// We tell node-agents they are up to date to keep their cached
 		// configurations running while we finish the warmup phase.
-		return true, nil
+		return true
 	}
 
 	// Node-agent needs to pull updated configs
 	log.Infof("Node %s needs to poll config, cluster config version: %d, node config version: %d", nodeName, node.lastConfigChange, status.LastChange)
-	return false, nil
+	return false
 }
 
 // getLeastBusyNode returns the name of the node that is assigned
@@ -184,7 +188,7 @@ func (d *dispatcher) updateRunnersStats() {
 			// Stats contain info about all the running checks on a node
 			// Node checks must be filtered from Cluster Checks
 			// so they can be included in calculating node Agent busyness and excluded from rebalancing decisions.
-			if _, found := d.store.idToDigest[check.ID(id)]; found {
+			if _, found := d.store.idToDigest[checkid.ID(id)]; found {
 				// Cluster check detected (exists in the Cluster Agent checks store)
 				log.Tracef("Check %s running on node %s is a cluster check", id, node.name)
 				checkStats.IsClusterCheck = true

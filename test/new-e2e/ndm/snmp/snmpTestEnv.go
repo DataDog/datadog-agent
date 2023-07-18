@@ -12,8 +12,8 @@ import (
 	"path"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/infra"
-	ec2vm "github.com/DataDog/test-infra-definitions/aws/scenarios/vm/ec2VM"
-	"github.com/DataDog/test-infra-definitions/datadog/agent/docker"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -69,7 +69,7 @@ func NewTestEnv() (*TestEnv, error) {
 				return err
 			}
 			dontUseSudo := false
-			fileCommand, err := filemanager.CopyInlineFile(fileName, pulumi.String(fileContent), path.Join(dataPath, fileName), dontUseSudo,
+			fileCommand, err := filemanager.CopyInlineFile(pulumi.String(fileContent), path.Join(dataPath, fileName), dontUseSudo,
 				pulumi.DependsOn([]pulumi.Resource{createDataDirCommand}))
 			if err != nil {
 				return err
@@ -83,7 +83,7 @@ func NewTestEnv() (*TestEnv, error) {
 		}
 		// edit snmp config file
 		dontUseSudo := false
-		configCommand, err := filemanager.CopyInlineFile("snmp.yaml", pulumi.String(snmpConfig), path.Join(configPath, "snmp.yaml"), dontUseSudo,
+		configCommand, err := filemanager.CopyInlineFile(pulumi.String(snmpConfig), path.Join(configPath, "snmp.yaml"), dontUseSudo,
 			pulumi.DependsOn([]pulumi.Resource{createConfigDirCommand}))
 		if err != nil {
 			return err
@@ -94,7 +94,7 @@ func NewTestEnv() (*TestEnv, error) {
 		composeDependencies := []pulumi.Resource{createDataDirCommand, configCommand}
 		composeDependencies = append(composeDependencies, fileCommands...)
 		_, err = docker.NewAgentDockerInstaller(
-			vm,
+			vm.UnixVM,
 			docker.WithComposeContent(snmpCompose, envVars),
 			docker.WithPulumiResources(pulumi.DependsOn(composeDependencies)),
 		)

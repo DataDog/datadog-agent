@@ -196,7 +196,7 @@ func (a *RegistryAuditor) recoverRegistry() map[string]*RegistryEntry {
 	mr, err := os.ReadFile(a.registryPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Debugf("Could not find state file at %q, will start with default offsets", a.registryPath)
+			log.Infof("Could not find state file at %q, will start with default offsets", a.registryPath)
 		} else {
 			log.Error(err)
 		}

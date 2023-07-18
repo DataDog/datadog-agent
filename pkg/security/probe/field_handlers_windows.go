@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows
-// +build windows
 
 package probe
 
@@ -19,15 +18,20 @@ type FieldHandlers struct {
 	resolvers *resolvers.Resolvers
 }
 
-// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
-func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
+// ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
+func (fh *FieldHandlers) ResolveEventTime(ev *model.Event) time.Time {
 	ev.Timestamp = time.Now()
 	return ev.Timestamp
 }
 
-// GetProcessServiceTag returns the service tag based on the process context
-func (fh *FieldHandlers) GetProcessServiceTag(ev *model.Event) string {
+// GetProcessService returns the service tag based on the process context
+func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
 	return ""
+}
+
+// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
+func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) int {
+	return int(fh.ResolveEventTime(ev).UnixNano())
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
@@ -36,4 +40,14 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.Proce
 		return ev.ProcessCacheEntry, true
 	}
 	return nil, false
+}
+
+// ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
+func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
+	return nil, false
+}
+
+// ResolveHashes resolves the hash of the provided file
+func (fh *FieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+	return nil
 }

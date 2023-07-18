@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -31,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -49,13 +48,14 @@ import (
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
-func SetupHandlers(r *mux.Router, flare flare.Component, server dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) *mux.Router {
+func SetupHandlers(r *mux.Router, flareComp flare.Component, server dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	r.HandleFunc("/stream-logs", streamLogs).Methods("POST")
+	r.HandleFunc("/stream-logs", streamLogs()).Methods("POST")
+	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
@@ -104,8 +104,8 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
-	var profile pkgflare.ProfileData
+func makeFlare(w http.ResponseWriter, r *http.Request, flareComp flare.Component) {
+	var profile flare.ProfileData
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
@@ -124,25 +124,10 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 	conn := GetConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
-	logFile := config.Datadog.GetString("log_file")
-	if logFile == "" {
-		logFile = path.DefaultLogFile
-	}
-	jmxLogFile := config.Datadog.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = path.DefaultJmxLogFile
-	}
-
-	// If we're not in an FX app we fallback to pkgflare implementation. Once all app have been migrated to flare we
-	// could remove this.
 	var filePath string
 	var err error
 	log.Infof("Making a flare")
-	if flare != nil {
-		filePath, err = flare.Create(false, path.GetDistPath(), path.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
-	} else {
-		filePath, err = pkgflare.CreateArchive(false, path.GetDistPath(), path.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
-	}
+	filePath, err = flareComp.Create(profile, nil)
 
 	if err != nil || filePath == "" {
 		if err != nil {
@@ -190,7 +175,8 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the status. Making status.")
-	s, err := status.GetStatus()
+	verbose := r.URL.Query().Get("verbose") == "true"
+	s, err := status.GetStatus(verbose)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
@@ -206,68 +192,78 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-func streamLogs(w http.ResponseWriter, r *http.Request) {
-	log.Info("Got a request for stream logs.")
-	w.Header().Set("Transfer-Encoding", "chunked")
+func streamLogs() func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(logs.GetMessageReceiver, "logs", "logs agent")
+}
 
-	logMessageReceiver := logs.GetMessageReceiver()
+func streamEventPlatform() func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(epforwarder.GetGlobalReceiver, "event platform payloads", "agent")
+}
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		log.Errorf("Expected a Flusher type, got: %v", w)
-		return
-	}
+func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Infof("Got a request to stream %s.", streamType)
+		w.Header().Set("Transfer-Encoding", "chunked")
 
-	if logMessageReceiver == nil {
-		http.Error(w, "The logs agent is not running", 405)
-		flusher.Flush()
-		log.Info("Logs agent is not running - can't stream logs")
-		return
-	}
+		messageReceiver := messageReceiverFunc()
 
-	if !logMessageReceiver.SetEnabled(true) {
-		http.Error(w, "Another client is already streaming logs.", 405)
-		flusher.Flush()
-		log.Info("Logs are already streaming. Dropping connection.")
-		return
-	}
-	defer logMessageReceiver.SetEnabled(false)
-
-	var filters diagnostic.Filters
-
-	if r.Body != http.NoBody {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			log.Errorf("Expected a Flusher type, got: %v", w)
 			return
 		}
 
-		if err := json.Unmarshal(body, &filters); err != nil {
-			http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-			return
-		}
-	}
-
-	// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-	conn := GetConnection(r)
-	_ = conn.SetDeadline(time.Time{})
-
-	done := make(chan struct{})
-	defer close(done)
-	logChan := logMessageReceiver.Filter(&filters, done)
-	flushTimer := time.NewTicker(time.Second)
-	for {
-		// Handlers for detecting a closed connection (from either the server or client)
-		select {
-		case <-w.(http.CloseNotifier).CloseNotify(): //nolint
-			return
-		case <-r.Context().Done():
-			return
-		case line := <-logChan:
-			fmt.Fprint(w, line)
-		case <-flushTimer.C:
-			// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+		if messageReceiver == nil {
+			http.Error(w, fmt.Sprintf("The %s is not running", agentType), 405)
 			flusher.Flush()
+			log.Infof("The %s is not running - can't stream %s", agentType, streamType)
+			return
+		}
+
+		if !messageReceiver.SetEnabled(true) {
+			http.Error(w, fmt.Sprintf("Another client is already streaming %s.", streamType), 405)
+			flusher.Flush()
+			log.Infof("%s are already streaming. Dropping connection.", streamType)
+			return
+		}
+		defer messageReceiver.SetEnabled(false)
+
+		var filters diagnostic.Filters
+
+		if r.Body != http.NoBody {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+				return
+			}
+
+			if err := json.Unmarshal(body, &filters); err != nil {
+				http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+				return
+			}
+		}
+
+		// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
+		conn := GetConnection(r)
+		_ = conn.SetDeadline(time.Time{})
+
+		done := make(chan struct{})
+		defer close(done)
+		logChan := messageReceiver.Filter(&filters, done)
+		flushTimer := time.NewTicker(time.Second)
+		for {
+			// Handlers for detecting a closed connection (from either the server or client)
+			select {
+			case <-w.(http.CloseNotifier).CloseNotify(): //nolint
+				return
+			case <-r.Context().Done():
+				return
+			case line := <-logChan:
+				fmt.Fprint(w, line)
+			case <-flushTimer.C:
+				// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
+				flusher.Flush()
+			}
 		}
 	}
 }

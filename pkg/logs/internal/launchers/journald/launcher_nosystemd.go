@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !systemd
-// +build !systemd
 
 package journald
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
@@ -23,7 +23,7 @@ func NewLauncher() *Launcher {
 }
 
 // Start does nothing
-func (l *Launcher) Start(sources launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry) {
+func (l *Launcher) Start(sources launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 }
 
 // Stop does nothing

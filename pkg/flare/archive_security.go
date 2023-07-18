@@ -14,21 +14,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// for testing purpose
+var linuxKernelSymbols = getLinuxKernelSymbols
+
 // CreateSecurityAgentArchive packages up the files
 func CreateSecurityAgentArchive(local bool, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}) (string, error) {
-	fb, err := flarehelpers.NewFlareBuilder()
+	fb, err := flarehelpers.NewFlareBuilder(local)
 	if err != nil {
 		return "", err
 	}
-	createSecurityAgentArchive(fb, local, logFilePath, runtimeStatus, complianceStatus)
+	createSecurityAgentArchive(fb, logFilePath, runtimeStatus, complianceStatus)
 
 	return fb.Save()
 }
 
 // createSecurityAgentArchive packages up the files
-func createSecurityAgentArchive(fb flarehelpers.FlareBuilder, local bool, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}) {
+func createSecurityAgentArchive(fb flarehelpers.FlareBuilder, logFilePath string, runtimeStatus, complianceStatus map[string]interface{}) {
 	// If the request against the API does not go through we don't collect the status log.
-	if local {
+	if fb.IsLocal() {
 		fb.AddFile("local", []byte(""))
 	} else {
 		// The Status will be unavailable unless the agent is running.
@@ -43,12 +46,12 @@ func createSecurityAgentArchive(fb flarehelpers.FlareBuilder, local bool, logFil
 	}
 
 	getLogFiles(fb, logFilePath)
-	getConfigFiles(fb, SearchPaths{})
+	getConfigFiles(fb, searchPaths{})
 	getComplianceFiles(fb) //nolint:errcheck
 	getRuntimeFiles(fb)    //nolint:errcheck
 	getExpVar(fb)          //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
-	getLinuxKernelSymbols(fb)                   //nolint:errcheck
+	linuxKernelSymbols(fb)                      //nolint:errcheck
 	getLinuxPid1MountInfo(fb)                   //nolint:errcheck
 	getLinuxDmesg(fb)                           //nolint:errcheck
 	getLinuxKprobeEvents(fb)                    //nolint:errcheck

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build python
-// +build python
 
 package python
 
@@ -12,8 +11,9 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	chk "github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,7 +31,7 @@ import "C"
 func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
 
-	sender, err := aggregator.GetSender(chk.ID(goCheckID))
+	sender, err := aggregator.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -67,14 +67,14 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.char, hostname *C.char, message *C.char) {
 	goCheckID := C.GoString(checkID)
 
-	sender, err := aggregator.GetSender(chk.ID(goCheckID))
+	sender, err := aggregator.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
 	}
 
 	_name := C.GoString(scName)
-	_status := metrics.ServiceCheckStatus(status)
+	_status := servicecheck.ServiceCheckStatus(status)
 	_tags := cStringArrayToSlice(tags)
 	_hostname := C.GoString(hostname)
 	_message := C.GoString(message)
@@ -96,19 +96,19 @@ func eventParseString(value *C.char, fieldName string) string {
 func SubmitEvent(checkID *C.char, event *C.event_t) {
 	goCheckID := C.GoString(checkID)
 
-	sender, err := aggregator.GetSender(chk.ID(goCheckID))
+	sender, err := aggregator.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
 	}
 
-	_event := metrics.Event{
+	_event := metricsevent.Event{
 		Title:          eventParseString(event.title, "msg_title"),
 		Text:           eventParseString(event.text, "msg_text"),
-		Priority:       metrics.EventPriority(eventParseString(event.priority, "priority")),
+		Priority:       metricsevent.EventPriority(eventParseString(event.priority, "priority")),
 		Host:           eventParseString(event.host, "host"),
 		Tags:           cStringArrayToSlice(event.tags),
-		AlertType:      metrics.EventAlertType(eventParseString(event.alert_type, "alert_type")),
+		AlertType:      metricsevent.EventAlertType(eventParseString(event.alert_type, "alert_type")),
 		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
 		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
 		Ts:             int64(event.ts),
@@ -123,7 +123,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 //export SubmitHistogramBucket
 func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
 	goCheckID := C.GoString(checkID)
-	sender, err := aggregator.GetSender(chk.ID(goCheckID))
+	sender, err := aggregator.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting histogram bucket to the Sender: %v", err)
 		return
@@ -146,7 +146,7 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 //export SubmitEventPlatformEvent
 func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize C.int, eventType *C.char) {
 	_checkID := C.GoString(checkID)
-	sender, err := aggregator.GetSender(chk.ID(_checkID))
+	sender, err := aggregator.GetSender(checkid.ID(_checkID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting event platform event to the Sender: %v", err)
 		return

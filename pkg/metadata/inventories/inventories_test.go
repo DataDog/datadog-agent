@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
-// +build !windows
 
 package inventories
 
@@ -18,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -94,7 +94,7 @@ func TestGetPayloadForExpvar(t *testing.T) {
 	coll := mockCollector{[]check.Info{
 		check.MockInfo{
 			Name:         "check1",
-			CheckID:      check.ID("check1_instance1"),
+			CheckID:      checkid.ID("check1_instance1"),
 			Source:       "provider1",
 			InitConf:     "",
 			InstanceConf: "{\"test\":21}",
@@ -135,21 +135,21 @@ func TestGetPayload(t *testing.T) {
 	coll := mockCollector{[]check.Info{
 		check.MockInfo{
 			Name:         "check1",
-			CheckID:      check.ID("check1_instance1"),
+			CheckID:      checkid.ID("check1_instance1"),
 			Source:       "provider1",
 			InitConf:     "",
 			InstanceConf: "{}",
 		},
 		check.MockInfo{
 			Name:         "check1",
-			CheckID:      check.ID("check1_instance2"),
+			CheckID:      checkid.ID("check1_instance2"),
 			Source:       "provider1",
 			InitConf:     "",
 			InstanceConf: "{\"test\":21}",
 		},
 		check.MockInfo{
 			Name:         "check2",
-			CheckID:      check.ID("check2_instance1"),
+			CheckID:      checkid.ID("check2_instance1"),
 			Source:       "provider2",
 			InitConf:     "",
 			InstanceConf: "{}",
@@ -296,6 +296,8 @@ func TestGetPayload(t *testing.T) {
 			"agent_version": "%v",
 			"cloud_provider": "some_cloud_provider",
 			"cloud_provider_source": "",
+			"cloud_provider_account_id": "",
+			"cloud_provider_host_id": "",
 			"os_version": "testOS",
 			"hypervisor_guest_uuid": "hypervisorUUID",
 			"dmi_product_uuid": "dmiUUID",

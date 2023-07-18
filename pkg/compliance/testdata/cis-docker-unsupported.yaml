@@ -1,6 +1,0 @@
-schema:
-  version: 1.2
-name: CIS Docker Generic
-framework: cis-docker
-version: 1.2.0
-

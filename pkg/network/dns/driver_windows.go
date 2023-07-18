@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package dns
 
@@ -151,10 +150,6 @@ func (d *dnsDriver) Close() error {
 	}
 	d.readBuffers = nil
 	return nil
-}
-
-func (d *dnsDriver) GetStatsForHandle() (map[string]map[string]int64, error) {
-	return d.h.GetStatsForHandle()
 }
 
 func createDNSFilters() ([]driver.FilterDefinition, error) {

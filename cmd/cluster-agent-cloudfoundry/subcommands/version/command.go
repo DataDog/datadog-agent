@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows && clusterchecks
-// +build !windows,clusterchecks
 
 // Package version implements 'cluster-agent version'.
 package version

@@ -20,14 +20,13 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func writerTest(t *testing.T, z bool) {
 	fs := afero.NewMemMapFs()
-
 	// setup directory
 	fs.MkdirAll("foo/bar", 0777)
 	file, path, err := OpenFile(fs, "foo/bar", "")

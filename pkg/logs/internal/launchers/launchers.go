@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -24,6 +25,9 @@ type Launchers struct {
 	// registry will be given to launchers' Start method.
 	registry auditor.Registry
 
+	// tailers will be given to launchers' Start method.
+	tracker *tailers.TailerTracker
+
 	// launchers is the set of running launchers
 	launchers []Launcher
 
@@ -36,11 +40,13 @@ func NewLaunchers(
 	sources *sources.LogSources,
 	pipelineProvider pipeline.Provider,
 	registry auditor.Registry,
+	tracker *tailers.TailerTracker,
 ) *Launchers {
 	return &Launchers{
 		sourceProvider:   sources,
 		pipelineProvider: pipelineProvider,
 		registry:         registry,
+		tracker:          tracker,
 	}
 }
 
@@ -49,14 +55,14 @@ func NewLaunchers(
 func (ls *Launchers) AddLauncher(launcher Launcher) {
 	ls.launchers = append(ls.launchers, launcher)
 	if ls.started {
-		launcher.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry)
+		launcher.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tracker)
 	}
 }
 
 // Start starts all launchers in the collection.
 func (ls *Launchers) Start() {
 	for _, s := range ls.launchers {
-		s.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry)
+		s.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tracker)
 	}
 	ls.started = true
 }

@@ -93,6 +93,11 @@ var projectIDFetcher = cachedfetch.Fetcher{
 	},
 }
 
+// GetProjectID returns the project ID of the current GCE instance
+func GetProjectID(ctx context.Context) (string, error) {
+	return projectIDFetcher.FetchString(ctx)
+}
+
 func getInstanceAlias(ctx context.Context, hostname string) (string, error) {
 	instanceName, err := nameFetcher.FetchString(ctx)
 	if err != nil {

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux && linux_bpf
-// +build linux,linux_bpf
 
 package constantfetch
 
@@ -35,13 +34,13 @@ var (
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          offsetGuesserUID,
-				EBPFFuncName: "kprobe_get_pid_task_numbers",
+				EBPFFuncName: "hook_get_pid_task_numbers",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          offsetGuesserUID + "_a",
-				EBPFFuncName: "kprobe_get_pid_task_offset",
+				EBPFFuncName: "hook_get_pid_task_offset",
 			},
 		},
 	}
@@ -191,7 +190,10 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 		},
 	}
 
-	for _, probe := range probes.AllProbes() {
+	for _, probe := range probes.AllProbes(true) {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
+	}
+	for _, probe := range probes.AllProbes(false) {
 		options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
 	}
 	options.ExcludedFunctions = append(options.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)

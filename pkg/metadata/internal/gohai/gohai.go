@@ -9,11 +9,11 @@ import (
 	"net"
 	"sync"
 
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/filesystem"
-	"github.com/DataDog/gohai/memory"
-	"github.com/DataDog/gohai/network"
-	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
+	"github.com/DataDog/datadog-agent/pkg/gohai/network"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,7 +48,7 @@ func getGohaiInfo() *gohai {
 		log.Errorf("Failed to retrieve filesystem metadata: %s", err)
 	}
 
-	memoryPayload, err := new(memory.Memory).Collect()
+	memoryPayload, _, err := memory.CollectInfo().AsJSON()
 	if err == nil {
 		res.Memory = memoryPayload
 	} else {
@@ -64,7 +64,7 @@ func getGohaiInfo() *gohai {
 		}
 	}
 
-	platformPayload, err := new(platform.Platform).Collect()
+	platformPayload, _, err := platform.CollectInfo().AsJSON()
 	if err == nil {
 		res.Platform = platformPayload
 	} else {

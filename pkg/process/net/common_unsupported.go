@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !linux && !windows
-// +build !linux,!windows
 
 package net
 
@@ -19,18 +18,13 @@ var _ SysProbeUtil = &RemoteSysProbeUtil{}
 // RemoteSysProbeUtil is not supported
 type RemoteSysProbeUtil struct{}
 
-// SetSystemProbePath is not supported
-func SetSystemProbePath(_ string) {
-	// no-op
-}
-
 // CheckPath is not supported
-func CheckPath() error {
+func CheckPath(path string) error {
 	return ebpf.ErrNotImplemented
 }
 
 // GetRemoteSystemProbeUtil is not supported
-func GetRemoteSystemProbeUtil() (*RemoteSysProbeUtil, error) {
+func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
 	return &RemoteSysProbeUtil{}, ebpf.ErrNotImplemented
 }
 

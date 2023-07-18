@@ -4,7 +4,6 @@
 // Copyright 2017-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package autoscalers
 
@@ -100,9 +99,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 					Timestamp: 110,
 				},
 				"my.aws.metric{ba:bar}": {
-					Value:     0.0,
-					Valid:     false,
-					Timestamp: time.Now().Unix(),
+					Value:     3.0,
+					Valid:     true,
+					Timestamp: 110,
 				},
 			},
 			nil,
@@ -175,9 +174,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 					Timestamp: 110,
 				},
 				"my.aws.metric{ba:bar}": {
-					Value:     0.0,
-					Valid:     false,
-					Timestamp: time.Now().Unix(),
+					Value:     3.0,
+					Valid:     true,
+					Timestamp: 110,
 				},
 			},
 			nil,
@@ -237,9 +236,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 					Timestamp: time.Now().Unix(),
 				},
 				"my.aws.metric{ba:bar}": {
-					Value:     0.0,
-					Valid:     false,
-					Timestamp: time.Now().Unix(),
+					Value:     3.0,
+					Valid:     true,
+					Timestamp: 110,
 				},
 			},
 			nil,

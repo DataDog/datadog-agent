@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -39,6 +39,7 @@ func TestProfileWithSysObjectIdDetection(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
+collect_topology: false
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -339,6 +340,7 @@ func TestDetectMetricsToCollect(t *testing.T) {
 ip_address: 1.2.3.4
 community_string: public
 experimental_detect_metrics_enabled: true
+collect_topology: false
 `)
 	// language=yaml
 	rawInitConfig := []byte(``)
@@ -659,10 +661,10 @@ experimental_detect_metrics_enabled: true
 
 	expectedMetrics := []checkconfig.MetricsConfig{
 		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, MetricType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
 		{
-			ForcedType: "monotonic_count",
+			MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
 			Symbols: []checkconfig.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
@@ -674,7 +676,7 @@ experimental_detect_metrics_enabled: true
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
-		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, MetricType: checkconfig.ProfileMetricTypeGauge},
 	}
 
 	expectedMetricTags := []checkconfig.MetricTagConfig{
@@ -868,6 +870,7 @@ func TestDynamicTagsAreSaved(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
+collect_topology: false
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -1135,7 +1138,7 @@ profiles:
 	snmpTags := []string{"snmp_device:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
 		"static_tag:from_profile_root", "some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
 
-	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
+	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
 	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 1., "", snmpTags)
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", snmpTags)
 	assert.Equal(t, false, deviceCk.config.AutodetectProfile)
@@ -1144,7 +1147,7 @@ profiles:
 	err = deviceCk.Run(time.Now())
 
 	assert.Error(t, err, "some error")
-	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", metrics.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
+	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 1., "", snmpTags)
 	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 0., "", snmpTags)
 }
@@ -1238,10 +1241,10 @@ community_string: public
 	expectedMetricsConfigs := []checkconfig.MetricsConfig{
 		{
 			Symbol:     checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2},
-			ForcedType: "gauge",
+			MetricType: checkconfig.ProfileMetricTypeGauge,
 		},
 		{
-			ForcedType: "monotonic_count",
+			MetricType: checkconfig.ProfileMetricTypeMonotonicCount,
 			Symbols: []checkconfig.SymbolConfig{
 				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},

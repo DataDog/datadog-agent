@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 
@@ -130,9 +130,9 @@ func getHostInfo() *InfoStat {
 
 	info.KernelArch = runtime.GOARCH
 
-	pi, _ := platform.GetArchInfo()
-	info.Platform = pi["os"]
-	info.PlatformFamily = pi["os"]
+	pi := platform.CollectInfo()
+	info.Platform, _ = pi.OS.Value()
+	info.PlatformFamily, _ = pi.OS.Value()
 
 	info.PlatformVersion, _ = winutil.GetWindowsBuildString()
 	info.HostID = common.GetUUID()

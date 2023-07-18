@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -182,7 +183,9 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 
 	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
 	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
-	pkgconfig.Datadog.Set("container_image_collection.sbom.enabled", "false")
+	pkgconfig.Datadog.Set("sbom.host.enabled", "false")
+	pkgconfig.Datadog.Set("sbom.container_image.enabled", "false")
+	pkgconfig.Datadog.Set("runtime_security_config.sbom.enabled", "false")
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -195,7 +198,7 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	opts.FlushInterval = 0
 	opts.UseNoopEventPlatformForwarder = true
 	opts.UseNoopOrchestratorForwarder = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(forwarder, opts, hostnameDetected)
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
 
 	common.LoadComponents(context.Background(), pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
@@ -506,8 +509,8 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	return nil
 }
 
-func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *check.Stats {
-	s := check.NewStats(c)
+func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
+	s := stats.NewStats(c)
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
 	if cliParams.checkRate {

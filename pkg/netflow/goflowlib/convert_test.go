@@ -51,6 +51,7 @@ func TestConvertFlow(t *testing.T) {
 	srcFlow := flowpb.FlowMessage{
 		Type:           flowpb.FlowMessage_NETFLOW_V9,
 		TimeReceived:   1234567,
+		SequenceNum:    20,
 		SamplingRate:   10,
 		FlowDirection:  1,
 		SamplerAddress: []byte{127, 0, 0, 1},
@@ -70,12 +71,13 @@ func TestConvertFlow(t *testing.T) {
 		DstPort:        uint32(80),
 		InIf:           10,
 		OutIf:          20,
-		IPTos:          3,
+		IpTos:          3,
 		NextHop:        []byte{10, 10, 10, 30},
 	}
 	expectedFlow := common.Flow{
 		Namespace:       "my-ns",
 		FlowType:        common.TypeNetFlow9,
+		SequenceNum:     20,
 		SamplingRate:    10,
 		Direction:       1,
 		ExporterAddr:    []byte{127, 0, 0, 1},

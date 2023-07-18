@@ -1,11 +1,6 @@
 root_dir = "/tmp/ci/system-probe"
 tests_dir = ::File.join(root_dir, "tests")
 
-file "/tmp/color_idx" do
-  content node[:color_idx].to_s
-  mode 644
-end
-
 if platform?('centos')
   case node['platform_version'].to_i
   when 7
@@ -67,6 +62,8 @@ package 'netcat' do
     package_name 'nmap-ncat'
   when 'redhat', 'centos', 'fedora'
     package_name 'nc'
+  when 'debian', 'ubuntu'
+    package_name 'netcat-openbsd'
   else
     package_name 'netcat'
   end
@@ -80,7 +77,7 @@ package 'curl' do
   case node[:platform]
   when 'amazon'
     case node[:platform_version]
-    when '2022'
+    when '2022', '2023'
       package_name 'curl-minimal'
     else
       package_name 'curl'

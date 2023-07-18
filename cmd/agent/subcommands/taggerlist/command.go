@@ -18,8 +18,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := taggerlistcmd.MakeCommand(func() taggerlistcmd.GlobalParams {
 		return taggerlistcmd.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
-			ConfigName:   "datadog",
-			LoggerName:   "CORE",
+			ConfigName:   command.ConfigName,
+			LoggerName:   command.LoggerName,
 		}
 	})
 

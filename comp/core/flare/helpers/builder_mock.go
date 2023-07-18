@@ -20,10 +20,10 @@ type FlareBuilderMock struct {
 	t    *testing.T
 }
 
-func NewFlareBuilderMock(t *testing.T) *FlareBuilderMock {
+func NewFlareBuilderMock(t *testing.T, local bool) *FlareBuilderMock {
 	root := t.TempDir()
 
-	builder, err := newBuilder(root, "test-hostname")
+	builder, err := newBuilder(root, "test-hostname", local)
 	require.NoError(t, err)
 
 	fb := &FlareBuilderMock{

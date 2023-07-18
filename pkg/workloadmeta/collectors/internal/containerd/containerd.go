@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build containerd
-// +build containerd
 
 package containerd
 
@@ -363,7 +362,7 @@ func (c *collector) ignoreContainer(namespace string, container containerd.Conta
 	}
 
 	// Only the image name is relevant to exclude paused containers
-	return c.filterPausedContainers.IsExcluded("", info.Image, ""), nil
+	return c.filterPausedContainers.IsExcluded(nil, "", info.Image, ""), nil
 }
 
 func subscribeFilters() []string {
@@ -396,5 +395,5 @@ func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time)
 }
 
 func imageMetadataCollectionIsEnabled() bool {
-	return config.Datadog.GetBool("container_image_collection.metadata.enabled")
+	return config.Datadog.GetBool("container_image.enabled")
 }

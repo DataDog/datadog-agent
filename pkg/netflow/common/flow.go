@@ -16,6 +16,7 @@ import (
 type Flow struct {
 	Namespace    string
 	FlowType     FlowType
+	SequenceNum  uint32
 	SamplingRate uint64
 	Direction    uint32
 

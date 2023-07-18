@@ -27,6 +27,7 @@ USM_EVENTS_INIT(<protocol>, <event_type>, <batch_size>);
 This will instantiate the necessary eBPF maps along with two functions:
 * `<protocol>_batch_enqueue`;
 * `<protocol>_batch_flush`;
+* `is_<protocol>_monitoring_enabled`;
 
 Please note that `<protocol>_batch_flush` requires access to the
 `bpf_perf_event_output` helper, which is typically not available to socket
@@ -55,7 +56,7 @@ As an example this is how HTTP integration does it:
 
 ```go
 func callback(data []byte) {
-	event := (*ebpfHttpTx)(unsafe.Pointer(&data[0]))
+	event := (*EbpfTx)(unsafe.Pointer(&data[0]))
 	...
 }
 ```

@@ -4,24 +4,24 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build trivy
-// +build trivy
 
 package trivy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 // telemetryTick is the frequency at which the cache usage metrics are collected.
@@ -211,9 +211,10 @@ func (c *TrivyCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
 	return trivyCachePut(c, blobID, blobInfo)
 }
 
-// Implements cache.Cache#DeleteBlobs
+// Implements cache.Cache#DeleteBlobs does nothing because the cache cleaning logic is
+// managed by CacheCleaner
 func (c *TrivyCache) DeleteBlobs(blobIDs []string) error {
-	return c.Cache.Remove(blobIDs)
+	return nil
 }
 
 // Implements cache.Cache#Clear
@@ -238,7 +239,7 @@ func (c *TrivyCache) GetBlob(id string) (types.BlobInfo, error) {
 
 // PersistentCache is a cache that uses a persistent database for storage.
 type PersistentCache struct {
-	lruCache                     *simplelru.LRU
+	lruCache                     *simplelru.LRU[string, struct{}]
 	db                           PersistentDB
 	mutex                        sync.RWMutex
 	currentCachedObjectTotalSize int
@@ -259,8 +260,8 @@ func NewPersistentCache(
 		maximumCachedObjectSize:      maxCachedObjectSize,
 	}
 
-	lruCache, err := simplelru.NewLRU(maxCacheSize, func(key interface{}, _ interface{}) {
-		persistentCache.lastEvicted = key.(string)
+	lruCache, err := simplelru.NewLRU(maxCacheSize, func(key string, _ struct{}) {
+		persistentCache.lastEvicted = key
 	})
 	if err != nil {
 		return nil, err
@@ -311,7 +312,7 @@ func (c *PersistentCache) Keys() []string {
 	defer c.mutex.RUnlock()
 	keys := make([]string, c.lruCache.Len())
 	for i, key := range c.lruCache.Keys() {
-		keys[i] = key.(string)
+		keys[i] = key
 	}
 	return keys
 }
@@ -494,7 +495,7 @@ func (c *PersistentCache) removeOldestKeyFromMemory() (string, bool) {
 	if ok {
 		telemetry.SBOMCacheEntries.Dec()
 	}
-	return key.(string), ok
+	return key, ok
 }
 
 // GetCurrentCachedObjectTotalSize returns the current cached object total size.
@@ -523,4 +524,86 @@ func (cache *PersistentCache) collectTelemetry() {
 		log.Errorf("could not collect telemetry: %v", err)
 	}
 	telemetry.SBOMCacheDiskSize.Set(float64(diskSize))
+}
+
+type memoryCache struct {
+	blobInfo *struct {
+		*types.BlobInfo
+		id string
+	}
+	artifactInfo *struct {
+		*types.ArtifactInfo
+		id string
+	}
+}
+
+func (c *memoryCache) MissingBlobs(artifactID string, blobIDs []string) (missingArtifact bool, missingBlobIDs []string, err error) {
+	for _, blobID := range blobIDs {
+		if _, err := c.GetBlob(blobID); err != nil {
+			missingBlobIDs = append(missingBlobIDs, blobID)
+		}
+	}
+
+	if _, err := c.GetArtifact(artifactID); err != nil {
+		missingArtifact = true
+	}
+
+	return
+}
+
+func (c *memoryCache) PutArtifact(artifactID string, artifactInfo types.ArtifactInfo) (err error) {
+	c.artifactInfo = &struct {
+		*types.ArtifactInfo
+		id string
+	}{
+		id:           artifactID,
+		ArtifactInfo: &artifactInfo,
+	}
+	return nil
+}
+
+func (c *memoryCache) PutBlob(blobID string, blobInfo types.BlobInfo) (err error) {
+	c.blobInfo = &struct {
+		*types.BlobInfo
+		id string
+	}{
+		id:       blobID,
+		BlobInfo: &blobInfo,
+	}
+	return nil
+}
+
+func (c *memoryCache) DeleteBlobs(blobIDs []string) error {
+	if c.blobInfo != nil {
+		for _, blobID := range blobIDs {
+			if blobID == c.blobInfo.id {
+				c.blobInfo = nil
+			}
+		}
+	}
+	return nil
+}
+
+func (c *memoryCache) GetArtifact(artifactID string) (artifactInfo types.ArtifactInfo, err error) {
+	if c.artifactInfo != nil && c.artifactInfo.id == artifactID {
+		return *c.artifactInfo.ArtifactInfo, nil
+	}
+	return types.ArtifactInfo{}, nil
+}
+
+func (c *memoryCache) GetBlob(blobID string) (blobInfo types.BlobInfo, err error) {
+	if c.blobInfo != nil && c.blobInfo.id == blobID {
+		return *c.blobInfo.BlobInfo, nil
+	}
+	return types.BlobInfo{}, errors.New("not found")
+}
+
+func (c *memoryCache) Close() (err error) {
+	c.artifactInfo = nil
+	c.blobInfo = nil
+	return nil
+}
+
+func (c *memoryCache) Clear() (err error) {
+	return c.Close()
 }

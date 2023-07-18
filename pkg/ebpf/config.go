@@ -8,6 +8,7 @@ package ebpf
 import (
 	"strings"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -83,6 +84,8 @@ func key(pieces ...string) string {
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
 	cfg := aconfig.SystemProbe
+	sysconfig.Adjust(cfg)
+
 	return &Config{
 		BPFDebug:                 cfg.GetBool(key(spNS, "bpf_debug")),
 		BPFDir:                   cfg.GetString(key(spNS, "bpf_dir")),

@@ -50,6 +50,7 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		scrubber:          procutil.NewDefaultDataScrubber(),
 		hostInfo:          hostInfo,
 		containerProvider: mockContainerProvider(t),
+		sysProbeConfig:    &SysProbeConfig{},
 		checkCount:        0,
 		skipAmount:        2,
 	}, probe

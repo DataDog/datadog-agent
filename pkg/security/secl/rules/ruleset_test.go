@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package rules
 
@@ -26,7 +25,21 @@ type testHandler struct {
 	filters map[string]testFieldValues
 }
 
-func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) {
+// SetRuleSetTag sets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set. This method is only used for testing.
+func (rs *RuleSet) setRuleSetTagValue(value eval.RuleSetTagValue) error {
+	if len(rs.GetRules()) > 0 {
+		return ErrCannotChangeTagAfterLoading
+	}
+	if _, ok := rs.opts.RuleSetTag[RuleSetTagKey]; !ok {
+		rs.opts.RuleSetTag = map[string]eval.RuleSetTagValue{RuleSetTagKey: ""}
+	}
+	rs.opts.RuleSetTag[RuleSetTagKey] = value
+
+	return nil
+}
+
+func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) bool {
+	return true
 }
 
 func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string, eventType eval.EventType) {

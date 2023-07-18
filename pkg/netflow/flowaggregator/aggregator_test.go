@@ -41,7 +41,7 @@ import (
 
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
-
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -84,6 +84,7 @@ func TestAggregator(t *testing.T) {
 	// language=json
 	event := []byte(`
 {
+  "flush_timestamp": 1550505606000,
   "type": "netflow9",
   "sampling_rate": 0,
   "direction": "ingress",
@@ -159,9 +160,8 @@ func TestAggregator(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	aggregator.timeNowFunction = func() time.Time {
-		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
-		return t
+	aggregator.TimeNowFunction = func() time.Time {
+		return flushTime
 	}
 	inChan := aggregator.GetFlowInChan()
 
@@ -209,7 +209,8 @@ stopLoop:
 }
 
 func TestAggregator_withMockPayload(t *testing.T) {
-	port := uint16(52056)
+	port := testutil.GetFreePort()
+	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -231,12 +232,10 @@ func TestAggregator_withMockPayload(t *testing.T) {
 			},
 		},
 	}
-	now := time.Now()
-
 	ctrl := gomock.NewController(t)
 	epForwarder := epforwarder.NewMockEventPlatformForwarder(ctrl)
 
-	testutil.ExpectNetflow5Payloads(t, epForwarder, now, "my-hostname", 6)
+	testutil.ExpectNetflow5Payloads(t, epForwarder)
 
 	// language=json
 	metadataEvent := []byte(fmt.Sprintf(`
@@ -260,9 +259,8 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	aggregator.timeNowFunction = func() time.Time {
-		t, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
-		return t
+	aggregator.TimeNowFunction = func() time.Time {
+		return flushTime
 	}
 
 	stoppedFlushLoop := make(chan struct{})
@@ -281,26 +279,29 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
 
-	mockNetflowPayload := testutil.GenerateNetflow5Packet(now, 6)
-	err = testutil.SendUDPPacket(port, testutil.BuildNetFlow5Payload(mockNetflowPayload))
+	packetData, err := testutil.GetNetFlow5Packet()
+	require.NoError(t, err, "error getting packet")
+	err = testutil.SendUDPPacket(port, packetData)
 	require.NoError(t, err, "error sending udp packet")
 
-	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 3*time.Second, 6)
+	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 3*time.Second, 2)
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(6), netflowEvents)
+	assert.Equal(t, uint64(2), netflowEvents)
 
-	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 6, "", nil)
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 6, "", nil)
-	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 6, "", nil)
-	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 12, "", nil)
-	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.new_store_size", 12, "", nil)
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 2, "", nil)
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 2, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 2, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 4, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.new_store_size", 4, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.capacity", 20, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.length", 0, "", nil)
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.sequence.delta", 0, "", []string{"exporter_ip:127.0.0.1", "device_namespace:default", "flow_type:netflow5"})
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.sequence.last", 94, "", []string{"exporter_ip:127.0.0.1", "device_namespace:default", "flow_type:netflow5"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.decoder.messages", 1, "", []string{"collector_type:netflow5", "worker:0"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flows", 1, "", []string{"device_ip:127.0.0.1", "version:5", "flow_protocol:netflow"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flowsets", 6, "", []string{"device_ip:127.0.0.1", "type:data_flow_set", "version:5", "flow_protocol:netflow"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.bytes", 312, "", []string{"listener_port:52056", "device_ip:127.0.0.1", "collector_type:netflow5"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.packets", 1, "", []string{"listener_port:52056", "device_ip:127.0.0.1", "collector_type:netflow5"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.processed", 1, "", []string{"exporter_ip:127.0.0.1", "version:5", "flow_protocol:netflow"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flowsets", 2, "", []string{"exporter_ip:127.0.0.1", "type:data_flow_set", "version:5", "flow_protocol:netflow"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.bytes", 120, "", []string{fmt.Sprintf("listener_port:%d", port), "exporter_ip:127.0.0.1", "collector_type:netflow5"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.packets", 1, "", []string{fmt.Sprintf("listener_port:%d", port), "exporter_ip:127.0.0.1", "collector_type:netflow5"})
 
 	flowState.Shutdown()
 	aggregator.Stop()
@@ -853,4 +854,296 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 
 	// call sendExporterMetadata does not trigger any call to epForwarder.SendEventPlatformEventBlocking(...)
 	aggregator.sendExporterMetadata(flows, now)
+}
+
+func TestFlowAggregator_getSequenceDelta(t *testing.T) {
+	type round struct {
+		flowsToFlush          []*common.Flow
+		expectedSequenceDelta map[SequenceDeltaKey]SequenceDeltaValue
+	}
+	tests := []struct {
+		name   string
+		rounds []round
+	}{
+		{
+			name: "multiple namespaces",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10,
+							FlowType:     common.TypeNetFlow5,
+						},
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  20,
+							FlowType:     common.TypeNetFlow5,
+						},
+						{
+							Namespace:    "ns2",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  30,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 20, Delta: 0},
+						{FlowType: common.TypeNetFlow5, Namespace: "ns2", ExporterIP: "127.0.0.11"}: {LastSequence: 30, Delta: 0},
+					},
+				},
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  30,
+							FlowType:     common.TypeNetFlow5,
+						},
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  40,
+							FlowType:     common.TypeNetFlow5,
+						},
+						{
+							Namespace:    "ns2",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  60,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 40, Delta: 20},
+						{FlowType: common.TypeNetFlow5, Namespace: "ns2", ExporterIP: "127.0.0.11"}: {LastSequence: 60, Delta: 30},
+					},
+				},
+			},
+		},
+		{
+			name: "sequence reset",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
+					},
+				},
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  100,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 100, Delta: 100, Reset: true},
+					},
+				},
+			},
+		},
+		{
+			name: "negative delta and sequence reset for netflow5",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
+					},
+				},
+				{ // trigger sequence reset since delta -1100 is less than -1000
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  8900,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900, Reset: true},
+					},
+				},
+				{ // negative delta without sequence reset
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  8500,
+							FlowType:     common.TypeNetFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8500, Delta: 0},
+					},
+				},
+			},
+		},
+		{
+			name: "negative delta and sequence reset for sflow5",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeSFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
+					},
+				},
+				{ // trigger sequence reset since delta -1100 is less than -1000
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  8900,
+							FlowType:     common.TypeSFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8900, Delta: 8900, Reset: true},
+					},
+				},
+				{ // negative delta without sequence reset
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  8500,
+							FlowType:     common.TypeSFlow5,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeSFlow5, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 8500, Delta: 0},
+					},
+				},
+			},
+		},
+		{
+			name: "negative delta and sequence reset for netflow9",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeNetFlow9,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
+					},
+				},
+				{ // trigger sequence reset since delta -200 is less than -100
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  9800,
+							FlowType:     common.TypeNetFlow9,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800, Reset: true},
+					},
+				},
+				{ // negative delta without sequence reset
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  9750,
+							FlowType:     common.TypeNetFlow9,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeNetFlow9, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9750, Delta: 0},
+					},
+				},
+			},
+		},
+		{
+			name: "negative delta and sequence reset for IPFIX",
+			rounds: []round{
+				{
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  10000,
+							FlowType:     common.TypeIPFIX,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 10000, Delta: 0},
+					},
+				},
+				{ // trigger sequence reset since delta -200 is less than -100
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  9800,
+							FlowType:     common.TypeIPFIX,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9800, Delta: 9800, Reset: true},
+					},
+				},
+				{ // negative delta without sequence reset
+					flowsToFlush: []*common.Flow{
+						{
+							Namespace:    "ns1",
+							ExporterAddr: []byte{127, 0, 0, 11},
+							SequenceNum:  9750,
+							FlowType:     common.TypeIPFIX,
+						},
+					},
+					expectedSequenceDelta: map[SequenceDeltaKey]SequenceDeltaValue{
+						{FlowType: common.TypeIPFIX, Namespace: "ns1", ExporterIP: "127.0.0.11"}: {LastSequence: 9750, Delta: 0},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := mocksender.NewMockSender("")
+			conf := config.NetflowConfig{
+				StopTimeout:                            10,
+				AggregatorBufferSize:                   20,
+				AggregatorFlushInterval:                1,
+				AggregatorPortRollupThreshold:          10,
+				AggregatorRollupTrackerRefreshInterval: 3600,
+			}
+			agg := NewFlowAggregator(sender, nil, &conf, "my-hostname")
+			for roundNum, testRound := range tt.rounds {
+				assert.Equal(t, testRound.expectedSequenceDelta, agg.getSequenceDelta(testRound.flowsToFlush), fmt.Sprintf("Test Round %d", roundNum))
+			}
+		})
+	}
 }

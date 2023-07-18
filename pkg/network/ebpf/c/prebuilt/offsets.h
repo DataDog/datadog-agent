@@ -2,9 +2,9 @@
 #define __OFFSETS_H
 
 #include "ktypes.h"
+#include "compiler.h"
 
 #include "defs.h"
-#include "sock.h"
 
 static __always_inline bool dns_stats_enabled() {
     __u64 val = 0;
@@ -136,6 +136,12 @@ static __always_inline __u64 offset_socket_sk() {
      __u64 val = 0;
      LOAD_CONSTANT("offset_socket_sk", val);
      return val;
+}
+
+static __always_inline __u64 offset_sk_buff_sock() {
+    __u64 val = 0;
+    LOAD_CONSTANT("offset_sk_buff_sock", val);
+    return val;
 }
 
 #endif // __OFFSETS_H

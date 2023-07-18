@@ -4,13 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubelet
-// +build kubelet
 
 package kubelet
 
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -392,6 +392,8 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.StartTLS()
+	defer os.Remove(kubelet.testingCertificate)
+	defer os.Remove(kubelet.testingPrivateKey)
 	require.Nil(suite.T(), err)
 	defer ts.Close()
 

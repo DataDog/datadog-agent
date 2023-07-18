@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
-// +build docker
 
 package docker
 
@@ -18,12 +17,13 @@ import (
 
 	dockerTypes "github.com/docker/docker/api/types"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -41,7 +41,7 @@ const (
 )
 
 type eventTransformer interface {
-	Transform([]*docker.ContainerEvent) ([]coreMetrics.Event, []error)
+	Transform([]*docker.ContainerEvent) ([]event.Event, []error)
 }
 
 // DockerCheck grabs docker metrics
@@ -117,7 +117,7 @@ func (d *DockerCheck) Configure(integrationConfigDigest uint64, config, initConf
 	return nil
 }
 
-func (d *DockerCheck) getSender() (aggregator.Sender, error) {
+func (d *DockerCheck) getSender() (sender.Sender, error) {
 	sender, err := d.GetSender()
 	if err != nil {
 		return sender, err
@@ -140,7 +140,7 @@ func (d *DockerCheck) Run() error {
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, coreMetrics.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
 		_ = d.Warnf("Error initialising check: %s", err)
 		return err
 	}
@@ -153,7 +153,7 @@ func (d *DockerCheck) Run() error {
 
 	rawContainerList, err := du.RawContainerList(context.TODO(), dockerTypes.ContainerListOptions{All: true, Size: collectContainerSize})
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, coreMetrics.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
 		_ = d.Warnf("Error collecting containers: %s", err)
 		return err
 	}
@@ -165,7 +165,7 @@ func (d *DockerCheck) Run() error {
 	return d.runDockerCustom(sender, du, rawContainerList)
 }
 
-func (d *DockerCheck) runProcessor(sender aggregator.Sender) error {
+func (d *DockerCheck) runProcessor(sender sender.Sender) error {
 	return d.processor.Run(sender, cacheValidity)
 }
 
@@ -176,7 +176,7 @@ type containersPerTags struct {
 	stopped int64
 }
 
-func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client, rawContainerList []dockerTypes.Container) error {
+func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, rawContainerList []dockerTypes.Container) error {
 	// Container metrics
 	var containersRunning, containersStopped uint64
 	containerGroups := map[string]*containersPerTags{}
@@ -211,7 +211,15 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 		if len(rawContainer.Names) > 0 {
 			containerName = rawContainer.Names[0]
 		}
-		isContainerExcluded := d.containerFilter.IsExcluded(containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
+		var annotations map[string]string
+		store := workloadmeta.GetGlobalStore()
+		if store != nil {
+			if pod, err := store.GetKubernetesPodForContainer(rawContainer.ID); err == nil {
+				annotations = pod.Annotations
+			}
+		}
+
+		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
 		taggerEntityID := containers.BuildTaggerEntityName(rawContainer.ID)
 
@@ -278,7 +286,7 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 	d.collectVolumeMetrics(sender, du)
 
 	// All metrics collected, setting servicecheck to ok
-	sender.ServiceCheck(DockerServiceUp, coreMetrics.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckOK, "", nil, "")
 
 	// Collecting events
 	d.collectEvents(sender, du)
@@ -287,19 +295,19 @@ func (d *DockerCheck) runDockerCustom(sender aggregator.Sender, du docker.Client
 	return nil
 }
 
-func (d *DockerCheck) collectImageMetrics(sender aggregator.Sender, du docker.Client) error {
+func (d *DockerCheck) collectImageMetrics(sender sender.Sender, du docker.Client) error {
 	availableImages, err := du.Images(context.TODO(), false)
 	if err != nil {
 		log.Warnf("Unable to list Docker images, err: %v", err)
 		_ = d.Warnf("Unable to list Docker images, err: %v", err)
-		sender.ServiceCheck(DockerServiceUp, coreMetrics.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
 		return err
 	}
 	allImages, err := du.Images(context.TODO(), true)
 	if err != nil {
 		log.Warnf("Unable to list Docker images, err: %v", err)
 		_ = d.Warnf("Unable to list Docker images, err: %v", err)
-		sender.ServiceCheck(DockerServiceUp, coreMetrics.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, servicecheck.ServiceCheckCritical, "", nil, err.Error())
 		return err
 	}
 
@@ -321,7 +329,7 @@ func (d *DockerCheck) collectImageMetrics(sender aggregator.Sender, du docker.Cl
 	return nil
 }
 
-func (d *DockerCheck) collectEvents(sender aggregator.Sender, du docker.Client) {
+func (d *DockerCheck) collectEvents(sender sender.Sender, du docker.Client) {
 	if d.instance.CollectEvent || d.instance.CollectExitCodes {
 		events, err := d.retrieveEvents(du)
 		if err != nil {
@@ -342,7 +350,7 @@ func (d *DockerCheck) collectEvents(sender aggregator.Sender, du docker.Client) 
 	}
 }
 
-func (d *DockerCheck) collectDiskMetrics(sender aggregator.Sender, du docker.Client) {
+func (d *DockerCheck) collectDiskMetrics(sender sender.Sender, du docker.Client) {
 	if d.instance.CollectDiskStats {
 		stats, err := du.GetStorageStats(context.TODO())
 		if err != nil {
@@ -371,7 +379,7 @@ func (d *DockerCheck) collectDiskMetrics(sender aggregator.Sender, du docker.Cli
 	}
 }
 
-func (d *DockerCheck) collectVolumeMetrics(sender aggregator.Sender, du docker.Client) {
+func (d *DockerCheck) collectVolumeMetrics(sender sender.Sender, du docker.Client) {
 	if d.instance.CollectVolumeCount {
 		attached, dangling, err := du.CountVolumes(context.TODO())
 		if err != nil {

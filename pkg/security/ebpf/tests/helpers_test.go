@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux && ebpf_bindata
-// +build linux,ebpf_bindata
 
 package tests
 
@@ -62,7 +61,7 @@ func newVM(t *testing.T) *baloum.VM {
 		t.Fatal(err)
 	}
 
-	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, false, &statsd.NoOpClient{})
+	loader := secebpf.NewProbeLoader(&config.Config{}, useSyscallWrapper, false, false, &statsd.NoOpClient{})
 	reader, _, err := loader.Load()
 	if err != nil {
 		t.Fatal(err)

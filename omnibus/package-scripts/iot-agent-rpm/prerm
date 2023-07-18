@@ -48,6 +48,18 @@ remove_version_history()
     fi
 }
 
+remove_remote_config_db()
+{
+    # Remote config stores a cache of the current repository state in
+    # /opt/datadog-agent/run. This is a best-effort solution, as users can
+    # decide to put this file in another place by changing the top-level
+    # run_path config value.
+    if [ -f "$INSTALL_DIR/run/remote-config.db" ]; then
+        echo "Removing remote configuration config database"
+        rm "$INSTALL_DIR/run/remote-config.db" || true
+    fi
+}
+
 stop_agent
 deregister_agent
 
@@ -55,6 +67,7 @@ case "$*" in
     0)
         # We're uninstalling.
         remove_version_history
+        remove_remote_config_db
     ;;
     1)
         # We're upgrading.

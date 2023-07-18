@@ -12,10 +12,11 @@ from . import (
     cluster_agent_cloudfoundry,
     components,
     customaction,
-    docker,
+    docker_tasks,
     dogstatsd,
     epforwarder,
     github,
+    kmt,
     msi,
     new_e2e_tests,
     package,
@@ -41,6 +42,7 @@ from .go import (
     deps_vendored,
     generate_licenses,
     generate_protobuf,
+    go_fix,
     golangci_lint,
     lint_licenses,
     reset,
@@ -103,6 +105,7 @@ ns.add_task(generate_config)
 ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
+ns.add_task(go_fix)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -112,7 +115,7 @@ ns.add_collection(components)
 ns.add_collection(customaction)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
-ns.add_collection(docker)
+ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
 ns.add_collection(epforwarder)
 ns.add_collection(msi)
@@ -129,6 +132,7 @@ ns.add_collection(process_agent)
 ns.add_collection(security_agent)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
+ns.add_collection(kmt)
 ns.configure(
     {
         'run': {

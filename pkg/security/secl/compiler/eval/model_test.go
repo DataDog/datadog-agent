@@ -94,6 +94,7 @@ type testOpen struct {
 	filename string
 	mode     int
 	flags    int
+	openedAt int64
 }
 
 type testMkdir struct {
@@ -469,6 +470,15 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, erro
 			Field:   field,
 		}, nil
 
+	case "open.opened_at":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				return int(ctx.Event.(*testEvent).open.openedAt)
+			},
+			Field: field,
+		}, nil
+
 	case "mkdir.filename":
 
 		return &StringEvaluator{
@@ -543,6 +553,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	case "open.mode":
 
 		return e.open.mode, nil
+
+	case "open.opened_at":
+
+		return e.open.openedAt, nil
 
 	case "mkdir.filename":
 
@@ -648,6 +662,10 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 		return "open", nil
 
+	case "open.opened_at":
+
+		return "open", nil
+
 	case "mkdir.filename":
 
 		return "mkdir", nil
@@ -731,6 +749,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	case "open.mode":
 
 		e.open.mode = value.(int)
+		return nil
+
+	case "open.opened_at":
+
+		e.open.openedAt = value.(int64)
 		return nil
 
 	case "mkdir.filename":

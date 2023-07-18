@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package mutate
 
@@ -32,7 +31,7 @@ const (
 
 	// Java config
 	javaToolOptionsKey   = "JAVA_TOOL_OPTIONS"
-	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar"
+	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log"
 
 	// Node config
 	nodeOptionsKey   = "NODE_OPTIONS"
@@ -198,7 +197,28 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
 				})
 			}
 		}
+	}
 
+	if len(libInfoList) == 0 {
+		// Inject all if admission.datadoghq.com/all-lib.version exists
+		// without any other language-specific annotations.
+		// This annotation is typically expected to be set via remote-config
+		// for batch instrumentation without language detection.
+		injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
+		if version, found := podAnnotations[injectAllAnnotation]; found {
+			// This logic will be updated once we bundle all libs in
+			// one single init container. Versions will be supported by then.
+			if version != "latest" {
+				log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
+				version = "latest"
+			}
+			for _, lang := range supportedLanguages {
+				libInfoList = append(libInfoList, libInfo{
+					lang:  lang,
+					image: fmt.Sprintf(imageFormat, containerRegistry, lang, version),
+				})
+			}
+		}
 	}
 
 	return libInfoList
@@ -299,6 +319,13 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 		}
 	}
 
+	// try to inject all if the annotation is set
+	if err := injectLibConfig(pod, "all"); err != nil {
+		metrics.LibInjectionErrors.Inc("all")
+		lastError = err
+		log.Errorf("Cannot inject library configuration into pod %s: %s", podString(pod), err)
+	}
+
 	injectLibVolume(pod)
 
 	return lastError
@@ -353,7 +380,7 @@ func initResources() (corev1.ResourceRequirements, bool, error) {
 	return resources, hasResources, nil
 }
 
-// injectLibRequirements injects the minimal config requirements to enable instrumentation
+// injectLibRequirements injects the minimal config requirements (env vars and volume mounts) to enable instrumentation
 func injectLibRequirements(pod *corev1.Pod, ctrName string, envVars []envVar) error {
 	for i, ctr := range pod.Spec.Containers {
 		if ctrName != "" && ctrName != ctr.Name {
@@ -396,7 +423,7 @@ func injectLibConfig(pod *corev1.Pod, lang language) error {
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, lang)
 	confString, found := pod.GetAnnotations()[configAnnotKey]
 	if !found {
-		log.Debugf("Config annotation key %q not found on pod %s, skipping config injection", configAnnotKey, podString(pod))
+		log.Tracef("Config annotation key %q not found on pod %s, skipping config injection", configAnnotKey, podString(pod))
 		return nil
 	}
 	log.Infof("Config annotation key %q found on pod %s, config: %q", configAnnotKey, podString(pod), confString)

@@ -4,15 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build orchestrator
-// +build orchestrator
 
 package k8s
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
+	model "github.com/DataDog/agent-payload/v5/process"
 	appsv1 "k8s.io/api/apps/v1"
 
-	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 )
 
 // ExtractDaemonSet returns the protobuf model corresponding to a Kubernetes
@@ -49,8 +48,41 @@ func ExtractDaemonSet(ds *appsv1.DaemonSet) *model.DaemonSet {
 		daemonSet.Spec.Selectors = extractLabelSelector(ds.Spec.Selector)
 	}
 
+	if len(ds.Status.Conditions) > 0 {
+		dsConditions, conditionTags := extractDaemonSetConditions(ds)
+		daemonSet.Conditions = dsConditions
+		daemonSet.Tags = append(daemonSet.Tags, conditionTags...)
+	}
+
 	daemonSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(ds.Spec.Template)
 	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveUnifiedServiceTags(ds.ObjectMeta.Labels)...)
 
 	return &daemonSet
+}
+
+// extractDaemonSetConditions iterates over daemonset conditions and returns:
+// - the payload representation of those conditions
+// - the list of tags that will enable pod filtering by condition
+func extractDaemonSetConditions(p *appsv1.DaemonSet) ([]*model.DaemonSetCondition, []string) {
+	conditions := make([]*model.DaemonSetCondition, 0, len(p.Status.Conditions))
+	conditionTags := make([]string, 0, len(p.Status.Conditions))
+
+	for _, condition := range p.Status.Conditions {
+		c := &model.DaemonSetCondition{
+			Message: condition.Message,
+			Reason:  condition.Reason,
+			Status:  string(condition.Status),
+			Type:    string(condition.Type),
+		}
+		if !condition.LastTransitionTime.IsZero() {
+			c.LastTransitionTime = condition.LastTransitionTime.Unix()
+		}
+
+		conditions = append(conditions, c)
+
+		conditionTag := createConditionTag(string(condition.Type), string(condition.Status))
+		conditionTags = append(conditionTags, conditionTag)
+	}
+
+	return conditions, conditionTags
 }

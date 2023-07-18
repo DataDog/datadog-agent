@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build jetson
-// +build jetson
 
 package nvidia
 
@@ -13,7 +12,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 type gpuMetricSender struct {
@@ -30,7 +29,7 @@ func (gpuMetricSender *gpuMetricSender) Init() error {
 	return nil
 }
 
-func (gpuMetricSender *gpuMetricSender) SendMetrics(sender aggregator.Sender, field string) error {
+func (gpuMetricSender *gpuMetricSender) SendMetrics(sender sender.Sender, field string) error {
 	gpuFields := regexFindStringSubmatchMap(gpuMetricSender.regex, field)
 	if gpuFields == nil {
 		return errors.New("could not parse GPU usage fields")

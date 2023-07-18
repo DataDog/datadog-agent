@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package netlink
 
@@ -48,20 +47,12 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 	ns := uint32(0)
 	table[ns] = []DebugConntrackEntry{}
 
-	for _, k := range keys {
+	for _, ck := range keys {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 
-		ck, ok := k.(connKey)
-		if !ok {
-			continue
-		}
-		v, ok := ctr.cache.cache.Peek(ck)
-		if !ok {
-			continue
-		}
-		te, ok := v.(*translationEntry)
+		te, ok := ctr.cache.cache.Peek(ck)
 		if !ok {
 			continue
 		}

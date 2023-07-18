@@ -1,8 +1,0 @@
-root:!:0:root
-bin:!:1:root,bin,daemon
-daemon:!:2:root,bin,daemon
-sys:!:3:root,bin,adm
-docker:!:412:alice,bob,carlos,dan,eve
-kmem:!:9:
-wheel:!:10:root
-floppy:!:11:root

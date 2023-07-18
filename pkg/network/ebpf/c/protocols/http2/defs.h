@@ -3,6 +3,10 @@
 
 #include "ktypes.h"
 
+#define bool _Bool
+#define true 1
+#define false 0
+
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "HTTP/2 Connection Preface" section
 #define HTTP2_MARKER_SIZE 24
 

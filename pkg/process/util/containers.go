@@ -102,14 +102,13 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
-		if p.filter != nil && p.filter.IsExcluded(container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
-			continue
+		var annotations map[string]string
+		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
 		}
 
-		if container.IsOwnedByPod() {
-			if pod, err := p.metadataStore.GetKubernetesPod(container.Owner.ID); err == nil && containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, container.Name) {
-				continue
-			}
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+			continue
 		}
 
 		if container.Runtime == workloadmeta.ContainerRuntimeGarden && len(container.CollectorTags) == 0 {
@@ -196,11 +195,15 @@ func computeContainerStats(hostCPUCount float64, inStats *metrics.ContainerStats
 		outPreviousStats.UserCPU = statValue(inStats.CPU.User, -1)
 		outPreviousStats.SystemCPU = statValue(inStats.CPU.System, -1)
 
-		outStats.CpuLimit = float32(statValue(inStats.CPU.Limit, 0))
 		outStats.TotalPct = float32(cpuRatePctValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 		outStats.UserPct = float32(cpuRatePctValue(outPreviousStats.UserCPU, previousStats.UserCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 		outStats.SystemPct = float32(cpuRatePctValue(outPreviousStats.SystemCPU, previousStats.SystemCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 		outStats.CpuUsageNs = float32(cpuRateValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+
+		// We only emit limit if it was not defaulted
+		if !inStats.CPU.DefaultedLimit {
+			outStats.CpuLimit = float32(statValue(inStats.CPU.Limit, 0))
+		}
 	}
 
 	if inStats.Memory != nil {
@@ -208,6 +211,13 @@ func computeContainerStats(hostCPUCount float64, inStats *metrics.ContainerStats
 		outStats.MemCache = uint64(statValue(inStats.Memory.Cache, 0))
 		outStats.MemRss = uint64(statValue(inStats.Memory.RSS, 0))
 		outStats.MemUsage = uint64(statValue(inStats.Memory.UsageTotal, 0))
+
+		// On Linux OOM Killer (memory limit) uses ~WorkingSet, on Windows it's CommitBytes
+		if inStats.Memory.WorkingSet != nil {
+			outStats.MemAccounted = uint64(*inStats.Memory.WorkingSet)
+		} else if inStats.Memory.CommitBytes != nil {
+			outStats.MemAccounted = uint64(*inStats.Memory.CommitBytes)
+		}
 	}
 
 	if inStats.PID != nil {

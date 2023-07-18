@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build clusterchecks
-// +build clusterchecks
 
 package clusterchecks
 
@@ -196,40 +195,34 @@ func TestProcessNodeStatus(t *testing.T) {
 	status1 := types.NodeStatus{LastChange: 10}
 
 	// Warmup phase, upToDate is unconditionally true
-	upToDate, err := dispatcher.processNodeStatus("node1", "10.0.0.1", status1)
-	assert.NoError(t, err)
+	upToDate := dispatcher.processNodeStatus("node1", "10.0.0.1", status1)
 	assert.True(t, upToDate)
 	node1, found := dispatcher.store.getNodeStore("node1")
 	assert.True(t, found)
-	assert.Equal(t, status1, node1.lastStatus)
 	assert.True(t, timestampNow() >= node1.heartbeat)
 	assert.True(t, timestampNow() <= node1.heartbeat+1)
 
 	// Warmup is finished, timestamps differ
 	dispatcher.store.active = true
-	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status1)
-	assert.NoError(t, err)
+	upToDate = dispatcher.processNodeStatus("node1", "10.0.0.1", status1)
 	assert.False(t, upToDate)
 
 	// Give changes
 	node1.lastConfigChange = timestampNowNano()
 	node1.heartbeat = node1.heartbeat - 50
 	status2 := types.NodeStatus{LastChange: node1.lastConfigChange - 2}
-	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status2)
-	assert.NoError(t, err)
+	upToDate = dispatcher.processNodeStatus("node1", "10.0.0.1", status2)
 	assert.False(t, upToDate)
 	assert.True(t, timestampNow() >= node1.heartbeat)
 	assert.True(t, timestampNow() <= node1.heartbeat+1)
 
 	// No change
 	status3 := types.NodeStatus{LastChange: node1.lastConfigChange}
-	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status3)
-	assert.NoError(t, err)
+	upToDate = dispatcher.processNodeStatus("node1", "10.0.0.1", status3)
 	assert.True(t, upToDate)
 
 	// Change clientIP
-	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.2", status3)
-	assert.NoError(t, err)
+	upToDate = dispatcher.processNodeStatus("node1", "10.0.0.2", status3)
 	assert.True(t, upToDate)
 	node1, found = dispatcher.store.getNodeStore("node1")
 	assert.True(t, found)
@@ -598,10 +591,8 @@ func TestUpdateRunnersStats(t *testing.T) {
 		},
 	}
 
-	_, err := dispatcher.processNodeStatus("node1", "10.0.0.1", status)
-	assert.NoError(t, err)
-	_, err = dispatcher.processNodeStatus("node2", "10.0.0.2", status)
-	assert.NoError(t, err)
+	_ = dispatcher.processNodeStatus("node1", "10.0.0.1", status)
+	_ = dispatcher.processNodeStatus("node2", "10.0.0.2", status)
 
 	node1, found := dispatcher.store.getNodeStore("node1")
 	assert.True(t, found)
@@ -626,10 +617,8 @@ func TestUpdateRunnersStats(t *testing.T) {
 	assert.EqualValues(t, stats2, node2.clcRunnerStats)
 
 	// Switch node1 and node2 stats
-	_, err = dispatcher.processNodeStatus("node2", "10.0.0.1", status)
-	assert.NoError(t, err)
-	_, err = dispatcher.processNodeStatus("node1", "10.0.0.2", status)
-	assert.NoError(t, err)
+	_ = dispatcher.processNodeStatus("node2", "10.0.0.1", status)
+	_ = dispatcher.processNodeStatus("node1", "10.0.0.2", status)
 
 	dispatcher.updateRunnersStats()
 

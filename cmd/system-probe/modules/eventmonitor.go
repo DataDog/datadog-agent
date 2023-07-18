@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package modules
 
@@ -33,14 +32,22 @@ var EventMonitor = module.Factory{
 			return nil, module.ErrNotEnabled
 		}
 
-		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, eventmonitor.Opts{})
+		opts := eventmonitor.Opts{}
+		secmoduleOpts := secmodule.Opts{}
+
+		// adapt options
+		if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
+			secmodule.UpdateEventMonitorOpts(&opts)
+		}
+
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
 		if err != nil {
 			log.Infof("error initializing event monitoring module: %v", err)
 			return nil, module.ErrNotEnabled
 		}
 
 		if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-			cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity)
+			cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, secmoduleOpts)
 			if err != nil {
 				return nil, err
 			}

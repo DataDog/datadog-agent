@@ -9,7 +9,7 @@ set -e
 
 echo -e "\033[33m
  install_script.sh is deprecated. Please use one of
-
+ 
  * https://s3.amazonaws.com/dd-agent/scripts/install_script_agent6.sh to install Agent 6
  * https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh to install Agent 7
 \033[0m"

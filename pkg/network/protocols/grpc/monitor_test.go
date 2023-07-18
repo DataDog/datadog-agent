@@ -4,14 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package grpc
 
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"strings"
 	"testing"
 	"time"
@@ -19,9 +17,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -29,6 +31,10 @@ const (
 )
 
 func TestGRPCScenarios(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", testGRPCScenarios)
+}
+
+func testGRPCScenarios(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = true
@@ -39,8 +45,8 @@ func TestGRPCScenarios(t *testing.T) {
 		t.Skipf("USM can not run on kernel before %v", http.MinimumKernelVersion)
 	}
 
-	if currKernelVersion < http.HTTP2MinimumKernelVersion {
-		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http.HTTP2MinimumKernelVersion)
+	if currKernelVersion < http2.MinimumKernelVersion {
+		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)
 	}
 
 	s, err := grpc.NewServer(srvAddr)
@@ -585,7 +591,7 @@ func TestGRPCScenarios(t *testing.T) {
 					t.Skip("Skipping test due to known issue")
 				}
 
-				monitor, err := http.NewMonitor(cfg, nil, nil, nil)
+				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
 				defer monitor.Stop()

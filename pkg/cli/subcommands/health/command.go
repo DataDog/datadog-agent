@@ -7,11 +7,13 @@
 package health
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -27,6 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+type cliParams struct {
+	timeout int
+}
+
 type GlobalParams struct {
 	ConfFilePath string
 	ConfigName   string
@@ -35,6 +41,7 @@ type GlobalParams struct {
 
 // MakeCommand returns a `health` command to be used by agent binaries.
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
+	cliParams := &cliParams{}
 	cmd := &cobra.Command{
 		Use:          "health",
 		Short:        "Print the current agent health",
@@ -42,8 +49,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			globalParams := globalParamsGetter()
-
 			return fxutil.OneShot(requestHealth,
+				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
 					LogParams:    log.LogForOneShot(globalParams.LoggerName, "off", true)}),
@@ -52,10 +59,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().IntVarP(&cliParams.timeout, "timeout", "t", 20, "timeout in second to query the Agent")
 	return cmd
 }
 
-func requestHealth(log log.Component, config config.Component) error {
+func requestHealth(log log.Component, config config.Component, cliParams *cliParams) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	ipcAddress, err := pkgconfig.GetIPCAddress()
@@ -76,7 +84,10 @@ func requestHealth(log log.Component, config config.Component) error {
 		return err
 	}
 
-	r, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)
+	defer cancel()
+
+	r, err := util.DoGetWithContext(ctx, c, urlstr, util.LeaveConnectionOpen)
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
@@ -85,8 +96,7 @@ func requestHealth(log log.Component, config config.Component) error {
 			err = fmt.Errorf(e)
 		}
 
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", err)
-		return err
+		return fmt.Errorf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues.", err)
 	}
 
 	s := new(health.Status)

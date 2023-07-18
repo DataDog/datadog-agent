@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux || windows
-// +build linux windows
 
 package probe
 
@@ -23,6 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
+
+var eventZero model.Event = model.Event{ContainerContext: &model.ContainerContext{}}
+var containerContextZero model.ContainerContext
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
@@ -92,8 +94,23 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
 	p.event.FieldHandlers = p.fieldHandlers
+	*p.event.ContainerContext = containerContextZero
 	return p.event
 }
+
 func (p *Probe) StatsPollingInterval() time.Duration {
 	return p.Config.Probe.StatsPollingInterval
+}
+
+// GetEventTags returns the event tags
+func (p *Probe) GetEventTags(containerID string) []string {
+	return p.GetResolvers().TagsResolver.Resolve(containerID)
+}
+
+// GetService returns the service name from the process tree
+func (p *Probe) GetService(ev *model.Event) string {
+	if service := ev.FieldHandlers.GetProcessService(ev); service != "" {
+		return service
+	}
+	return p.Config.RuntimeSecurity.HostServiceName
 }

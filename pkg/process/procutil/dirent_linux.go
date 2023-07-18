@@ -6,7 +6,6 @@
 // Copyright 2009 The Go Authors. All rights reserved.
 
 //go:build linux
-// +build linux
 
 package procutil
 

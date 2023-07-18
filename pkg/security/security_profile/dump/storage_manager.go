@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package dump
 
@@ -15,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -27,7 +27,7 @@ type ActivityDumpStorage interface {
 	// Persist saves the provided buffer to the persistent storage
 	Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error
 	// SendTelemetry sends metrics using the provided metrics sender
-	SendTelemetry(sender aggregator.Sender)
+	SendTelemetry(sender sender.Sender)
 }
 
 // ActivityDumpStorageManager is used to manage activity dump storages
@@ -35,7 +35,7 @@ type ActivityDumpStorageManager struct {
 	statsdClient statsd.ClientInterface
 	storages     map[config.StorageType]ActivityDumpStorage
 
-	metricsSender aggregator.Sender
+	metricsSender sender.Sender
 }
 
 // NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
@@ -49,6 +49,28 @@ func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
 		return nil, err
 	}
 	manager.metricsSender = sender
+
+	// create remote storage
+	remote, err := NewActivityDumpRemoteStorage()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate remote storage: %w", err)
+	}
+	manager.storages[remote.GetStorageType()] = remote
+
+	return manager, nil
+}
+
+// NewSecurityAgentCommandStorageManager returns a new instance of ActivityDumpStorageManager
+func NewSecurityAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpStorageManager, error) {
+	manager := &ActivityDumpStorageManager{
+		storages: make(map[config.StorageType]ActivityDumpStorage),
+	}
+
+	storage, err := NewActivityDumpLocalStorage(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate storage: %w", err)
+	}
+	manager.storages[storage.GetStorageType()] = storage
 
 	// create remote storage
 	remote, err := NewActivityDumpRemoteStorage()
@@ -123,8 +145,12 @@ func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageR
 		if manager.statsdClient != nil {
 			if size := len(raw.Bytes()); size > 0 {
 				tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
-				if err := manager.statsdClient.Gauge(metrics.MetricActivityDumpSizeInBytes, float64(size), tags, 1.0); err != nil {
+				if err := manager.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(size), tags, 1.0); err != nil {
 					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
+				}
+
+				if err := manager.statsdClient.Count(metrics.MetricActivityDumpPersistedDumps, 1, tags, 1.0); err != nil {
+					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpPersistedDumps, err)
 				}
 			}
 		}

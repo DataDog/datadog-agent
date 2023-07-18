@@ -17,7 +17,7 @@ func TestStreamStrategy(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	s := NewStreamStrategy(input, output)
+	s := NewStreamStrategy(input, output, IdentityContentType)
 	s.Start()
 
 	content := []byte("a")
@@ -44,7 +44,7 @@ func TestStreamStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	s := NewStreamStrategy(input, output)
+	s := NewStreamStrategy(input, output, IdentityContentType)
 
 	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {
@@ -59,7 +59,7 @@ func TestStreamStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	input := make(chan *message.Message)
 	output := make(chan *message.Payload)
 
-	s := NewStreamStrategy(input, output)
+	s := NewStreamStrategy(input, output, IdentityContentType)
 
 	message := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {

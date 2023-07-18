@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 package file
 
@@ -27,6 +26,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 		return false, err
 	}
 	defer f.Close()
+	lastReadOffset := t.lastReadOffset.Load()
 
 	fi1, err := f.Stat()
 	if err != nil {
@@ -38,7 +38,6 @@ func (t *Tailer) DidRotate() (bool, error) {
 		return true, nil
 	}
 
-	lastReadOffset := t.lastReadOffset.Load()
 	fileSize := fi1.Size()
 
 	recreated := !os.SameFile(fi1, fi2)

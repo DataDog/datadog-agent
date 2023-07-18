@@ -14,7 +14,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestHasValidAPIKey(t *testing.T) {
@@ -31,8 +33,8 @@ func TestHasValidAPIKey(t *testing.T) {
 		ts1.URL: {"api_key1", "api_key2"},
 		ts2.URL: {"key3"},
 	}
-
-	fh := forwarderHealth{domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	fh := forwarderHealth{log: log, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 	assert.True(t, fh.hasValidAPIKey())
 
@@ -71,8 +73,8 @@ func TestComputeDomainsURL(t *testing.T) {
 	for _, keys := range expectedMap {
 		sort.Strings(keys)
 	}
-
-	fh := forwarderHealth{domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	fh := forwarderHealth{log: log, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 
 	// lexicographical sort for assert
@@ -111,8 +113,8 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 		ts2.URL: {"key3"},
 		ts3.URL: {"key4"},
 	}
-
-	fh := forwarderHealth{}
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	fh := forwarderHealth{log: log}
 	fh.init()
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
 	assert.True(t, fh.hasValidAPIKey())

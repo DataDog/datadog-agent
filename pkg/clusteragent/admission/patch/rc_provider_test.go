@@ -4,12 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package patch
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
@@ -39,10 +39,10 @@ func TestProcess(t *testing.T) {
 `
 		return []byte(fmt.Sprintf(base, cluster, kind))
 	}
-	rcp, err := newRemoteConfigProvider(&remote.Client{}, make(chan struct{}), "dev")
+	rcp, err := newRemoteConfigProvider(&remote.Client{}, make(chan struct{}), telemetry.NewNoopCollector(), "dev")
 	require.NoError(t, err)
 	notifs := rcp.subscribe(KindDeployment)
-	in := map[string]state.APMTracingConfig{
+	in := map[string]state.RawConfig{
 		"path1": {Config: genConfig("dev", "deployment")},   // valid config
 		"path2": {Config: []byte("invalid")},                // invalid json
 		"path3": {Config: genConfig("dev", "wrong")},        // kind mismatch

@@ -13,6 +13,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
@@ -57,6 +58,7 @@ func start() (*Agent, error) {
 	// setup the sources and the services
 	sources := sources.NewLogSources()
 	services := service.NewServices()
+	tracker := tailers.NewTailerTracker()
 
 	// setup the server config
 	endpoints, err := buildEndpoints()
@@ -73,7 +75,7 @@ func start() (*Agent, error) {
 	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
 
 	// setup the status
-	status.Init(isRunning, endpoints, sources, metrics.LogsExpvars)
+	status.Init(isRunning, endpoints, sources, tracker, metrics.LogsExpvars)
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules()
@@ -90,7 +92,7 @@ func start() (*Agent, error) {
 
 	// setup and start the logs agent
 	log.Info("Starting logs-agent...")
-	agent = NewAgent(sources, services, processingRules, endpoints)
+	agent = NewAgent(sources, services, tracker, processingRules, endpoints)
 
 	agent.Start()
 	isRunning.Store(true)
@@ -128,12 +130,12 @@ func Flush(ctx context.Context) {
 
 // IsAgentRunning returns true if the logs-agent is running.
 func IsAgentRunning() bool {
-	return status.Get().IsRunning
+	return status.Get(false).IsRunning
 }
 
 // GetStatus returns logs-agent status
-func GetStatus() status.Status {
-	return status.Get()
+func GetStatus(verbose bool) status.Status {
+	return status.Get(verbose)
 }
 
 // GetMessageReceiver returns the diagnostic message receiver

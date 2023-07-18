@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build oracle
+//go:build oracle_test
 
 package oracle
 
@@ -88,7 +88,7 @@ func TestConnection(t *testing.T) {
 }
 
 func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	return opts
@@ -119,12 +119,14 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 	return db, nil
 }
 
+func initAndStartAgentDemultiplexer() {
+	aggregator.InitAndStartAgentDemultiplexer(nil, demuxOpts(), "")
+}
+
 func TestChkRun(t *testing.T) {
-	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+	initAndStartAgentDemultiplexer()
 
 	chk.dbmEnabled = true
-	//chk.config.QueryMetrics = true
-
 	chk.config.InstanceConfig.InstantClient = false
 
 	type RowsStruct struct {
@@ -163,7 +165,8 @@ func TestLicense(t *testing.T) {
 	if err != nil {
 		fmt.Printf("failed to ping oracle instance: %s", err)
 	}
-	row := db.QueryRow(`SELECT SUM(detected_usages) 
+	var usedFeaturesCount int
+	err = db.Get(&usedFeaturesCount, `SELECT NVL(SUM(detected_usages),0)
 	FROM dba_feature_usage_statistics
  	WHERE name in (
 		'ADDM', 
@@ -181,10 +184,9 @@ func TestLicense(t *testing.T) {
 		'SQL Tuning Set (user)'
 		)
  `)
-	var usedFeaturesCount int
-	err = row.Scan(&usedFeaturesCount)
+	//err = row.Scan(&usedFeaturesCount)
 	if err != nil {
-		fmt.Printf("failed to query hostname and version: %s", err)
+		fmt.Printf("failed to query license info: %s", err)
 	}
 	assert.Equal(t, 0, usedFeaturesCount)
 }
@@ -255,4 +257,19 @@ func TestSQLXIn(t *testing.T) {
 		assert.Equal(t, retValue, result, driver)
 	}
 
+}
+
+func TestLargeUint64Binding(t *testing.T) {
+	largeUint64 := uint64(18446744073709551615)
+	//largeUint64 = 1
+	var result uint64
+	for _, driver := range DRIVERS {
+		db, _ := connectToDB(driver)
+		err := db.Get(&result, "SELECT n FROM T WHERE n = :1", largeUint64)
+		assert.NoError(t, err, "running test statement with %s driver", driver)
+		if err != nil {
+			continue
+		}
+		assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
+	}
 }

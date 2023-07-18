@@ -10,6 +10,7 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"io"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -40,7 +41,7 @@ func newAggregator[P PayloadItem](parse parseFunc[P]) Aggregator[P] {
 
 func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 	// reset map
-	agg.payloadsByName = map[string][]P{}
+	agg.Reset()
 	// build map
 	for _, p := range payloads {
 		payloads, err := agg.parse(p)
@@ -78,6 +79,15 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 	return false
 }
 
+func (agg *Aggregator[P]) GetNames() []string {
+	names := []string{}
+	for name := range agg.payloadsByName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 func enflate(payload []byte, encoding string) (enflated []byte, err error) {
 	rc, err := getReadCloserForEncoding(payload, encoding)
 	if err != nil {
@@ -105,6 +115,10 @@ func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser
 
 func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
 	return agg.payloadsByName[name]
+}
+
+func (agg *Aggregator[P]) Reset() {
+	agg.payloadsByName = map[string][]P{}
 }
 
 func FilterByTags[P PayloadItem](payloads []P, tags []string) []P {

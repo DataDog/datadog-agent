@@ -24,6 +24,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -70,7 +71,6 @@ func LoadConfigFile(path string) (*config.AgentConfig, error) {
 
 func prepareConfig(path string) (*config.AgentConfig, error) {
 	cfg := config.New()
-	cfg.LogFilePath = DefaultLogFilePath
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
@@ -78,18 +78,26 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	if _, err := coreconfig.Load(); err != nil {
 		return cfg, err
 	}
+	if !coreconfig.Datadog.GetBool("disable_file_logging") {
+		cfg.LogFilePath = DefaultLogFilePath
+	}
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
 	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
 	if p := coreconfig.Datadog.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
-	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewGRPCClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
+		client, err := remote.NewGRPCClient(
+			rcClientName,
+			version.AgentVersion,
+			[]data.Product{data.ProductAPMSampling, data.ProductAgentConfig},
+			rcClientPollInterval,
+		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
-			cfg.RemoteSamplingClient = client
+			cfg.RemoteConfigClient = client
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
@@ -142,7 +150,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 			c.Endpoints[0].Host = host
 		}
 	} else {
-		c.Endpoints[0].Host = coreconfig.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+		c.Endpoints[0].Host = utils.GetMainEndpoint(coreconfig.Datadog, apiEndpointPrefix, "apm_config.apm_dd_url")
 	}
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
@@ -172,7 +180,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.enabled") {
 		c.Enabled = coreconfig.Datadog.GetBool("apm_config.enabled")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.log_file") {
+	if coreconfig.Datadog.IsSet("apm_config.log_file") && !coreconfig.Datadog.GetBool("disable_file_logging") {
 		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
 
@@ -232,7 +240,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		if c.HasFeature("big_resource") {
 			c.MaxResourceLen = 15_000
 		}
-		log.Debug("Found APM feature flags: %v", c.Features)
+		log.Infof("Found APM feature flags: %s", feats)
 	}
 
 	if k := "apm_config.ignore_resources"; coreconfig.Datadog.IsSet(k) {
@@ -292,7 +300,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
 		c.TelemetryConfig.Enabled = true
 		c.TelemetryConfig.Endpoints = []*config.Endpoint{{
-			Host:   coreconfig.GetMainEndpoint(config.TelemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
+			Host:   utils.GetMainEndpoint(coreconfig.Datadog, config.TelemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
 			APIKey: c.Endpoints[0].APIKey,
 		}}
 		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
@@ -317,6 +325,60 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.credit_cards.luhn") {
 			c.Obfuscation.CreditCards.Luhn = coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.elasticsearch.enabled") {
+			c.Obfuscation.ES.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.elasticsearch.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.elasticsearch.keep_values") {
+			c.Obfuscation.ES.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.elasticsearch.obfuscate_sql_values") {
+			c.Obfuscation.ES.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.http.remove_query_string") {
+			c.Obfuscation.HTTP.RemoveQueryString = coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_query_string")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.http.remove_paths_with_digits") {
+			c.Obfuscation.HTTP.RemovePathDigits = coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_paths_with_digits")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.enabled") {
+			c.Obfuscation.Memcached.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.enabled") {
+			c.Obfuscation.Mongo.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.keep_values") {
+			c.Obfuscation.Mongo.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.obfuscate_sql_values") {
+			c.Obfuscation.Mongo.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.enabled") {
+			c.Obfuscation.Redis.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.remove_all_args") {
+			c.Obfuscation.Redis.RemoveAllArgs = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.remove_all_args")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.remove_stack_traces") {
+			c.Obfuscation.RemoveStackTraces = coreconfig.Datadog.GetBool("apm_config.obfuscation.remove_stack_traces")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan.enabled") {
+			c.Obfuscation.SQLExecPlan.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan.keep_values") {
+			c.Obfuscation.SQLExecPlan.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values") {
+			c.Obfuscation.SQLExecPlan.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.enabled") {
+			c.Obfuscation.SQLExecPlanNormalize.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.keep_values") {
+			c.Obfuscation.SQLExecPlanNormalize.KeepValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values") {
+			c.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
 		}
 	}
 
@@ -663,6 +725,8 @@ func SetHandler() http.Handler {
 			value := html.UnescapeString(values[len(values)-1])
 			switch key {
 			case "log_level":
+				// Note: This endpoint is used by remote-config to set the log level dynamically
+				// Please make sure to reach out to this team before removing it.
 				lvl := strings.ToLower(value)
 				if lvl == "warning" {
 					lvl = "warn"

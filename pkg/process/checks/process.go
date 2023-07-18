@@ -17,6 +17,8 @@ import (
 	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -35,13 +37,26 @@ const (
 	configDisallowList         = configPrefix + "blacklist_patterns"
 )
 
-// NewProcessCehck returns an instance of the ProcessCheck.
+// NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
-	return &ProcessCheck{
+	check := &ProcessCheck{
 		config:        config,
 		scrubber:      procutil.NewDefaultDataScrubber(),
 		lookupIdProbe: NewLookupIdProbe(config),
 	}
+
+	if workloadmeta.Enabled(config) {
+		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(config)
+		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
+		err := check.workloadMetaServer.Start()
+		if err != nil {
+			_ = log.Error("Failed to start the workload meta gRPC server:", err)
+		} else {
+			check.extractors = append(check.extractors, check.workloadMetaExtractor)
+		}
+	}
+
+	return check
 }
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
@@ -82,8 +97,7 @@ type ProcessCheck struct {
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
 
-	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
-	SysprobeProcessModuleEnabled bool
+	sysProbeConfig *SysProbeConfig
 
 	maxBatchSize  int
 	maxBatchBytes int
@@ -95,12 +109,17 @@ type ProcessCheck struct {
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
 	lookupIdProbe *LookupIdProbe
+
+	extractors []metadata.Extractor
+
+	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
+	workloadMetaServer    *workloadmeta.GRPCServer
 }
 
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.hostInfo = info
-	p.SysprobeProcessModuleEnabled = syscfg.ProcessModuleEnabled
+	p.sysProbeConfig = syscfg
 	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
@@ -177,7 +196,11 @@ func (p *ProcessCheck) Realtime() bool { return false }
 func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 
 // Cleanup frees any resource held by the ProcessCheck before the agent exits
-func (p *ProcessCheck) Cleanup() {}
+func (p *ProcessCheck) Cleanup() {
+	if p.workloadMetaServer != nil {
+		p.workloadMetaServer.Stop()
+	}
+}
 
 func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
 	start := time.Now()
@@ -217,6 +240,15 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.lastContainerRates = lastContainerRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)
+	}
+
+	// Notify the workload meta extractor that the mapping between pid and cid has changed
+	if p.workloadMetaExtractor != nil {
+		p.workloadMetaExtractor.SetLastPidToCid(pidToCid)
+	}
+
+	for _, extractor := range p.extractors {
+		extractor.Extract(procs)
 	}
 
 	// Keep track of containers addresses
@@ -559,13 +591,11 @@ func skipProcess(
 }
 
 func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
-	// if the Process module is disabled, we allow Probe to collect
-	// fields that require elevated permission to collect with best effort
-	if !p.SysprobeProcessModuleEnabled {
+	if !p.sysProbeConfig.ProcessModuleEnabled {
 		return nil
 	}
 
-	pu, err := net.GetRemoteSystemProbeUtil()
+	pu, err := net.GetRemoteSystemProbeUtil(p.sysProbeConfig.SystemProbeAddress)
 	if err != nil {
 		if p.notInitializedLogLimit.ShouldLog() {
 			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)

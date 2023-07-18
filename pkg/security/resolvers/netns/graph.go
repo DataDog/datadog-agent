@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package netns
 
@@ -62,12 +61,12 @@ func (nr *Resolver) generateGraph(dump []NetworkNamespaceDump, graphFile *os.Fil
 func (nr *Resolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) utils.Graph {
 	g := utils.Graph{
 		Title: fmt.Sprintf("Network Namespace Dump (%s)", time.Now().Format("2006-01-02 15:04:05")),
-		Nodes: make(map[utils.GraphID]utils.Node),
+		Nodes: make(map[utils.GraphID]*utils.Node),
 	}
 
 	for _, netns := range dump {
 		// create namespace node
-		netnsNode := utils.Node{
+		netnsNode := &utils.Node{
 			ID:    utils.NewGraphID(utils.NewRandomNodeID()),
 			Label: fmt.Sprintf("%v [fd:%d][handle:%v]", netns.NsID, netns.HandleFD, netns.HandlePath),
 			Color: namespaceColor,
@@ -83,7 +82,7 @@ func (nr *Resolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) utils
 
 		// create active and queued devices nodes
 		for _, dev := range netns.Devices {
-			devNode := utils.Node{
+			devNode := &utils.Node{
 				ID:        utils.NewGraphID(utils.NewRandomNodeID()),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: activeDeviceColor,
@@ -93,7 +92,7 @@ func (nr *Resolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) utils
 			}
 			g.Nodes[devNode.ID] = devNode
 
-			devEdge := utils.Edge{
+			devEdge := &utils.Edge{
 				From:  netnsNode.ID,
 				To:    devNode.ID,
 				Color: namespaceColor,
@@ -101,7 +100,7 @@ func (nr *Resolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) utils
 			g.Edges = append(g.Edges, devEdge)
 		}
 		for _, dev := range netns.DevicesInQueue {
-			devNode := utils.Node{
+			devNode := &utils.Node{
 				ID:        utils.NewGraphID(utils.NewRandomNodeID()),
 				Label:     fmt.Sprintf("%s [%d]", dev.IfName, dev.IfIndex),
 				FillColor: queuedDeviceColor,
@@ -111,7 +110,7 @@ func (nr *Resolver) generateGraphDataFromDump(dump []NetworkNamespaceDump) utils
 			}
 			g.Nodes[devNode.ID] = devNode
 
-			devEdge := utils.Edge{
+			devEdge := &utils.Edge{
 				From:  netnsNode.ID,
 				To:    devNode.ID,
 				Color: namespaceColor,

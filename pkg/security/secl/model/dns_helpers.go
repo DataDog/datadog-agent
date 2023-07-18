@@ -8,6 +8,7 @@ package model
 import (
 	"bytes"
 	"errors"
+	"strings"
 )
 
 var (
@@ -17,7 +18,11 @@ var (
 	ErrDNSNameOutOfBounds = errors.New("dns name out of bound")
 	// ErrDNSNameNonPrintableASCII reported because name non-printable ascii
 	ErrDNSNameNonPrintableASCII = errors.New("dns name non-printable ascii")
+	// ErrDNSNameMalformatted reported because name mal formatted (too short, missing dots, etc)
+	ErrDNSNameMalformatted = errors.New("dns name mal-formatted")
 )
+
+const DNS_PREALLOC_SIZE = 256
 
 func decodeDNSName(raw []byte) (string, error) {
 	var (
@@ -27,6 +32,8 @@ func decodeDNSName(raw []byte) (string, error) {
 		rep     bytes.Buffer
 		err     error
 	)
+
+	rep.Grow(DNS_PREALLOC_SIZE)
 
 LOOP:
 	for i < rawLen {
@@ -70,4 +77,24 @@ LOOP:
 	}
 
 	return rep.String(), err
+}
+
+func validateDNSName(dns string) error {
+	if len(dns) < 3 { // check the minimun length, ie "a.b"
+		return ErrDNSNameMalformatted
+	} else if len(dns) > 253 { // check the max full domain name length
+		return ErrDNSNameMalformatted
+	}
+	domains := strings.Split(dns, ".")
+	if len(domains) < 2 {
+		return ErrDNSNameMalformatted
+	}
+	for _, sub := range domains {
+		if len(sub) < 1 {
+			return ErrDNSNameMalformatted
+		} else if len(sub) > 63 {
+			return ErrDNSNameMalformatted
+		}
+	}
+	return nil
 }

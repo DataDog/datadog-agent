@@ -8,9 +8,9 @@ package parameters
 import "fmt"
 
 type ParameterNotFoundError struct {
-	key string
+	key StoreKey
 }
 
 func (e ParameterNotFoundError) Error() string {
-	return fmt.Sprintf("parameter %s not found", e.key)
+	return fmt.Sprintf("parameter %v not found", e.key)
 }

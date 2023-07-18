@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package probe
 
@@ -31,7 +30,7 @@ func TestProcessArgsFlags(t *testing.T) {
 	}
 
 	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts(nil))
+		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
 		Exec: model.ExecEvent{
@@ -92,7 +91,7 @@ func TestProcessArgsOptions(t *testing.T) {
 	}
 
 	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts(nil))
+		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
 		Exec: model.ExecEvent{

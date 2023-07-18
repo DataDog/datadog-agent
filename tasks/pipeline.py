@@ -11,6 +11,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .libs.common.color import color_message
+from .libs.common.github_api import GithubAPI, get_github_token
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
@@ -33,6 +34,8 @@ from .libs.pipeline_tools import (
 from .libs.types import SlackMessage, TeamMessage
 from .utils import (
     DEFAULT_BRANCH,
+    GITHUB_REPO_NAME,
+    check_clean_branch_state,
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
     nightly_entry_for,
@@ -427,7 +430,7 @@ def check_notify_teams(_):
         print(
             "Error: Some teams in CODEOWNERS don't have their slack notification channel specified in the GITHUB_SLACK_MAP !!"
         )
-        Exit(code=1)
+        raise Exit(code=1)
     else:
         print("All CODEOWNERS teams have their slack notification channel specified !")
 
@@ -680,3 +683,77 @@ def delete_schedule_variable(_, schedule_id, key):
     gitlab = _init_pipeline_schedule_task()
     result = gitlab.delete_pipeline_schedule_variable(schedule_id, key)
     pprint.pprint(result)
+
+
+@task
+def update_buildimages(ctx, image_tag, test_version=True, branch_name=None):
+    """
+    Update local files to run with new image_tag from agent-buildimages and launch a full pipeline
+    Use --no-test-version to commit without the _test_only suffixes
+    """
+    branch_name = verify_workspace(ctx, branch_name=branch_name)
+    update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
+    update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
+    commit_and_push(ctx, branch_name=branch_name)
+    # Trigger a build on the pipeline
+    run(ctx, here=True)
+
+
+def verify_workspace(ctx, branch_name):
+    """
+    Assess we can modify files and commit without risk of local or upstream conflicts
+    """
+    if branch_name is None:
+        user_name = ctx.run("whoami", hide="out")
+        branch_name = f"{user_name.stdout.rstrip()}/test_buildimages"
+    github = GithubAPI(repository=GITHUB_REPO_NAME, api_token=get_github_token())
+    check_clean_branch_state(ctx, github, branch_name)
+    return branch_name
+
+
+def update_gitlab_config(file_path, image_tag, test_version):
+    """
+    Override variables in .gitlab-ci.yml file
+    """
+    with open(file_path, "r") as gl:
+        file_content = gl.readlines()
+    gitlab_ci = yaml.safe_load("".join(file_content))
+    suffixes = [name for name in gitlab_ci["variables"].keys() if name.endswith("SUFFIX")]
+    images = [name.replace("_SUFFIX", "") for name in suffixes]
+    with open(file_path, "w") as gl:
+        for line in file_content:
+            if test_version and any(re.search(fr"{suffix}:", line) for suffix in suffixes):
+                gl.write(line.replace('""', '"_test_only"'))
+            elif any(re.search(fr"{image}:", line) for image in images):
+                current_version = re.search(r"v\d+-\w+", line)
+                if current_version:
+                    gl.write(line.replace(current_version.group(0), image_tag))
+                else:
+                    raise RuntimeError(
+                        f"Unable to find a version matching the v<pipelineId>-<commitId> pattern in line {line}"
+                    )
+            else:
+                gl.write(line)
+
+
+def update_circleci_config(file_path, image_tag, test_version):
+    """
+    Override variables in .gitlab-ci.yml file
+    """
+    image_name = "datadog/datadog-agent-runner-circle"
+    with open(file_path, "r") as circle:
+        circle_ci = circle.read()
+    if test_version:
+        image_tag += "_test_only"
+    match = re.search(rf"{image_name}:(\w+)\n", circle_ci)
+    if not match:
+        raise RuntimeError(f"Impossible to find the version of image {image_name} in circleci configuration file")
+    with open(file_path, "w") as circle:
+        circle.write(circle_ci.replace(match.group(1), image_tag))
+
+
+def commit_and_push(ctx, branch_name=None):
+    ctx.run(f"git checkout -b {branch_name}")
+    ctx.run("git add .gitlab-ci.yaml .circleci/config.yaml")
+    ctx.run("git commit -m 'Update buildimages version'")
+    ctx.run(f"git push origin {branch_name}")

@@ -44,7 +44,7 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()
 	if err := app.Start(startCtx); err != nil {
-		return unwrapIfErrArgumentsFailed(err)
+		return UnwrapIfErrArgumentsFailed(err)
 	}
 
 	// call the original oneShotFunc with the args captured during app startup

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build ignore
-// +build ignore
 
 package main
 
@@ -97,6 +96,7 @@ func mkContext(buildType string) context {
 		return agentContext
 	case "iot-agent":
 		return context{
+			OS:        runtime.GOOS,
 			Common:    true,
 			Agent:     true,
 			Metadata:  true,
@@ -106,6 +106,7 @@ func mkContext(buildType string) context {
 		}
 	case "system-probe":
 		return context{
+			OS:                               runtime.GOOS,
 			SystemProbe:                      true,
 			NetworkModule:                    true,
 			UniversalServiceMonitoringModule: true,
@@ -114,6 +115,7 @@ func mkContext(buildType string) context {
 		}
 	case "dogstatsd":
 		return context{
+			OS:                runtime.GOOS,
 			Common:            true,
 			Dogstatsd:         true,
 			DockerTagging:     true,
@@ -125,6 +127,7 @@ func mkContext(buildType string) context {
 		}
 	case "dca":
 		return context{
+			OS:                  runtime.GOOS,
 			ClusterAgent:        true,
 			Common:              true,
 			Logging:             true,
@@ -134,6 +137,7 @@ func mkContext(buildType string) context {
 		}
 	case "dcacf":
 		return context{
+			OS:              runtime.GOOS,
 			ClusterAgent:    true,
 			Common:          true,
 			Logging:         true,
@@ -143,6 +147,7 @@ func mkContext(buildType string) context {
 		}
 	case "security-agent":
 		return context{
+			OS:            runtime.GOOS,
 			SecurityAgent: true,
 		}
 	}

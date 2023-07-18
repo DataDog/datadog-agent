@@ -6,7 +6,6 @@
 // Imported from https://github.com/aquasecurity/trivy/blob/main/pkg/fanal/image/daemon/image.go
 
 //go:build trivy
-// +build trivy
 
 package trivy
 
@@ -18,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	fimage "github.com/aquasecurity/trivy/pkg/fanal/image"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -34,7 +34,7 @@ type opener func() (v1.Image, error)
 
 type imageSave func(context.Context, []string) (io.ReadCloser, error)
 
-func imageOpener(ctx context.Context, ref string, f *os.File, imageSave imageSave) opener {
+func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSave imageSave) opener {
 	return func() (v1.Image, error) {
 		// Store the tarball in local filesystem and return a new reader into the bytes each time we need to access something.
 		rc, err := imageSave(ctx, []string{ref})
@@ -43,10 +43,13 @@ func imageOpener(ctx context.Context, ref string, f *os.File, imageSave imageSav
 		}
 		defer rc.Close()
 
-		if _, err = io.Copy(f, rc); err != nil {
+		written, err := io.Copy(f, rc)
+		if err != nil {
 			return nil, xerrors.Errorf("failed to copy the image: %w", err)
 		}
 		defer f.Close()
+
+		telemetry.SBOMExportSize.Observe(float64(written), collector, ref)
 
 		img, err := tarball.ImageFromPath(f.Name(), nil)
 		if err != nil {

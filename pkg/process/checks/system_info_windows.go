@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/DataDog/gohai/cpu"
-	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
+	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
@@ -21,10 +21,7 @@ import (
 // change until a restart. This bit of information should be passed along with
 // the process messages.
 func CollectSystemInfo() (*model.SystemInfo, error) {
-	hi, err := platform.GetArchInfo()
-	if err != nil {
-		return nil, err
-	}
+	hi := platform.CollectInfo()
 	cpuInfo, err := cpu.GetCpuInfo()
 	if err != nil {
 		return nil, err
@@ -62,13 +59,17 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 		})
 	}
 
+	kernelName, _ := hi.KernelName.Value()
+	osName, _ := hi.OS.Value()
+	platformFamily, _ := hi.Family.Value()
+	kernelRelease, _ := hi.KernelRelease.Value()
 	m := &model.SystemInfo{
 		Uuid: "",
 		Os: &model.OSInfo{
-			Name:          hi["kernel_name"],
-			Platform:      hi["os"],
-			Family:        hi["family"],
-			Version:       hi["kernel_release"],
+			Name:          kernelName,
+			Platform:      osName,
+			Family:        platformFamily,
+			Version:       kernelRelease,
 			KernelVersion: "",
 		},
 		Cpus:        cpus,

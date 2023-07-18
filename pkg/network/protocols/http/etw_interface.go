@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build windows && npm
-// +build windows,npm
 
 package http
 
@@ -17,45 +16,45 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
-type httpEtwInterface struct {
+type EtwInterface struct {
 	maxEntriesBuffered int
-	dataChannel        chan []WinHttpTransaction
+	DataChannel        chan []WinHttpTransaction
 	eventLoopWG        sync.WaitGroup
 	captureHTTP        bool
 	captureHTTPS       bool
 }
 
-func newHttpEtwInterface(c *config.Config) *httpEtwInterface {
-	return &httpEtwInterface{
+func NewEtwInterface(c *config.Config) *EtwInterface {
+	return &EtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
-		dataChannel:        make(chan []WinHttpTransaction),
+		DataChannel:        make(chan []WinHttpTransaction),
 		captureHTTPS:       c.EnableHTTPSMonitoring,
 		captureHTTP:        c.EnableHTTPMonitoring,
 	}
 }
 
-func (hei *httpEtwInterface) setCapturedProtocols(http, https bool) {
+func (hei *EtwInterface) SetCapturedProtocols(http, https bool) {
 	hei.captureHTTP = http
 	hei.captureHTTPS = https
 	SetEnabledProtocols(http, https)
 }
-func (hei *httpEtwInterface) setMaxFlows(maxFlows uint64) {
+func (hei *EtwInterface) SetMaxFlows(maxFlows uint64) {
 	log.Debugf("Setting max flows in ETW http source to %v", maxFlows)
 	SetMaxFlows(maxFlows)
 }
 
-func (hei *httpEtwInterface) setMaxRequestBytes(maxRequestBytes uint64) {
+func (hei *EtwInterface) SetMaxRequestBytes(maxRequestBytes uint64) {
 	log.Debugf("Setting max request bytes in ETW http source to to %v", maxRequestBytes)
 	SetMaxRequestBytes(maxRequestBytes)
 }
 
-func (hei *httpEtwInterface) startReadingHttpFlows() {
+func (hei *EtwInterface) StartReadingHttpFlows() {
 	hei.eventLoopWG.Add(2)
 
 	startingEtwChan := make(chan struct{})
 
 	// Currently ETW needs be started on a separate thread
-	// becauise it is blocked until subscription is stopped
+	// because it is blocked until subscription is stopped
 	go func() {
 		defer hei.eventLoopWG.Done()
 
@@ -70,7 +69,7 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHttpService, hei)
 
 		if err == nil {
-			log.Infof("ETW HttpService subscription copmpleted")
+			log.Infof("ETW HttpService subscription completed")
 		} else {
 			log.Errorf("ETW HttpService subscription failed with error %v", err)
 		}
@@ -104,7 +103,7 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 			}
 
 			if len(httpTxs) > 0 {
-				hei.dataChannel <- httpTxs
+				hei.DataChannel <- httpTxs
 			}
 
 			// need a better signalling mechanism
@@ -113,9 +112,9 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 	}()
 }
 
-func (hei *httpEtwInterface) close() {
+func (hei *EtwInterface) Close() {
 	etw.StopEtw("ddnpm-httpservice")
 
 	hei.eventLoopWG.Wait()
-	close(hei.dataChannel)
+	close(hei.DataChannel)
 }

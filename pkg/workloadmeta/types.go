@@ -16,6 +16,7 @@ import (
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -68,9 +69,16 @@ type Store interface {
 	// the entity with kind KindKubernetesPod and the given ID.
 	GetKubernetesPod(id string) (*KubernetesPod, error)
 
-	// GetKubernetesPodForContainer searches all known KubernetesPod entities
-	// for one containing the given container.
+	// GetKubernetesPodForContainer retrieves the ownership information for the
+	// given container and returns the owner pod. This information might lag because
+	// the kubelet check sets the `Owner` field but a container can also be stored by CRI
+	// checks, which do not have ownership info. Thus, the function might return an error
+	// when the pod actually exists.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
+
+	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
+	// the entity with kind KindKubernetesNode and the given ID.
+	GetKubernetesNode(id string) (*KubernetesNode, error)
 
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
@@ -84,12 +92,28 @@ type Store interface {
 	// with kind KindContainerImageMetadata and the given ID.
 	GetImage(id string) (*ContainerImageMetadata, error)
 
+	// GetProcess returns metadata about a process.  It fetches the entity
+	// with kind KindProcess and the given ID.
+	GetProcess(pid int32) (*Process, error)
+
+	// ListProcesses returns metadata about all known processes, equivalent
+	// to all entities with kind KindProcess.
+	ListProcesses() []*Process
+
+	// ListProcessesWithFilter returns all the processes for which the passed
+	// filter evaluates to true.
+	ListProcessesWithFilter(filterFunc ProcessFilterFunc) []*Process
+
 	// Notify notifies the store with a slice of events.  It should only be
 	// used by workloadmeta collectors.
 	Notify(events []CollectorEvent)
 
 	// Dump lists the content of the store, for debugging purposes.
 	Dump(verbose bool) WorkloadDumpResponse
+
+	// ResetProcesses resets the state of the store so that newProcesses are the
+	// only entites stored.
+	ResetProcesses(newProcesses []Entity, source Source)
 
 	// Reset resets the state of the store so that newEntities are the only
 	// entities stored. This function sends events to the subscribers in the
@@ -108,8 +132,10 @@ type Kind string
 const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
+	KindKubernetesNode         Kind = "kubernetes_node"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
+	KindProcess                Kind = "process"
 )
 
 // Source is the source name of an entity.
@@ -139,6 +165,10 @@ const (
 	// SourceRemoteWorkloadmeta represents entities detected by the remote
 	// workloadmeta.
 	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
+
+	// SourceRemoteProcessCollector reprents processes entities detected
+	// by the RemoteProcessCollector.
+	SourceRemoteProcessCollector Source = "remote_process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -395,8 +425,9 @@ type Container struct {
 	State      ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
-	CollectorTags []string
-	Owner         *EntityID
+	CollectorTags   []string
+	Owner           *EntityID
+	SecurityContext *ContainerSecurityContext
 }
 
 // GetID implements Entity#GetID.
@@ -451,18 +482,68 @@ func (c Container) String(verbose bool) string {
 		}
 	}
 
+	if c.SecurityContext != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Security Context -----------")
+		if c.SecurityContext.Capabilities != nil {
+			_, _ = fmt.Fprintln(&sb, "----------- Capabilities -----------")
+			_, _ = fmt.Fprintln(&sb, "Add:", c.SecurityContext.Capabilities.Add)
+			_, _ = fmt.Fprintln(&sb, "Drop:", c.SecurityContext.Capabilities.Drop)
+		}
+
+		_, _ = fmt.Fprintln(&sb, "Privileged:", c.SecurityContext.Privileged)
+		if c.SecurityContext.SeccompProfile != nil {
+			_, _ = fmt.Fprintln(&sb, "----------- Seccomp Profile -----------")
+			_, _ = fmt.Fprintln(&sb, "Type:", c.SecurityContext.SeccompProfile.Type)
+			if c.SecurityContext.SeccompProfile.Type == SeccompProfileTypeLocalhost {
+				_, _ = fmt.Fprintln(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
+			}
+		}
+	}
+
 	return sb.String()
 }
 
-// IsOwnedByPod checks if a container's Owner is a KindKubernetesPod
-func (c *Container) IsOwnedByPod() bool {
-	return c.Owner != nil && c.Owner.Kind == KindKubernetesPod
+// PodSecurityContext is the Security Context of a Kubernete pod
+type PodSecurityContext struct {
+	RunAsUser  int32
+	RunAsGroup int32
+	FsGroup    int32
+}
+
+// ContainerSecurityContext is the Security Context of a Container
+type ContainerSecurityContext struct {
+	*Capabilities
+	Privileged     bool
+	SeccompProfile *SeccompProfile
+}
+
+type Capabilities struct {
+	Add  []string
+	Drop []string
+}
+
+// SeccompProfileType is the type of seccomp profile used
+type SeccompProfileType string
+
+const (
+	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
+	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
+	SeccompProfileTypeLocalhost      SeccompProfileType = "Localhost"
+)
+
+// SeccompProfileSpec contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
+type SeccompProfile struct {
+	Type             SeccompProfileType
+	LocalhostProfile string
 }
 
 var _ Entity = &Container{}
 
 // ContainerFilterFunc is a function used to filter containers.
 type ContainerFilterFunc func(container *Container) bool
+
+// ProcessFilterFunc is a function used to filter processes.
+type ProcessFilterFunc func(process *Process) bool
 
 // GetRunningContainers is a function that evaluates to true for running containers.
 var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
@@ -482,6 +563,7 @@ type KubernetesPod struct {
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 	FinishedAt                 time.Time
+	SecurityContext            *PodSecurityContext
 }
 
 // GetID implements Entity#GetID.
@@ -544,6 +626,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		}
 	}
 
+	if p.SecurityContext != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Pod Security Context -----------")
+		_, _ = fmt.Fprintln(&sb, "RunAsUser:", p.SecurityContext.RunAsUser)
+		_, _ = fmt.Fprintln(&sb, "RunAsGroup:", p.SecurityContext.RunAsGroup)
+		_, _ = fmt.Fprintln(&sb, "FsGroup:", p.SecurityContext.FsGroup)
+	}
+
 	return sb.String()
 }
 
@@ -567,6 +656,47 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 	return sb.String()
 }
+
+// KubernetesNode is an Entity representing a Kubernetes Node.
+type KubernetesNode struct {
+	EntityID
+	EntityMeta
+}
+
+// GetID implements Entity#GetID.
+func (n *KubernetesNode) GetID() EntityID {
+	return n.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (n *KubernetesNode) Merge(e Entity) error {
+	nn, ok := e.(*KubernetesNode)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
+	}
+
+	return merge(n, nn)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (n KubernetesNode) DeepCopy() Entity {
+	cn := deepcopy.Copy(n).(KubernetesNode)
+	return &cn
+}
+
+// String implements Entity#String
+func (n KubernetesNode) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
+
+	return sb.String()
+}
+
+var _ Entity = &KubernetesNode{}
 
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {
@@ -747,6 +877,53 @@ func printHistory(out io.Writer, history v1.History) {
 }
 
 var _ Entity = &ContainerImageMetadata{}
+
+type Process struct {
+	EntityID // EntityID is the PID for now
+	EntityMeta
+
+	NsPid        int32
+	ContainerId  string
+	CreationTime time.Time
+	Language     *languagemodels.Language
+}
+
+var _ Entity = &Process{}
+
+// GetID implements Entity#GetID.
+func (p Process) GetID() EntityID {
+	return p.EntityID
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (p Process) DeepCopy() Entity {
+	cp := deepcopy.Copy(p).(Process)
+	return &cp
+}
+
+// Merge implements Entity#Merge.
+func (p *Process) Merge(e Entity) error {
+	otherProcess, ok := e.(*Process)
+	if !ok {
+		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
+	}
+
+	return merge(p, otherProcess)
+}
+
+// String implements Entity#String.
+func (p Process) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, "PID:", p.EntityID.ID)
+	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
+	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerId)
+	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
+	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+
+	return sb.String()
+}
 
 // CollectorEvent is an event generated by a metadata collector, to be handled
 // by the metadata store.

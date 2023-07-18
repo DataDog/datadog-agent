@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf
-// +build linux_bpf
 
 package ebpf
 
@@ -12,31 +11,33 @@ import (
 	"fmt"
 	"sync"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
 // prebuiltModulesInUse is a global object which is responsible for keeping a list of all the prebuilt ebpf assets in use.
 // This is used to report ebpf asset telemetry
-var prebuiltModulesInUse = []string{}
+var prebuiltModulesInUse = map[string]struct{}{}
 var telemetrymu sync.Mutex
 
-func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {
-	var file string
+func ModuleFileName(moduleName string, debug bool) string {
 	if debug {
-		file = fmt.Sprintf("%s-debug.o", moduleName)
-	} else {
-		file = fmt.Sprintf("%s.o", moduleName)
+		return fmt.Sprintf("%s-debug.o", moduleName)
 	}
 
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	return fmt.Sprintf("%s.o", moduleName)
+}
+
+func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {
+	ebpfReader, err := bytecode.GetReader(bpfDir, ModuleFileName(moduleName, debug))
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
 
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
-	prebuiltModulesInUse = append(prebuiltModulesInUse, moduleName)
-
+	prebuiltModulesInUse[moduleName] = struct{}{}
 	return ebpfReader, nil
 }
 
@@ -47,7 +48,7 @@ func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 
 // ReadHTTPModule from the asset file
 func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "http", debug)
+	return readModule(bpfDir, "usm", debug)
 }
 
 // ReadDNSModule from the asset file
@@ -66,24 +67,12 @@ func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 
 // ReadConntrackBPFModule from the asset file
 func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	file := "conntrack.o"
-	if debug {
-		file = "conntrack-debug.o"
-	}
-
-	ebpfReader, err := bytecode.GetReader(bpfDir, file)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't find asset: %s", err)
-	}
-
-	return ebpfReader, nil
+	return readModule(bpfDir, "conntrack", debug)
 }
 
 func GetModulesInUse() []string {
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
 
-	result := make([]string, len(prebuiltModulesInUse))
-	copy(result, prebuiltModulesInUse)
-	return result
+	return maps.Keys(prebuiltModulesInUse)
 }

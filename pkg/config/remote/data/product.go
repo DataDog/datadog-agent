@@ -15,10 +15,16 @@ const (
 	ProductCWSDD Product = "CWS_DD"
 	// ProductCWSCustom is the cloud workload security product
 	ProductCWSCustom Product = "CWS_CUSTOM"
+	// ProductCWSProfile is the cloud workload security product
+	ProductCWSProfile Product = "CWS_SECURITY_PROFILES"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing Product = "APM_TRACING"
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
+	// ProductAgentTask is to receive agent task instruction, like a flare
+	ProductAgentTask Product = "AGENT_TASK"
+	// ProductAgentConfig is to receive agent configurations, like the log level
+	ProductAgentConfig = "AGENT_CONFIG"
 )
 
 // ProductListToString converts a product list to string list

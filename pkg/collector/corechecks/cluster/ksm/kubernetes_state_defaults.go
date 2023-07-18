@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package ksm
 
@@ -39,6 +38,8 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_endpoint_address_not_ready":                                                          "endpoint.address_not_ready",
 		"kube_pod_container_status_terminated":                                                     "container.terminated",
 		"kube_pod_container_status_waiting":                                                        "container.waiting",
+		"kube_pod_init_container_status_waiting":                                                   "initcontainer.waiting",
+		"kube_pod_init_container_status_restarts_total":                                            "initcontainer.restarts",
 		"kube_persistentvolumeclaim_status_phase":                                                  "persistentvolumeclaim.status",
 		"kube_persistentvolumeclaim_access_mode":                                                   "persistentvolumeclaim.access_mode",
 		"kube_persistentvolumeclaim_resource_requests_storage_bytes":                               "persistentvolumeclaim.request_storage",
@@ -222,6 +223,10 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 // label or and because some other resource doesn't need the `namespace` label.
 func getLabelToMatchForKind(kind string) []string {
 	switch kind {
+	case "apiservice": // API Services are not namespaced
+		return []string{"apiservice"}
+	case "customresourcedefinition": // CRD are not namespaced
+		return []string{"customresourcedefinition"}
 	case "job": // job metrics use specific label
 		return []string{"job_name", "namespace"}
 	case "node": // persistent nodes are not namespaced

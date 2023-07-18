@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package logs
 
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
@@ -33,7 +33,7 @@ import (
 )
 
 // NewAgent returns a new Logs Agent
-func NewAgent(sources *sources.LogSources, services *service.Services, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
+func NewAgent(sources *sources.LogSources, services *service.Services, tracker *tailers.TailerTracker, processingRules []*config.ProcessingRule, endpoints *config.Endpoints) *Agent {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
@@ -42,13 +42,13 @@ func NewAgent(sources *sources.LogSources, services *service.Services, processin
 	auditorTTL := time.Duration(coreConfig.Datadog.GetInt("logs_config.auditor_ttl")) * time.Hour
 	auditor := auditor.New(coreConfig.Datadog.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver()
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
 
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsCtx)
 
 	// setup the launchers
-	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor)
+	lnchrs := launchers.NewLaunchers(sources, pipelineProvider, auditor, tracker)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		coreConfig.Datadog.GetInt("logs_config.open_files_limit"),
 		filelauncher.DefaultSleepDuration,

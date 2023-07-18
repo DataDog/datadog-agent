@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build zlib && test
-// +build zlib,test
 
 package serializer
 
@@ -13,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -22,14 +21,14 @@ import (
 func buildEvents(numberOfEvents int) metricsserializer.Events {
 	events := metricsserializer.Events{}
 	for i := 0; i < numberOfEvents; i++ {
-		event := metrics.Event{
+		event := event.Event{
 			Title:     fmt.Sprintf("test.events%d", i),
 			Text:      fmt.Sprintf("test.events%d", i),
 			Ts:        1,
-			Priority:  metrics.EventPriorityLow,
+			Priority:  event.EventPriorityLow,
 			Host:      "localHost",
 			Tags:      []string{"tag1", "tag2:yes"},
-			AlertType: metrics.EventAlertTypeInfo,
+			AlertType: event.EventAlertTypeInfo,
 		}
 		events = append(events, &event)
 	}

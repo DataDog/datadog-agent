@@ -567,7 +567,7 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		Platform:               common.Unspecified,
 	}
 
-	if strings.Contains(buildTags, "linux") {
+	if strings.Contains(buildTags, "linux") || strings.Contains(buildTags, "unix") {
 		module.Platform = common.Linux
 	} else if strings.Contains(buildTags, "windows") {
 		module.Platform = common.Windows
@@ -815,13 +815,21 @@ func GenerateContent(output string, module *common.Module, tmplCode string) erro
 func removeEmptyLines(input *bytes.Buffer) string {
 	scanner := bufio.NewScanner(input)
 	builder := strings.Builder{}
+	inGoCode := false
+
 	for scanner.Scan() {
 		trimmed := strings.TrimSpace(scanner.Text())
-		if len(trimmed) != 0 {
+
+		if strings.HasPrefix(trimmed, "package") {
+			inGoCode = true
+		}
+
+		if len(trimmed) != 0 || !inGoCode {
 			builder.WriteString(trimmed)
 			builder.WriteRune('\n')
 		}
 	}
+
 	return builder.String()
 }
 

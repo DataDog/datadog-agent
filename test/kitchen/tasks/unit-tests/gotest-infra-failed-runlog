@@ -1,0 +1,10 @@
+I, [2023-06-20T17:11:07.071887 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64:          --- PASS: TestTracerSuite/prebuilt/TestUDPSendAndReceive/v4/random_port (0.08s)
+I, [2023-06-20T17:11:07.072844 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64:      --- PASS: TestTracerSuite/prebuilt/TestUDPSendAndReceive/v6 (0.16s)
+I, [2023-06-20T17:11:07.073819 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64:          --- PASS: TestTracerSuite/prebuilt/TestUDPSendAndReceive/v6/fixed_port (0.08s)
+I, [2023-06-20T17:11:07.074785 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64:          --- PASS: TestTracerSuite/prebuilt/TestUDPSendAndReceive/v6/random_port (0.08s)
+I, [2023-06-20T17:11:07.075773 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64:  --- PASS: TestTracerSuite/prebuilt/TestUnconnectedUDPSendIPv4 (0.08s)
+I, [2023-06-20T17:11:07.076712 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: === RUN   TestSkipConnectionDNS
+I, [2023-06-20T17:11:07.077662 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: === RUN   TestSkipConnectionDNS/CollectLocalDNS_disabled
+I, [2023-06-20T17:11:07.087161 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: 
+I, [2023-06-20T17:11:07.089982 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: 
+I, [2023-06-20T17:11:07.090900 #404]  INFO -- win-sysprobe-test-win2012r2-azure-x86-64: Finished in 29.9 seconds.

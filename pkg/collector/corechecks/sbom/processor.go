@@ -4,7 +4,6 @@
 // Copyright 2022-present Datadog, Inc.
 
 //go:build trivy
-// +build trivy
 
 package sbom
 
@@ -14,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -45,12 +44,14 @@ type processor struct {
 	imageRepoDigests  map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers        map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner       *sbomscanner.Scanner
+	hostSBOM          bool
 	hostScanOpts      sbom.ScanOptions
 	hostname          string
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
 	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
+	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -76,6 +77,7 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender aggregator.Sender
 		imageRepoDigests:  make(map[string]string),
 		imageUsers:        make(map[string]map[string]struct{}),
 		sbomScanner:       sbomScanner,
+		hostSBOM:          hostSBOM,
 		hostScanOpts:      hostScanOpts,
 		hostname:          hostname,
 	}, nil
@@ -168,6 +170,10 @@ func (p *processor) processContainerImagesRefresh(allImages []*workloadmeta.Cont
 }
 
 func (p *processor) processHostRefresh() {
+	if !p.hostSBOM {
+		return
+	}
+
 	log.Debugf("Triggering host SBOM refresh")
 
 	ch := make(chan sbom.ScanResult, 1)
@@ -177,11 +183,19 @@ func (p *processor) processHostRefresh() {
 	}
 
 	if err := p.sbomScanner.Scan(scanRequest, p.hostScanOpts, ch); err != nil {
-		log.Errorf("Failed to generate SBOM for host: %s", err)
+		log.Errorf("Failed to trigger SBOM generation for host: %s", err)
+		return
 	}
 
 	go func() {
 		result := <-ch
+
+		if result.Error != nil {
+			// TODO: add a retry mechanism for retryable errors
+			log.Errorf("Failed to generate SBOM for host: %s", result.Error)
+			return
+		}
+
 		log.Debugf("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
 
 		bom, err := result.Report.ToCycloneDX()

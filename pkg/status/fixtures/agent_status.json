@@ -630,8 +630,7 @@
 					 "SpanNameAsResourceName":false,
 					 "SpanNameRemappings":{
 							
-					 },
-					 "UsePreviewHostnameLogic":false
+					 }
 				},
 				"Obfuscation":{
 					 "CreditCards":{
@@ -656,7 +655,8 @@
 							"ObfuscateSQLValues":null
 					 },
 					 "Redis":{
-							"Enabled":false
+							"Enabled":false,
+							"RemoveAllArgs":false
 					 },
 					 "RemoveStackTraces":false,
 					 "SQLExecPlan":{
@@ -686,7 +686,7 @@
 				"ReceiverSocket":"/var/run/datadog/apm.socket",
 				"ReceiverTimeout":0,
 				"RejectTags":null,
-				"RemoteSamplingClient":null,
+				"RemoteConfigClient":null,
 				"ReplaceTags":null,
 				"RequireTags":null,
 				"Site":"datadoghq.com",

@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux
-// +build linux
 
 package resolvers
 
@@ -25,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -39,6 +39,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ResolversOpts defines common options
+type ResolversOpts struct {
+	PathResolutionEnabled bool
+	TagsResolver          tags.Resolver
+}
+
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	manager           *manager.Manager
@@ -46,18 +52,19 @@ type Resolvers struct {
 	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
 	UserGroupResolver *usergroup.Resolver
-	TagsResolver      *tags.Resolver
+	TagsResolver      tags.Resolver
 	DentryResolver    *dentry.Resolver
 	ProcessResolver   *process.Resolver
 	NamespaceResolver *netns.Resolver
 	CGroupResolver    *cgroup.Resolver
 	TCResolver        *tc.Resolver
-	PathResolver      *path.Resolver
+	PathResolver      path.ResolverInterface
 	SBOMResolver      *sbom.Resolver
+	HashResolver      *hash.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC) (*Resolvers, error) {
+func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts ResolversOpts) (*Resolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -89,7 +96,12 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		}
 	}
 
-	tagsResolver := tags.NewResolver(config.Probe)
+	var tagsResolver tags.Resolver
+	if opts.TagsResolver != nil {
+		tagsResolver = opts.TagsResolver
+	} else {
+		tagsResolver = tags.NewResolver(config.Probe)
+	}
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
 	if err != nil {
 		return nil, err
@@ -105,11 +117,23 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	pathResolver := path.NewResolver(dentryResolver, mountResolver)
-
+	var pathResolver path.ResolverInterface
+	if opts.PathResolutionEnabled {
+		pathResolver = path.NewResolver(dentryResolver, mountResolver)
+	} else {
+		pathResolver = &path.NoResolver{}
+	}
 	containerResolver := &container.Resolver{}
+
+	processOpts := process.NewResolverOpts()
+	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
+
 	processResolver, err := process.NewResolver(manager, config.Probe, statsdClient,
-		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, process.NewResolverOpts(config.Probe.EnvsWithValue))
+		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)
+	if err != nil {
+		return nil, err
+	}
+	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient, cgroupsResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +152,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		ProcessResolver:   processResolver,
 		PathResolver:      pathResolver,
 		SBOMResolver:      sbomResolver,
+		HashResolver:      hashResolver,
 	}
 
 	return resolvers, nil
@@ -213,12 +238,14 @@ func (r *Resolvers) snapshot() error {
 			continue
 		}
 
-		if process.IsKThread(uint32(ppid), uint32(proc.Pid)) {
+		pid := uint32(proc.Pid)
+
+		if process.IsKThread(uint32(ppid), pid) {
 			continue
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err = r.MountResolver.SyncCache(uint32(proc.Pid)); err != nil {
+		if err = r.MountResolver.SyncCache(pid); err != nil {
 			if !os.IsNotExist(err) {
 				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}
@@ -228,7 +255,7 @@ func (r *Resolvers) snapshot() error {
 		r.ProcessResolver.SyncCache(proc)
 
 		// Sync the namespace cache
-		r.NamespaceResolver.SyncCache(proc)
+		r.NamespaceResolver.SyncCache(pid)
 	}
 
 	return nil

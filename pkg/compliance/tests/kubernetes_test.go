@@ -4,15 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build kubeapiserver
-// +build kubeapiserver
 
 package tests
 
 import (
 	"testing"
-
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/kubeapiserver"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

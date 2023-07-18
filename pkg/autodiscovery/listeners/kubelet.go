@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !serverless
-// +build !serverless
 
 package listeners
 
@@ -114,10 +113,11 @@ func (l *KubeletListener) createContainerService(
 
 	if l.IsExcluded(
 		containers.GlobalFilter,
+		pod.Annotations,
 		containerName,
 		containerImg.RawName,
 		pod.Namespace,
-	) || containers.IsExcludedByAnnotation(containers.GlobalFilter, pod.Annotations, containerName) {
+	) {
 		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, containerName, containerImg.RawName, pod.Namespace)
 		return
 	}
@@ -163,16 +163,18 @@ func (l *KubeletListener) createContainerService(
 		// from metrics collection but keep them for collecting logs.
 		metricsExcluded: l.IsExcluded(
 			containers.MetricsFilter,
+			pod.Annotations,
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
-		) || !container.State.Running || containers.IsExcludedByAnnotation(containers.MetricsFilter, pod.Annotations, containerName),
+		) || !container.State.Running,
 		logsExcluded: l.IsExcluded(
 			containers.LogsFilter,
+			pod.Annotations,
 			containerName,
 			containerImg.RawName,
 			pod.Namespace,
-		) || containers.IsExcludedByAnnotation(containers.LogsFilter, pod.Annotations, containerName),
+		),
 	}
 
 	adIdentifier := containerName
