@@ -71,7 +71,7 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 // Listen start the remote config client to listen to AGENT_TASK configurations
 func (rc rcClient) Listen(clientName string, products []data.Product) error {
 	c, err := remote.NewUnverifiedGRPCClient(
-		clientName, version.AgentVersion, products, 1*time.Second,
+		clientName, version.AgentVersion, products, 5*time.Second,
 	)
 	if err != nil {
 		return err
