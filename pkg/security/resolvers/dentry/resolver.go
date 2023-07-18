@@ -185,7 +185,6 @@ func (dr *Resolver) DelCacheEntry(mountID uint32, inode uint64) {
 			if !exists {
 				break
 			}
-			// this is also call the onEvict function of LRU thus releasing the entry from the pool
 			entries.Remove(key)
 
 			parent := path.Parent
