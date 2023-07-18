@@ -93,6 +93,12 @@ if arm? || !_64_bit?
   blacklist_packages.push(/^orjson==/)
 end
 
+if linux?
+  # We need to use cython<3.0.0 to build pyyaml for py2
+  dependency 'pyyaml-py2'
+  blacklist_packages.push(/^pyyaml==/)
+end
+
 final_constraints_file = 'final_constraints-py2.txt'
 agent_requirements_file = 'agent_requirements-py2.txt'
 filtered_agent_requirements_in = 'agent_requirements-py2.in'
