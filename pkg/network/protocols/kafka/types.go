@@ -13,6 +13,6 @@ package kafka
 */
 import "C"
 
-type kafkaConnTuple C.conn_tuple_t
+type ConnTuple C.conn_tuple_t
 
-type EbpfKafkaTx C.kafka_transaction_batch_entry_t
+type EbpfTx C.kafka_transaction_batch_entry_t
