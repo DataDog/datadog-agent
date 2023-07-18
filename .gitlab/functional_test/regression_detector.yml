@@ -39,7 +39,9 @@ single-machine-performance-regression_detector:
     - touch outputs/report.html  # Will be emitted by smp job sync
     # Compute merge base of current commit and `main`
     - git fetch origin
-    - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/main)
+    - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch)
+    - echo "Looking for merge base for branch ${SMP_BASE_BRANCH}"
+    - SMP_MERGE_BASE=$(git merge-base ${CI_COMMIT_SHA} origin/${SMP_BASE_BRANCH})
     - echo "Merge base is ${SMP_MERGE_BASE}"
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
