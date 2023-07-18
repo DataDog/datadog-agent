@@ -10,7 +10,6 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"

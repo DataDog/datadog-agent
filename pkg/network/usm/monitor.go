@@ -10,10 +10,11 @@ package usm
 import (
 	"errors"
 	"fmt"
-	"github.com/cilium/ebpf"
-	"go.uber.org/atomic"
 	"syscall"
 	"time"
+
+	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
 
