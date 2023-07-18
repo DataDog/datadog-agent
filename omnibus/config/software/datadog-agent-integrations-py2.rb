@@ -97,6 +97,7 @@ if linux?
   # We need to use cython<3.0.0 to build pyyaml for py2
   dependency 'pyyaml-py2'
   blacklist_packages.push(/^pyyaml==/)
+  blacklist_packages.push(/^PyYAML==/)
 end
 
 final_constraints_file = 'final_constraints-py2.txt'
