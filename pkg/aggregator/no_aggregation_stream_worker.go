@@ -197,7 +197,7 @@ func (w *noAggregationStreamWorker) run() {
 
 							// if the value is a rate, we have to account for the 10s interval
 							if mtype == metrics.APIRateType {
-							    sample.Value /= bucketSize
+								sample.Value /= bucketSize
 							}
 
 							// turns this metric sample into a serie
