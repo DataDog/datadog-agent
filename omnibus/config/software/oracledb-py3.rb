@@ -9,7 +9,7 @@ source :url => "https://files.pythonhosted.org/packages/05/18/516f38a55c99d8ac41
        :sha256 => "bb3c391c167b5778ddb15a7538a2b36db5c9b88a50c86c61781ca9ff302bb643",
        :extract => :seven_zip
 
-relative_path "python-oracledb-#{version}"
+relative_path "oracledb-#{version}"
 
 build do
   license "Apache-2.0"
