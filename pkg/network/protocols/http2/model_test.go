@@ -14,48 +14,53 @@ import (
 	"golang.org/x/net/http2/hpack"
 )
 
-const (
-	maxPathLen          = 30
-	compressedPathLen   = 21
-	decompressedPathLen = 28
-)
-
 func TestHTTP2Path(t *testing.T) {
-	t.Run("validate http2 path backslash", func(t *testing.T) {
-		// create a buffer to store the encoded data
-		paths := []string{"/hello.HelloService/SayHello", "hello.HelloService/SayHello"}
-		results := []bool{true, false}
-		pathsResults := []string{"/hello.HelloService/SayHello", ""}
+	tests := []struct {
+		name        string
+		rawPath     string
+		expectedErr bool
+	}{
+		{
+			name:    "Short path",
+			rawPath: "/hello.HelloService/SayHello",
+		},
+		{
+			name:    "Long path",
+			rawPath: "/resourcespb.ResourceTagging/GetResourceTags",
+		},
+		{
+			name:        "Path does not start with /",
+			rawPath:     "hello.HelloService/SayHello",
+			expectedErr: true,
+		},
+		{
+			name:        "Empty path",
+			rawPath:     "",
+			expectedErr: true,
+		},
+	}
 
-		for index, currentString := range paths {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			var buf []byte
-			var arr [maxPathLen]uint8
-			buf = hpack.AppendHuffmanString(buf, currentString)
-			copy(arr[:], buf[:30])
+			var arr [maxHTTP2Path]uint8
+			buf = hpack.AppendHuffmanString(buf, tt.rawPath)
+			copy(arr[:], buf)
 
 			request := &EbpfTx{
 				Request_path: arr,
-				Path_size:    compressedPathLen,
+				Path_size:    uint8(len(buf)),
 			}
 
-			outBuf := make([]byte, decompressedPathLen)
+			outBuf := make([]byte, 200)
 
 			path, ok := request.Path(outBuf)
-			assert.Equal(t, results[index], ok)
-			assert.Equal(t, pathsResults[index], string(path))
-		}
-
-	})
-
-	t.Run("empty path", func(t *testing.T) {
-		request := &EbpfTx{
-			Request_path: [maxPathLen]uint8{},
-			Path_size:    compressedPathLen,
-		}
-		outBuf := make([]byte, decompressedPathLen)
-
-		path, ok := request.Path(outBuf)
-		assert.Equal(t, ok, false)
-		assert.Nil(t, path)
-	})
+			if tt.expectedErr {
+				assert.False(t, ok)
+				return
+			}
+			assert.True(t, ok)
+			assert.Equal(t, tt.rawPath, string(path))
+		})
+	}
 }
