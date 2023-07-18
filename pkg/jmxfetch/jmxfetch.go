@@ -446,11 +446,5 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 		}
 	}
 
-	if instanceConf.ProcessNameRegex != "" {
-		if j.JavaToolsJarPath == "" {
-			return fmt.Errorf("You must specify the path to tools.jar. See http://docs.datadoghq.com/integrations/java/ for more information")
-		}
-	}
-
 	return nil
 }
