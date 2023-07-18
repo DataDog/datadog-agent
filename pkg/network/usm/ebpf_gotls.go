@@ -155,7 +155,7 @@ type GoTLSProgram struct {
 
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
-	binAnalysisMetric *libtelemetry.Metric
+	binAnalysisMetric *libtelemetry.Counter
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -184,7 +184,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		processes: make(map[pid]binaryID),
 	}
 
-	p.binAnalysisMetric = libtelemetry.NewMetric("gotls.analysis_time", libtelemetry.OptStatsd)
+	p.binAnalysisMetric = libtelemetry.NewCounter("gotls.analysis_time", libtelemetry.OptStatsd)
 
 	return p
 }
@@ -232,19 +232,6 @@ func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 
 func (p *GoTLSProgram) Start() {
 	var err error
-	defer func() {
-		if err == nil {
-			return
-		}
-		// In case of an error, we should cleanup the callbacks.
-		if p.procMonitor.cleanupExec != nil {
-			p.procMonitor.cleanupExec()
-		}
-		if p.procMonitor.cleanupExit != nil {
-			p.procMonitor.cleanupExit()
-		}
-	}()
-
 	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
 	if err != nil {
 		log.Errorf("could not get offsets_data map: %s", err)
@@ -252,18 +239,8 @@ func (p *GoTLSProgram) Start() {
 	}
 
 	p.procMonitor.monitor = monitor.GetProcessMonitor()
-	p.procMonitor.cleanupExec, err = p.procMonitor.monitor.SubscribeExec(p.handleProcessStart)
-
-	if err != nil {
-		log.Errorf("failed to subscribe Exec process monitor error: %s", err)
-		return
-	}
-	p.procMonitor.cleanupExit, err = p.procMonitor.monitor.SubscribeExit(p.handleProcessStop)
-
-	if err != nil {
-		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
-		return
-	}
+	p.procMonitor.cleanupExec = p.procMonitor.monitor.SubscribeExec(p.handleProcessStart)
+	p.procMonitor.cleanupExit = p.procMonitor.monitor.SubscribeExit(p.handleProcessStop)
 
 	p.wg.Add(1)
 	go func() {
@@ -423,7 +400,7 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 
 	elapsed := time.Since(start)
 
-	p.binAnalysisMetric.Set(elapsed.Milliseconds())
+	p.binAnalysisMetric.Add(elapsed.Milliseconds())
 	log.Debugf("attached hooks on %s (%v) in %s", binPath, binID, elapsed)
 }
 

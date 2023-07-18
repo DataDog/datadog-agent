@@ -815,7 +815,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
-			if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
+			if errors.Is(err, model.ErrDNSNameMalformatted) {
+				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Name)
+			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
 				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
 			} else {
 				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1021,6 +1023,17 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	return false
 }
 
+func (p *Probe) isNeededForSecurityProfile(eventType eval.EventType) bool {
+	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
+		for _, e := range p.Config.RuntimeSecurity.AnomalyDetectionEventTypes {
+			if e.String() == eventType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (p *Probe) validEventTypeForConfig(eventType string) bool {
 	if eventType == "dns" && !p.Config.Probe.NetworkEnabled {
 		return false
@@ -1050,7 +1063,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
-		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
+		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) || p.isNeededForSecurityProfile(eventType) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}

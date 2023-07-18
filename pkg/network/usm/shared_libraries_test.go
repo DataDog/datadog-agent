@@ -620,7 +620,7 @@ func initEBPFProgram(t *testing.T) *ddebpf.PerfHandler {
 				EditorFlag: manager.EditMaxEntries,
 			},
 			"http_in_flight": {
-				Type:       ebpf.LRUHash,
+				Type:       ebpf.Hash,
 				MaxEntries: 1,
 				EditorFlag: manager.EditMaxEntries,
 			},
