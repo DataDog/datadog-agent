@@ -38,8 +38,7 @@ func registerCallback(t *testing.T, pm *ProcessMonitor, isExec bool, callback *P
 	if isExec {
 		registrationFunc = pm.SubscribeExec
 	}
-	unsubscribe, err := registrationFunc(*callback)
-	require.NoError(t, err)
+	unsubscribe := registrationFunc(*callback)
 	t.Cleanup(unsubscribe)
 	return unsubscribe
 }

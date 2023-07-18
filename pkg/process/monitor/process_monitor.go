@@ -281,7 +281,7 @@ func (pm *ProcessMonitor) Initialize() error {
 //
 // A callback can be registered only once, callback with a filter type (not ANY) must be registered before the matching
 // Exit callback.
-func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) (func(), error) {
+func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) func() {
 	pm.processExecCallbacksMutex.Lock()
 	pm.hasExecCallbacks.Store(true)
 	pm.processExecCallbacks[&callback] = struct{}{}
@@ -293,11 +293,11 @@ func (pm *ProcessMonitor) SubscribeExec(callback ProcessCallback) (func(), error
 		delete(pm.processExecCallbacks, &callback)
 		pm.hasExecCallbacks.Store(len(pm.processExecCallbacks) > 0)
 		pm.processExecCallbacksMutex.Unlock()
-	}, nil
+	}
 }
 
 // SubscribeExit register an exit callback and returns unsubscribe function callback that removes the callback.
-func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) (func(), error) {
+func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) func() {
 	pm.processExitCallbacksMutex.Lock()
 	pm.hasExitCallbacks.Store(true)
 	pm.processExitCallbacks[&callback] = struct{}{}
@@ -309,7 +309,7 @@ func (pm *ProcessMonitor) SubscribeExit(callback ProcessCallback) (func(), error
 		delete(pm.processExitCallbacks, &callback)
 		pm.hasExitCallbacks.Store(len(pm.processExitCallbacks) > 0)
 		pm.processExitCallbacksMutex.Unlock()
-	}, nil
+	}
 }
 
 // Stop decreasing the refcount, and if we reach 0 we terminate the main event loop.

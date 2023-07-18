@@ -20,10 +20,7 @@ import (
 // change until a restart. This bit of information should be passed along with
 // the process messages.
 func CollectSystemInfo() (*model.SystemInfo, error) {
-	hi, err := platform.GetArchInfo()
-	if err != nil {
-		return nil, err
-	}
+	hi := platform.CollectInfo()
 	cpuInfo := cpu.CollectInfo()
 	mi, err := winutil.VirtualMemory()
 	if err != nil {
@@ -65,13 +62,17 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 		})
 	}
 
+	kernelName, _ := hi.KernelName.Value()
+	osName, _ := hi.OS.Value()
+	platformFamily, _ := hi.Family.Value()
+	kernelRelease, _ := hi.KernelRelease.Value()
 	m := &model.SystemInfo{
 		Uuid: "",
 		Os: &model.OSInfo{
-			Name:          hi["kernel_name"],
-			Platform:      hi["os"],
-			Family:        hi["family"],
-			Version:       hi["kernel_release"],
+			Name:          kernelName,
+			Platform:      osName,
+			Family:        platformFamily,
+			Version:       kernelRelease,
 			KernelVersion: "",
 		},
 		Cpus:        cpus,
