@@ -10,6 +10,7 @@ package tracer
 import (
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cihub/seelog"
 	lru "github.com/hashicorp/golang-lru/v2"
