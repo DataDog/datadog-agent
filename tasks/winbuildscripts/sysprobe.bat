@@ -14,8 +14,8 @@ if not exist %BUILD_ROOT%\datadog-agent exit /b 2
 cd %BUILD_ROOT%\datadog-agent || exit /b 3
 xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
 
-call %BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%
-call %BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache-tools.bat
+call %BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache
+call %BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache_tools
 
 
 Powershell -C "%BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\sysprobe.ps1" || exit /b 5

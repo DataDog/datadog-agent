@@ -14,8 +14,8 @@ if not exist %TEST_ROOT%\datadog-agent exit /b 2
 cd %TEST_ROOT%\datadog-agent || exit /b 3
 xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
 
-call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%
-call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-tools-modcache.bat
+call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache
+call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache_tools
 
 Powershell -C "%TEST_ROOT%\datadog-agent\tasks\winbuildscripts\lint.ps1" || exit /b 2
 

@@ -1,3 +1,4 @@
+exit /b 1
 if exist c:\mnt\modcache_tools.tar.gz (
     @echo Extracting modcache_tools
     Powershell -C "7z x c:\mnt\modcache_tools.tar.gz -oc:\mnt"

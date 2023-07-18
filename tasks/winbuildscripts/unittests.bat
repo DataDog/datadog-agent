@@ -12,8 +12,8 @@ mkdir %TEST_ROOT%\datadog-agent
 cd %TEST_ROOT%\datadog-agent
 xcopy /e/s/h/q c:\mnt\*.*
 
-call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%
-call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache-tools.bat
+call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache
+call %TEST_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %TEST_ROOT%\datadog-agent modcache_tools
 
 Powershell -C "%TEST_ROOT%\datadog-agent\tasks\winbuildscripts\unittests.ps1" || exit /b 2
 
