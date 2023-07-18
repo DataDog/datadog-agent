@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,16 +20,15 @@ type agentSuite struct {
 }
 
 func TestAgentHostnameEC2Suite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(nil)) //, params.WithDevMode())
+	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(nil))
 }
 
 // https://github.com/DataDog/datadog-agent/blob/main/pkg/util/hostname/README.md#the-current-logic
 func (v *agentSuite) TestAgentHostnameDefaultsToResourceId() {
-	_, err := v.Env().Agent.SetConfigValue("")
-	assert.NoError(v.T(), err)
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("")))
 
 	metadata := client.NewEC2Metadata(v.Env().VM)
-	err = v.Env().Agent.WaitForReady()
+	err := v.Env().Agent.WaitForReady()
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
@@ -39,10 +39,8 @@ func (v *agentSuite) TestAgentHostnameDefaultsToResourceId() {
 }
 
 func (v *agentSuite) TestAgentConfigHostnameVarOverride() {
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("hostname: hostname.from.var")))
 	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
-	_, err = v.Env().Agent.SetConfigValue("hostname: hostname.from.var")
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
@@ -50,12 +48,11 @@ func (v *agentSuite) TestAgentConfigHostnameVarOverride() {
 }
 
 func (v *agentSuite) TestAgentConfigHostnameFileOverride() {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
 	fileContent := "hostname.from.file"
 	v.Env().VM.Execute(fmt.Sprintf(`echo "%s" | tee /tmp/hostname`, fileContent))
-	_, err = v.Env().Agent.SetConfigValue("hostname_file: /tmp/hostname")
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("hostname_file: /tmp/hostname")))
+
+	err := v.Env().Agent.WaitForReady()
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
@@ -64,12 +61,11 @@ func (v *agentSuite) TestAgentConfigHostnameFileOverride() {
 
 // hostname_force_config_as_canonical stops throwing a warning but doesn't change behavior
 func (v *agentSuite) TestAgentConfigHostnameForceAsCanonical() {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
 	config := `hostname: ip-172-29-113-35.ec2.internal
 hostname_force_config_as_canonical: true`
-	_, err = v.Env().Agent.SetConfigValue(config)
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig(config)))
+
+	err := v.Env().Agent.WaitForReady()
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
@@ -77,13 +73,12 @@ hostname_force_config_as_canonical: true`
 }
 
 func (v *agentSuite) TestAgentConfigPrioritizeEC2Id() {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
 	// ec2_prioritize_instance_id_as_hostname doesn't override higher priority providers
 	config := `hostname: hostname.from.var
 ec2_prioritize_instance_id_as_hostname: true`
-	_, err = v.Env().Agent.SetConfigValue(config)
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig(config)))
+
+	err := v.Env().Agent.WaitForReady()
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
@@ -93,10 +88,10 @@ ec2_prioritize_instance_id_as_hostname: true`
 func (v *agentSuite) TestAgentConfigPreferImdsv2() {
 	// e2e metadata provider already uses IMDSv2
 	metadata := client.NewEC2Metadata(v.Env().VM)
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
 
-	_, err = v.Env().Agent.SetConfigValue("ec2_prefer_imdsv2: true")
+	v.UpdateEnv(e2e.AgentStackDef(nil, agentparams.WithAgentConfig("ec2_prefer_imdsv2: true")))
+
+	err := v.Env().Agent.WaitForReady()
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
