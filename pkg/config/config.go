@@ -1113,7 +1113,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_start", false)
 	config.BindEnvAndSetDefault("sbom.cache.enabled", false)
-	config.BindEnvAndSetDefault("sbom.cache.remote", false)
+	config.BindEnvAndSetDefault("sbom.cache.remote.enabled", false)
 	config.BindEnvAndSetDefault("sbom.cache.remote.ttl", "256h")           // used by redis cache.
 	config.BindEnvAndSetDefault("sbom.cache.remote.addr", "")              // used by redis cache.
 	config.BindEnvAndSetDefault("sbom.cache.remote.password", "")          // used by redis cache.
