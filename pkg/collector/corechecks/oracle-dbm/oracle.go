@@ -91,6 +91,11 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
+	err := c.OS_Stats()
+	if err != nil {
+		return fmt.Errorf("failed to collect os stats %w", err)
+	}
+
 	if c.config.SysMetrics.Enabled {
 		log.Trace("Entered sysmetrics")
 		err := c.SysMetrics()
