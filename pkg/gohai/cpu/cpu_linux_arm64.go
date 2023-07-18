@@ -77,7 +77,16 @@ func (cpuInfo *Info) fillFirstCPUInfo(firstCPU map[string]string) {
 	}
 }
 
-func (cpuInfo *Info) fillProcCPUInfo(procCPU []map[string]string) {
+func (cpuInfo *Info) fillProcCPUInfo() {
+	procCPU, err := readProcCpuInfo()
+	if err != nil {
+		cpuInfo.fillProcCPUErr(err)
+		return
+	}
+
+	// initialize each field collected from /proc/cpuinfo with a default error
+	cpuInfo.fillProcCPUErr(errors.New("not found in /proc/cpuinfo"))
+
 	// we blithely assume that many of the CPU characteristics are the same for
 	// all CPUs, so we can just use the first.
 	cpuInfo.fillFirstCPUInfo(procCPU[0])
@@ -145,14 +154,7 @@ func getCPUInfo() *Info {
 		Mhz: utils.NewErrorValue[float64](utils.ErrNotCollectable),
 	}
 
-	procCPU, err := readProcCpuInfo()
-	if err == nil {
-		// initialize each field collected from /proc/cpuinfo with a default error
-		cpuInfo.fillProcCPUErr(errors.New("not found in /proc/cpuinfo"))
-		cpuInfo.fillProcCPUInfo(procCPU)
-	} else {
-		cpuInfo.fillProcCPUErr(err)
-	}
+	cpuInfo.fillProcCPUInfo()
 
 	// ARM does not define a family
 	cpuInfo.Family = utils.NewValue("none")
