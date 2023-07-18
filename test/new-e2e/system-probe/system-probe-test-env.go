@@ -45,8 +45,8 @@ const (
 )
 
 var availabilityZones = map[string][]string{
-	DatadogAgentQAEnv: []string{PrimaryAZ, SecondaryAZ, BackupAZ},
-	Sandbox:           []string{SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
+	DatadogAgentQAEnv: {PrimaryAZ, SecondaryAZ, BackupAZ},
+	Sandbox:           {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
 }
 
 type SystemProbeEnvOpts struct {
