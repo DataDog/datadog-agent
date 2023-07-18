@@ -174,7 +174,7 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 			}
 			return nil, ErrTracerStillNotInitialized
 		}
-		return tu.GetConnectionsGRPC(c.tracerClientID)
+		return tu.GetConnectionsGRPC(c.tracerClientID, c.syscfg.GRPCSocketFilePath)
 	} else {
 		tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
 		if err != nil {

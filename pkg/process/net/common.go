@@ -162,12 +162,12 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return conns, nil
 }
 
-func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID string) (*model.Connections, error) {
+func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*model.Connections, error) {
 	// Create a context with a timeout of 10 seconds
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := grpc.Dial("unix://"+r.path, grpc.WithInsecure())
+	conn, err := grpc.Dial("unix://"+unixPath, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}

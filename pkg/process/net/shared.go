@@ -13,5 +13,5 @@ type SysProbeUtil interface {
 	GetStats() (map[string]interface{}, error)
 	GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error)
 	Register(clientID string) error
-	GetConnectionsGRPC(clientID string) (*model.Connections, error)
+	GetConnectionsGRPC(clientID, unixPath string) (*model.Connections, error)
 }
