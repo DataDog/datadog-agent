@@ -110,6 +110,16 @@ func TestLanguageFromCommandline(t *testing.T) {
 			cmdline:  []string{"sidekiq"},
 			expected: languagemodels.Ruby,
 		},
+		{
+			name:     "not ruby",
+			cmdline:  []string{"rubywow!"},
+			expected: languagemodels.Unknown,
+		},
+		{
+			name:     "not puma",
+			cmdline:  []string{"pumascript"},
+			expected: languagemodels.Unknown,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, languageNameFromCommandLine(tc.cmdline))
