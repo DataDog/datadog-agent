@@ -215,6 +215,11 @@ def destroy_stack_force(ctx, stack):
         warn=True,
         hide=True,
     ).stdout.strip()
+
+    ctx.run(
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ../test-infra-definitions -s {pulumi_stack_name}",
+        warn=True,
+    )
     ctx.run(
         f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}",
         warn=True,

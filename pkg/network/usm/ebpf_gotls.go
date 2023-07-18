@@ -23,6 +23,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
@@ -155,7 +156,7 @@ type GoTLSProgram struct {
 
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
-	binAnalysisMetric *libtelemetry.Metric
+	binAnalysisMetric *libtelemetry.Counter
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -184,7 +185,7 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		processes: make(map[pid]binaryID),
 	}
 
-	p.binAnalysisMetric = libtelemetry.NewMetric("gotls.analysis_time", libtelemetry.OptStatsd)
+	p.binAnalysisMetric = libtelemetry.NewCounter("gotls.analysis_time", libtelemetry.OptStatsd)
 
 	return p
 }
@@ -400,7 +401,7 @@ func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bi
 
 	elapsed := time.Since(start)
 
-	p.binAnalysisMetric.Set(elapsed.Milliseconds())
+	p.binAnalysisMetric.Add(elapsed.Milliseconds())
 	log.Debugf("attached hooks on %s (%v) in %s", binPath, binID, elapsed)
 }
 
@@ -501,18 +502,20 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 					EBPFFuncName: uprobes.returnInfo.ebpfFunctionName,
 					UID:          makeReturnUID(uid, i),
 				}
-				err = p.manager.AddHook("", &manager.Probe{
+				newProbe := &manager.Probe{
 					ProbeIdentificationPair: returnProbeID,
 					BinaryPath:              binPath,
 					// Each return probe needs to have a unique uid value,
 					// so add the index to the binary UID to make an overall UID.
 					UprobeOffset: offset,
-				})
+				}
+				err = p.manager.AddHook("", newProbe)
 				if err != nil {
 					err = fmt.Errorf("could not add return hook to function %q in offset %d due to: %w", function, offset, err)
 					return
 				}
 				probeIDs = append(probeIDs, returnProbeID)
+				ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, returnProbeID.UID), "usm_gotls")
 			}
 		}
 
@@ -522,16 +525,18 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 				UID:          uid,
 			}
 
-			err = p.manager.AddHook("", &manager.Probe{
+			newProbe := &manager.Probe{
 				BinaryPath:              binPath,
 				UprobeOffset:            result.Functions[function].EntryLocation,
 				ProbeIdentificationPair: probeID,
-			})
+			}
+			err = p.manager.AddHook("", newProbe)
 			if err != nil {
 				err = fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo.ebpfFunctionName, result.Functions[function].EntryLocation, err)
 				return
 			}
 			probeIDs = append(probeIDs, probeID)
+			ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, probeID.UID), "usm_gotls")
 		}
 	}
 
