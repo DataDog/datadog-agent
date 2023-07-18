@@ -144,13 +144,15 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
                 tags = tf.read().split()
         # read job url (see comment in produce_junit_tar)
         job_url = None
-        if os.path.exists(JOB_URL_FILE_NAME):
-            with open(os.path.join(unpack_dir, JOB_URL_FILE_NAME)) as jf:
+        urlfile = os.path.join(unpack_dir, JOB_URL_FILE_NAME)
+        if os.path.exists(urlfile):
+            with open(urlfile) as jf:
                 job_url = jf.read()
 
         job_env = {}
-        if os.path.exists(JOB_ENV_FILE_NAME):
-            with open(os.path.join(unpack_dir, JOB_ENV_FILE_NAME)) as jf:
+        envfile = os.path.join(unpack_dir, JOB_ENV_FILE_NAME)
+        if os.path.exists(envfile):
+            with open(envfile) as jf:
                 for line in jf:
                     if not line.strip():
                         continue
