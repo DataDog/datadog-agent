@@ -15,11 +15,5 @@ build do
 
   command "sed -i 's/cython/cython<3.0.0/g' pyproject.toml"
 
-  if windows?
-    pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
-  else
-    pip = "#{install_dir}/embedded/bin/pip3"
-  end
-
-  command "#{pip} install ."
+  command "#{install_dir}/embedded/bin/pip3 install ."
 end

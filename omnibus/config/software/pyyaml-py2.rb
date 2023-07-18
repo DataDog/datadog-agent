@@ -15,11 +15,5 @@ build do
 
   command "sed -i 's/Cython/Cython<3.0.0/g' pyproject.toml"
 
-  if windows?
-    pip = "#{windows_safe_path(python_2_embedded)}\\Scripts\\pip.exe"
-  else
-    pip = "#{install_dir}/embedded/bin/pip2"
-  end
-
-  command "#{pip} install ."
+  command "#{install_dir}/embedded/bin/pip2 install ."
 end
