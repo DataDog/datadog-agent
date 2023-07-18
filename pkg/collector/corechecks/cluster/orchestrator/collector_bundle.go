@@ -24,6 +24,7 @@ import (
 
 const (
 	defaultExtraSyncTimeout = 60 * time.Second
+	defaultMaximumCRDs      = 1000
 )
 
 // CollectorBundle is a container for a group of collectors. It provides a way
@@ -138,6 +139,11 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 		}
 		groupVersion := collectorName[:idx]
 		resource := collectorName[idx+1:]
+
+		if cb.skipResources(groupVersion, resource) {
+			return
+		}
+
 		if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
 			_ = cb.check.Warnf("Ignoring CRD collector %s: use builtin collection instead", collectorName)
 
@@ -192,7 +198,14 @@ func (cb *CollectorBundle) importCRDCollectorsFromCheckConfig() bool {
 	if len(cb.check.instance.CRDCollectors) == 0 {
 		return false
 	}
-	for _, c := range cb.check.instance.CRDCollectors {
+
+	crdCollectors := cb.check.instance.CRDCollectors
+	if len(cb.check.instance.CRDCollectors) > defaultMaximumCRDs {
+		crdCollectors = cb.check.instance.CRDCollectors[:defaultMaximumCRDs]
+		cb.check.Warnf("Too many crd collectors are configured, only collect first %s collectors", defaultMaximumCRDs)
+	}
+
+	for _, c := range crdCollectors {
 		cb.addCollectorFromConfig(c, true)
 	}
 	return true
@@ -303,4 +316,12 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 			}
 		}
 	}
+}
+
+func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
+	if groupVersion == "v1" && (resource == "secrets" || resource == "configmaps") {
+		cb.check.Warnf("Skipping collector: %s/%s", groupVersion, resource)
+		return true
+	}
+	return false
 }
