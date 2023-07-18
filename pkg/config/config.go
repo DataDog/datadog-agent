@@ -1123,7 +1123,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 
 	// Container SBOM configuration
-	config.BindEnvAndSetDefault("sbom.svc.tainer_image.enabled", false)
+	config.BindEnvAndSetDefault("sbom.container_image.enabled", false)
 	config.BindEnvAndSetDefault("sbom.container_image.use_mount", false)
 	config.BindEnvAndSetDefault("sbom.container_image.scan_interval", 0)    // Integer seconds
 	config.BindEnvAndSetDefault("sbom.container_image.scan_timeout", 10*60) // Integer seconds
