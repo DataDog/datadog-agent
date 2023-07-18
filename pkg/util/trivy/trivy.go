@@ -103,7 +103,7 @@ func defaultCollectorConfig(cacheLocation string) CollectorConfig {
 		ClearCacheOnClose: true,
 	}
 
-	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"), config.Datadog.GetBool("sbom.cache.remote"))
+	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"), config.Datadog.GetBool("sbom.cache.remote.enabled"))
 
 	return collectorConfig
 }
