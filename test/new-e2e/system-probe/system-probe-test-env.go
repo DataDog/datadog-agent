@@ -32,21 +32,21 @@ import (
 )
 
 const (
-	PrimaryAZ   = "subnet-03061a1647c63c3c3"
-	SecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
-	BackupAZ    = "subnet-071213aedb0e1ae54"
+	AgentQAPrimaryAZ   = "subnet-03061a1647c63c3c3"
+	AgentQASecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
+	AgentQABackupAZ    = "subnet-071213aedb0e1ae54"
 
 	SandboxPrimaryAz   = "subnet-b89e00e2"
 	SandboxSecondaryAz = "subnet-8ee8b1c6"
 	SandboxBackupAz    = "subnet-3f5db45b"
 
 	DatadogAgentQAEnv = "aws/agent-qa"
-	Sandbox           = "aws/sandbox"
+	SandboxEnv        = "aws/sandbox"
 )
 
 var availabilityZones = map[string][]string{
-	DatadogAgentQAEnv: {PrimaryAZ, SecondaryAZ, BackupAZ},
-	Sandbox:           {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
+	DatadogAgentQAEnv: {AgentQAPrimaryAZ, AgentQASecondaryAZ, AgentQABackupAZ},
+	SandboxEnv:        {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
 }
 
 type SystemProbeEnvOpts struct {
