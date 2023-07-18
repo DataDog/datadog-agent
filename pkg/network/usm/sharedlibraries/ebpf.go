@@ -38,7 +38,6 @@ var traceTypes = []string{"enter", "exit"}
 
 type ebpfProgram struct {
 	cfg         *config.Config
-	probeIDs    []manager.ProbeIdentificationPair
 	perfHandler *ddebpf.PerfHandler
 	*errtelemetry.Manager
 }
@@ -75,7 +74,6 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 	return &ebpfProgram{
 		cfg:         c,
 		Manager:     errtelemetry.NewManager(mgr, bpfTelemetry),
-		probeIDs:    probeIDs,
 		perfHandler: perfHandler,
 	}
 }
@@ -128,10 +126,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		Max: math.MaxUint64,
 	}
 
-	for _, identifier := range e.probeIDs {
+	for _, probe := range e.Probes {
 		options.ActivatedProbes = append(options.ActivatedProbes,
 			&manager.ProbeSelector{
-				ProbeIdentificationPair: identifier,
+				ProbeIdentificationPair: probe.ProbeIdentificationPair,
 			},
 		)
 	}
