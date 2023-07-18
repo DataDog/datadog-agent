@@ -56,7 +56,6 @@ type ConnectionsCheck struct {
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
 	tracerClientID         string
-	unixSockPath           string
 	networkID              string
 	notInitializedLogLimit *putil.LogLimit
 
@@ -78,7 +77,6 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = ProcessAgentClientID
-	c.unixSockPath = syscfg.GRPCSocketFilePath
 
 	// Calling the remote tracer will cause it to initialize and check connectivity
 	tu, err := net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
@@ -135,12 +133,8 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
-	useGRPCServer := false
 
-	if c.unixSockPath != "" {
-		useGRPCServer = true
-	}
-	conns, err := c.getConnections(useGRPCServer)
+	conns, err := c.getConnections()
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
 		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
@@ -171,20 +165,26 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
 func (c *ConnectionsCheck) Cleanup() {}
 
-func (c *ConnectionsCheck) getConnections(useGRPC bool) (*model.Connections, error) {
-	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
-	if err != nil {
-		if c.notInitializedLogLimit.ShouldLog() {
-			log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
+func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
+	if c.syscfg.GRPCServerEnabled {
+		tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.GRPCSocketFilePath)
+		if err != nil {
+			if c.notInitializedLogLimit.ShouldLog() {
+				log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
+			}
+			return nil, ErrTracerStillNotInitialized
 		}
-		return nil, ErrTracerStillNotInitialized
+		return tu.GetConnectionsGRPC(c.tracerClientID)
+	} else {
+		tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)
+		if err != nil {
+			if c.notInitializedLogLimit.ShouldLog() {
+				log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
+			}
+			return nil, ErrTracerStillNotInitialized
+		}
+		return tu.GetConnections(c.tracerClientID)
 	}
-
-	if useGRPC {
-		return tu.GetConnectionsGRPC(c.tracerClientID, c.unixSockPath)
-	}
-
-	return tu.GetConnections(c.tracerClientID)
 }
 
 func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {

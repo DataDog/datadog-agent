@@ -9,7 +9,6 @@ message Connection {
 
 message GetConnectionsRequest {
     string clientID = 1;
-    string unixSockPath = 2;
 }
 
 service SystemProbe {

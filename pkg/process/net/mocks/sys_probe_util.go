@@ -39,25 +39,25 @@ func (_m *SysProbeUtil) GetConnections(clientID string) (*process.Connections, e
 	return r0, r1
 }
 
-// GetConnectionsGRPC provides a mock function with given fields: clientID, unixSockPath
-func (_m *SysProbeUtil) GetConnectionsGRPC(clientID string, unixSockPath string) (*process.Connections, error) {
-	ret := _m.Called(clientID, unixSockPath)
+// GetConnectionsGRPC provides a mock function with given fields: clientID
+func (_m *SysProbeUtil) GetConnectionsGRPC(clientID string) (*process.Connections, error) {
+	ret := _m.Called(clientID)
 
 	var r0 *process.Connections
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string, string) (*process.Connections, error)); ok {
-		return rf(clientID, unixSockPath)
+	if rf, ok := ret.Get(0).(func(string) (*process.Connections, error)); ok {
+		return rf(clientID)
 	}
-	if rf, ok := ret.Get(0).(func(string, string) *process.Connections); ok {
-		r0 = rf(clientID, unixSockPath)
+	if rf, ok := ret.Get(0).(func(string) *process.Connections); ok {
+		r0 = rf(clientID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*process.Connections)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(string, string) error); ok {
-		r1 = rf(clientID, unixSockPath)
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(clientID)
 	} else {
 		r1 = ret.Error(1)
 	}

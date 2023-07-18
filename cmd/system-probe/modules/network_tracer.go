@@ -80,6 +80,8 @@ type networkTracer struct {
 	tracer       *tracer.Tracer
 	done         chan struct{}
 	restartTimer *time.Timer
+
+	connectionserver.UnsafeSystemProbeServer
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
