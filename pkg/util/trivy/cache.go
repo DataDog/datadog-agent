@@ -657,6 +657,8 @@ func (c *redisCache) Contains(key string) bool {
 		item, err := c.remoteClient.Get(c.ctx, key).Bytes()
 		if err == nil {
 			c.localCache.Set(key, item)
+		} else {
+			remoteContains = false
 		}
 	}
 
