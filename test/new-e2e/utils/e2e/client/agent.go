@@ -58,16 +58,8 @@ func (agent *Agent) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
-func (agent *Agent) Health(commandArgs ...AgentArgsOption) string {
-	return agent.executeCommand("health", commandArgs...)
-}
-
 func (agent *Agent) Hostname(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("hostname", commandArgs...)
-}
-
-func (agent *Agent) CheckConfig(commandArgs ...AgentArgsOption) string {
-	return agent.executeCommand("checkconfig", commandArgs...)
 }
 
 type Status struct {
