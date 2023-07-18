@@ -61,8 +61,8 @@ func (m PolicyMode) MarshalJSON() ([]byte, error) {
 func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 	flags := f.StringArray()
 
-	for _, flag := range flags {
-		flag = "\"" + flag + "\""
+	for idx, flag := range flags {
+		flags[idx] = "\"" + flag + "\""
 	}
 
 	return []byte("[" + strings.Join(flags, ",") + "]"), nil
