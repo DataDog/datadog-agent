@@ -1111,19 +1111,19 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
+	config.BindEnvAndSetDefault("sbom.clear_cache_on_start", false)
 	config.BindEnvAndSetDefault("sbom.cache.enabled", false)
 	config.BindEnvAndSetDefault("sbom.cache.remote", false)
-	config.BindEnvAndSetDefault("sbom.cache.remote.ttl", "256h")  // used by redis cache.
-	config.BindEnvAndSetDefault("sbom.cache.remote.addr", "")     // used by redis cache.
-	config.BindEnvAndSetDefault("sbom.cache.remote.password", "") // used by redis cache.
-	config.BindEnvAndSetDefault("sbom.cache.remote.DB", "0")      // used by redis cache.
-
+	config.BindEnvAndSetDefault("sbom.cache.remote.ttl", "256h")           // used by redis cache.
+	config.BindEnvAndSetDefault("sbom.cache.remote.addr", "")              // used by redis cache.
+	config.BindEnvAndSetDefault("sbom.cache.remote.password", "")          // used by redis cache.
+	config.BindEnvAndSetDefault("sbom.cache.remote.DB", "0")               // used by redis cache.
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	config.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 
 	// Container SBOM configuration
-	config.BindEnvAndSetDefault("sbom.container_image.enabled", false)
+	config.BindEnvAndSetDefault("sbom.svc.tainer_image.enabled", false)
 	config.BindEnvAndSetDefault("sbom.container_image.use_mount", false)
 	config.BindEnvAndSetDefault("sbom.container_image.scan_interval", 0)    // Integer seconds
 	config.BindEnvAndSetDefault("sbom.container_image.scan_timeout", 10*60) // Integer seconds

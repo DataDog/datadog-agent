@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -52,7 +53,9 @@ type BoltDB struct {
 // NewBoltDB creates a new BoltDB instance.
 func NewBoltDB(cacheDir string) (BoltDB, error) {
 	dir := filepath.Join(cacheDir, cacheDirName)
-	os.RemoveAll(dir)
+	if config.Datadog.GetBool("sbom.clear_cache_on_exit") {
+		os.RemoveAll(dir)
+	}
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return BoltDB{}, fmt.Errorf("failed to create cache dir: %v", err)
 	}
