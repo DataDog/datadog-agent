@@ -288,7 +288,11 @@ func (s *Service) Start(ctx context.Context) error {
 
 		err := s.refresh()
 		if err != nil {
-			log.Errorf("Could not refresh Remote Config: %v", err)
+			if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled {
+				log.Errorf("Could not refresh Remote Config: %v", err)
+			} else {
+				log.Debugf("Could not refresh Remote Config (org is disabled): %v", err)
+			}
 		}
 
 		for {
@@ -310,8 +314,12 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 
 			if err != nil {
-				exportedLastUpdateErr.Set(err.Error())
-				log.Errorf("Could not refresh Remote Config: %v", err)
+				if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled {
+					exportedLastUpdateErr.Set(err.Error())
+					log.Errorf("Could not refresh Remote Config: %v", err)
+				} else {
+					log.Debugf("Could not refresh Remote Config (org is disabled): %v", err)
+				}
 			}
 		}
 	}()
