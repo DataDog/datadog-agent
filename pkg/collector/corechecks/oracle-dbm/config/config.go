@@ -29,8 +29,10 @@ type QuerySamplesConfig struct {
 }
 
 type QueryMetricsConfig struct {
-	Enabled               bool `yaml:"enabled"`
-	IncludeDatadogQueries bool `yaml:"include_datadog_queries"`
+	Enabled            bool  `yaml:"enabled"`
+	CollectionInterval int64 `yaml:"collection_interval"`
+	DBRowsLimit        int   `yaml:"db_rows_limit"`
+	PlanCacheRetention int   `yaml:"plan_cache_retention"`
 }
 
 type SysMetricsConfig struct {
@@ -114,7 +116,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ObfuscatorOptions.CollectComments = true
 
 	instance.QuerySamples.Enabled = true
+
 	instance.QueryMetrics.Enabled = true
+	instance.QueryMetrics.CollectionInterval = 60
+	instance.QueryMetrics.DBRowsLimit = 10000
+	instance.QueryMetrics.PlanCacheRetention = 15
 
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true
