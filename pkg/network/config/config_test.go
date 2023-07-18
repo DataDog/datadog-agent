@@ -268,6 +268,7 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 //		assert.True(t, cfg.UseGRPC)
 //	})
 //
+//
 //	t.Run("enable configurable sock path via ENV variable", func(t *testing.T) {
 //		aconfig.ResetSystemProbeConfig(t)
 //		t.Setenv("DD_SERVICE_MONITORING_CONFIG_GRPC_SOCKET_FILE_PATH", "/test.sock")
