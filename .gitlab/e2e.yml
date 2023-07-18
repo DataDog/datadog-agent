@@ -178,8 +178,9 @@ new-e2e-containers-main:
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
 
 new-e2e-debug-dev:
+  stage: debug_e2e
   extends: .new_e2e_template
   rules: !reference [.on_dev_branch_manual]
   needs: []
   variables:
-    TARGETS: ./debugtest
+    TARGETS: ./agent-platform
