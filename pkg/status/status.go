@@ -306,7 +306,7 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 func getRemoteConfigStatus() map[string]interface{} {
 	status := make(map[string]interface{})
 
-	if expvar.Get("remoteConfigStatus") != nil {
+	if config.IsRemoteConfigEnabled(config.Datadog) && expvar.Get("remoteConfigStatus") != nil {
 		remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
 		json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
 	}

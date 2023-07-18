@@ -287,7 +287,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
 
 	// Remote config
-	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnv("remote_configuration.api_key")
 	config.BindEnv("remote_configuration.rc_dd_url")
@@ -825,6 +825,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 	config.BindEnvAndSetDefault("jmx_use_container_support", false)
+	config.BindEnvAndSetDefault("jmx_max_ram_percentage", float64(25.0))
 	config.BindEnvAndSetDefault("jmx_max_restarts", int64(3))
 	config.BindEnvAndSetDefault("jmx_restart_interval", int64(5))
 	config.BindEnvAndSetDefault("jmx_thread_pool_size", 3)
@@ -1458,6 +1459,8 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		"DD_VERSION":                   {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
+		// this variable is used by the Kubernetes leader election mechanism
+		"DD_POD_NAME": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

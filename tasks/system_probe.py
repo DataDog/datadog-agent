@@ -258,7 +258,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length"]
+    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
@@ -380,6 +380,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/collector/corechecks/ebpf/probe/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
             ],
         }
         nw.rule(
@@ -1491,6 +1494,7 @@ def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+        test_results = {}
 
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:
@@ -1505,9 +1509,23 @@ def print_failed_tests(_, output_dir):
                             package = json_test['Package']
                             action = json_test["Action"]
 
-                            if action == "fail":
-                                print(f"FAIL: [{test_platform}] {package} {name}")
-                                fail_count += 1
+                            if action == "pass" or action == "fail":
+                                test_key = f"{package}.{name}"
+                                res = test_results.get(test_key)
+                                if res is None:
+                                    test_results[test_key] = action
+                                    continue
+
+                                if res == "fail":
+                                    print(f"re-ran [{test_platform}] {package} {name}: {action}")
+                                if action == "pass" and res == "fail":
+                                    test_results[test_key] = action
+
+        for key, res in test_results.items():
+            if res == "fail":
+                package, name = key.split(".")
+                print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
+                fail_count += 1
 
     if fail_count > 0:
         raise Exit(code=1)
@@ -1520,7 +1538,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
     if windows:
         return
 
-    docker_compose_paths = glob.glob("./pkg/network/protocols/*/testdata/docker-compose.yml")
+    docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
@@ -1537,6 +1555,8 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
         ["openjdk:21-oraclelinux8", "openjdk:15-oraclelinux8", "openjdk:8u151-jre", "menci/archlinuxarm:base"]
     )
 
+    # Special use-case in javatls
+    images.remove("${IMAGE_VERSION}")
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         ctx.run(f"docker pull --platform linux/{arch} {image}")

@@ -2,6 +2,271 @@
 Release Notes
 =============
 
+.. _Release Notes_7.46.0:
+
+7.46.0 / 6.46.0
+======
+
+.. _Release Notes_7.46.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-07-10
+
+- Please refer to the `7.46.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7460>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.46.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Refactor the SBOM collection parameters from::
+  
+    conf.d/container_lifecycle.d/conf.yaml existence (A) # to schedule the container lifecycle long running check
+    conf.d/container_image.d/conf.yaml     existence (B) # to schedule the container image metadata long running check
+    conf.d/sbom.d/conf.yaml                existence (C) # to schedule the SBOM long running check
+  
+    Inside datadog.yaml:
+  
+    container_lifecycle:
+      enabled:                        (D)  # Used to control the start of the container_lifecycle forwarder but has been decommissioned by #16084 (7.45.0-rc)
+      dd_url:                              # \
+      additional_endpoints:                # |
+      use_compression:                     # |
+      compression_level:                   #  > generic parameters for the generic EVP pipeline
+        …                                  # |
+      use_v2_api:                          # /
+  
+    container_image:
+      enabled:                        (E)  # Used to control the start of the container_image forwarder but has been decommissioned by #16084 (7.45.0-rc)
+      dd_url:                              # \
+      additional_endpoints:                # |
+      use_compression:                     # |
+      compression_level:                   #  > generic parameters for the generic EVP pipeline
+        …                                  # |
+      use_v2_api:                          # /
+  
+    sbom:
+      enabled:                        (F)  # control host SBOM collection and do **not** control container-related SBOM since #16084 (7.45.0-rc)
+      dd_url:                              # \
+      additional_endpoints:                # |
+      use_compression:                     # |
+      compression_level:                   #  > generic parameters for the generic EVP pipeline
+        …                                  # |
+      use_v2_api:                          # /
+      analyzers:                      (G)  # trivy analyzers user for host SBOM collection
+      cache_directory:                (H)
+      clear_cache_on_exit:            (I)
+      use_custom_cache:               (J)
+      custom_cache_max_disk_size:     (K)
+      custom_cache_max_cache_entries: (L)
+      cache_clean_interval:           (M)
+  
+    container_image_collection:
+      metadata:
+        enabled:                      (N)  # Controls the collection of the container image metadata in workload meta
+      sbom:
+        enabled:                      (O)
+        use_mount:                    (P)
+        scan_interval:                (Q)
+        scan_timeout:                 (R)
+        analyzers:                    (S)  # trivy analyzers user for containers SBOM collection
+        check_disk_usage:             (T)
+        min_available_disk:           (U)
+  
+  to::
+  
+    conf.d/{container_lifecycle,container_image,sbom}.d/conf.yaml no longer needs to be created. A default version is always shipped with the Agent Docker image with an underscore-prefixed ad_identifier that will be synthesized by the agent at runtime based on config {container_lifecycle,container_image,sbom}.enabled parameters.
+  
+    Inside datadog.yaml:
+  
+    container_lifecycle:
+      enabled:                        (A)  # Replaces the need for creating a conf.d/container_lifecycle.d/conf.yaml file
+      dd_url:                              # \
+      additional_endpoints:                # |
+      use_compression:                     # |
+      compression_level:                   #  > unchanged generic parameters for the generic EVP pipeline
+        …                                  # |
+      use_v2_api:                          # /
+  
+    container_image:
+      enabled:                        (B)  # Replaces the need for creating a conf.d/container_image.d/conf.yaml file
+      dd_url:                              # \
+      additional_endpoints:                # |
+      use_compression:                     # |
+      compression_level:                   #  > unchanged generic parameters for the generic EVP pipeline
+        …                                  # |
+      use_v2_api:                          # /
+  
+    sbom:
+      enabled:                        (C)  # Replaces the need for creating a conf.d/sbom.d/conf.yaml file
+      dd_url:                              # \
+      additional_endpoints:                # |
+      use_compression:                     # |
+      compression_level:                   #  > unchanged generic parameters for the generic EVP pipeline
+        …                                  # |
+      use_v2_api:                          # /
+      cache_directory:                (H)
+      clear_cache_on_exit:            (I)
+      cache:                               # Factorize all settings related to the custom cache
+        enabled:                      (J)
+        max_disk_size:                (K)
+        max_cache_entries:            (L)
+        clean_interval:               (M)
+  
+      host:                                # for host SBOM parameters that were directly below `sbom` before.
+        enabled:                      (F)  # sbom.host.enabled replaces sbom.enabled
+        analyzers:                    (G)  # sbom.host.analyzers replaces sbom.analyzers
+  
+      container_image:                     # sbom.container_image replaces container_image_collection.sbom
+        enabled:                      (O)
+        use_mount:                    (P)
+        scan_interval:                (Q)
+        scan_timeout:                 (R)
+        analyzers:                    (S)    # trivy analyzers user for containers SBOM collection
+        check_disk_usage:             (T)
+        min_available_disk:           (U)
+
+
+.. _Release Notes_7.46.0_New Features:
+
+New Features
+------------
+
+- This change adds support for ingesting information such as database settings and schemas as database "metadata"
+
+- Add the capability for the security-agent compliance module to export
+  detailed Kubernetes node configurations.
+
+- Add `unsafe-disable-verification` flag to skip TUF/in-toto verification when downloading and installing wheels with the `integrations install` command
+
+- Add `container.memory.working_set` metric on Linux (computed as Usage - InactiveFile) and Windows (mapped to Private Working Set)
+
+- Enabling ``dogstatsd_metrics_stats_enable`` will now enable ``dogstatsd_logging_enabled``. When enabled, ``dogstatsd_logging_enabled`` generates dogstatsd log files at:
+    - For ``Windows``: ``c:\programdata\datadog\logs\dogstatsd_info\dogstatsd-stats.log``
+    - For ``Linux``: ``/var/log/datadog/dogstatsd_info/dogstatsd-stats.log``
+    - For ``MacOS``: ``/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log``
+  These log files are also automatically attached to the flare.
+
+- You can adjust the dogstatsd-stats logging configuration by using:
+    - dogstatsd_log_file_max_size: ``SizeInBytes`` (default: ``dogstatsd_log_file_max_size:"10Mb"``)
+    - dogstatsd_log_file_max_rolls: ``Int`` (default: ``dogstatsd_log_file_max_rolls:3``)
+
+- The `network_config.enable_http_monitoring` configuration has changed to `service_monitoring_config.enable_http_monitoring`.
+
+- Add Oracle execution plans
+
+- Oracle query metrics
+
+- Add support for Oracle RDS multi-tenant
+
+
+.. _Release Notes_7.46.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- ``agent status -v`` now shows verbose diagnostic information. 
+  Added tailer-specific stats to the verbose status page with 
+  improved auto multi-line detection information.
+
+- The ``health`` command from the Agent and Cluster Agent now have a configurable timeout (60 second by default).
+
+- Add two new metrics to the Kubernetes State Core check: `kubernetes_state.configmap.count` and `kubernetes_state.secret.count`.
+
+- The metadata payload containing the status of every integration run by the Agent is now sent one minute after startup
+  and then every ten minutes after that, as before. This means that the integration status will be visible in the app one
+  minute after the Agent starts instead of ten minutes. The payload waits for a minute so the Agent has time to run every configured
+  integration twice and collect an accurate status.
+
+- Adds the ability to generate an Oracle SQL trace for Agent queries
+
+- APM: The `disable_file_logging` setting is now respected.
+
+- Collect conditions for a variety of Kubernetes resources.
+
+- Documents the max_recv_msg_size_mib option and DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB environment variable in the OTLP config.
+  This variable is used to configure the maximum size of messages accepted by the OTLP gRPC endpoint.
+
+- Agents are now built with Go ``1.19.10``
+
+- Inject container tags in instrumentation telemetry payloads
+
+- Extract the `task_arn` tag from container tags and add it as its own header.
+
+- [pkg/netflow] Add ``flush_timestamp`` to payload.
+
+- [pkg/netflow] Add sequence metrics.
+
+- [netflow] Upgrade goflow2 to v1.3.3.
+
+- Add Oracle sysmetrics, pga process memory usage, tablespace usage with pluggable database (PDB) tags
+
+- OTLP ingestion: Support setting peer service to trace stats exported by the Agent.
+
+- OTLP ingestion: Stop overriding service with ``peer.service``.
+
+- OTLP ingestion: Set OTLP span kind as Datadog span meta tag ``span.kind``.
+
+- Adds new metric `datadog.agent.otlp.runtime_metrics` when runtime metrics are being received via OTLP.
+
+- [corechecks/snmp] Collect topology by default.
+
+- Upgraded JMXFetch to ``0.47.9`` which has fixes to improve
+  efficiency when fetching beans, fixes for process attachment
+  in some JDK versions, and fixes a thread leak.
+
+
+.. _Release Notes_7.46.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Installing the Agent on Windows Server versions lower than 2012 and client versions lower than 8.1 is now deprecated.
+
+- The `network_config.enable_http_monitoring` configuration is now deprecated. Use `service_monitoring_config.enable_http_monitoring` instead.
+
+
+.. _Release Notes_7.46.0_Security Notes:
+
+Security Notes
+--------------
+
+- Upgraded embedded Python3 to 3.8.17; addressed CVE-2023-24329.
+
+
+.. _Release Notes_7.46.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue where ``auto_multi_line_detection``, ``auto_multi_line_sample_size``,
+  and ``auto_multi_line_match_threshold`` were not working when set though a pod
+  annotation or container label.
+
+- Ensure the Agent detects file rotations correctly when under heavy loads. 
+
+- Fixes `kubernetes_state_core` crash when unknown resources are provided.
+
+- Fix a file descriptors leak in the Cloud Foundry Cluster Agent.
+
+- Fix the timeout for idle HTTP connections.
+
+- [netflow] Rename telemetry metric tag ``device_ip`` to ``exporter_ip``.
+
+- When present, use 'host' resource attribute as the host value on OTLP payloads to avoid double tagging.
+
+- Remove thread count from OTel .NET runtime metric mappings.
+
+- Fix collection of I/O and open files data in the process check.
+
+- Fix unexpected warn log when using mapping in SNMP profiles.
+
+- Upgrade go-ora to 2.7.6 to prevent Agent crashes due to `nil pointer dereference` in case of database connection loss.
+
+
 .. _Release Notes_7.45.1:
 
 7.45.1 / 6.45.1

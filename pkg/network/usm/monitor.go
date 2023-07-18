@@ -17,6 +17,9 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
+	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -25,10 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 type monitorState = string
@@ -132,6 +135,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
+	ebpfcheck.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
@@ -321,6 +325,7 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 		// Update update time
 		now := time.Now().Unix()
 		m.lastUpdateTime.Swap(now)
+		telemetry.ReportPrometheus()
 	}()
 
 	ret := make(map[protocols.ProtocolType]interface{})
@@ -364,6 +369,7 @@ func (m *Monitor) Stop() {
 
 	m.processMonitor.Stop()
 
+	ebpfcheck.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
 	for _, protocol := range m.enabledProtocols {
 		protocol.Stop(m.ebpfProgram.Manager.Manager)
 	}
@@ -530,6 +536,10 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) (map[protocols.ProtocolTy
 
 			log.Infof("%v monitoring enabled", proto.String())
 		} else {
+			// As we're keeping pointers to the disables specs, we're suffering from a common golang-gotcha
+			// Assuming we have http and kafka, http is disabled, kafka is not. Without the following line we'll end up
+			// with enabledProtocols = [kafka] and disabledProtocols = [kafka].
+			spec := spec
 			disabledProtocols = append(disabledProtocols, &spec)
 		}
 	}
