@@ -17,7 +17,7 @@ const (
 	DefaultProcessAgentLogFile = "/opt/datadog-agent/logs/process-agent.log"
 	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	defaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
-	defaultGRPCSystemProbeAddress = ""
+	defaultGRPCSystemProbeAddress = "/opt/datadog-agent/run/grpc-sysprobe.sock"
 	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
