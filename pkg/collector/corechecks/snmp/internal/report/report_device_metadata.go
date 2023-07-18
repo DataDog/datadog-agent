@@ -349,7 +349,7 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
-					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
+					IPAddress:   "1.2.3.4",
 				},
 				Interface: &devicemetadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
