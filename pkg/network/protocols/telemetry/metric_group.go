@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 // MetricGroup provides a convenient constructor for a group with metrics
@@ -19,7 +20,11 @@ type MetricGroup struct {
 	mux        sync.Mutex
 	namespace  string
 	commonTags []string
-	metrics    []*Metric
+	metrics    []metric
+
+	// used for the purposes of building the Summary() string
+	deltas deltaCalculator
+	then   time.Time
 }
 
 // NewMetricGroup returns a new `MetricGroup`
@@ -27,49 +32,80 @@ func NewMetricGroup(namespace string, commonTags ...string) *MetricGroup {
 	return &MetricGroup{
 		namespace:  namespace,
 		commonTags: commonTags,
+		then:       time.Now(),
 	}
 }
 
-// NewMetric returns a new `Metric` using the provided namespace and common tags
-func (mg *MetricGroup) NewMetric(name string, tags ...string) *Metric {
+// NewCounter returns a new `Counter` using the provided namespace and common
+// tags and associates it with the current metric group
+func (mg *MetricGroup) NewCounter(name string, tags ...string) *Counter {
 	if mg.namespace != "" {
 		name = fmt.Sprintf("%s.%s", mg.namespace, name)
 	}
 
-	m := NewMetric(
+	m := NewCounter(
 		name,
 		append(mg.commonTags, tags...)...,
 	)
 
 	mg.mux.Lock()
-	mg.metrics = append(mg.metrics, m)
+	mg.metrics = append(mg.metrics, metric(m))
 	mg.mux.Unlock()
 
 	return m
 }
 
-// Summary returns a map[string]int64 representing
-// a summary of all metrics belonging to this MetricGroup
-func (mg *MetricGroup) Summary() map[string]int64 {
-	mg.mux.Lock()
-	defer mg.mux.Unlock()
-
-	prefix := fmt.Sprintf("%s.", mg.namespace)
-	summary := make(map[string]int64, len(mg.metrics))
-	for _, m := range mg.metrics {
-		nameWithoutNS := strings.TrimPrefix(m.Name(), prefix)
-		summary[nameWithoutNS] = m.Get()
+// NewGauge returns a new `Gauge` using the provided namespace and common
+// tags and associates it with the current metric group
+func (mg *MetricGroup) NewGauge(name string, tags ...string) *Gauge {
+	if mg.namespace != "" {
+		name = fmt.Sprintf("%s.%s", mg.namespace, name)
 	}
 
-	return summary
+	m := NewGauge(
+		name,
+		append(mg.commonTags, tags...)...,
+	)
+
+	mg.mux.Lock()
+	mg.metrics = append(mg.metrics, metric(m))
+	mg.mux.Unlock()
+
+	return m
 }
 
-// Clear all metrics belonging to this `MetricGroup`
-func (mg *MetricGroup) Clear() {
+// Summary builds and returns a summary string all metrics beloging to the
+// current `MetricGroup`.
+// The string looks like:
+// m1=100(50/s) m2=0(0.00/s)
+// Where the values are calculated based on the deltas between calls of this method.
+func (mg *MetricGroup) Summary() string {
 	mg.mux.Lock()
 	defer mg.mux.Unlock()
 
-	for _, m := range mg.metrics {
-		m.Set(0)
+	var (
+		now       = time.Now()
+		timeDelta = now.Sub(mg.then).Seconds()
+	)
+
+	// safeguard against division by zero
+	if timeDelta == 0 {
+		timeDelta = 1
 	}
+
+	valueDeltas := mg.deltas.GetState("")
+	var b strings.Builder
+	for _, metric := range mg.metrics {
+		m := metric.base()
+		v := valueDeltas.ValueFor(m)
+		b.WriteString(fmt.Sprintf("%s=%d", m.Name(), v))
+
+		// If the metric is counter we also calculate the rate
+		if _, ok := metric.(*Counter); ok {
+			b.WriteString(fmt.Sprintf("(%.2f/s)", float64(v)/timeDelta))
+		}
+		b.WriteByte(' ')
+	}
+	mg.then = now
+	return b.String()
 }

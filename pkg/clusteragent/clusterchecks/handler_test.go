@@ -218,8 +218,8 @@ func TestHandlerRun(t *testing.T) {
 	ac.On("AddScheduler", schedulerName, mock.AnythingOfType("*clusterchecks.dispatcher"), true).Return()
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Keep node-agent caches even when timestamp is off (warmup)
-		response, err := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
-		return err == nil && response.IsUpToDate == true
+		response := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
+		return response.IsUpToDate == true
 	})
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// Test whether we're connected to the AD
@@ -239,8 +239,8 @@ func TestHandlerRun(t *testing.T) {
 	})
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
 		// Flush node-agent caches when timestamp is off
-		response, err := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
-		return err == nil && response.IsUpToDate == false
+		response := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
+		return response.IsUpToDate == false
 	})
 
 	//

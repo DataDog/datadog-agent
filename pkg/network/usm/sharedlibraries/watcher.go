@@ -69,7 +69,6 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, ru
 
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.so_watcher",
-		telemetry.OptMonotonic,
 		telemetry.OptPayloadTelemetry,
 	)
 	return &Watcher{
@@ -86,17 +85,17 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, ru
 			blocklistByID: make(pathIdentifierSet),
 
 			telemetry: soRegistryTelemetry{
-				libHookFailed:               metricGroup.NewMetric("hook_failed"),
-				libRegistered:               metricGroup.NewMetric("registered"),
-				libAlreadyRegistered:        metricGroup.NewMetric("already_registered"),
-				libBlocked:                  metricGroup.NewMetric("blocked"),
-				libUnregistered:             metricGroup.NewMetric("unregistered"),
-				libUnregisterNoCB:           metricGroup.NewMetric("unregister_no_callback"),
-				libUnregisterErrors:         metricGroup.NewMetric("unregister_errors"),
-				libUnregisterFailedCB:       metricGroup.NewMetric("unregister_failed_cb"),
-				libUnregisterPathIDNotFound: metricGroup.NewMetric("unregister_path_id_not_found"),
-				libHits:                     metricGroup.NewMetric("hits"),
-				libMatches:                  metricGroup.NewMetric("matches"),
+				libHookFailed:               metricGroup.NewCounter("hook_failed"),
+				libRegistered:               metricGroup.NewCounter("registered"),
+				libAlreadyRegistered:        metricGroup.NewCounter("already_registered"),
+				libBlocked:                  metricGroup.NewCounter("blocked"),
+				libUnregistered:             metricGroup.NewCounter("unregistered"),
+				libUnregisterNoCB:           metricGroup.NewCounter("unregister_no_callback"),
+				libUnregisterErrors:         metricGroup.NewCounter("unregister_errors"),
+				libUnregisterFailedCB:       metricGroup.NewCounter("unregister_failed_cb"),
+				libUnregisterPathIDNotFound: metricGroup.NewCounter("unregister_path_id_not_found"),
+				libHits:                     metricGroup.NewCounter("hits"),
+				libMatches:                  metricGroup.NewCounter("matches"),
 			},
 		},
 	}, nil
@@ -113,19 +112,19 @@ type soRegistryTelemetry struct {
 	//  o UnregisterErrors : we encounter an error during the unregistration, looks at the logs for further details
 	//  o UnregisterFailedCB : we encounter an error during the callback unregistration, looks at the logs for further details
 	//  o UnregisterPathIDNotFound : we can't find the pathID registration, it's a bug, this value should be always 0
-	libRegistered               *telemetry.Metric
-	libAlreadyRegistered        *telemetry.Metric
-	libHookFailed               *telemetry.Metric
-	libBlocked                  *telemetry.Metric
-	libUnregistered             *telemetry.Metric
-	libUnregisterNoCB           *telemetry.Metric
-	libUnregisterErrors         *telemetry.Metric
-	libUnregisterFailedCB       *telemetry.Metric
-	libUnregisterPathIDNotFound *telemetry.Metric
+	libRegistered               *telemetry.Counter
+	libAlreadyRegistered        *telemetry.Counter
+	libHookFailed               *telemetry.Counter
+	libBlocked                  *telemetry.Counter
+	libUnregistered             *telemetry.Counter
+	libUnregisterNoCB           *telemetry.Counter
+	libUnregisterErrors         *telemetry.Counter
+	libUnregisterFailedCB       *telemetry.Counter
+	libUnregisterPathIDNotFound *telemetry.Counter
 
 	// numbers of library events from the kernel filter (Hits) and matching (Matches) the registered rules
-	libHits    *telemetry.Metric
-	libMatches *telemetry.Metric
+	libHits    *telemetry.Counter
+	libMatches *telemetry.Counter
 }
 
 type soRegistration struct {
@@ -248,11 +247,7 @@ func (w *Watcher) Start() {
 		return nil
 	})
 
-	cleanupExit, err := w.processMonitor.SubscribeExit(w.registry.unregister)
-	if err != nil {
-		log.Errorf("can't subscribe to process monitor exit event %s", err)
-		return
-	}
+	cleanupExit := w.processMonitor.SubscribeExit(w.registry.unregister)
 
 	w.wg.Add(1)
 	go func() {

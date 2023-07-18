@@ -149,7 +149,7 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_BUILDIMAGES: v17824543-f518958
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_WINBUILDIMAGES: v17432894-4fdacd4
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
@@ -839,12 +839,15 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
   - changes:
-      - pkg/ebpf/**/*
-      - pkg/security/**/*
-      - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
-      - test/kitchen/test/integration/security-agent-test/**/*
-      - test/kitchen/test/integration/security-agent-stress/**/*
-      - .gitlab/functional_test/security_agent.yml
+      paths:
+        - pkg/ebpf/**/*
+        - pkg/security/**/*
+        - pkg/eventmonitor/**/*
+        - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
+        - test/kitchen/test/integration/security-agent-test/**/*
+        - test/kitchen/test/integration/security-agent-stress/**/*
+        - .gitlab/functional_test/security_agent.yml
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -865,6 +868,7 @@ workflow:
       - test/new-e2e/runner/**/*
       - test/new-e2e-utils/**/*
       - test/new-e2e/go.mod
+      - tasks/system_probe.py
     when: on_success
   - when: manual
     allow_failure: true
