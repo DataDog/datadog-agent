@@ -26,7 +26,7 @@ import (
 
 var (
 	infoMu        sync.RWMutex
-	receiverStats []TagStats // only for the last minute
+	receiverStats = []TagStats{} // only for the last minute
 	languages     []string
 
 	// TODO: move from package globals to a clean single struct
