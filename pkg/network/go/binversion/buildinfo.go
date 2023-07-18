@@ -60,7 +60,8 @@ const (
 var (
 	dataRawBuildPool = sync.Pool{
 		New: func() any {
-			return make([]byte, maxSizeToRead)
+			b := make([]byte, maxSizeToRead)
+			return &b
 		},
 	}
 )
@@ -87,14 +88,17 @@ func ReadElfBuildInfo(elfFile *elf.File) (vers string, err error) {
 	// data segment; the linker puts it near the beginning.
 	// See cmd/link/internal/ld.Link.buildinfo.
 	dataAddr := x.DataStart()
-	data := dataRawBuildPool.Get().([]byte)
+	dataPtr := dataRawBuildPool.Get().(*[]byte)
+	data := *dataPtr
 	defer func() {
+		data := *dataPtr
+
 		// Zeroing the array. We cannot simply do data = data[:0], as this method changes the len to 0, which messes
 		// with ReadAt.
 		for i := range data {
 			data[i] = 0
 		}
-		dataRawBuildPool.Put(data)
+		dataRawBuildPool.Put(dataPtr)
 	}()
 
 	if err := x.ReadDataWithPool(dataAddr, data); err != nil {
