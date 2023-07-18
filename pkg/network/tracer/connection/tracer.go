@@ -91,7 +91,7 @@ var ConnTracerTelemetry = struct {
 	UdpSendsProcessed *nettelemetry.StatCounterWrapper
 	UdpSendsMissed    *nettelemetry.StatCounterWrapper
 	UdpDroppedConns   *nettelemetry.StatCounterWrapper
-	TcpDroppedConns   *netebpf.StatCounterWrapper
+	TcpDroppedConns   *nettelemetry.StatCounterWrapper
 	PidCollisions     *nettelemetry.StatCounterWrapper
 	iterationDups     telemetry.Counter
 	iterationAborts   telemetry.Counter
