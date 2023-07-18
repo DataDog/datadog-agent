@@ -85,8 +85,10 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
     processes = []
     process_env = os.environ.copy()
     if job_url:
+        print(f"CI_JOB_URL={job_url}")
         process_env["CI_JOB_URL"] = job_url
     if job_env:
+        print("\n".join(f"{k}={v}" for k, v in job_env.items()))
         process_env.update(job_env)
 
     for owner in owners:
