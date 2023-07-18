@@ -97,7 +97,8 @@ if linux?
   # We need to use cython<3.0.0 to build pyyaml for py2
   dependency 'pyyaml-py2'
   blacklist_packages.push(/^pyyaml==/)
-  blacklist_packages.push(/^PyYAML==/)
+  dependency 'kubernetes-py2'
+  blacklist_packages.push(/^kubernetes==/)
 end
 
 final_constraints_file = 'final_constraints-py2.txt'
