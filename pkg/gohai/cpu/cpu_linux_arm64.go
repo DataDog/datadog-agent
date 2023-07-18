@@ -167,7 +167,7 @@ func getCPUInfo() *Info {
 		}
 		cpuInfo.CPUNumaNodes = utils.NewValue(nodes)
 	} else {
-		cpuInfo.CPUNumaNodes = utils.NewErrorValue[uint64](errors.New("could not read /sys/devices/system/node"))
+		cpuInfo.CPUNumaNodes = utils.NewErrorValue[uint64](fmt.Errorf("could not read /sys/devices/system/node: %w", err))
 	}
 
 	return cpuInfo
