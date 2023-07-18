@@ -199,6 +199,7 @@ build do
             strip_exclude("*conntrack*")
             strip_exclude("*oom-kill*")
             strip_exclude("*tcp-queue-length*")
+            strip_exclude("*ebpf*")
         end
 
         if osx?

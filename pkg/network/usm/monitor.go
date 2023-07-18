@@ -17,6 +17,9 @@ import (
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
 
+	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -29,7 +32,6 @@ import (
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 type monitorState = string
@@ -133,6 +135,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
+	ebpfcheck.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
@@ -366,6 +369,7 @@ func (m *Monitor) Stop() {
 
 	m.processMonitor.Stop()
 
+	ebpfcheck.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
 	for _, protocol := range m.enabledProtocols {
 		protocol.Stop(m.ebpfProgram.Manager.Manager)
 	}
