@@ -6,7 +6,7 @@
 package traps
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -18,12 +18,12 @@ import (
 type TrapForwarder struct {
 	trapsIn   PacketsChannel
 	formatter Formatter
-	sender    aggregator.Sender
+	sender    sender.Sender
 	stopChan  chan struct{}
 }
 
 // NewTrapForwarder creates a simple TrapForwarder instance
-func NewTrapForwarder(formatter Formatter, sender aggregator.Sender, packets PacketsChannel) (*TrapForwarder, error) {
+func NewTrapForwarder(formatter Formatter, sender sender.Sender, packets PacketsChannel) (*TrapForwarder, error) {
 	return &TrapForwarder{
 		trapsIn:   packets,
 		formatter: formatter,

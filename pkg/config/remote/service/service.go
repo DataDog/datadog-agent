@@ -11,8 +11,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"path"
+	"strconv"
 	"sync"
 	"time"
 
@@ -46,7 +48,7 @@ const (
 	defaultCacheBypassLimit = 5
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
-	orgStatusPollInterval   = 5 * time.Minute
+	orgStatusPollInterval   = 1 * time.Minute
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -59,6 +61,14 @@ const (
 	// When the agent continuously has the same authorization error when fetching RC updates
 	// The first initialLogRefreshError are logged as ERROR, and then it's only logged as INFO
 	initialFetchErrorLog uint64 = 5
+)
+
+var (
+	exportedMapStatus = expvar.NewMap("remoteConfigStatus")
+	// Status expvar exported
+	exportedStatusOrgEnabled    = expvar.String{}
+	exportedStatusKeyAuthorized = expvar.String{}
+	exportedLastUpdateErr       = expvar.String{}
 )
 
 // Service defines the remote config management service responsible for fetching, storing
@@ -111,6 +121,14 @@ type uptaneClient interface {
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
 	TUFVersionState() (uptane.TUFVersions, error)
+}
+
+func init() {
+	// Exported variable to get the state of remote-config
+	exportedMapStatus.Init()
+	exportedMapStatus.Set("orgEnabled", &exportedStatusOrgEnabled)
+	exportedMapStatus.Set("apiKeyScoped", &exportedStatusKeyAuthorized)
+	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
 }
 
 // NewService instantiates a new remote configuration management service
@@ -270,7 +288,11 @@ func (s *Service) Start(ctx context.Context) error {
 
 		err := s.refresh()
 		if err != nil {
-			log.Errorf("Could not refresh Remote Config: %v", err)
+			if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
+				log.Errorf("Could not refresh Remote Config: %v", err)
+			} else {
+				log.Debugf("Could not refresh Remote Config (org is disabled or key is not authorized): %v", err)
+			}
 		}
 
 		for {
@@ -292,7 +314,12 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 
 			if err != nil {
-				log.Errorf("Could not refresh Remote Config: %v", err)
+				if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
+					exportedLastUpdateErr.Set(err.Error())
+					log.Errorf("Could not refresh Remote Config: %v", err)
+				} else {
+					log.Debugf("Could not refresh Remote Config (org is disabled or key is not authorized): %v", err)
+				}
 			}
 		}
 	}()
@@ -337,6 +364,8 @@ func (s *Service) pollOrgStatus() {
 		Enabled:    response.Enabled,
 		Authorized: response.Authorized,
 	}
+	exportedStatusOrgEnabled.Set(strconv.FormatBool(response.Enabled))
+	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
 func (s *Service) calculateRefreshInterval() time.Duration {
@@ -387,9 +416,9 @@ func (s *Service) refresh() error {
 				return err
 			}
 			// If we saw the error enough time, we consider that RC not working is a normal behavior
-			// And we only log as INFO
-			// The agent will eventually log this error as INFO every maximalMaxBackoffTime
-			log.Infof("Could not refresh Remote Config: %v", err)
+			// And we only log as DEBUG
+			// The agent will eventually log this error as DEBUG every maximalMaxBackoffTime
+			log.Debugf("Could not refresh Remote Config: %v", err)
 			return nil
 		}
 		return err
@@ -420,6 +449,8 @@ func (s *Service) refresh() error {
 	s.newProducts = make(map[rdata.Product]struct{})
 
 	s.backoffErrorCount = s.backoffPolicy.DecError(s.backoffErrorCount)
+
+	exportedLastUpdateErr.Set("")
 
 	return nil
 }

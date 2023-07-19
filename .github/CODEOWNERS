@@ -49,11 +49,13 @@
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-platform
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-platform @DataDog/windows-agent
 
-/.gitlab/deploy_6/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/benchmarks/                                 @DataDog/agent-platform @DataDog/apm-core-reliability-and-performance @DataDog/agent-apm
+
+/.gitlab/deploy_6/container.yml                      @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_6/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/deploy_7/cluster_agent_cloudfoundry.yml     @DataDog/platform-integrations @DataDog/agent-platform
-/.gitlab/deploy_7/docker.yml                         @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/deploy_7/container.yml                      @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/deploy_7/windows.yml                        @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/deploy_7/winget.yml                         @DataDog/agent-platform @DataDog/windows-agent
 
@@ -112,6 +114,7 @@
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/network-device-monitoring
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-metrics-logs
+/cmd/agent/subcommands/streamep         @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist       @DataDog/container-integrations
 /cmd/agent/subcommands/workloadlist     @DataDog/container-integrations
 /cmd/agent/subcommands/run/internal/clcrunnerapi/       @DataDog/container-integrations @DataDog/agent-shared-components
@@ -195,6 +198,7 @@
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-shared-components
+/comp/metadata @DataDog/agent-shared-components
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
 /comp/systray @DataDog/windows-agent
@@ -242,7 +246,10 @@
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
-/pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
+/pkg/collector/corechecks/ebpf/                       @DataDog/container-integrations
+/pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
@@ -375,6 +382,7 @@
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing
 /tasks/process_agent.py                 @DataDog/processes
 /tasks/system_probe.py                  @DataDog/ebpf-platform
+/tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/systray.py                       @DataDog/windows-agent
@@ -427,3 +435,5 @@
 /tools/agent_QA/                        @DataDog/agent-metrics-logs
 
 /internal/tools/                        @DataDog/agent-platform
+/internal/third_party/client-go         @DataDog/container-integrations
+/internal/third_party/kubernetes        @DataDog/container-integrations

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -131,7 +131,7 @@ func PrintConfig(w io.Writer, c integration.Config, checkName string) {
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration source"), color.RedString("Unknown configuration source")))
 	}
 	for _, inst := range c.Instances {
-		ID := string(check.BuildID(c.Name, configDigest, inst, c.InitConfig))
+		ID := string(checkid.BuildID(c.Name, configDigest, inst, c.InitConfig))
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Config for instance ID"), color.CyanString(ID)))
 		printYaml(w, inst)
 		fmt.Fprintln(w, "~")

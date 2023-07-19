@@ -59,3 +59,9 @@ func (value *Value[T]) Value() (T, error) {
 		return def, errors.New("value not initialized")
 	}
 }
+
+// Error returns the error stored in the Value[T], or nil if it doesn't contain an error.
+func (value *Value[T]) Error() error {
+	_, err := value.Value()
+	return err
+}

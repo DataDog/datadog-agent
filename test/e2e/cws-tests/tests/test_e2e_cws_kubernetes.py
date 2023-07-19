@@ -77,6 +77,26 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="check system-probe start", emoji=":customs:"):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
+        with Step(msg="check ruleset_loaded for `file` test.policy", emoji=":delivery_truck:"):
+            event = self.app.wait_app_log(
+                "rule_id:ruleset_loaded @policies.source:file @policies.name:test.policy -@policies.source:remote-config"
+            )
+            attributes = event["data"][-1]["attributes"]["attributes"]
+            self.app.check_policy_found(self, attributes, "file", "test.policy")
+            self.app.check_for_ignored_policies(self, attributes)
+
+        with Step(msg="wait for host tags and remote-config policies (3m)", emoji=":alarm_clock:"):
+            time.sleep(3 * 60)
+
+        with Step(msg="check ruleset_loaded for `remote-config` policies", emoji=":delivery_truck:"):
+            event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:remote-config")
+            attributes = event["data"][-1]["attributes"]["attributes"]
+            self.app.check_policy_found(self, attributes, "remote-config", "default.policy")
+            self.app.check_policy_found(self, attributes, "remote-config", "cws_custom")
+            self.app.check_policy_found(self, attributes, "file", "test.policy")
+            self.app.check_for_ignored_policies(self, attributes)
+            prev_load_date = attributes["date"]
+
         with Step(msg="copy default policies", emoji=":delivery_truck:"):
             self.kubernetes_helper.exec_command("security-agent", command=["mkdir", "-p", "/tmp/runtime-security.d"])
             command = [
@@ -89,20 +109,25 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="reload policies", emoji=":rocket:"):
             self.kubernetes_helper.reload_policies()
 
-        with Step(msg="check `file` ruleset_loaded", emoji=":delivery_truck:"):
-            event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:file")
-            attributes = event["data"][-1]["attributes"]["attributes"]
-            prev_load_date = attributes["date"]
+        with Step(
+            msg="check ruleset_loaded for `remote-config` default.policy precedence over `file` default.policy",
+            emoji=":delivery_truck:",
+        ):
+            for _i in range(60):
+                event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.name:default.policy")
+                attributes = event["data"][-1]["attributes"]["attributes"]
+                load_date = attributes["date"]
+                # search for restart log until the timestamp differs because this log query and the previous one conflict
+                if load_date != prev_load_date:
+                    break
+                time.sleep(3)
+            else:
+                self.fail("check ruleset_loaded timed out")
+            self.app.check_policy_not_found(self, attributes, "file", "default.policy")
+            self.app.check_policy_found(self, attributes, "remote-config", "default.policy")
+            self.app.check_policy_found(self, attributes, "remote-config", "cws_custom")
+            self.app.check_policy_found(self, attributes, "file", "test.policy")
             self.app.check_for_ignored_policies(self, attributes)
-
-        with Step(msg="check `remote-config` ruleset_loaded", emoji=":delivery_truck:"):
-            event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:remote-config")
-            attributes = event["data"][-1]["attributes"]["attributes"]
-            prev_load_date = attributes["date"]
-            self.app.check_for_ignored_policies(self, attributes)
-
-        with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
-            time.sleep(3 * 60)
 
         with Step(msg="check policies download", emoji=":file_folder:"):
             self.policies = self.kubernetes_helper.download_policies()
@@ -121,17 +146,16 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="reload policies", emoji=":rocket:"):
             self.kubernetes_helper.reload_policies()
 
-        with Step(msg="check `downloaded` ruleset_loaded", emoji=":delivery_truck:"):
-            for _i in range(60):  # retry 60 times
-                event = self.app.wait_app_log("rule_id:ruleset_loaded  @policies.source:file")
-                attributes = event["data"][-1]["attributes"]["attributes"]
-                load_date = attributes["date"]
-                # search for restart log until the timestamp differs
-                if load_date != prev_load_date:
-                    break
-                time.sleep(1)
-            else:
-                self.fail("check ruleset_loaded timeouted")
+        with Step(msg="check ruleset_loaded for `file` downloaded.policy", emoji=":delivery_truck:"):
+            event = self.app.wait_app_log(
+                "rule_id:ruleset_loaded @policies.source:file @policies.name:downloaded.policy"
+            )
+            attributes = event["data"][-1]["attributes"]["attributes"]
+            self.app.check_policy_found(self, attributes, "file", "downloaded.policy")
+            self.app.check_policy_not_found(self, attributes, "file", "default.policy")
+            self.app.check_policy_found(self, attributes, "remote-config", "default.policy")
+            self.app.check_policy_found(self, attributes, "remote-config", "cws_custom")
+            self.app.check_policy_found(self, attributes, "file", "test.policy")
             self.app.check_for_ignored_policies(self, attributes)
 
         with Step(msg="check self_tests", emoji=":test_tube:"):

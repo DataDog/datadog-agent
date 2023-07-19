@@ -22,7 +22,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple.pid = 0;
     conn_tuple.netns = 0;
     normalize_tuple(&conn_tuple);
-    bpf_map_delete_elem(&connection_protocol, &conn_tuple);
+    delete_protocol_stack(&conn_tuple, NULL, FLAG_TCP_CLOSE_DELETION);
 
     conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
     if (skb_tup_ptr == NULL) {
@@ -30,7 +30,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     }
 
     conn_tuple_t skb_tup = *skb_tup_ptr;
-    bpf_map_delete_elem(&connection_protocol, &skb_tup);
+    delete_protocol_stack(&skb_tup, NULL, FLAG_TCP_CLOSE_DELETION);
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 

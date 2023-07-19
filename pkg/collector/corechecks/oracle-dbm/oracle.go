@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
+	cache "github.com/patrickmn/go-cache"
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
@@ -52,6 +53,7 @@ type Check struct {
 	core.CheckBase
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
+	dbCustomQueries                         *sqlx.DB
 	dbmEnabled                              bool
 	agentVersion                            string
 	checkInterval                           float64
@@ -69,7 +71,11 @@ type Check struct {
 	statementsLastRun                       time.Time
 	filePath                                string
 	isRDS                                   bool
+	isOracleCloud                           bool
 	sqlTraceRunsCount                       int
+	connectedToPdb                          bool
+	fqtEmitted                              *cache.Cache
+	planEmitted                             *cache.Cache
 }
 
 // Run executes the check.
@@ -87,11 +93,16 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
+	err := c.OS_Stats()
+	if err != nil {
+		return fmt.Errorf("failed to collect os stats %w", err)
+	}
+
 	if c.config.SysMetrics.Enabled {
 		log.Trace("Entered sysmetrics")
 		err := c.SysMetrics()
 		if err != nil {
-			return fmt.Errorf("failed to collecr sysmetrics %w", err)
+			return fmt.Errorf("failed to collect sysmetrics %w", err)
 		}
 	}
 	if c.config.Tablespaces.Enabled {
@@ -126,6 +137,12 @@ func (c *Check) Run() error {
 				return err
 			}
 		}
+		if len(c.config.CustomQueries) > 0 {
+			err := c.CustomQueries()
+			if err != nil {
+				log.Errorf("failed to execute custom queries %s", err)
+			}
+		}
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
@@ -155,17 +172,32 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		//godror ezconnect string
 		if c.config.InstanceConfig.InstantClient {
 			oracleDriver = "godror"
-			connStr = fmt.Sprintf("%s/%s@%s/%s", c.config.Username, c.config.Password, c.config.Server, c.config.ServiceName)
+			protocolString := ""
+			walletString := ""
+			if c.config.Protocol == "TCPS" {
+				protocolString = "tcps://"
+				if c.config.Wallet != "" {
+					walletString = fmt.Sprintf("?wallet_location=%s", c.config.Wallet)
+				}
+			}
+			connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s%s:%d/%s%s"`, c.config.Username, c.config.Password, protocolString, c.config.Server, c.config.Port, c.config.ServiceName, walletString)
 		} else {
 			oracleDriver = "oracle"
-			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, map[string]string{"TIMEOUT": DB_TIMEOUT})
+			connectionOptions := map[string]string{"TIMEOUT": DB_TIMEOUT}
+			if c.config.Protocol == "TCPS" {
+				connectionOptions["SSL"] = "TRUE"
+				if c.config.Wallet != "" {
+					connectionOptions["WALLET"] = c.config.Wallet
+				}
+			}
+			connStr = go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, connectionOptions)
 			// https://github.com/jmoiron/sqlx/issues/854#issuecomment-1504070464
 			sqlx.BindDriver("oracle", sqlx.NAMED)
 		}
 	}
 	c.driver = oracleDriver
 
-	log.Infof("driver: %s, Connect string: %s", oracleDriver, connStr)
+	log.Infof("driver: %s", oracleDriver)
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
@@ -188,10 +220,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 
 	if c.dbHostname == "" || c.dbVersion == "" {
-		row := db.QueryRow("SELECT /* DD */ host_name, version, instance_name FROM v$instance")
+		// host_name is null on Oracle Autonomous Database
+		row := db.QueryRow("SELECT /* DD */ nvl(host_name, instance_name), version_full FROM v$instance")
 		var dbHostname string
-		var instanceName string
-		err = row.Scan(&dbHostname, &c.dbVersion, &instanceName)
+		err = row.Scan(&dbHostname, &c.dbVersion)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query hostname and version: %w", err)
 		}
@@ -213,6 +245,32 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		if path == "/rdsdbdata" {
 			c.isRDS = true
 		}
+	}
+
+	r := db.QueryRow("select decode(sys_context('USERENV','CON_ID'),1,'CDB','PDB') TYPE from DUAL")
+	var connectionType string
+	err = r.Scan(&connectionType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query connection type: %w", err)
+	}
+	var cloudRows int
+	if connectionType == "PDB" {
+		c.connectedToPdb = true
+		r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
+		err := r.Scan(&cloudRows)
+		if err != nil {
+			log.Errorf("failed to query v$pdbs: %s", err)
+		}
+		if cloudRows == 1 {
+			r := db.QueryRow("select 1 from cdb_services where name like '%oraclecloud%' and rownum = 1")
+			err := r.Scan(&cloudRows)
+			if err != nil {
+				log.Errorf("failed to query cdb_services: %s", err)
+			}
+		}
+	}
+	if cloudRows == 1 {
+		c.isOracleCloud = true
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
@@ -253,6 +311,17 @@ func (c *Check) Teardown() {
 			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
 		}
 	}
+	c.fqtEmitted = nil
+	c.planEmitted = nil
+}
+
+func CloseDatabaseConnection(db *sqlx.DB) error {
+	if db != nil {
+		if err := db.Close(); err != nil {
+			return fmt.Errorf("failed to close oracle connection: %s", err)
+		}
+	}
+	return nil
 }
 
 // Configure configures the Oracle check.
@@ -283,6 +352,15 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
 	c.tagsString = strings.Join(c.tags, ",")
+
+	c.fqtEmitted = cache.New(60*time.Minute, 10*time.Minute)
+
+	var planCacheRetention = c.config.QueryMetrics.PlanCacheRetention
+	if planCacheRetention == 0 {
+		planCacheRetention = 1
+	}
+	c.planEmitted = cache.New(time.Duration(planCacheRetention)*time.Minute, 10*time.Minute)
+
 	return nil
 }
 
@@ -294,7 +372,6 @@ func init() {
 	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
 }
 
-// func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature string, SQLID string) (common.ObfuscatedStatement, error) {
 func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string) (common.ObfuscatedStatement, error) {
 	obfuscatedStatement, err := o.ObfuscateSQLString(statement)
 	if err == nil {
@@ -324,9 +401,9 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 	return append(tags, "pdb:"+pdb.String)
 }
 
-func selectWrapper[T any](c *Check, s T, sql string) error {
-	err := c.db.Select(s, sql)
-	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
+func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
+	err := c.db.Select(s, sql, binds...)
+	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "ORA-06413") || strings.Contains(err.Error(), "database is closed")) {
 		db, err := c.Connect()
 		if err != nil {
 			c.Teardown()
