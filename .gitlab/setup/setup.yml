@@ -3,7 +3,7 @@ cancel_pipelines_on_same_ref:
   stage: setup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  if: ${{ contains(github.event.*.labels.*.name, 'dev/do-not-cancel-pipelines') }}
+  if: ${{ contains(github.event.*.labels.*.name, 'dev/do-not-cancel-pipelines') }} && $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/
   script:
     - source /root/.bashrc
     - inv -e pipeline.cancel_pipelines_on_same_ref --force --git-ref $DD_REPO_BRANCH_NAME
