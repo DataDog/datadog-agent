@@ -6,18 +6,19 @@ set MODCACHE_ROOT=%DEFAULT_MODCACHE_ROOT%
 if "%1" == "" (
     goto :usage
 )
-if "%2" == ""(
+if "%2" == "" (
     goto :usage
 )
+
+set MODCACHE_ROOT=%1
+set MODCACHE_FILE_ROOT=%2
+set MODCACHE_GZ_FILE=%MODCACHE_ROOT%\%MODCACHE_FILE_ROOT%.tar.gz
+set MODCACHE_TAR_FILE=%MODCACHE_ROOT%\%MODCACHE_FILE_ROOT%.tar
+
 if "%GOMODCACHE%" == "" (
     @echo GOMODCACHE environment variable not set, skipping expansion of mod cache files
     goto :endofscript
 )
-
-set MODCACHE_ROOT="%1"
-set MODCACHE_FILE_ROOT="%2"
-set MODCACHE_GZ_FILE="%MODCACHE_ROOT%\%MODCACHE_FILE_ROOT%.tar.gz"
-set MODCACHE_TAR_FILE="%MODCACHE_ROOT%\%MODCACHE_FILE_ROOT%.tar"
 
 @echo MODCACHE_GZ_FILE %MODCACHE_GZ_FILE% MODCACHE_TAR_FILE %MODCACHE_TAR_FILE% GOMODCACHE %GOMODCACHE%
 if exist %MODCACHE_GZ_FILE% (
@@ -37,7 +38,7 @@ goto :endofscript
 
 :usage
 @echo usage
-@echo extract-modcache <build root> <filename>
+@echo "extract-modcache <build root> <filename>"
 goto :eof
 
 :endofscript
