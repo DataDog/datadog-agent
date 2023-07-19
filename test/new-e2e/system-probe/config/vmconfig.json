@@ -1,7 +1,7 @@
 {
     "vmsets": [
         {
-            "name": "distro_distro_x86_64",
+            "name": "distro_x86_64",
             "recipe": "distro-x86_64",
             "arch": "x86_64",
             "kernels": [
@@ -29,7 +29,7 @@
             ]
         },
         {
-            "name": "distro_distro_arm64",
+            "name": "distro_arm64",
             "recipe": "distro-arm64",
             "arch": "arm64",
             "kernels": [
