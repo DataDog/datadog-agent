@@ -45,6 +45,7 @@ import (
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/process-agent"
 )
 
 const (
@@ -247,16 +248,18 @@ func initMisc(deps miscDeps) error {
 	}
 	tagger.SetDefaultTagger(t)
 
+	// appCtx is a context that cancels when the OnStop hook is called
+	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			store.Start(ctx)
+		OnStart: func(startCtx context.Context) error {
+			store.Start(appCtx)
 
-			err := tagger.Init(ctx)
+			err := tagger.Init(startCtx)
 			if err != nil {
 				_ = log.Errorf("failed to start the tagger: %s", err)
 			}
 
-			err = manager.ConfigureAutoExit(ctx, deps.Config)
+			err = manager.ConfigureAutoExit(startCtx, deps.Config)
 			if err != nil {
 				_ = log.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
@@ -270,6 +273,8 @@ func initMisc(deps miscDeps) error {
 			if err != nil {
 				return err
 			}
+
+			stopApp()
 
 			return nil
 		},

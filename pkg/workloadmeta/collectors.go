@@ -25,6 +25,9 @@ type CollectorCatalog map[string]collectorFactory
 type collectorFactory func() Collector
 
 var (
+	// ProcessAgentExtendedCatalog is a catalog of collectors that only run in the process agent
+	ProcessAgentExtendedCatalog = make(CollectorCatalog)
+
 	// NodeAgentCatalog is a catalog of collectors that runs in the node
 	// agents
 	NodeAgentCatalog = make(CollectorCatalog)
@@ -36,6 +39,17 @@ var (
 	// RemoteCatalog collectors to run when workloadmeta is configured as remote
 	RemoteCatalog = make(CollectorCatalog)
 )
+
+func ProcessAgentCatalog() CollectorCatalog {
+	result := make(CollectorCatalog, len(ProcessAgentExtendedCatalog)+len(NodeAgentCatalog))
+	for k, v := range NodeAgentCatalog {
+		result[k] = v
+	}
+	for k, v := range ProcessAgentExtendedCatalog {
+		result[k] = v
+	}
+	return result
+}
 
 // RegisterCollector registers a new collector in the NodeAgentCatalog,
 // identified by an id for logging and telemetry purposes, to be used by the
@@ -56,4 +70,8 @@ func RegisterClusterCollector(id string, c collectorFactory) {
 // store.
 func RegisterRemoteCollector(id string, c collectorFactory) {
 	RemoteCatalog[id] = c
+}
+
+func RegisterProcessAgentCollector(id string, c collectorFactory) {
+	ProcessAgentExtendedCatalog[id] = c
 }
