@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package config
 
 import (
@@ -27,8 +29,10 @@ type QuerySamplesConfig struct {
 }
 
 type QueryMetricsConfig struct {
-	Enabled               bool `yaml:"enabled"`
-	IncludeDatadogQueries bool `yaml:"include_datadog_queries"`
+	Enabled            bool  `yaml:"enabled"`
+	CollectionInterval int64 `yaml:"collection_interval"`
+	DBRowsLimit        int   `yaml:"db_rows_limit"`
+	PlanCacheRetention int   `yaml:"plan_cache_retention"`
 }
 
 type SysMetricsConfig struct {
@@ -43,6 +47,10 @@ type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type SharedMemoryConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type ExecutionPlansConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
@@ -54,6 +62,19 @@ type AgentSQLTrace struct {
 	TracedRuns int  `yaml:"traced_runs"`
 }
 
+type CustomQueryColumns struct {
+	Name string `yaml:"name"`
+	Type string `yaml:"type"`
+}
+
+type CustomQuery struct {
+	MetricPrefix string               `yaml:"metric_prefix"`
+	Pdb          string               `yaml:"pdb"`
+	Query        string               `yaml:"query"`
+	Columns      []CustomQueryColumns `yaml:"columns"`
+	Tags         []string             `yaml:"tags"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
 	Server                 string               `yaml:"server"`
@@ -63,6 +84,8 @@ type InstanceConfig struct {
 	Password               string               `yaml:"password"`
 	TnsAlias               string               `yaml:"tns_alias"`
 	TnsAdmin               string               `yaml:"tns_admin"`
+	Protocol               string               `yaml:"protocol"`
+	Wallet                 string               `yaml:"wallet"`
 	DBM                    bool                 `yaml:"dbm"`
 	Tags                   []string             `yaml:"tags"`
 	LogUnobfuscatedQueries bool                 `yaml:"log_unobfuscated_queries"`
@@ -74,8 +97,10 @@ type InstanceConfig struct {
 	SysMetrics             SysMetricsConfig     `yaml:"sysmetrics"`
 	Tablespaces            TablespacesConfig    `yaml:"tablespaces"`
 	ProcessMemory          ProcessMemoryConfig  `yaml:"process_memory"`
+	SharedMemory           SharedMemoryConfig   `yaml:"shared_memory"`
 	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
 	AgentSQLTrace          AgentSQLTrace        `yaml:"agent_sql_trace"`
+	CustomQueries          []CustomQuery        `yaml:"custom_queries"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -105,11 +130,16 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ObfuscatorOptions.CollectComments = true
 
 	instance.QuerySamples.Enabled = true
+
 	instance.QueryMetrics.Enabled = true
+	instance.QueryMetrics.CollectionInterval = 60
+	instance.QueryMetrics.DBRowsLimit = 10000
+	instance.QueryMetrics.PlanCacheRetention = 15
 
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
+	instance.SharedMemory.Enabled = true
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {
