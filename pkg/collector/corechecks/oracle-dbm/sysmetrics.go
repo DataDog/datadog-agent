@@ -20,7 +20,6 @@ const SYSMETRICS_QUERY = `SELECT
 	metric_name,
 	value, 
 	metric_unit, 
-	--(end_time - begin_time)*24*3600 interval_length,
 	name pdb_name 
   FROM %s s, v$containers c 
   WHERE s.con_id = c.con_id(+)`
