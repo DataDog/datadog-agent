@@ -40,13 +40,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -1780,6 +1783,84 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
+}
+
+func (s *TracerSuite) TestGetMapsTelemetry() {
+	t := s.T()
+
+	// This is required for telemetry collection to be activated.
+	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
+	tr := setupTracer(t, testConfig())
+
+	cmd := []string{"curl", "-k", "-o/dev/null", "--parallel", "example.com/[1-10]"}
+	err := exec.Command(cmd[0], cmd[1:]...).Run()
+	require.NoError(t, err)
+
+	stats, err := tr.GetStats()
+	require.NoError(t, err)
+
+	mapsTelemetry, ok := stats[telemetry.EBPFMapTelemetryNS].(map[string]interface{})
+	require.True(t, ok)
+	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
+
+	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
+	require.True(t, ok)
+	assert.NotZero(t, tcpStatsErrors["file exists"])
+}
+
+func sysOpenAt2Supported() bool {
+	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
+	if err == nil && len(missing) == 0 {
+		return true
+	}
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Error("could not determine the current kernel version. fallback to do_sys_open")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(5, 6, 0)
+}
+
+type HelperTelemetryType map[string]map[string]map[string]uint64
+
+func (s *TracerSuite) TestGetHelpersTelemetry() {
+	t := s.T()
+
+	// This is required for telemetry collection to be activated.
+	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
+	tr := setupTracer(t, testConfig())
+
+	expectedErrorTP := "tracepoint__syscalls__sys_exit_openat"
+	syscallNumber := syscall.SYS_OPENAT
+	if sysOpenAt2Supported() {
+		expectedErrorTP = "tracepoint__syscalls__sys_exit_openat2"
+		// In linux kernel source dir run:
+		// printf SYS_openat2 | gcc -include sys/syscall.h -E -
+		syscallNumber = 437
+	}
+
+	// Ensure `bpf_probe_read_user` fails by passing an address guaranteed to pagefault to open syscall.
+	_, _, sysErr := syscall.Syscall6(syscall.SYS_MMAP, uintptr(0xdeadbeef), uintptr(syscall.Getpagesize()), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE, 0, 0)
+	require.Zero(t, sysErr)
+	_, _, sysErr = syscall.Syscall(uintptr(syscallNumber), uintptr(0), uintptr(0xdeadbeef), uintptr(0))
+
+	stats, err := tr.GetStats()
+	require.NoError(t, err)
+
+	helperTelemetry, ok := stats[telemetry.EBPFHelperTelemetryNS].(map[string]interface{})
+	require.True(t, ok)
+	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
+
+	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})
+	require.True(t, ok)
+
+	probeReadUserError, ok := openAtErrors["bpf_probe_read_user"].(map[string]uint64)
+	require.True(t, ok)
+
+	badAddressCnt, ok := probeReadUserError["bad address"]
+	require.True(t, ok)
+	assert.NotZero(t, badAddressCnt)
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
