@@ -3,9 +3,11 @@ setup_agent_version:
   stage: setup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  variables:
+    DO_NOT_CANCEL_PIPELINES: ${{ contains(github.event.*.labels.*.name, 'dev/do-not-cancel-pipelines') }}
   script:
     - source /root/.bashrc
-    - inv -e pipeline.cancel_pipelines_on_same_ref --force --git-ref $DD_REPO_BRANCH_NAME
+    - if [ $DO_NOT_CANCEL_PIPELINES == "true" ]; then inv -e pipeline.cancel_pipelines_on_same_ref --force --git-ref $DD_REPO_BRANCH_NAME; fi
     - inv -e agent.version --version-cached
     - $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache
 
