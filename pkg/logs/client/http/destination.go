@@ -48,8 +48,8 @@ var (
 	expVarInUseMsMapKey = "inUseMs"
 )
 
-// emptyPayload is an empty payload used to check HTTP connectivity without sending logs.
-var emptyPayload = message.Payload{}
+// emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
+var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: []byte("{}")}
 
 // Destination sends a payload over HTTP.
 type Destination struct {
@@ -382,22 +382,36 @@ func buildURL(endpoint config.Endpoint) string {
 	return url.String()
 }
 
+func prepareCheckConnectivity(endpoint config.Endpoint) (*client.DestinationsContext, *Destination) {
+	ctx := client.NewDestinationsContext()
+	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "")
+	return ctx, destination
+}
+
+func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Destination) error {
+	ctx.Start()
+	defer ctx.Stop()
+	return destination.unconditionalSend(&emptyJsonPayload)
+}
+
 // CheckConnectivity check if sending logs through HTTP works
 func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
-	ctx := client.NewDestinationsContext()
-	ctx.Start()
-	defer ctx.Stop()
-	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "")
+	ctx, destination := prepareCheckConnectivity(endpoint)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
-	err := destination.unconditionalSend(&emptyPayload)
+	err := completeCheckConnectivity(ctx, destination)
 	if err != nil {
 		log.Warnf("HTTP connectivity failure: %v", err)
 	} else {
 		log.Info("HTTP connectivity successful")
 	}
 	return err == nil
+}
+
+func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
+	ctx, destination := prepareCheckConnectivity(endpoint)
+	return destination.url, completeCheckConnectivity(ctx, destination)
 }
 
 func (d *Destination) waitForBackoff() {

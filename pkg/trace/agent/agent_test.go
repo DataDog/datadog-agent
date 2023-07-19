@@ -313,6 +313,44 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
+	t.Run("aas", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.InAzureAppServices = true
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
+		go agnt.Process(&api.Payload{
+			TracerPayload: tp,
+			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		})
+		timeout := time.After(2 * time.Second)
+		select {
+		case ss := <-agnt.TraceWriter.In:
+			tp = ss.TracerPayload
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+
+		for _, chunk := range tp.Chunks {
+			for i, span := range chunk.Spans {
+				if i == 0 {
+					// root span should contain all aas tags
+					for tag := range traceutil.GetAppServicesTags() {
+						assert.Contains(t, span.Meta, tag)
+					}
+				} else {
+					// other spans should only contain site name and type
+					assert.Contains(t, span.Meta, "aas.site.name")
+					assert.Contains(t, span.Meta, "aas.site.type")
+				}
+			}
+		}
+	})
+
 	t.Run("DiscardSpans", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"

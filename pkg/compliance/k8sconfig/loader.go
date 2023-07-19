@@ -269,6 +269,9 @@ func (l *loader) loadCertFileMeta(name string) *K8sCertFileMeta {
 		return nil
 	}
 	meta := l.extractCertData(certData)
+	if meta == nil {
+		return nil
+	}
 	meta.Path = name
 	meta.User = utils.GetFileUser(info)
 	meta.Group = utils.GetFileGroup(info)

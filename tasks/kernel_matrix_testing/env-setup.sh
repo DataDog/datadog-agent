@@ -2,6 +2,8 @@
 
 set -eo xtrace
 
+DIR_NAME=$(dirname "$0")
+
 # Install dependencies
 
 sudo apt update
@@ -25,7 +27,7 @@ fi
 
 sudo systemctl start nfs-kernel-server.service
 
-pip3 install -r tasks/kernel_matrix_testing/requirements.txt
+pip3 install -r "${DIR_NAME}"/requirements.txt
 
 curl -fsSL https://get.pulumi.com | sh
 
