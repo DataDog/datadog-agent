@@ -88,28 +88,11 @@ class GithubWorkflows(RemoteAPI):
         path = f"/repos/{self.repository}/actions/workflows/{workflow_name}/runs"
         return self.make_request(path, method="GET", json_output=True)
 
-    def make_request(self, path, headers=None, method="GET", data=None, json_output=False, raw_output=False):
-        """
-        Utility to make an HTTP request to the GitHub API.
-        See RemoteAPI#request.
-
-        Adds "Authorization: token {self.api_token}" and "Accept: application/vnd.github.v3+json"
-        to the headers to be able to authenticate ourselves to GitHub.
-        """
-        headers = dict(headers or [])
-        headers["Authorization"] = f"token {self.api_token}"
-        headers["Accept"] = "application/vnd.github.v3+json"
-
-        return self.request(
-            path=path,
-            headers=headers,
-            data=data,
-            json_input=False,
-            json_output=json_output,
-            raw_output=raw_output,
-            stream_output=False,
-            method=method,
-        )
+    def auth_headers(self):
+        return {
+            "Authorization": f"token {self.api_token}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
 
 def get_github_app_token():

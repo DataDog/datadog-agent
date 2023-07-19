@@ -41,7 +41,7 @@ class GithubApp(RemoteAPI):
         payload = {'iat': epoch, 'exp': epoch + (5 * 60), 'iss': self.app_id}
         return payload
 
-    def get_headers(self):
+    def auth_headers(self):
         """
         Craft headers to make a request to the Github API as a Github App.
         """
@@ -54,25 +54,6 @@ class GithubApp(RemoteAPI):
             'Accept': 'application/vnd.github.v3+json',
         }
         return headers
-
-    def make_request(self, endpoint, method='GET', data=None):
-        """
-        Make an HTTP request to the Github API, while using a token crafted from the App ID and
-        private key to authenticate ourselves as a Github App.
-
-        endpoint is the HTTP enpoint that will be requested.
-
-        The method parameter dictates the type of request made (GET or POST).
-        If method is GET, the data parameter is ignored (no body can be sent in a GET request).
-
-        """
-        headers = self.get_headers()
-
-        return self.make_request(endpoint,
-                                 headers=headers,
-                                 data=data,
-                                 stream_output=False,
-                                 method=method)
 
     def get_token(self):
         """

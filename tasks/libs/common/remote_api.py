@@ -27,7 +27,10 @@ class RemoteAPI(object):
         self.requests_sleep_time = sleep_time
         self.requests_500_retry_count = retry_count
 
-    def request(
+    def auth_headers(self):
+        pass
+
+    def make_request(
         self,
         path,
         headers=None,
@@ -56,6 +59,8 @@ class RemoteAPI(object):
         import requests
 
         url = self.BASE_URL + path
+        headers = dict(headers or [])
+        headers.update(self.auth_headers())
 
         # TODO: Use the param argument of requests instead of handling URL params
         # manually

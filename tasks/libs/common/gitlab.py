@@ -281,28 +281,13 @@ class Gitlab(RemoteAPI):
             else:
                 raise e
 
-    def make_request(
-        self, path, headers=None, data=None, json_input=False, json_output=False, stream_output=False, method=None
-    ):
+    def auth_headers(self):
         """
-        Utility to make a request to the Gitlab API.
-        See RemoteAPI#request.
-
         Adds "PRIVATE-TOKEN: {self.api_token}" to the headers to be able to authenticate ourselves to GitLab.
         """
-        headers = dict(headers or [])
-        headers["PRIVATE-TOKEN"] = self.api_token
-
-        return self.request(
-            path=path,
-            headers=headers,
-            data=data,
-            json_input=json_input,
-            json_output=json_output,
-            stream_output=stream_output,
-            raw_output=False,
-            method=method,
-        )
+        return {
+            "PRIVATE-TOKEN": self.api_token
+        }
 
 
 def get_gitlab_token():
