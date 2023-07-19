@@ -14,32 +14,32 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
 #define PATCH_TARGET_TELEMETRY -1
 static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_TARGET_TELEMETRY;
 
-#define map_update_with_telemetry(fn, map, args...)                                 \
-    ({                                                                            \
-        long errno_ret, errno_slot;                                                 \
-        errno_ret = fn(&map, args);                                                 \
-        if (errno_ret < 0) {                                                        \
-            unsigned long err_telemetry_key;                                        \
-            LOAD_CONSTANT(MK_KEY(map), err_telemetry_key);                          \
-            map_err_telemetry_t *entry =                                            \
-                bpf_map_lookup_elem(&map_err_telemetry_map, &err_telemetry_key);    \
-            if (entry) {                                                            \
-                errno_slot = errno_ret * -1;                                        \
-                if (errno_slot >= T_MAX_ERRNO) {                                    \
-                    errno_slot = T_MAX_ERRNO - 1;                                   \
-                    errno_slot &= (T_MAX_ERRNO - 1);                                \
-                }                                                                   \
-                errno_slot &= (T_MAX_ERRNO - 1);                                    \
-                long *target = &entry->err_count[errno_slot];                       \
-                unsigned long add = 1;                                              \
+#define map_update_with_telemetry(fn, map, args...)                                \
+    ({                                                                             \
+        long errno_ret, errno_slot;                                                \
+        errno_ret = fn(&map, args);                                                \
+        if (errno_ret < 0) {                                                       \
+            unsigned long err_telemetry_key;                                       \
+            LOAD_CONSTANT(MK_KEY(map), err_telemetry_key);                         \
+            map_err_telemetry_t *entry =                                           \
+                bpf_map_lookup_elem(&map_err_telemetry_map, &err_telemetry_key);   \
+            if (entry) {                                                           \
+                errno_slot = errno_ret * -1;                                       \
+                if (errno_slot >= T_MAX_ERRNO) {                                   \
+                    errno_slot = T_MAX_ERRNO - 1;                                  \
+                    errno_slot &= (T_MAX_ERRNO - 1);                               \
+                }                                                                  \
+                errno_slot &= (T_MAX_ERRNO - 1);                                   \
+                long *target = &entry->err_count[errno_slot];                      \
+                unsigned long add = 1;                                             \
                 /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1);
                  * This patch point is placed here because the above instruction
                  * fails on the 4.4 verifier. On 4.4 this instruction is replaced
                  * with a nop: r1 = r1 */ \
-                bpf_telemetry_update_patch((unsigned long)target, add);             \
-            }                                                                       \
-        }                                                                           \
-        errno_ret;                                                                  \
+                bpf_telemetry_update_patch((unsigned long)target, add);            \
+            }                                                                      \
+        }                                                                          \
+        errno_ret;                                                                 \
     })
 
 #define MK_FN_INDX(fn) FN_INDX_##fn
@@ -83,7 +83,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                     /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1);
                      * This patch point is placed here because the above instruction
                      * fails on the 4.4 verifier. On 4.4 this instruction is replaced
-                     * with a nop: r1 = r1 */         \
+                     * with a nop: r1 = r1 */          \
                     bpf_telemetry_update_patch((unsigned long)target, add);                     \
                 }                                                                               \
             }                                                                                   \
