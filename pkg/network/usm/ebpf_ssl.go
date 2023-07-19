@@ -16,6 +16,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
@@ -358,7 +359,9 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(sharedli
 					UprobeOffset:            uint64(offset),
 					HookFuncName:            symbol,
 				}
-				_ = m.AddHook("", newProbe)
+				if err := m.AddHook("", newProbe); err == nil {
+					ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, identifier.UID), "usm_tls")
+				}
 			}
 			if err := singleProbe.RunValidator(m); err != nil {
 				return err

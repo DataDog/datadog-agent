@@ -53,6 +53,7 @@ type Check struct {
 	core.CheckBase
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
+	dbCustomQueries                         *sqlx.DB
 	dbmEnabled                              bool
 	agentVersion                            string
 	checkInterval                           float64
@@ -72,6 +73,7 @@ type Check struct {
 	isRDS                                   bool
 	isOracleCloud                           bool
 	sqlTraceRunsCount                       int
+	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
 }
@@ -89,6 +91,11 @@ func (c *Check) Run() error {
 			return fmt.Errorf("empty connection")
 		}
 		c.db = db
+	}
+
+	err := c.OS_Stats()
+	if err != nil {
+		return fmt.Errorf("failed to collect os stats %w", err)
 	}
 
 	if c.config.SysMetrics.Enabled {
@@ -128,6 +135,12 @@ func (c *Check) Run() error {
 			err := c.SharedMemory()
 			if err != nil {
 				return err
+			}
+		}
+		if len(c.config.CustomQueries) > 0 {
+			err := c.CustomQueries()
+			if err != nil {
+				log.Errorf("failed to execute custom queries %s", err)
 			}
 		}
 	}
@@ -242,6 +255,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	}
 	var cloudRows int
 	if connectionType == "PDB" {
+		c.connectedToPdb = true
 		r := db.QueryRow("select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")
 		err := r.Scan(&cloudRows)
 		if err != nil {
@@ -299,6 +313,15 @@ func (c *Check) Teardown() {
 	}
 	c.fqtEmitted = nil
 	c.planEmitted = nil
+}
+
+func CloseDatabaseConnection(db *sqlx.DB) error {
+	if db != nil {
+		if err := db.Close(); err != nil {
+			return fmt.Errorf("failed to close oracle connection: %s", err)
+		}
+	}
+	return nil
 }
 
 // Configure configures the Oracle check.
@@ -380,7 +403,7 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
 	err := c.db.Select(s, sql, binds...)
-	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
+	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "ORA-06413") || strings.Contains(err.Error(), "database is closed")) {
 		db, err := c.Connect()
 		if err != nil {
 			c.Teardown()

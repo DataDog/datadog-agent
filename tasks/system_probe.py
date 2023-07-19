@@ -259,7 +259,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length"]
+    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length", "ebpf"]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
@@ -366,7 +366,7 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/http2/decoding-defs.h",
             ],
-            "pkg/network/protocols/kafka/kafka_types.go": [
+            "pkg/network/protocols/kafka/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
@@ -384,6 +384,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/usm/sharedlibraries/types.go": [
                 "pkg/network/ebpf/c/shared-libraries/types.h",
+            ],
+            "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
             ],
         }
         nw.rule(
