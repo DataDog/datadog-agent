@@ -42,7 +42,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/agent-payload/v5 v5.0.89-0.20230704083421-b45a1d578078
+	github.com/DataDog/agent-payload/v5 v5.0.90-0.20230717070528-bfb5d051f2ab
 	github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a
 	github.com/DataDog/datadog-agent/pkg/gohai v0.47.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.47.0-rc.3
@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v1.0.3
-	github.com/DataDog/ebpf-manager v0.2.9
+	github.com/DataDog/ebpf-manager v0.2.10
 	github.com/DataDog/go-libddwaf v1.0.0
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gopsutil v1.2.2
@@ -149,7 +149,7 @@ require (
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v0.53.1
+	github.com/open-policy-agent/opa v0.54.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.75.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0-rc3
@@ -158,7 +158,7 @@ require (
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.15.1
+	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/procfs v0.11.0
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
@@ -168,7 +168,7 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.5.0
 	github.com/shirou/gopsutil/v3 v3.23.2
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
-	github.com/sirupsen/logrus v1.9.2
+	github.com/sirupsen/logrus v1.9.3
 	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/smira/go-xz v0.1.0
 	github.com/spf13/afero v1.9.3
@@ -211,12 +211,12 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.3.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
-	golang.org/x/net v0.11.0
+	golang.org/x/net v0.12.0
 	golang.org/x/sync v0.3.0
-	golang.org/x/sys v0.9.0
-	golang.org/x/text v0.10.0
+	golang.org/x/sys v0.10.0
+	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.10.0
+	golang.org/x/tools v0.11.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20230525234025-438c736192d0 // indirect
 	google.golang.org/grpc v1.56.1
@@ -506,7 +506,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7 // indirect
-	github.com/yashtewari/glob-intersection v0.1.0 // indirect
+	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.etcd.io/etcd/api/v3 v3.6.0-alpha.0 // indirect
@@ -531,10 +531,10 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v0.37.0
 	go.opentelemetry.io/otel/trace v1.14.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
-	golang.org/x/crypto v0.10.0 // indirect
-	golang.org/x/mod v0.11.0
+	golang.org/x/crypto v0.11.0 // indirect
+	golang.org/x/mod v0.12.0
 	golang.org/x/oauth2 v0.8.0 // indirect
-	golang.org/x/term v0.9.0 // indirect
+	golang.org/x/term v0.10.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
 	google.golang.org/api v0.119.0 // indirect
@@ -613,7 +613,7 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
 
 // Remove once the issue https://github.com/microsoft/Windows-Containers/issues/72 is resolved
-replace github.com/golang/glog v1.1.0 => github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1
+replace github.com/golang/glog v1.1.1 => github.com/DataDog/glog v1.1.2-0.20230527101146-81a67cdbc7a1
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20230703150631-f11d5ab05838
 

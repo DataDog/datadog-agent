@@ -20,7 +20,7 @@ var (
 	cpuGet      = cpu.Get
 	memoryGet   = memory.CollectInfo
 	networkGet  = network.Get
-	platformGet = platform.Get
+	platformGet = platform.CollectInfo
 )
 
 // HostMetadata contains metadata about the host
@@ -107,17 +107,18 @@ func getHostMetadata() *HostMetadata {
 		metadata.CPUCacheSize = cpuInfo.CacheSizeBytes
 	}
 
-	platformInfo, warnings, err := platformGet()
+	platformInfo := platformGet()
+	_, warnings, err = platformInfo.AsJSON()
 	if err != nil {
 		logErrorf("failed to retrieve host platform metadata from gohai: %s", err) //nolint:errcheck
 	} else {
 		logWarnings(warnings)
 
-		metadata.KernelName = platformInfo.KernelName
-		metadata.KernelRelease = platformInfo.KernelRelease
-		metadata.KernelVersion = platformInfo.KernelVersion
-		metadata.OS = platformInfo.OS
-		metadata.CPUArchitecture = platformInfo.HardwarePlatform
+		metadata.KernelName, _ = platformInfo.KernelName.Value()
+		metadata.KernelRelease, _ = platformInfo.KernelRelease.Value()
+		metadata.KernelVersion, _ = platformInfo.KernelVersion.Value()
+		metadata.OS, _ = platformInfo.OS.Value()
+		metadata.CPUArchitecture, _ = platformInfo.HardwarePlatform.Value()
 	}
 
 	memoryInfo := memoryGet()

@@ -25,6 +25,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -223,6 +224,11 @@ func (c *ProcessAgentCheck) Cancel() {}
 // GetSenderStats returns the stats from the last run of the check, but there aren't any yet
 func (c *ProcessAgentCheck) GetSenderStats() (stats.SenderStats, error) {
 	return stats.NewSenderStats(), nil
+}
+
+// GetDiagnoses returns the diagnoses of the check
+func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }
 
 func init() {

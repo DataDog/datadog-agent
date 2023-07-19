@@ -309,22 +309,7 @@ func newJavaProcess(pid int) {
 }
 
 func (p *JavaTLSProgram) Start() {
-	var err error
-	defer func() {
-		if err == nil {
-			return
-		}
-		// In case of an error, we should cleanup the callbacks.
-		if p.cleanupExec != nil {
-			p.cleanupExec()
-		}
-	}()
-
-	p.cleanupExec, err = p.processMonitor.SubscribeExec(newJavaProcess)
-	if err != nil {
-		log.Errorf("process monitor Subscribe() error: %s", err)
-		return
-	}
+	p.cleanupExec = p.processMonitor.SubscribeExec(newJavaProcess)
 }
 
 func (p *JavaTLSProgram) Stop() {

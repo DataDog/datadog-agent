@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"time"
 
@@ -34,6 +35,10 @@ type Endpoint struct {
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
+
+// App Services env vars
+const RunZip = "APPSVC_RUN_ZIP"
+const AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -448,6 +453,9 @@ type AgentConfig struct {
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
 
+	// Azure App Services
+	InAzureAppServices bool
+
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 }
@@ -529,6 +537,8 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
+		InAzureAppServices: InAzureAppServices(),
+
 		Features: make(map[string]struct{}),
 	}
 }
@@ -587,4 +597,10 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
+}
+
+func InAzureAppServices() bool {
+	_, existsLinux := os.LookupEnv(RunZip)
+	_, existsWin := os.LookupEnv(AppLogsTrace)
+	return existsLinux || existsWin
 }
