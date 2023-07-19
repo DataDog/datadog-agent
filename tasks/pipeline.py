@@ -162,7 +162,7 @@ instead.""",
 
 @task
 def cancel_same_ref_pipelines(
-    ctx,
+    _,
     gitlab,
     git_ref
 ):
