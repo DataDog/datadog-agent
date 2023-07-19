@@ -16,6 +16,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -201,8 +202,10 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 	if err := og.manager.InitWithOptions(bytecodeReader, options); err != nil {
 		return og.res, err
 	}
+	ebpfcheck.AddNameMappings(og.manager, "cws_offsetguess")
 
 	if err := og.manager.Start(); err != nil {
+		ebpfcheck.RemoveNameMappings(og.manager)
 		return og.res, err
 	}
 
@@ -212,6 +215,7 @@ func (og *OffsetGuesser) FinishAndGetResults() (map[string]uint64, error) {
 		}
 	}
 
+	ebpfcheck.RemoveNameMappings(og.manager)
 	if err := og.manager.Stop(manager.CleanAll); err != nil {
 		return og.res, err
 	}
