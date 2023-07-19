@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
@@ -37,7 +38,8 @@ type dependencies struct {
 	SysProbeConfig sysprobeconfig.Component
 	HostInfo       hostinfo.Component
 
-	Log log.Component
+	Log       log.Component
+	Telemetry telemetry.Component
 }
 
 func newExpvarServer(deps dependencies) (Component, error) {
@@ -95,6 +97,6 @@ func initStatus(deps dependencies) error {
 	if err != nil {
 		_ = deps.Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
-	status.InitExpvars(deps.Config, deps.HostInfo.Object().HostName, processModuleEnabled, eps)
+	status.InitExpvars(deps.Config, deps.Telemetry, deps.HostInfo.Object().HostName, processModuleEnabled, eps)
 	return nil
 }

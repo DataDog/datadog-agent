@@ -205,15 +205,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 		undefinedProbes = append(undefinedProbes, protocolClassificationTailCalls[0].ProbeIdentificationPair)
 		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, protocolClassificationTailCalls...)
-
-		// Replace LRU map type by Hash map if kernel doesn't support it
-		if err := features.HaveMapType(ebpf.LRUHash); err != nil {
-			me := mgrOpts.MapSpecEditors[probes.ConnectionProtocolMap]
-			me.Type = ebpf.Hash
-			me.EditorFlag |= manager.EditType
-			mgrOpts.MapSpecEditors[probes.ConnectionProtocolMap] = me
-		}
-
 	} else {
 		// Kernels < 4.7.0 do not know about the per-cpu array map used
 		// in classification, preventing the program to load even though
@@ -225,6 +216,14 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 				EditorFlag: manager.EditType,
 			}
 		}
+	}
+
+	// Replace LRU map type by Hash map if kernel doesn't support it
+	if err := features.HaveMapType(ebpf.LRUHash); err != nil {
+		me := mgrOpts.MapSpecEditors[probes.ConnectionProtocolMap]
+		me.Type = ebpf.Hash
+		me.EditorFlag |= manager.EditType
+		mgrOpts.MapSpecEditors[probes.ConnectionProtocolMap] = me
 	}
 
 	if err := errtelemetry.ActivateBPFTelemetry(m, undefinedProbes); err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -216,6 +217,30 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	}, msg)
 }
 
+func TestStreamVersioning(t *testing.T) {
+	extractor, _, conn, stream := setupGRPCTest(t)
+	msg, err := stream.Recv()
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, msg.EventID)
+
+	extractor.diffChan <- &ProcessCacheDiff{cacheVersion: 1} // Simulate a cache update
+	msg, err = stream.Recv()
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, msg.EventID)
+
+	extractor.diffChan <- &ProcessCacheDiff{cacheVersion: 3} // Simulate a missing message
+	_, err = stream.Recv()
+	assert.ErrorContains(t, err, "received version = 3; expected = 2")
+	assert.Equal(t, conn.GetState(), connectivity.Ready) // Assert the underlying connection is still open
+
+	// Make sure we are able to create a new stream using the same connection
+	stream, err = pbgo.NewProcessEntityStreamClient(conn).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	require.NoError(t, err)
+	msg, err = stream.Recv()
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, msg.EventID)
+}
+
 func TestProcessEntityToEventSet(t *testing.T) {
 	for _, tc := range []struct {
 		desc    string
@@ -256,6 +281,27 @@ func TestProcessEntityToEventSet(t *testing.T) {
 		event := processEntityToEventSet(tc.process)
 		assert.Equal(t, tc.event, event)
 	}
+}
+
+// TestSingleStream tests that there can only ever be a single stream at one time.
+func TestSingleStream(t *testing.T) {
+	ext, _, conn, originalStream := setupGRPCTest(t)
+	_, err := originalStream.Recv() // fast-forward through the sync message
+	require.NoError(t, err)
+
+	newStream, err := pbgo.NewProcessEntityStreamClient(conn).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	require.NoError(t, err)
+
+	_, err = newStream.Recv() // fast-forward through the sync message
+	require.NoError(t, err)
+
+	_, err = originalStream.Recv()
+	assert.ErrorContains(t, err, DuplicateConnectionErr.Error())
+
+	ext.diffChan <- &ProcessCacheDiff{cacheVersion: 1}
+	_, err = newStream.Recv()
+	assert.NoError(t, err)
+
 }
 
 func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.ProcessStreamResponse) {
@@ -307,4 +353,32 @@ func toEventSet(proc *procutil.Process) *pbgo.ProcessEventSet {
 
 func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
 	return &pbgo.ProcessEventUnset{Pid: proc.Pid}
+}
+
+// setupGRPCTest a test extractor, server, and client connection.
+// Cleanup is handled automatically via T.Cleanup().
+func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.ClientConn, pbgo.ProcessEntityStream_StreamEntitiesClient) {
+	t.Helper()
+
+	cfg := config.Mock(t)
+	port, err := testutil.FindTCPPort()
+	require.NoError(t, err)
+	cfg.Set("process_config.language_detection.grpc_port", port)
+	extractor := NewWorkloadMetaExtractor(cfg)
+
+	grpcServer := NewGRPCServer(cfg, extractor)
+	err = grpcServer.Start()
+	require.NoError(t, err)
+	t.Cleanup(grpcServer.Stop)
+
+	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = cc.Close()
+	})
+
+	stream, err := pbgo.NewProcessEntityStreamClient(cc).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	require.NoError(t, err)
+
+	return extractor, grpcServer, cc, stream
 }

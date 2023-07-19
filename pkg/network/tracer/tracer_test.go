@@ -95,19 +95,6 @@ func (s *TracerSuite) TestGetStats() {
 	httpSupported := httpSupported()
 	linuxExpected := map[string]interface{}{}
 	err := json.Unmarshal([]byte(`{
-      "usm": {
-        "http": {
-          "aggregations": 0,
-          "dropped": 0,
-          "hits1xx": 0,
-          "hits2xx": 0,
-          "hits3xx": 0,
-          "hits4xx": 0,
-          "hits5xx": 0,
-          "misses": 0,
-          "rejected": 0
-        }
-      },
       "state": {
         "closed_conn_dropped": 0,
 		"conn_dropped": 0

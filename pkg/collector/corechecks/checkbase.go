@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,7 +62,7 @@ func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckB
 		checkName:     name,
 		checkID:       checkid.ID(name),
 		checkInterval: defaultInterval,
-		telemetry:     telemetry_utils.IsCheckEnabled(name),
+		telemetry:     utils.IsCheckTelemetryEnabled(name),
 	}
 }
 
@@ -270,4 +271,9 @@ func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 		return stats.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
 	}
 	return sender.GetSenderStats(), nil
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }

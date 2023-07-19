@@ -36,6 +36,8 @@ build do
     copy "#{ENV['SYSTEM_PROBE_BIN']}/runtime-security-offset-guesser.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/oom-kill-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill.o"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tcp-queue-length-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tcp-queue-length.o"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/ebpf-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/ebpf.o"
+    copy "#{ENV['SYSTEM_PROBE_BIN']}/ebpf-debug-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/ebpf-debug.o"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tracer-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tracer.o"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tracer-debug-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tracer-debug.o"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/tracer-fentry-co-re.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/tracer-fentry.o"
