@@ -605,8 +605,8 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 	visited := make([]*ProcessNode, 0, 64)
 
 	for len(execChildren) > 0 {
-		cursor := execChildren[0]
-		execChildren = execChildren[1:]
+		cursor := execChildren[len(execChildren)-1]
+		execChildren = execChildren[:len(execChildren)-1]
 
 		visited = append(visited, cursor)
 
