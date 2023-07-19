@@ -1,0 +1,3 @@
+features:
+  - |
+    Add config variables and environment variable ``DD_OTLP_CONFIG_LOGS_ENABLED `` related to OTLP log ingestion
