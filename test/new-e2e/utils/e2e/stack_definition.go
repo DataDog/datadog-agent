@@ -115,12 +115,7 @@ type DockerEnv struct {
 func DockerStackDef(params ...dockerparams.Option) *StackDefinition[DockerEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*DockerEnv, error) {
-			vm, err := ec2vm.NewUnixEc2VM(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			docker, err := docker.NewDaemon(vm.UnixVM, params...)
+			docker, err := docker.NewDaemon(ctx, params...)
 			if err != nil {
 				return nil, err
 			}

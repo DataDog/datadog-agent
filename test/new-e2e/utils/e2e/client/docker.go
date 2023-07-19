@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
+	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -25,16 +26,19 @@ var _ clientService[docker.ClientData] = (*Docker)(nil)
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
 type Docker struct {
+	agent *AgentCommandRunner
 	*UpResultDeserializer[docker.ClientData]
 	t                  *testing.T
 	client             *client.Client
 	agentContainerName string
+	os                 os.OS
 }
 
 // Create a new instance of Docker
 func NewDocker(daemon *docker.Daemon) *Docker {
 	dockerInstance := &Docker{
 		agentContainerName: daemon.GetAgentContainerName(),
+		os:                 daemon.GetOS(),
 	}
 	dockerInstance.UpResultDeserializer = NewUpResultDeserializer[docker.ClientData](daemon, dockerInstance)
 	return dockerInstance
@@ -57,20 +61,30 @@ func (docker *Docker) initService(t *testing.T, data *docker.ClientData) error {
 	}
 
 	docker.client, err = client.NewClientWithOpts(opts...)
+	if docker.agentContainerName != "" {
+		docker.agent = newAgentCommandRunner(t, &dockerAgentCommand{docker: docker})
+	}
 	return err
 }
 
+// ExecuteCommand executes a command on containerName and returns the output.
 func (docker *Docker) ExecuteCommand(containerName string, commands ...string) string {
-	output, errOutput, err := docker.ExecuteCommandWithErr(containerName, commands...)
-	if len(errOutput) != 0 {
-		output += " " + errOutput
-	}
-
-	require.NoErrorf(docker.t, err, "%v", output)
+	output, err := docker.ExecuteCommandWithErr(containerName, commands...)
+	require.NoErrorf(docker.t, err, "%v: %v", output, err)
 	return output
 }
 
-func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...string) (string, string, error) {
+// ExecuteCommandWithErr executes a command on containerName and returns the output and an error.
+func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...string) (string, error) {
+	output, errOutput, err := docker.ExecuteCommandStdoutStdErr(containerName, commands...)
+	if len(errOutput) != 0 {
+		output += " " + errOutput
+	}
+	return output, err
+}
+
+// ExecuteCommandStdoutStdErr executes a command on containerName and returns the output, the error output and an error.
+func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands ...string) (string, string, error) {
 	context := context.Background()
 	execConfig := types.ExecConfig{Cmd: commands, AttachStderr: true, AttachStdout: true}
 	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
@@ -99,11 +113,34 @@ func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...st
 	return output, errOutput, err
 }
 
+// GetClient gets the [docker client].
+//
+// [docker client]: https://pkg.go.dev/github.com/docker/docker/client
 func (docker *Docker) GetClient() *client.Client {
 	return docker.client
 }
 
+// GetAgentContainerName gets the agent container name
 func (docker *Docker) GetAgentContainerName() string {
 	require.NotEmptyf(docker.t, docker.agentContainerName, "agent container not found")
 	return docker.agentContainerName
+}
+
+// GetAgentCommandRunner gets an agent that provides high level methods to run Agent commands.
+func (docker *Docker) GetAgentCommandRunner() *AgentCommandRunner {
+	require.NotNilf(docker.t, docker.agent, "there is no agent installed on this docker instance")
+	return docker.agent
+}
+
+var _ agentRawCommandRunner = (*dockerAgentCommand)(nil)
+
+// dockerAgentCommand is a wrapper to execute Agent commands on Docker.
+type dockerAgentCommand struct {
+	docker *Docker
+}
+
+func (agentCmd *dockerAgentCommand) ExecuteWithError(commands []string) (string, error) {
+	wholeCommands := []string{"agent"}
+	wholeCommands = append(wholeCommands, commands...)
+	return agentCmd.docker.ExecuteCommandWithErr(agentCmd.docker.GetAgentContainerName(), wholeCommands...)
 }

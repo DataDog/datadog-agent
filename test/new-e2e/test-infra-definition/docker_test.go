@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/dockerparams"
 )
 
@@ -28,4 +29,9 @@ func (v *dockerSuite) TestExecuteCommand() {
 	regexpVersion := regexp.MustCompile(`.*Agent .* - Commit: .* - Serialization version: .* - Go version: .*`)
 
 	v.Require().Truef(regexpVersion.MatchString(output), fmt.Sprintf("%v doesn't match %v", output, regexpVersion))
+
+	// args is used to test client.WithArgs. The values of the arguments are not relevant.
+	args := client.WithArgs([]string{"-n", "-c", "."})
+	version := docker.GetAgentCommandRunner().Version(args)
+	v.Require().Truef(regexpVersion.MatchString(version), fmt.Sprintf("%v doesn't match %v", version, regexpVersion))
 }

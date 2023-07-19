@@ -8,34 +8,41 @@ package client
 import (
 	"errors"
 	"regexp"
+	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/cenkalti/backoff"
+	"github.com/stretchr/testify/require"
 )
 
-// AgentCommandRunner provides methods to run commands on the Agent.
-type AgentCommandRunner struct {
-	cmdRunner *vmClient
-	os        os.OS
+// agentRawCommandRunner is a low level interface to that provide a method to run command on the Agent.
+type agentRawCommandRunner interface {
+	ExecuteWithError(arguments []string) (string, error)
 }
 
-// Create a new instance of Agent
-func newAgentCommandRunner(client *vmClient, os os.OS) *AgentCommandRunner {
+// AgentCommandRunner provides high level methods to run commands on the Agent.
+type AgentCommandRunner struct {
+	t             *testing.T
+	commandRunner agentRawCommandRunner
+}
+
+// Create a new instance of AgentCommandRunner
+func newAgentCommandRunner(t *testing.T, commandRunner agentRawCommandRunner) *AgentCommandRunner {
 	agent := &AgentCommandRunner{
-		cmdRunner: client, os: os,
+		t:             t,
+		commandRunner: commandRunner,
 	}
 	agent.waitForReadyTimeout(1 * time.Minute)
 	return agent
 }
 
-func (agent *AgentCommandRunner) getCommand(parameters string) string {
-	return agent.os.GetRunAgentCmd(parameters)
-}
-
 func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...AgentArgsOption) string {
 	args := newAgentArgs(commandArgs...)
-	return agent.cmdRunner.Execute(agent.getCommand(command) + " " + args.Args)
+	arguments := []string{command}
+	arguments = append(arguments, args.Args...)
+	output, err := agent.commandRunner.ExecuteWithError(arguments)
+	require.NoError(agent.t, err)
+	return output
 }
 
 func (agent *AgentCommandRunner) Version(commandArgs ...AgentArgsOption) string {
@@ -70,7 +77,7 @@ func (a *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
-		statusOutput, err := a.cmdRunner.ExecuteWithError(a.getCommand("status"))
+		statusOutput, err := a.commandRunner.ExecuteWithError([]string{"status"})
 		if err != nil {
 			return err
 		}

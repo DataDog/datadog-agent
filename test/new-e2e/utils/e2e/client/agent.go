@@ -6,6 +6,7 @@
 package client
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -14,7 +15,7 @@ import (
 
 var _ clientService[agent.ClientData] = (*Agent)(nil)
 
-// A client Agent that is connected to an [agent.Installer].
+// An Agent that is connected to an [agent.Installer].
 //
 // [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 type Agent struct {
@@ -23,16 +24,37 @@ type Agent struct {
 	*AgentCommandRunner
 }
 
-// Create a new instance of Agent
+// Create a new instance of an Agent connected to an [agent.Installer].
+//
+// [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 func NewAgent(installer *agent.Installer) *Agent {
 	agentInstance := &Agent{os: installer.VM().GetOS()}
 	agentInstance.UpResultDeserializer = NewUpResultDeserializer[agent.ClientData](installer, agentInstance)
 	return agentInstance
 }
 
-//lint:ignore U1000 Ignore unused function as this function is call using reflection
+//lint:ignore U1000 Ignore unused function as this function is called using reflection
 func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 	vmClient, err := newVMClient(t, "", &data.Connection)
-	agent.AgentCommandRunner = newAgentCommandRunner(vmClient, agent.os)
+
+	vmAgentCommand := &vmAgentCommand{vmClient: vmClient, os: agent.os}
+	agent.AgentCommandRunner = newAgentCommandRunner(t, vmAgentCommand)
 	return err
+}
+
+var _ agentRawCommandRunner = (*vmAgentCommand)(nil)
+
+// vmAgentCommand is a wrapper to execute Agent commands on a VM.
+type vmAgentCommand struct {
+	vmClient *vmClient
+	os       os.OS
+}
+
+func (agent *vmAgentCommand) ExecuteWithError(arguments []string) (string, error) {
+	parameters := ""
+	if len(arguments) > 0 {
+		parameters = `"` + strings.Join(arguments, `" "`) + `"`
+	}
+	cmd := agent.os.GetRunAgentCmd(parameters)
+	return agent.vmClient.ExecuteWithError(cmd)
 }
