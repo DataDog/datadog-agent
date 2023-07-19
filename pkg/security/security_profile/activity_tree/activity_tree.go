@@ -523,7 +523,7 @@ func (at *ActivityTree) findBranchInChildrenNodes(tree *[]*ProcessNode, branch [
 			// We didn't find the current entry anywhere, has it execed into something else ? (i.e. are we missing something
 			// in the profile ?)
 			if i+1 < len(branch) {
-				if branch[i+1].IsExecChild() {
+				if branch[i+1].IsExecChild {
 					continue
 				}
 			}

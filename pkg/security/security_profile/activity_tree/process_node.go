@@ -64,7 +64,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 	}
 	return &ProcessNode{
 		Process:        entry.Process,
-		IsExecChild:    entry.IsExecChild(),
+		IsExecChild:    entry.IsExecChild,
 		GenerationType: generationType,
 		Files:          make(map[string]*FileNode),
 		DNSNames:       make(map[string]*DNSNode),
