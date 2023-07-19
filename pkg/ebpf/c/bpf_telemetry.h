@@ -15,8 +15,8 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
 static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_TARGET_TELEMETRY;
 
 #define map_update_with_telemetry(fn, map, args...)                                 \
-    do {                                                                            \
-        long errno_ret, errno_slot;                                                  \
+    ({                                                                            \
+        long errno_ret, errno_slot;                                                 \
         errno_ret = fn(&map, args);                                                 \
         if (errno_ret < 0) {                                                        \
             unsigned long err_telemetry_key;                                        \
@@ -39,7 +39,8 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                 bpf_telemetry_update_patch((unsigned long)target, add);             \
             }                                                                       \
         }                                                                           \
-    } while (0)
+        errno_ret;                                                                  \
+    })
 
 #define MK_FN_INDX(fn) FN_INDX_##fn
 
