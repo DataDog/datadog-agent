@@ -1822,8 +1822,6 @@ func sysOpenAt2Supported() bool {
 	return kversion >= kernel.VersionCode(5, 6, 0)
 }
 
-type HelperTelemetryType map[string]map[string]map[string]uint64
-
 func (s *TracerSuite) TestGetHelpersTelemetry() {
 	t := s.T()
 
