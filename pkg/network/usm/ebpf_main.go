@@ -22,15 +22,12 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	http2InFlightMap = "http2_in_flight"
-
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
@@ -101,14 +98,6 @@ type subprogram interface {
 	Stop()
 }
 
-var http2TailCall = manager.TailCallRoute{
-	ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-	Key:           uint32(protocols.ProgramHTTP2),
-	ProbeIdentificationPair: manager.ProbeIdentificationPair{
-		EBPFFuncName: "socket__http2_filter",
-	},
-}
-
 func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
@@ -143,10 +132,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 		},
 	}
 
-	if c.EnableHTTP2Monitoring {
-		mgr.Maps = append(mgr.Maps, &manager.Map{Name: "http2_dynamic_table"}, &manager.Map{Name: "http2_static_table"})
-	}
-
 	subprogramProbesResolvers := make([]probeResolver, 0, 3)
 	subprograms := make([]subprogram, 0, 3)
 
@@ -167,10 +152,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 	}
 
 	var tailCalls []manager.TailCallRoute
-
-	if c.EnableHTTP2Monitoring {
-		tailCalls = append(tailCalls, http2TailCall)
-	}
 
 	if IsJavaSubprogramEnabled(c) {
 		tailCalls = append(tailCalls, GetJavaTlsTailCallRoutes()...)
@@ -306,11 +287,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	options.MapSpecEditors = map[string]manager.MapSpecEditor{
-		http2InFlightMap: {
-			Type:       ebpf.Hash,
-			MaxEntries: e.cfg.MaxTrackedConnections,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		connectionStatesMap: {
 			Type:       ebpf.Hash,
 			MaxEntries: e.cfg.MaxTrackedConnections,
@@ -390,13 +366,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, tc := range p.TailCalls {
 			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
 		}
-	}
-
-	// Configure event streams
-	if e.cfg.EnableHTTP2Monitoring {
-		events.Configure("http2", e.Manager.Manager, &options)
-	} else {
-		options.ExcludedFunctions = append(options.ExcludedFunctions, "socket__http2_filter")
 	}
 
 	return e.InitWithOptions(buf, options)

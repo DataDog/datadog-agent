@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -21,10 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -50,6 +47,7 @@ var (
 	// for the Monitor to use during its initialisation.
 	knownProtocols = map[protocols.ProtocolType]protocols.ProtocolSpec{
 		protocols.HTTP:  http.Spec,
+		protocols.HTTP2: http2.Spec,
 		protocols.Kafka: kafka.Spec,
 	}
 )
@@ -63,28 +61,15 @@ var errNoProtocols = errors.New("no protocol monitors were initialised")
 type Monitor struct {
 	enabledProtocols map[protocols.ProtocolType]protocols.Protocol
 
-	http2Consumer   *events.Consumer
-	ebpfProgram     *ebpfProgram
-	http2Telemetry  *http.Telemetry
-	http2Statkeeper *http.StatKeeper
-	processMonitor  *monitor.ProcessMonitor
+	ebpfProgram *ebpfProgram
 
-	http2Enabled   bool
+	processMonitor *monitor.ProcessMonitor
 	httpTLSEnabled bool
 
 	// termination
 	closeFilterFn func()
 
 	lastUpdateTime *atomic.Int64
-}
-
-// The staticTableEntry represents an entry in the static table that contains an index in the table and a value.
-// The value itself contains both the key and the corresponding value in the static table.
-// For instance, index 2 in the static table has a value of method: GET, and index 3 has a value of method: POST.
-// It is not possible to save the index by the key because we need to distinguish between the values attached to the key.
-type staticTableEntry struct {
-	Index uint64
-	Value http2.StaticTableValue
 }
 
 // NewMonitor returns a new Monitor instance
@@ -120,13 +105,6 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		return nil, fmt.Errorf("error initializing ebpf program: %w", err)
 	}
 
-	if c.EnableHTTP2Monitoring {
-		err := m.createStaticTable(mgr)
-		if err != nil {
-			return nil, fmt.Errorf("error creating a static table for http2 monitoring: %w", err)
-		}
-	}
-
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
@@ -140,25 +118,13 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 
 	processMonitor := monitor.GetProcessMonitor()
 
-	var http2Statkeeper *http.StatKeeper
-	var http2Telemetry *http.Telemetry
-	if c.EnableHTTP2Monitoring {
-		http2Telemetry = http.NewTelemetry()
-
-		// for now the max HTTP2 entries would be taken from the maxHTTPEntries.
-		http2Statkeeper = http.NewStatkeeper(c, http2Telemetry)
-	}
-
 	state = Running
 
 	usmMonitor := &Monitor{
 		enabledProtocols: enabledProtocols,
 		ebpfProgram:      mgr,
-		http2Telemetry:   http2Telemetry,
 		closeFilterFn:    closeFilterFn,
 		processMonitor:   processMonitor,
-		http2Enabled:     c.EnableHTTP2Monitoring,
-		http2Statkeeper:  http2Statkeeper,
 		httpTLSEnabled:   c.EnableHTTPSMonitoring,
 	}
 
@@ -173,15 +139,7 @@ func (m *Monitor) Start() error {
 		return nil
 	}
 
-	var (
-		err error
-
-		// This value is here so that both the new way of handling protocols and
-		// the old one (used here by http2 monitoring) can coexist in
-		// this function. It SHOULD be removed once every protocol has been
-		// refactored to use the new way.
-		enabledCount = 0
-	)
+	var err error
 
 	defer func() {
 		if err != nil {
@@ -208,26 +166,10 @@ func (m *Monitor) Start() error {
 			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocolType, startErr)
 			continue
 		}
-
-		enabledCount++
-	}
-
-	if m.http2Enabled {
-		m.http2Consumer, err = events.NewConsumer(
-			"http2",
-			m.ebpfProgram.Manager.Manager,
-			m.processHTTP2,
-		)
-		if err != nil {
-			log.Errorf("could not enable http2 monitoring: %s", err)
-		} else {
-			m.http2Consumer.Start()
-			enabledCount++
-		}
 	}
 
 	// No protocols could be enabled, abort.
-	if enabledCount == 0 {
+	if len(m.enabledProtocols) == 0 {
 		return errNoProtocols
 	}
 
@@ -242,7 +184,6 @@ func (m *Monitor) Start() error {
 			// Cleanup the protocol. Note that at this point we can't unload the
 			// ebpf programs of a specific protocol without shutting down the
 			// entire manager.
-			enabledCount--
 			protocol.Stop(m.ebpfProgram.Manager.Manager)
 			delete(m.enabledProtocols, protocolType)
 
@@ -253,7 +194,7 @@ func (m *Monitor) Start() error {
 
 	// We check again if there are protocols that could be enabled, and abort if
 	// it is not the case.
-	if enabledCount == 0 {
+	if len(m.enabledProtocols) == 0 {
 		err = m.ebpfProgram.Close()
 		if err != nil {
 			log.Errorf("error during USM shutdown: %s", err)
@@ -311,18 +252,6 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 	return ret
 }
 
-// GetHTTP2Stats returns a map of HTTP2 stats stored in the following format:
-// [source, dest tuple, request path] -> RequestStats object
-func (m *Monitor) GetHTTP2Stats() map[http.Key]*http.RequestStats {
-	if m == nil || m.http2Enabled == false {
-		return nil
-	}
-
-	m.http2Consumer.Sync()
-	m.http2Telemetry.Log()
-	return m.http2Statkeeper.GetAndResetAllStats()
-}
-
 // Stop HTTP monitoring
 func (m *Monitor) Stop() {
 	if m == nil {
@@ -337,123 +266,12 @@ func (m *Monitor) Stop() {
 	}
 
 	m.ebpfProgram.Close()
-
-	if m.http2Enabled {
-		m.http2Consumer.Stop()
-	}
-
-	if m.http2Statkeeper != nil {
-		m.http2Statkeeper.Close()
-	}
 	m.closeFilterFn()
-}
-
-func (m *Monitor) processHTTP2(data []byte) {
-	tx := (*http2.EbpfTx)(unsafe.Pointer(&data[0]))
-
-	m.http2Telemetry.Count(tx)
-	m.http2Statkeeper.Process(tx)
 }
 
 // DumpMaps dumps the maps associated with the monitor
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.DumpMaps(maps...)
-}
-
-// createStaticTable creates a static table for http2 monitor.
-func (m *Monitor) createStaticTable(mgr *ebpfProgram) error {
-	staticTable, _, _ := mgr.GetMap(probes.StaticTableMap)
-	if staticTable == nil {
-		return errors.New("http2 static table is null")
-	}
-	staticTableEntries := []staticTableEntry{
-		{
-			Index: 2,
-			Value: http2.StaticTableValue{
-				Key:   http2.MethodKey,
-				Value: http2.GetValue,
-			},
-		},
-		{
-			Index: 3,
-			Value: http2.StaticTableValue{
-				Key:   http2.MethodKey,
-				Value: http2.PostValue,
-			},
-		},
-		{
-			Index: 4,
-			Value: http2.StaticTableValue{
-				Key:   http2.PathKey,
-				Value: http2.EmptyPathValue,
-			},
-		},
-		{
-			Index: 5,
-			Value: http2.StaticTableValue{
-				Key:   http2.PathKey,
-				Value: http2.IndexPathValue,
-			},
-		},
-		{
-			Index: 8,
-			Value: http2.StaticTableValue{
-				Key:   http2.StatusKey,
-				Value: http2.K200Value,
-			},
-		},
-		{
-			Index: 9,
-			Value: http2.StaticTableValue{
-				Key:   http2.StatusKey,
-				Value: http2.K204Value,
-			},
-		},
-		{
-			Index: 10,
-			Value: http2.StaticTableValue{
-				Key:   http2.StatusKey,
-				Value: http2.K206Value,
-			},
-		},
-		{
-			Index: 11,
-			Value: http2.StaticTableValue{
-				Key:   http2.StatusKey,
-				Value: http2.K304Value,
-			},
-		},
-		{
-			Index: 12,
-			Value: http2.StaticTableValue{
-				Key:   http2.StatusKey,
-				Value: http2.K400Value,
-			},
-		},
-		{
-			Index: 13,
-			Value: http2.StaticTableValue{
-				Key:   http2.StatusKey,
-				Value: http2.K404Value,
-			},
-		},
-		{
-			Index: 14,
-			Value: http2.StaticTableValue{
-				Key:   http2.StatusKey,
-				Value: http2.K500Value,
-			},
-		},
-	}
-
-	for _, entry := range staticTableEntries {
-		err := staticTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
-
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // initProtocols takes the network configuration `c` and uses it to initialise
