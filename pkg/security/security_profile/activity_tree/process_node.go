@@ -23,7 +23,6 @@ import (
 type ProcessNode struct {
 	Process        model.Process
 	GenerationType NodeGenerationType
-	IsExecChild    bool
 	MatchedRules   []*model.MatchedRule
 
 	Files    map[string]*FileNode
@@ -64,7 +63,6 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 	}
 	return &ProcessNode{
 		Process:        entry.Process,
-		IsExecChild:    entry.IsExecChild,
 		GenerationType: generationType,
 		Files:          make(map[string]*FileNode),
 		DNSNames:       make(map[string]*DNSNode),

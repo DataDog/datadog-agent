@@ -563,7 +563,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 
 		// look for an execed child
 		for _, node := range cursor.Children {
-			if node.IsExecChild {
+			if node.Process.IsExecChild {
 				// there should always be only one
 				execChildren = append(execChildren, node)
 			}
