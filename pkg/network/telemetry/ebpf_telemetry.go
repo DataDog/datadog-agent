@@ -27,6 +27,9 @@ import (
 const (
 	maxErrno    = 64
 	maxErrnoStr = "other"
+
+	EBPFMapTelemetryNS    = "ebpf_maps"
+	EBPFHelperTelemetryNS = "ebpf_helpers"
 )
 
 const (
@@ -37,8 +40,8 @@ const (
 	perfEventOutput
 )
 
-var ebpfMapOpsErrorsGauge = prometheus.NewDesc("ebpf_map_ops__errors", "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil)
-var ebpfHelperErrorsGauge = prometheus.NewDesc("ebpf_helpers__errors", "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil)
+var ebpfMapOpsErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil)
+var ebpfHelperErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil)
 
 var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
 
