@@ -32,7 +32,7 @@ def parse_datetime(dt):
     return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%f%z")
 
 
-def cancel_pipelines_with_confirmation(gitlab, pipelines):
+def cancel_pipelines_with_confirmation(gitlab, pipelines, force=False):
     for pipeline in pipelines:
         commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, pipeline['id'])
 
@@ -55,7 +55,7 @@ def cancel_pipelines_with_confirmation(gitlab, pipelines):
             color_message(commit_author, "bold"),
         )
 
-        if yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
+        if force or yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
             gitlab.cancel_pipeline(pipeline['id'])
             print(f"Pipeline {color_message(pipeline['id'], 'bold')} has been cancelled.\n")
         else:
