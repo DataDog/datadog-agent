@@ -587,7 +587,9 @@ func (at *ActivityTree) findProcessCacheEntryInTree(tree []*ProcessNode, entry *
 		if child.Matches(&entry.Process, at.differentiateArgs) {
 			return child, i
 		}
+	}
 
+	for i, child := range tree {
 		// has the parent execed into one of its own children ?
 		if execChild := at.findProcessCacheEntryInChildExecedNodes(child, entry); execChild != nil {
 			return execChild, i
