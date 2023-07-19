@@ -288,7 +288,7 @@ func (s *Service) Start(ctx context.Context) error {
 
 		err := s.refresh()
 		if err != nil {
-			if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled {
+			if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
 				log.Errorf("Could not refresh Remote Config: %v", err)
 			} else {
 				log.Debugf("Could not refresh Remote Config (org is disabled): %v", err)
@@ -418,7 +418,6 @@ func (s *Service) refresh() error {
 			// If we saw the error enough time, we consider that RC not working is a normal behavior
 			// And we only log as INFO
 			// The agent will eventually log this error as INFO every maximalMaxBackoffTime
-			log.Infof("Could not refresh Remote Config: %v", err)
 			return nil
 		}
 		return err
