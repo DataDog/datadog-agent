@@ -78,6 +78,11 @@ func (t *telemetryImpl) Reset() {
 	t.registry = registry
 }
 
+// RegisterCollector Registers a Collector with the prometheus registry
+func (t *telemetryImpl) RegisterCollector(c prometheus.Collector) {
+	registry.MustRegister(c)
+}
+
 func (t *telemetryImpl) Meter(name string, opts ...metric.MeterOption) metric.Meter {
 	return t.meterProvider.Meter(name, opts...)
 }
