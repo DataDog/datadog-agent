@@ -291,7 +291,7 @@ func (s *Service) Start(ctx context.Context) error {
 			if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
 				log.Errorf("Could not refresh Remote Config: %v", err)
 			} else {
-				log.Debugf("Could not refresh Remote Config (org is disabled): %v", err)
+				log.Debugf("Could not refresh Remote Config (org is disabled or key is not authorized): %v", err)
 			}
 		}
 
@@ -318,7 +318,7 @@ func (s *Service) Start(ctx context.Context) error {
 					exportedLastUpdateErr.Set(err.Error())
 					log.Errorf("Could not refresh Remote Config: %v", err)
 				} else {
-					log.Debugf("Could not refresh Remote Config (org is disabled): %v", err)
+					log.Debugf("Could not refresh Remote Config (org is disabled or key is not authorized): %v", err)
 				}
 			}
 		}
