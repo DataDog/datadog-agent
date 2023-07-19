@@ -49,6 +49,7 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 		VerifierOptions: bpflib.CollectionOptions{
 			Programs: bpflib.ProgramOptions{
 				KernelTypes: btfData,
+				LogSize:     20 * 1024 * 1024,
 			},
 		},
 	}
