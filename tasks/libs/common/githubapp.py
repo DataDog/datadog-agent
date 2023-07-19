@@ -4,6 +4,8 @@ import os
 import time
 from datetime import datetime
 
+from .remote_api import RemoteAPI
+
 logger = logging.getLogger(__name__)
 logger.setLevel(os.environ.get('LOGGING_LEVEL', 'INFO'))
 
@@ -13,8 +15,9 @@ class GithubAppException(Exception):
     pass
 
 
-class GithubApp:
+class GithubApp(RemoteAPI):
     def __init__(self):
+        super(GithubApp, self).__init__("GitHub APP")
         self.key_b64 = os.environ['GITHUB_KEY_B64']
         self.app_id = os.environ['GITHUB_APP_ID']
         self.base_url = 'https://api.github.com'
