@@ -32,6 +32,12 @@ func logTypeError(prefix string, expectedType string, column string, value inter
 }
 
 func (c *Check) CustomQueries() error {
+	/*
+	 * We are creating a dedicated DB connection for custom queries. Custom queries is
+	 * the only feature that switches to PDBs (all other queries are running against the
+	 * root container). Switching to PDB and subsequent query execution isn't atomic, so
+	 * there's no guarantee the both operations would get the same connection from the pool.
+	 */
 	if c.dbCustomQueries == nil {
 		db, err := c.Connect()
 		if err != nil {
