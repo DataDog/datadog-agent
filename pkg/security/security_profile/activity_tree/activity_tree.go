@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -586,7 +587,9 @@ func (at *ActivityTree) findProcessCacheEntryInTree(tree []*ProcessNode, entry *
 		if child.Matches(&entry.Process, at.differentiateArgs) {
 			return child, i
 		}
+	}
 
+	for i, child := range tree {
 		// has the parent execed into one of its own children ?
 		if execChild := at.findProcessCacheEntryInChildExecedNodes(child, entry); execChild != nil {
 			return execChild, i
@@ -597,28 +600,42 @@ func (at *ActivityTree) findProcessCacheEntryInTree(tree []*ProcessNode, entry *
 
 // findProcessCacheEntryInChildExecedNodes look for entry in the execed nodes of child
 func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
+	// fast path
+	for _, node := range child.Children {
+		if node.Process.IsExecChild {
+			// does this execed child match the entry ?
+			if node.Matches(&entry.Process, at.differentiateArgs) {
+				return node
+			}
+		}
+	}
+
+	// slow path
+
 	// children is used to iterate over the tree below child
-	execChildren := []*ProcessNode{child}
+	execChildren := make([]*ProcessNode, 1, 64)
+	execChildren[0] = child
+
+	visited := make([]*ProcessNode, 0, 64)
 
 	for len(execChildren) > 0 {
-		cursor := execChildren[0]
-		execChildren = execChildren[1:]
+		cursor := execChildren[len(execChildren)-1]
+		execChildren = execChildren[:len(execChildren)-1]
+
+		visited = append(visited, cursor)
 
 		// look for an execed child
 		for _, node := range cursor.Children {
-			if node.Process.IsExecChild {
+			if node.Process.IsExecChild && !slices.Contains(visited, node) {
 				// there should always be only one
+
+				// does this execed child match the entry ?
+				if node.Matches(&entry.Process, at.differentiateArgs) {
+					return node
+				}
+
 				execChildren = append(execChildren, node)
 			}
-		}
-
-		if len(execChildren) == 0 {
-			break
-		}
-
-		// does this execed child match the entry ?
-		if execChildren[0].Matches(&entry.Process, at.differentiateArgs) {
-			return execChildren[0]
 		}
 	}
 
