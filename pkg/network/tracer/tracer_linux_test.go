@@ -1876,10 +1876,10 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 	tr := setupTracer(t, testConfig())
 
-	expectedErrorTP := "tracepoint__syscalls__sys_exit_openat"
+	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"
 	syscallNumber := syscall.SYS_OPENAT
 	if sysOpenAt2Supported() {
-		expectedErrorTP = "tracepoint__syscalls__sys_exit_openat2"
+		expectedErrorTP = "tracepoint__syscalls__sys_enter_openat2"
 		// In linux kernel source dir run:
 		// printf SYS_openat2 | gcc -include sys/syscall.h -E -
 		syscallNumber = 437
