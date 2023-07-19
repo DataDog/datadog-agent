@@ -129,7 +129,7 @@ func ReadElfBuildInfo(elfFile *elf.File) (vers string, err error) {
 	// for the two string values we care about.
 	ptrSize := int(data[14])
 	if data[15]&2 != 0 {
-		vers, data = decodeString(data[32:])
+		vers, _ = decodeString(data[32:])
 	} else {
 		bigEndian := data[15] != 0
 		var bo binary.ByteOrder
