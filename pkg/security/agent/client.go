@@ -23,6 +23,26 @@ type RuntimeSecurityClient struct {
 	conn      *grpc.ClientConn
 }
 
+type SecurityModuleClientWrapper interface {
+	DumpDiscarders() (string, error)
+	DumpProcessCache(withArgs bool) (string, error)
+	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
+	ListActivityDumps() (*api.ActivityDumpListMessage, error)
+	StopActivityDump(name, containerid, comm string) (*api.ActivityDumpStopMessage, error)
+	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
+	DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error)
+	GetConfig() (*api.SecurityConfigMessage, error)
+	GetStatus() (*api.Status, error)
+	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
+	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
+	GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error)
+	GetEvents() (api.SecurityModule_GetEventsClient, error)
+	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
+	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
+	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
+	Close()
+}
+
 // DumpDiscarders sends a request to dump discarders
 func (c *RuntimeSecurityClient) DumpDiscarders() (string, error) {
 	response, err := c.apiClient.DumpDiscarders(context.Background(), &api.DumpDiscardersParams{})
