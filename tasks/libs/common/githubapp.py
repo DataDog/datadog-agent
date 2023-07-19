@@ -63,17 +63,13 @@ class GithubApp:
         If method is GET, the data parameter is ignored (no body can be sent in a GET request).
 
         """
-        import requests
+        headers = self.get_headers()
 
-        url = self.base_url + endpoint
-
-        if method == 'GET':
-            return requests.get(url, headers=self.get_headers())
-        if method == 'POST':
-            if data:
-                return requests.post(url, data=data, headers=self.get_headers())
-            else:
-                return requests.post(url, headers=self.get_headers())
+        return self.make_request(endpoint,
+                                 headers=headers,
+                                 data=data,
+                                 stream_output=False,
+                                 method=method)
 
     def get_token(self):
         """
