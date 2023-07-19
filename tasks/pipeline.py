@@ -161,6 +161,29 @@ instead.""",
 
 
 @task
+def cancel_same_ref_pipelines(
+    ctx,
+    gitlab,
+    git_ref
+):
+    """
+    Cancel the pipelines on the CI that runs on the same ref as the one you're on
+    """
+    pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
+
+    if pipelines:
+        print(
+            f"There are already {len(pipelines)} pipeline(s) running on the target git ref.",
+            "For each of them, you'll be asked whether you want to cancel them or not.",
+            "If you don't need these pipelines, please cancel them to save CI resources.",
+            "They are ordered from the newest one to the oldest one.\n",
+            sep='\n',
+        )
+        cancel_pipelines_with_confirmation(gitlab, pipelines)
+
+
+
+@task
 def run(
     ctx,
     git_ref=None,
@@ -249,17 +272,8 @@ def run(
             )
             kitchen_tests = True
 
-    pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
-
-    if pipelines:
-        print(
-            f"There are already {len(pipelines)} pipeline(s) running on the target git ref.",
-            "For each of them, you'll be asked whether you want to cancel them or not.",
-            "If you don't need these pipelines, please cancel them to save CI resources.",
-            "They are ordered from the newest one to the oldest one.\n",
-            sep='\n',
-        )
-        cancel_pipelines_with_confirmation(gitlab, pipelines)
+    # Cancelling the pipelines with the same git_ref with user confirmation input
+    cancel_same_ref_pipelines(ctx, gitlab, git_ref)
 
     try:
         pipeline_id = trigger_agent_pipeline(
