@@ -9,6 +9,7 @@ type ProtocolType uint16
 
 const (
 	Unknown ProtocolType = iota
+	GRPC
 	HTTP
 	HTTP2
 	Kafka
@@ -24,6 +25,8 @@ func (p ProtocolType) String() string {
 	switch p {
 	case Unknown:
 		return "Unknown"
+	case GRPC:
+		return "gRPC"
 	case HTTP:
 		return "HTTP"
 	case HTTP2:
