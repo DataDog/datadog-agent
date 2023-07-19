@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -598,15 +599,20 @@ func (at *ActivityTree) findProcessCacheEntryInTree(tree []*ProcessNode, entry *
 // findProcessCacheEntryInChildExecedNodes look for entry in the execed nodes of child
 func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
 	// children is used to iterate over the tree below child
-	execChildren := []*ProcessNode{child}
+	execChildren := make([]*ProcessNode, 1, 64)
+	execChildren[0] = child
+
+	visited := make([]*ProcessNode, 0, 64)
 
 	for len(execChildren) > 0 {
 		cursor := execChildren[0]
 		execChildren = execChildren[1:]
 
+		visited = append(visited, cursor)
+
 		// look for an execed child
 		for _, node := range cursor.Children {
-			if node.Process.IsExecChild {
+			if node.Process.IsExecChild && !slices.Contains(visited, node) {
 				// there should always be only one
 				execChildren = append(execChildren, node)
 			}
