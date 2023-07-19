@@ -7,9 +7,11 @@
 package client
 
 import (
-	"fmt"
+	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
 )
 
@@ -31,7 +33,20 @@ func NewVM(infraVM commonvm.VM) *VM {
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
 func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 	var err error
-	fmt.Printf("TEST HERE")
-	vm.vmClient, err = newVMClient(t, "", &data.Connection)
+	var privateSshKey []byte
+
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+	if err != nil {
+		return err
+	}
+
+	if privateKeyPath != "" {
+		privateSshKey, err = os.ReadFile(privateKeyPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	vm.vmClient, err = newVMClient(t, privateSshKey, &data.Connection)
 	return err
 }
