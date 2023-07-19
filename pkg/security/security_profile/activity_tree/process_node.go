@@ -23,6 +23,7 @@ import (
 type ProcessNode struct {
 	Process        model.Process
 	GenerationType NodeGenerationType
+	IsExecChild    bool
 	MatchedRules   []*model.MatchedRule
 
 	Files    map[string]*FileNode
@@ -63,6 +64,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 	}
 	return &ProcessNode{
 		Process:        entry.Process,
+		IsExecChild:    entry.IsExecChild(),
 		GenerationType: generationType,
 		Files:          make(map[string]*FileNode),
 		DNSNames:       make(map[string]*DNSNode),
@@ -71,7 +73,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 
 // nolint: unused
 func (pn *ProcessNode) debug(w io.Writer, prefix string) {
-	fmt.Fprintf(w, "%s- process: %s (is_exec_child:%v)\n", prefix, pn.Process.FileEvent.PathnameStr, pn.Process.IsExecChild)
+	fmt.Fprintf(w, "%s- process: %s\n", prefix, pn.Process.FileEvent.PathnameStr)
 	if len(pn.Files) > 0 {
 		fmt.Fprintf(w, "%s  files:\n", prefix)
 		sortedFiles := make([]*FileNode, 0, len(pn.Files))

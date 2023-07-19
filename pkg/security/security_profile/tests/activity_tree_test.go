@@ -11,16 +11,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"golang.org/x/exp/slices"
-
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-
-	"gotest.tools/assert"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"gotest.tools/assert"
 )
 
 type testIteration struct {
@@ -698,7 +696,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 						process := craftFakeProcess(defaultContainerID, &ti)
 
-						node, _, newProcessNode, err := at.CreateProcessNode(process, []*model.ProcessCacheEntry{}, gentype, dryRun, nil)
+						node, newProcessNode, err := at.CreateProcessNode(process, []*model.ProcessCacheEntry{}, gentype, dryRun, nil)
 
 						assert.Equal(t, ti.resultErr, err)
 						assert.Equal(t, ti.resultNewProcessNode, newProcessNode)

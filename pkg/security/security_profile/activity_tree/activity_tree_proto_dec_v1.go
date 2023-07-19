@@ -30,6 +30,7 @@ func protoDecodeProcessActivityNode(pan *adproto.ProcessActivityNode) *ProcessNo
 	ppan := &ProcessNode{
 		Process:        protoDecodeProcessNode(pan.Process),
 		GenerationType: NodeGenerationType(pan.GenerationType),
+		IsExecChild:    pan.IsExecChild,
 		MatchedRules:   make([]*model.MatchedRule, 0, len(pan.MatchedRules)),
 		Children:       make([]*ProcessNode, 0, len(pan.Children)),
 		Files:          make(map[string]*FileNode, len(pan.Files)),
@@ -83,7 +84,6 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 		PPid:        p.Ppid,
 		Cookie:      p.Cookie,
 		IsThread:    p.IsThread,
-		IsExecChild: p.IsExecChild,
 		FileEvent:   *protoDecodeFileEvent(p.File),
 		ContainerID: p.ContainerId,
 		SpanID:      p.SpanId,
