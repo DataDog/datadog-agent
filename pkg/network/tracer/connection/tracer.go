@@ -380,8 +380,8 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	}
 
 	if err := entries.Err(); err != nil {
-		if err != ebpf.ErrIterationAborted {
-			return fmt.Errorf("unable to iterate connection map: %s", err)
+		if !errors.Is(err, ebpf.ErrIterationAborted) {
+			return fmt.Errorf("unable to iterate connection map: %w", err)
 		}
 
 		log.Warn("eBPF conn_stats map iteration aborted. Some connections may not be reported")
