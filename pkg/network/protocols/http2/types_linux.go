@@ -3,6 +3,10 @@
 
 package http2
 
+const (
+	maxHTTP2Path = 0xa0
+)
+
 type connTuple = struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
@@ -23,8 +27,7 @@ type EbpfTx struct {
 	Path_size             uint8
 	Request_end_of_stream bool
 	Pad_cgo_0             [6]byte
-	Request_path          [30]uint8
-	Pad_cgo_1             [2]byte
+	Request_path          [160]uint8
 }
 
 type StaticTableEnumKey = uint32

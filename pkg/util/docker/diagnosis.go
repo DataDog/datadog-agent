@@ -16,7 +16,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Docker availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Docker availability", diagnose)
 }
 
 // diagnose the docker availability on the system

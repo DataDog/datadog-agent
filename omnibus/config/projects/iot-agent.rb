@@ -46,7 +46,7 @@ else
   end
 
   if debian?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.1.0)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
   end
 end
 

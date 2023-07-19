@@ -118,7 +118,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	outputDatadogEnvVariablesForDebugging()
 
 	if !hasApiKey() {
-		log.Errorf("Can't start the Datadog extension as no API has been detected")
+		log.Errorf("Can't start the Datadog extension as no API Key has been detected, or API Key could not be decrypted. Data will not be sent to Datadog.")
 		// we still need to register the extension but let's return after (no-op)
 		id, registrationError := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
 		if registrationError != nil {

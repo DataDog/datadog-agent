@@ -13,19 +13,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-type KafkaStatKeeper struct {
+type StatKeeper struct {
 	stats      map[Key]*RequestStat
 	statsMutex sync.RWMutex
 	maxEntries int
 	telemetry  *Telemetry
 
 	// topicNames stores interned versions of the all topics currently stored in
-	// the `KafkaStatKeeper`
+	// the `StatKeeper`
 	topicNames map[string]string
 }
 
-func NewKafkaStatkeeper(c *config.Config, telemetry *Telemetry) *KafkaStatKeeper {
-	return &KafkaStatKeeper{
+func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
+	return &StatKeeper{
 		stats:      make(map[Key]*RequestStat),
 		maxEntries: c.MaxKafkaStatsBuffered,
 		telemetry:  telemetry,
@@ -33,7 +33,7 @@ func NewKafkaStatkeeper(c *config.Config, telemetry *Telemetry) *KafkaStatKeeper
 	}
 }
 
-func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
+func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	statKeeper.statsMutex.Lock()
 	defer statKeeper.statsMutex.Unlock()
 
@@ -55,7 +55,7 @@ func (statKeeper *KafkaStatKeeper) Process(tx *EbpfKafkaTx) {
 	requestStats.Count++
 }
 
-func (statKeeper *KafkaStatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
+func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 	statKeeper.statsMutex.RLock()
 	defer statKeeper.statsMutex.RUnlock()
 	ret := statKeeper.stats // No deep copy needed since `statKeeper.stats` gets reset
@@ -64,7 +64,7 @@ func (statKeeper *KafkaStatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 	return ret
 }
 
-func (statKeeper *KafkaStatKeeper) extractTopicName(tx *EbpfKafkaTx) string {
+func (statKeeper *StatKeeper) extractTopicName(tx *EbpfTx) string {
 	b := tx.Topic_name[:tx.Topic_name_size]
 
 	// the trick here is that the Go runtime doesn't allocate the string used in
