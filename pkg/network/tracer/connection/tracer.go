@@ -581,6 +581,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		},
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
 		LastUpdateEpoch:  s.Timestamp,
+		CreatedAt:        s.Created_at,
 		IsAssured:        s.IsAssured(),
 		Cookie:           network.StatCookie(s.Cookie),
 	}

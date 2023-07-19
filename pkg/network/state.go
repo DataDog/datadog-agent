@@ -14,6 +14,7 @@ import (
 
 	"github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -439,8 +440,13 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 
 // storeClosedConnection stores the given connection for every client
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
+	now, _ := ebpf.NowNanoseconds()
 	for _, client := range ns.clients {
 		for _, c := range conns {
+			c.Duration = 0
+			if now > 0 {
+				c.Duration = uint64(now) - c.CreatedAt
+			}
 			if i, ok := client.closedConnectionsKeys[c.Cookie]; ok {
 				if ns.mergeConnectionStats(&client.closedConnections[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
@@ -934,6 +940,25 @@ func newConnectionAggregator(size int) *connectionAggregator {
 	}
 }
 
+func (a *connectionAggregator) byteKey(c *ConnectionStats) (key []byte, rolledUp bool) {
+	isShortLived := c.Duration > 0 && c.Duration < uint64((2*time.Minute)/time.Nanosecond)
+	ephemeralSport := IsEphemeralPort(int(c.SPort))
+
+	if c.Type != UDP ||
+		!isShortLived ||
+		!ephemeralSport {
+		return c.ByteKey(a.buf), false
+	}
+
+	// drop the ephemeral source port in the key
+	sport := c.SPort
+	c.SPort = 0
+	defer func() {
+		c.SPort = sport
+	}()
+	return c.ByteKey(a.buf), true
+}
+
 // Aggregate aggregates a connection. The connection is only
 // aggregated if:
 // - it is not in the collection
@@ -942,10 +967,10 @@ func newConnectionAggregator(size int) *connectionAggregator {
 //   - the other connection's ip translation is nil OR
 //   - the other connection's ip translation is not nil AND the nat info is the same
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	key := string(c.ByteKey(a.buf))
-	aggrConn, ok := a.conns[key]
+	key, rolledUp := a.byteKey(c)
+	aggrConn, ok := a.conns[string(key)]
 	if !ok {
-		a.conns[key] = &struct {
+		a.conns[string(key)] = &struct {
 			*ConnectionStats
 			rttSum    uint64
 			rttVarSum uint64
@@ -971,6 +996,12 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	aggrConn.rttSum += uint64(c.RTT)
 	aggrConn.rttVarSum += uint64(c.RTTVar)
 	aggrConn.count++
+	if rolledUp {
+		// more than one connection with
+		// source port dropped in key,
+		// so set source port to 0
+		aggrConn.SPort = 0
+	}
 	if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
 		aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
 	}
