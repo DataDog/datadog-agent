@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/encoding/protojson"
 	"io"
 	"os"
 	"path"
@@ -388,6 +387,39 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
+func FromAPIRuleSetReportToKFiltersRuleSetReport(apiRuleSetReport *api.RuleSetReportMessage) map[string]*kfilters.PolicyReportToPrint {
+	transformedRuleSetReport := make(map[string]*kfilters.PolicyReportToPrint)
+	var wholeReport = map[string]map[string]*kfilters.PolicyReportToPrint{
+		"Policies": transformedRuleSetReport,
+	}
+
+	for _, policy := range apiRuleSetReport.GetPolicies() {
+		approversToPrint := FromAPIApproversToKFiltersApprovers(policy.GetApprovers())
+		wholeReport["Policies"][policy.EventType] = &kfilters.PolicyReportToPrint{
+			Mode:      policy.GetMode(),
+			Flags:     policy.GetFlags(),
+			Approvers: approversToPrint,
+		}
+	}
+
+	return transformedRuleSetReport
+}
+
+func FromAPIApproversToKFiltersApprovers(apiApprovers *api.Approvers) map[string][]kfilters.ApproversToPrint {
+	approversToPrint := make(map[string][]kfilters.ApproversToPrint)
+
+	for _, approver := range apiApprovers.GetApproverDetails() {
+		approversToPrint[approver.GetField()] = append(approversToPrint[approver.GetField()],
+			kfilters.ApproversToPrint{
+				Field: approver.GetField(),
+				Value: approver.GetValue(),
+				Type:  approver.GetType(),
+			})
+	}
+
+	return approversToPrint
+}
+
 func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
 		client, err := secagent.NewRuntimeSecurityClient()
@@ -404,11 +436,9 @@ func checkPolicies(log log.Component, config config.Component, args *checkPolici
 			return fmt.Errorf("get policies request failed: %s", output.Error)
 		}
 
-		m := protojson.MarshalOptions{
-			Indent: "\t",
-		}
+		transformedOutput := FromAPIRuleSetReportToKFiltersRuleSetReport(output.GetRuleSetReportMessage())
 
-		content, _ := m.Marshal(output)
+		content, _ := json.MarshalIndent(transformedOutput, "", "\t")
 		fmt.Printf("%s\n", string(content))
 	} else {
 		cfg := &pconfig.Config{
