@@ -16,7 +16,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 
 #define map_update_with_telemetry(fn, map, args...)                                 \
     do {                                                                            \
-        int errno_ret, errno_slot;                                                  \
+        long errno_ret, errno_slot;                                                  \
         errno_ret = fn(&map, args);                                                 \
         if (errno_ret < 0) {                                                        \
             unsigned long err_telemetry_key;                                        \
@@ -58,7 +58,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
     ({                                                                                          \
         int helper_indx = -1;                                                                   \
         long errno_slot;                                                                        \
-        int errno_ret = fn(__VA_ARGS__);                                                       \
+        long errno_ret = fn(__VA_ARGS__);                                                       \
         if (errno_ret < 0) {                                                                    \
             unsigned long telemetry_program_id;                                                 \
             LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                    \
