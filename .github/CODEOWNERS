@@ -186,7 +186,7 @@
 
 /omnibus/                               @DataDog/agent-platform
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
-/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations @DataDog/software-integrity-and-trust
+/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
 /omnibus/config/software/snmp-traps.rb                    @DataDog/network-device-monitoring
