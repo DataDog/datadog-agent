@@ -1841,7 +1841,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	// Ensure `bpf_probe_read_user` fails by passing an address guaranteed to pagefault to open syscall.
 	_, _, sysErr := syscall.Syscall6(syscall.SYS_MMAP, uintptr(0xdeadbeef), uintptr(syscall.Getpagesize()), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE, 0, 0)
 	require.Zero(t, sysErr)
-	_, _, sysErr = syscall.Syscall(uintptr(syscallNumber), uintptr(0), uintptr(0xdeadbeef), uintptr(0))
+	syscall.Syscall(uintptr(syscallNumber), uintptr(0), uintptr(0xdeadbeef), uintptr(0))
 
 	stats, err := tr.GetStats()
 	require.NoError(t, err)
