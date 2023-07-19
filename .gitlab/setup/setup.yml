@@ -12,8 +12,6 @@ setup_agent_version:
   stage: setup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  variables:
-    DO_NOT_CANCEL_PIPELINES: ${{ contains(github.event.*.labels.*.name, 'dev/do-not-cancel-pipelines') }}
   script:
     - source /root/.bashrc
     - inv -e agent.version --version-cached
