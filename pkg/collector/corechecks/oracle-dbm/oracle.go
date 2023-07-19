@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
+	cache "github.com/patrickmn/go-cache"
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
@@ -71,6 +72,8 @@ type Check struct {
 	isRDS                                   bool
 	isOracleCloud                           bool
 	sqlTraceRunsCount                       int
+	fqtEmitted                              *cache.Cache
+	planEmitted                             *cache.Cache
 }
 
 // Run executes the check.
@@ -86,6 +89,11 @@ func (c *Check) Run() error {
 			return fmt.Errorf("empty connection")
 		}
 		c.db = db
+	}
+
+	err := c.OS_Stats()
+	if err != nil {
+		return fmt.Errorf("failed to collect os stats %w", err)
 	}
 
 	if c.config.SysMetrics.Enabled {
@@ -294,6 +302,8 @@ func (c *Check) Teardown() {
 			log.Warnf("failed to close oracle connection | server=[%s]: %s", c.config.Server, err.Error())
 		}
 	}
+	c.fqtEmitted = nil
+	c.planEmitted = nil
 }
 
 // Configure configures the Oracle check.
@@ -324,6 +334,15 @@ func (c *Check) Configure(integrationConfigDigest uint64, rawInstance integratio
 	c.tags = append(c.tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 
 	c.tagsString = strings.Join(c.tags, ",")
+
+	c.fqtEmitted = cache.New(60*time.Minute, 10*time.Minute)
+
+	var planCacheRetention = c.config.QueryMetrics.PlanCacheRetention
+	if planCacheRetention == 0 {
+		planCacheRetention = 1
+	}
+	c.planEmitted = cache.New(time.Duration(planCacheRetention)*time.Minute, 10*time.Minute)
+
 	return nil
 }
 
@@ -335,7 +354,6 @@ func init() {
 	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
 }
 
-// func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string, forceMatchingSignature string, SQLID string) (common.ObfuscatedStatement, error) {
 func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string) (common.ObfuscatedStatement, error) {
 	obfuscatedStatement, err := o.ObfuscateSQLString(statement)
 	if err == nil {
@@ -365,8 +383,8 @@ func appendPDBTag(tags []string, pdb sql.NullString) []string {
 	return append(tags, "pdb:"+pdb.String)
 }
 
-func selectWrapper[T any](c *Check, s T, sql string) error {
-	err := c.db.Select(s, sql)
+func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
+	err := c.db.Select(s, sql, binds...)
 	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
 		db, err := c.Connect()
 		if err != nil {

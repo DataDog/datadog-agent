@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	usmtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -386,7 +385,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
 
-	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), t.usmMonitor.GetHTTP2Stats(), t.usmMonitor.GetKafkaStats())
+	delta := t.state.GetDelta(clientID, latestTime, active, t.reverseDNS.GetDNSStats(), t.usmMonitor.GetProtocolStats(), t.usmMonitor.GetHTTP2Stats())
 	t.activeBuffer.Reset()
 
 	tracerTelemetry.payloadSizePerClient.Set(float64(len(delta.Conns)), clientID)
@@ -522,6 +521,9 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		t.addProcessInfo(&activeConnections[i])
 	}
 
+	// get rid of stale process entries in the cache
+	t.processCache.Trim()
+
 	entryCount := len(activeConnections)
 	if entryCount >= int(t.config.MaxTrackedConnections) {
 		log.Errorf("connection tracking map size has reached the limit of %d. Accurate connection count and data volume metrics will be affected. Increase config value `system_probe_config.max_tracked_connections` to correct this.", t.config.MaxTrackedConnections)
@@ -640,11 +642,6 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case httpStats:
 			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
 		}
-	}
-
-	// merge with components already migrated to `network/telemetry`
-	for k, v := range usmtelemetry.ReportExpvar() {
-		ret[k] = v
 	}
 
 	return ret, nil

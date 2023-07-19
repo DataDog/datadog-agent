@@ -39,7 +39,7 @@ func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Conf
 
 // processNodeStatus keeps the node's status in the store, and returns true
 // if the last configuration change matches the one sent by the node agent.
-func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.NodeStatus) (bool, error) {
+func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.NodeStatus) bool {
 	var warmingUp bool
 
 	d.store.Lock()
@@ -54,24 +54,24 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	node.heartbeat = timestampNow()
 	// When we receive ExtraHeartbeatLastChangeValue, we only update heartbeat
 	if status.LastChange == types.ExtraHeartbeatLastChangeValue {
-		return true, nil
+		return true
 	}
 
 	if node.lastConfigChange == status.LastChange {
 		// Node-agent is up to date
-		return true, nil
+		return true
 	}
 	if warmingUp {
 		// During the initial warmup phase, we are counting active nodes
 		// without dispatching configurations.
 		// We tell node-agents they are up to date to keep their cached
 		// configurations running while we finish the warmup phase.
-		return true, nil
+		return true
 	}
 
 	// Node-agent needs to pull updated configs
 	log.Infof("Node %s needs to poll config, cluster config version: %d, node config version: %d", nodeName, node.lastConfigChange, status.LastChange)
-	return false, nil
+	return false
 }
 
 // getLeastBusyNode returns the name of the node that is assigned

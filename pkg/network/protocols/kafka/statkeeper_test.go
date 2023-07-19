@@ -16,12 +16,12 @@ import (
 func BenchmarkStatKeeperSameTX(b *testing.B) {
 	cfg := &config.Config{MaxKafkaStatsBuffered: 1000}
 	tel := NewTelemetry()
-	sk := NewKafkaStatkeeper(cfg, tel)
+	sk := NewStatkeeper(cfg, tel)
 
 	topicName := []byte("foobar")
 	topicNameSize := len(topicName)
 
-	tx := new(EbpfKafkaTx)
+	tx := new(EbpfTx)
 	copy(tx.Topic_name[:], topicName)
 	tx.Topic_name_size = uint16(topicNameSize)
 

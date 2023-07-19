@@ -79,7 +79,6 @@ type State interface {
 		dns dns.StatsByKeyByNameByType,
 		usmStats map[protocols.ProtocolType]interface{},
 		http2 map[http.Key]*http.RequestStats,
-		kafka map[kafka.Key]*kafka.RequestStat,
 	) Delta
 
 	// GetTelemetryDelta returns the telemetry delta since last time the given client requested telemetry data.
@@ -250,7 +249,6 @@ func (ns *networkState) GetDelta(
 	dnsStats dns.StatsByKeyByNameByType,
 	usmStats map[protocols.ProtocolType]interface{},
 	http2Stats map[http.Key]*http.RequestStats,
-	kafkaStats map[kafka.Key]*kafka.RequestStat,
 ) Delta {
 	ns.Lock()
 	defer ns.Unlock()
@@ -277,11 +275,10 @@ func (ns *networkState) GetDelta(
 		case protocols.HTTP:
 			stats := protocolStats.(map[http.Key]*http.RequestStats)
 			ns.storeHTTPStats(stats)
+		case protocols.Kafka:
+			stats := protocolStats.(map[kafka.Key]*kafka.RequestStat)
+			ns.storeKafkaStats(stats)
 		}
-	}
-
-	if len(kafkaStats) > 0 {
-		ns.storeKafkaStats(kafkaStats)
 	}
 
 	if len(http2Stats) > 0 {
