@@ -14,6 +14,7 @@
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/classification/usm-context.h"
 #include "protocols/classification/routing.h"
+#include "protocols/grpc/helpers.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/kafka/kafka-classification.h"
@@ -62,6 +63,14 @@ static __always_inline bool is_protocol_classification_supported() {
     __u64 val = 0;
     LOAD_CONSTANT("protocol_classification_enabled", val);
     return val > 0;
+}
+
+static __always_inline protocol_t classify_api_protocols(const char *buf, __u32 size) {
+    if (is_grpc(buf, size)) {
+        return PROTOCOL_GRPC;
+    }
+
+    return PROTOCOL_UNKNOWN;
 }
 
 // Checks if a given buffer is http, http2, gRPC.
@@ -164,8 +173,16 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     protocol_t cur_fragment_protocol = classify_applayer_protocols(buffer, usm_ctx->buffer.size);
     if (cur_fragment_protocol) {
         update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
-        // this is mostly an optimization *for now* since we won't be classifying
-        // any other protocols if we have detected HTTP traffic
+
+        log_debug("Found HTTP2");
+
+        // If we found HTTP2, then we try to classify its content.
+        protocol_t api_protocol = classify_api_protocols(buffer, usm_ctx->buffer.size);
+        if (api_protocol) {
+            log_debug("Found GRPC");
+            update_protocol_information(usm_ctx, protocol_stack, api_protocol);
+        }
+
         mark_as_fully_classified(protocol_stack);
         return;
     }

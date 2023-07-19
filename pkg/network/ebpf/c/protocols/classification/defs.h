@@ -48,6 +48,7 @@ typedef enum {
 
     __LAYER_API_MIN = LAYER_API_BIT,
     // Add API protocols here (eg. gRPC)
+    PROTOCOL_GRPC,
     __LAYER_API_MAX = LAYER_API_MAX,
 
     __LAYER_APPLICATION_MIN = LAYER_APPLICATION_BIT,
