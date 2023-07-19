@@ -9,29 +9,22 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2e"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 )
 
-type commandStatusSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+type vmSuite struct {
+	e2e.Suite[e2e.VMEnv]
 }
 
-func TestStatusSuite(t *testing.T) {
-	e2e.Run(t, &commandStatusSuite{}, e2e.AgentStackDef(nil))
+func TestVMSuite(t *testing.T) {
+	e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef(
+		ec2params.WithImageName("ami-0a0c8eebcdd6dcbd0", os.ARM64Arch, ec2os.UbuntuOS),
+		ec2params.WithName("My-instance"),
+	))
 }
 
-func (v *commandStatusSuite) TestStatusNotEmpty() {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
-	status := v.Env().Agent.Status()
-	assert.NotEmpty(v.T(), status.Content)
-}
-
-func (v *commandStatusSuite) TestNoRenderError() {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
-	status := v.Env().Agent.Status()
-	assert.NotContains(v.T(), status.Content, "Status render errors")
+func (v *vmSuite) TestBasicVM() {
+	v.Env().VM.Execute("ls")
 }

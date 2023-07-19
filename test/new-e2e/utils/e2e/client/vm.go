@@ -7,6 +7,7 @@
 package client
 
 import (
+	"fmt"
 	"testing"
 
 	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
@@ -30,6 +31,7 @@ func NewVM(infraVM commonvm.VM) *VM {
 //lint:ignore U1000 Ignore unused function as this function is call using reflection
 func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
 	var err error
+	fmt.Printf("TEST HERE")
 	vm.vmClient, err = newVMClient(t, "", &data.Connection)
 	return err
 }
