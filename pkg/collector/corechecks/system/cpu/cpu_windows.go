@@ -151,7 +151,7 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	info := cpuInfo()
 	cpucount, err := info.CPULogicalProcessors.Value()
 	if err != nil {
-		return fmt.Errorf("cpu.Check: could not get number of CPU")
+		return fmt.Errorf("cpu.Check: could not get number of CPU: %w", err)
 	}
 	c.nbCPU = float64(cpucount)
 
