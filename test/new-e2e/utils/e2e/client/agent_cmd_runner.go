@@ -63,7 +63,7 @@ func newStatus(s string) *Status {
 
 // isReady true if status contains a valid version
 func (s *Status) isReady() (bool, error) {
-	return regexp.MatchString("={15}\nAgent \\(v7\\.\\d{2}\\..*\n={15}", s.Content)
+	return regexp.MatchString("={15}\nAgent \\(v6|7\\.\\d{2}\\..*\n={15}", s.Content)
 }
 
 func (agent *AgentCommandRunner) Status(commandArgs ...AgentArgsOption) *Status {
