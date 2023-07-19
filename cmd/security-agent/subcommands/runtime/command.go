@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -146,7 +147,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 	}
 
 	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, flags.EvaluateAllPoliciesSources, false, "Evaluate policies in directory and from remote-config")
+	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, flags.EvaluateLoadedPolicies, false, "Evaluate loaded policies")
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
@@ -387,7 +388,7 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func FromAPIRuleSetReportToKFiltersRuleSetReport(apiRuleSetReport *api.RuleSetReportMessage) map[string]*kfilters.PolicyReportToPrint {
+func FromAPIRuleSetReportToKFiltersRuleSetReport(apiRuleSetReport *api.RuleSetReportMessage) map[string]map[string]*kfilters.PolicyReportToPrint {
 	transformedRuleSetReport := make(map[string]*kfilters.PolicyReportToPrint)
 	var wholeReport = map[string]map[string]*kfilters.PolicyReportToPrint{
 		"Policies": transformedRuleSetReport,
@@ -395,6 +396,9 @@ func FromAPIRuleSetReportToKFiltersRuleSetReport(apiRuleSetReport *api.RuleSetRe
 
 	for _, policy := range apiRuleSetReport.GetPolicies() {
 		approversToPrint := FromAPIApproversToKFiltersApprovers(policy.GetApprovers())
+		if len(approversToPrint) == 0 {
+			approversToPrint = nil // This is here to ensure that the printed result is `"Approvers": null` and not `"Approvers": {}`
+		}
 		wholeReport["Policies"][policy.EventType] = &kfilters.PolicyReportToPrint{
 			Mode:      policy.GetMode(),
 			Flags:     policy.GetFlags(),
@@ -402,17 +406,26 @@ func FromAPIRuleSetReportToKFiltersRuleSetReport(apiRuleSetReport *api.RuleSetRe
 		}
 	}
 
-	return transformedRuleSetReport
+	return wholeReport
 }
 
 func FromAPIApproversToKFiltersApprovers(apiApprovers *api.Approvers) map[string][]kfilters.ApproversToPrint {
 	approversToPrint := make(map[string][]kfilters.ApproversToPrint)
 
 	for _, approver := range apiApprovers.GetApproverDetails() {
+		var approverToPrint interface{}
+		approverVal := approver.GetValue()
+		approverInt, err := strconv.Atoi(approver.GetValue())
+		if err != nil {
+			approverToPrint = approverVal
+		} else {
+			approverToPrint = approverInt
+		}
+
 		approversToPrint[approver.GetField()] = append(approversToPrint[approver.GetField()],
 			kfilters.ApproversToPrint{
 				Field: approver.GetField(),
-				Value: approver.GetValue(),
+				Value: approverToPrint,
 				Type:  approver.GetType(),
 			})
 	}
@@ -428,71 +441,88 @@ func checkPolicies(log log.Component, config config.Component, args *checkPolici
 		}
 		defer client.Close()
 
-		output, err := client.GetRuleSetReport()
-		if err != nil {
-			return fmt.Errorf("unable to send request to system-probe: %w", err)
-		}
-		if len(output.Error) > 0 {
-			return fmt.Errorf("get policies request failed: %s", output.Error)
-		}
-
-		transformedOutput := FromAPIRuleSetReportToKFiltersRuleSetReport(output.GetRuleSetReportMessage())
-
-		content, _ := json.MarshalIndent(transformedOutput, "", "\t")
-		fmt.Printf("%s\n", string(content))
+		return checkPoliciesLoaded(client, os.Stdout)
 	} else {
-		cfg := &pconfig.Config{
-			EnableKernelFilters: true,
-			EnableApprovers:     true,
-			EnableDiscarders:    true,
-			PIDCacheSize:        1,
-		}
-
-		// enabled all the rules
-		enabled := map[eval.EventType]bool{"*": true}
-
-		ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
-
-		ruleOpts.WithLogger(seclog.DefaultLogger)
-
-		agentVersionFilter, err := newAgentVersionFilter()
-		if err != nil {
-			return fmt.Errorf("failed to create agent version filter: %w", err)
-		}
-
-		loaderOpts := rules.PolicyLoaderOpts{
-			MacroFilters: []rules.MacroFilter{
-				agentVersionFilter,
-			},
-			RuleFilters: []rules.RuleFilter{
-				agentVersionFilter,
-			},
-		}
-
-		provider, err := rules.NewPoliciesDirProvider(args.dir, false)
-		if err != nil {
-			return err
-		}
-
-		loader := rules.NewPolicyLoader(provider)
-
-		ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
-		evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
-		if err != nil {
-			return err
-		}
-		if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
-			return err
-		}
-
-		report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
-		if err != nil {
-			return err
-		}
-
-		content, _ := json.MarshalIndent(report, "", "\t")
-		fmt.Printf("%s\n", string(content))
+		return checkPoliciesLocal(args, os.Stdout)
 	}
+}
+
+func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.Writer) error {
+	output, err := client.GetRuleSetReport()
+	if err != nil {
+		return fmt.Errorf("unable to send request to system-probe: %w", err)
+	}
+	if len(output.Error) > 0 {
+		return fmt.Errorf("get policies request failed: %s", output.Error)
+	}
+
+	transformedOutput := FromAPIRuleSetReportToKFiltersRuleSetReport(output.GetRuleSetReportMessage())
+
+	content, _ := json.MarshalIndent(transformedOutput, "", "\t")
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
+	}
+
+	return nil
+}
+
+func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
+	cfg := &pconfig.Config{
+		EnableKernelFilters: true,
+		EnableApprovers:     true,
+		EnableDiscarders:    true,
+		PIDCacheSize:        1,
+	}
+
+	// enabled all the rules
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+
+	ruleOpts.WithLogger(seclog.DefaultLogger)
+
+	agentVersionFilter, err := newAgentVersionFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create agent version filter: %w", err)
+	}
+
+	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []rules.RuleFilter{
+			agentVersionFilter,
+		},
+	}
+
+	provider, err := rules.NewPoliciesDirProvider(args.dir, false)
+	if err != nil {
+		return err
+	}
+
+	loader := rules.NewPolicyLoader(provider)
+
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, ruleOpts, evalOpts)
+	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
+	if err != nil {
+		return err
+	}
+	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+		return err
+	}
+
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	if err != nil {
+		return err
+	}
+
+	content, _ := json.MarshalIndent(report, "", "\t")
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
+	}
+
 	return nil
 }
 

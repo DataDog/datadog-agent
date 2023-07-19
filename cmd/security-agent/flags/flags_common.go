@@ -32,7 +32,7 @@ const (
 	RuleID             = "rule-id" // Also for compliance subcommand
 
 	// Runtime Policy Check Subcommand
-	EvaluateAllPoliciesSources = "all-policies-sources"
+	EvaluateLoadedPolicies = "loaded-policies"
 
 	// Runtime Activity Dump Subcommand
 	Name              = "name"
