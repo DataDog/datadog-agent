@@ -24,9 +24,64 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+func init() {
+	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
+}
+
+func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
+
+	// Create domain resolvers
+	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)
+	if err != nil {
+		return []diagnosis.Diagnosis{
+			{
+				Result:      diagnosis.DiagnosisSuccess,
+				Name:        "Endpoints configuration",
+				Diagnosis:   "Misconfiguration of agent endpoints",
+				Remediation: "Please validate Agent configuration",
+				RawError:    err,
+			},
+		}
+	}
+
+	var diagnoses []diagnosis.Diagnosis
+	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
+	client := forwarder.NewHTTPClient(config.Datadog)
+	ctx := context.Background()
+
+	// Send requests to all endpoints for all domains
+	for _, domainResolver := range domainResolvers {
+		// Go through all API Keys of a domain and send an HTTP request on each endpoint
+		for _, apiKey := range domainResolver.GetAPIKeys() {
+			for _, endpointInfo := range endpointsInfo {
+				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+				statusCode, responseBody, logURL, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
+
+				// Check if there is a response and if it's valid
+				report, reportErr := verifyEndpointResponse(statusCode, responseBody, err)
+				d := diagnosis.Diagnosis{
+					Name: "Connectivity to " + logURL,
+				}
+				if reportErr == nil {
+					d.Result = diagnosis.DiagnosisSuccess
+					d.Diagnosis = fmt.Sprintf("Connectivity to `%s` is Ok\n%s", logURL, report)
+				} else {
+					d.Result = diagnosis.DiagnosisFail
+					d.Diagnosis = fmt.Sprintf("Connection to `%s` failed\n%s", logURL, report)
+					d.Remediation = "Please validate Agent configuration and firewall to access " + logURL
+					d.RawError = err
+				}
+				diagnoses = append(diagnoses, d)
+			}
+		}
+	}
+	return diagnoses
+}
 
 // RunDatadogConnectivityDiagnose sends requests to all known endpoints for all domains
 // to check if there are connectivity issues between Datadog and these endpoints
@@ -39,55 +94,52 @@ func RunDatadogConnectivityDiagnose(writer io.Writer, noTrace bool) error {
 	}
 
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-
 	client := forwarder.NewHTTPClient(config.Datadog)
+	ctx := context.Background()
 
 	// Send requests to all endpoints for all domains
 	fmt.Fprintln(writer, "\n================ Starting connectivity diagnosis ================")
 	for _, domainResolver := range domainResolvers {
-		sendRequestToAllEndpointOfADomain(writer, client, domainResolver, noTrace)
+		// Go through all API Keys of a domain and send an HTTP request on each endpoint
+		for _, apiKey := range domainResolver.GetAPIKeys() {
+			for _, endpointInfo := range endpointsInfo {
+				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+				if !noTrace {
+					ctx = httptrace.WithClientTrace(context.Background(), createDiagnoseTrace(writer))
+				}
+
+				statusCode, responseBody, logURL, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
+				fmt.Fprintf(writer, "\n======== '%v' ========\n", color.BlueString(logURL))
+
+				// Check if there is a response and if it's valid
+				report, reportErr := verifyEndpointResponse(statusCode, responseBody, err)
+
+				var statusString string
+				if reportErr == nil {
+					statusString = color.GreenString("PASS")
+				} else {
+					statusString = color.RedString("FAIL")
+				}
+				fmt.Fprintf(writer, "%s====> %v\n", report, statusString)
+			}
+		}
 	}
 
 	return nil
 }
 
-// sendRequestToAllEndpointOfADomain sends HTTP request on all endpoints for a given domain
-func sendRequestToAllEndpointOfADomain(writer io.Writer, client *http.Client, domainResolver resolver.DomainResolver, noTrace bool) {
-
-	// Go through all API Keys of a domain and send an HTTP request on each endpoint
-	for _, apiKey := range domainResolver.GetAPIKeys() {
-
-		for _, endpointInfo := range endpointsInfo {
-
-			domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-
-			ctx := context.Background()
-			if !noTrace {
-				ctx = httptrace.WithClientTrace(context.Background(), createDiagnoseTrace(writer))
-			}
-
-			statusCode, responseBody, err := sendHTTPRequestToEndpoint(ctx, writer, client, domain, endpointInfo, apiKey)
-
-			// Check if there is a response and if it's valid
-			verifyEndpointResponse(writer, statusCode, responseBody, err)
-		}
-	}
-}
-
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
 // then sends an HTTP Request with the method and payload inside the endpoint information
-func sendHTTPRequestToEndpoint(ctx context.Context, writer io.Writer, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, error) {
+func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain string, endpointInfo endpointInfo, apiKey string) (int, []byte, string, error) {
 	url := createEndpointURL(domain, endpointInfo)
 	logURL := scrubber.ScrubLine(url)
-
-	fmt.Fprintf(writer, "\n======== '%v' ========\n", color.BlueString(logURL))
 
 	// Create a request for the backend
 	reader := bytes.NewReader(endpointInfo.Payload)
 	req, err := http.NewRequest(endpointInfo.Method, url, reader)
 
 	if err != nil {
-		return 0, nil, fmt.Errorf("cannot create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
+		return 0, nil, logURL, fmt.Errorf("cannot create request for transaction to invalid URL '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
 	}
 
 	// Add tracing and send the request
@@ -98,17 +150,17 @@ func sendHTTPRequestToEndpoint(ctx context.Context, writer io.Writer, client *ht
 	resp, err := client.Do(req)
 
 	if err != nil {
-		return 0, nil, fmt.Errorf("cannot send the HTTP request to '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
+		return 0, nil, logURL, fmt.Errorf("cannot send the HTTP request to '%v' : %v", logURL, scrubber.ScrubLine(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Get the endpoint response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, nil, fmt.Errorf("fail to read the response Body: %s", scrubber.ScrubLine(err.Error()))
+		return 0, nil, logURL, fmt.Errorf("fail to read the response Body: %s", scrubber.ScrubLine(err.Error()))
 	}
 
-	return resp.StatusCode, body, nil
+	return resp.StatusCode, body, logURL, nil
 }
 
 // createEndpointUrl joins a domain with an endpoint
@@ -118,37 +170,40 @@ func createEndpointURL(domain string, endpointInfo endpointInfo) string {
 
 // vertifyEndpointResponse interprets the endpoint response and displays information on if the connectivity
 // check was successful or not
-func verifyEndpointResponse(writer io.Writer, statusCode int, responseBody []byte, err error) {
+func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (string, error) {
 
 	if err != nil {
-		fmt.Fprintf(writer, "could not get a response from the endpoint : %v ====> %v\n", scrubber.ScrubLine(err.Error()), color.RedString("FAIL"))
-		noResponseHints(writer, err)
-		return
+		return fmt.Sprintf("Could not get a response from the endpoint : %v\n%s\n",
+			scrubber.ScrubLine(err.Error()), noResponseHints(err)), err
 	}
 
-	statusString := color.GreenString("PASS")
+	var verifyReport string = ""
+	var newErr error = nil
 	if statusCode >= 400 {
-		statusString = color.RedString("FAIL")
-		fmt.Fprintf(writer, "Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))
+		newErr = fmt.Errorf("Bad Request")
+		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))
 	}
-	fmt.Fprintf(writer, "Received status code %v from the endpoint ====> %v\n", statusCode, scrubber.ScrubLine(statusString))
+
+	verifyReport += fmt.Sprintf("Received status code %v from the endpoint", statusCode)
+	return verifyReport, newErr
 }
 
 // noResponseHints aims to give hints when the endpoint did not respond.
 // For instance, when sending an HTTP request to a HAProxy endpoint configured for HTTPS
 // the endpoint send an empty response. As the error 'EOF' is not very informative, it can
 // be interesting to 'wrap' this error to display more context.
-func noResponseHints(writer io.Writer, err error) {
+func noResponseHints(err error) string {
 	endpoint := utils.GetInfraEndpoint(config.Datadog)
 	parsedURL, parseErr := url.Parse(endpoint)
 	if parseErr != nil {
-		fmt.Fprintf(writer, "Could not parse url '%v' : %v", scrubber.ScrubLine(endpoint), scrubber.ScrubLine(parseErr.Error()))
-		return
+		return fmt.Sprintf("Could not parse url '%v' : %v", scrubber.ScrubLine(endpoint), scrubber.ScrubLine(parseErr.Error()))
 	}
 
 	if parsedURL.Scheme == "http" {
 		if strings.Contains(err.Error(), "EOF") {
-			fmt.Fprintln(writer, hintColorFunc("Hint: received an empty reply from the server. You are maybe trying to contact an HTTPS endpoint using an HTTP url : '%v'", scrubber.ScrubLine(endpoint)))
+			return fmt.Sprintf("Hint: received an empty reply from the server. You are maybe trying to contact an HTTPS endpoint using an HTTP url: '%v'\n", scrubber.ScrubLine(endpoint))
 		}
 	}
+
+	return ""
 }

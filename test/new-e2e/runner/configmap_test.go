@@ -32,6 +32,7 @@ func Test_BuildStackParameters(t *testing.T) {
 		"namespace:key/foo":                 auto.ConfigValue{Value: "42", Secret: false},
 		"ddinfra:aws/defaultKeyPairName":    auto.ConfigValue{Value: "key_pair_name", Secret: false},
 		"ddinfra:env":                       auto.ConfigValue{Value: "", Secret: false},
+		"ddinfra:extraResourcesTags":        auto.ConfigValue{Value: "extra_resources_tags", Secret: false},
 		"ddinfra:aws/defaultPublicKeyPath":  auto.ConfigValue{Value: "public_key_path", Secret: false},
 		"ddinfra:aws/defaultPrivateKeyPath": auto.ConfigValue{Value: "private_key_path", Secret: false},
 	}, configMap)

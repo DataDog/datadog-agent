@@ -187,6 +187,7 @@ type ContainerContext struct {
 	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
 	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	Resolved  bool     `field:"-"`
 }
 
 type Status uint32
@@ -655,7 +656,8 @@ type Process struct {
 	ScrubbedArgsTruncated bool           `field:"-" json:"-"`
 	Variables             eval.Variables `field:"-" json:"-"`
 
-	IsThread bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsThread    bool `field:"is_thread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
+	IsExecChild bool `field:"-"`         // Indicates whether the process is an exec child of its parent
 
 	Source uint64 `field:"-" json:"-"`
 }
@@ -953,11 +955,6 @@ var ProcessSources = [...]string{
 
 func ProcessSourceToString(source uint64) string {
 	return ProcessSources[source]
-}
-
-// IsExecChild returns whether the current entry was execed directly from its parent (no fork)
-func (pc *ProcessCacheEntry) IsExecChild() bool {
-	return pc.Ancestor != nil && !pc.ExecTime.IsZero() && pc.ExecTime.Equal(pc.Ancestor.ExitTime)
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID

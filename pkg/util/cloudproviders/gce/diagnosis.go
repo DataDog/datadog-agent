@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("GCE Metadata availability", diagnose)
+	diagnosis.RegisterMetadataAvail("GCE Metadata availability", diagnose)
 }
 
 // diagnose the GCE metadata API availability

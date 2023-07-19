@@ -34,6 +34,7 @@ const (
 	ProcessModule                ModuleName = "process"
 	EventMonitorModule           ModuleName = "event_monitor"
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
+	EBPFModule                   ModuleName = "ebpf"
 )
 
 // Config represents the configuration options for the system-probe
@@ -158,6 +159,9 @@ func load() (*Config, error) {
 	}
 	if cfg.GetBool(diNS("enabled")) {
 		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
+	}
+	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
+		c.EnabledModules[EBPFModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0
