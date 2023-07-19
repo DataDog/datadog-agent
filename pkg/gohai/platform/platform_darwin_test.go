@@ -7,6 +7,7 @@ package platform
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
@@ -24,18 +25,17 @@ func TestUpdateArchInfo(t *testing.T) {
 	machine := "E"
 	copy(uname.Machine[:], []byte(machine))
 
-	expected := map[string]string{
-		"kernel_name":    sysname,
-		"hostname":       nodename,
-		"kernel_release": release,
-		"machine":        machine,
-		"processor":      getUnameProcessor(),
-		"os":             sysname,
-		"kernel_version": version,
+	expected := Info{
+		KernelName:    utils.NewValue(sysname),
+		Hostname:      utils.NewValue(nodename),
+		KernelRelease: utils.NewValue(release),
+		Machine:       utils.NewValue(machine),
+		OS:            utils.NewValue(sysname),
+		KernelVersion: utils.NewValue(version),
 	}
 
-	archInfo := map[string]string{}
-	updateArchInfo(archInfo, uname)
+	archInfo := Info{}
+	updateUnameInfo(&archInfo, uname)
 
 	require.Equal(t, expected, archInfo)
 }

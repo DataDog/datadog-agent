@@ -149,19 +149,19 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v17824543-f518958
+  DATADOG_AGENT_BUILDIMAGES: v17856289-aba8641
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_WINBUILDIMAGES: v17856289-aba8641
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_ARMBUILDIMAGES: v17856289-aba8641
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v17856289-aba8641
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v14597610-8d767dd
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v17856289-aba8641
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v17856289-aba8641
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v17432894-4fdacd4
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v17856289-aba8641
   DATADOG_AGENT_BUILDERS: v16852259-65c480c
   TEST_INFRA_DEFINITIONS_BUILDIMAGES: efed150be993
 
@@ -839,12 +839,15 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
   - changes:
-      - pkg/ebpf/**/*
-      - pkg/security/**/*
-      - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
-      - test/kitchen/test/integration/security-agent-test/**/*
-      - test/kitchen/test/integration/security-agent-stress/**/*
-      - .gitlab/functional_test/security_agent.yml
+      paths:
+        - pkg/ebpf/**/*
+        - pkg/security/**/*
+        - pkg/eventmonitor/**/*
+        - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
+        - test/kitchen/test/integration/security-agent-test/**/*
+        - test/kitchen/test/integration/security-agent-stress/**/*
+        - .gitlab/functional_test/security_agent.yml
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
