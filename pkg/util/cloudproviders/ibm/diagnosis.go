@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("IBM cloud Metadata availability", diagnose)
+	diagnosis.RegisterMetadataAvail("IBM cloud Metadata availability", diagnose)
 }
 
 // diagnose the IBM cloud metadata API availability

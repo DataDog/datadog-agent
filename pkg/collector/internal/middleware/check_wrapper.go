@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // CheckWrapper cleans up the check sender after a check was
@@ -116,4 +117,9 @@ func (c *CheckWrapper) InitConfig() string {
 // InstanceConfig implements Check#InstanceConfig
 func (c *CheckWrapper) InstanceConfig() string {
 	return c.inner.InstanceConfig()
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *CheckWrapper) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }
