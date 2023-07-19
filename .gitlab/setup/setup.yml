@@ -7,6 +7,7 @@ setup_agent_version:
     DO_NOT_CANCEL_PIPELINES: ${{ contains(github.event.*.labels.*.name, 'dev/do-not-cancel-pipelines') }}
   script:
     - source /root/.bashrc
+    - echo $DO_NOT_CANCEL_PIPELINES
     - if [ $DO_NOT_CANCEL_PIPELINES == "true" ]; then inv -e pipeline.cancel_pipelines_on_same_ref --force --git-ref $DD_REPO_BRANCH_NAME; fi
     - inv -e agent.version --version-cached
     - $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache
