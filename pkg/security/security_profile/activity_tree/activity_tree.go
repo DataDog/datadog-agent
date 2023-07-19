@@ -614,17 +614,14 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 		for _, node := range cursor.Children {
 			if node.Process.IsExecChild && !slices.Contains(visited, node) {
 				// there should always be only one
+
+				// does this execed child match the entry ?
+				if node.Matches(&entry.Process, at.differentiateArgs) {
+					return node
+				}
+
 				execChildren = append(execChildren, node)
 			}
-		}
-
-		if len(execChildren) == 0 {
-			break
-		}
-
-		// does this execed child match the entry ?
-		if execChildren[0].Matches(&entry.Process, at.differentiateArgs) {
-			return execChildren[0]
 		}
 	}
 
