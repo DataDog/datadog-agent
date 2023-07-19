@@ -13,12 +13,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -115,6 +115,7 @@ type Tailer struct {
 
 	info      *status.InfoRegistry
 	bytesRead *status.CountInfo
+	movingSum *util.MovingSum
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -125,18 +126,6 @@ type TailerOptions struct {
 	Decoder       *decoder.Decoder      // Required
 	Info          *status.InfoRegistry  // Required
 	Rotated       bool                  // Optional
-}
-
-type DataPoint struct {
-	Timestamp int64
-	Value     int64
-}
-
-type MovingSum struct {
-	DataPoints   []*DataPoint
-	TimeWindow   int64
-	timeProvider func() int64
-	mu           *sync.Mutex
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -164,6 +153,12 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	fileRotated := opts.Rotated
 	opts.Info.Register(bytesRead)
 
+	timeWindow := 24 * time.Hour
+	totalBucket := 24
+	bucketSize := timeWindow / time.Duration(totalBucket)
+	movingSum := *util.NewMovingSum(timeWindow, bucketSize, getCurrentTime)
+	opts.Info.Register(&movingSum)
+
 	t := &Tailer{
 		file:                   opts.File,
 		outputChan:             opts.OutputChan,
@@ -182,6 +177,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		didFileRotate:          atomic.NewBool(false),
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
+		movingSum:              &movingSum,
 	}
 
 	if fileRotated {
@@ -290,20 +286,13 @@ func (t *Tailer) readForever() {
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
 
-	getCurrentTime := func() int64 {
-		return time.Now().Unix()
-	}
-	ms := NewMovingSum(86400, getCurrentTime)
-
 	for {
 		n, err := t.read()
 		if err != nil {
 			return
 		}
 		t.recordBytes(int64(n))
-		ms.AddDataPoint(int64(n))
-		sum := ms.CalculateMovingSum()
-		addToTailerInfo("24h Bytes Sum", strconv.FormatInt(sum, 10), t.info)
+		t.movingSum.AddBytes(int64(n))
 
 		select {
 		case <-t.stop:
@@ -380,51 +369,9 @@ func getFormattedTime() string {
 	return fmt.Sprintf("%s / %s (%d)", local, utc, milliseconds)
 }
 
-// NewMovingSum initializes a new MovingSum.
-func NewMovingSum(timeWindow int64, getTimeFunc func() int64) *MovingSum {
-	return &MovingSum{
-		DataPoints:   make([]*DataPoint, 0),
-		TimeWindow:   timeWindow,
-		timeProvider: getTimeFunc,
-		mu:           &sync.Mutex{},
-	}
-}
-
-// AddDataPoint adds a new data point to the moving sum.
-func (ms *MovingSum) AddDataPoint(value int64) {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-
-	now := ms.timeProvider()
-	ms.DataPoints = append(ms.DataPoints, &DataPoint{
-		Timestamp: now,
-		Value:     value,
-	})
-}
-
-// CalculateMovingSum returns the moving sum.
-func (ms *MovingSum) CalculateMovingSum() int64 {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-
-	sum := int64(0)
-	now := ms.timeProvider()
-	threshold := now - ms.TimeWindow
-
-	// Collect points that are recent enough to be in included in the sum
-	validDataPoints := make([]*DataPoint, 0)
-
-	for _, point := range ms.DataPoints {
-		if point.Timestamp > threshold { // Any data point with a Timestamp older than threshold is considered outdated and is not included in the sum.
-			sum += point.Value
-			validDataPoints = append(validDataPoints, point)
-		}
-	}
-
-	// Replace the old data points slice with the new one.
-	ms.DataPoints = validDataPoints
-
-	return sum
+// getCurrentTime returns current timestamp
+func getCurrentTime() time.Time {
+	return time.Now()
 }
 
 // GetDetectedPattern returns the decoder's detected pattern.

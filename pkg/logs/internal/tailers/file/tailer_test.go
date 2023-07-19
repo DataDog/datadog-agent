@@ -17,9 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/suite"
-	"gotest.tools/assert"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -397,54 +395,4 @@ func toInt(str string) int {
 		return int(value)
 	}
 	return 0
-}
-
-func TestCalculateMovingSum(t *testing.T) {
-	mockClock := clock.NewMock()
-
-	getTimeFunc := func() int64 {
-		return mockClock.Now().Unix()
-	}
-
-	timeWindow := int64(86400) //24 hours time window
-	ms := NewMovingSum(timeWindow, getTimeFunc)
-
-	assert.Equal(t, int64(0), ms.CalculateMovingSum()) // Sum starts at 0
-
-	ms.AddDataPoint(10) // add 10 to sum
-
-	assert.Equal(t, int64(10), ms.CalculateMovingSum()) // check if sum is now 10
-
-	mockClock.Add(1 * time.Hour) // skip the clock forward by 1 hour
-
-	ms.AddDataPoint(20) // add 20 to sum
-
-	assert.Equal(t, int64(30), ms.CalculateMovingSum()) // check if sum is now 30
-
-	mockClock.Add(24 * time.Hour) // skip the clock forward by 24 hour
-
-	ms.AddDataPoint(100) // add 100 to sum
-
-	assert.Equal(t, int64(100), ms.CalculateMovingSum()) // Sum should now be 100 since clock skips forward 24h
-
-	ms.AddDataPoint(20) // add 20 to sum
-
-	assert.Equal(t, int64(120), ms.CalculateMovingSum())
-
-	ms.AddDataPoint(30) // add 30 to sum
-
-	assert.Equal(t, int64(150), ms.CalculateMovingSum())
-
-	ms.AddDataPoint(10) // add 10 to sum
-
-	assert.Equal(t, int64(160), ms.CalculateMovingSum())
-
-	ms.AddDataPoint(40) // add 40 to sum
-
-	assert.Equal(t, int64(200), ms.CalculateMovingSum()) // Sum should now be 200
-
-	mockClock.Add(24 * time.Hour) // skip the clock forward by 24 hour
-
-	assert.Equal(t, int64(0), ms.CalculateMovingSum()) // Sum should now be 0 since clock skipped forward 24h
-
 }
