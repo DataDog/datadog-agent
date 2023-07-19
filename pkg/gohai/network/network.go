@@ -13,9 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 )
 
+var ErrAddressNotFound = errors.New("address not found for the network interface")
+
 // Network holds network metadata about the host
-//
-//nolint:revive
 type Network struct {
 	// IpAddress is the ipv4 address for the host
 	IpAddress string
@@ -28,11 +28,17 @@ type Network struct {
 	// Since it would require even more cleanup we'll do it in another PR when needed.
 }
 
-const name = "network"
+type Interface struct {
+	IPv6Network utils.Value[string] `json:"ipv6-network"`
+	IPv4Network utils.Value[string] `json:"ipv4-network"`
+	MacAddress  utils.Value[string] `json:"macaddress"`
+	IPv4        []string            `json:"ipv4"`
+	IPv6        []string            `json:"ipv6"`
+	Name        string              `json:"name"`
+}
 
-// Name returns the name of the package
-func (network *Network) Name() string {
-	return name
+type Info struct {
+	// interfaces utils.Value[]
 }
 
 // Collect collects the Network information.
@@ -71,16 +77,22 @@ func Get() (*Network, []string, error) {
 	}, nil, nil
 }
 
-func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}, err error) {
+func getMultiNetworkInfo() ([]Interface, error) {
+	multiNetworkInfo := []Interface{}
 	ifaces, err := net.Interfaces()
-
 	if err != nil {
 		return multiNetworkInfo, err
 	}
+
 	for _, iface := range ifaces {
-		_iface := make(map[string]interface{})
-		_ipv4 := []string{}
-		_ipv6 := []string{}
+		_iface := Interface{
+			IPv6Network: utils.NewErrorValue[string](ErrAddressNotFound),
+			IPv4Network: utils.NewErrorValue[string](ErrAddressNotFound),
+			MacAddress:  utils.NewErrorValue[string](ErrAddressNotFound),
+			IPv4:        []string{},
+			IPv6:        []string{},
+			Name:        iface.Name,
+		}
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			// interface down or loopback interface
 			continue
@@ -96,24 +108,20 @@ func getMultiNetworkInfo() (multiNetworkInfo []map[string]interface{}, err error
 				continue
 			}
 			if ip.To4() == nil {
-				_ipv6 = append(_ipv6, ip.String())
-				_iface["ipv6-network"] = network.String()
+				_iface.IPv6 = append(_iface.IPv6, ip.String())
+				_iface.IPv6Network = utils.NewValue(network.String())
 			} else {
-				_ipv4 = append(_ipv4, ip.String())
-				_iface["ipv4-network"] = network.String()
+				_iface.IPv4 = append(_iface.IPv4, ip.String())
+				_iface.IPv4Network = utils.NewValue(network.String())
 			}
 			if len(iface.HardwareAddr.String()) > 0 {
-				_iface["macaddress"] = iface.HardwareAddr.String()
+				_iface.MacAddress = utils.NewValue(iface.HardwareAddr.String())
 			}
 		}
-		_iface["ipv4"] = _ipv4
-		_iface["ipv6"] = _ipv6
-		if len(_iface) > 0 {
-			_iface["name"] = iface.Name
-			multiNetworkInfo = append(multiNetworkInfo, _iface)
-		}
+		multiNetworkInfo = append(multiNetworkInfo, _iface)
 	}
-	return multiNetworkInfo, err
+
+	return multiNetworkInfo, nil
 }
 
 func externalIpv6Address() (string, error) {
