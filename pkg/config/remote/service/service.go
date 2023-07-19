@@ -48,7 +48,7 @@ const (
 	defaultCacheBypassLimit = 5
 	minCacheBypassLimit     = 1
 	maxCacheBypassLimit     = 10
-	orgStatusPollInterval   = 5 * time.Minute
+	orgStatusPollInterval   = 1 * time.Minute
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -314,7 +314,7 @@ func (s *Service) Start(ctx context.Context) error {
 			}
 
 			if err != nil {
-				if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled {
+				if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
 					exportedLastUpdateErr.Set(err.Error())
 					log.Errorf("Could not refresh Remote Config: %v", err)
 				} else {
@@ -416,8 +416,9 @@ func (s *Service) refresh() error {
 				return err
 			}
 			// If we saw the error enough time, we consider that RC not working is a normal behavior
-			// And we only log as INFO
-			// The agent will eventually log this error as INFO every maximalMaxBackoffTime
+			// And we only log as DEBUG
+			// The agent will eventually log this error as DEBUG every maximalMaxBackoffTime
+			log.Debugf("Could not refresh Remote Config: %v", err)
 			return nil
 		}
 		return err
