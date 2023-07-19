@@ -108,7 +108,7 @@ var ConnTracerTelemetry = struct {
 	lastUdpSendsProcessed *atomic.Int64
 	lastUdpSendsMissed    *atomic.Int64
 	lastUdpDroppedConns   *atomic.Int64
-	lastTcproppedConns    *atomic.Int64
+	lastTcpDroppedConns   *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
