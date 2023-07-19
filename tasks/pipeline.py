@@ -161,14 +161,21 @@ instead.""",
 
 
 @task
-def cancel_same_ref_pipelines(
+def cancel_pipelines_on_same_ref(
     _,
-    gitlab,
-    git_ref
+    git_ref,
+    force = False
 ):
     """
-    Cancel the pipelines on the CI that runs on the same ref as the one you're on
+    Cancel the pipelines on the CI that runs on the same ref as git_ref
+
+    Use --force to bypass the confirmation and force cancel the pipelines.
     """
+
+    project_name = "DataDog/datadog-agent"
+    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab.test_project_found()
+
     pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
 
     if pipelines:
@@ -179,7 +186,7 @@ def cancel_same_ref_pipelines(
             "They are ordered from the newest one to the oldest one.\n",
             sep='\n',
         )
-        cancel_pipelines_with_confirmation(gitlab, pipelines)
+        cancel_pipelines_with_confirmation(gitlab, pipelines, force)
 
 
 
@@ -273,7 +280,7 @@ def run(
             kitchen_tests = True
 
     # Cancelling the pipelines with the same git_ref with user confirmation input
-    cancel_same_ref_pipelines(ctx, gitlab, git_ref)
+    cancel_pipelines_on_same_ref(ctx, git_ref)
 
     try:
         pipeline_id = trigger_agent_pipeline(

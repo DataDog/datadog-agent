@@ -32,7 +32,7 @@ def parse_datetime(dt):
     return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%f%z")
 
 
-def cancel_pipelines_with_confirmation(gitlab, pipelines, force=False):
+def cancel_pipelines_with_confirmation(gitlab, pipelines, force):
     for pipeline in pipelines:
         commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, pipeline['id'])
 
