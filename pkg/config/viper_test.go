@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -189,4 +190,41 @@ test:
 	config.Set("yetanothertest_key", "value")
 	res = config.IsSectionSet("yetanothertest")
 	assert.Equal(t, false, res)
+}
+
+func TestMapUnserialize(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	type instance struct {
+		Metrics []interface{} `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
+	}
+
+	type check struct {
+		Instances []*instance `mapstructure:"configurations" yaml:"configurations,omitempty" json:"configurations"`
+	}
+
+	transformer := func(in string) interface{} {
+		var promChecks []*check
+		if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
+			panic(err)
+		}
+		return promChecks
+	}
+
+	config.BindEnv("prometheus_check")
+	config.SetConfigType("yaml")
+	config.SetEnvKeyTransformer("prometheus_check", transformer)
+	//jsonString := "[{\"metrics\":[{\"vertx_http_server_connections\":{\"type\":\"gauge\",\"name\":\"vertx_http_server_connections\"}},{\"instance_locks\":{\"type\":\"gauge\",\"name\":\"instance_locks\"}},{\"trigger_pipeline_invocation_seconds\":{\"type\":\"summary\",\"name\":\"trigger_pipeline_invocation_seconds\"}},{\"refresh_deployments_error_count\":{\"type\":\"gauge\",\"name\":\"refresh_deployments_error_count\"}},{\"trigger_use_limit_factor\":{\"type\":\"gauge\",\"name\":\"trigger_use_limit_factor\"}},{\"trigger_pipeline_deployed\":{\"type\":\"gauge\",\"name\":\"trigger_pipeline_deployed\"}}]},{\"metrics\":[{\"abc\":\"efg\"},{\"dcf\":\"pt\"}]}]"
+	//jsonString := "[{\"metrics\":[{\"vertx_http_server_connections\":{\"type\":\"gauge\",\"name\":\"vertx_http_server_connections\"}}]}]"
+	//jsonString := "[{\"metrics\":[{\"vertx_http_server_connections\":{\"type\":\"gauge\",\"name\":\"vertx_http_server_connections\"}},{\"instance_locks\":{\"type\":\"gauge\",\"name\":\"instance_locks\"}},{\"trigger_pipeline_invocation_seconds\":{\"type\":\"summary\",\"name\":\"trigger_pipeline_invocation_seconds\"}},{\"refresh_deployments_error_count\":{\"type\":\"gauge\",\"name\":\"refresh_deployments_error_count\"}},{\"trigger_use_limit_factor\":{\"type\":\"gauge\",\"name\":\"trigger_use_limit_factor\"}},{\"trigger_pipeline_deployed\":{\"type\":\"gauge\",\"name\":\"trigger_pipeline_deployed\"}}]},{\"metrics\":[{\"abc\":\"efg\"},{\"dcf\":\"pt\"},\"jt\"]}]"
+	//jsonString := "[{\"configurations\":[{\"metrics\":[{\"vertx_http_server_connections\":{\"type\":\"gauge\",\"name\":\"vertx_http_server_connections\"}},{\"instance_locks\":{\"type\":\"gauge\",\"name\":\"instance_locks\"}},{\"trigger_pipeline_invocation_seconds\":{\"type\":\"summary\",\"name\":\"trigger_pipeline_invocation_seconds\"}},{\"refresh_deployments_error_count\":{\"type\":\"gauge\",\"name\":\"refresh_deployments_error_count\"}},{\"trigger_use_limit_factor\":{\"type\":\"gauge\",\"name\":\"trigger_use_limit_factor\"}},{\"trigger_pipeline_deployed\":{\"type\":\"gauge\",\"name\":\"trigger_pipeline_deployed\"}}]},{\"metrics\":[{\"abc\":\"efg\"},{\"dcf\":\"pt\"},\"jt\"]}]}]"
+	jsonString := "[{\"configurations\":[{\"metrics\":[{\"vertx_http_server_connections\":{\"type\":\"gauge\",\"name\":\"vertx_http_server_connections\"}},{\"instance_locks\":{\"type\":\"gauge\",\"name\":\"instance_locks\"}},{\"trigger_pipeline_invocation_seconds\":{\"type\":\"summary\",\"name\":\"trigger_pipeline_invocation_seconds\"}},{\"refresh_deployments_error_count\":{\"type\":\"gauge\",\"name\":\"refresh_deployments_error_count\"}},{\"trigger_use_limit_factor\":{\"type\":\"gauge\",\"name\":\"trigger_use_limit_factor\"}},{\"trigger_pipeline_deployed\":{\"type\":\"gauge\",\"name\":\"trigger_pipeline_deployed\"}}]},{\"metrics\":[{\"abc\":\"efg\"},{\"dcf\":\"pt\"},\"jt\"]}]},{\"configurations\":[{\"metrics\":[{\"vertx_http_server_connections\":{\"type\":\"gauge\",\"name\":\"vertx_http_server_connections\"}},{\"instance_locks\":{\"type\":\"gauge\",\"name\":\"instance_locks\"}},{\"trigger_pipeline_invocation_seconds\":{\"type\":\"summary\",\"name\":\"trigger_pipeline_invocation_seconds\"}},{\"refresh_deployments_error_count\":{\"type\":\"gauge\",\"name\":\"refresh_deployments_error_count\"}},{\"trigger_use_limit_factor\":{\"type\":\"gauge\",\"name\":\"trigger_use_limit_factor\"}},{\"trigger_pipeline_deployed\":{\"type\":\"gauge\",\"name\":\"trigger_pipeline_deployed\"}}]},{\"metrics\":[{\"abc\":\"efg\"},{\"dcf\":\"pt\"},\"jt\"]}]}]"
+	t.Setenv("DD_PROMETHEUS_CHECK", jsonString)
+
+	var conf []*check
+	err := config.UnmarshalKey("prometheus_check", &conf)
+	assert.NoError(t, err)
+
+	_, err = json.Marshal(conf)
+	assert.NoError(t, err)
+
 }
