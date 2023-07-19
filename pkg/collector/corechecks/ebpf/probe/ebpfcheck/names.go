@@ -33,13 +33,14 @@ func AddProgramNameMapping(progid uint32, name string, module string) {
 
 // AddNameMappings adds the full name mappings for ebpf maps in the manager
 func AddNameMappings(mgr *manager.Manager, module string) {
-	mappingLock.Lock()
-	defer mappingLock.Unlock()
-
 	maps, err := mgr.GetMaps()
 	if err != nil {
 		return
 	}
+
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
 	iterateMaps(maps, func(mapid uint32, name string) {
 		mapNameMapping[mapid] = name
 		mapModuleMapping[mapid] = module
