@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/encoding/protojson"
 	"io"
 	"os"
 	"path"
@@ -403,7 +404,11 @@ func checkPolicies(log log.Component, config config.Component, args *checkPolici
 			return fmt.Errorf("get policies request failed: %s", output.Error)
 		}
 
-		content, _ := json.MarshalIndent(output, "", "\t")
+		m := protojson.MarshalOptions{
+			Indent: "\t",
+		}
+
+		content, _ := m.Marshal(output)
 		fmt.Printf("%s\n", string(content))
 	} else {
 		cfg := &pconfig.Config{
