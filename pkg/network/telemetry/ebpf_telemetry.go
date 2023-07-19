@@ -223,6 +223,9 @@ func buildHelperErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor 
 		keys = append(keys, manager.ConstantEditor{
 			Name:  "telemetry_program_id_key",
 			Value: h.Sum64(),
+			ProbeIdentificationPairs: []manager.ProbeIdentificationPair{
+				manager.ProbeIdentificationPair{EBPFFuncName: p.EBPFFuncName},
+			},
 		})
 		h.Reset()
 	}
