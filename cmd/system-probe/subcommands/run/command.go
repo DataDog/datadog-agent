@@ -199,7 +199,9 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 
 	setupInternalProfiling(sysprobeconfig, configPrefix, log)
 
-	if ddconfig.Datadog.GetBool("remote_configuration.enabled") {
+	if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
+		// Even if the system-probe happen to not have access to ddconfig.Datadog, the
+		// thin client will deactivate itself if the core-agent RC server is disabled
 		err = rcclient.Listen("system-probe", []data.Product{data.ProductAgentConfig})
 		if err != nil {
 			return log.Criticalf("unable to start remote configuration client: %s", err)
