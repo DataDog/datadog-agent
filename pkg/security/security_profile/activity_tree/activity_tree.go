@@ -598,6 +598,18 @@ func (at *ActivityTree) findProcessCacheEntryInTree(tree []*ProcessNode, entry *
 
 // findProcessCacheEntryInChildExecedNodes look for entry in the execed nodes of child
 func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNode, entry *model.ProcessCacheEntry) *ProcessNode {
+	// fast path
+	for _, node := range child.Children {
+		if node.Process.IsExecChild {
+			// does this execed child match the entry ?
+			if node.Matches(&entry.Process, at.differentiateArgs) {
+				return node
+			}
+		}
+	}
+
+	// slow path
+
 	// children is used to iterate over the tree below child
 	execChildren := make([]*ProcessNode, 1, 64)
 	execChildren[0] = child
