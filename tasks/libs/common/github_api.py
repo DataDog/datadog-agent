@@ -17,8 +17,8 @@ class GithubAPI(RemoteAPI):
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, repository="", api_token=""):
-        super(GithubAPI, self).__init__("GitHub API")
+    def __init__(self, repository="", api_token="", api_name="Github API"):
+        super(GithubAPI, self).__init__(api_name)
         self.api_token = api_token
         self.repository = repository
         self.authorization_error_message = (

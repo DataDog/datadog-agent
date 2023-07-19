@@ -2,7 +2,7 @@ import json
 import os
 
 from .githubapp import GithubApp, GithubAppException
-from .remote_api import RemoteAPI
+from .github_api import GithubAPI
 
 __all__ = ["GithubWorkflows", "GithubException", "get_github_app_token"]
 
@@ -11,7 +11,7 @@ class GithubException(Exception):
     pass
 
 
-class GithubWorkflows(RemoteAPI):
+class GithubWorkflows(GithubAPI):
     """
     Helper class to perform API calls against the Github Workflows API, using a Github App.
     """
@@ -19,21 +19,11 @@ class GithubWorkflows(RemoteAPI):
     BASE_URL = "https://api.github.com"
 
     def __init__(self, repository="", api_token="", api_token_expiration_date=""):
-        super(GithubWorkflows, self).__init__("GitHub Workflows")
-        self.api_token = api_token
+        super(GithubWorkflows, self).__init__(repository, api_token, "GitHub Workflows")
         self.api_token_expiration_date = api_token_expiration_date
-        self.repository = repository
         self.authorization_error_message = (
             "HTTP 401: The token is invalid. Is the Github App still allowed to perform this action?"
         )
-
-    def repo(self):
-        """
-        Gets the repo info.
-        """
-
-        path = f"/repos/{self.repository}"
-        return self.make_request(path, method="GET", json_output=True)
 
     def trigger_workflow(self, workflow_name, ref, inputs=None):
         """
@@ -87,12 +77,6 @@ class GithubWorkflows(RemoteAPI):
         """
         path = f"/repos/{self.repository}/actions/workflows/{workflow_name}/runs"
         return self.make_request(path, method="GET", json_output=True)
-
-    def auth_headers(self):
-        return {
-            "Authorization": f"token {self.api_token}",
-            "Accept": "application/vnd.github.v3+json",
-        }
 
 
 def get_github_app_token():
