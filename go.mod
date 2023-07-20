@@ -652,9 +652,6 @@ replace (
 // Fixes CVE-2023-1732, imported by nikos
 replace github.com/cloudflare/circl v1.1.0 => github.com/cloudflare/circl v1.3.3
 
-// Fixes CVE-2023-30551, imported by trivy
-replace github.com/sigstore/rekor v1.0.1 => github.com/sigstore/rekor v1.1.1
-
 // Fixes CVE-2023-26054, imported by trivy
 replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.11.4
 
