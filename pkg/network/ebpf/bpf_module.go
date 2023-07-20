@@ -51,6 +51,11 @@ func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "usm", debug)
 }
 
+// ReadSharedLibrariesModule from the asset file
+func ReadSharedLibrariesModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "shared-libraries", debug)
+}
+
 // ReadDNSModule from the asset file
 func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, "dns", debug)

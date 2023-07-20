@@ -33,6 +33,7 @@ PATH_EXCLUSION_REGEX = [
     '/pkg/security/security_profile/dump/activity_dump_easyjson.go',
     '/pkg/security/probe/custom_events_easyjson.go',
     '/pkg/security/serializers/serializers_easyjson.go',
+    '/pkg/security/probe/selftests/self_tests_easyjson.go',
     '/pkg/trace/pb/.*_gen(_test){,1}.go',
     # These are files that we should not add our copyright to
     '/internal/patch/grpc-go-insecure/',

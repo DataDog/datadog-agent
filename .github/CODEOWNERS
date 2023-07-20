@@ -9,6 +9,9 @@
 # Rules are matched bottom-to-top, so one team can own subdirectories
 # and another the rest of the directory.
 
+# When adding a new team to this file, don't forget to assign it
+# a slack channel in tasks/libs/pipeline_notifications.py
+
 # Config files for various CI systems / tasks
 /.*                                     @DataDog/agent-platform
 
@@ -246,7 +249,10 @@
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
-/pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
+/pkg/collector/corechecks/ebpf/                       @DataDog/container-integrations
+/pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
+/pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
@@ -329,6 +335,9 @@
 /pkg/network/driver/                    @DataDog/windows-kernel-integrations
 /pkg/network/ebpf/c/prebuilt/usm*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/usm*       @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/prebuilt/shared-libraries*  @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/runtime/shared-libraries*   @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/shared-libraries/           @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring

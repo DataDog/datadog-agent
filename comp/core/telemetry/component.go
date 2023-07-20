@@ -9,6 +9,7 @@ package telemetry
 import (
 	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/fx"
 
@@ -23,6 +24,8 @@ type Component interface {
 	Handler() http.Handler
 	// Reset resets all tracked telemetry
 	Reset()
+	// RegisterCollector Registers a Collector with the prometheus registry
+	RegisterCollector(c prometheus.Collector)
 	// Meter returns a new OTEL meter
 	Meter(name string, opts ...metric.MeterOption) metric.Meter
 

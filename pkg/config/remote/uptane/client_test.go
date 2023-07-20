@@ -451,9 +451,9 @@ func generateTimestamp(key keys.Signer, version int64, snapshotVersion int64, sn
 	meta := data.NewTimestamp()
 	meta.Expires = time.Now().Add(1 * time.Hour)
 	meta.Version = version
-	meta.Meta["snapshot.json"] = data.TimestampFileMeta{Version: snapshotVersion, FileMeta: data.FileMeta{Length: int64(len(snapshot)), Hashes: data.Hashes{
+	meta.Meta["snapshot.json"] = data.TimestampFileMeta{Version: snapshotVersion, Length: int64(len(snapshot)), Hashes: data.Hashes{
 		"sha256": hashSha256(snapshot),
-	}}}
+	}}
 	signed, _ := sign.Marshal(&meta, key)
 	serialized, _ := json.Marshal(signed)
 	return serialized

@@ -13,16 +13,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
@@ -31,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,6 +44,10 @@ const (
 	goTLSReadArgsMap          = "go_tls_read_args"
 	goTLSWriteArgsMap         = "go_tls_write_args"
 	connectionTupleByGoTLSMap = "conn_tup_by_go_tls_conn"
+
+	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
+	// and lowering it might cause constant cpu usage.
+	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
 type uprobeInfo struct {
@@ -292,8 +300,13 @@ func (p *GoTLSProgram) Stop() {
 	}
 }
 
+var (
+	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
+)
+
 func (p *GoTLSProgram) handleProcessStart(pid pid) {
-	exePath := filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "exe")
+	pidAsStr := strconv.FormatUint(uint64(pid), 10)
+	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
 
 	binPath, err := os.Readlink(exePath)
 	if err != nil {
@@ -312,8 +325,17 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		// there are not much we can do, and we don't want to flood the logs
 		return
 	}
+
+	// Check if the process is datadog's internal process, if so, we don't want to hook the process.
+	if internalProcessRegex.MatchString(binPath) {
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
+		}
+		return
+	}
+
 	// Getting the full path in the process' namespace.
-	binPath = filepath.Join(p.procRoot, strconv.FormatUint(uint64(pid), 10), "root", binPath)
+	binPath = filepath.Join(p.procRoot, pidAsStr, "root", binPath)
 
 	var stat syscall.Stat_t
 	if err = syscall.Stat(binPath, &stat); err != nil {
@@ -479,7 +501,7 @@ func (p *GoTLSProgram) removeInspectionResultFromMap(binID binaryID) {
 }
 
 func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (probeIDs []manager.ProbeIdentificationPair, err error) {
-	pathID, err := newPathIdentifier(binPath)
+	pathID, err := sharedlibraries.NewPathIdentifier(binPath)
 	if err != nil {
 		return probeIDs, fmt.Errorf("can't create path identifier for path %s : %s", binPath, err)
 	}
@@ -501,18 +523,20 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 					EBPFFuncName: uprobes.returnInfo.ebpfFunctionName,
 					UID:          makeReturnUID(uid, i),
 				}
-				err = p.manager.AddHook("", &manager.Probe{
+				newProbe := &manager.Probe{
 					ProbeIdentificationPair: returnProbeID,
 					BinaryPath:              binPath,
 					// Each return probe needs to have a unique uid value,
 					// so add the index to the binary UID to make an overall UID.
 					UprobeOffset: offset,
-				})
+				}
+				err = p.manager.AddHook("", newProbe)
 				if err != nil {
 					err = fmt.Errorf("could not add return hook to function %q in offset %d due to: %w", function, offset, err)
 					return
 				}
 				probeIDs = append(probeIDs, returnProbeID)
+				ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, returnProbeID.UID), "usm_gotls")
 			}
 		}
 
@@ -522,16 +546,18 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 				UID:          uid,
 			}
 
-			err = p.manager.AddHook("", &manager.Probe{
+			newProbe := &manager.Probe{
 				BinaryPath:              binPath,
 				UprobeOffset:            result.Functions[function].EntryLocation,
 				ProbeIdentificationPair: probeID,
-			})
+			}
+			err = p.manager.AddHook("", newProbe)
 			if err != nil {
 				err = fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo.ebpfFunctionName, result.Functions[function].EntryLocation, err)
 				return
 			}
 			probeIDs = append(probeIDs, probeID)
+			ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, probeID.UID), "usm_gotls")
 		}
 	}
 

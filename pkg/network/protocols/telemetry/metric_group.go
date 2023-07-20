@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // MetricGroup provides a convenient constructor for a group with metrics
@@ -19,7 +21,7 @@ import (
 type MetricGroup struct {
 	mux        sync.Mutex
 	namespace  string
-	commonTags []string
+	commonTags sets.String
 	metrics    []metric
 
 	// used for the purposes of building the Summary() string
@@ -31,7 +33,7 @@ type MetricGroup struct {
 func NewMetricGroup(namespace string, commonTags ...string) *MetricGroup {
 	return &MetricGroup{
 		namespace:  namespace,
-		commonTags: commonTags,
+		commonTags: sets.NewString(commonTags...),
 		then:       time.Now(),
 	}
 }
@@ -45,7 +47,7 @@ func (mg *MetricGroup) NewCounter(name string, tags ...string) *Counter {
 
 	m := NewCounter(
 		name,
-		append(mg.commonTags, tags...)...,
+		append(mg.commonTags.List(), tags...)...,
 	)
 
 	mg.mux.Lock()
@@ -64,7 +66,7 @@ func (mg *MetricGroup) NewGauge(name string, tags ...string) *Gauge {
 
 	m := NewGauge(
 		name,
-		append(mg.commonTags, tags...)...,
+		append(mg.commonTags.List(), tags...)...,
 	)
 
 	mg.mux.Lock()
@@ -77,7 +79,7 @@ func (mg *MetricGroup) NewGauge(name string, tags ...string) *Gauge {
 // Summary builds and returns a summary string all metrics beloging to the
 // current `MetricGroup`.
 // The string looks like:
-// m1=100(50/s) m2=0(0.00/s)
+// m1=100(50.00/s) m2=0(0.00/s)
 // Where the values are calculated based on the deltas between calls of this method.
 func (mg *MetricGroup) Summary() string {
 	mg.mux.Lock()
@@ -97,8 +99,17 @@ func (mg *MetricGroup) Summary() string {
 	var b strings.Builder
 	for _, metric := range mg.metrics {
 		m := metric.base()
+		_, name := splitName(m)
 		v := valueDeltas.ValueFor(m)
-		b.WriteString(fmt.Sprintf("%s=%d", m.Name(), v))
+
+		uniqueTags := m.tags.Difference(mg.commonTags)
+		if uniqueTags.Len() > 0 {
+			// if the metric has tags print them but excluding the ones that are
+			// common to the metric group
+			b.WriteString(fmt.Sprintf("%s%v=%d", name, uniqueTags.List(), v))
+		} else {
+			b.WriteString(fmt.Sprintf("%s=%d", name, v))
+		}
 
 		// If the metric is counter we also calculate the rate
 		if _, ok := metric.(*Counter); ok {

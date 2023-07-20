@@ -25,7 +25,27 @@ func LogTracePipe(t *testing.T) {
 // LogTracePipeSelf logs only messages from the current process read from /sys/kernel/[debug/]/tracing/trace_pipe during the test.
 // This function will set the environment variable BPF_DEBUG=true for the duration of the test.
 func LogTracePipeSelf(t *testing.T) {
-	LogTracePipeProcess(t, getpid())
+	subtask := make(map[uint32]struct{})
+	mypid := getpid()
+	pidstr := strconv.Itoa(int(mypid))
+	t.Logf("filtering to %d and child tasks", mypid)
+
+	logTracePipe(t, func(ev *TraceEvent) bool {
+		if ev.PID == mypid {
+			return true
+		}
+		// check if a thread group of current process
+		if _, ok := subtask[ev.PID]; ok {
+			return true
+		}
+		_, err := os.Stat(util.HostProc(pidstr, "task", strconv.Itoa(int(ev.PID))))
+		if err == nil {
+			// cache result for faster lookup
+			subtask[ev.PID] = struct{}{}
+			return true
+		}
+		return false
+	})
 }
 
 // LogTracePipeProcess logs only messages from the provided process read from /sys/kernel/[debug/]/tracing/trace_pipe during the test.

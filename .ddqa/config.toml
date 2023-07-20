@@ -109,6 +109,9 @@ jira_statuses = [
 ]
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
+exclude_members = [
+  "hithwen",
+]
 
 [teams."Platform Integrations"]
 jira_project = "PINT"
@@ -120,6 +123,9 @@ jira_statuses = [
 ]
 github_team = "platform-integrations"
 github_labels = ["team/platform-integrations"]
+exclude_members = [
+  "hithwen",
+]
 
 [teams."APM"]
 jira_project = "AIT"
