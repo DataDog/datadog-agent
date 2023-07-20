@@ -409,8 +409,8 @@ func FromAPIRuleSetReportToKFiltersRuleSetReport(apiRuleSetReport *api.RuleSetRe
 	return wholeReport
 }
 
-func FromAPIApproversToKFiltersApprovers(apiApprovers *api.Approvers) map[string][]kfilters.ApproversToPrint {
-	approversToPrint := make(map[string][]kfilters.ApproversToPrint)
+func FromAPIApproversToKFiltersApprovers(apiApprovers *api.Approvers) kfilters.ReportApprovers {
+	approversToPrint := make(kfilters.ReportApprovers)
 
 	for _, approver := range apiApprovers.GetApproverDetails() {
 		var approverToPrint interface{}
@@ -423,10 +423,10 @@ func FromAPIApproversToKFiltersApprovers(apiApprovers *api.Approvers) map[string
 		}
 
 		approversToPrint[approver.GetField()] = append(approversToPrint[approver.GetField()],
-			kfilters.ApproversToPrint{
+			kfilters.ApproverToPrint{
 				Field: approver.GetField(),
 				Value: approverToPrint,
-				Type:  approver.GetType(),
+				Type:  eval.FieldValueType(approver.GetType()).String(),
 			})
 	}
 
@@ -517,8 +517,7 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		return err
 	}
 
-	content, _ := json.MarshalIndent(report, "", "\t")
-	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	_, err = fmt.Fprintf(writer, "%s\n", report.String())
 	if err != nil {
 		return fmt.Errorf("unable to write out report: %w", err)
 	}

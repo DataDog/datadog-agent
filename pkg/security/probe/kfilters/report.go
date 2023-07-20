@@ -8,6 +8,7 @@
 package kfilters
 
 import (
+	"encoding/json"
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -25,13 +26,21 @@ type PolicyReport struct {
 type PolicyReportToPrint struct {
 	Mode      string
 	Flags     []string
-	Approvers map[string][]ApproversToPrint
+	Approvers ReportApprovers
 }
 
-type ApproversToPrint struct {
+type ApproverToPrint struct {
 	Field string
 	Value interface{}
-	Type  int32
+	Type  string // rules.Approvers is int
+}
+
+type ReportApprovers map[string][]ApproverToPrint
+type PoliciesByEventTypeToPrint map[string]*PolicyReportToPrint
+
+// ApplyRuleSetReport describes the event types and their associated policy policies
+type ApplyRuleSetReportToPrint struct {
+	Policies map[string]*PolicyReportToPrint
 }
 
 // ApplyRuleSetReport describes the event types and their associated policy policies
@@ -39,7 +48,7 @@ type ApplyRuleSetReport struct {
 	Policies map[string]*PolicyReport
 }
 
-// GetFilterReport returns filtering policy applied per event type
+// NewApplyRuleSetReport returns filtering policy applied per event type
 func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
 	policies := make(map[eval.EventType]*PolicyReport)
 
@@ -75,4 +84,46 @@ func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRule
 	}
 
 	return &ApplyRuleSetReport{Policies: policies}, nil
+}
+
+func NewPolicyReportToPrint() PolicyReportToPrint {
+	var flags []string
+	return PolicyReportToPrint{
+		Mode:      "",
+		Flags:     flags,
+		Approvers: make(ReportApprovers),
+	}
+}
+
+func (r *ApplyRuleSetReport) String() string {
+	policies := make(map[eval.EventType]*PolicyReportToPrint)
+
+	for eventType, policy := range r.Policies {
+		policyReportToPrint := PolicyReportToPrint{
+			Mode:  policy.Mode.String(),
+			Flags: policy.Flags.StringArray(),
+		}
+
+		approversToPrint := make(map[eval.Field][]ApproverToPrint)
+
+		for evalField, filterValues := range policy.Approvers {
+
+			for _, filterValue := range filterValues {
+				approversToPrint[evalField] = append(approversToPrint[evalField],
+					ApproverToPrint{
+						Field: filterValue.Field,
+						Value: filterValue.Value,
+						Type:  filterValue.Type.String(),
+					},
+				)
+			}
+		}
+		policyReportToPrint.Approvers = approversToPrint
+		policies[eventType] = &policyReportToPrint
+	}
+
+	wholeReport := &ApplyRuleSetReportToPrint{Policies: policies}
+
+	content, _ := json.MarshalIndent(wholeReport, "", "\t")
+	return string(content)
 }

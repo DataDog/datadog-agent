@@ -22,6 +22,27 @@ const (
 	IPNetValueType    FieldValueType = 1 << 6
 )
 
+func (t FieldValueType) String() string {
+	switch t {
+	case ScalarValueType:
+		return "scalar"
+	case GlobValueType:
+		return "glob"
+	case PatternValueType:
+		return "pattern"
+	case RegexpValueType:
+		return "regex"
+	case BitmaskValueType:
+		return "bitmask"
+	case VariableValueType:
+		return "variable"
+	case IPNetValueType:
+		return "ip"
+	}
+
+	return ""
+}
+
 // FieldValue describes a field value with its type
 type FieldValue struct {
 	Value interface{}
