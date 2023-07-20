@@ -21,7 +21,8 @@ def delete_domains(conn, stack):
 
     for domain in domains:
         name = domain.name()
-        domain.destroy()
+        if domain.isActive():
+            domain.destroy()
         domain.undefine()
         info(f"[+] VM {name} deleted")
 

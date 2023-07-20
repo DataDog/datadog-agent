@@ -87,6 +87,7 @@ def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
     stack_dir = f"{KMT_STACKS_DIR}/{stack}"
     vm_config = f"{stack_dir}/{VMCONFIG}"
 
+    ssh_key.rstrip(".pem")
     if ssh_key != "":
         ssh_key_file = find_ssh_key(ssh_key)
         ssh_add_cmd = f"ssh-add -l | grep {ssh_key} || ssh-add {ssh_key_file}"
@@ -183,6 +184,10 @@ def destroy_ec2_instances(ctx, stack):
 
         ips.append(o.split(' ')[1])
 
+    if len(ips) == 0:
+        info(f"[+] No ec2 instance to terminate in stack")
+        return
+
     instance_ids = ec2_instance_ids(ctx, ips)
     if len(instance_ids) == 0:
         return
@@ -211,18 +216,23 @@ def destroy_stack_force(ctx, stack):
 
     # Find a better solution for this
     pulumi_stack_name = ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
         warn=True,
         hide=True,
     ).stdout.strip()
 
+    if pulumi_stack_name == "":
+        return
+
     ctx.run(
         f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ../test-infra-definitions -s {pulumi_stack_name}",
         warn=True,
+        hide=True,
     )
     ctx.run(
         f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}",
         warn=True,
+        hide=True,
     )
 
 
