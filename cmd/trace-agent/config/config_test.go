@@ -1442,12 +1442,6 @@ func TestCustomTagsAggregationYAML(t *testing.T) {
 	testConfig := SetupConfFromYAML(datadogYaml)
 	require.True(t, testConfig.GetBool("apm_config.custom_tags"))
 
-	// type testCase struct {
-	// 	name  string
-	// 	setup func(t *testing.T, config Config)
-	// 	tests func(t *testing.T, config Config)
-	// }
-
 	expectedTags := map[string][]string{
 		"sql_query": []string{"georegion", "costcenter"},
 		"redis":     []string{"country"},
