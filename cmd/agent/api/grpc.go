@@ -12,12 +12,13 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -115,18 +116,20 @@ func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.Tagg
 	return &pb.TaggerStateResponse{Loaded: true}, nil
 }
 
+var rcNotInitializedErr = status.Error(codes.Unimplemented, "remote configuration service not initialized")
+
 func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
 	if s.configService == nil {
-		log.Debug("Remote configuration service not initialized")
-		return nil, errors.New("remote configuration service not initialized")
+		log.Debug(rcNotInitializedErr.Error())
+		return nil, rcNotInitializedErr
 	}
 	return s.configService.ClientGetConfigs(ctx, in)
 }
 
 func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
 	if s.configService == nil {
-		log.Debug("Remote configuration service not initialized")
-		return nil, errors.New("remote configuration service not initialized")
+		log.Debug(rcNotInitializedErr.Error())
+		return nil, rcNotInitializedErr
 	}
 	return s.configService.ConfigGetState()
 }
