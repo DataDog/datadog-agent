@@ -15,7 +15,9 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -260,6 +262,16 @@ func (c *Client) pollLoop() {
 		case <-time.After(c.pollInterval + interval):
 			err := c.update()
 			if err != nil {
+				if status.Code(err) == codes.Unimplemented {
+					// Remote Configuration is disabled as the server isn't initialized
+					//
+					// As this is not a transient error (that would be codes.Unavailable),
+					// stop the client: it shouldn't keep contacting a server that doesn't
+					// exist.
+					log.Debugf("remote configuration isn't enabled, disabling client")
+					return
+				}
+
 				if !successfulFirstRun {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as a debug log as the race is expected. If the error persists, we log with error logs
