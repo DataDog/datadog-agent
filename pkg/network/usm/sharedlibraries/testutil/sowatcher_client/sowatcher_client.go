@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"golang.org/x/exp/mmap"
 )
 
 func main() {
@@ -17,18 +19,18 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	done := make(chan bool, 1)
 
-	fds := make([]*os.File, len(os.Args)-1)
+	readers := make([]*mmap.ReaderAt, len(os.Args)-1)
 	defer func() {
-		for _, fd := range fds {
-			_ = fd.Close()
+		for _, r := range readers {
+			_ = r.Close()
 		}
 	}()
 	for _, path := range os.Args[1:] {
-		fd, err := os.Open(path)
+		r, err := mmap.Open(path)
 		if err != nil {
 			panic(err)
 		}
-		fds = append(fds, fd)
+		readers = append(readers, r)
 	}
 
 	go func() {
