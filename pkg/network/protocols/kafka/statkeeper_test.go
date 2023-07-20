@@ -34,43 +34,24 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 }
 
 func TestStatKeeper_extractTopicName(t *testing.T) {
-	type fields struct {
-		topicNames map[string]string
-	}
-	type args struct {
-		tx *EbpfTx
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   string
+		name string
+		tx   *EbpfTx
+		want string
 	}{
 		{
 			name: "slice bigger then Topic_name",
-			fields: fields{
-				topicNames: map[string]string{},
-			},
-			args: args{&EbpfTx{
-				Tup:             ConnTuple{},
+			tx: &EbpfTx{
 				Topic_name:      [80]byte{},
 				Topic_name_size: 85,
-				Pad_cgo_0:       [2]byte{},
-			},
 			},
 			want: strings.Repeat("*", 80),
 		},
 		{
 			name: "slice smaller then Topic_name",
-			fields: fields{
-				topicNames: map[string]string{},
-			},
-			args: args{&EbpfTx{
-				Tup:             ConnTuple{},
+			tx: &EbpfTx{
 				Topic_name:      [80]byte{},
 				Topic_name_size: 60,
-				Pad_cgo_0:       [2]byte{},
-			},
 			},
 			want: strings.Repeat("*", 60),
 		},
@@ -78,9 +59,10 @@ func TestStatKeeper_extractTopicName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statKeeper := &StatKeeper{
-				topicNames: tt.fields.topicNames,
+				topicNames: map[string]string{},
 			}
-			if got := statKeeper.extractTopicName(tt.args.tx); len(got) != len(tt.want) {
+			copy(tt.tx.Topic_name[:], strings.Repeat("*", len(tt.tx.Topic_name)))
+			if got := statKeeper.extractTopicName(tt.tx); len(got) != len(tt.want) {
 				t.Errorf("extractTopicName() = %v, want %v", got, tt.want)
 			}
 		})
