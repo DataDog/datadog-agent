@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,17 +54,14 @@ type collector struct {
 	pidToCid map[int]string
 
 	collectionTicker <-chan time.Time
-
-	store workloadmeta.Store
-
-	// A callback that is triggered when handleContainerEvent is called.
-	// Used in tests to avoid data races and race conditions.
-	onPidToCidUpdate func()
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
+	// Once workloadmeta is migrated to fx, we can inject the process check to see if it's enabled.
+	if c.ddConfig.GetBool("process_config.process_collection.enabled") {
+		return dderrors.NewDisabled("workloadmeta process collector", "the process check is enabled instead")
+	}
 
-	c.store = store
 	err := c.grpcServer.Start()
 	if err != nil {
 		return err
@@ -114,8 +112,4 @@ func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 	}
 
 	c.wlmExtractor.SetLastPidToCid(c.pidToCid)
-
-	if c.onPidToCidUpdate != nil {
-		c.onPidToCidUpdate()
-	}
 }

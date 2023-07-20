@@ -77,7 +77,6 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		grpcServer:       grpcServer,
 		pidToCid:         make(map[int]string),
 		collectionTicker: collectChan,
-		store:            store,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	require.NoError(t, c.Start(ctx, store))
