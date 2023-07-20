@@ -8,10 +8,10 @@
 package kafka
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type StatKeeper struct {
@@ -68,7 +68,7 @@ func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 func (statKeeper *StatKeeper) extractTopicName(tx *EbpfTx) string {
 	// Limit tx.Topic_name_size to not exceed the actual length of tx.Topic_name
 	if tx.Topic_name_size > uint16(len(tx.Topic_name)) {
-		log.Debugf("Topic name size was changed in extractTopicName from %d, to size: %d", tx.Topic_name_size, len(tx.Topic_name))
+		log.Debugf("Topic name size was changed from %d, to size: %d", tx.Topic_name_size, len(tx.Topic_name))
 		tx.Topic_name_size = uint16(len(tx.Topic_name))
 	}
 	b := tx.Topic_name[:tx.Topic_name_size]
