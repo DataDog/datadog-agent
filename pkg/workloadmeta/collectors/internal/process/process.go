@@ -57,9 +57,8 @@ type collector struct {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
-	// Once workloadmeta is migrated to fx, we can inject the process check to see if it's enabled.
-	if c.ddConfig.GetBool("process_config.process_collection.enabled") {
-		return dderrors.NewDisabled("workloadmeta process collector", "the process check is enabled instead")
+	if enabled, err := enabled(c.ddConfig); enabled {
+		return err
 	}
 
 	err := c.grpcServer.Start()
@@ -112,4 +111,16 @@ func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 	}
 
 	c.wlmExtractor.SetLastPidToCid(c.pidToCid)
+}
+
+func enabled(cfg config.ConfigReader) (bool, error) {
+	const module = "process collector"
+	if cfg.GetBool("process_config.process_collection.enabled") {
+		return false, dderrors.NewDisabled(module, "the process check is enabled")
+	}
+
+	if !cfg.GetBool("workloadmeta.remote_process_collector.enabled") {
+		return false, dderrors.NewDisabled(module, "the process collector is disabled")
+	}
+	return true, nil
 }

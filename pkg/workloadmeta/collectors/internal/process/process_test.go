@@ -147,3 +147,36 @@ func TestProcessCollector(t *testing.T) {
 	assert.EqualValues(t, 1, evt.CreationTime)
 	assert.Equal(t, testCid, evt.ContainerId)
 }
+
+// Assert that the collector is only enabled if the process check is disabled and
+// the remote process collector is enabled.
+func TestEnabled(t *testing.T) {
+	t.Run("process check enabled", func(t *testing.T) {
+		cfg := config.Mock(t)
+		cfg.Set("process_config.process_collection.enabled", true)
+
+		enabled, err := enabled(cfg)
+		assert.False(t, enabled)
+		assert.Error(t, err)
+	})
+
+	t.Run("remote collector disabled", func(t *testing.T) {
+		cfg := config.Mock(t)
+		cfg.Set("process_config.process_collection.enabled", false)
+		cfg.Set("workloadmeta.remote_process_collector.enabled", false)
+
+		enabled, err := enabled(cfg)
+		assert.False(t, enabled)
+		assert.Error(t, err)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		cfg := config.Mock(t)
+		cfg.Set("process_config.process_collection.enabled", false)
+		cfg.Set("workloadmeta.remote_process_collector.enabled", true)
+
+		enabled, err := enabled(cfg)
+		assert.True(t, enabled)
+		assert.NoError(t, err)
+	})
+}
