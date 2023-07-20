@@ -20,25 +20,29 @@ const collectionInterval = 1 * time.Minute
 var c *collector
 
 func init() {
-	workloadmeta.RegisterCollector(collectorId, func() workloadmeta.Collector {
-		// TODO: Inject config.Datadog via fx once collectors are migrated to components.
-		ddConfig := config.Datadog
+	// The process collector can run either when workloadmeta is in local or remote collector mode.
+	workloadmeta.RegisterCollector(collectorId, newProcessCollector)
+	workloadmeta.RegisterRemoteCollector(collectorId, newProcessCollector)
+}
 
-		wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
+func newProcessCollector() workloadmeta.Collector {
+	// TODO: Inject config.Datadog via fx once collectors are migrated to components.
+	ddConfig := config.Datadog
 
-		processData := checks.NewProcessData(ddConfig)
-		processData.Register(wlmExtractor)
+	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(ddConfig)
 
-		c = &collector{
-			ddConfig:         ddConfig,
-			wlmExtractor:     wlmExtractor,
-			grpcServer:       workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
-			processData:      processData,
-			collectionTicker: time.Tick(collectionInterval),
-			pidToCid:         make(map[int]string),
-		}
-		return c
-	})
+	processData := checks.NewProcessData(ddConfig)
+	processData.Register(wlmExtractor)
+
+	c = &collector{
+		ddConfig:         ddConfig,
+		wlmExtractor:     wlmExtractor,
+		grpcServer:       workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
+		processData:      processData,
+		collectionTicker: time.Tick(collectionInterval),
+		pidToCid:         make(map[int]string),
+	}
+	return c
 }
 
 var _ workloadmeta.Collector = (*collector)(nil)
