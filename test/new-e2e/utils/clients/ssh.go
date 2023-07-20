@@ -30,7 +30,7 @@ func getSSHClient(user, host string, privateKey []byte) (*ssh.Client, *ssh.Sessi
 	var auth ssh.AuthMethod
 
 	if privateKey != nil {
-		privateKeyAuth, err := ssh.ParsePrivateKey([]byte(privateKey))
+		privateKeyAuth, err := ssh.ParsePrivateKey(privateKey)
 		if err != nil {
 			return nil, nil, err
 		}
