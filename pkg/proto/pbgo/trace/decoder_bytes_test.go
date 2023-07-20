@@ -6,7 +6,6 @@
 package trace
 
 import (
-	fmt "fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,7 +62,6 @@ func TestDecodeBytes(t *testing.T) {
 	if _, err = got.UnmarshalMsg(bts); err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("want: %v\ngot: %v\n", want, got)
 	assert.ElementsMatch(t, want, got)
 }
 
@@ -89,6 +87,5 @@ func TestDecodeInvalidUTF8Bytes(t *testing.T) {
 	if _, err = got.UnmarshalMsg(bts); err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("accept: %v\ngot: %v\n", accept, got)
 	assert.ElementsMatch(t, accept, got)
 }

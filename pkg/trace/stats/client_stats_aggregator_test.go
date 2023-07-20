@@ -6,7 +6,6 @@
 package stats
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -276,8 +275,6 @@ func TestFuzzCountFields(t *testing.T) {
 			}
 			expected = append(expected, s)
 		}
-		fmt.Printf("length actual: %v\n", len(actual))
-		fmt.Printf("length expected: %v\n", len(expected))
 
 		assert.ElementsMatch(pb.PbToStringSlice(expected), pb.PbToStringSlice(actual))
 		aggCounts.Stats[0].Stats[0].Stats = nil
