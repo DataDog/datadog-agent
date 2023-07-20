@@ -166,8 +166,6 @@ build do
       "PIP_CONFIG_FILE" => "#{pip_config_file}",
       # Specify C99 standard explicitly to avoid issues while building some
       # wheels (eg. ddtrace)
-      "CC" => "/opt/gcc-#{gcc_version}/bin/gcc",
-      "CXX" => "/opt/gcc-#{gcc_version}/bin/g++",
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
@@ -193,6 +191,12 @@ build do
     # See: https://github.com/python/cpython/blob/v3.8.8/Lib/distutils/sysconfig.py#L227
     if linux? || windows?
       nix_build_env["CFLAGS"] += " -std=c99"
+    end
+
+    # We only have gcc 10.4.0 on linux for now
+    if linux?
+      nix_build_env["CC"] = "/opt/gcc-#{gcc_version}/bin/gcc"
+      nix_build_env["CXX"] = "/opt/gcc-#{gcc_version}/bin/g++"
     end
 
     #
