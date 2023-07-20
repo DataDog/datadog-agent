@@ -57,7 +57,7 @@ require (
 	github.com/DataDog/datadog-operator v1.0.3
 	github.com/DataDog/ebpf-manager v0.2.10
 	github.com/DataDog/go-libddwaf v1.0.0
-	github.com/DataDog/go-tuf v1.0.0-0.5.2
+	github.com/DataDog/go-tuf v1.0.1-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.5.2
