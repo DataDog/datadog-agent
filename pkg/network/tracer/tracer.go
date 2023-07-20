@@ -633,7 +633,7 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 		case bpfMapStats:
 			ret[nettelemetry.EBPFMapTelemetryNS] = t.bpfTelemetry.GetMapsTelemetry()
 		case bpfHelperStats:
-			ret[nettelemetry.EBPFHelperTelemetryNS] = t.bpfTelemetry.GetHelperTelemetry()
+			ret[nettelemetry.EBPFHelperTelemetryNS] = t.bpfTelemetry.GetHelpersTelemetry()
 		}
 	}
 

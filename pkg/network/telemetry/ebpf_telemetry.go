@@ -86,12 +86,16 @@ func (b *EBPFTelemetry) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector
 func (b *EBPFTelemetry) Collect(ch chan<- prometheus.Metric) {
-	b.GetHelperTelemetry(ch)
-	b.GetMapsTelemetry(ch)
+	b.getHelpersTelemetry(ch)
+	b.getMapsTelemetry(ch)
 }
 
 // GetMapsTelemetry returns a map of error telemetry for each ebpf map
-func (b *EBPFTelemetry) GetMapsTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
+func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
+	return b.getMapsTelemetry(nil)
+}
+
+func (b *EBPFTelemetry) getMapsTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
 	if b == nil {
 		return nil
 	}
@@ -108,7 +112,10 @@ func (b *EBPFTelemetry) GetMapsTelemetry(ch chan<- prometheus.Metric) map[string
 		if count := getMapErrCount(&val); len(count) > 0 {
 			t[m] = count
 			for errStr, errCount := range count {
-				ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr)
+				select {
+				case ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr):
+				default:
+				}
 			}
 		}
 	}
@@ -117,7 +124,11 @@ func (b *EBPFTelemetry) GetMapsTelemetry(ch chan<- prometheus.Metric) map[string
 }
 
 // GetHelperTelemetry returns a map of error telemetry for each ebpf program
-func (b *EBPFTelemetry) GetHelperTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
+func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
+	return b.getHelpersTelemetry(nil)
+}
+
+func (b *EBPFTelemetry) getHelpersTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
 	if b == nil {
 		return nil
 	}
@@ -132,7 +143,7 @@ func (b *EBPFTelemetry) GetHelperTelemetry(ch chan<- prometheus.Metric) map[stri
 			continue
 		}
 
-		if t := getHelperTelemetry(&val, probeName, ebpfHelperErrorsGauge, ch); len(t) > 0 {
+		if t := getHelpersTelemetryForProbe(&val, probeName, ebpfHelperErrorsGauge, ch); len(t) > 0 {
 			helperTelemMap[probeName] = t
 		}
 	}
@@ -140,7 +151,7 @@ func (b *EBPFTelemetry) GetHelperTelemetry(ch chan<- prometheus.Metric) map[stri
 	return helperTelemMap
 }
 
-func getHelperTelemetry(v *HelperErrTelemetry, probeName string, desc *prometheus.Desc, ch chan<- prometheus.Metric) map[string]interface{} {
+func getHelpersTelemetryForProbe(v *HelperErrTelemetry, probeName string, desc *prometheus.Desc, ch chan<- prometheus.Metric) map[string]interface{} {
 	helper := make(map[string]interface{})
 
 	for indx, helperName := range helperNames {
@@ -148,7 +159,11 @@ func getHelperTelemetry(v *HelperErrTelemetry, probeName string, desc *prometheu
 			helper[helperName] = count
 
 			for errStr, errCount := range count {
-				ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
+				// Do not block when nil channel is provided
+				select {
+				case ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr):
+				default:
+				}
 			}
 		}
 	}
