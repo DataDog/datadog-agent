@@ -8,6 +8,8 @@
 package kafka
 
 import (
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -29,5 +31,79 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		sk.Process(tx)
+	}
+}
+
+func TestStatKeeper_extractTopicName(t *testing.T) {
+	type fields struct {
+		stats      map[Key]*RequestStat
+		statsMutex sync.RWMutex
+		maxEntries int
+		telemetry  *Telemetry
+		topicNames map[string]string
+	}
+	type args struct {
+		tx *EbpfTx
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   string
+	}{
+		{
+			name: "slice bigger then Topic_name",
+			fields: fields{
+				stats:      nil,
+				statsMutex: sync.RWMutex{},
+				maxEntries: 0,
+				telemetry:  nil,
+				topicNames: map[string]string{},
+			},
+			args: args{&EbpfTx{
+				Tup:                 ConnTuple{},
+				Request_api_key:     0,
+				Request_api_version: 0,
+				Topic_name:          [80]byte{},
+				Topic_name_size:     85,
+				Pad_cgo_0:           [2]byte{},
+			},
+			},
+			want: strings.Repeat("*", 80),
+		},
+		{
+			name: "slice smaller then Topic_name",
+			fields: fields{
+				stats:      nil,
+				statsMutex: sync.RWMutex{},
+				maxEntries: 0,
+				telemetry:  nil,
+				topicNames: map[string]string{},
+			},
+			args: args{&EbpfTx{
+				Tup:                 ConnTuple{},
+				Request_api_key:     0,
+				Request_api_version: 0,
+				Topic_name:          [80]byte{},
+				Topic_name_size:     60,
+				Pad_cgo_0:           [2]byte{},
+			},
+			},
+			want: strings.Repeat("*", 60),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statKeeper := &StatKeeper{
+				stats:      tt.fields.stats,
+				statsMutex: tt.fields.statsMutex,
+				maxEntries: tt.fields.maxEntries,
+				telemetry:  tt.fields.telemetry,
+				topicNames: tt.fields.topicNames,
+			}
+			if got := statKeeper.extractTopicName(tt.args.tx); len(got) != len(tt.want) {
+				t.Errorf("extractTopicName() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

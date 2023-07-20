@@ -65,6 +65,10 @@ func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 }
 
 func (statKeeper *StatKeeper) extractTopicName(tx *EbpfTx) string {
+	// Limit tx.Topic_name_size to not exceed the actual length of tx.Topic_name
+	if tx.Topic_name_size > uint16(len(tx.Topic_name)) {
+		tx.Topic_name_size = uint16(len(tx.Topic_name))
+	}
 	b := tx.Topic_name[:tx.Topic_name_size]
 
 	// the trick here is that the Go runtime doesn't allocate the string used in
