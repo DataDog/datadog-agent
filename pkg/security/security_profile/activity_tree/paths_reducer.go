@@ -24,6 +24,7 @@ type PathsReducer struct {
 type PatternReducer struct {
 	Pattern  *regexp.Regexp
 	Hint     string
+	PreCheck func(fileEvent *model.FileEvent) bool
 	Callback func(ctx *callbackContext)
 }
 
@@ -67,6 +68,10 @@ func (r *PathsReducer) ReducePath(path string, fileEvent *model.FileEvent, node 
 	}
 
 	for _, pattern := range r.patterns {
+		if pattern.PreCheck != nil && fileEvent != nil && !pattern.PreCheck(fileEvent) {
+			continue
+		}
+
 		if pattern.Hint != "" && !strings.Contains(ctx.path, pattern.Hint) {
 			continue
 		}
@@ -116,21 +121,23 @@ func getPathsReducerPatterns() []PatternReducer {
 		{
 			Pattern: regexp.MustCompile(`kubepods-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
 			Hint:    "kubepods",
+			PreCheck: func(fileEvent *model.FileEvent) bool {
+				return fileEvent.Filesystem == "sysfs"
+			},
 			Callback: func(ctx *callbackContext) {
-				if ctx.fileEvent.Filesystem == "sysfs" {
-					start, end := ctx.getGroup(1)
-					ctx.replaceBy(start, end, "*")
-				}
+				start, end := ctx.getGroup(1)
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 		{
 			Pattern: regexp.MustCompile(`cri-containerd-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
 			Hint:    "cri-containerd",
+			PreCheck: func(fileEvent *model.FileEvent) bool {
+				return fileEvent.Filesystem == "sysfs"
+			},
 			Callback: func(ctx *callbackContext) {
-				if ctx.fileEvent.Filesystem == "sysfs" {
-					start, end := ctx.getGroup(1)
-					ctx.replaceBy(start, end, "*")
-				}
+				start, end := ctx.getGroup(1)
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 		{
@@ -143,11 +150,12 @@ func getPathsReducerPatterns() []PatternReducer {
 		{
 			Pattern: regexp.MustCompile(`/sys/devices/virtual/block/(?:dm-|loop)([0-9]+)`), // block devices
 			Hint:    "devices",
+			PreCheck: func(fileEvent *model.FileEvent) bool {
+				return fileEvent.Filesystem == "sysfs"
+			},
 			Callback: func(ctx *callbackContext) {
-				if ctx.fileEvent.Filesystem == "sysfs" {
-					start, end := ctx.getGroup(1)
-					ctx.replaceBy(start, end, "*")
-				}
+				start, end := ctx.getGroup(1)
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 		{
