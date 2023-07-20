@@ -10,6 +10,7 @@ package activity_tree
 import (
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -35,6 +36,15 @@ type callbackContext struct {
 
 func (cc *callbackContext) getGroup(index int) (int, int) {
 	return cc.groups[index*2], cc.groups[index*2+1]
+}
+
+func (cc *callbackContext) replaceBy(start, end int, replaceBy string) {
+	var b strings.Builder
+	b.Grow(len(cc.path[:start]) + len(replaceBy) + len(cc.path[end:]))
+	b.WriteString(cc.path[:start])
+	b.WriteString(replaceBy)
+	b.WriteString(cc.path[end:])
+	cc.path = b.String()
 }
 
 // NewPathsReducer returns a new PathsReducer
@@ -80,9 +90,9 @@ func getPathsReducerPatterns() []PatternReducer {
 				}
 				// replace the pid in the path between start and end with a * only if the replaced pid is not the pid of the process node
 				if ctx.processNode.Process.Pid == uint32(pid) {
-					ctx.path = ctx.path[:start] + "self" + ctx.path[end:]
+					ctx.replaceBy(start, end, "self")
 				} else {
-					ctx.path = ctx.path[:start] + "*" + ctx.path[end:]
+					ctx.replaceBy(start, end, "*")
 				}
 			},
 		},
@@ -90,7 +100,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			Pattern: regexp.MustCompile(`/task/(\d+)/`), // process TID
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
-				ctx.path = ctx.path[:start] + "*" + ctx.path[end:]
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 		{
@@ -98,7 +108,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			Callback: func(ctx *callbackContext) {
 				if ctx.fileEvent.Filesystem == "sysfs" {
 					start, end := ctx.getGroup(1)
-					ctx.path = ctx.path[:start] + "*" + ctx.path[end:]
+					ctx.replaceBy(start, end, "*")
 				}
 			},
 		},
@@ -106,7 +116,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			Pattern: regexp.MustCompile(model.ContainerIDPatternStr), // container ID
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(0)
-				ctx.path = ctx.path[:start] + "*" + ctx.path[end:]
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 		{
@@ -114,7 +124,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			Callback: func(ctx *callbackContext) {
 				if ctx.fileEvent.Filesystem == "sysfs" {
 					start, end := ctx.getGroup(1)
-					ctx.path = ctx.path[:start] + "*" + ctx.path[end:]
+					ctx.replaceBy(start, end, "*")
 				}
 			},
 		},
@@ -122,7 +132,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			Pattern: regexp.MustCompile(`secrets/kubernetes.io/serviceaccount/([0-9._]+)`), // service account token date
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(1)
-				ctx.path = ctx.path[:start] + "*" + ctx.path[end:]
+				ctx.replaceBy(start, end, "*")
 			},
 		},
 	}
