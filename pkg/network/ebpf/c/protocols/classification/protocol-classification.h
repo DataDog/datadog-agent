@@ -65,12 +65,22 @@ static __always_inline bool is_protocol_classification_supported() {
     return val > 0;
 }
 
-static __always_inline protocol_t classify_api_protocols(const char *buf, __u32 size) {
-    if (is_grpc(buf, size)) {
-        return PROTOCOL_GRPC;
-    }
+// updates the the protocol stack and adds the current layer to the routing skip list
+static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
+    set_protocol(stack, proto);
+    usm_ctx->routing_skip_layers |= proto;
+}
 
-    return PROTOCOL_UNKNOWN;
+static __always_inline void classify_api_protocols(usm_context_t *usm_ctx, protocol_stack_t *protocol_stack, struct __sk_buff *skb, skb_info_t *skb_info) {
+    grpc_status_t status = is_grpc(skb, skb_info);
+    switch (status) {
+    case GRPC_STATUS_GRPC:
+        update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_GRPC);
+    case GRPC_STATUS_NOT_GRPC:
+        mark_as_fully_classified(protocol_stack);
+    case GRPC_STATUS_UNKNOWN:
+        return;
+;    }
 }
 
 // Checks if a given buffer is http, http2, gRPC.
@@ -118,12 +128,6 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
     return PROTOCOL_UNKNOWN;
 }
 
-// updates the the protocol stack and adds the current layer to the routing skip list
-static __always_inline void update_protocol_information(usm_context_t *usm_ctx, protocol_stack_t *stack, protocol_t proto) {
-    set_protocol(stack, proto);
-    usm_ctx->routing_skip_layers |= proto;
-}
-
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
 __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};
@@ -166,25 +170,29 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // If application-layer is known we don't bother to check for HTTP protocols and skip to the next layers
-    if (is_protocol_layer_known(protocol_stack, LAYER_APPLICATION)) {
+    protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
+    if (app_layer_proto != PROTOCOL_UNKNOWN && app_layer_proto != PROTOCOL_HTTP2) {
         goto next_program;
     }
 
-    protocol_t cur_fragment_protocol = classify_applayer_protocols(buffer, usm_ctx->buffer.size);
-    if (cur_fragment_protocol) {
-        update_protocol_information(usm_ctx, protocol_stack, cur_fragment_protocol);
+    if (app_layer_proto == PROTOCOL_UNKNOWN) {
+        app_layer_proto =  classify_applayer_protocols(buffer, usm_ctx->buffer.size);
+    }
 
-        log_debug("Found HTTP2");
+    if (app_layer_proto != PROTOCOL_UNKNOWN) {
+        update_protocol_information(usm_ctx, protocol_stack, app_layer_proto);
+    }
 
-        // If we found HTTP2, then we try to classify its content.
-        protocol_t api_protocol = classify_api_protocols(buffer, usm_ctx->buffer.size);
-        if (api_protocol) {
-            log_debug("Found GRPC");
-            update_protocol_information(usm_ctx, protocol_stack, api_protocol);
+    if (app_layer_proto != PROTOCOL_UNKNOWN) {
+        if (app_layer_proto != PROTOCOL_HTTP2) {
+            mark_as_fully_classified(protocol_stack);
+            return;
         }
 
-        mark_as_fully_classified(protocol_stack);
-        return;
+        log_debug("Found HTTP2\n");
+
+        // If we found HTTP2, then we try to classify its content.
+        classify_api_protocols(usm_ctx, protocol_stack, skb, &skb_info);
     }
 
  next_program:
