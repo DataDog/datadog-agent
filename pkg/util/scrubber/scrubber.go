@@ -108,7 +108,9 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 		c.multiLineReplacers = append(c.multiLineReplacers, replacer)
 	}
 
-	c.cache.Purge()
+	if c.cache != nil {
+		c.cache.Purge()
+	}
 }
 
 // ScrubFile scrubs credentials from file given by pathname
@@ -143,12 +145,17 @@ func (c *Scrubber) ScrubLine(message string) string {
 
 // ScrubLineWithCache scrubs similarly to ScrubLine, but using the embedded cache
 func (c *Scrubber) ScrubLineWithCache(message string) string {
-	if cached, ok := c.cache.Get(message); ok {
-		return cached
+	if c.cache != nil {
+		if cached, ok := c.cache.Get(message); ok {
+			return cached
+		}
 	}
 
 	scrubbed := c.ScrubLine(message)
-	c.cache.Add(message, scrubbed)
+
+	if c.cache != nil {
+		c.cache.Add(message, scrubbed)
+	}
 	return scrubbed
 }
 
