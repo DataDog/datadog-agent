@@ -174,7 +174,7 @@ func NewService() (*Service, error) {
 	recoveryInterval := 2
 	recoveryReset := false
 
-	backoffPolicy := backoff.NewPolicy(minBackoffFactor, baseBackoffTime,
+	backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime,
 		maxBackoffTime.Seconds(), recoveryInterval, recoveryReset)
 
 	apiKey := config.Datadog.GetString("api_key")
