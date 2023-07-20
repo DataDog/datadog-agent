@@ -63,20 +63,8 @@ class GithubApp(RemoteAPI):
         the Github API with the permissions of this App.
         """
         endpoint = f'/app/installations/{self.installation_id}/access_tokens'
-        for _ in range(5):  # Retry up to 5 times
-            r = self.make_request(endpoint, method='POST')
-            if r.status_code != 200 and r.status_code != 201:
-                logger.warning(
-                    f"""Error in HTTP Request for access token.
-                Status code: {r.status_code} Response Text: {r.text}"""
-                )
-                time.sleep(1)
-                continue
-            return r.json().get("token"), datetime.strptime(r.json().get("expires_at"), "%Y-%m-%dT%H:%M:%SZ")
-        raise GithubAppException(
-            f"""Unable to retrieve an access token.
-        Status code: {r.status_code} Response Text: {r.text}"""
-        )
+        r = self.make_request(endpoint, method='POST', json_output=True)
+        return r.get("token"), datetime.strptime(r.get("expires_at"), "%Y-%m-%dT%H:%M:%SZ")
 
     def get_installation(self):
         """
@@ -87,17 +75,5 @@ class GithubApp(RemoteAPI):
         for our usage, but as of now we expect the App to only have one installation.
         """
         endpoint = '/app/installations'
-        for _ in range(5):  # Retry up to 5 times
-            r = self.make_request(endpoint, method='GET')
-            if r.status_code != 200 and r.status_code != 201:
-                logger.warning(
-                    f"""Error in HTTP Request for installation id.
-                Status code: {r.status_code} Response Text: {r.text}"""
-                )
-                time.sleep(1)
-                continue
-            return r.json()[0]["id"]
-        raise GithubAppException(
-            f"""Unable to retrieve installation id.
-        Status code: {r.status_code} Response Text: {r.text}"""
-        )
+        r = self.make_request(endpoint, method='GET', json_output=True)
+        return r[0]["id"]
