@@ -101,6 +101,12 @@ if arm? || !_64_bit? || (windows? && windows_arch_i386?)
   blacklist_packages.push(/^orjson==/)
 end
 
+if linux?
+  # We need to use cython<3.0.0 to build oracledb
+  dependency 'oracledb-py3'
+  blacklist_packages.push(/^oracledb==/)
+end
+
 final_constraints_file = 'final_constraints-py3.txt'
 agent_requirements_file = 'agent_requirements-py3.txt'
 filtered_agent_requirements_in = 'agent_requirements-py3.in'
