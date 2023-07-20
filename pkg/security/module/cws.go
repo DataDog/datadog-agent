@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -156,7 +157,7 @@ func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
 		return false, err
 	}
 
-	success, fails, err := c.selfTester.RunSelfTest()
+	success, fails, testEvents, err := c.selfTester.RunSelfTest()
 	if err != nil {
 		return true, err
 	}
@@ -165,14 +166,14 @@ func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
 
 	// send the report
 	if c.config.SelfTestSendReport {
-		ReportSelfTest(c.eventSender, c.statsdClient, success, fails)
+		ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
 	}
 
 	return true, nil
 }
 
 // ReportSelfTest reports to Datadog that a self test was performed
-func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterface, success []string, fails []string) {
+func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterface, success []string, fails []string, testEvents map[string]*serializers.EventSerializer) {
 	// send metric with number of success and fails
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),
@@ -183,7 +184,7 @@ func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterfa
 	}
 
 	// send the custom event with the list of succeed and failed self tests
-	rule, event := events.NewSelfTestEvent(success, fails)
+	rule, event := selftests.NewSelfTestEvent(success, fails, testEvents)
 	sender.SendEvent(rule, event, nil, "")
 }
 
