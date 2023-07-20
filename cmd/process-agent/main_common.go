@@ -45,7 +45,7 @@ import (
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/process-agent"
+	processAgentCollectors "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/process-agent"
 )
 
 const (
@@ -158,7 +158,7 @@ func runApp(exit chan struct{}, globalParams *command.GlobalParams) error {
 	}
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
-	if !anyChecksEnabled(appInitDeps.Checks) {
+	if !shouldEnableProcessAgent(appInitDeps.Checks, appInitDeps.Config) {
 		log.Infof(agent6DisabledMessage)
 		return nil
 	}
@@ -188,6 +188,10 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 		}
 	}
 	return false
+}
+
+func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.ConfigReader) bool {
+	return anyChecksEnabled(checks) || processAgentCollectors.AnyCollectorsEnabled(cfg)
 }
 
 // cleanupAndExitHandler cleans all resources allocated by the agent before calling os.Exit

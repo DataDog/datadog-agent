@@ -8,5 +8,11 @@
 package process_agent
 
 import (
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/process"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/process"
 )
+
+func AnyCollectorsEnabled(reader config.ConfigReader) bool {
+	enabled, _ := process.Enabled(reader)
+	return enabled
+}

@@ -57,7 +57,7 @@ type collector struct {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
-	if enabled, err := enabled(c.ddConfig); enabled {
+	if enabled, err := Enabled(c.ddConfig); enabled {
 		return err
 	}
 
@@ -113,13 +113,13 @@ func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 	c.wlmExtractor.SetLastPidToCid(c.pidToCid)
 }
 
-func enabled(cfg config.ConfigReader) (bool, error) {
+func Enabled(cfg config.ConfigReader) (bool, error) {
 	const module = "process collector"
-	if cfg.GetBool("process_config.process_collection.enabled") {
-		return false, dderrors.NewDisabled(module, "the process check is enabled")
+	if cfg.GetBool("process_config.process_collection.Enabled") {
+		return false, dderrors.NewDisabled(module, "the process check is Enabled")
 	}
 
-	if !cfg.GetBool("workloadmeta.remote_process_collector.enabled") {
+	if !cfg.GetBool("workloadmeta.remote_process_collector.Enabled") {
 		return false, dderrors.NewDisabled(module, "the process collector is disabled")
 	}
 	return true, nil
