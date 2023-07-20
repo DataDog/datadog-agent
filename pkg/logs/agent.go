@@ -114,6 +114,11 @@ func (a *Agent) Stop() {
 	}
 }
 
+// GetPipelineProvider gets the pipeline provider
+func (a *Agent) GetPipelineProvider() pipeline.Provider {
+	return a.pipelineProvider
+}
+
 // AddScheduler adds the given scheduler to the agent.
 func (a *Agent) AddScheduler(scheduler schedulers.Scheduler) {
 	a.schedulers.AddScheduler(scheduler)

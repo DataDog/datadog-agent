@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("CRI availability", diagnose)
+	diagnosis.RegisterMetadataAvail("CRI availability", diagnose)
 }
 
 // diagnose the CRI socket connectivity
