@@ -1787,6 +1787,11 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 
 func (s *TracerSuite) TestGetMapsTelemetry() {
 	t := s.T()
+	// We need the tracepoints on open syscall in order
+	// to test.
+	if !httpsSupported() {
+		t.Skip("HTTPS feature not available/supported for this setup")
+	}
 
 	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 	cfg := testConfig()
