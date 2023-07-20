@@ -6,20 +6,30 @@
 package daemon
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
+	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
+	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestMain(m *testing.M) {
@@ -180,4 +190,69 @@ func TestOutOfOrderInvocations(t *testing.T) {
 
 	assert.NotPanics(t, d.TellDaemonRuntimeDone)
 	d.TellDaemonRuntimeStarted()
+}
+
+func TestLogsAreSent(t *testing.T) {
+	config.DetectFeatures()
+	logsEndpointHasBeenCalled := false
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+	}))
+
+	tsLogsIntake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logsEndpointHasBeenCalled = true
+		w.WriteHeader(200)
+	}))
+
+	t.Setenv("DD_LOGS_CONFIG_LOGS_DD_URL", strings.Replace(tsLogsIntake.URL, "http://", "", 1))
+	t.Setenv("DD_LOGS_CONFIG_LOGS_NO_SSL", "true")
+
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	defer d.Stop()
+
+	logChannel := make(chan *logConfig.ChannelMessage)
+	initDurationChan := make(chan float64)
+
+	metricAgent := &metrics.ServerlessMetricAgent{}
+	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	d.SetStatsdServer(metricAgent)
+
+	d.SetupLogCollectionHandler("/lambda/logs", logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), initDurationChan)
+	d.StartLogCollection()
+
+	logRegistrationError := registration.EnableTelemetryCollection(
+		registration.EnableTelemetryCollectionArgs{
+			ID:                  "myId",
+			RegistrationURL:     ts.URL,
+			RegistrationTimeout: 10 * time.Second,
+			LogsType:            "all",
+			Port:                port,
+			CollectionRoute:     "/lambda/logs",
+			Timeout:             1000,
+			MaxBytes:            1000,
+			MaxItems:            1000,
+		})
+
+	if logRegistrationError != nil {
+		log.Error("Can't subscribe to logs:", logRegistrationError)
+	} else {
+		serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", d.LogSyncOrchestrator)
+	}
+
+	client := &http.Client{}
+	raw, err := os.ReadFile("./valid_logs_payload_1000.json")
+	assert.Nil(t, err)
+	body := bytes.NewBuffer(raw)
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/logs", port), body)
+	assert.Nil(t, err)
+	response, err := client.Do(request)
+	assert.Nil(t, err)
+	assert.True(t, response.StatusCode == 200)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	d.flushLogs(context.TODO(), wg)
+	wg.Wait()
+	assert.True(t, logsEndpointHasBeenCalled)
+	assert.Equal(t, d.LogSyncOrchestrator.NbMessageSent.Load(), d.LogSyncOrchestrator.TelemetryApiMessageReceivedCount.Load())
 }

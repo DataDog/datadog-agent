@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 
@@ -46,11 +47,11 @@ var (
 )
 
 // StartServerless starts a Serverless instance of the Logs Agent.
-func StartServerless() (*Agent, error) {
-	return start()
+func StartServerless(logSync util.LogSync) (*Agent, error) {
+	return start(logSync)
 }
 
-func start() (*Agent, error) {
+func start(logSync util.LogSync) (*Agent, error) {
 	if IsAgentRunning() {
 		return agent, nil
 	}
@@ -92,7 +93,7 @@ func start() (*Agent, error) {
 
 	// setup and start the logs agent
 	log.Info("Starting logs-agent...")
-	agent = NewAgent(sources, services, tracker, processingRules, endpoints)
+	agent = NewAgent(sources, services, tracker, processingRules, endpoints, logSync)
 
 	agent.Start()
 	isRunning.Store(true)

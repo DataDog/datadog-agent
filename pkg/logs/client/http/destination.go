@@ -113,7 +113,7 @@ func newDestination(endpoint config.Endpoint,
 	}
 
 	if endpoint.Origin == config.ServerlessIntakeOrigin {
-		shouldRetry = false
+		shouldRetry = true
 	}
 
 	expVars := &expvar.Map{}
@@ -129,6 +129,7 @@ func newDestination(endpoint config.Endpoint,
 		endpoint.BackoffMax,
 		endpoint.RecoveryInterval,
 		endpoint.RecoveryReset,
+		endpoint.Origin == config.ServerlessIntakeOrigin,
 	)
 
 	return &Destination{
@@ -206,7 +207,9 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 // Send sends a payload over HTTP,
 func (d *Destination) sendAndRetry(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	for {
-
+		if d.destinationsContext.LogSync != nil {
+			d.destinationsContext.LogSync.Processing(true)
+		}
 		d.retryLock.Lock()
 		backoffDuration := d.backoff.GetBackoffDuration(d.nbErrors)
 		d.blockedUntil = time.Now().Add(backoffDuration)
@@ -222,6 +225,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
 			log.Warnf("Could not send payload: %v", err)
+		} else {
+			if d.destinationsContext.LogSync != nil {
+				d.destinationsContext.LogSync.Add(uint32(len(payload.Messages)))
+			}
 		}
 
 		if err == context.Canceled {
@@ -238,6 +245,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		metrics.LogsSent.Add(int64(len(payload.Messages)))
 		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
 		output <- payload
+		if d.destinationsContext.LogSync != nil {
+			d.destinationsContext.LogSync.Processing(false)
+		}
 		return
 	}
 }

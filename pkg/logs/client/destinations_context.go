@@ -8,6 +8,8 @@ package client
 import (
 	"context"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 )
 
 // A DestinationsContext manages senders and allows us to "unclog" the pipeline
@@ -16,6 +18,7 @@ type DestinationsContext struct {
 	context context.Context
 	cancel  context.CancelFunc
 	mutex   sync.Mutex
+	LogSync util.LogSync
 }
 
 // NewDestinationsContext returns an initialized DestinationsContext
