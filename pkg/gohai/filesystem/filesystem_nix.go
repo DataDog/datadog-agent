@@ -46,11 +46,12 @@ var RemoteFSTypes = map[string]struct{}{
 }
 
 func getFileSystemInfo() ([]MountInfo, error) {
-	return getFileSystemInfoWithMounts(nil)
+	return getFileSystemInfoWithMounts(nil, true)
 }
 
 // Internal method to help testing with test mounts
-func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info) ([]MountInfo, error) {
+// If ignoreEmpty is true, ignore zero-sized filesystems, like `df` does (unless using -a)
+func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, ignoreEmpty bool) ([]MountInfo, error) {
 	var err error
 	mounts := initialMounts
 
@@ -75,8 +76,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info) ([]MountInfo, 
 			sizeKB = (stat.Blocks * uint64(stat.Bsize)) / 1024
 		}
 
-		if sizeKB == 0 {
-			// Skip empty filesystems, like `df` does (unless using -a)
+		if ignoreEmpty && sizeKB == 0 {
 			continue
 		}
 
