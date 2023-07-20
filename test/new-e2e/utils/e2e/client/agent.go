@@ -58,6 +58,10 @@ func (agent *Agent) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+func (agent *Agent) ConfigCheck(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("configcheck", commandArgs...)
+}
+
 type Status struct {
 	Content string
 }
