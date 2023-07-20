@@ -27,15 +27,8 @@ func writeHttpResponse(w http.ResponseWriter, response httpResponse) {
 }
 
 func buildErrorResponse(responseError error) httpResponse {
-	statusCode := http.StatusAccepted
-
-	resp := errorResponseBody{}
-	if responseError != nil {
-		statusCode = http.StatusBadRequest
-		resp.Errors = []string{responseError.Error()}
-	}
-
-	return buildResponse(resp, statusCode, "application/json")
+	resp := errorResponseBody{Errors: []string{responseError.Error()}}
+	return buildResponse(resp, http.StatusBadRequest, "application/json")
 }
 
 func buildSuccessResponse(body interface{}) httpResponse {
