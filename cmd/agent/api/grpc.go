@@ -24,7 +24,7 @@ import (
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/replay"
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
