@@ -1,13 +1,12 @@
 #ifndef __SHARED_LIBRARIES_PROBES_H
 #define __SHARED_LIBRARIES_PROBES_H
 
-#include "bpf_telemetry.h"
 #include "shared-libraries/types.h"
 
 static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
 #pragma unroll
     for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
-        bpf_probe_read_user_with_telemetry(&path->buf[i], 1, &path_argument[i]);
+        bpf_probe_read_user(&path->buf[i], 1, &path_argument[i]);
         if (path->buf[i] == 0) {
             path->len = i;
             break;
@@ -17,7 +16,7 @@ static __always_inline void fill_path_safe(lib_path_t *path, const char *path_ar
 
 static __always_inline void do_sys_open_helper_enter(const char *filename) {
     lib_path_t path = {0};
-    if (bpf_probe_read_user_with_telemetry(path.buf, sizeof(path.buf), filename) >= 0) {
+    if (bpf_probe_read_user(path.buf, sizeof(path.buf), filename) >= 0) {
 // Find the null character and clean up the garbage following it
 #pragma unroll
         for (int i = 0; i < LIB_PATH_MAX_SIZE; i++) {
@@ -38,7 +37,7 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     path.pid = pid_tgid >> 32;
-    bpf_map_update_with_telemetry(open_at_args, &pid_tgid, &path, BPF_ANY);
+    bpf_map_update_elem(&open_at_args, &pid_tgid, &path, BPF_ANY);
     return;
 }
 
@@ -85,7 +84,7 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_openat_ctx *args) {
     }
 
     u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output_with_telemetry((void*)args, &shared_libraries, cpu, path, sizeof(lib_path_t));
+    bpf_perf_event_output((void*)args, &shared_libraries, cpu, path, sizeof(lib_path_t));
 cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return;

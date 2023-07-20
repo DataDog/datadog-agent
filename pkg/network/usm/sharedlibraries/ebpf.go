@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,10 +38,10 @@ var traceTypes = []string{"enter", "exit"}
 type ebpfProgram struct {
 	cfg         *config.Config
 	perfHandler *ddebpf.PerfHandler
-	*errtelemetry.Manager
+	*manager.Manager
 }
 
-func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) *ebpfProgram {
+func newEBPFProgram(c *config.Config) *ebpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	mgr := &manager.Manager{
 		PerfMaps: []*manager.PerfMap{
@@ -73,16 +72,12 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 
 	return &ebpfProgram{
 		cfg:         c,
-		Manager:     errtelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:     mgr,
 		perfHandler: perfHandler,
 	}
 }
 
 func (e *ebpfProgram) Init() error {
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, nil)
-	}
-
 	var err error
 	if e.cfg.EnableCORE {
 		err = e.initCORE()

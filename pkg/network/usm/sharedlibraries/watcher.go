@@ -22,7 +22,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -60,8 +59,8 @@ type Watcher struct {
 	ebpfProgram    *ebpfProgram
 }
 
-func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := newEBPFProgram(cfg, bpfTelemetry)
+func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
+	ebpfProgram := newEBPFProgram(cfg)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)

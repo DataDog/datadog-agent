@@ -195,14 +195,6 @@ var gnuTLSProbes = []manager.ProbesSelector{
 const (
 	sslSockByCtxMap        = "ssl_sock_by_ctx"
 	sharedLibrariesPerfMap = "shared_libraries"
-
-	// probe used for streaming shared library events
-	openatSysCall  = "openat"
-	openat2SysCall = "openat2"
-)
-
-var (
-	traceTypes = []string{"enter", "exit"}
 )
 
 type sslProgram struct {
@@ -219,7 +211,7 @@ func newSSLProgram(c *config.Config, m *manager.Manager, sockFDMap *ebpf.Map, bp
 		return nil
 	}
 
-	watcher, err := sharedlibraries.NewWatcher(c, bpfTelemetry,
+	watcher, err := sharedlibraries.NewWatcher(c,
 		sharedlibraries.Rule{
 			Re:           regexp.MustCompile(`libssl.so`),
 			RegisterCB:   addHooks(m, openSSLProbes),
@@ -424,14 +416,6 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 					EBPFFuncName: identifier.EBPFFuncName,
 				})
 			}
-		}
-	}
-
-	for _, hook := range []string{openatSysCall, openat2SysCall} {
-		for _, traceType := range traceTypes {
-			probeList = append(probeList, manager.ProbeIdentificationPair{
-				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, hook),
-			})
 		}
 	}
 
