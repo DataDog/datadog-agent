@@ -16,11 +16,13 @@ class GithubAppException(Exception):
 
 
 class GithubApp(RemoteAPI):
+
+    BASE_URL = 'https://api.github.com'
+
     def __init__(self):
         super(GithubApp, self).__init__("GitHub APP")
         self.key_b64 = os.environ['GITHUB_KEY_B64']
         self.app_id = os.environ['GITHUB_APP_ID']
-        self.base_url = 'https://api.github.com'
         self.installation_id = os.environ.get('GITHUB_INSTALLATION_ID', None)
         if self.installation_id is None:
             # Even if we don't know the installation id, there's an API endpoint to
