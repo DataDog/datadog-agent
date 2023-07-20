@@ -443,6 +443,7 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 	if j.JavaToolsJarPath == "" {
 		if instanceConf.ToolsJarPath != "" {
 			j.JavaToolsJarPath = instanceConf.ToolsJarPath
+			log.info("tools_jar_path set")
 		}
 	}
 
