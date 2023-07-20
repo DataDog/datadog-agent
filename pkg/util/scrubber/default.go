@@ -286,8 +286,13 @@ func ScrubString(data string) (string, error) {
 // scrubber.  It can be safely applied to URLs or to strings containing URLs.
 // It does not run multi-line replacers, and should not be used on multi-line
 // inputs.
-func ScrubLine(url string) string {
-	return DefaultScrubber.ScrubLine(url)
+func ScrubLine(message string) string {
+	return DefaultScrubber.ScrubLine(message)
+}
+
+// ScrubLineWithCache scrubs similarly to ScrubLine, but using the embedded cache
+func ScrubLineWithCache(message string) string {
+	return DefaultScrubber.ScrubLineWithCache(message)
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies

@@ -17,6 +17,8 @@ import (
 	"io"
 	"os"
 	"regexp"
+
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // Replacer represents a replacement of sensitive information with a "clean" version.
@@ -71,13 +73,22 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 type Scrubber struct {
 	singleLineReplacers []Replacer
 	multiLineReplacers  []Replacer
+
+	cache *lru.Cache[string, string]
 }
+
+const SCRUBBER_CACHE_SIZE = 5
 
 // New creates a new scrubber with no replacers installed.
 func New() *Scrubber {
+	// the only way to get an error here is to provide a negative size
+	cache, _ := lru.New[string, string](SCRUBBER_CACHE_SIZE)
+
 	return &Scrubber{
 		singleLineReplacers: make([]Replacer, 0),
 		multiLineReplacers:  make([]Replacer, 0),
+
+		cache: cache,
 	}
 }
 
@@ -96,6 +107,8 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	case MultiLine:
 		c.multiLineReplacers = append(c.multiLineReplacers, replacer)
 	}
+
+	c.cache.Purge()
 }
 
 // ScrubFile scrubs credentials from file given by pathname
@@ -126,6 +139,17 @@ func (c *Scrubber) ScrubBytes(file []byte) ([]byte, error) {
 // replacers, and should not be used on multi-line inputs.
 func (c *Scrubber) ScrubLine(message string) string {
 	return string(c.scrub([]byte(message), c.singleLineReplacers))
+}
+
+// ScrubLineWithCache scrubs similarly to ScrubLine, but using the embedded cache
+func (c *Scrubber) ScrubLineWithCache(message string) string {
+	if cached, ok := c.cache.Get(message); ok {
+		return cached
+	}
+
+	scrubbed := c.ScrubLine(message)
+	c.cache.Add(message, scrubbed)
+	return scrubbed
 }
 
 // scrubReader applies the cleaning algorithm to a Reader

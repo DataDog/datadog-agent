@@ -252,7 +252,7 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 // GetTarget return the url used by the transaction
 func (t *HTTPTransaction) GetTarget() string {
 	url := t.Domain + t.Endpoint.Route
-	return scrubber.ScrubLine(url) // sanitized url that can be logged
+	return scrubber.ScrubLineWithCache(url) // sanitized url that can be logged
 }
 
 // GetPriority returns the priority
