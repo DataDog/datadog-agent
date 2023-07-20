@@ -15,9 +15,10 @@ import (
 type AppService struct{}
 
 const (
-	WebsiteName = "WEBSITE_SITE_NAME"
-	RegionName  = "REGION_NAME"
-	RunZip      = "APPSVC_RUN_ZIP"
+	WebsiteName  = "WEBSITE_SITE_NAME"
+	RegionName   = "REGION_NAME"
+	RunZip       = "APPSVC_RUN_ZIP"
+	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -54,9 +55,4 @@ func (a *AppService) GetPrefix() string {
 // Init is empty for AppService
 func (a *AppService) Init() error {
 	return nil
-}
-
-func isAppService() bool {
-	_, exists := os.LookupEnv(RunZip)
-	return exists
 }

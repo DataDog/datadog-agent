@@ -14,6 +14,7 @@ import (
 
 	"github.com/cihub/seelog"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/prometheus/client_golang/prometheus"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -36,12 +37,12 @@ const (
 
 var processCacheTelemetry = struct {
 	cacheEvicts   telemetry.Counter
-	cacheLength   telemetry.Gauge
+	cacheLength   *prometheus.Desc
 	eventsDropped telemetry.Counter
 	eventsSkipped telemetry.Counter
 }{
 	telemetry.NewCounter(processCacheModuleName, "cache_evicts", []string{}, "Counter measuring the number of evictions in the process cache"),
-	telemetry.NewGauge(processCacheModuleName, "cache_length", []string{}, "Gauge measuring the current size of the process cache"),
+	prometheus.NewDesc(processCacheModuleName+"__cache_length", "Gauge measuring the current size of the process cache", nil, nil),
 	telemetry.NewCounter(processCacheModuleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
 	telemetry.NewCounter(processCacheModuleName, "events_skipped", []string{}, "Counter measuring the number of skipped process events"),
 }
@@ -117,21 +118,6 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 				return
 			case p := <-pc.in:
 				pc.add(p)
-			}
-		}
-	}()
-
-	// Refreshes process cache telemetry on a loop
-	// TODO: Replace with prometheus collector interface
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-pc.stopped:
-				return
-			case <-ticker.C:
-				processCacheTelemetry.cacheLength.Set(float64(pc.cache.Len()))
 			}
 		}
 	}()
@@ -277,6 +263,16 @@ func (pc *processCache) Dump() (interface{}, error) {
 	}
 
 	return res, nil
+}
+
+// Describe returns all descriptions of the collector.
+func (pc *processCache) Describe(ch chan<- *prometheus.Desc) {
+	ch <- processCacheTelemetry.cacheLength
+}
+
+// Collect returns the current state of all metrics of the collector.
+func (pc *processCache) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(processCacheTelemetry.cacheLength, prometheus.GaugeValue, float64(pc.cache.Len()))
 }
 
 func (pl processList) update(p *process) processList {

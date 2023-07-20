@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // StubCheck stubs a check, should only be used in tests
@@ -56,3 +57,6 @@ func (c *StubCheck) InitConfig() string { return "" }
 
 // InstanceConfig returns the instance configuration of the check
 func (c *StubCheck) InstanceConfig() string { return "" }
+
+// GetDiagnoses returns the diagnoses of the check
+func (c *StubCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) { return nil, nil }

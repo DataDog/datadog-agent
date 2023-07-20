@@ -5,14 +5,13 @@
 
 //go:build ignore
 
-package kafka
+package ebpfcheck
 
 /*
-#include "../../ebpf/c/conn_tuple.h"
-#include "../../ebpf/c/protocols/kafka/types.h"
+#include "../../c/runtime/ebpf-kern-user.h"
 */
 import "C"
 
-type kafkaConnTuple C.conn_tuple_t
-
-type EbpfKafkaTx C.kafka_transaction_batch_entry_t
+type perfBufferKey C.perf_buffer_key_t
+type mmapRegion C.mmap_region_t
+type ringMmap C.ring_mmap_t

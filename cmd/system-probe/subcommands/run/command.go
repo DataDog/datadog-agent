@@ -34,6 +34,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -199,7 +200,9 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 
 	setupInternalProfiling(sysprobeconfig, configPrefix, log)
 
-	if ddconfig.Datadog.GetBool("remote_configuration.enabled") {
+	if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
+		// Even if the system-probe happen to not have access to ddconfig.Datadog, the
+		// thin client will deactivate itself if the core-agent RC server is disabled
 		err = rcclient.Listen("system-probe", []data.Product{data.ProductAgentConfig})
 		if err != nil {
 			return log.Criticalf("unable to start remote configuration client: %s", err)
@@ -225,6 +228,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
+			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{

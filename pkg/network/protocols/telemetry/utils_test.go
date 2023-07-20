@@ -36,3 +36,21 @@ func TestSplitTagsAndOpts(t *testing.T) {
 	})
 
 }
+
+func TestSplitName(t *testing.T) {
+	Clear()
+
+	t.Run("with namespace", func(t *testing.T) {
+		c1 := NewCounter("usm.http.hits")
+		namespace, name := splitName(c1)
+		assert.Equal(t, "usm.http", namespace)
+		assert.Equal(t, "hits", name)
+	})
+
+	t.Run("without namespace", func(t *testing.T) {
+		c2 := NewCounter("events")
+		namespace, name := splitName(c2)
+		assert.Equal(t, "", namespace)
+		assert.Equal(t, "events", name)
+	})
+}

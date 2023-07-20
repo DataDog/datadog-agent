@@ -6,6 +6,7 @@
 package telemetry
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,4 +25,17 @@ func TestMetricGroup(t *testing.T) {
 	// since we're here using the full (namespaced) name and the full tag set,
 	// we should get the previously created metrics
 	assert.Equal(int64(10), NewGauge("foo.m1", "tag:foo", "tag:abc").Get())
+}
+
+func TestMetricGroupSummary(t *testing.T) {
+	Clear()
+
+	metricGroup := NewMetricGroup("foo", "common_tag:whatever")
+	metricGroup.NewCounter("m1", "tag:foo").Add(10)
+	metricGroup.NewCounter("m2", "tag:bar").Add(20)
+
+	assert.Regexp(t,
+		regexp.MustCompile("m1\\[tag:foo\\]=10\\([0-9.]+/s\\) m2\\[tag:bar\\]=20\\([0-9.]+/s\\)"),
+		metricGroup.Summary(),
+	)
 }
