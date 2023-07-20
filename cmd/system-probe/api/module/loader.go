@@ -86,6 +86,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, server *grpc.Server, fact
 				log.Errorf("error registering grpc endpoints for module %s: %s", factory.Name, err)
 				continue
 			}
+			log.Infof("gRPC server listening on unix socket: %s", cfg.GRPCSocketFilePath)
 		}
 
 		l.routers[factory.Name] = subRouter

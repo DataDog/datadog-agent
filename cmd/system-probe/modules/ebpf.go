@@ -9,6 +9,7 @@ package modules
 
 import (
 	"fmt"
+	"google.golang.org/grpc"
 	"net/http"
 	"time"
 
@@ -44,6 +45,10 @@ var _ module.Module = &ebpfModule{}
 type ebpfModule struct {
 	*ebpfcheck.EBPFProbe
 	lastCheck *atomic.Int64
+}
+
+func (o *ebpfModule) RegisterGRPC(server *grpc.Server) error {
+	return nil
 }
 
 func (o *ebpfModule) Register(httpMux *module.Router) error {

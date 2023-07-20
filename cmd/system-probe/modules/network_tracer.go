@@ -101,8 +101,17 @@ func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Conne
 	return buf, nil
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
 	start := time.Now()
+	//MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message"))
+	maxConnsPerMessage := 1000
 	runCounter := atomic.NewUint64(0)
 	id := req.GetClientID()
 	cs, err := nt.tracer.GetActiveConnections(id)
@@ -122,8 +131,17 @@ func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequ
 	count := runCounter.Inc()
 	logRequests(id, count, len(cs.Conns), start)
 
-	// iterate over all the connections
-	return s2.Send(&connectionserver.Connection{Data: conns})
+	for len(conns) > 0 {
+		batchSize := min(maxConnsPerMessage, len(conns))
+		batchConns := conns[:batchSize]
+		// iterate over all the connections
+		err = s2.Send(&connectionserver.Connection{Data: batchConns})
+		if err != nil {
+			log.Errorf("unable to send current connection batch due to: %v", err)
+		}
+		conns = conns[batchSize:]
+	}
+	return nil
 }
 
 // Register all networkTracer endpoints

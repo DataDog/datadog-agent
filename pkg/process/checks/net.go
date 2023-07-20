@@ -319,6 +319,7 @@ func batchConnections(
 
 	dnsEncoder := model.NewV2DNSEncoder()
 
+	// TODO: amit: is it required to be moved into SP?
 	if len(cxs) > maxConnsPerMessage {
 		// Sort connections by remote IP/PID for more efficient resolution
 		sort.Slice(cxs, func(i, j int) bool {
@@ -330,8 +331,8 @@ func batchConnections(
 	}
 
 	for len(cxs) > 0 {
-		batchSize := min(maxConnsPerMessage, len(cxs))
-		batchConns := cxs[:batchSize] // Connections for this particular batch
+		//batchSize := min(maxConnsPerMessage, len(cxs))
+		//batchConns := cxs[:batchSize] // Connections for this particular batch
 
 		ctrIDForPID := make(map[int32]string)
 		batchDNS := make(map[string]*model.DNSDatabaseEntry)
@@ -340,7 +341,8 @@ func batchConnections(
 
 		tagsEncoder := model.NewV2TagEncoder()
 
-		for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+		// TODO: Amit: the content of the loop can remain the same
+		for _, c := range cxs { // We only want to include DNS entries relevant to this batch of connections
 			if entries, ok := dns[c.Raddr.Ip]; ok {
 				if _, present := batchDNS[c.Raddr.Ip]; !present {
 					// first, walks through and converts entries of type DNSEntry to DNSDatabaseEntry,
@@ -374,7 +376,8 @@ func batchConnections(
 		// map of old index to new index
 		newRouteIndices := make(map[int32]int32)
 		var batchRoutes []*model.Route
-		for _, c := range batchConns {
+		// TODO: Amit: Seems we can leave it as is.
+		for _, c := range cxs {
 			if c.RouteIdx < 0 {
 				continue
 			}
@@ -398,7 +401,7 @@ func batchConnections(
 			encodedNameDb = nil
 			// since we were unable to properly encode the indexToOffet map, the
 			// rest of the maps will now be unreadable by the back-end.  Just clear them
-			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+			for _, c := range cxs { // We only want to include DNS entries relevant to this batch of connections
 				c.DnsStatsByDomain = nil
 				c.DnsStatsByDomainByQueryType = nil
 				c.DnsStatsByDomainOffsetByQueryType = nil
@@ -412,7 +415,7 @@ func batchConnections(
 			if err != nil {
 				mappedDNSLookups = nil
 			}
-			for _, c := range batchConns { // We only want to include DNS entries relevant to this batch of connections
+			for _, c := range cxs { // We only want to include DNS entries relevant to this batch of connections
 				remapDNSStatsByOffset(c, indexToOffset)
 			}
 		}
@@ -420,7 +423,7 @@ func batchConnections(
 			AgentConfiguration:     agentCfg,
 			HostName:               hostInfo.HostName,
 			NetworkId:              networkID,
-			Connections:            batchConns,
+			Connections:            cxs,
 			GroupId:                groupID,
 			GroupSize:              groupSize,
 			ContainerForPid:        ctrIDForPID,
@@ -449,7 +452,7 @@ func batchConnections(
 		}
 		batches = append(batches, cc)
 
-		cxs = cxs[batchSize:]
+		// TODO: Amit: here we're dropping the current chunk, and taking the rest
 	}
 	return batches
 }
