@@ -40,6 +40,7 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -100,6 +101,10 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 	payloads, err := c.getFakePayloads("/support/flare")
 	if err != nil {
 		return flare.Flare{}, err
+	}
+
+	if len(payloads) == 0 {
+		return flare.Flare{}, errors.New("no flare available")
 	}
 
 	return flare.ParseRawFlare(payloads[len(payloads)-1])

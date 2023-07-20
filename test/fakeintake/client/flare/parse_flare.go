@@ -8,9 +8,9 @@ package flare
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"io"
 	"io/ioutil"
-	"log"
 	"mime"
 	"mime/multipart"
 	"os"
@@ -69,7 +69,11 @@ import (
 // For that it parses the multipart data from the flare request and then parses the flare zip raw content.
 func ParseRawFlare(flarePayload api.Payload) (Flare, error) {
 	// flarePayload.Encoding contains the value of Content-Type header from the flare request
-	boundary := parseBoundaryFromContentTypeHeader(flarePayload.Encoding)
+	boundary, err := parseBoundaryFromContentTypeHeader(flarePayload.Encoding)
+	if err != nil {
+		return Flare{}, err
+	}
+
 	parsedFlareData, err := parseFlareMultipartData(string(flarePayload.Data), boundary)
 	if err != nil {
 		return Flare{}, err
@@ -97,18 +101,19 @@ func ParseRawFlare(flarePayload api.Payload) (Flare, error) {
 //
 //	Input: "multipart/form-data; boundary=0cf50bf933f0ddecdd8cbfada84c4d6fa4cb226fd5893493f51fd01dfea5"
 //	Output: "0cf50bf933f0ddecdd8cbfada84c4d6fa4cb226fd5893493f51fd01dfea5"
-func parseBoundaryFromContentTypeHeader(contentTypeHeader string) string {
+func parseBoundaryFromContentTypeHeader(contentTypeHeader string) (string, error) {
 	var encoding string
 
 	mediaType, params, err := mime.ParseMediaType(contentTypeHeader)
-	if err != nil || !strings.HasPrefix(mediaType, "multipart/") {
-		log.Printf("Could not parse Content-Type header from flare request")
-		encoding = ""
+	if err != nil {
+		return "", err
+	} else if !strings.HasPrefix(mediaType, "multipart/") {
+		return "", errors.New("Content-Type header does not contain 'multipart/...'. Flare request might have been malformed.")
 	} else {
 		encoding = params["boundary"]
 	}
 
-	return encoding
+	return encoding, nil
 }
 
 // parseFlareMultipartData is responsible for parsing the raw multipart data and transform it into a mapping between field name and content.
