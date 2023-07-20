@@ -1835,11 +1835,12 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 func (s *TracerSuite) TestGetMapsTelemetry() {
 	t := s.T()
 
-	// This is required for telemetry collection to be activated.
 	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	tr := setupTracer(t, testConfig())
+	cfg := testConfig()
+	cfg.EnableHTTPSMonitoring = true
+	tr := setupTracer(t, cfg)
 
-	cmd := []string{"curl", "-k", "-o/dev/null", "--parallel", "example.com/[1-10]"}
+	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
@@ -1872,9 +1873,16 @@ func sysOpenAt2Supported() bool {
 func (s *TracerSuite) TestGetHelpersTelemetry() {
 	t := s.T()
 
-	// This is required for telemetry collection to be activated.
+	// We need the tracepoints on open syscall in order
+	// to test.
+	if !httpsSupported() {
+		t.Skip("HTTPS feature not available/supported for this setup")
+	}
+
 	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	tr := setupTracer(t, testConfig())
+	cfg := testConfig()
+	cfg.EnableHTTPSMonitoring = true
+	tr := setupTracer(t, cfg)
 
 	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"
 	syscallNumber := syscall.SYS_OPENAT
