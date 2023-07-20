@@ -24,14 +24,14 @@ type dependencies struct {
 	Config configComponent.Component
 }
 
-type agent struct {
+type logsAgent struct {
 	logsAgent *logs.Agent
 	log       logComponent.Component
 	config    configComponent.Component
 }
 
 func newLogsAgent(deps dependencies) Component {
-	logsAgent := &agent{log: deps.Log, config: deps.Config}
+	logsAgent := &logsAgent{log: deps.Log, config: deps.Config}
 	deps.Lc.Append(fx.Hook{
 		OnStart: logsAgent.start,
 		OnStop:  logsAgent.stop,
@@ -39,46 +39,46 @@ func newLogsAgent(deps dependencies) Component {
 	return logsAgent
 }
 
-func (a *agent) start(context.Context) error {
+func (l *logsAgent) start(context.Context) error {
 
-	if a.config.GetBool("logs_enabled") || a.config.GetBool("log_enabled") {
-		if a.config.GetBool("log_enabled") {
-			a.log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
+	if l.config.GetBool("logs_enabled") || l.config.GetBool("log_enabled") {
+		if l.config.GetBool("log_enabled") {
+			l.log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 		logsAgent, err := logs.CreateAgent()
 		if err != nil {
-			a.log.Error("Could not start logs-agent: ", err)
+			l.log.Error("Could not start logs-agent: ", err)
 			return err
 		}
-		a.logsAgent = logsAgent
+		l.logsAgent = logsAgent
 	} else {
-		a.log.Info("logs-agent disabled")
+		l.log.Info("logs-agent disabled")
 	}
 
 	return nil
 }
 
-func (a *agent) stop(context.Context) error {
-	if a.logsAgent != nil {
-		a.logsAgent.Stop()
+func (l *logsAgent) stop(context.Context) error {
+	if l.logsAgent != nil {
+		l.logsAgent.Stop()
 	}
 	return nil
 }
 
-func (a *agent) AddScheduler(scheduler schedulers.Scheduler) {
-	if a.logsAgent != nil {
-		a.logsAgent.AddScheduler(scheduler)
+func (l *logsAgent) AddScheduler(scheduler schedulers.Scheduler) {
+	if l.logsAgent != nil {
+		l.logsAgent.AddScheduler(scheduler)
 	}
 }
 
-func (a *agent) IsRunning() bool {
+func (l *logsAgent) IsRunning() bool {
 	return logs.IsAgentRunning()
 }
 
-func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
+func (l *logsAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 	return logs.GetMessageReceiver()
 }
 
-func (a *agent) Flush(ctx context.Context) {
+func (l *logsAgent) Flush(ctx context.Context) {
 	logs.Flush(ctx)
 }
