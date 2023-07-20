@@ -58,7 +58,6 @@ stages:
   - maintenance_jobs
   - deps_build
   - deps_fetch
-  - debug_e2e
   - source_test
   - source_test_junit_upload
   - binary_build
