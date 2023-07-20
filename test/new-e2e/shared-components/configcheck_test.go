@@ -23,9 +23,6 @@ func TestAgentConfigCheckSuite(t *testing.T) {
 	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(nil))
 }
 
-/*
- */
-
 type CheckConfigOutput struct {
 	CheckName  string
 	Filepath   string
@@ -166,6 +163,7 @@ func (v *agentSuite) TestDefaultInstalledChecks() {
 }
 
 func (v *agentSuite) TestWithBadConfigCheck() {
+	// invalid config because of tabspace
 	config := `instances:
 	- name: bad yaml formatting via tab
 `
