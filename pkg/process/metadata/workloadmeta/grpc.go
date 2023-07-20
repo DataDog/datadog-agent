@@ -93,6 +93,10 @@ func (l *GRPCServer) Start() error {
 	return nil
 }
 
+func (l *GRPCServer) Addr() net.Addr {
+	return l.addr
+}
+
 // Stop stops and cleans up resources allocated by the GRPCServer
 func (l *GRPCServer) Stop() {
 	log.Info("Stopping Process Entity WorkloadMeta gRPC server")

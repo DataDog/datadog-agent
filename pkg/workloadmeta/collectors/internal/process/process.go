@@ -15,8 +15,11 @@ const collectorId = "process"
 
 const collectionInterval = 1 * time.Minute
 
+// Used for testing
+var c *collector
+
 func init() {
-	workloadmeta.RegisterProcessAgentCollector(collectorId, func() workloadmeta.Collector {
+	workloadmeta.RegisterCollector(collectorId, func() workloadmeta.Collector {
 		// TODO: Inject config.Datadog via fx once collectors are migrated to components.
 		ddConfig := config.Datadog
 
@@ -25,13 +28,15 @@ func init() {
 		processData := checks.NewProcessData(ddConfig)
 		processData.Register(wlmExtractor)
 
-		return &collector{
-			ddConfig:     ddConfig,
-			wlmExtractor: wlmExtractor,
-			grpcServer:   workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
-			processData:  processData,
-			pidToCid:     make(map[int]string),
+		c = &collector{
+			ddConfig:         ddConfig,
+			wlmExtractor:     wlmExtractor,
+			grpcServer:       workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
+			processData:      processData,
+			collectionTicker: time.Tick(collectionInterval),
+			pidToCid:         make(map[int]string),
 		}
+		return c
 	})
 }
 
@@ -47,14 +52,22 @@ type collector struct {
 
 	pidToCid map[int]string
 
+	collectionTicker <-chan time.Time
+
 	store workloadmeta.Store
+
+	// A callback that is triggered when handleContainerEvent is called.
+	// Used in tests to avoid data races and race conditions.
+	onPidToCidUpdate func()
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
-	c.store = store
 
-	collectionTicker := time.NewTicker(collectionInterval)
-	defer collectionTicker.Stop()
+	c.store = store
+	err := c.grpcServer.Start()
+	if err != nil {
+		return err
+	}
 
 	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, workloadmeta.SourceAll, workloadmeta.EventTypeAll)
 	containerEvt := store.Subscribe("process_collector", workloadmeta.NormalPriority, filter)
@@ -63,11 +76,14 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 			select {
 			case evt := <-containerEvt:
 				c.handleContainerEvent(evt)
-			case <-collectionTicker.C:
+			case <-c.collectionTicker:
 				err := c.processData.Fetch()
-				_ = log.Error("Error fetching process data:", err)
+				if err != nil {
+					_ = log.Error("Error fetching process data:", err)
+				}
 			case <-ctx.Done():
 				c.grpcServer.Stop()
+				store.Unsubscribe(containerEvt)
 				return
 			}
 		}
@@ -98,4 +114,8 @@ func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 	}
 
 	c.wlmExtractor.SetLastPidToCid(c.pidToCid)
+
+	if c.onPidToCidUpdate != nil {
+		c.onPidToCidUpdate()
+	}
 }
