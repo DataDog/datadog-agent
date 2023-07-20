@@ -75,8 +75,13 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info) ([]MountInfo, 
 			sizeKB = (stat.Blocks * uint64(stat.Bsize)) / 1024
 		}
 
+		if sizeKB == 0 {
+			// Skip empty filesystems, like `df` does (unless using -a)
+			continue
+		}
+
 		// Skip mounts that seem to be missing data
-		if mount.Source == "" || mount.FSType == "" || mount.Mountpoint == "" {
+		if mount.Source == "" || mount.Source == "none" || mount.FSType == "" || mount.Mountpoint == "" {
 			continue
 		}
 
