@@ -9,7 +9,7 @@ import (
 	"archive/zip"
 	"io"
 	"io/fs"
-	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -45,7 +45,7 @@ func (flare *Flare) GetHostname() string {
 // FileExists returns true if the filename exists in the flare archive
 // If the file is within subfolders, the full path should be provided
 func (flare *Flare) FileExists(filename string) bool {
-	_, found := flare.zipFiles[trimTrailingSlash(filename)]
+	_, found := flare.zipFiles[filepath.Clean(filename)]
 	return found
 }
 
@@ -81,7 +81,7 @@ func (flare *Flare) FileContains(filename string, pattern string) bool {
 
 // getFile returns a *zip.File whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
 func (flare *Flare) getFile(path string) *zip.File {
-	return flare.zipFiles[trimTrailingSlash(path)]
+	return flare.zipFiles[filepath.Clean(path)]
 }
 
 // getFileInfo returns a fs.FileInfo associated to the file whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
@@ -104,9 +104,4 @@ func (flare *Flare) getFileContent(path string) string {
 	}
 
 	return string(fileContent)
-}
-
-// trimTrailingSlash removes all '/' (or equivalent depending on the OS) at the end of 'path'
-func trimTrailingSlash(path string) string {
-	return strings.TrimRight(path, string(os.PathSeparator))
 }

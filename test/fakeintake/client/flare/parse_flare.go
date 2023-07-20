@@ -14,6 +14,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -187,17 +188,14 @@ func parseRawZIP(rawContent []byte, prefixToTrim string) (map[string]*zip.File, 
 	}
 
 	for _, file := range reader.File {
-		// Remove trailing '/'s from folder names. Methods that will lookup the files list will also trim the '/' so that a search for 'path' and 'path/' will provide the same result
-		filename := strings.TrimRight(file.Name, string(os.PathSeparator))
-
 		// Remove redundant root folder name to avoid clutter and make the query API simpler
-		filename = strings.TrimPrefix(filename, prefixToTrim)
+		filename := strings.TrimPrefix(file.Name, prefixToTrim)
+
+		// Remove trailing '/'s from folder names. Methods that will lookup the files list will also trim the '/' so that a search for 'path' and 'path/' will provide the same result
+		filename = filepath.Clean(filename)
 
 		zipFiles[filename] = file
 	}
-
-	// Create an alias for root folder since its name was completely trimmed
-	zipFiles["."] = zipFiles[""]
 
 	return zipFiles, nil
 }
