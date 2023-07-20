@@ -503,23 +503,23 @@ func TestServiceClientPredicates(t *testing.T) {
 	wrongServiceName := "wrong-service"
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{}, 0)}},
-		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
+		"datadog/2/APM_SAMPLING/id/1": {Custom: customMeta([]*pbgo.TracerPredicateV1{}, 0)},
+		"datadog/2/APM_SAMPLING/id/2": {Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				RuntimeID: runtimeID,
 			},
-		}, 0)}},
+		}, 0)},
 		// must not be delivered
-		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
+		"datadog/2/TESTING1/id/1": {Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				RuntimeID: runtimeIDFail,
 			},
-		}, 0)}},
-		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
+		}, 0)},
+		"datadog/2/APPSEC/id/1": {Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				Service: wrongServiceName,
 			},
-		}, 0)}},
+		}, 0)},
 	},
 		nil,
 	)
@@ -789,9 +789,9 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta(nil, 0)}},
+		"datadog/2/APM_SAMPLING/id/1": {Custom: customMeta(nil, 0)},
 		// must not be delivered - expiration date is 9/21/2022
-		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta(nil, 1663732800)}},
+		"datadog/2/APM_SAMPLING/id/2": {Custom: customMeta(nil, 1663732800)},
 	},
 		nil,
 	)
