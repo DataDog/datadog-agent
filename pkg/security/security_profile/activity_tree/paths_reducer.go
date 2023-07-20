@@ -94,10 +94,10 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`(kubepods-|cri-containerd-)([^/]*)\.(slice|scope)`), // kubernetes cgroup
+			Pattern: regexp.MustCompile(`(?:kubepods-|cri-containerd-)([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
 			Callback: func(ctx *callbackContext) {
 				if ctx.fileEvent.Filesystem == "sysfs" {
-					start, end := ctx.getGroup(2)
+					start, end := ctx.getGroup(1)
 					ctx.path = ctx.path[:start] + "*" + ctx.path[end:]
 				}
 			},
@@ -110,10 +110,10 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`/sys/devices/virtual/block/(dm-|loop)([0-9]+)`), // block devices
+			Pattern: regexp.MustCompile(`/sys/devices/virtual/block/(?:dm-|loop)([0-9]+)`), // block devices
 			Callback: func(ctx *callbackContext) {
 				if ctx.fileEvent.Filesystem == "sysfs" {
-					start, end := ctx.getGroup(2)
+					start, end := ctx.getGroup(1)
 					ctx.path = ctx.path[:start] + "*" + ctx.path[end:]
 				}
 			},
