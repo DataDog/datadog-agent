@@ -114,7 +114,18 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(`(?:kubepods-|cri-containerd-)([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
+			Pattern: regexp.MustCompile(`kubepods-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
+			Hint:    "kubepods",
+			Callback: func(ctx *callbackContext) {
+				if ctx.fileEvent.Filesystem == "sysfs" {
+					start, end := ctx.getGroup(1)
+					ctx.replaceBy(start, end, "*")
+				}
+			},
+		},
+		{
+			Pattern: regexp.MustCompile(`cri-containerd-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
+			Hint:    "cri-containerd",
 			Callback: func(ctx *callbackContext) {
 				if ctx.fileEvent.Filesystem == "sysfs" {
 					start, end := ctx.getGroup(1)
