@@ -23,11 +23,11 @@ def vm_config_exists(stack):
     return os.path.exists(f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}")
 
 
-def create_stack(ctx, stack=None, branch=False):
+def create_stack(ctx, stack=None):
     if not os.path.exists(f"{KMT_STACKS_DIR}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
-    stack = check_and_get_stack(stack, branch)
+    stack = check_and_get_stack(stack)
 
     stack_dir = f"{KMT_STACKS_DIR}/{stack}"
     if os.path.exists(stack_dir):
@@ -76,8 +76,8 @@ def ask_for_ssh():
     )
 
 
-def launch_stack(ctx, stack, branch, ssh_key, x86_ami, arm_ami):
-    stack = check_and_get_stack(stack, branch)
+def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
@@ -236,8 +236,8 @@ def destroy_stack_force(ctx, stack):
     )
 
 
-def destroy_stack(ctx, stack, branch, force, ssh_key):
-    stack = check_and_get_stack(stack, branch)
+def destroy_stack(ctx, stack, force, ssh_key):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
@@ -250,8 +250,8 @@ def destroy_stack(ctx, stack, branch, force, ssh_key):
     ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
 
 
-def pause_stack(stack=None, branch=False):
-    stack = check_and_get_stack(stack, branch)
+def pause_stack(stack=None):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
     conn = libvirt.open("qemu:///system")
@@ -259,8 +259,8 @@ def pause_stack(stack=None, branch=False):
     conn.close()
 
 
-def resume_stack(stack=None, branch=False):
-    stack = check_and_get_stack(stack, branch)
+def resume_stack(stack=None):
+    stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
     conn = libvirt.open("qemu:///system")
