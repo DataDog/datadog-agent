@@ -24,6 +24,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -477,12 +478,9 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
 			// the guessing for `struct sk_buff`
 			next := GuessSKBuffSock
-			kv, err := kernel.HostVersion()
-			if err != nil {
-				return fmt.Errorf("error getting kernel version: %w", err)
-			}
-			// no tracepoint support in kernels < 4.7
-			if kv < kernel.VersionCode(4, 7, 0) {
+
+			// check for IPv6 enabled and tracepoint being disabled
+			if (t.guessTCPv6 || t.guessUDPv6) && features.HaveProgramType(ebpf.TracePoint) != nil {
 				next = GuessDAddrIPv6
 			}
 			t.logAndAdvance(t.status.Offset_socket_sk, next)
