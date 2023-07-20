@@ -6,7 +6,6 @@
 package stats
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 
@@ -56,9 +55,6 @@ func NewCustomTagKey(customTags []string) CustomTagKey {
 	for _, tag := range customTags {
 		tags = append(tags, strings.TrimSpace(tag))
 	}
-
-	sort.Strings(tags)
-
 	return CustomTagKey(strings.Join(tags, ","))
 }
 
@@ -84,6 +80,8 @@ func getStatusCode(s *pb.Span) uint32 {
 func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, customTagConf map[string][]string) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 
+	// log.Info("conf map: ")
+	// log.Info(customTagConf)
 	customTagSlice := []string{}
 
 	spanTags, ok := customTagConf[s.Name]
@@ -109,8 +107,8 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 			}
 		}
 	}
-
 	customKey := NewCustomTagKey(customTagSlice)
+	log.Info("tag key: " + customKey)
 
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,

@@ -30,8 +30,6 @@ const (
 	testEnv      = "testing"
 )
 
-var conf = &config.AgentConfig{}
-
 func assertPayload(assert *assert.Assertions, testSets []pb.StatsPayload, payloads []*payload) {
 	expectedHeaders := map[string]string{
 		"X-Datadog-Reported-Languages": strings.Join(info.Languages(), "|"),
@@ -75,9 +73,9 @@ func TestStatsWriter(t *testing.T) {
 					Hostname: testHostname,
 					Env:      testEnv,
 					Stats: []pb.ClientStatsBucket{
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
 					},
 				}},
 			},
@@ -89,9 +87,9 @@ func TestStatsWriter(t *testing.T) {
 					Hostname: testHostname,
 					Env:      testEnv,
 					Stats: []pb.ClientStatsBucket{
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
 					},
 				}},
 			},
@@ -124,9 +122,9 @@ func TestStatsWriter(t *testing.T) {
 				Service:          "service",
 				ContainerID:      "container-id",
 				Stats: []pb.ClientStatsBucket{
-					testutil.RandomBucket(5, conf),
-					testutil.RandomBucket(5, conf),
-					testutil.RandomBucket(5, conf),
+					testutil.RandomBucket(5),
+					testutil.RandomBucket(5),
+					testutil.RandomBucket(5),
 				}},
 			},
 		}
@@ -171,9 +169,9 @@ func TestStatsWriter(t *testing.T) {
 			Hostname: testHostname,
 			Env:      testEnv,
 			Stats: []pb.ClientStatsBucket{
-				testutil.RandomBucket(5, conf),
-				testutil.RandomBucket(5, conf),
-				testutil.RandomBucket(5, conf),
+				testutil.RandomBucket(5),
+				testutil.RandomBucket(5),
+				testutil.RandomBucket(5),
 			},
 		}
 
@@ -222,9 +220,9 @@ func TestStatsSyncWriter(t *testing.T) {
 					Hostname: testHostname,
 					Env:      testEnv,
 					Stats: []pb.ClientStatsBucket{
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
 					},
 				}}},
 			{
@@ -232,9 +230,9 @@ func TestStatsSyncWriter(t *testing.T) {
 					Hostname: testHostname,
 					Env:      testEnv,
 					Stats: []pb.ClientStatsBucket{
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
 					},
 				}}},
 		}
@@ -256,9 +254,9 @@ func TestStatsSyncWriter(t *testing.T) {
 					Hostname: testHostname,
 					Env:      testEnv,
 					Stats: []pb.ClientStatsBucket{
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
 					},
 				}}},
 			{
@@ -266,9 +264,9 @@ func TestStatsSyncWriter(t *testing.T) {
 					Hostname: testHostname,
 					Env:      testEnv,
 					Stats: []pb.ClientStatsBucket{
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
-						testutil.RandomBucket(3, conf),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
+						testutil.RandomBucket(3),
 					},
 				}}},
 		}

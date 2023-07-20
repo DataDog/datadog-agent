@@ -20,6 +20,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -1428,4 +1429,29 @@ func TestComputeStatsBySpanKind(t *testing.T) {
 		assert.NoError(err)
 		assert.True(cfg.ComputeStatsBySpanKind)
 	})
+}
+
+func TestCustomTagsAggregationYAML(t *testing.T) {
+	datadogYaml := `
+	apm_config:
+		custom_tags:
+			"sqlquery": ["georegion", "costcenter"]
+			"redis": ["country"]
+			"*": ["georegion", "place"]
+`
+	testConfig := SetupConfFromYAML(datadogYaml)
+	require.True(t, testConfig.GetBool("apm_config.custom_tags"))
+
+	// type testCase struct {
+	// 	name  string
+	// 	setup func(t *testing.T, config Config)
+	// 	tests func(t *testing.T, config Config)
+	// }
+
+	expectedTags := map[string][]string{
+		"sql_query": []string{"georegion", "costcenter"},
+		"redis":     []string{"country"},
+		"*":         []string{"place"}}
+
+	require.Equal(t, expectedTags, applyCustomTagsConfig(testConfig.Get("apm_config.custom_tags")))
 }

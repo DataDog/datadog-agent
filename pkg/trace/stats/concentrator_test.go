@@ -628,7 +628,7 @@ func TestCustomTagStats(t *testing.T) {
 		Resource: "SELECT user_id from users WHERE user_name = ?",
 		Duration: 75,
 		Metrics:  map[string]float64{"_dd.measured": 1.0},
-		Meta:     map[string]string{"georegion": "amer", "costcenter": "canada"},
+		Meta:     map[string]string{"costcenter": "canada", "georegion": "amer"},
 	}
 	t.Run("enabled", func(t *testing.T) {
 		spans := []*pb.Span{sp, customTagSp}
@@ -637,7 +637,7 @@ func TestCustomTagStats(t *testing.T) {
 		c := NewTestConcentrator(now)
 
 		c.customTags = map[string][]string{
-			"postgres.query": {"georegion", "costcenter"}}
+			"postgres.query": {"costcenter", "georegion"}}
 
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)

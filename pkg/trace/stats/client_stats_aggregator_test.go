@@ -423,7 +423,7 @@ func TestNewBucketAggregationKeyPeerService(t *testing.T) {
 func TestNewCustomTagKeyAggregation(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		assert := assert.New(t)
-		customTags := [2]string{"georegion", "costcenter"}
+		customTags := [2]string{"costcenter", "georegion"}
 		r := NewCustomTagKey(customTags[:])
 		assert.Equal(CustomTagKey("costcenter,georegion"), r)
 	})

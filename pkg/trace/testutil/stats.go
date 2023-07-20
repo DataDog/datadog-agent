@@ -6,7 +6,6 @@
 package testutil
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -20,7 +19,7 @@ const (
 )
 
 // BucketWithSpans returns a stats bucket populated with spans stats
-func BucketWithSpans(spans []*pb.Span, conf *config.AgentConfig) pb.ClientStatsBucket {
+func BucketWithSpans(spans []*pb.Span) pb.ClientStatsBucket {
 
 	srb := stats.NewRawBucket(0, 1e9)
 	aggKey := stats.PayloadAggregationKey{
@@ -32,7 +31,7 @@ func BucketWithSpans(spans []*pb.Span, conf *config.AgentConfig) pb.ClientStatsB
 	for _, s := range spans {
 		// override version to ensure all buckets will have the same payload key.
 		s.Meta["version"] = ""
-		srb.HandleSpan(s, 0, true, "", aggKey, true, conf.CustomTags)
+		srb.HandleSpan(s, 0, true, "", aggKey, true, nil)
 	}
 	buckets := srb.Export()
 	if len(buckets) != 1 {
@@ -45,13 +44,13 @@ func BucketWithSpans(spans []*pb.Span, conf *config.AgentConfig) pb.ClientStatsB
 }
 
 // RandomBucket returns a bucket made from n random spans, useful to run benchmarks and tests
-func RandomBucket(n int, conf *config.AgentConfig) pb.ClientStatsBucket {
+func RandomBucket(n int) pb.ClientStatsBucket {
 	spans := make([]*pb.Span, 0, n)
 	for i := 0; i < n; i++ {
 		spans = append(spans, RandomSpan())
 	}
 
-	return BucketWithSpans(spans, conf)
+	return BucketWithSpans(spans)
 }
 
 // StatsPayloadSample returns a populated client stats payload

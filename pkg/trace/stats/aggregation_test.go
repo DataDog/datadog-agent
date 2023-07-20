@@ -95,8 +95,8 @@ func TestNewAggregationCustomTags(t *testing.T) {
 
 	customTagsMap := make(map[string][]string)
 
-	customTagsMap["a"] = []string{"georegion"}
-	customTagsMap["*"] = []string{"costcenter"}
+	customTagsMap["a"] = []string{"costcenter", "country"}
+	customTagsMap["*"] = []string{"georegion"}
 
 	for _, tt := range []struct {
 		in  *pb.Span
@@ -109,9 +109,9 @@ func TestNewAggregationCustomTags(t *testing.T) {
 		{
 			&pb.Span{
 				Name: "a",
-				Meta: map[string]string{"georegion": "amer", "costcenter": "accounting"},
+				Meta: map[string]string{"costcenter": "accounting", "country": "canada", "georegion": "amer"},
 			},
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Name: "a"}, CustomTagKey: "costcenter:accounting,georegion:amer"},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Name: "a"}, CustomTagKey: "costcenter:accounting,country:canada,georegion:amer"},
 		},
 	} {
 		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, false, customTagsMap))
@@ -128,11 +128,12 @@ func TestNewAggregationCustomTags(t *testing.T) {
 		{
 			&pb.Span{
 				Name: "b",
-				Meta: map[string]string{"georegion": "amer", "costcenter": "accounting"},
+				Meta: map[string]string{"georegion": "amer", "costcenter": "accounting", "country": "canada"},
 			},
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Name: "b"}, CustomTagKey: "costcenter:accounting"},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Name: "b"}, CustomTagKey: "georegion:amer"},
 		},
 	} {
 		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, false, customTagsMap))
 	}
+
 }
