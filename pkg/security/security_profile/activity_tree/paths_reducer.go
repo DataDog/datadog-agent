@@ -39,11 +39,14 @@ func (cc *callbackContext) getGroup(index int) (int, int) {
 }
 
 func (cc *callbackContext) replaceBy(start, end int, replaceBy string) {
+	left := cc.path[:start]
+	right := cc.path[end:]
+
 	var b strings.Builder
-	b.Grow(len(cc.path[:start]) + len(replaceBy) + len(cc.path[end:]))
-	b.WriteString(cc.path[:start])
+	b.Grow(len(left) + len(replaceBy) + len(right))
+	b.WriteString(left)
 	b.WriteString(replaceBy)
-	b.WriteString(cc.path[end:])
+	b.WriteString(right)
 	cc.path = b.String()
 }
 
