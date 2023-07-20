@@ -64,7 +64,7 @@ func (flare *Flare) HasPerm(filename string, perm fs.FileMode) bool {
 	return flare.FileExists(filename) && flare.getFileInfo(filename).Mode().Perm() == perm
 }
 
-// IsFile returns true if filename is a regular file and its content is not empty
+// FileHasContent returns true if filename is a regular file and its content is not empty
 func (flare *Flare) FileHasContent(filename string) bool {
 	return flare.IsFile(filename) && flare.getFileInfo(filename).Size() > 0
 }

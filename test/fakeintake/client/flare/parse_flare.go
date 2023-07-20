@@ -65,7 +65,7 @@ import (
 //
 // The resulting output is a Flare struct that provides an API to verify assertions on the flare.
 
-// decodeRawFlare parses the flare payload sent by the Fake Intake into a manageable Flare struct
+// ParseRawFlare parses the flare payload sent by the Fake Intake into a manageable Flare struct
 // For that it parses the multipart data from the flare request and then parses the flare zip raw content.
 func ParseRawFlare(flarePayload api.Payload) (Flare, error) {
 	// flarePayload.Encoding contains the value of Content-Type header from the flare request
@@ -146,7 +146,7 @@ func parseFlareMultipartData(data string, boundary string) (map[string][]byte, e
 	return multipartNameToContent, nil
 }
 
-// decodeRawZip takes the raw content of a zip file, reads it and then creates a mapping between filenames and *zip.File.
+// parseRawZip takes the raw content of a zip file, reads it and then creates a mapping between filenames and *zip.File.
 // We create this mapping (instead of just using []*zip.File provided by zip.Reader) to easily query a specific file and verify assertions on it.
 // Root directory name 'prefixToTrim' is removed from filenames
 //

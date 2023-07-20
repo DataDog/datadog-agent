@@ -15,8 +15,8 @@ type flareResponseBody struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// getRespondeBodyFromURLPath returns the appropriate response body to HTTP request sent to 'urlPath'
-func getRespondeBodyFromURLPath(urlPath string) interface{} {
+// getResponseBodyFromURLPath returns the appropriate response body to HTTP request sent to 'urlPath'
+func getResponseBodyFromURLPath(urlPath string) interface{} {
 	var body interface{}
 
 	if urlPath == "/support/flare" {

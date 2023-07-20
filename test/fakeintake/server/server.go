@@ -209,7 +209,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	fi.safeAppendPayload(req.URL.Path, payload, encoding)
 
-	responseBody := getRespondeBodyFromURLPath(req.URL.Path)
+	responseBody := getResponseBodyFromURLPath(req.URL.Path)
 	response := buildSuccessResponse(responseBody)
 	writeHttpResponse(w, response)
 }
