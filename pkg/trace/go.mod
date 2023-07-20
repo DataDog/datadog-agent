@@ -34,7 +34,7 @@ require (
 	go.opentelemetry.io/collector/pdata v1.0.0-rcv0013
 	go.opentelemetry.io/collector/semconv v0.81.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.9.0
+	golang.org/x/sys v0.10.0
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.56.0
 	google.golang.org/protobuf v1.30.0
@@ -42,7 +42,7 @@ require (
 )
 
 require (
-	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork // indirect
+	github.com/DataDog/go-tuf v1.0.0-0.5.2 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
@@ -62,7 +62,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
-	github.com/secure-systems-lab/go-securesystemslib v0.5.0 // indirect
+	github.com/secure-systems-lab/go-securesystemslib v0.7.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
