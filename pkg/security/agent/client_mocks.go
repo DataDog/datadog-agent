@@ -7,6 +7,7 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"math"
 )
 
 // Mocks
@@ -68,22 +69,14 @@ func (rsc *MockRuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportR
 			Policies: []*api.EventTypePolicy{
 				{
 					EventType: "exec",
-					Mode:      "accept",
-					Flags: []string{
-						"basename",
-						"flags",
-						"mode",
-					},
+					Mode:      1,
+					Flags:     math.MaxUint8,
 					Approvers: nil,
 				},
 				{
 					EventType: "open",
-					Mode:      "deny",
-					Flags: []string{
-						"basename",
-						"flags",
-						"mode",
-					},
+					Mode:      2,
+					Flags:     math.MaxUint8,
 					Approvers: &api.Approvers{
 						ApproverDetails: []*api.ApproverDetails{
 							{

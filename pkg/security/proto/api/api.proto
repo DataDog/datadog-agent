@@ -45,8 +45,8 @@ message RuleSetReportMessage{
 
 message EventTypePolicy{
     string EventType = 1;
-    string Mode = 2;
-    repeated string Flags = 3;
+    uint32 Mode = 2;
+    uint32 Flags = 3;
     Approvers Approvers = 4;
 }
 

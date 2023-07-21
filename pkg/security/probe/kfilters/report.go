@@ -22,26 +22,6 @@ type PolicyReport struct {
 	Approvers rules.Approvers
 }
 
-type PolicyReportToPrint struct {
-	Mode      string
-	Flags     []string
-	Approvers ReportApprovers
-}
-
-type ApproverToPrint struct {
-	Field string
-	Value interface{}
-	Type  string // rules.Approvers is int
-}
-
-type ReportApprovers map[string][]ApproverToPrint
-type PoliciesByEventTypeToPrint map[string]*PolicyReportToPrint
-
-// ApplyRuleSetReport describes the event types and their associated policy policies
-type ApplyRuleSetReportToPrint struct {
-	Policies map[string]*PolicyReportToPrint
-}
-
 // ApplyRuleSetReport describes the event types and their associated policy policies
 type ApplyRuleSetReport struct {
 	Policies map[string]*PolicyReport

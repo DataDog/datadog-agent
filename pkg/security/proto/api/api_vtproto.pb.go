@@ -475,21 +475,15 @@ func (m *EventTypePolicy) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x22
 	}
-	if len(m.Flags) > 0 {
-		for iNdEx := len(m.Flags) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Flags[iNdEx])
-			copy(dAtA[i:], m.Flags[iNdEx])
-			i = encodeVarint(dAtA, i, uint64(len(m.Flags[iNdEx])))
-			i--
-			dAtA[i] = 0x1a
-		}
-	}
-	if len(m.Mode) > 0 {
-		i -= len(m.Mode)
-		copy(dAtA[i:], m.Mode)
-		i = encodeVarint(dAtA, i, uint64(len(m.Mode)))
+	if m.Flags != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Flags))
 		i--
-		dAtA[i] = 0x12
+		dAtA[i] = 0x18
+	}
+	if m.Mode != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Mode))
+		i--
+		dAtA[i] = 0x10
 	}
 	if len(m.EventType) > 0 {
 		i -= len(m.EventType)
@@ -2765,15 +2759,11 @@ func (m *EventTypePolicy) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.Mode)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
+	if m.Mode != 0 {
+		n += 1 + sov(uint64(m.Mode))
 	}
-	if len(m.Flags) > 0 {
-		for _, s := range m.Flags {
-			l = len(s)
-			n += 1 + l + sov(uint64(l))
-		}
+	if m.Flags != 0 {
+		n += 1 + sov(uint64(m.Flags))
 	}
 	if m.Approvers != nil {
 		l = m.Approvers.SizeVT()
@@ -4516,10 +4506,10 @@ func (m *EventTypePolicy) UnmarshalVT(dAtA []byte) error {
 			m.EventType = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
-			if wireType != 2 {
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Mode", wireType)
 			}
-			var stringLen uint64
+			m.Mode = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -4529,29 +4519,16 @@ func (m *EventTypePolicy) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				m.Mode |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Mode = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 3:
-			if wireType != 2 {
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Flags", wireType)
 			}
-			var stringLen uint64
+			m.Flags = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -4561,24 +4538,11 @@ func (m *EventTypePolicy) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				m.Flags |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Flags = append(m.Flags, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
 		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Approvers", wireType)

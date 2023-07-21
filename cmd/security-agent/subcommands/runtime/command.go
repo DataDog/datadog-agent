@@ -15,7 +15,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -388,51 +387,6 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func FromAPIRuleSetReportToKFiltersRuleSetReport(apiRuleSetReport *api.RuleSetReportMessage) map[string]map[string]*kfilters.PolicyReportToPrint {
-	transformedRuleSetReport := make(map[string]*kfilters.PolicyReportToPrint)
-	var wholeReport = map[string]map[string]*kfilters.PolicyReportToPrint{
-		"Policies": transformedRuleSetReport,
-	}
-
-	for _, policy := range apiRuleSetReport.GetPolicies() {
-		approversToPrint := FromAPIApproversToKFiltersApprovers(policy.GetApprovers())
-		if len(approversToPrint) == 0 {
-			approversToPrint = nil // This is here to ensure that the printed result is `"Approvers": null` and not `"Approvers": {}`
-		}
-		wholeReport["Policies"][policy.EventType] = &kfilters.PolicyReportToPrint{
-			Mode:      policy.GetMode(),
-			Flags:     policy.GetFlags(),
-			Approvers: approversToPrint,
-		}
-	}
-
-	return wholeReport
-}
-
-func FromAPIApproversToKFiltersApprovers(apiApprovers *api.Approvers) kfilters.ReportApprovers {
-	approversToPrint := make(kfilters.ReportApprovers)
-
-	for _, approver := range apiApprovers.GetApproverDetails() {
-		var approverToPrint interface{}
-		approverVal := approver.GetValue()
-		approverInt, err := strconv.Atoi(approver.GetValue())
-		if err != nil {
-			approverToPrint = approverVal
-		} else {
-			approverToPrint = approverInt
-		}
-
-		approversToPrint[approver.GetField()] = append(approversToPrint[approver.GetField()],
-			kfilters.ApproverToPrint{
-				Field: approver.GetField(),
-				Value: approverToPrint,
-				Type:  eval.FieldValueType(approver.GetType()).String(),
-			})
-	}
-
-	return approversToPrint
-}
-
 func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
 		client, err := secagent.NewRuntimeSecurityClient()
@@ -456,7 +410,7 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 		return fmt.Errorf("get policies request failed: %s", output.Error)
 	}
 
-	transformedOutput := FromAPIRuleSetReportToKFiltersRuleSetReport(output.GetRuleSetReportMessage())
+	transformedOutput := output.GetRuleSetReportMessage().FromProtoToKFiltersRuleSetReport()
 
 	content, _ := json.MarshalIndent(transformedOutput, "", "\t")
 	_, err = fmt.Fprintf(writer, "%s\n", string(content))
