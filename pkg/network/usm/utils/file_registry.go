@@ -8,30 +8,70 @@
 package utils
 
 import (
+	"fmt"
 	"sync"
 
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 )
 
-// FileRegistry keeps track of files (uniquely determined by their underlying
-// PathIdentifier) and processes actively using them.
+// FileRegistry is responsible for tracking open files and executing callbacks
+// *once* when they become "active" and *once* when they became "inactive",
+// which means the point in time when no processes hold a file descriptor
+// pointing to it.
+//
+// Internally, we essentially store a reference counter for each
+// `PathIdentifier`, which can be thought of as a global identifier for a file
+// (a device/inode tuple);
+//
+// We consider a file to be active when there is one or more open file descriptors
+// pointing to it (reference count >= 1), and inactivate when all processes previously
+// referencing terminate (reference count == 0);
+//
+// The following example demonstrates the basic functionality of the `FileRegistry`:
+//
+// PID 50 opens /foobar => *activation* callback is executed; /foobar references=1
+// PID 60 opens /foobar => no callback is executed; /foobar references=2
+// PID 50 terminates => no callback is executed; /foobar references=1
+// PID 60 terminates => *deactivation* callback is executed; /foobar references=0
 type FileRegistry struct {
-	m     sync.RWMutex
-	byID  map[PathIdentifier]*registration
-	byPID map[uint32]pathIdentifierSet
+	m        sync.RWMutex
+	stopped  bool
+	procRoot string
+	byID     map[PathIdentifier]*registration
+	byPID    map[uint32]pathIdentifierSet
 
-	// if we can't register a uprobe we don't try more than once
+	// if we can't execute a callback for a given file we don't try more than once
 	blocklistByID pathIdentifierSet
 
 	telemetry registryTelemetry
 }
 
-type activationCB func(id PathIdentifier, root string, path string) error
-type deactivationCB func(id PathIdentifier) error
+// FilePath represents the location of a file from the *root* namespace view
+type FilePath struct {
+	HostPath string
+	ID       PathIdentifier
+}
+
+func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) {
+	// usw cwd of the process as root if the namespacedPath is relative
+	if namespacedPath[0] != '/' {
+		namespacedPath = "/cwd" + namespacedPath
+	}
+
+	path := fmt.Sprintf("%s/%d/root%s", procRoot, pid, namespacedPath)
+	pathID, err := NewPathIdentifier(path)
+	if err != nil {
+		return FilePath{}, err
+	}
+
+	return FilePath{HostPath: path, ID: pathID}, nil
+}
+
+type callback func(FilePath) error
 
 func NewFileRegistry() *FileRegistry {
 	metricGroup := telemetry.NewMetricGroup(
@@ -40,6 +80,7 @@ func NewFileRegistry() *FileRegistry {
 	)
 
 	return &FileRegistry{
+		procRoot:      util.GetProcRoot(),
 		byID:          make(map[PathIdentifier]*registration),
 		byPID:         make(map[uint32]pathIdentifierSet),
 		blocklistByID: make(pathIdentifierSet),
@@ -57,22 +98,29 @@ func NewFileRegistry() *FileRegistry {
 	}
 }
 
-// Register a ELF library root/libPath as be used by the pid
-// Only one registration will be done per ELF (system wide)
-func (r *FileRegistry) Register(root, libPath string, pid uint32, activate activationCB, deactivate deactivationCB) {
-	hostLibPath := root + libPath
-	pathID, err := NewPathIdentifier(hostLibPath)
-	if err != nil {
-		// short living process can hit here
-		// as we receive the openat() syscall info after receiving the EXIT netlink process
-		if log.ShouldLog(seelog.TraceLvl) {
-			log.Tracef("can't create path identifier %s", err)
-		}
+// Register inserts or updates a new file registration within to the `FileRegistry`;
+//
+// If no current registration exists for the given `PathIdentifier`, we execute
+// its *activation* callback. Otherwise, we increment the reference counter for
+// the existing registration if and only if `pid` is new;
+func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB callback) {
+	if activationCB == nil && deactivationCB == nil {
+		// if *both* callbacks are nil, there is no point in proceeding
 		return
 	}
 
+	path, err := NewFilePath(r.procRoot, namespacedPath, pid)
+	if err != nil {
+		return
+	}
+
+	pathID := path.ID
 	r.m.Lock()
 	defer r.m.Unlock()
+	if r.stopped {
+		return
+	}
+
 	if _, found := r.blocklistByID[pathID]; found {
 		r.telemetry.libBlocked.Add(1)
 		return
@@ -81,7 +129,7 @@ func (r *FileRegistry) Register(root, libPath string, pid uint32, activate activ
 	if reg, found := r.byID[pathID]; found {
 		if _, found := r.byPID[pid][pathID]; !found {
 			reg.uniqueProcessesCount.Inc()
-			// Can happen if a new process opens the same so.
+			// can happen if a new process opens an already active file
 			if len(r.byPID[pid]) == 0 {
 				r.byPID[pid] = pathIdentifierSet{}
 			}
@@ -91,44 +139,45 @@ func (r *FileRegistry) Register(root, libPath string, pid uint32, activate activ
 		return
 	}
 
-	if err := activate(pathID, root, libPath); err != nil {
-		log.Debugf("error registering library (adding to blocklist) %s path %s by pid %d : %s", pathID.String(), hostLibPath, pid, err)
-		// we are calling UnregisterCB here as some uprobes could be already attached, UnregisterCB cleanup those entries
-		if deactivate != nil {
-			if err := deactivate(pathID); err != nil {
-				log.Debugf("UnregisterCB library %s path %s : %s", pathID.String(), hostLibPath, err)
-			}
-		}
-		// save sentinel value, so we don't attempt to re-register shared
-		// libraries that are problematic for some reason
+	if err := activationCB(path); err != nil {
+		// we are calling `deactivationCB` here as some uprobes could be already attached
+		_ = deactivationCB(FilePath{ID: pathID})
+		// add `pathID` to blocklist so we don't attempt to re-register files
+		// that are problematic for some reason
 		r.blocklistByID[pathID] = struct{}{}
 		r.telemetry.libHookFailed.Add(1)
 		return
 	}
 
-	reg := r.newRegistration(deactivate)
+	reg := r.newRegistration(deactivationCB)
 	r.byID[pathID] = reg
 	if len(r.byPID[pid]) == 0 {
 		r.byPID[pid] = pathIdentifierSet{}
 	}
 	r.byPID[pid][pathID] = struct{}{}
-	log.Debugf("registering library %s path %s by pid %d", pathID.String(), hostLibPath, pid)
+	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
 	r.telemetry.libRegistered.Add(1)
 }
 
-// Unregister a pid if exists, unregisterCB will be called if his uniqueProcessesCount == 0
-func (r *FileRegistry) Unregister(pid int) {
-	pidU32 := uint32(pid)
-	r.m.RLock()
-	_, found := r.byPID[pidU32]
-	r.m.RUnlock()
+// Unregister a PID if it exists
+//
+// All files that were previously referenced by the given PID will have their
+// reference counters decremented by one. For any file for the number of
+// references drops to zero, we'll execute the *deactivationCB* previously
+// supplied during the `Register` call.
+func (r *FileRegistry) Unregister(pid uint32) {
+	r.m.Lock()
+	defer r.m.Unlock()
+	if r.stopped {
+		return
+	}
+
+	_, found := r.byPID[pid]
 	if !found {
 		return
 	}
 
-	r.m.Lock()
-	defer r.m.Unlock()
-	paths, found := r.byPID[pidU32]
+	paths, found := r.byPID[pid]
 	if !found {
 		return
 	}
@@ -143,26 +192,35 @@ func (r *FileRegistry) Unregister(pid int) {
 			delete(r.byID, pathID)
 		}
 	}
-	delete(r.byPID, pidU32)
+	delete(r.byPID, pid)
 }
 
-func (r *FileRegistry) GetRegisteredProcesses() map[int32]struct{} {
+// GetRegisteredProcesses returns a set with all PIDs currently being tracked by
+// the `FileRegistry`
+func (r *FileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 	r.m.RLock()
 	defer r.m.RUnlock()
 
-	result := make(map[int32]struct{}, len(r.byPID))
+	result := make(map[uint32]struct{}, len(r.byPID))
 	for pid := range r.byPID {
-		result[int32(pid)] = struct{}{}
+		result[pid] = struct{}{}
 	}
 	return result
 }
 
-// cleanup removes all registrations.
-// This function should be called in the termination, and after we're stopping all other goroutines.
-func (r *FileRegistry) Cleanup() {
+// Clear removes all registrations calling their deactivation callbacks
+// This function should be called once during in termination.
+func (r *FileRegistry) Clear() {
+	r.m.Lock()
+	defer r.m.Unlock()
+	if r.stopped {
+		return
+	}
+
 	for pathID, reg := range r.byID {
 		reg.unregisterPath(pathID)
 	}
+	r.stopped = true
 }
 
 // This method will be removed from the the public API and it's just here to ensure
@@ -191,19 +249,17 @@ func (r *FileRegistry) IsPIDAssociatedToPathID(pid uint32, pathID PathIdentifier
 	return ok
 }
 
-func (r *FileRegistry) newRegistration(unregister func(PathIdentifier) error) *registration {
-	uniqueCounter := atomic.Int32{}
-	uniqueCounter.Store(int32(1))
+func (r *FileRegistry) newRegistration(deactivationCB callback) *registration {
 	return &registration{
-		unregisterCB:         unregister,
-		uniqueProcessesCount: uniqueCounter,
+		deactivationCB:       deactivationCB,
+		uniqueProcessesCount: atomic.NewInt32(1),
 		telemetry:            &r.telemetry,
 	}
 }
 
 type registration struct {
-	uniqueProcessesCount atomic.Int32
-	unregisterCB         func(PathIdentifier) error
+	uniqueProcessesCount *atomic.Int32
+	deactivationCB       callback
 
 	// we are sharing the telemetry from FileRegistry
 	telemetry *registryTelemetry
@@ -222,8 +278,8 @@ func (r *registration) unregisterPath(pathID PathIdentifier) bool {
 	}
 
 	// currentUniqueProcessesCount is 0, thus we should unregister.
-	if r.unregisterCB != nil {
-		if err := r.unregisterCB(pathID); err != nil {
+	if r.deactivationCB != nil {
+		if err := r.deactivationCB(FilePath{ID: pathID}); err != nil {
 			// Even if we fail here, we have to return true, as best effort methodology.
 			// We cannot handle the failure, and thus we should continue.
 			log.Errorf("error while unregistering %s : %s", pathID.String(), err)

@@ -75,10 +75,10 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		pathDetected string
 	)
 
-	callback := func(id utils.PathIdentifier, root string, path string) error {
+	callback := func(path utils.FilePath) error {
 		mux.Lock()
 		defer mux.Unlock()
-		pathDetected = path
+		pathDetected = path.HostPath
 		return nil
 	}
 
@@ -107,7 +107,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		}
 
 		// Checking PID1 is not associated to the path 2, and PID2 is associated only with the path2
-		return fooPath1 == pathDetected
+		return strings.HasSuffix(pathDetected, fooPath1)
 	}, time.Second*10, time.Second, "")
 
 	require.NoError(t, command1.Process.Kill())
@@ -157,10 +157,10 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 		pathDetected string
 	)
 
-	callback := func(id utils.PathIdentifier, root string, path string) error {
+	callback := func(path utils.FilePath) error {
 		mux.Lock()
 		defer mux.Unlock()
-		pathDetected = path
+		pathDetected = path.HostPath
 		return nil
 	}
 
@@ -188,7 +188,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	time.Sleep(10 * time.Millisecond)
 
 	// assert that soWatcher detected foo-libssl.so being opened and triggered the callback
-	require.Equal(t, libpath, pathDetected)
+	require.True(t, strings.HasSuffix(pathDetected, libpath))
 
 	// must fail on the host
 	_, err = os.Stat(libpath)
@@ -222,7 +222,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	require.NoError(t, err)
 
 	registers := atomic.NewInt64(0)
-	callback := func(id utils.PathIdentifier, root string, path string) error {
+	callback := func(path utils.FilePath) error {
 		registers.Add(1)
 		return nil
 	}
@@ -286,8 +286,8 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
 
-	registerCB := func(id utils.PathIdentifier, root string, path string) error { return nil }
-	unregisterCB := func(id utils.PathIdentifier) error { return errors.New("fake unregisterCB error") }
+	registerCB := func(utils.FilePath) error { return nil }
+	unregisterCB := func(utils.FilePath) error { return errors.New("fake unregisterCB error") }
 
 	watcher, err := NewWatcher(config.New(),
 		nil,
@@ -385,8 +385,8 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
 
-	registerCB := func(id utils.PathIdentifier, root string, path string) error { return nil }
-	unregisterCB := func(id utils.PathIdentifier) error { return nil }
+	registerCB := func(utils.FilePath) error { return nil }
+	unregisterCB := func(utils.FilePath) error { return nil }
 
 	watcher, err := NewWatcher(config.New(),
 		nil,
