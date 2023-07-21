@@ -1,6 +1,8 @@
 package inferredspan
 
 import (
+	"encoding/base64"
+	"strconv"
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -183,4 +185,304 @@ func TestConvertRawTraceContext_InvalidInput(t *testing.T) {
 	convertedTraceContext := convertRawTraceContext(rawTrace)
 
 	assert.Nil(t, convertedTraceContext)
+}
+
+func TestConvertRawTraceContext_DecimalBase(t *testing.T) {
+	rawTrace := &rawTraceContext{
+		TraceID:  "1234567890",
+		ParentID: "1234567890",
+		base:     10,
+	}
+
+	convertedTraceContext := convertRawTraceContext(rawTrace)
+
+	assert.Equal(t, uint64(1234567890), *convertedTraceContext.ParentID)
+	assert.Equal(t, uint64(1234567890), *convertedTraceContext.TraceID)
+}
+
+func TestConvertRawTraceContext_HexBase(t *testing.T) {
+	rawTrace := &rawTraceContext{
+		TraceID:  strconv.FormatInt(1234567890, 16),
+		ParentID: strconv.FormatInt(1234567890, 16),
+		base:     16,
+	}
+
+	convertedTraceContext := convertRawTraceContext(rawTrace)
+
+	assert.Equal(t, uint64(1234567890), *convertedTraceContext.ParentID)
+	assert.Equal(t, uint64(1234567890), *convertedTraceContext.TraceID)
+}
+
+func TestExtractTraceContextfromAWSTraceHeader(t *testing.T) {
+	ctx := func(trace, parent string) *rawTraceContext {
+		return &rawTraceContext{
+			TraceID:  trace,
+			ParentID: parent,
+			base:     16,
+		}
+	}
+
+	testcases := []struct {
+		name   string
+		value  string
+		expect *rawTraceContext
+	}{
+		{
+			name:   "empty string",
+			value:  "",
+			expect: nil,
+		},
+		{
+			name:   "root but no parent",
+			value:  "Root=1-00000000-000000000000000000000001",
+			expect: ctx("0000000000000001", ""),
+		},
+		{
+			name:   "parent but no root",
+			value:  "Parent=0000000000000001",
+			expect: nil,
+		},
+		{
+			name:   "just root and parent",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000001",
+			expect: ctx("0000000000000001", "0000000000000001"),
+		},
+		{
+			name:   "trailing semi-colon",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;",
+			expect: ctx("0000000000000001", "0000000000000001"),
+		},
+		{
+			name:   "trailing semi-colons",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;;;",
+			expect: ctx("0000000000000001", "0000000000000001"),
+		},
+		{
+			name:   "parent first",
+			value:  "Parent=0000000000000009;Root=1-00000000-000000000000000000000001",
+			expect: ctx("0000000000000001", "0000000000000009"),
+		},
+		{
+			name:   "two roots",
+			value:  "Root=1-00000000-000000000000000000000005;Parent=0000000000000009;Root=1-00000000-000000000000000000000001",
+			expect: ctx("0000000000000005", "0000000000000009"),
+		},
+		{
+			name:   "two parents",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000009;Parent=0000000000000000",
+			expect: ctx("0000000000000001", "0000000000000009"),
+		},
+		{
+			name:   "sampled is ignored",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000002;Sampled=1",
+			expect: ctx("0000000000000001", "0000000000000002"),
+		},
+		{
+			name:   "with lineage",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;Lineage=a87bd80c:1|68fd508a:5|c512fbe3:2",
+			expect: ctx("0000000000000001", "0000000000000001"),
+		},
+		{
+			name:   "root too long",
+			value:  "Root=1-00000000-0000000000000000000000010000;Parent=0000000000000001",
+			expect: ctx("00000000000000010000", "0000000000000001"),
+		},
+		{
+			name:   "parent too long",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=00000000000000010000",
+			expect: ctx("0000000000000001", "00000000000000010000"),
+		},
+		{
+			name:   "invalid root chars",
+			value:  "Root=1-00000000-00000000000000000traceID;Parent=0000000000000000",
+			expect: nil,
+		},
+		{
+			name:   "invalid parent chars",
+			value:  "Root=1-00000000-000000000000000000000000;Parent=0000000000spanID",
+			expect: ctx("0000000000000000", "0000000000spanID"),
+		},
+		{
+			name:   "invalid root and parent chars",
+			value:  "Root=1-00000000-00000000000000000traceID;Parent=0000000000spanID",
+			expect: nil,
+		},
+		{
+			name:   "large trace-id",
+			value:  "Root=1-5759e988-bd862e3fe1be46a994272793;Parent=53995c3f42cd8ad8",
+			expect: nil,
+		},
+		{
+			name:   "non-zero epoch",
+			value:  "Root=1-5759e988-00000000e1be46a994272793;Parent=53995c3f42cd8ad8",
+			expect: ctx("e1be46a994272793", "53995c3f42cd8ad8"),
+		},
+		{
+			name:   "unknown key/value",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;key=value",
+			expect: ctx("0000000000000001", "0000000000000001"),
+		},
+		{
+			name:   "key no value",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;key=",
+			expect: ctx("0000000000000001", "0000000000000001"),
+		},
+		{
+			name:   "value no key",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;=value",
+			expect: ctx("0000000000000001", "0000000000000001"),
+		},
+		{
+			name:   "extra chars suffix",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;value",
+			expect: ctx("0000000000000001", "0000000000000001"),
+		},
+		{
+			name:   "root key no root value",
+			value:  "Root=;Parent=0000000000000001",
+			expect: nil,
+		},
+		{
+			name:   "parent key no parent value",
+			value:  "Root=1-00000000-000000000000000000000001;Parent=",
+			expect: ctx("0000000000000001", ""),
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			actual := extractTraceContextfromAWSTraceHeader(tc.value)
+			assert.Equal(tc.expect, actual)
+		})
+	}
+}
+
+func TestExtractTraceContext(t *testing.T) {
+	_xrayDdogID := "0000000000000001"
+	_xrayID := "0000000000000002"
+	_datadogID := "0000000000000003"
+	_snsID := "0000000000000004"
+
+	makeEvent := func(ddxray, xray, ddog, sns bool) events.SQSMessage {
+		assert.False(t, ddxray && xray)
+		event := events.SQSMessage{
+			Attributes:        make(map[string]string),
+			MessageAttributes: make(map[string]events.SQSMessageAttribute),
+		}
+		if ddxray {
+			event.Attributes[awsTraceHeader] = "Root=1-00000000-00000000" + _xrayDdogID + ";Parent=" + _xrayDdogID
+		}
+		if xray {
+			event.Attributes[awsTraceHeader] = "Root=1-12345678-12345678" + _xrayID + ";Parent=" + _xrayID
+		}
+		if ddog {
+			event.MessageAttributes[datadogHeader] = events.SQSMessageAttribute{
+				DataType: "String",
+				StringValue: aws.String(`{
+					"x-datadog-trace-id": "` + _datadogID + `",
+					"x-datadog-parent-id": "` + _datadogID + `"
+				}`),
+			}
+		}
+		if sns {
+			encoded := base64.StdEncoding.EncodeToString([]byte(`{
+				"x-datadog-trace-id": "` + _snsID + `",
+				"x-datadog-parent-id": "` + _snsID + `"
+			}`))
+			event.Body = `{
+				"messageattributes": {
+					"_datadog": {
+						"type": "Binary",
+						"value": "` + encoded + `"
+					}
+				}
+			}`
+		}
+		return event
+	}
+
+	ctx := func(traceID string) *convertedTraceContext {
+		id, err := strconv.ParseUint(traceID, 10, 64)
+		assert.Nil(t, err)
+		return &convertedTraceContext{
+			TraceID:  &id,
+			ParentID: &id,
+		}
+	}
+
+	testcases := []struct {
+		name   string
+		event  events.SQSMessage
+		expect *convertedTraceContext
+	}{
+		{
+			name:   "xray-ddog, _datadog, sns",
+			event:  makeEvent(true, false, true, true),
+			expect: ctx(_xrayDdogID),
+		},
+		{
+			name:   "xray-ddog, _datadog",
+			event:  makeEvent(true, false, true, false),
+			expect: ctx(_xrayDdogID),
+		},
+		{
+			name:   "xray-ddog, sns",
+			event:  makeEvent(true, false, false, true),
+			expect: ctx(_xrayDdogID),
+		},
+		{
+			name:   "xray-ddog",
+			event:  makeEvent(true, false, false, false),
+			expect: ctx(_xrayDdogID),
+		},
+		{
+			name:   "xray, _datadog, sns",
+			event:  makeEvent(false, true, true, true),
+			expect: ctx(_datadogID),
+		},
+		{
+			name:   "xray, _datadog",
+			event:  makeEvent(false, true, true, false),
+			expect: ctx(_datadogID),
+		},
+		{
+			name:   "xray, sns",
+			event:  makeEvent(false, true, false, true),
+			expect: ctx(_snsID),
+		},
+		{
+			name:   "xray",
+			event:  makeEvent(false, true, false, false),
+			expect: nil,
+		},
+		{
+			name:   "_datadog, sns",
+			event:  makeEvent(false, false, true, true),
+			expect: ctx(_datadogID),
+		},
+		{
+			name:   "_datadog",
+			event:  makeEvent(false, false, true, false),
+			expect: ctx(_datadogID),
+		},
+		{
+			name:   "sns",
+			event:  makeEvent(false, false, false, true),
+			expect: ctx(_snsID),
+		},
+		{
+			name:   "none",
+			event:  makeEvent(false, false, false, false),
+			expect: nil,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			actual := extractTraceContext(tc.event)
+			assert.Equal(tc.expect, actual)
+		})
+	}
 }
