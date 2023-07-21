@@ -19,7 +19,7 @@ import (
 
 const collectorId = "process-agent"
 
-const collectionInterval = 2 * time.Second
+const collectionInterval = 1 * time.Minute
 
 // Used for testing
 var c *collector
