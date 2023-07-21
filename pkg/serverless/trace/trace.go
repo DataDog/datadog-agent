@@ -13,9 +13,9 @@ import (
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
