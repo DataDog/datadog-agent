@@ -102,6 +102,7 @@ int kprobe_do_mkdirat(ctx_t *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/do_mkdirat")
 int kretprobe_do_mkdirat(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

@@ -161,6 +161,7 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/do_renameat2")
 int kretprobe_do_renameat2(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
