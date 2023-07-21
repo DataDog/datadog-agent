@@ -48,6 +48,30 @@ func buildInstances(pc *types.PrometheusCheck, annotations map[string]string, na
 						}
 					}
 				}
+				// The `PrometheusCheck` config may come from two sources:
+				// Either it comes from the `DD_PROMETHEUS_SCRAPE_CHECKS` environment variable.
+				//   In this case, it has been parsed by JSON decoder
+				//     In this case, dictionaries have been decoded as `map[string]interface{}`
+				//     and everything is fine
+				// Or it comes from the `prometheus_scrape.checks` property inside the `datadog.yaml` file.
+				//   In this case, it has been parsed by YAML decoder
+				//     In this case, dictionaries have been decoded as `map[interface{}interface{}`
+				//     and this will be problematic as this type cannot be encoded by a JSON encoder
+				//
+				// So, let’s convert all `map[interface{}]interface{}` to `map[string]interface{}`
+				for idx, metric := range instanceValues.Metrics {
+					if m, ok := metric.(map[interface{}]interface{}); ok {
+						newMetric := make(map[string]interface{})
+						for k, v := range m {
+							if s, ok := k.(string); ok {
+								newMetric[s] = v
+							} else {
+								log.Errorf("Error processing prometheus configuration: map keys should be string in %#v", metric)
+							}
+						}
+						instanceValues.Metrics[idx] = newMetric
+					}
+				}
 				instanceJSON, err := json.Marshal(instanceValues)
 				if err != nil {
 					log.Warnf("Error processing prometheus configuration: %v", err)
