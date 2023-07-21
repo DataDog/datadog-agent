@@ -153,8 +153,8 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 
 	var tailCalls []manager.TailCallRoute
 
-	if IsJavaSubprogramEnabled(c) {
-		tailCalls = append(tailCalls, GetJavaTlsTailCallRoutes()...)
+	if isJavaSubprogramEnabled(c) {
+		tailCalls = append(tailCalls, getJavaTlsTailCallRoutes()...)
 	}
 
 	program := &ebpfProgram{

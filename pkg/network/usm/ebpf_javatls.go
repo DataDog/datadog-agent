@@ -81,7 +81,7 @@ type javaTLSProgram struct {
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &javaTLSProgram{}
 
-func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
+func getJavaTlsTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
 		{
 			ProgArrayName: eRPCHandlersMap,
@@ -114,7 +114,7 @@ func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
 	}
 }
 
-func IsJavaSubprogramEnabled(c *config.Config) bool {
+func isJavaSubprogramEnabled(c *config.Config) bool {
 	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
 		return false
 	}
@@ -132,7 +132,7 @@ func IsJavaSubprogramEnabled(c *config.Config) bool {
 func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 	var err error
 
-	if !IsJavaSubprogramEnabled(c) {
+	if !isJavaSubprogramEnabled(c) {
 		log.Info("java tls is not enabled")
 		return nil
 	}
