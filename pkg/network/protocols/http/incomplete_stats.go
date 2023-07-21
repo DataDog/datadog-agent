@@ -12,10 +12,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 const defaultMinAge = 30 * time.Second
+
+type connectionKey struct {
+	types.ConnectionKey
+	Protocol protocols.ProtocolType
+}
 
 // incompleteBuffer is responsible for buffering incomplete transactions
 // (eg. httpTX objects that have either only the request or response information)
@@ -42,7 +48,7 @@ const defaultMinAge = 30 * time.Second
 // request segment at "t0" with response segment "t3". This is why we buffer data here for 30 seconds
 // and then sort all events by their timestamps before joining them.
 type incompleteBuffer struct {
-	data       map[types.ConnectionKey]*txParts
+	data       map[connectionKey]*txParts
 	maxEntries int
 	telemetry  *Telemetry
 	minAgeNano int64
@@ -62,7 +68,7 @@ func newTXParts() *txParts {
 
 func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuffer {
 	return &incompleteBuffer{
-		data:       make(map[types.ConnectionKey]*txParts),
+		data:       make(map[connectionKey]*txParts),
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
 		minAgeNano: defaultMinAge.Nanoseconds(),
@@ -71,14 +77,16 @@ func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuff
 
 func (b *incompleteBuffer) Add(tx Transaction) {
 	connTuple := tx.ConnTuple()
-	key := types.ConnectionKey{
-		SrcIPHigh: connTuple.SrcIPHigh,
-		SrcIPLow:  connTuple.SrcIPLow,
-		SrcPort:   connTuple.SrcPort,
-		DstIPHigh: connTuple.DstIPHigh,
-		DstIPLow:  connTuple.DstIPLow,
-		DstPort:   connTuple.DstPort,
-		Protocol:  tx.Protocol(),
+	key := connectionKey{
+		ConnectionKey: types.ConnectionKey{
+			SrcIPHigh: connTuple.SrcIPHigh,
+			SrcIPLow:  connTuple.SrcIPLow,
+			SrcPort:   connTuple.SrcPort,
+			DstIPHigh: connTuple.DstIPHigh,
+			DstIPLow:  connTuple.DstIPLow,
+			DstPort:   connTuple.DstPort,
+		},
+		Protocol: tx.Protocol(),
 	}
 
 	parts, ok := b.data[key]
@@ -119,7 +127,7 @@ func (b *incompleteBuffer) Flush(nowUnixNano int64) []Transaction {
 		previous = b.data
 	)
 
-	b.data = make(map[types.ConnectionKey]*txParts)
+	b.data = make(map[connectionKey]*txParts)
 	for key, parts := range previous {
 		// TODO: in this loop we're sorting all transactions at once, but we could also
 		// consider sorting data during insertion time (using a tree-like structure, for example)

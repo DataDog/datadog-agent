@@ -6,7 +6,6 @@
 package types
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -21,9 +20,6 @@ type ConnectionKey struct {
 	// ports separated for alignment/size optimization
 	SrcPort uint16
 	DstPort uint16
-
-	// used by http incompleteBuffer
-	Protocol protocols.ProtocolType
 }
 
 // NewConnectionKey generates a new ConnectionKey
