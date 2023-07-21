@@ -141,11 +141,13 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 
 	p.initConnRates()
 
-	err = p.workloadMetaServer.Start()
-	if err != nil {
-		_ = log.Error("Failed to start the workload meta gRPC server:", err)
-	} else {
-		p.extractors = append(p.extractors, p.workloadMetaExtractor)
+	if workloadmeta.Enabled(p.config) {
+		err = p.workloadMetaServer.Start()
+		if err != nil {
+			_ = log.Error("Failed to start the workload meta gRPC server:", err)
+		} else {
+			p.extractors = append(p.extractors, p.workloadMetaExtractor)
+		}
 	}
 	return nil
 }
