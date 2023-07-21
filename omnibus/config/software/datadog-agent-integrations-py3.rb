@@ -181,6 +181,12 @@ build do
       "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
     }
 
+    # RPM builds are done on CentOS 6 which is based on glibc v2.12 however newer libraries require v2.17, see:
+    # https://blog.rust-lang.org/2022/08/01/Increasing-glibc-kernel-requirements.html
+    if redhat?
+      nix_build_env["CARGO_BUILD_TARGET"] = "x86_64-unknown-linux-musl"
+    end
+
     # On Linux & Windows, specify the C99 standard explicitly to avoid issues while building some
     # wheels (eg. ddtrace).
     # Not explicitly setting that option has caused us problems in the past on SUSE, where the ddtrace
