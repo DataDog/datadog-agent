@@ -15,22 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// agentRawCommandRunner is a low level interface to that provide a method to run command on the Agent.
-type agentRawCommandRunner interface {
-	ExecuteWithError(arguments []string) (string, error)
-}
+// executeAgentCmdWithError is a function to run a command on the Agent.
+type executeAgentCmdWithError func(arguments []string) (string, error)
 
 // AgentCommandRunner provides high level methods to run commands on the Agent.
 type AgentCommandRunner struct {
-	t             *testing.T
-	commandRunner agentRawCommandRunner
+	t                        *testing.T
+	executeAgentCmdWithError executeAgentCmdWithError
 }
 
 // Create a new instance of AgentCommandRunner
-func newAgentCommandRunner(t *testing.T, commandRunner agentRawCommandRunner) *AgentCommandRunner {
+func newAgentCommandRunner(t *testing.T, executeAgentCmdWithError executeAgentCmdWithError) *AgentCommandRunner {
 	agent := &AgentCommandRunner{
-		t:             t,
-		commandRunner: commandRunner,
+		t:                        t,
+		executeAgentCmdWithError: executeAgentCmdWithError,
 	}
 	agent.waitForReadyTimeout(1 * time.Minute)
 	return agent
@@ -40,7 +38,7 @@ func (agent *AgentCommandRunner) executeCommand(command string, commandArgs ...A
 	args := newAgentArgs(commandArgs...)
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
-	output, err := agent.commandRunner.ExecuteWithError(arguments)
+	output, err := agent.executeAgentCmdWithError(arguments)
 	require.NoError(agent.t, err)
 	return output
 }
@@ -77,7 +75,7 @@ func (a *AgentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
-		statusOutput, err := a.commandRunner.ExecuteWithError([]string{"status"})
+		statusOutput, err := a.executeAgentCmdWithError([]string{"status"})
 		if err != nil {
 			return err
 		}

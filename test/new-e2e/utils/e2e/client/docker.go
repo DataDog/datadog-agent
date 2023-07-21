@@ -62,7 +62,7 @@ func (docker *Docker) initService(t *testing.T, data *docker.ClientData) error {
 
 	docker.client, err = client.NewClientWithOpts(opts...)
 	if docker.agentContainerName != "" {
-		docker.agent = newAgentCommandRunner(t, &dockerAgentCommand{docker: docker})
+		docker.agent = newAgentCommandRunner(t, docker.executeAgentCmdWithError)
 	}
 	return err
 }
@@ -126,21 +126,14 @@ func (docker *Docker) GetAgentContainerName() string {
 	return docker.agentContainerName
 }
 
-// GetAgentCommandRunner gets an agent that provides high level methods to run Agent commands.
+// GetAgentCommandRunner gets a runner that provides high level methods to run Agent commands.
 func (docker *Docker) GetAgentCommandRunner() *AgentCommandRunner {
 	require.NotNilf(docker.t, docker.agent, "there is no agent installed on this docker instance")
 	return docker.agent
 }
 
-var _ agentRawCommandRunner = (*dockerAgentCommand)(nil)
-
-// dockerAgentCommand is a wrapper to execute Agent commands on Docker.
-type dockerAgentCommand struct {
-	docker *Docker
-}
-
-func (agentCmd *dockerAgentCommand) ExecuteWithError(commands []string) (string, error) {
+func (docker *Docker) executeAgentCmdWithError(commands []string) (string, error) {
 	wholeCommands := []string{"agent"}
 	wholeCommands = append(wholeCommands, commands...)
-	return agentCmd.docker.ExecuteCommandWithErr(agentCmd.docker.GetAgentContainerName(), wholeCommands...)
+	return docker.ExecuteCommandWithErr(docker.GetAgentContainerName(), wholeCommands...)
 }

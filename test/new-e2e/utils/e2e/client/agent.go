@@ -22,6 +22,7 @@ type Agent struct {
 	*UpResultDeserializer[agent.ClientData]
 	os os.OS
 	*AgentCommandRunner
+	vmClient *vmClient
 }
 
 // Create a new instance of an Agent connected to an [agent.Installer].
@@ -37,20 +38,12 @@ func NewAgent(installer *agent.Installer) *Agent {
 func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
 	vmClient, err := newVMClient(t, "", &data.Connection)
 
-	vmAgentCommand := &vmAgentCommand{vmClient: vmClient, os: agent.os}
-	agent.AgentCommandRunner = newAgentCommandRunner(t, vmAgentCommand)
+	agent.vmClient = vmClient
+	agent.AgentCommandRunner = newAgentCommandRunner(t, agent.executeAgentCmdWithError)
 	return err
 }
 
-var _ agentRawCommandRunner = (*vmAgentCommand)(nil)
-
-// vmAgentCommand is a wrapper to execute Agent commands on a VM.
-type vmAgentCommand struct {
-	vmClient *vmClient
-	os       os.OS
-}
-
-func (agent *vmAgentCommand) ExecuteWithError(arguments []string) (string, error) {
+func (agent *Agent) executeAgentCmdWithError(arguments []string) (string, error) {
 	parameters := ""
 	if len(arguments) > 0 {
 		parameters = `"` + strings.Join(arguments, `" "`) + `"`
