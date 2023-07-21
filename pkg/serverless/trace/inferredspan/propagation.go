@@ -3,15 +3,30 @@ package inferredspan
 import (
 	"encoding/base64"
 	"encoding/json"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-lambda-go/events"
 )
 
+const (
+	awsTraceHeader = "AWSTraceHeader"
+	datadogHeader  = "_datadog"
+
+	rootPrefix    = "Root="
+	parentPrefix  = "Parent="
+	rootPadding   = len(rootPrefix + "1-00000000-00000000")
+	parentPadding = len(parentPrefix)
+)
+
+var rootRegex = regexp.MustCompile("Root=1-[0-9a-fA-F]{8}-00000000[0-9a-fA-F]{16}")
+
 type rawTraceContext struct {
 	TraceID  string `json:"x-datadog-trace-id"`
 	ParentID string `json:"x-datadog-parent-id"`
+	base     int
 }
 
 type convertedTraceContext struct {
@@ -29,11 +44,19 @@ type bodyStruct struct {
 
 func extractTraceContext(event events.SQSMessage) *convertedTraceContext {
 	var rawTrace *rawTraceContext
-	if ddMessageAttribute, ok := event.MessageAttributes["_datadog"]; ok {
-		rawTrace = extractTraceContextFromPureSqsEvent(ddMessageAttribute)
-	} else {
-		rawTrace = extractTraceContextFromSNSSQSEvent(event)
+
+	if awsAttribute, ok := event.Attributes[awsTraceHeader]; ok {
+		rawTrace = extractTraceContextfromAWSTraceHeader(awsAttribute)
 	}
+
+	if rawTrace == nil {
+		if ddMessageAttribute, ok := event.MessageAttributes[datadogHeader]; ok {
+			rawTrace = extractTraceContextFromPureSqsEvent(ddMessageAttribute)
+		} else {
+			rawTrace = extractTraceContextFromSNSSQSEvent(event)
+		}
+	}
+
 	return convertRawTraceContext(rawTrace)
 }
 
@@ -87,6 +110,38 @@ func extractTraceContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribu
 	return &traceData
 }
 
+func extractTraceContextfromAWSTraceHeader(value string) *rawTraceContext {
+	if !rootRegex.MatchString(value) {
+		return nil
+	}
+
+	var startPart int
+	traceData := &rawTraceContext{base: 16}
+	length := len(value)
+	for startPart < length {
+		endPart := strings.IndexRune(value[startPart:], ';') + startPart
+		if endPart < startPart {
+			endPart = length
+		}
+		part := value[startPart:endPart]
+		if strings.HasPrefix(part, rootPrefix) {
+			if traceData.TraceID == "" {
+				traceData.TraceID = part[rootPadding:]
+			}
+		} else if strings.HasPrefix(part, parentPrefix) {
+			if traceData.ParentID == "" {
+				traceData.ParentID = part[parentPadding:]
+			}
+		}
+		if traceData.TraceID != "" && traceData.ParentID != "" {
+			break
+		}
+		startPart = endPart + 1
+	}
+
+	return traceData
+}
+
 func convertRawTraceContext(rawTrace *rawTraceContext) *convertedTraceContext {
 	if rawTrace == nil {
 		return nil
@@ -94,8 +149,13 @@ func convertRawTraceContext(rawTrace *rawTraceContext) *convertedTraceContext {
 
 	var uint64TraceID, uint64ParentID *uint64
 
+	base := rawTrace.base
+	if base == 0 {
+		base = 10
+	}
+
 	if rawTrace.TraceID != "" {
-		parsedTraceID, err := strconv.ParseUint(rawTrace.TraceID, 10, 64)
+		parsedTraceID, err := strconv.ParseUint(rawTrace.TraceID, base, 64)
 		if err != nil {
 			log.Debug("Error parsing trace ID: ", err)
 			return nil
@@ -104,7 +164,7 @@ func convertRawTraceContext(rawTrace *rawTraceContext) *convertedTraceContext {
 	}
 
 	if rawTrace.ParentID != "" {
-		parsedParentID, err := strconv.ParseUint(rawTrace.ParentID, 10, 64)
+		parsedParentID, err := strconv.ParseUint(rawTrace.ParentID, base, 64)
 		if err != nil {
 			log.Debug("Error parsing parent ID: ", err)
 			return nil
