@@ -936,26 +936,25 @@ func newConnectionAggregator(size int) *connectionAggregator {
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key string, rolledUp bool) {
 	isShortLived := c.Duration > 0 && c.Duration < uint64((2*time.Minute)/time.Nanosecond)
-	ephemeralSport := IsEphemeralPort(int(c.SPort))
-
-	if c.ContainerID != nil {
-		key = *c.ContainerID
-	}
+	ephemeralDport := c.SPort < 1024
 
 	if c.Type != UDP ||
 		!isShortLived ||
-		!ephemeralSport {
-		return key + string(c.ByteKey(a.buf)), false
+		!ephemeralDport {
+		return string(c.ByteKey(a.buf)), false
 	}
 
-	// drop the ephemeral source port in the key
-	sport := c.SPort
-	c.SPort = 0
+	// drop the ephemeral destination port in the key
+	dport := c.DPort
+	c.DPort = 0
 	defer func() {
-		c.SPort = sport
+		// we only want to not use the dport
+		// for key generation, so restore
+		// it here
+		c.DPort = dport
 	}()
 
-	return key + string(c.ByteKey(a.buf)), true
+	return string(c.ByteKey(a.buf)), true
 }
 
 // Aggregate aggregates a connection. The connection is only
@@ -995,17 +994,20 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	aggrConn.rttSum += uint64(c.RTT)
 	aggrConn.rttVarSum += uint64(c.RTTVar)
 	aggrConn.count++
-	if rolledUp {
-		// more than one connection with
-		// source port dropped in key,
-		// so set source port to 0
-		aggrConn.SPort = 0
-	}
 	if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
 		aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
 	}
 	if aggrConn.IPTranslation == nil {
 		aggrConn.IPTranslation = c.IPTranslation
+	}
+	if rolledUp {
+		// more than one connection with
+		// source port dropped in key,
+		// so set destination port to 0
+		aggrConn.DPort = 0
+		if aggrConn.IPTranslation != nil {
+			aggrConn.IPTranslation.ReplSrcPort = 0
+		}
 	}
 
 	return true
