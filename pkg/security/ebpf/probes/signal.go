@@ -14,7 +14,7 @@ var signalProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_check_kill_permission",
+			EBPFFuncName: "rethook_check_kill_permission",
 		},
 	},
 }

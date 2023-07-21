@@ -8,6 +8,7 @@
 package python
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -49,6 +51,12 @@ type PythonCheck struct {
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
+}
+
+// Helper struct for deserializing Python diagnoses into diangosis.Diagnoses
+type diagnosisJSONSerWrap struct {
+	diagnosis.Diagnosis
+	RawError string
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -330,6 +338,58 @@ func (c *PythonCheck) Interval() time.Duration {
 // ID returns the ID of the check
 func (c *PythonCheck) ID() checkid.ID {
 	return c.id
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *PythonCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	// Lock the GIL and release it at the end of the run (will crash otherwise)
+	gstate, err := newStickyLock()
+	if err != nil {
+		log.Warnf("failed to get lock for check %s: %s", c.id, err)
+		return nil, err
+	}
+	defer gstate.unlock()
+
+	// Get JSON serialized diagnoses. Handcrafted and significantly more complicated
+	// manual serialization was only 2-2.5 times faster and hence not worth it for
+	// low-rate calls like this
+	pyDiagnoses := C.get_check_diagnoses(rtloader, c.instance)
+	if pyDiagnoses == nil {
+		// When no actual diagnoses to report python check normally returns "[]"
+		log.Warnf("check diagnose failed to collect diagnoses JSON for %s", c.id)
+		return nil, nil
+	}
+	defer C.rtloader_free(rtloader, unsafe.Pointer(pyDiagnoses))
+
+	// Deserialize it
+	strDiagnoses := C.GoString(pyDiagnoses)
+
+	var diagnosesWrap []diagnosisJSONSerWrap
+	err = json.Unmarshal([]byte(strDiagnoses), &diagnosesWrap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse diagnoses JSON for %s: %s. JSON: %q", c.id, err, strDiagnoses)
+	}
+
+	if diagnosesWrap == nil || len(diagnosesWrap) == 0 {
+		return nil, nil
+	}
+
+	diagnoses := make([]diagnosis.Diagnosis, 0, len(diagnosesWrap))
+	for _, dw := range diagnosesWrap {
+		d := dw.Diagnosis
+
+		if len(d.Name) == 0 {
+			d.Name = c.String()
+		}
+
+		if len(dw.RawError) > 0 {
+			d.RawError = errors.New(dw.RawError)
+		}
+
+		diagnoses = append(diagnoses, d)
+	}
+
+	return diagnoses, nil
 }
 
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned

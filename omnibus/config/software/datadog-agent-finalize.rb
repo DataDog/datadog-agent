@@ -194,11 +194,13 @@ build do
             strip_exclude("*tracer*")
             strip_exclude("*offset-guess*")
             strip_exclude("*usm*")
+            strip_exclude("*shared-libraries*")
             strip_exclude("*runtime-security*")
             strip_exclude("*dns*")
             strip_exclude("*conntrack*")
             strip_exclude("*oom-kill*")
             strip_exclude("*tcp-queue-length*")
+            strip_exclude("*ebpf*")
         end
 
         if osx?
