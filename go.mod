@@ -61,7 +61,7 @@ require (
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.5.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.2
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.3-0.20230720121352-2db90e0b9570
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.5.2
 	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
@@ -567,7 +567,8 @@ require (
 require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3
+	github.com/DataDog/agent-payload v4.89.0+incompatible
+	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3.0.20230717151521-271965684571
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
@@ -651,9 +652,6 @@ replace (
 
 // Fixes CVE-2023-1732, imported by nikos
 replace github.com/cloudflare/circl v1.1.0 => github.com/cloudflare/circl v1.3.3
-
-// Fixes CVE-2023-30551, imported by trivy
-replace github.com/sigstore/rekor v1.0.1 => github.com/sigstore/rekor v1.1.1
 
 // Fixes CVE-2023-26054, imported by trivy
 replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.11.4

@@ -73,7 +73,7 @@ func (r *PathsReducer) ReducePath(path string, fileEvent *model.FileEvent, node 
 		processNode: node,
 	}
 
-	allMatches := r.patterns.FindAllStringSubmatchIndex(path, -1)
+	allMatches := r.patterns.FindAllStringSubmatchIndex(ctx.path, -1)
 	for matchSet := len(allMatches) - 1; matchSet >= 0; matchSet-- {
 		matches := allMatches[matchSet]
 		for _, i := range r.callbackIndexes {

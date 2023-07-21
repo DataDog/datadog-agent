@@ -123,6 +123,8 @@ github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbi
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/CycloneDX/cyclonedx-go v0.7.1 h1:5w1SxjGm9MTMNTuRbEPyw21ObdbaagTWF/KfF0qHTRE=
 github.com/CycloneDX/cyclonedx-go v0.7.1/go.mod h1:N/nrdWQI2SIjaACyyDs/u7+ddCkyl/zkNs8xFsHF2Ps=
+github.com/DataDog/agent-payload v4.89.0+incompatible h1:0C7DwBSz1iqkgwCp2Lwzzguu5dgcxNxLo9QeE4OCDJQ=
+github.com/DataDog/agent-payload v4.89.0+incompatible/go.mod h1:/2RW4IC/2z54jtB6RLgq5UtVI1TsX0joDRjKbkLT+mk=
 github.com/DataDog/agent-payload/v5 v5.0.90-0.20230717070528-bfb5d051f2ab h1:Y0SYoy3CuSVUSKJ3U9a6zevj3AGUGqRctmCBVaSgGrs=
 github.com/DataDog/agent-payload/v5 v5.0.90-0.20230717070528-bfb5d051f2ab/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
 github.com/DataDog/appsec-internal-go v0.0.0-20230215162203-5149228be86a h1:7ZiVdU4j19IYuy8rR0uUzC7I7HjWul61ZEyUgvLkZBM=
@@ -163,8 +165,8 @@ github.com/DataDog/nikos v1.12.0/go.mod h1:vboQtY04KmE+Ua8m7gVheZJcnStQY+fIiSPY/
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.5.2 h1:W47xIROVye+D6WxkZcy8ETomfZlTNWoVZODwAh4LdeE=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.5.2 h1:JRVQga0KlFCMyuKF/ghrZtRpmYL3XWRGXpSB5Qdk5Ko=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.5.2/go.mod h1:6x6OujLzkt7Wwlu/6kYO5+8FNRBi1HEw8Qm6/qvTOQA=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.2 h1:FbQSZ6uXhuHzgwC73MUxqvHwV0uxKiGAeAAZIMrfUAc=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.2/go.mod h1:oPpGMNpwga8zTGUJfLy3Z/u4l6bvEYuRatJkgSUazr4=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.3-0.20230720121352-2db90e0b9570 h1:KcLkS0KO3hyPBfu3HD7W809hj77HVTrnmXxyHgiTeXI=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.5.3-0.20230720121352-2db90e0b9570/go.mod h1:6OccRRoSKgE+FHOs5i0Zfa4QiXgVg+jiQdHmMQBMEKk=
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.5.2 h1:C0uzQwHCKubfmbvaZF/Qi6ernigbcoWt9A+U+s0iQGg=
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.5.2/go.mod h1:RT78x34OmVb0wuZLtmzzRRy43+7pCCA6ZEOGQ9mA5w0=
 github.com/DataDog/sketches-go v1.4.2 h1:gppNudE9d19cQ98RYABOetxIhpTCl4m7CnbRZjvVA/o=

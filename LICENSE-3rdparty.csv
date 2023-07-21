@@ -41,6 +41,7 @@ core,github.com/Azure/go-autorest/tracing,Apache-2.0,Copyright 2015 Microsoft Co
 core,github.com/BurntSushi/toml,MIT,Copyright (c) 2013 TOML authors
 core,github.com/BurntSushi/toml/internal,MIT,Copyright (c) 2013 TOML authors
 core,github.com/CycloneDX/cyclonedx-go,Apache-2.0,Copyright & License | Copyright (c) OWASP Foundation | Copyright (c) OWASP Foundation. All Rights Reserved | Copyright OWASP Foundation
+core,github.com/DataDog/agent-payload/pb,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/contimage,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/contlcycle,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/cws/dumpsv1,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
@@ -881,6 +882,7 @@ core,github.com/golang/protobuf/protoc-gen-go/plugin,BSD-3-Clause,Copyright (c) 
 core,github.com/golang/protobuf/ptypes,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/any,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/duration,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+core,github.com/golang/protobuf/ptypes/empty,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/struct,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/timestamp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/ptypes/wrappers,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
@@ -1727,6 +1729,7 @@ core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright (c) 2009 The Go A
 core,golang.org/x/crypto/ssh/terminal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/slices,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
