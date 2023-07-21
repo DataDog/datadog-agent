@@ -480,6 +480,12 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 
 // Describe returns all descriptions of the collector
 func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
+	ch <- ConnTracerTelemetry.tcpFailedConnects
+	ch <- ConnTracerTelemetry.TcpSentMiscounts
+	ch <- ConnTracerTelemetry.unbatchedTcpClose
+	ch <- ConnTracerTelemetry.unbatchedUdpClose
+	ch <- ConnTracerTelemetry.UdpSendsProcessed
+	ch <- ConnTracerTelemetry.UdpSendsMissed
 	ch <- ConnTracerTelemetry.UdpDroppedConns
 }
 
