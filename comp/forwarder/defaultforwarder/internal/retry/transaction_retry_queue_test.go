@@ -78,6 +78,31 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	a.Equal(int64(0), q.GetDiskSpaceUsed())
 }
 
+func TestTransactionRetryQueueFlushAllToDisk(t *testing.T) {
+	a := assert.New(t)
+	q := newOnDiskRetryQueueTest(t, a)
+
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
+
+	// We're under the limit here, so should all be in memory
+	for _, payloadSize := range []int{9, 10, 11} {
+		container.Add(createTransactionWithPayloadSize(payloadSize))
+	}
+	a.Equal(30, container.getCurrentMemSizeInBytes())
+	a.Equal(0, q.getFilesCount())
+
+	// Flush to disk
+	container.FlushToDisk()
+	a.Equal(0, container.getCurrentMemSizeInBytes())
+	a.Equal(1, q.getFilesCount())
+
+	// Pull everything back out
+	assertPayloadSizeFromExtractTransactions(a, container, []int{9, 10, 11})
+
+	a.Equal(0, q.getFilesCount())
+	a.Equal(int64(0), q.GetDiskSpaceUsed())
+}
+
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
 	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()

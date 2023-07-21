@@ -8,13 +8,15 @@ package parameters
 type StoreKey string
 
 const (
-	Profile             StoreKey = "profile"
 	APIKey              StoreKey = "api_key"
 	APPKey              StoreKey = "app_key"
-	PulumiPassword      StoreKey = "pulumi_password"
-	StackParameters     StoreKey = "stack_params"
-	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
+	Environments        StoreKey = "env"
+	ExtraResourcesTags  StoreKey = "extra_resources_tags"
 	KeyPairName         StoreKey = "key_pair_name"
-	PublicKeyPath       StoreKey = "public_key_path"
 	PrivateKeyPath      StoreKey = "private_key_path"
+	Profile             StoreKey = "profile"
+	PublicKeyPath       StoreKey = "public_key_path"
+	PulumiPassword      StoreKey = "pulumi_password"
+	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
+	StackParameters     StoreKey = "stack_params"
 )

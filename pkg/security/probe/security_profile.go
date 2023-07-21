@@ -35,7 +35,7 @@ func NewSecurityProfileManagers(probe *Probe) (*SecurityProfileManagers, error) 
 	}
 
 	if probe.IsActivityDumpEnabled() {
-		activityDumpManager, err := dump.NewActivityDumpManager(probe.Config, probe.StatsdClient, func() *model.Event { return NewEvent(probe.fieldHandlers) }, probe.resolvers.ProcessResolver, probe.resolvers.TimeResolver, probe.resolvers.TagsResolver, probe.kernelVersion, probe.scrubber, probe.Manager)
+		activityDumpManager, err := dump.NewActivityDumpManager(probe.Config, probe.StatsdClient, func() *model.Event { return NewEvent(probe.fieldHandlers) }, probe.resolvers, probe.kernelVersion, probe.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
@@ -43,7 +43,7 @@ func NewSecurityProfileManagers(probe *Probe) (*SecurityProfileManagers, error) 
 	}
 
 	if probe.IsSecurityProfileEnabled() {
-		securityProfileManager, err := profile.NewSecurityProfileManager(probe.Config, probe.StatsdClient, probe.resolvers.CGroupResolver, probe.resolvers.TimeResolver, probe.Manager)
+		securityProfileManager, err := profile.NewSecurityProfileManager(probe.Config, probe.StatsdClient, probe.resolvers, probe.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}

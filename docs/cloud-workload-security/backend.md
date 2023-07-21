@@ -333,6 +333,17 @@ CWS logs have the following JSON schema:
                 "package_version": {
                     "type": "string",
                     "description": "System package version"
+                },
+                "hashes": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "List of cryptographic hashes of the file"
+                },
+                "hash_state": {
+                    "type": "string",
+                    "description": "State of the hashes or reason why they weren't computed"
                 }
             },
             "additionalProperties": false,
@@ -430,6 +441,17 @@ CWS logs have the following JSON schema:
                 "package_version": {
                     "type": "string",
                     "description": "System package version"
+                },
+                "hashes": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "List of cryptographic hashes of the file"
+                },
+                "hash_state": {
+                    "type": "string",
+                    "description": "State of the hashes or reason why they weren't computed"
                 },
                 "destination": {
                     "$ref": "#/$defs/File",
@@ -857,6 +879,10 @@ CWS logs have the following JSON schema:
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
                 },
+                "is_exec_child": {
+                    "type": "boolean",
+                    "description": "Indicates wether the process is an exec child of its parent"
+                },
                 "source": {
                     "type": "string",
                     "description": "Process source"
@@ -976,6 +1002,10 @@ CWS logs have the following JSON schema:
                 "is_kworker": {
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
+                },
+                "is_exec_child": {
+                    "type": "boolean",
+                    "description": "Indicates wether the process is an exec child of its parent"
                 },
                 "source": {
                     "type": "string",
@@ -1810,6 +1840,17 @@ CWS logs have the following JSON schema:
         "package_version": {
             "type": "string",
             "description": "System package version"
+        },
+        "hashes": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "List of cryptographic hashes of the file"
+        },
+        "hash_state": {
+            "type": "string",
+            "description": "State of the hashes or reason why they weren't computed"
         }
     },
     "additionalProperties": false,
@@ -1845,6 +1886,8 @@ CWS logs have the following JSON schema:
 | `change_time` | File change time |
 | `package_name` | System package name |
 | `package_version` | System package version |
+| `hashes` | List of cryptographic hashes of the file |
+| `hash_state` | State of the hashes or reason why they weren't computed |
 
 
 ## `FileEvent`
@@ -1939,6 +1982,17 @@ CWS logs have the following JSON schema:
             "type": "string",
             "description": "System package version"
         },
+        "hashes": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "List of cryptographic hashes of the file"
+        },
+        "hash_state": {
+            "type": "string",
+            "description": "State of the hashes or reason why they weren't computed"
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -1989,6 +2043,8 @@ CWS logs have the following JSON schema:
 | `change_time` | File change time |
 | `package_name` | System package name |
 | `package_version` | System package version |
+| `hashes` | List of cryptographic hashes of the file |
+| `hash_state` | State of the hashes or reason why they weren't computed |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `device` | Device associated with the file |
@@ -2556,6 +2612,10 @@ CWS logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
+        "is_exec_child": {
+            "type": "boolean",
+            "description": "Indicates wether the process is an exec child of its parent"
+        },
         "source": {
             "type": "string",
             "description": "Process source"
@@ -2598,6 +2658,7 @@ CWS logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
+| `is_exec_child` | Indicates wether the process is an exec child of its parent |
 | `source` | Process source |
 
 | References |
@@ -2718,6 +2779,10 @@ CWS logs have the following JSON schema:
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
         },
+        "is_exec_child": {
+            "type": "boolean",
+            "description": "Indicates wether the process is an exec child of its parent"
+        },
         "source": {
             "type": "string",
             "description": "Process source"
@@ -2771,6 +2836,7 @@ CWS logs have the following JSON schema:
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | `is_kworker` | Indicates whether the process is a kworker |
+| `is_exec_child` | Indicates wether the process is an exec child of its parent |
 | `source` | Process source |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |

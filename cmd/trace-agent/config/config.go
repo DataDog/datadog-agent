@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -87,12 +87,17 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
-	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewGRPCClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
+		client, err := remote.NewGRPCClient(
+			rcClientName,
+			version.AgentVersion,
+			[]data.Product{data.ProductAPMSampling, data.ProductAgentConfig},
+			rcClientPollInterval,
+		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
-			cfg.RemoteSamplingClient = client
+			cfg.RemoteConfigClient = client
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
@@ -350,6 +355,9 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.enabled") {
 			c.Obfuscation.Redis.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.enabled")
+		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.redis.remove_all_args") {
+			c.Obfuscation.Redis.RemoveAllArgs = coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.remove_all_args")
 		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.remove_stack_traces") {
 			c.Obfuscation.RemoveStackTraces = coreconfig.Datadog.GetBool("apm_config.obfuscation.remove_stack_traces")
@@ -717,6 +725,8 @@ func SetHandler() http.Handler {
 			value := html.UnescapeString(values[len(values)-1])
 			switch key {
 			case "log_level":
+				// Note: This endpoint is used by remote-config to set the log level dynamically
+				// Please make sure to reach out to this team before removing it.
 				lvl := strings.ToLower(value)
 				if lvl == "warning" {
 					lvl = "warn"

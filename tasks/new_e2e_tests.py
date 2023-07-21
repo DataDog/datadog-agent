@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import List
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
@@ -18,6 +19,7 @@ from .flavor import AgentFlavor
 from .libs.junit_upload import produce_junit_tar
 from .modules import DEFAULT_MODULES
 from .test import test_flavor
+from .utils import REPO_PATH, get_git_commit
 
 
 @task(
@@ -28,9 +30,22 @@ from .test import test_flavor
         'targets': 'Target packages (same as inv test)',
         'configparams': 'Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)',
         'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
+        'run': 'Only run tests matching the regular expression',
+        'skip': 'Only run tests not matching the regular expression',
     },
 )
-def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cache=False, junit_tar=""):  # noqa: B006
+def run(
+    ctx,
+    profile="",
+    tags=[],  # noqa: B006
+    targets=[],  # noqa: B006
+    configparams=[],  # noqa: B006
+    verbose=True,
+    run="",
+    skip="",
+    cache=False,
+    junit_tar="",
+):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
@@ -62,14 +77,16 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += (
-        '--packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache}'
-    )
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip}'
     args = {
         "go_mod": "mod",
         "timeout": "4h",
         "verbose": '-v' if verbose else '',
         "nocache": '-count=1' if not cache else '',
+        "REPO_PATH": REPO_PATH,
+        "commit": get_git_commit(),
+        "run": '-test.run ' + run if run else '',
+        "skip": '-test.skip ' + skip if skip else '',
     }
 
     test_res = test_flavor(
@@ -109,7 +126,7 @@ def run(ctx, profile="", tags=[], targets=[], configparams=[], verbose=True, cac
         'stacks': 'Cleans up local stack state, default False',
     },
 )
-def clean(_, locks=True, stacks=False):
+def clean(ctx, locks=True, stacks=False):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
@@ -122,7 +139,7 @@ def clean(_, locks=True, stacks=False):
         _clean_locks()
 
     if stacks:
-        _clean_stacks()
+        _clean_stacks(ctx)
 
 
 def _clean_locks():
@@ -132,44 +149,40 @@ def _clean_locks():
     for entry in os.listdir(Path(lock_dir)):
         subdir = os.path.join(lock_dir, entry)
         for filename in os.listdir(Path(subdir)):
-            file_path = os.path.join(subdir, filename)
-            if os.path.isfile(file_path) and filename.endswith(".json"):
-                os.remove(file_path)
-                print(f"🗑️ Deleted lock: {file_path}")
+            path = os.path.join(subdir, filename)
+            if os.path.isfile(path) and filename.endswith(".json"):
+                os.remove(path)
+                print(f"🗑️ Deleted lock: {path}")
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
 
 
-def _clean_stacks():
+def _clean_stacks(ctx: Context):
     print("🧹 Clean up stacks")
-    stacks = _get_existing_stacks()
+    stacks = _get_existing_stacks(ctx)
 
     for stack in stacks:
         print(f"🗑️ Cleaning up stack {stack}")
-        _remove_stack(stack)
+        _remove_stack(ctx, stack)
 
 
-def _get_existing_stacks() -> List[str]:
+def _get_existing_stacks(ctx: Context) -> List[str]:
     # ensure we deal with local stacks
-    output = subprocess.check_output(["pulumi", "stack", "ls", "--all"], cwd=tempfile.gettempdir())
-    output = output.decode("utf-8")
-    lines = output.splitlines()
-    lines = lines[1:]  # skip headers
-    e2e_stacks: List[str] = []
-    for line in lines:
-        stack_name = line.split(" ")[0]
-        e2e_stacks.append(stack_name)
-    return e2e_stacks
+    with ctx.cd(tempfile.gettempdir()):
+        output = ctx.run("pulumi stack ls --all", pty=True)
+        if output is None or not output:
+            return []
+        lines = output.stdout.splitlines()
+        lines = lines[1:]  # skip headers
+        e2e_stacks: List[str] = []
+        for line in lines:
+            stack_name = line.split(" ")[0]
+            e2e_stacks.append(stack_name)
+        return e2e_stacks
 
 
-def _remove_stack(stack_name: str):
-    subprocess.call(
-        [
-            "pulumi",
-            "stack",
-            "rm",
-            "--force",
-            stack_name,
-        ]
-    )
+def _remove_stack(ctx: Context, stack_name: str):
+    ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
 
 
 def _get_pulumi_about() -> str:

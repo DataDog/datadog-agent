@@ -71,6 +71,10 @@ type Agent struct {
 	cancel context.CancelFunc
 }
 
+func xccdfEnabled() bool {
+	return config.Datadog.GetBool("compliance_config.xccdf.enabled") || config.Datadog.GetBool("compliance_config.host_benchmarks.enabled")
+}
+
 func DefaultRuleFilter(r *Rule) bool {
 	if config.IsKubernetes() {
 		if r.SkipOnK8s {
@@ -81,7 +85,7 @@ func DefaultRuleFilter(r *Rule) bool {
 			return false
 		}
 	}
-	if r.IsXCCDF() && !config.Datadog.GetBool("compliance_config.xccdf.enabled") {
+	if r.IsXCCDF() && !xccdfEnabled() {
 		return false
 	}
 	if len(r.Filters) > 0 {
@@ -248,7 +252,7 @@ func (a *Agent) runRegoBenchmarks(ctx context.Context) {
 }
 
 func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
-	if !config.Datadog.GetBool("compliance_config.xccdf.enabled") {
+	if !xccdfEnabled() {
 		return
 	}
 	benchmarks, err := LoadBenchmarks(a.opts.ConfigDir, "*.yaml", func(r *Rule) bool {

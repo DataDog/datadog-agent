@@ -25,7 +25,7 @@ type K8sNodeConfig struct {
 	} `json:"components"`
 	Manifests struct {
 		Etcd                 *K8sConfigFileMeta `json:"etcd,omitempty"`
-		KubeContollerManager *K8sConfigFileMeta `json:"kubeContollerManager,omitempty"`
+		KubeContollerManager *K8sConfigFileMeta `json:"kubeControllerManager,omitempty"`
 		KubeApiserver        *K8sConfigFileMeta `json:"kubeApiserver,omitempty"`
 		KubeScheduler        *K8sConfigFileMeta `json:"kubeScheduler,omitempty"`
 	} `json:"manifests"`
@@ -38,19 +38,25 @@ type K8sManagedEnvConfig struct {
 }
 
 type K8sDirMeta struct {
-	Path string `json:"path"`
-	Mode uint32 `json:"mode"`
+	Path  string `json:"path"`
+	User  string `json:"user"`
+	Group string `json:"group"`
+	Mode  uint32 `json:"mode"`
 }
 
 type K8sConfigFileMeta struct {
 	Path    string      `json:"path"`
+	User    string      `json:"user"`
+	Group   string      `json:"group"`
 	Mode    uint32      `json:"mode"`
-	Content interface{} `json:"content"`
+	Content interface{} `json:"content" jsonschema:"type=object"`
 }
 
 type K8sTokenFileMeta struct {
-	Path string `json:"path"`
-	Mode uint32 `json:"mode"`
+	Path  string `json:"path"`
+	User  string `json:"user"`
+	Group string `json:"group"`
+	Mode  uint32 `json:"mode"`
 }
 
 // https://github.com/kubernetes/kubernetes/blob/6356023cb42d681b7ad0e6d14d1652247d75b797/staging/src/k8s.io/apiserver/pkg/apis/apiserver/types.go#L30
@@ -69,6 +75,8 @@ type (
 	}
 
 	K8sAdmissionConfigFileMeta struct {
+		User    string                          `json:"user,omitempty"`
+		Group   string                          `json:"group,omitempty"`
 		Path    string                          `json:"path,omitempty"`
 		Mode    uint32                          `json:"mode,omitempty"`
 		Plugins []*K8sAdmissionPluginConfigMeta `json:"plugins"`
@@ -77,18 +85,27 @@ type (
 
 type K8sKubeconfigMeta struct {
 	Path       string      `json:"path,omitempty"`
+	User       string      `json:"user,omitempty"`
+	Group      string      `json:"group,omitempty"`
 	Mode       uint32      `json:"mode,omitempty"`
 	Kubeconfig interface{} `json:"kubeconfig"`
 }
 
 type K8sKeyFileMeta struct {
-	Path string `json:"path,omitempty"`
-	Mode uint32 `json:"mode,omitempty"`
+	Path  string `json:"path,omitempty"`
+	User  string `json:"user,omitempty"`
+	Group string `json:"group,omitempty"`
+	Mode  uint32 `json:"mode,omitempty"`
 }
 
 type K8sCertFileMeta struct {
 	Path        string `json:"path,omitempty"`
+	User        string `json:"user,omitempty"`
+	Group       string `json:"group,omitempty"`
 	Mode        uint32 `json:"mode,omitempty"`
+	DirUser     string `json:"dirUser,omitempty"`
+	DirGroup    string `json:"dirGroup,omitempty"`
+	DirMode     uint32 `json:"dirMode,omitempty"`
 	Certificate struct {
 		Fingerprint    string    `json:"fingerprint"`
 		SerialNumber   string    `json:"serialNumber,omitempty"`
@@ -191,6 +208,8 @@ type (
 type (
 	K8sEncryptionProviderConfigFileMeta struct {
 		Path      string `json:"path,omitempty"`
+		User      string `json:"user,omitempty"`
+		Group     string `json:"group,omitempty"`
 		Mode      uint32 `json:"mode,omitempty"`
 		Resources []struct {
 			Resources []string `yaml:"resources" json:"resources"`

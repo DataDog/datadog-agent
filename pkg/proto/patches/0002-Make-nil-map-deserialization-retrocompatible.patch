@@ -1,0 +1,34 @@
+From 5bbd9c854c7d6fa334938892da12df3f7537c37f Mon Sep 17 00:00:00 2001
+From: Bertrand Mermet <bertrand.mermet@datadoghq.com>
+Date: Fri, 13 Nov 2020 11:32:55 +0100
+Subject: [PATCH] Make nil map deserialization retrocompatible
+
+---
+ pkg/trace/pb/span_gen.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/pkg/trace/pb/span_gen.go b/pkg/trace/pb/span_gen.go
+index 9e6cbc401c..c4199906ac 100644
+--- a/pkg/trace/pb/span_gen.go
++++ b/pkg/trace/pb/span_gen.go
+@@ -187,7 +187,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
+ 				err = msgp.WrapError(err, "Meta")
+ 				return
+ 			}
+-			if z.Meta == nil {
++			if z.Meta == nil && zb0002 > 0 {
+ 				z.Meta = make(map[string]string, zb0002)
+ 			} else if len(z.Meta) > 0 {
+ 				for key := range z.Meta {
+@@ -222,7 +222,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
+ 				err = msgp.WrapError(err, "Metrics")
+ 				return
+ 			}
+-			if z.Metrics == nil {
++			if z.Metrics == nil && zb0003 > 0{
+ 				z.Metrics = make(map[string]float64, zb0003)
+ 			} else if len(z.Metrics) > 0 {
+ 				for key := range z.Metrics {
+-- 
+2.41.0
+

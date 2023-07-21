@@ -340,12 +340,12 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
 	service := e.probe.GetService(ev)
-
+	containerID := ev.ContainerContext.ID
 	extTagsCb := func() []string {
-		return e.probe.GetEventTags(ev)
+		return e.probe.GetEventTags(containerID)
 	}
 
-	e.eventSender.SendEvent(rule, event, extTagsCb, service)
+	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
 
 	return true
 }

@@ -26,7 +26,7 @@ var mountProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_security_sb_umount",
+			EBPFFuncName: "hook_security_sb_umount",
 		},
 	},
 	{
@@ -73,7 +73,7 @@ func getMountProbes() []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unshare",
-	}, Entry)...)
+	}, EntryAndExit)...)
 
 	return mountProbes
 }

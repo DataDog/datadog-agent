@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/vm"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -82,7 +82,7 @@ func AgentStackDef(vmParams []ec2params.Option, agentParameters ...agentparams.O
 				return nil, err
 			}
 
-			fakeintakeExporter, err := ecs.NewEcsFakeintake(vm.Infra)
+			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment())
 			if err != nil {
 				return nil, err
 			}

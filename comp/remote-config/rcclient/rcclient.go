@@ -34,11 +34,10 @@ const (
 type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, error)
 
 type rcClient struct {
-	client           *remote.Client
-	m                *sync.Mutex
-	taskProcessed    map[string]bool
-	fallbackLogLevel *string
-	latestLogLevel   *string
+	client        *remote.Client
+	m             *sync.Mutex
+	taskProcessed map[string]bool
+	configState   *state.AgentConfigState
 
 	listeners []RCAgentTaskListener
 }
@@ -60,25 +59,19 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 	rc := rcClient{
 		listeners: deps.Listeners,
 		m:         &sync.Mutex{},
-		// The string values can't be updated inside the component methods,
-		// so we need to use pointers
-		fallbackLogLevel: new(string),
-		latestLogLevel:   new(string),
-		client:           nil,
+		configState: &state.AgentConfigState{
+			FallbackLogLevel: level.String(),
+		},
+		client: nil,
 	}
-
-	*rc.fallbackLogLevel = level.String()
 
 	return rc, nil
 }
 
 // Listen start the remote config client to listen to AGENT_TASK configurations
-func (rc rcClient) Listen() error {
+func (rc rcClient) Listen(clientName string, products []data.Product) error {
 	c, err := remote.NewUnverifiedGRPCClient(
-		"core-agent", version.AgentVersion, []data.Product{
-			data.ProductAgentTask,
-			data.ProductAgentConfig,
-		}, 1*time.Second,
+		clientName, version.AgentVersion, products, 5*time.Second,
 	)
 	if err != nil {
 		return err
@@ -87,8 +80,18 @@ func (rc rcClient) Listen() error {
 	rc.client = c
 	rc.taskProcessed = map[string]bool{}
 
-	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
-	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
+	for _, product := range products {
+		switch product {
+		case state.ProductAgentTask:
+			rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
+			break
+		case state.ProductAgentConfig:
+			rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
+			break
+		default:
+			pkglog.Infof("remote config client %s started unsupported product: %s", clientName, product)
+		}
+	}
 
 	rc.client.Start()
 
@@ -96,29 +99,29 @@ func (rc rcClient) Listen() error {
 }
 
 func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig) {
-	mergedConfig, err := remote.MergeRCAgentConfig(rc.client, updates)
+	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {
 		return
 	}
 
 	// TODO RCM-1064: implement priority between CLI and remote-config
 	// If there is no error, override the configs
-	if len(mergedConfig.LogLevel) > 0 && mergedConfig.LogLevel != *rc.latestLogLevel {
+	if len(mergedConfig.LogLevel) > 0 && mergedConfig.LogLevel != rc.configState.LatestLogLevel {
 		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
 		// Get the current log level
 		var newFallback seelog.LogLevel
 		newFallback, err = pkglog.GetLogLevel()
 		if err == nil {
-			*rc.fallbackLogLevel = newFallback.String()
+			rc.configState.FallbackLogLevel = newFallback.String()
 			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
-			*rc.latestLogLevel = mergedConfig.LogLevel
+			rc.configState.LatestLogLevel = mergedConfig.LogLevel
 		}
 	} else {
 		var currentLogLevel seelog.LogLevel
 		currentLogLevel, err = pkglog.GetLogLevel()
-		if err == nil && currentLogLevel.String() == *rc.latestLogLevel {
-			pkglog.Infof("Removing remote-config log level override, falling back to %s", *rc.fallbackLogLevel)
-			err = settings.SetRuntimeSetting("log_level", *rc.fallbackLogLevel)
+		if err == nil && currentLogLevel.String() == rc.configState.LatestLogLevel {
+			pkglog.Infof("Removing remote-config log level override, falling back to %s", rc.configState.FallbackLogLevel)
+			err = settings.SetRuntimeSetting("log_level", rc.configState.FallbackLogLevel)
 		}
 	}
 
@@ -168,7 +171,11 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 				// Check if the task was processed at least once
 				processed = oneProcessed || processed
 				if oneErr != nil {
-					err = errors.Wrap(err, oneErr.Error())
+					if err == nil {
+						err = oneErr
+					} else {
+						err = errors.Wrap(oneErr, err.Error())
+					}
 				}
 			}
 			if processed && err != nil {

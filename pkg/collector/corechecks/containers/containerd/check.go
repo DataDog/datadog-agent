@@ -14,12 +14,12 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	coreMetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -102,11 +102,11 @@ func (c *ContainerdCheck) Run() error {
 
 	// As we do not rely on a singleton, we ensure connectivity every check run.
 	if errHealth := c.client.CheckConnectivity(); errHealth != nil {
-		sender.ServiceCheck("containerd.health", coreMetrics.ServiceCheckCritical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
+		sender.ServiceCheck("containerd.health", servicecheck.ServiceCheckCritical, "", nil, fmt.Sprintf("Connectivity error %v", errHealth))
 		log.Infof("Error ensuring connectivity with Containerd daemon %v", errHealth)
 		return errHealth
 	}
-	sender.ServiceCheck("containerd.health", coreMetrics.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck("containerd.health", servicecheck.ServiceCheckOK, "", nil, "")
 
 	if err := c.runProcessor(sender); err != nil {
 		_ = c.Warnf("Error collecting metrics: %s", err)
@@ -121,11 +121,11 @@ func (c *ContainerdCheck) Run() error {
 	return nil
 }
 
-func (c *ContainerdCheck) runProcessor(sender aggregator.Sender) error {
+func (c *ContainerdCheck) runProcessor(sender sender.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 
-func (c *ContainerdCheck) runContainerdCustom(sender aggregator.Sender) error {
+func (c *ContainerdCheck) runContainerdCustom(sender sender.Sender) error {
 	namespaces, err := cutil.NamespacesToWatch(context.TODO(), c.client)
 	if err != nil {
 		return err
@@ -140,7 +140,7 @@ func (c *ContainerdCheck) runContainerdCustom(sender aggregator.Sender) error {
 	return nil
 }
 
-func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.ContainerdItf, namespace string) error {
+func (c *ContainerdCheck) collectImageSizes(sender sender.Sender, cl cutil.ContainerdItf, namespace string) error {
 	// Report images size
 	images, err := cl.ListImages(namespace)
 	if err != nil {
@@ -164,7 +164,7 @@ func (c *ContainerdCheck) collectImageSizes(sender aggregator.Sender, cl cutil.C
 	return nil
 }
 
-func (c *ContainerdCheck) collectEvents(sender aggregator.Sender) {
+func (c *ContainerdCheck) collectEvents(sender sender.Sender) {
 	if !c.instance.CollectEvents {
 		return
 	}

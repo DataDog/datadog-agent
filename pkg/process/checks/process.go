@@ -18,7 +18,7 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
-	workloadMetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -39,17 +39,24 @@ const (
 
 // NewProcessCheck returns an instance of the ProcessCheck.
 func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
-	var extractors []metadata.Extractor
-	if workloadMetaExtractor.Enabled(config) {
-		extractors = append(extractors, workloadMetaExtractor.NewWorkloadMetaExtractor())
-	}
-
-	return &ProcessCheck{
+	check := &ProcessCheck{
 		config:        config,
 		scrubber:      procutil.NewDefaultDataScrubber(),
 		lookupIdProbe: NewLookupIdProbe(config),
-		extractors:    extractors,
 	}
+
+	if workloadmeta.Enabled(config) {
+		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(config)
+		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
+		err := check.workloadMetaServer.Start()
+		if err != nil {
+			_ = log.Error("Failed to start the workload meta gRPC server:", err)
+		} else {
+			check.extractors = append(check.extractors, check.workloadMetaExtractor)
+		}
+	}
+
+	return check
 }
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
@@ -104,6 +111,9 @@ type ProcessCheck struct {
 	lookupIdProbe *LookupIdProbe
 
 	extractors []metadata.Extractor
+
+	workloadMetaExtractor *workloadmeta.WorkloadMetaExtractor
+	workloadMetaServer    *workloadmeta.GRPCServer
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -186,7 +196,11 @@ func (p *ProcessCheck) Realtime() bool { return false }
 func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 
 // Cleanup frees any resource held by the ProcessCheck before the agent exits
-func (p *ProcessCheck) Cleanup() {}
+func (p *ProcessCheck) Cleanup() {
+	if p.workloadMetaServer != nil {
+		p.workloadMetaServer.Stop()
+	}
+}
 
 func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, error) {
 	start := time.Now()
@@ -201,10 +215,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	procs, err := p.probe.ProcessesByPID(time.Now(), true)
 	if err != nil {
 		return nil, err
-	}
-
-	for _, extractor := range p.extractors {
-		extractor.Extract(procs)
 	}
 
 	// stores lastPIDs to be used by RTProcess
@@ -230,6 +240,15 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.lastContainerRates = lastContainerRates
 	} else {
 		log.Debugf("Unable to gather stats for containers, err: %v", err)
+	}
+
+	// Notify the workload meta extractor that the mapping between pid and cid has changed
+	if p.workloadMetaExtractor != nil {
+		p.workloadMetaExtractor.SetLastPidToCid(pidToCid)
+	}
+
+	for _, extractor := range p.extractors {
+		extractor.Extract(procs)
 	}
 
 	// Keep track of containers addresses

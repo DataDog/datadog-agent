@@ -202,8 +202,7 @@ namespace WixSetup.Datadog
                     Return.check,
                     When.After,
                     new Step(WriteConfig.Id),
-                    // Only on first install otherwise we risk ruining the existing install
-                    Conditions.FirstInstall
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
                 {
                     Execute = Execute.rollback,

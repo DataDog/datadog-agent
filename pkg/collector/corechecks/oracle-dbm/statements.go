@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build oracle
+
 package oracle
 
 import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -17,14 +18,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/jmoiron/sqlx"
-	"golang.org/x/exp/maps"
+	cache "github.com/patrickmn/go-cache"
 )
 
+/*
+ * We are selecting from sql_fulltext instead of sql_text because sql_text doesn't preserve the new lines.
+ * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
+ * For such statements, we will have to get the text from v$sql which has the complete text.
+ */
 const STATEMENT_METRICS_QUERY = `SELECT /* DD */
 	c.name as pdb_name,
 	%s,
 	plan_hash_value,
+	max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text,
+	length(max(sql_text)) sql_text_length,
+	max(sql_id) random_sql_id,
 	sum(parse_calls) as parse_calls,
 	sum(disk_reads) as disk_reads,
 	sum(direct_writes) as direct_writes,
@@ -62,9 +70,12 @@ const STATEMENT_METRICS_QUERY = `SELECT /* DD */
 FROM v$sqlstats s, v$containers c
 WHERE 
 	s.con_id = c.con_id(+)
-	AND %s IN (%s) %s
-GROUP BY c.name, %s, plan_hash_value`
+	AND force_matching_signature %s= 0
+GROUP BY c.name, %s, plan_hash_value
+HAVING MAX(last_active_time) > sysdate - :seconds/24/60/60
+FETCH FIRST :limit ROWS ONLY`
 
+// including sql_id for indexed access
 const PLAN_QUERY = `SELECT /* DD */
 	timestamp,
 	operation,
@@ -103,14 +114,13 @@ const PLAN_QUERY = `SELECT /* DD */
 	c.name pdb_name
 FROM v$sql_plan_statistics_all s, v$containers c
 WHERE 
-  child_address = ( SELECT last_active_child_address FROM v$sqlstats WHERE plan_hash_value = :1 ORDER BY last_active_time DESC FETCH FIRST 1 ROW ONLY)
+  sql_id = :1 AND plan_hash_value = :2
   AND s.con_id = c.con_id(+)
 ORDER BY id, position`
 
 type StatementMetricsKeyDB struct {
-	PDBName string `db:"PDB_NAME"`
-	SQLID   string `db:"SQL_ID"`
-
+	PDBName                string `db:"PDB_NAME"`
+	SQLID                  string `db:"SQL_ID"`
 	ForceMatchingSignature string `db:"FORCE_MATCHING_SIGNATURE"`
 	PlanHashValue          uint64 `db:"PLAN_HASH_VALUE"`
 }
@@ -158,6 +168,9 @@ type StatementMetricsGaugeDB struct {
 
 type StatementMetricsDB struct {
 	StatementMetricsKeyDB
+	SQLText       string `db:"SQL_TEXT"`
+	SQLTextLength int16  `db:"SQL_TEXT_LENGTH"`
+	RandomSQLID   string `db:"RANDOM_SQL_ID"`
 	StatementMetricsMonotonicCountDB
 	StatementMetricsGaugeDB
 }
@@ -386,33 +399,13 @@ type PlanRows struct {
 	PlanStepRows
 }
 
-func ConstructStatementMetricsQueryBlock(sqlHandleColumn string, whereClause string, bindPlaceholder string) string {
-	return fmt.Sprintf(STATEMENT_METRICS_QUERY, sqlHandleColumn, sqlHandleColumn, bindPlaceholder, whereClause, sqlHandleColumn)
-}
-
-func GetStatementsMetricsForKeys[K comparable](c *Check, keyName string, whereClause string, keys map[K]int) ([]StatementMetricsDB, error) {
-	if len(keys) != 0 {
-		db := c.db
-		var bindPlaceholder string
-		keysSlice := maps.Keys(keys)
-
-		bindPlaceholder = "?"
-		var statementMetrics []StatementMetricsDB
-		statements_metrics_query := ConstructStatementMetricsQueryBlock(keyName, whereClause, bindPlaceholder)
-
-		log.Tracef("Statements query metrics keys %s: %+v", keyName, keysSlice)
-
-		query, args, err := sqlx.In(statements_metrics_query, keysSlice)
-		if err != nil {
-			return nil, fmt.Errorf("error preparing statement metrics query: %w %s", err, statements_metrics_query)
-		}
-		err = db.Select(&statementMetrics, db.Rebind(query), args...)
-		if err != nil {
-			return nil, fmt.Errorf("error executing statement metrics query: %w %s", err, statements_metrics_query)
-		}
-		return statementMetrics, nil
+func GetStatementsMetricsForKeys(c *Check, key string, negator string) ([]StatementMetricsDB, error) {
+	var statementMetrics []StatementMetricsDB
+	err := selectWrapper(c, &statementMetrics, fmt.Sprintf(STATEMENT_METRICS_QUERY, key, negator, key), 2*c.config.QueryMetrics.CollectionInterval, c.config.QueryMetrics.DBRowsLimit)
+	if err != nil {
+		return nil, fmt.Errorf("error executing statement metrics query: %w", err)
 	}
-	return nil, nil
+	return statementMetrics, nil
 }
 
 func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB) {
@@ -424,56 +417,32 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 
 func (c *Check) StatementMetrics() (int, error) {
 	start := time.Now()
+
+	if !c.statementsLastRun.IsZero() && start.Sub(c.statementsLastRun).Milliseconds() < c.config.QueryMetrics.CollectionInterval*1000 {
+		return 0, nil
+	}
+
 	sender, err := c.GetSender()
 	if err != nil {
 		log.Errorf("GetSender statements metrics")
 		return 0, err
 	}
 
-	SQLTextErrors := 0
 	SQLCount := 0
-	totalSQLTextTimeUs := int64(0)
 	var oracleRows []OracleRow
 	var planErrors uint16
 	if c.config.QueryMetrics.Enabled {
-		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
-			var DDForceMatchingSignatures []string
-			/*
-			 * When we want to capture the Datadog Agent queries, we're explicitly looking for them in v$sqlstats, because
-			 * they are excluded from query samples and therefore won't be found in c.statementsCache
-			 */
-			err = c.db.Select(
-				&DDForceMatchingSignatures,
-				"SELECT distinct force_matching_signature FROM v$sqlstats WHERE sql_text like '%/* DD%' and (sysdate-last_active_time)*3600*24 <= :1",
-				time.Since(c.statementsLastRun).Seconds()+1,
-			)
-			if err != nil {
-				log.Error("error getting sql_ids from DD queries")
-			}
-			for _, key := range DDForceMatchingSignatures {
-				c.statementsFilter.ForceMatchingSignatures[key] = 1
-			}
-			if c.DDstatementsCache.forceMatchingSignatures == nil {
-				c.DDstatementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
-			}
-			if c.DDPrevStatementsCache.forceMatchingSignatures == nil {
-				c.DDPrevStatementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
-			}
-
-		}
-
-		statementMetrics, err := GetStatementsMetricsForKeys(c, "force_matching_signature", "AND force_matching_signature != 0", c.statementsFilter.ForceMatchingSignatures)
+		statementMetrics, err := GetStatementsMetricsForKeys(c, "force_matching_signature", "!")
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
 		}
 		log.Tracef("number of collected metrics with force_matching_signature %+v", len(statementMetrics))
 		statementMetricsAll := statementMetrics
-		statementMetrics, err = GetStatementsMetricsForKeys(c, "sql_id", " ", c.statementsFilter.SQLIDs)
+		statementMetrics, err = GetStatementsMetricsForKeys(c, "sql_id", "")
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for SQL_IDs: %w", err)
 		}
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
-		log.Tracef("all collected metrics: %+v", statementMetricsAll)
 		SQLCount = len(statementMetricsAll)
 		sender.Count("dd.oracle.statements_metrics.sql_count", float64(SQLCount), "", c.tags)
 
@@ -488,8 +457,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-		FQTSent := make(map[string]int)
-		executionPlanSent := make(map[uint64]int)
 		for _, statementMetricRow := range statementMetricsAll {
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
@@ -519,7 +486,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				if diff.Fetches = statementMetricRow.Fetches - previousMonotonic.Fetches; diff.Fetches < 0 {
 					continue
 				}
-				if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions < 0 {
+				if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions <= 0 {
 					continue
 				}
 				if diff.EndOfFetchCount = statementMetricRow.EndOfFetchCount - previousMonotonic.EndOfFetchCount; diff.EndOfFetchCount < 0 {
@@ -595,99 +562,38 @@ func (c *Check) StatementMetrics() (int, error) {
 				continue
 			}
 
-			startSQLText := time.Now()
 			queryRow := QueryRow{}
-			var queryHashCol string
 			var SQLStatement string
 
-			found := false
-			if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature != "" {
-				obfuscatedStatement, ok := c.statementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature]
-				if ok {
-					queryRow.Commands = obfuscatedStatement.commands
-					queryRow.QuerySignature = obfuscatedStatement.querySignature
-					queryRow.Tables = obfuscatedStatement.tables
-					SQLStatement = obfuscatedStatement.statement
-					found = true
-				} else if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
-					obfuscatedStatement, ok := c.DDPrevStatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature]
-					if ok {
-						queryRow.Commands = obfuscatedStatement.commands
-						queryRow.QuerySignature = obfuscatedStatement.querySignature
-						queryRow.Tables = obfuscatedStatement.tables
-						SQLStatement = obfuscatedStatement.statement
-
-						c.DDstatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature] = c.DDPrevStatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature]
-						found = true
+			if statementMetricRow.SQLTextLength == 1000 {
+				err := getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.RandomSQLID)
+				if err != nil {
+					log.Errorf("failed to get the full text %s for sql_id %s", err, statementMetricRow.RandomSQLID)
+				}
+				if SQLStatement == "" && statementMetricRow.ForceMatchingSignature != "" {
+					err := getFullSQLText(c, &SQLStatement, "force_matching_signature", statementMetricRow.ForceMatchingSignature)
+					if err != nil {
+						log.Errorf("failed to get the full text %s for force_matching_signature %s", err, statementMetricRow.ForceMatchingSignature)
 					}
 				}
-			} else if statementMetricRow.StatementMetricsKeyDB.SQLID != "" {
-				obfuscatedStatement, ok := c.statementsCache.SQLIDs[statementMetricRow.StatementMetricsKeyDB.SQLID]
-				if ok {
-					queryRow.Commands = obfuscatedStatement.commands
-					queryRow.QuerySignature = obfuscatedStatement.querySignature
-					queryRow.Tables = obfuscatedStatement.tables
-					SQLStatement = obfuscatedStatement.statement
-					found = true
+				if SQLStatement != "" {
+					statementMetricRow.SQLText = SQLStatement
 				}
 			}
-			if !found {
-				if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == "" {
-					queryHashCol = "sql_id"
-				} else {
-					queryHashCol = "force_matching_signature"
-				}
 
-				p := map[string]interface{}{
-					"force_matching_signature": statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature,
-					"sql_id":                   statementMetricRow.StatementMetricsKeyDB.SQLID,
-				}
-				SQLTextQuery := fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sqlstats WHERE %s=:%s AND rownum = 1", queryHashCol, queryHashCol)
-
-				rows, err := c.db.NamedQuery(SQLTextQuery, p)
-				if err != nil {
-					log.Errorf("query metrics statements error named exec %s %s %+v", err, SQLTextQuery, p)
-					SQLTextErrors++
-					if rows != nil {
-						rows.Close()
-					}
-					continue
-				}
-				rows.Next()
-				cols, err := rows.SliceScan()
-				rows.Close()
-				totalSQLTextTimeUs += time.Since(startSQLText).Microseconds()
-
-				if err != nil {
-					log.Errorf("query metrics statement scan error %s %s %+v", err, SQLTextQuery, p)
-					SQLTextErrors++
-					continue
-				}
-				SQLStatement = cols[0].(string)
-				obfuscatedStatement, err := c.GetObfuscatedStatement(o, SQLStatement)
-				SQLStatement = obfuscatedStatement.Statement
-				if err == nil {
-					queryRow.QuerySignature = obfuscatedStatement.QuerySignature
-					queryRow.Commands = obfuscatedStatement.Commands
-					queryRow.Tables = obfuscatedStatement.Tables
-					if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
-						cacheEntry := StatementsCacheData{
-							statement:      SQLStatement,
-							querySignature: obfuscatedStatement.QuerySignature,
-							tables:         obfuscatedStatement.Tables,
-							commands:       obfuscatedStatement.Commands,
-						}
-						if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature != "" {
-							c.DDstatementsCache.forceMatchingSignatures[statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature] = cacheEntry
-						}
-					}
-				}
+			obfuscatedStatement, err := c.GetObfuscatedStatement(o, statementMetricRow.SQLText)
+			SQLStatement = obfuscatedStatement.Statement
+			if err == nil {
+				queryRow.QuerySignature = obfuscatedStatement.QuerySignature
+				queryRow.Commands = obfuscatedStatement.Commands
+				queryRow.Tables = obfuscatedStatement.Tables
 			}
+
 			var queryHash string
-			if queryHashCol == "force_matching_signature" {
-				queryHash = statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature
-			} else {
+			if statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature == "" {
 				queryHash = statementMetricRow.StatementMetricsKeyDB.SQLID
+			} else {
+				queryHash = statementMetricRow.StatementMetricsKeyDB.ForceMatchingSignature
 			}
 			oracleRow := OracleRow{
 				QueryRow:                queryRow,
@@ -701,8 +607,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 
-			_, ok := FQTSent[queryRow.QuerySignature]
-			if !ok {
+			if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
 				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
 				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
 				FQTDBOracle := FQTDBOracle{
@@ -724,16 +629,17 @@ func (c *Check) StatementMetrics() (int, error) {
 				}
 				log.Tracef("Query metrics fqt payload %s", string(FQTPayloadBytes))
 				sender.EventPlatformEvent(FQTPayloadBytes, "dbm-samples")
-				FQTSent[queryRow.QuerySignature] = 1
+				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
 			if c.config.ExecutionPlans.Enabled {
-				_, ok = executionPlanSent[statementMetricRow.PlanHashValue]
-				if !ok {
+				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
+				_, found := c.planEmitted.Get(planCacheKey)
+				if c.config.QueryMetrics.PlanCacheRetention == 0 || !found {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
-					err = c.db.Select(&planStepsDB, PLAN_QUERY, statementMetricRow.PlanHashValue)
+					err = selectWrapper(c, &planStepsDB, PLAN_QUERY, statementMetricRow.RandomSQLID, statementMetricRow.PlanHashValue)
 
 					if err == nil {
 						for _, stepRow := range planStepsDB {
@@ -892,23 +798,17 @@ func (c *Check) StatementMetrics() (int, error) {
 
 						sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
 						log.Tracef("Plan payload %+v", string(planPayloadBytes))
+						c.planEmitted.Set(planCacheKey, "1", cache.DefaultExpiration)
 					} else {
 						planErrors++
-						log.Errorf("failed getting execution plan %s for plan_hash_value: %d", err, statementMetricRow.PlanHashValue)
+						log.Errorf("failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", err, statementMetricRow.RandomSQLID, statementMetricRow.PlanHashValue)
 					}
 				}
 			}
 		}
 
 		c.copyToPreviousMap(newCache)
-
-		if c.config.InstanceConfig.QueryMetrics.IncludeDatadogQueries {
-			c.DDPrevStatementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
-			for k, v := range c.DDstatementsCache.forceMatchingSignatures {
-				c.DDPrevStatementsCache.forceMatchingSignatures[k] = v
-			}
-			c.DDstatementsCache.forceMatchingSignatures = nil
-		}
+		c.statementsLastRun = start
 	} else {
 		heartbeatStatement := "__other__"
 		queryRowHeartbeat := QueryRow{QuerySignature: heartbeatStatement}
@@ -942,9 +842,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	log.Tracef("Query metrics payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
-	sender.Gauge("dd.oracle.statements_metrics.sql_text_errors", float64(SQLTextErrors), "", c.tags)
 	sender.Gauge("dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()), "", c.tags)
-	sender.Gauge("dd.oracle.statements.sqltext.time_ms", math.Round(float64(totalSQLTextTimeUs/1000)), "", c.tags)
 	if c.config.ExecutionPlans.Enabled {
 		sender.Gauge("dd.oracle.plan_errors.count", float64(planErrors), "", c.tags)
 	}
@@ -955,10 +853,29 @@ func (c *Check) StatementMetrics() (int, error) {
 	c.statementsCache.SQLIDs = nil
 	c.statementsCache.forceMatchingSignatures = nil
 
-	c.statementsLastRun = start
-
-	if SQLTextErrors > 0 || planErrors > 0 {
-		return SQLCount, fmt.Errorf("SQL statements processed: %d, text errors: %d, plan erros: %d", SQLCount, SQLTextErrors, planErrors)
+	if planErrors > 0 {
+		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan errors: %d", SQLCount, planErrors)
 	}
 	return SQLCount, nil
+}
+
+func getFullSQLText(c *Check, SQLStatement *string, key string, value string) error {
+	sql := fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
+	err := c.db.Get(SQLStatement, sql, value)
+	if err != nil {
+		log.Warnf("failed to select full SQL text based on %s: %s \n%s", key, err, sql)
+		recoverFromDeadConnection(c, err)
+	}
+	return err
+}
+
+func recoverFromDeadConnection(c *Check, err error) {
+	if err != nil && (strings.Contains(err.Error(), "ORA-01012") || strings.Contains(err.Error(), "database is closed")) {
+		db, err := c.Connect()
+		if err != nil {
+			c.Teardown()
+			log.Errorf("failed to tear down check: %s", err)
+		}
+		c.db = db
+	}
 }

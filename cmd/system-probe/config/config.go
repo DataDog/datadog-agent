@@ -34,6 +34,7 @@ const (
 	ProcessModule                ModuleName = "process"
 	EventMonitorModule           ModuleName = "event_monitor"
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
+	EBPFModule                   ModuleName = "ebpf"
 )
 
 // Config represents the configuration options for the system-probe
@@ -154,6 +155,9 @@ func load() (*Config, error) {
 	if cfg.GetBool(diNS("enabled")) {
 		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
 	}
+	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
+		c.EnabledModules[EBPFModule] = struct{}{}
+	}
 
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
@@ -175,7 +179,7 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		aconfig.Datadog.SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustomWithKnownEnvVars(aconfig.Datadog, "datadog.yaml", true, aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", true, aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {

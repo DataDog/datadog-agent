@@ -30,31 +30,33 @@ var NetworkVethSelectors = []manager.ProbesSelector{
 }
 
 // NetworkSelectors is the list of probes that should be activated when the network is enabled
-var NetworkSelectors = []manager.ProbesSelector{
-	// flow classification probes
-	&manager.AllOf{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_socket_bind"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_sk_classify_flow"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_path_get"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_proc_fd_link"}},
-	}},
-
-	// network device probes
-	&manager.AllOf{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_register_netdevice"}},
-		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_change_net_namespace"}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_change_net_namespace"}},
+func NetworkSelectors(fentry bool) []manager.ProbesSelector {
+	return []manager.ProbesSelector{
+		// flow classification probes
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			kprobeOrFentry("security_socket_bind", fentry),
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_sk_classify_flow"}},
+			kprobeOrFentry("path_get", fentry),
+			kprobeOrFentry("proc_fd_link", fentry),
 		}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_register_netdevice"}},
-	}},
-	&manager.BestEffort{Selectors: []manager.ProbesSelector{
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_get_valid_name"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_new_index"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_dev_new_index"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_get_by_index"}},
-		&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_get_by_name"}},
-	}},
+
+		// network device probes
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_register_netdevice"}},
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_change_net_namespace"}},
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_change_net_namespace"}},
+			}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_register_netdevice"}},
+		}},
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_get_valid_name"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_dev_new_index"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_dev_new_index"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_get_by_index"}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___dev_get_by_name"}},
+		}},
+	}
 }
 
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
@@ -63,15 +65,17 @@ var SyscallMonitorSelectors = []manager.ProbesSelector{
 }
 
 // SnapshotSelectors selectors required during the snapshot
-var SnapshotSelectors = []manager.ProbesSelector{
-	// required to stat /proc/.../exe
-	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_inode_getattr"}},
+func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
+	return []manager.ProbesSelector{
+		// required to stat /proc/.../exe
+		kprobeOrFentry("security_inode_getattr", fentry),
+	}
 }
 
 var selectorsPerEventTypeStore map[eval.EventType][]manager.ProbesSelector
 
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
-func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
+func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSelector {
 	if selectorsPerEventTypeStore != nil {
 		return selectorsPerEventTypeStore
 	}
@@ -83,35 +87,35 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sys_exit"}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_exit"}},
+				kprobeOrFentry("do_exit", fentry),
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_prepare_binprm"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_bprm_execve"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_bprm_check"}},
+					kprobeOrFentry("prepare_binprm", fentry, withSkipIfFentry(true)),
+					kprobeOrFentry("bprm_execve", fentry),
+					kprobeOrFentry("security_bprm_check", fentry, withSkipIfFentry(true)),
 				}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_setup_new_exec_interp"}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID + "_a", EBPFFuncName: "kprobe_setup_new_exec_args_envs"}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_setup_arg_pages"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mprotect_fixup"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_exit_itimers"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_open"}},
+				kprobeOrFentry("mprotect_fixup", fentry),
+				kprobeOrFentry("exit_itimers", fentry),
+				kprobeOrFentry("vfs_open", fentry),
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_dentry_open"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_commit_creds"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_switch_task_namespaces"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_coredump"}},
+				kprobeOrFentry("commit_creds", fentry),
+				kprobeOrFentry("switch_task_namespaces", fentry),
+				kprobeOrFentry("do_coredump", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup_procs_write"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup1_procs_write"}},
+				kprobeOrFentry("cgroup_procs_write", fentry),
+				kprobeOrFentry("cgroup1_procs_write", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe__do_fork"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_fork"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_kernel_clone"}},
+				kprobeOrFentry("_do_fork", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("do_fork", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("kernel_clone", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup_tasks_write"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_cgroup1_tasks_write"}},
+				kprobeOrFentry("cgroup_tasks_write", fentry, withSkipIfFentry(true)),
+				kprobeOrFentry("cgroup1_tasks_write", fentry, withSkipIfFentry(true)),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execve", Entry)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execveat", Entry)},
@@ -146,7 +150,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 
 			// Open probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_truncate"}},
+				kprobeOrFentry("vfs_truncate", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open", EntryAndExit, true)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "creat", EntryAndExit)},
@@ -155,20 +159,20 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "openat2", EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open_by_handle_at", EntryAndExit, true)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_io_openat"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_io_openat2"}},
+				kprobeOrFentry("io_openat", fentry),
+				kprobeOrFentry("io_openat2", fentry),
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_io_openat2"}},
 			}},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_filp_close"}},
+				kprobeOrFentry("filp_close", fentry),
 			}},
 
 			// iouring
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "io_uring_create"}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_io_allocate_scq_urings"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_io_sq_offload_start"}},
+					kprobeOrFentry("io_allocate_scq_urings", fentry),
+					kprobeOrFentry("io_sq_offload_start", fentry, withSkipIfFentry(true)),
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_io_ring_ctx_alloc"}},
 				}},
 			}},
@@ -177,12 +181,12 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_attach_recursive_mnt"}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_propagate_mnt"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_sb_umount"}},
+				kprobeOrFentry("security_sb_umount", fentry),
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_clone_mnt"}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mount", EntryAndExit, true)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", EntryAndExit)},
-			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", Entry)},
+			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", EntryAndExit)},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe___attach_mnt"}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_attach_mnt"}},
@@ -192,23 +196,23 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			// Rename probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_rename"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
+				kprobeOrFentry("mnt_want_write", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rename", EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "renameat", EntryAndExit)},
 			&manager.BestEffort{Selectors: append(
 				[]manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_renameat2"}},
+					kprobeOrFentry("do_renameat2", fentry),
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_renameat2"}}},
 				ExpandSyscallProbesSelector(SecurityAgentUID, "renameat2", EntryAndExit)...)},
 
 			// unlink rmdir probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
+				kprobeOrFentry("mnt_want_write", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlinkat", EntryAndExit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_unlinkat"}},
+				kprobeOrFentry("do_unlinkat", fentry),
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_unlinkat"}},
 			}},
 
@@ -218,7 +222,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rmdir", EntryAndExit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_rmdir"}},
+				kprobeOrFentry("do_rmdir", fentry),
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_rmdir"}},
 			}},
 
@@ -228,7 +232,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlink", EntryAndExit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_linkat"}},
+				kprobeOrFentry("do_linkat", fentry),
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_do_linkat"}},
 			}},
 
@@ -240,7 +244,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			// Link
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_link"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_filename_create"}},
+				kprobeOrFentry("filename_create", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "linkat", EntryAndExit)},
@@ -263,13 +267,13 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			// pipes
 			// This is needed to skip FIM events relatives to pipes (avoiding abnormal path events)
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mntget"}},
+				kprobeOrFentry("mntget", fentry),
 			}}},
 
 		// List of probes required to capture chmod events
 		"chmod": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
+				kprobeOrFentry("mnt_want_write", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chmod", EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchmod", EntryAndExit)},
@@ -279,11 +283,11 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		// List of probes required to capture chown events
 		"chown": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
+				kprobeOrFentry("mnt_want_write", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file_path"}},
+				kprobeOrFentry("mnt_want_write_file", fentry),
+				kprobeOrFentry("mnt_want_write_file_path", fentry, withSkipIfFentry(true)),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chown", EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chown16", EntryAndExit)},
@@ -297,8 +301,8 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		// List of probes required to capture mkdir events
 		"mkdir": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_mkdir"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_filename_create"}},
+				kprobeOrFentry("vfs_mkdir", fentry),
+				kprobeOrFentry("filename_create", fentry),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdir", EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdirat", EntryAndExit)},
@@ -311,11 +315,11 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		"removexattr": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_removexattr"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
+				kprobeOrFentry("mnt_want_write", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file_path"}},
+				kprobeOrFentry("mnt_want_write_file", fentry),
+				kprobeOrFentry("mnt_want_write_file_path", fentry, withSkipIfFentry(true)),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "removexattr", EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fremovexattr", EntryAndExit)},
@@ -326,11 +330,11 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		"setxattr": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_vfs_setxattr"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
+				kprobeOrFentry("mnt_want_write", fentry),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write_file_path"}},
+				kprobeOrFentry("mnt_want_write_file", fentry),
+				kprobeOrFentry("mnt_want_write_file_path", fentry, withSkipIfFentry(true)),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setxattr", EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fsetxattr", EntryAndExit)},
@@ -340,7 +344,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		// List of probes required to capture utimes events
 		"utimes": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_mnt_want_write"}},
+				kprobeOrFentry("mnt_want_write", fentry),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utime", EntryAndExit, true)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utime32", EntryAndExit)},
@@ -355,9 +359,9 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		// List of probes required to capture bpf events
 		"bpf": {
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_bpf_map"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_bpf_prog"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_check_helper_call"}},
+				kprobeOrFentry("security_bpf_map", fentry),
+				kprobeOrFentry("security_bpf_prog", fentry),
+				kprobeOrFentry("check_helper_call", fentry),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bpf", EntryAndExit)},
 		},
@@ -366,7 +370,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		"ptrace": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "ptrace", EntryAndExit)},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_ptrace_check_attach"}},
+				kprobeOrFentry("ptrace_check_attach", fentry),
 			}},
 		},
 
@@ -381,7 +385,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		// List of probes required to capture mprotect events
 		"mprotect": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_file_mprotect"}},
+				kprobeOrFentry("security_file_mprotect", fentry),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mprotect", EntryAndExit)},
 		},
@@ -394,8 +398,8 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_kernel_module_from_file"}},
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_do_init_module"}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_module_put"}},
+					kprobeOrFentry("do_init_module", fentry),
+					kprobeOrFentry("module_put", fentry),
 				}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_parse_args"}},
 			}},
@@ -412,7 +416,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		"signal": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_check_kill_permission"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_kill_pid_info"}},
+				kprobeOrFentry("kill_pid_info", fentry),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "kill", Entry)},
 		},
@@ -421,14 +425,14 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		"splice": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "splice", EntryAndExit)},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_get_pipe_info"}},
+				kprobeOrFentry("get_pipe_info", fentry),
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_get_pipe_info"}},
 			}}},
 
 		// List of probes required to capture bind events
 		"bind": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_socket_bind"}},
+				kprobeOrFentry("security_socket_bind", fentry),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bind", EntryAndExit)},
 		},
@@ -436,9 +440,9 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 		// List of probes required to capture DNS events
 		"dns": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.AllOf{Selectors: NetworkSelectors},
+				&manager.AllOf{Selectors: NetworkSelectors(fentry)},
 				&manager.AllOf{Selectors: NetworkVethSelectors},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kprobe_security_socket_bind"}},
+				kprobeOrFentry("security_socket_bind", fentry),
 			}},
 		},
 	}

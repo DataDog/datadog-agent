@@ -20,7 +20,7 @@ var rmdirProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kprobe_do_rmdir",
+			EBPFFuncName: "hook_do_rmdir",
 		},
 	},
 	{

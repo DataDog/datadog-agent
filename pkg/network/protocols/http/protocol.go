@@ -26,31 +26,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type httpProtocol struct {
+type protocol struct {
 	cfg            *config.Config
 	telemetry      *Telemetry
-	statkeeper     *HttpStatKeeper
+	statkeeper     *StatKeeper
 	mapCleaner     *ddebpf.MapCleaner
 	eventsConsumer *events.Consumer
 }
 
 const (
-	httpInFlightMap    = "http_in_flight"
-	httpFilterTailCall = "socket__http_filter"
-	httpEventStream    = "http"
+	inFlightMap    = "http_in_flight"
+	filterTailCall = "socket__http_filter"
+	eventStream    = "http"
 )
 
 var Spec = protocols.ProtocolSpec{
 	Factory: newHttpProtocol,
 	Maps: []*manager.Map{
-		{Name: httpInFlightMap},
+		{Name: inFlightMap},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: httpFilterTailCall,
+				EBPFFuncName: filterTailCall,
 			},
 		},
 	},
@@ -72,7 +72,7 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 
 	telemetry := NewTelemetry()
 
-	return &httpProtocol{
+	return &protocol{
 		cfg:       cfg,
 		telemetry: telemetry,
 	}, nil
@@ -83,18 +83,18 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 // - Set the `http_in_flight` map size to the value of the `max_tracked_connection` configuration variable.
 //
 // We also configure the http event stream with the manager and its options.
-func (p *httpProtocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	opts.MapSpecEditors[httpInFlightMap] = manager.MapSpecEditor{
+func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
+	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 
 	// Configure event stream
-	events.Configure(httpEventStream, mgr, opts)
+	events.Configure(eventStream, mgr, opts)
 }
 
-func (p *httpProtocol) PreStart(mgr *manager.Manager) (err error) {
+func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	p.eventsConsumer, err = events.NewConsumer(
 		"http",
 		mgr,
@@ -104,20 +104,20 @@ func (p *httpProtocol) PreStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
-	p.statkeeper = NewHTTPStatkeeper(p.cfg, p.telemetry)
+	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry)
 	p.eventsConsumer.Start()
 
 	return
 }
 
-func (p *httpProtocol) PostStart(mgr *manager.Manager) error {
+func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 	p.setupMapCleaner(mgr)
 
 	return nil
 }
 
-func (p *httpProtocol) Stop(_ *manager.Manager) {
+func (p *protocol) Stop(_ *manager.Manager) {
 	// mapCleaner handles nil pointer receivers
 	p.mapCleaner.Stop()
 
@@ -130,31 +130,31 @@ func (p *httpProtocol) Stop(_ *manager.Manager) {
 	}
 }
 
-func (p *httpProtocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
-	if mapName == httpInFlightMap { // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
+func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
+	if mapName == inFlightMap { // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key netebpf.ConnTuple
-		var value HttpTX
+		var value Transaction
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
 	}
 }
 
-func (p *httpProtocol) processHTTP(data []byte) {
-	tx := (*EbpfHttpTx)(unsafe.Pointer(&data[0]))
+func (p *protocol) processHTTP(data []byte) {
+	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
 	p.telemetry.Count(tx)
 	p.statkeeper.Process(tx)
 }
 
-func (p *httpProtocol) setupMapCleaner(mgr *manager.Manager) {
-	httpMap, _, err := mgr.GetMap(httpInFlightMap)
+func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
+	httpMap, _, err := mgr.GetMap(inFlightMap)
 	if err != nil {
 		log.Errorf("error getting http_in_flight map: %s", err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(EbpfHttpTx))
+	mapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(EbpfTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -162,7 +162,7 @@ func (p *httpProtocol) setupMapCleaner(mgr *manager.Manager) {
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
 	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*EbpfHttpTx)
+		httpTxn, ok := val.(*EbpfTx)
 		if !ok {
 			return false
 		}
@@ -180,7 +180,7 @@ func (p *httpProtocol) setupMapCleaner(mgr *manager.Manager) {
 
 // GetStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (p *httpProtocol) GetStats() *protocols.ProtocolStats {
+func (p *protocol) GetStats() *protocols.ProtocolStats {
 	p.eventsConsumer.Sync()
 	p.telemetry.Log()
 	return &protocols.ProtocolStats{
