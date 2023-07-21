@@ -934,14 +934,18 @@ func newConnectionAggregator(size int) *connectionAggregator {
 	}
 }
 
-func (a *connectionAggregator) byteKey(c *ConnectionStats) (key []byte, rolledUp bool) {
+func (a *connectionAggregator) key(c *ConnectionStats) (key string, rolledUp bool) {
 	isShortLived := c.Duration > 0 && c.Duration < uint64((2*time.Minute)/time.Nanosecond)
 	ephemeralSport := IsEphemeralPort(int(c.SPort))
+
+	if c.ContainerID != nil {
+		key = *c.ContainerID
+	}
 
 	if c.Type != UDP ||
 		!isShortLived ||
 		!ephemeralSport {
-		return c.ByteKey(a.buf), false
+		return key + string(c.ByteKey(a.buf)), false
 	}
 
 	// drop the ephemeral source port in the key
@@ -950,7 +954,8 @@ func (a *connectionAggregator) byteKey(c *ConnectionStats) (key []byte, rolledUp
 	defer func() {
 		c.SPort = sport
 	}()
-	return c.ByteKey(a.buf), true
+
+	return key + string(c.ByteKey(a.buf)), true
 }
 
 // Aggregate aggregates a connection. The connection is only
@@ -961,10 +966,10 @@ func (a *connectionAggregator) byteKey(c *ConnectionStats) (key []byte, rolledUp
 //   - the other connection's ip translation is nil OR
 //   - the other connection's ip translation is not nil AND the nat info is the same
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	key, rolledUp := a.byteKey(c)
-	aggrConn, ok := a.conns[string(key)]
+	key, rolledUp := a.key(c)
+	aggrConn, ok := a.conns[key]
 	if !ok {
-		a.conns[string(key)] = &struct {
+		a.conns[key] = &struct {
 			*ConnectionStats
 			rttSum    uint64
 			rttVarSum uint64
