@@ -58,13 +58,6 @@ type javaTLSProgram struct {
 	processMonitor *monitor.ProcessMonitor
 	cleanupExec    func()
 
-	// authID is used here as an identifier, simple proof of authenticity
-	// between the injected java process and the ebpf ioctl that receive the payload.
-	authID int64
-
-	// tracerDebugMode determines if the tracer should print debug output in the injected agent-usm.jar.
-	tracerDebugMode bool
-
 	// tracerJarPath path to the USM agent TLS tracer.
 	tracerJarPath string
 
@@ -134,29 +127,13 @@ func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 
 	log.Info("java tls is enabled")
 
-	var err error
-	// Randomizing the seed to ensure we get a truly random number.
-	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
 	res = &javaTLSProgram{
-		cfg:             c,
-		processMonitor:  monitor.GetProcessMonitor(),
-		authID:          rand.Int63(),
-		tracerDebugMode: c.JavaAgentDebug,
-		tracerArguments: c.JavaAgentArgs,
-		tracerJarPath:   javaUSMAgentJarPath,
-	}
-
-	if c.JavaAgentAllowRegex != "" {
-		res.injectionAllowRegex, err = regexp.Compile(c.JavaAgentAllowRegex)
-		if err != nil {
-			log.Errorf("allow regex can't be compiled %s", err)
-		}
-	}
-	if c.JavaAgentBlockRegex != "" {
-		res.injectionBlockRegex, err = regexp.Compile(c.JavaAgentBlockRegex)
-		if err != nil {
-			log.Errorf("block regex can't be compiled %s", err)
-		}
+		cfg:                 c,
+		processMonitor:      monitor.GetProcessMonitor(),
+		tracerArguments:     buildTracerArguments(c),
+		tracerJarPath:       javaUSMAgentJarPath,
+		injectionAllowRegex: buildRegex(c.JavaAgentAllowRegex, "allow"),
+		injectionBlockRegex: buildRegex(c.JavaAgentBlockRegex, "block"),
 	}
 
 	return res
@@ -290,15 +267,7 @@ func (p *javaTLSProgram) newJavaProcess(pid int) {
 		return
 	}
 
-	allArgs := []string{
-		p.tracerArguments,
-		"dd.usm.authID=" + strconv.FormatInt(p.authID, 10),
-	}
-	if p.tracerDebugMode {
-		allArgs = append(allArgs, "dd.trace.debug=true")
-	}
-	args := strings.Join(allArgs, ",")
-	if err := java.InjectAgent(pid, p.tracerJarPath, args); err != nil {
+	if err := java.InjectAgent(pid, p.tracerJarPath, p.tracerArguments); err != nil {
 		log.Error(err)
 	}
 }
@@ -315,4 +284,35 @@ func (p *javaTLSProgram) Stop() {
 	if p.processMonitor != nil {
 		p.processMonitor.Stop()
 	}
+}
+
+// buildRegex is similar to regexp.MustCompile, but without panic.
+func buildRegex(re, reType string) *regexp.Regexp {
+	if re == "" {
+		return nil
+	}
+	res, err := regexp.Compile(re)
+	if err != nil {
+		log.Errorf("%s regex can't be compiled %s", reType, err)
+		return nil
+	}
+
+	return res
+}
+
+// buildTracerArguments returns the command line arguments we'll pass to the injected tracer.
+func buildTracerArguments(c *config.Config) string {
+	// Randomizing the seed to ensure we get a truly random number.
+	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
+
+	allArgs := []string{
+		c.JavaAgentArgs,
+		// authID is used here as an identifier, simple proof of authenticity
+		// between the injected java process and the ebpf ioctl that receive the payload.
+		fmt.Sprintf("dd.usm.authID=%d", rand.Int63()),
+	}
+	if c.JavaAgentDebug {
+		allArgs = append(allArgs, "dd.trace.debug=true")
+	}
+	return strings.Join(allArgs, ",")
 }
