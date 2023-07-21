@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-func requestLatency(responseLastSeen uint64, requestStarted uint64) float64 {
-	return protocols.NSTimestampToFloat(uint64(responseLastSeen - requestStarted))
+func requestLatency(responseLastSeen uint64, requestStarted uint64) int64 {
+	return int64(responseLastSeen) - int64(requestStarted)
 }
 
 func isIPV4(tup *driver.ConnTupleType) bool {
@@ -61,10 +61,20 @@ func dstIPHigh(tup *driver.ConnTupleType) uint64 {
 	return ipHigh(isIPV4(tup), tup.RemoteAddr)
 }
 
+// PacketNow return the timestamp in nanoseconds relative to the kernel driver time
+func PacketNow() int64 {
+	// need to double check driver implementation before merge
+	return time.Now().UnixNano()
+}
+
 // --------------------------
 //
 // driverHttpTX interface
 //
+
+func (tx *WinHttpTransaction) Protocol() types.ProtocolType {
+	return types.HTTP
+}
 
 func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)

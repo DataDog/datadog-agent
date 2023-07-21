@@ -30,7 +30,7 @@ func TestOrphanEntries(t *testing.T) {
 
 		buffer.Add(request)
 		now = now.Add(5 * time.Second)
-		complete := buffer.Flush(now)
+		complete := buffer.Flush(now.UnixNano())
 		assert.Len(t, complete, 0)
 
 		response := &EbpfTx{
@@ -39,7 +39,7 @@ func TestOrphanEntries(t *testing.T) {
 		}
 		response.Tup.Sport = 60000
 		buffer.Add(response)
-		complete = buffer.Flush(now)
+		complete = buffer.Flush(now.UnixNano())
 		require.Len(t, complete, 1)
 
 		completeTX := complete[0]
@@ -58,11 +58,11 @@ func TestOrphanEntries(t *testing.T) {
 			Request_started:  uint64(now.UnixNano()),
 		}
 		buffer.Add(request)
-		_ = buffer.Flush(now)
+		_ = buffer.Flush(now.UnixNano())
 
 		assert.True(t, len(buffer.data) > 0)
 		now = now.Add(35 * time.Second)
-		_ = buffer.Flush(now)
+		_ = buffer.Flush(now.UnixNano())
 		assert.True(t, len(buffer.data) == 0)
 	})
 }

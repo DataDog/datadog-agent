@@ -8,12 +8,14 @@
 package http
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 type Transaction interface {
-	RequestLatency() float64
+	RequestLatency() int64
 	ConnTuple() types.ConnectionKey
+	Protocol() protocols.ProtocolType
 	Method() Method
 	SetRequestMethod(Method)
 	StatusCode() uint16

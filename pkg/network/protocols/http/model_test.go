@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -84,7 +85,7 @@ func TestLatency(t *testing.T) {
 		Request_started:    1e6,
 	}
 	// quantization brings it down
-	assert.Equal(t, 999424.0, tx.RequestLatency())
+	assert.Equal(t, 999424.0, protocols.NSTimestampToFloat(uint64(tx.RequestLatency())))
 }
 
 func BenchmarkPath(b *testing.B) {
