@@ -415,7 +415,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture signal events
 		"signal": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_check_kill_permission"}},
+				kretprobeOrFexit("check_kill_permission", fentry),
 				kprobeOrFentry("kill_pid_info", fentry),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "kill", Entry)},
