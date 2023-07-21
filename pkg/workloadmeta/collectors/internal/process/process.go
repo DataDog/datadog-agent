@@ -12,9 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-const collectorId = "process"
+const collectorId = "process-agent"
 
-const collectionInterval = 1 * time.Minute
+const collectionInterval = 2 * time.Second
 
 // Used for testing
 var c *collector
@@ -61,7 +61,7 @@ type collector struct {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
-	if enabled, err := Enabled(c.ddConfig); enabled {
+	if enabled, err := Enabled(c.ddConfig); !enabled {
 		return err
 	}
 
@@ -71,7 +71,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	}
 
 	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, workloadmeta.SourceAll, workloadmeta.EventTypeAll)
-	containerEvt := store.Subscribe("process_collector", workloadmeta.NormalPriority, filter)
+	containerEvt := store.Subscribe(collectorId, workloadmeta.NormalPriority, filter)
 	go func() {
 		for {
 			select {
@@ -83,6 +83,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 					_ = log.Error("Error fetching process data:", err)
 				}
 			case <-ctx.Done():
+				log.Infof("The %s collector has stopped", collectorId)
 				c.grpcServer.Stop()
 				store.Unsubscribe(containerEvt)
 				return
@@ -118,13 +119,12 @@ func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 }
 
 func Enabled(cfg config.ConfigReader) (bool, error) {
-	const module = "process collector"
-	if cfg.GetBool("process_config.process_collection.Enabled") {
-		return false, dderrors.NewDisabled(module, "the process check is Enabled")
+	if cfg.GetBool("process_config.process_collection.enabled") {
+		return false, dderrors.NewDisabled(collectorId, "the process check is enabled")
 	}
 
-	if !cfg.GetBool("workloadmeta.remote_process_collector.Enabled") {
-		return false, dderrors.NewDisabled(module, "the process collector is disabled")
+	if !cfg.GetBool("workloadmeta.remote_process_collector.enabled") {
+		return false, dderrors.NewDisabled(collectorId, "the process collector is disabled")
 	}
 	return true, nil
 }

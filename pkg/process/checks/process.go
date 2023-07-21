@@ -48,12 +48,6 @@ func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 	if workloadmeta.Enabled(config) {
 		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(config)
 		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
-		err := check.workloadMetaServer.Start()
-		if err != nil {
-			_ = log.Error("Failed to start the workload meta gRPC server:", err)
-		} else {
-			check.extractors = append(check.extractors, check.workloadMetaExtractor)
-		}
 	}
 
 	return check
@@ -146,6 +140,13 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 	p.disallowList = initDisallowList(p.config)
 
 	p.initConnRates()
+
+	err = p.workloadMetaServer.Start()
+	if err != nil {
+		_ = log.Error("Failed to start the workload meta gRPC server:", err)
+	} else {
+		p.extractors = append(p.extractors, p.workloadMetaExtractor)
+	}
 	return nil
 }
 
