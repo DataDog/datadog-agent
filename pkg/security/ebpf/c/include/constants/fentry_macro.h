@@ -10,7 +10,7 @@ typedef unsigned long long ctx_t;
 #define CTX_PARM2(ctx) (u64)(ctx[1])
 #define CTX_PARM3(ctx) (u64)(ctx[2])
 
-#define CTX_PARMRET(ctx, argc) (u64)(ctx[argc+1])
+#define CTX_PARMRET(ctx, argc) (u64)(ctx[argc])
 
 #else
 
