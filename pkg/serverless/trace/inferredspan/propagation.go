@@ -27,6 +27,16 @@ type bodyStruct struct {
 	MessageAttributes map[string]customMessageAttributeStruct `json:"MessageAttributes"`
 }
 
+func extractTraceContext(event events.SQSMessage) *convertedTraceContext {
+	var rawTrace *rawTraceContext
+	if ddMessageAttribute, ok := event.MessageAttributes["_datadog"]; ok {
+		rawTrace = extractTraceContextFromPureSqsEvent(ddMessageAttribute)
+	} else {
+		rawTrace = extractTraceContextFromSNSSQSEvent(event)
+	}
+	return convertRawTraceContext(rawTrace)
+}
+
 func extractTraceContextFromSNSSQSEvent(firstRecord events.SQSMessage) *rawTraceContext {
 	var messageBody bodyStruct
 	err := json.Unmarshal([]byte(firstRecord.Body), &messageBody)
@@ -78,6 +88,10 @@ func extractTraceContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribu
 }
 
 func convertRawTraceContext(rawTrace *rawTraceContext) *convertedTraceContext {
+	if rawTrace == nil {
+		return nil
+	}
+
 	var uint64TraceID, uint64ParentID *uint64
 
 	if rawTrace.TraceID != "" {

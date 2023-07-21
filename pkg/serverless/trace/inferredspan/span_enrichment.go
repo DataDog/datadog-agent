@@ -241,24 +241,17 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 		receiptHandle:  eventRecord.ReceiptHandle,
 		senderID:       eventRecord.Attributes["SenderId"],
 	}
-	var rawTrace *rawTraceContext
-	if ddMessageAttribute, ok := eventRecord.MessageAttributes["_datadog"]; ok {
-		rawTrace = extractTraceContextFromPureSqsEvent(ddMessageAttribute)
-	} else {
-		rawTrace = extractTraceContextFromSNSSQSEvent(eventRecord)
-	}
 
-	if rawTrace == nil {
-		log.Debug("No raw trace context found")
+	traceContext := extractTraceContext(eventRecord)
+	if traceContext == nil {
+		log.Debug("No trace context found")
 		return
 	}
-
-	convertedTrace := convertRawTraceContext(rawTrace)
-	if convertedTrace.TraceID != nil {
-		inferredSpan.Span.TraceID = *convertedTrace.TraceID
+	if traceContext.TraceID != nil {
+		inferredSpan.Span.TraceID = *traceContext.TraceID
 	}
-	if convertedTrace.ParentID != nil {
-		inferredSpan.Span.ParentID = *convertedTrace.ParentID
+	if traceContext.ParentID != nil {
+		inferredSpan.Span.ParentID = *traceContext.ParentID
 	}
 }
 
