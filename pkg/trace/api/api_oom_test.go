@@ -36,7 +36,7 @@ func TestOOMKill(t *testing.T) {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
 	conf.WatchdogInterval = time.Millisecond
-	conf.MaxMemory = 0.5 * 1000 * 1000 // 0.5M
+	conf.MaxMemory = 0.4 * 1000 * 1000 // 0.4M
 
 	r := newTestReceiverFromConfig(conf)
 	r.Start()
@@ -47,8 +47,8 @@ func TestOOMKill(t *testing.T) {
 	}()
 
 	var traces pb.Traces
-	for i := 0; i < 20; i++ {
-		traces = append(traces, testutil.RandomTrace(10, 20))
+	for i := 0; i < 25; i++ {
+		traces = append(traces, testutil.RandomTrace(10, 25))
 	}
 	data := msgpTraces(t, traces)
 
@@ -78,7 +78,7 @@ func TestOOMKill(t *testing.T) {
 		}
 	}
 
-	timeout := time.After(500 * time.Millisecond)
+	timeout := time.After(750 * time.Millisecond)
 loop:
 	for {
 		select {
