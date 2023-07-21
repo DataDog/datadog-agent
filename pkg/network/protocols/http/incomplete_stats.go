@@ -21,6 +21,7 @@ const defaultMinAge = 30 * time.Second
 type connectionKey struct {
 	types.ConnectionKey
 	Protocol protocols.ProtocolType
+	Tags     uint64
 }
 
 // incompleteBuffer is responsible for buffering incomplete transactions
@@ -87,6 +88,7 @@ func (b *incompleteBuffer) Add(tx Transaction) {
 			DstPort:   connTuple.DstPort,
 		},
 		Protocol: tx.Protocol(),
+		Tags:     tx.StaticTags(),
 	}
 
 	parts, ok := b.data[key]
