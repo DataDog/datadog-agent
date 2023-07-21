@@ -868,12 +868,12 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 	t.Cleanup(telemetry.Clear)
 
 	// Set metric present in the payload telemetry list to an arbitrary value
-	m1 := telemetry.NewMetric("usm.http.total_hits", telemetry.OptPayloadTelemetry)
+	m1 := telemetry.NewCounter("usm.http.total_hits", telemetry.OptPayloadTelemetry)
 	m1.Add(10)
 	require.Contains(t, network.USMPayloadTelemetry, network.ConnTelemetryType(m1.Name()))
 
 	// Add another metric that is not present in the allowed list
-	m2 := telemetry.NewMetric("foobar", telemetry.OptPayloadTelemetry)
+	m2 := telemetry.NewCounter("foobar", telemetry.OptPayloadTelemetry)
 	m2.Add(50)
 	require.NotContains(t, network.USMPayloadTelemetry, network.ConnTelemetryType(m2.Name()))
 

@@ -9,15 +9,11 @@ require (
 	github.com/goware/modvendor v0.5.0
 	github.com/mgechev/revive v1.2.5
 	github.com/stormcat24/protodep v0.0.0-20210106175019-c95189bc461b
-	github.com/vektra/mockery/v2 v2.28.1
+	github.com/vektra/mockery/v2 v2.32.0
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
-	gotest.tools/gotestsum v1.8.2
+	gotest.tools/gotestsum v1.10.1
 )
-
-// we want to force this version, since 1.0.6 changed the public API
-// remove once golangci-lint is updated to v1.49.0 (requires go1.19)
-replace github.com/sylvia7788/contextcheck => github.com/sylvia7788/contextcheck v1.0.4
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.2.1 // indirect

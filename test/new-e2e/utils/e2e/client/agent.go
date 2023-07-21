@@ -9,8 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/os"
+	e2eOs "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 var _ clientService[agent.ClientData] = (*Agent)(nil)
@@ -20,7 +22,7 @@ var _ clientService[agent.ClientData] = (*Agent)(nil)
 // [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 type Agent struct {
 	*UpResultDeserializer[agent.ClientData]
-	os os.OS
+	os e2eOs.OS
 	*AgentCommandRunner
 	vmClient *vmClient
 }
@@ -36,9 +38,22 @@ func NewAgent(installer *agent.Installer) *Agent {
 
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
 func (agent *Agent) initService(t *testing.T, data *agent.ClientData) error {
-	vmClient, err := newVMClient(t, "", &data.Connection)
+	var err error
+	var privateSshKey []byte
 
-	agent.vmClient = vmClient
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+	if err != nil {
+		return err
+	}
+
+	if privateKeyPath != "" {
+		privateSshKey, err = os.ReadFile(privateKeyPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	agent.vmClient, err = newVMClient(t, privateSshKey, &data.Connection)
 	agent.AgentCommandRunner = newAgentCommandRunner(t, agent.executeAgentCmdWithError)
 	return err
 }
