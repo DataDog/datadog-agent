@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package sharedlibraries
+package utils
 
 import (
 	"encoding/base64"
