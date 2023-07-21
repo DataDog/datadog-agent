@@ -208,8 +208,8 @@ func (*javaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair
 
 // isJavaProcess checks if the given PID comm's name is java.
 // The method is much faster and efficient that using process.NewProcess(pid).Name().
-func (p *javaTLSProgram) isJavaProcess(pid int) bool {
-	filePath := filepath.Join(p.procRoot, strconv.Itoa(pid), "comm")
+func (p *javaTLSProgram) isJavaProcess(pid uint32) bool {
+	filePath := filepath.Join(p.procRoot, strconv.Itoa(int(pid)), "comm")
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		// Waiting a bit, as we might get the event of process creation before the directory was created.
@@ -238,7 +238,7 @@ func (p *javaTLSProgram) isJavaProcess(pid int) bool {
 // /                 match  | not match
 // allowRegex only    true  | false
 // blockRegex only    false | true
-func (p *javaTLSProgram) isAttachmentAllowed(pid int) bool {
+func (p *javaTLSProgram) isAttachmentAllowed(pid uint32) bool {
 	allowIsSet := p.injectionAllowRegex != nil
 	blockIsSet := p.injectionBlockRegex != nil
 	// filter is disabled (default configuration)
@@ -271,7 +271,7 @@ func (p *javaTLSProgram) isAttachmentAllowed(pid int) bool {
 	return true
 }
 
-func (p *javaTLSProgram) newJavaProcess(pid int) {
+func (p *javaTLSProgram) newJavaProcess(pid uint32) {
 	if !p.isJavaProcess(pid) {
 		return
 	}
@@ -280,7 +280,7 @@ func (p *javaTLSProgram) newJavaProcess(pid int) {
 		return
 	}
 
-	if err := java.InjectAgent(pid, p.tracerJarPath, p.tracerArguments); err != nil {
+	if err := java.InjectAgent(int(pid), p.tracerJarPath, p.tracerArguments); err != nil {
 		log.Error(err)
 	}
 }
