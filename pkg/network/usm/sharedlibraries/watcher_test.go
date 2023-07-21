@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,7 +75,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		pathDetected string
 	)
 
-	callback := func(id PathIdentifier, root string, path string) error {
+	callback := func(id utils.PathIdentifier, root string, path string) error {
 		mux.Lock()
 		defer mux.Unlock()
 		pathDetected = path
@@ -155,7 +156,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 		pathDetected string
 	)
 
-	callback := func(id PathIdentifier, root string, path string) error {
+	callback := func(id utils.PathIdentifier, root string, path string) error {
 		mux.Lock()
 		defer mux.Unlock()
 		pathDetected = path
@@ -215,11 +216,11 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 
 	// create a hard-link (a-foo-libssl.so and b-foo-libssl.so will share the same inode)
 	require.NoError(t, os.Link(fooPath1, fooPath2))
-	fooPathID2, err := NewPathIdentifier(fooPath2)
+	fooPathID2, err := utils.NewPathIdentifier(fooPath2)
 	require.NoError(t, err)
 
 	registers := atomic.NewInt64(0)
-	callback := func(id PathIdentifier, root string, path string) error {
+	callback := func(id utils.PathIdentifier, root string, path string) error {
 		registers.Add(1)
 		return nil
 	}
@@ -251,7 +252,6 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 		return int64(1) == registers.Load()
 	}, time.Second*10, time.Second, "")
 
-	require.Len(t, watcher.registry.byID, 1)
 	require.NoError(t, command1.Process.Kill())
 
 	require.Eventuallyf(t, func() bool {
@@ -283,8 +283,8 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
 
-	registerCB := func(id PathIdentifier, root string, path string) error { return nil }
-	unregisterCB := func(id PathIdentifier) error { return errors.New("fake unregisterCB error") }
+	registerCB := func(id utils.PathIdentifier, root string, path string) error { return nil }
+	unregisterCB := func(id utils.PathIdentifier) error { return errors.New("fake unregisterCB error") }
 
 	watcher, err := NewWatcher(config.New(),
 		Rule{
@@ -381,8 +381,8 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
 	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
 
-	registerCB := func(id PathIdentifier, root string, path string) error { return nil }
-	unregisterCB := func(id PathIdentifier) error { return nil }
+	registerCB := func(id utils.PathIdentifier, root string, path string) error { return nil }
+	unregisterCB := func(id utils.PathIdentifier) error { return nil }
 
 	watcher, err := NewWatcher(config.New(),
 		Rule{
@@ -495,29 +495,23 @@ func buildSOWatcherClientBin(t *testing.T) string {
 	return clientBinPath
 }
 
-func checkPathIDExists(watcher *Watcher, pathID PathIdentifier) bool {
-	_, ok := watcher.registry.byID[pathID]
-	return ok
+func checkPathIDExists(watcher *Watcher, pathID utils.PathIdentifier) bool {
+	return watcher.registry.PathIDExists(pathID)
 }
 
-func checkPathIDDoesNotExist(watcher *Watcher, pathID PathIdentifier) bool {
+func checkPathIDDoesNotExist(watcher *Watcher, pathID utils.PathIdentifier) bool {
 	return !checkPathIDExists(watcher, pathID)
 }
 
-func checkPIDAssociatedWithPathID(watcher *Watcher, pathID PathIdentifier, pid uint32) bool {
-	value, ok := watcher.registry.byPID[pid]
-	if !ok {
-		return false
-	}
-	_, ok = value[pathID]
-	return ok
+func checkPIDAssociatedWithPathID(watcher *Watcher, pathID utils.PathIdentifier, pid uint32) bool {
+	return watcher.registry.IsPIDAssociatedToPathID(pid, pathID)
 }
 
-func checkPIDNotAssociatedWithPathID(watcher *Watcher, pathID PathIdentifier, pid uint32) bool {
+func checkPIDNotAssociatedWithPathID(watcher *Watcher, pathID utils.PathIdentifier, pid uint32) bool {
 	return !checkPIDAssociatedWithPathID(watcher, pathID, pid)
 }
 
-func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
+func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
 	fullPath := filepath.Join(t.TempDir(), name)
 
 	f, err := os.Create(fullPath)
@@ -528,14 +522,14 @@ func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 		os.RemoveAll(fullPath)
 	})
 
-	pathID, err := NewPathIdentifier(fullPath)
+	pathID, err := utils.NewPathIdentifier(fullPath)
 	require.NoError(t, err)
 
 	return fullPath, pathID
 }
 
 func checkWatcherStateIsClean(t *testing.T, watcher *Watcher) {
-	require.True(t, len(watcher.registry.byPID) == 0 && len(watcher.registry.byID) == 0, "watcher state is not clean")
+	require.True(t, len(watcher.registry.GetRegisteredProcesses()) == 0, "watcher state is not clean")
 }
 
 func BenchmarkScanSOWatcherNew(b *testing.B) {

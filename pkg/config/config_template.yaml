@@ -1301,11 +1301,11 @@ api_key:
   #         enabled: false
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
-  #         keep_values: 
+  #         keep_values:
   #             - client_id
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
-  #         obfuscate_sql_values: 
+  #         obfuscate_sql_values:
   #             - val1
   #
   #     http:
@@ -1327,7 +1327,7 @@ api_key:
   #         enabled: false
   ##        @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
-  #         keep_values: 
+  #         keep_values:
   #             - document_id
   ##        @param DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES - object - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
@@ -1356,7 +1356,7 @@ api_key:
   #             - id1
   ##        @param DD_APM_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
-  #         obfuscate_sql_values: 
+  #         obfuscate_sql_values:
   #             - val1
   #
   #     sql_exec_plan_normalize:
@@ -3878,7 +3878,19 @@ api_key:
       #
       # sampling_percentage: 100
 
-  ## @param debug - custom object - optional
+  ## @param logs - custom object - optional
+  ## Logs-specific configuration for OTLP ingest in the Datadog Agent.
+  #
+  # logs:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_LOGS_ENABLED - boolean - optional - default: true
+    ## Set to false to disable logs support in the OTLP ingest endpoint.
+    ## To enable the OTLP ingest, the otlp_config.receiver section must be set.
+    #
+    # enabled: true
+
+## @param debug - custom object - optional
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
