@@ -6,20 +6,12 @@
 package encoding
 
 import (
-	"sync"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 )
-
-var dnsPool = sync.Pool{
-	New: func() interface{} {
-		return new(model.DNSEntry)
-	},
-}
 
 type dnsFormatter struct {
 	conns     *network.Connections
@@ -43,7 +35,7 @@ func newDNSFormatter(conns *network.Connections, ipc ipCache) *dnsFormatter {
 	}
 }
 
-func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, mc *model.Connection) {
+func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, builder *model.ConnectionBuilder) {
 	key, ok := network.DNSKey(&nc)
 	if !ok {
 		return
@@ -61,58 +53,71 @@ func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, mc *model
 	}
 	f.seen[key] = struct{}{}
 
+	var (
+		dnsCountByRcode        map[uint32]uint32
+		dnsSuccessfulResponses uint32
+		dnsTimeouts            uint32
+		dnsSuccessLatencySum   uint64
+		dnsFailureLatencySum   uint64
+		dnsFailedResponses     uint32
+	)
+
 	if !f.dnsDomainsEnabled {
 		var total uint32
-		mc.DnsCountByRcode = make(map[uint32]uint32)
+		dnsCountByRcode = make(map[uint32]uint32)
 		for _, byType := range stats {
 			for _, typeStats := range byType {
-				mc.DnsSuccessfulResponses += typeStats.CountByRcode[network.DNSResponseCodeNoError]
-				mc.DnsTimeouts += typeStats.Timeouts
-				mc.DnsSuccessLatencySum += typeStats.SuccessLatencySum
-				mc.DnsFailureLatencySum += typeStats.FailureLatencySum
+				dnsSuccessfulResponses += typeStats.CountByRcode[network.DNSResponseCodeNoError]
+				dnsTimeouts += typeStats.Timeouts
+				dnsSuccessLatencySum += typeStats.SuccessLatencySum
+				dnsFailureLatencySum += typeStats.FailureLatencySum
 
 				for rcode, count := range typeStats.CountByRcode {
-					mc.DnsCountByRcode[rcode] += count
+					dnsCountByRcode[rcode] += count
 					total += count
 				}
 			}
 		}
-		mc.DnsFailedResponses = total - mc.DnsSuccessfulResponses
+		dnsFailedResponses = total - dnsSuccessfulResponses
 	}
+
+	for k, v := range dnsCountByRcode {
+		builder.AddDnsCountByRcode(func(w *model.Connection_DnsCountByRcodeEntryBuilder) {
+			w.SetKey(k)
+			w.SetValue(v)
+		})
+	}
+	builder.SetDnsSuccessfulResponses(dnsSuccessfulResponses)
+	builder.SetDnsTimeouts(dnsTimeouts)
+	builder.SetDnsSuccessLatencySum(dnsSuccessLatencySum)
+	builder.SetDnsFailureLatencySum(dnsFailureLatencySum)
+	builder.SetDnsFailedResponses(dnsFailedResponses)
 
 	if f.queryTypeEnabled {
-		mc.DnsStatsByDomain = nil
-		mc.DnsStatsByDomainByQueryType = formatDNSStatsByDomainByQueryType(stats, f.domainSet)
+		formatDNSStatsByDomainByQueryType(builder, stats, f.domainSet)
 	} else {
-		// downconvert to simply by domain
-		mc.DnsStatsByDomain = formatDNSStatsByDomain(stats, f.domainSet)
-		mc.DnsStatsByDomainByQueryType = nil
+		//// downconvert to simply by domain
+		formatDNSStatsByDomain(builder, stats, f.domainSet)
 	}
-	mc.DnsStatsByDomainOffsetByQueryType = nil
-
 }
 
-func (f *dnsFormatter) DNS() map[string]*model.DNSEntry {
+// FormatDNS writes the DNS field in the Connections object
+func (f *dnsFormatter) FormatDNS(builder *model.ConnectionsBuilder) {
 	if f.conns.DNS == nil {
-		return nil
+		return
 	}
 
-	ipToNames := make(map[string]*model.DNSEntry, len(f.conns.DNS))
+	// ipToNames := make(map[string]*model.DNSEntry, len(f.conns.DNS))
 	for addr, names := range f.conns.DNS {
-		entry := dnsPool.Get().(*model.DNSEntry)
-		entry.Names = internStrings(names)
-		ipToNames[f.ipc.Get(addr)] = entry
+		builder.AddDns(func(w *model.Connections_DnsEntryBuilder) {
+			w.SetKey(f.ipc.Get(addr))
+			w.SetValue(func(w *model.DNSEntryBuilder) {
+				for _, name := range names {
+					w.AddNames(dns.ToString(name))
+				}
+			})
+		})
 	}
-
-	return ipToNames
-}
-
-func internStrings(arr []dns.Hostname) []string {
-	strs := make([]string, len(arr))
-	for i, a := range arr {
-		strs[i] = dns.ToString(a)
-	}
-	return strs
 }
 
 func (f *dnsFormatter) Domains() []string {
@@ -123,31 +128,39 @@ func (f *dnsFormatter) Domains() []string {
 	return domains
 }
 
-func formatDNSStatsByDomainByQueryType(stats map[dns.Hostname]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStatsByQueryType {
-	m := make(map[int32]*model.DNSStatsByQueryType)
+func formatDNSStatsByDomainByQueryType(builder *model.ConnectionBuilder, stats map[dns.Hostname]map[dns.QueryType]dns.Stats, domainSet map[string]int) {
 	for d, bytype := range stats {
-
-		byqtype := &model.DNSStatsByQueryType{}
-		byqtype.DnsStatsByQueryType = make(map[int32]*model.DNSStats)
-		for t, stat := range bytype {
-			var ms model.DNSStats
-			ms.DnsCountByRcode = stat.CountByRcode
-			ms.DnsFailureLatencySum = stat.FailureLatencySum
-			ms.DnsSuccessLatencySum = stat.SuccessLatencySum
-			ms.DnsTimeouts = stat.Timeouts
-			byqtype.DnsStatsByQueryType[int32(t)] = &ms
-		}
 		pos, ok := domainSet[dns.ToString(d)]
 		if !ok {
 			pos = len(domainSet)
 			domainSet[dns.ToString(d)] = pos
 		}
-		m[int32(pos)] = byqtype
+
+		builder.AddDnsStatsByDomainByQueryType(func(w *model.Connection_DnsStatsByDomainByQueryTypeEntryBuilder) {
+			w.SetKey(int32(pos))
+			w.SetValue(func(w *model.DNSStatsByQueryTypeBuilder) {
+				for t, stat := range bytype {
+					w.AddDnsStatsByQueryType(func(w *model.DNSStatsByQueryType_DnsStatsByQueryTypeEntryBuilder) {
+						w.SetKey(int32(t))
+						w.SetValue(func(w *model.DNSStatsBuilder) {
+							w.SetDnsFailureLatencySum(stat.FailureLatencySum)
+							w.SetDnsSuccessLatencySum(stat.SuccessLatencySum)
+							w.SetDnsTimeouts(stat.Timeouts)
+							for k, v := range stat.CountByRcode {
+								w.AddDnsCountByRcode(func(w *model.DNSStats_DnsCountByRcodeEntryBuilder) {
+									w.SetKey(k)
+									w.SetValue(v)
+								})
+							}
+						})
+					})
+				}
+			})
+		})
 	}
-	return m
 }
 
-func formatDNSStatsByDomain(stats map[dns.Hostname]map[dns.QueryType]dns.Stats, domainSet map[string]int) map[int32]*model.DNSStats {
+func formatDNSStatsByDomain(builder *model.ConnectionBuilder, stats map[dns.Hostname]map[dns.QueryType]dns.Stats, domainSet map[string]int) {
 	m := make(map[int32]*model.DNSStats)
 	for d, bytype := range stats {
 		pos, ok := domainSet[dns.ToString(d)]
@@ -177,5 +190,21 @@ func formatDNSStatsByDomain(stats map[dns.Hostname]map[dns.QueryType]dns.Stats, 
 			}
 		}
 	}
-	return m
+
+	for k, v := range m {
+		builder.AddDnsStatsByDomain(func(w *model.Connection_DnsStatsByDomainEntryBuilder) {
+			w.SetKey(k)
+			w.SetValue(func(w *model.DNSStatsBuilder) {
+				w.SetDnsTimeouts(v.DnsTimeouts)
+				w.SetDnsFailureLatencySum(v.DnsFailureLatencySum)
+				w.SetDnsSuccessLatencySum(v.DnsSuccessLatencySum)
+				for rcode, count := range v.DnsCountByRcode {
+					w.AddDnsCountByRcode(func(w *model.DNSStats_DnsCountByRcodeEntryBuilder) {
+						w.SetKey(rcode)
+						w.SetValue(count)
+					})
+				}
+			})
+		})
+	}
 }

@@ -6,6 +6,7 @@
 package encoding
 
 import (
+	"io"
 	"strings"
 	"sync"
 
@@ -31,7 +32,7 @@ var (
 
 // Marshaler is an interface implemented by all Connections serializers
 type Marshaler interface {
-	Marshal(conns *network.Connections) ([]byte, error)
+	Marshal(conns *network.Connections, writer io.Writer) error
 	ContentType() string
 }
 
@@ -58,7 +59,7 @@ func GetUnmarshaler(ctype string) Unmarshaler {
 	return jSerializer
 }
 
-func modelConnections(conns *network.Connections) *model.Connections {
+func modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
@@ -67,7 +68,6 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		}
 	})
 
-	agentConns := make([]*model.Connection, len(conns.Conns))
 	routeIndex := make(map[string]RouteIdx)
 	httpEncoder := newHTTPEncoder(conns)
 	defer httpEncoder.Close()
@@ -80,8 +80,10 @@ func modelConnections(conns *network.Connections) *model.Connections {
 	dnsFormatter := newDNSFormatter(conns, ipc)
 	tagsSet := network.NewTagsSet()
 
-	for i, conn := range conns.Conns {
-		agentConns[i] = FormatConnection(conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
+	for _, conn := range conns.Conns {
+		builder.AddConns(func(builder *model.ConnectionBuilder) {
+			FormatConnection(builder, conn, routeIndex, httpEncoder, http2Encoder, kafkaEncoder, dnsFormatter, ipc, tagsSet)
+		})
 	}
 
 	routes := make([]*model.Route, len(routeIndex))
@@ -89,18 +91,35 @@ func modelConnections(conns *network.Connections) *model.Connections {
 		routes[v.Idx] = &v.Route
 	}
 
-	payload := new(model.Connections)
-	payload.AgentConfiguration = agentCfg
-	payload.Conns = agentConns
-	payload.Domains = dnsFormatter.Domains()
-	payload.Dns = dnsFormatter.DNS()
-	payload.ConnTelemetryMap = FormatConnectionTelemetry(conns.ConnTelemetry)
-	payload.CompilationTelemetryByAsset = FormatCompilationTelemetry(conns.CompilationTelemetryByAsset)
-	payload.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
-	payload.CORETelemetryByAsset = FormatCORETelemetry(conns.CORETelemetryByAsset)
-	payload.PrebuiltEBPFAssets = conns.PrebuiltAssets
-	payload.Routes = routes
-	payload.Tags = tagsSet.GetStrings()
+	builder.SetAgentConfiguration(func(w *model.AgentConfigurationBuilder) {
+		w.SetDsmEnabled(agentCfg.DsmEnabled)
+		w.SetNpmEnabled(agentCfg.NpmEnabled)
+		w.SetUsmEnabled(agentCfg.UsmEnabled)
+	})
+	for _, d := range dnsFormatter.Domains() {
+		builder.AddDomains(d)
+	}
 
-	return payload
+	for _, route := range routes {
+		builder.AddRoutes(func(w *model.RouteBuilder) {
+			w.SetSubnet(func(w *model.SubnetBuilder) {
+				w.SetAlias(route.Subnet.Alias)
+			})
+		})
+	}
+
+	dnsFormatter.FormatDNS(builder)
+
+	for _, tag := range tagsSet.GetStrings() {
+		builder.AddTags(tag)
+	}
+
+	FormatConnectionTelemetry(builder, conns.ConnTelemetry)
+	FormatCompilationTelemetry(builder, conns.CompilationTelemetryByAsset)
+	FormatCORETelemetry(builder, conns.CORETelemetryByAsset)
+	builder.SetKernelHeaderFetchResult(uint64(conns.KernelHeaderFetchResult))
+	for _, asset := range conns.PrebuiltAssets {
+		builder.AddPrebuiltEBPFAssets(asset)
+	}
+
 }
