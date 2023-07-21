@@ -174,7 +174,6 @@ func (j *JMXFetch) Start(manage bool) error {
 	classpath := filepath.Join(path.GetDistPath(), "jmx", jmxJarName)
 	if j.JavaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s%s%s", j.JavaToolsJarPath, string(os.PathListSeparator), classpath)
-		log.Infof("classpath updated to %v", classpath)
 	}
 
 	globalCustomJars := config.Datadog.GetStringSlice("jmx_custom_jars")
