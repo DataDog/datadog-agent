@@ -50,7 +50,7 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 
 					content, err := ddLog.MarshalJSON()
 					if err != nil {
-						return err
+						logger.Error("Error parsing log: " + err.Error())
 					}
 
 					tags := ddLog.GetDdtags()
@@ -64,7 +64,7 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 					}
 					timestamp, err := time.Parse(time.RFC3339, ddLog.AdditionalProperties["@timestamp"])
 					if err != nil {
-						return err
+						logger.Error("Error parsing timestamp: " + err.Error())
 					}
 					origin := message.NewOrigin(logSource)
 					origin.SetTags(strings.Split(tags, ","))

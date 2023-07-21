@@ -13,22 +13,16 @@ import (
 	"go.opentelemetry.io/collector/component"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"sync"
 )
 
 const (
 	// TypeStr defines the serializer exporter type string.
 	TypeStr       = "logsagent"
 	stability     = component.StabilityLevelStable
-	logSourceName = "OpenTelemetry Collector"
+	logSourceName = "OTLP log ingestion"
 )
 
 type factory struct {
-	onceProvider sync.Once
-	providerErr  error
-
-	wg sync.WaitGroup // waits for agent to exit
-
 	logsAgentChannel chan *message.Message
 }
 

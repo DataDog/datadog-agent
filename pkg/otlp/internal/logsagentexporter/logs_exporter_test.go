@@ -21,12 +21,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/plog"
-
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testdata"
 )
 
 func TestLogsExporter(t *testing.T) {
-	lr := testdata.GenerateLogsOneLogRecord()
+	lr := testutil.GenerateLogsOneLogRecord()
 	ld := lr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 
 	type args struct {
@@ -48,7 +46,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testdata.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -57,7 +55,7 @@ func TestLogsExporter(t *testing.T) {
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
 					"otel.trace_id":        traceIDToHexOrEmptyString(ld.TraceID()),
-					"otel.timestamp":       fmt.Sprintf("%d", testdata.TestLogTime.UnixNano()),
+					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
 		},
@@ -65,7 +63,7 @@ func TestLogsExporter(t *testing.T) {
 			name: "message-attribute",
 			args: args{
 				ld: func() plog.Logs {
-					lrr := testdata.GenerateLogsOneLogRecord()
+					lrr := testutil.GenerateLogsOneLogRecord()
 					ldd := lrr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 					ldd.Attributes().PutStr("message", "hello")
 					return lrr
@@ -77,7 +75,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              "hello",
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testdata.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -86,7 +84,7 @@ func TestLogsExporter(t *testing.T) {
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
 					"otel.trace_id":        traceIDToHexOrEmptyString(ld.TraceID()),
-					"otel.timestamp":       fmt.Sprintf("%d", testdata.TestLogTime.UnixNano()),
+					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
 		},
@@ -94,7 +92,7 @@ func TestLogsExporter(t *testing.T) {
 			name: "ddtags",
 			args: args{
 				ld: func() plog.Logs {
-					lrr := testdata.GenerateLogsOneLogRecord()
+					lrr := testutil.GenerateLogsOneLogRecord()
 					ldd := lrr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 					ldd.Attributes().PutStr("ddtags", "tag1:true")
 					return lrr
@@ -106,7 +104,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testdata.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -115,7 +113,7 @@ func TestLogsExporter(t *testing.T) {
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
 					"otel.trace_id":        traceIDToHexOrEmptyString(ld.TraceID()),
-					"otel.timestamp":       fmt.Sprintf("%d", testdata.TestLogTime.UnixNano()),
+					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
 		},
@@ -123,7 +121,7 @@ func TestLogsExporter(t *testing.T) {
 			name: "ddtags submits same tags",
 			args: args{
 				ld: func() plog.Logs {
-					lrr := testdata.GenerateLogsTwoLogRecordsSameResource()
+					lrr := testutil.GenerateLogsTwoLogRecordsSameResource()
 					ldd := lrr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 					ldd.Attributes().PutStr("ddtags", "tag1:true")
 					ldd2 := lrr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(1)
@@ -137,7 +135,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testdata.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -146,18 +144,18 @@ func TestLogsExporter(t *testing.T) {
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
 					"otel.trace_id":        traceIDToHexOrEmptyString(ld.TraceID()),
-					"otel.timestamp":       fmt.Sprintf("%d", testdata.TestLogTime.UnixNano()),
+					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 				{
 					"message":              "something happened",
 					"env":                  "dev",
 					"customer":             "acme",
-					"@timestamp":           testdata.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
 					"status":               "Info",
 					"ddtags":               "tag1:true,otel_source:datadog_exporter",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
-					"otel.timestamp":       fmt.Sprintf("%d", testdata.TestLogTime.UnixNano()),
+					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
 		},
@@ -165,7 +163,7 @@ func TestLogsExporter(t *testing.T) {
 			name: "ddtags submits different tags",
 			args: args{
 				ld: func() plog.Logs {
-					lrr := testdata.GenerateLogsTwoLogRecordsSameResource()
+					lrr := testutil.GenerateLogsTwoLogRecordsSameResource()
 					ldd := lrr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 					ldd.Attributes().PutStr("ddtags", "tag1:true")
 					ldd2 := lrr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(1)
@@ -179,7 +177,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testdata.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -188,18 +186,18 @@ func TestLogsExporter(t *testing.T) {
 					"otel.severity_number": "9",
 					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
 					"otel.trace_id":        traceIDToHexOrEmptyString(ld.TraceID()),
-					"otel.timestamp":       fmt.Sprintf("%d", testdata.TestLogTime.UnixNano()),
+					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 				{
 					"message":              "something happened",
 					"env":                  "dev",
 					"customer":             "acme",
-					"@timestamp":           testdata.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
 					"status":               "Info",
 					"ddtags":               "tag2:true,otel_source:datadog_exporter",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
-					"otel.timestamp":       fmt.Sprintf("%d", testdata.TestLogTime.UnixNano()),
+					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 				},
 			},
 		},
@@ -259,5 +257,3 @@ func traceIDToHexOrEmptyString(id pcommon.TraceID) string {
 	}
 	return hex.EncodeToString(id[:])
 }
-
-type exporterConfig struct{}
