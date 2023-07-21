@@ -51,24 +51,6 @@ const (
 
 var (
 	javaProcessName = []byte("java")
-
-	// path to our java USM agent TLS tracer
-	javaUSMAgentJarPath = ""
-
-	// enable debug output in the injected agent-usm.jar
-	javaUSMAgentDebug = false
-
-	// default arguments passed to the injected agent-usm.jar
-	javaUSMAgentArgs = ""
-
-	// authID is used here as an identifier, simple proof of authenticity
-	// between the injected java process and the ebpf ioctl that receive the payload
-	authID = int64(0)
-
-	// The regex is matching against /proc/pid/cmdline
-	// if matching the agent-usm.jar would or not injected
-	javaAgentAllowRegex *regexp.Regexp
-	javaAgentBlockRegex *regexp.Regexp
 )
 
 type javaTLSProgram struct {
@@ -76,6 +58,24 @@ type javaTLSProgram struct {
 	manager        *nettelemetry.Manager
 	processMonitor *monitor.ProcessMonitor
 	cleanupExec    func()
+
+	// authID is used here as an identifier, simple proof of authenticity
+	// between the injected java process and the ebpf ioctl that receive the payload.
+	authID int64
+
+	// enable debug output in the injected agent-usm.jar
+	javaUSMAgentDebug bool
+
+	// path to our java USM agent TLS tracer
+	javaUSMAgentJarPath string
+
+	// default arguments passed to the injected agent-usm.jar
+	javaUSMAgentArgs string
+
+	// The regex is matching against /proc/pid/cmdline
+	// if matching the agent-usm.jar would or not injected
+	javaAgentAllowRegex *regexp.Regexp
+	javaAgentBlockRegex *regexp.Regexp
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -114,15 +114,11 @@ func getJavaTlsTailCallRoutes() []manager.TailCallRoute {
 	}
 }
 
-func isJavaSubprogramEnabled(c *config.Config) bool {
-	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
-		return false
-	}
-
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
-	jar, err := os.Open(javaUSMAgentJarPath)
+func (p *javaTLSProgram) isJavaSubprogramEnabled(c *config.Config) bool {
+	p.javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
+	jar, err := os.Open(p.javaUSMAgentJarPath)
 	if err != nil {
-		log.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
+		log.Errorf("java TLS can't access java tracer payload %s : %s", p.javaUSMAgentJarPath, err)
 		return false
 	}
 	jar.Close()
@@ -130,18 +126,27 @@ func isJavaSubprogramEnabled(c *config.Config) bool {
 }
 
 func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
-	var err error
+	var res *javaTLSProgram
+	defer func() {
+		// If we didn't set res, then java tls initialization failed.
+		if res == nil {
+			log.Info("java tls is not enabled")
+		}
+	}()
 
-	if !isJavaSubprogramEnabled(c) {
-		log.Info("java tls is not enabled")
+	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
+		return nil
+	}
+	javaUSMAgentJarPath := filepath.Join(c.JavaDir, agentUSMJar)
+	if _, err := os.Stat(javaUSMAgentJarPath); err != nil {
+		log.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
 		return nil
 	}
 
+	var err error
+
 	log.Info("java tls is enabled")
-	javaUSMAgentDebug = c.JavaAgentDebug
-	javaUSMAgentArgs = c.JavaAgentArgs
-	javaAgentAllowRegex = nil
-	javaAgentBlockRegex = nil
+	var javaAgentAllowRegex, javaAgentBlockRegex *regexp.Regexp
 	if c.JavaAgentAllowRegex != "" {
 		javaAgentAllowRegex, err = regexp.Compile(c.JavaAgentAllowRegex)
 		if err != nil {
@@ -157,11 +162,18 @@ func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 		}
 	}
 
-	mon := monitor.GetProcessMonitor()
-	return &javaTLSProgram{
-		cfg:            c,
-		processMonitor: mon,
+	// Randomizing the seed to ensure we get a truly random number.
+	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
+	res = &javaTLSProgram{
+		cfg:                 c,
+		processMonitor:      monitor.GetProcessMonitor(),
+		authID:              rand.Int63(),
+		javaUSMAgentDebug:   c.JavaAgentDebug,
+		javaUSMAgentArgs:    c.JavaAgentArgs,
+		javaAgentAllowRegex: javaAgentAllowRegex,
+		javaAgentBlockRegex: javaAgentBlockRegex,
 	}
+	return res
 }
 
 func (p *javaTLSProgram) Name() string {
@@ -186,8 +198,6 @@ func (p *javaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 			KProbeMaxActive: maxActive,
 		},
 	)
-	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
-	authID = rand.Int63()
 }
 
 func (p *javaTLSProgram) ConfigureOptions(options *manager.Options) {
@@ -253,9 +263,9 @@ func isJavaProcess(pid int) bool {
 // /                 match  | not match
 // allowRegex only    true  | false
 // blockRegex only    false | true
-func isAttachmentAllowed(pid int) bool {
-	allowIsSet := javaAgentAllowRegex != nil
-	blockIsSet := javaAgentBlockRegex != nil
+func (p *javaTLSProgram) isAttachmentAllowed(pid int) bool {
+	allowIsSet := p.javaAgentAllowRegex != nil
+	blockIsSet := p.javaAgentBlockRegex != nil
 	// filter is disabled (default configuration)
 	if !allowIsSet && !blockIsSet {
 		return true
@@ -270,10 +280,10 @@ func isAttachmentAllowed(pid int) bool {
 	fullCmdline := strings.ReplaceAll(string(cmd), "\000", " ") // /proc/pid/cmdline format : arguments are separated by '\0'
 
 	// Allow to have a higher priority
-	if allowIsSet && javaAgentAllowRegex.MatchString(fullCmdline) {
+	if allowIsSet && p.javaAgentAllowRegex.MatchString(fullCmdline) {
 		return true
 	}
-	if blockIsSet && javaAgentBlockRegex.MatchString(fullCmdline) {
+	if blockIsSet && p.javaAgentBlockRegex.MatchString(fullCmdline) {
 		return false
 	}
 
@@ -286,30 +296,30 @@ func isAttachmentAllowed(pid int) bool {
 	return true
 }
 
-func newJavaProcess(pid int) {
+func (p *javaTLSProgram) newJavaProcess(pid int) {
 	if !isJavaProcess(pid) {
 		return
 	}
-	if !isAttachmentAllowed(pid) {
+	if !p.isAttachmentAllowed(pid) {
 		log.Debugf("java pid %d attachment rejected", pid)
 		return
 	}
 
 	allArgs := []string{
-		javaUSMAgentArgs,
-		"dd.usm.authID=" + strconv.FormatInt(authID, 10),
+		p.javaUSMAgentArgs,
+		"dd.usm.authID=" + strconv.FormatInt(p.authID, 10),
 	}
-	if javaUSMAgentDebug {
+	if p.javaUSMAgentDebug {
 		allArgs = append(allArgs, "dd.trace.debug=true")
 	}
 	args := strings.Join(allArgs, ",")
-	if err := java.InjectAgent(pid, javaUSMAgentJarPath, args); err != nil {
+	if err := java.InjectAgent(pid, p.javaUSMAgentJarPath, args); err != nil {
 		log.Error(err)
 	}
 }
 
 func (p *javaTLSProgram) Start() {
-	p.cleanupExec = p.processMonitor.SubscribeExec(newJavaProcess)
+	p.cleanupExec = p.processMonitor.SubscribeExec(p.newJavaProcess)
 }
 
 func (p *javaTLSProgram) Stop() {

@@ -134,6 +134,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 
 	subprogramProbesResolvers := make([]probeResolver, 0, 3)
 	subprograms := make([]subprogram, 0, 3)
+	var tailCalls []manager.TailCallRoute
 
 	goTLSProg := newGoTLSProgram(c)
 	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
@@ -144,17 +145,12 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 	subprogramProbesResolvers = append(subprogramProbesResolvers, javaTLSProg)
 	if javaTLSProg != nil {
 		subprograms = append(subprograms, javaTLSProg)
+		tailCalls = append(tailCalls, getJavaTlsTailCallRoutes()...)
 	}
 	openSSLProg := newSSLProgram(c, mgr, sockFD, bpfTelemetry)
 	subprogramProbesResolvers = append(subprogramProbesResolvers, openSSLProg)
 	if openSSLProg != nil {
 		subprograms = append(subprograms, openSSLProg)
-	}
-
-	var tailCalls []manager.TailCallRoute
-
-	if isJavaSubprogramEnabled(c) {
-		tailCalls = append(tailCalls, getJavaTlsTailCallRoutes()...)
 	}
 
 	program := &ebpfProgram{
