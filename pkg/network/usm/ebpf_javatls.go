@@ -36,6 +36,12 @@ const (
 	javaTLSConnectionsMap       = "java_tls_connections"
 	javaDomainsToConnectionsMap = "java_conn_tuple_by_peer"
 	eRPCHandlersMap             = "java_tls_erpc_handlers"
+
+	doVfsIoctlKprobeName             = "kprobe__do_vfs_ioctl"
+	handleSyncPayloadKprobeName      = "kprobe_handle_sync_payload"
+	handleCloseConnectionKprobeName  = "kprobe_handle_close_connection"
+	handleConnectionByPeerKprobeName = "kprobe_handle_connection_by_peer"
+	handleAsyncPayloadKprobeName     = "kprobe_handle_async_payload"
 )
 
 const (
@@ -79,28 +85,28 @@ func getJavaTlsTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: eRPCHandlersMap,
 			Key:           syncPayload,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_handle_sync_payload",
+				EBPFFuncName: handleSyncPayloadKprobeName,
 			},
 		},
 		{
 			ProgArrayName: eRPCHandlersMap,
 			Key:           closeConnection,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_handle_close_connection",
+				EBPFFuncName: handleCloseConnectionKprobeName,
 			},
 		},
 		{
 			ProgArrayName: eRPCHandlersMap,
 			Key:           connectionByPeer,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_handle_connection_by_peer",
+				EBPFFuncName: handleConnectionByPeerKprobeName,
 			},
 		},
 		{
 			ProgArrayName: eRPCHandlersMap,
 			Key:           asyncPayload,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_handle_async_payload",
+				EBPFFuncName: handleAsyncPayloadKprobeName,
 			},
 		},
 	}
@@ -154,7 +160,7 @@ func (p *javaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 
 	m.Probes = append(m.Probes,
 		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "kprobe__do_vfs_ioctl",
+			EBPFFuncName: doVfsIoctlKprobeName,
 			UID:          probeUID,
 		},
 			KProbeMaxActive: maxActive,
@@ -170,14 +176,14 @@ func (p *javaTLSProgram) ConfigureOptions(options *manager.Options) {
 	}
 	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
-		MaxEntries: uint32(p.cfg.MaxTrackedConnections),
+		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
 
 	options.ActivatedProbes = append(options.ActivatedProbes,
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe__do_vfs_ioctl",
+				EBPFFuncName: doVfsIoctlKprobeName,
 				UID:          probeUID,
 			},
 		})
@@ -185,11 +191,11 @@ func (p *javaTLSProgram) ConfigureOptions(options *manager.Options) {
 
 func (p *javaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	return []manager.ProbeIdentificationPair{
-		{EBPFFuncName: "kprobe__do_vfs_ioctl"},
-		{EBPFFuncName: "kprobe_handle_sync_payload"},
-		{EBPFFuncName: "kprobe_handle_close_connection"},
-		{EBPFFuncName: "kprobe_handle_connection_by_peer"},
-		{EBPFFuncName: "kprobe_handle_async_payload"},
+		{EBPFFuncName: doVfsIoctlKprobeName},
+		{EBPFFuncName: handleSyncPayloadKprobeName},
+		{EBPFFuncName: handleCloseConnectionKprobeName},
+		{EBPFFuncName: handleConnectionByPeerKprobeName},
+		{EBPFFuncName: handleAsyncPayloadKprobeName},
 	}
 }
 
