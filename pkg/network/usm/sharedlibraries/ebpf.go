@@ -82,7 +82,7 @@ func (e *ebpfProgram) Init() error {
 	var err error
 
 	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, nil)
+		return errtelemetry.PatchEBPFTelemetry(m, true, getAllUndefinedProbes())
 	}
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
@@ -164,10 +164,13 @@ func (e *ebpfProgram) initPrebuilt() error {
 
 func sysOpenAt2Supported() bool {
 	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
+
 	if err == nil && len(missing) == 0 {
 		return true
 	}
+
 	kversion, err := kernel.HostVersion()
+
 	if err != nil {
 		log.Error("could not determine the current kernel version. fallback to do_sys_open")
 		return false
@@ -202,4 +205,21 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
+}
+
+func getAllUndefinedProbes() []manager.ProbeIdentificationPair {
+	undefined := []manager.ProbeIdentificationPair{}
+
+	if !sysOpenAt2Supported() {
+		undefined = append(undefined,
+			manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint__syscalls__sys_enter_openat2",
+			},
+			manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint__syscalls__sys_exit_openat2",
+			},
+		)
+	}
+
+	return undefined
 }
