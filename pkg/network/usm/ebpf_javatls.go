@@ -113,17 +113,6 @@ func getJavaTlsTailCallRoutes() []manager.TailCallRoute {
 	}
 }
 
-func (p *javaTLSProgram) isJavaSubprogramEnabled(c *config.Config) bool {
-	p.tracerJarPath = filepath.Join(c.JavaDir, agentUSMJar)
-	jar, err := os.Open(p.tracerJarPath)
-	if err != nil {
-		log.Errorf("java TLS can't access java tracer payload %s : %s", p.tracerJarPath, err)
-		return false
-	}
-	jar.Close()
-	return true
-}
-
 func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 	var res *javaTLSProgram
 	defer func() {
@@ -136,42 +125,40 @@ func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
 		return nil
 	}
+
 	javaUSMAgentJarPath := filepath.Join(c.JavaDir, agentUSMJar)
 	if _, err := os.Stat(javaUSMAgentJarPath); err != nil {
 		log.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
 		return nil
 	}
 
-	var err error
-
 	log.Info("java tls is enabled")
-	var javaAgentAllowRegex, javaAgentBlockRegex *regexp.Regexp
+
+	var err error
+	// Randomizing the seed to ensure we get a truly random number.
+	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
+	res = &javaTLSProgram{
+		cfg:             c,
+		processMonitor:  monitor.GetProcessMonitor(),
+		authID:          rand.Int63(),
+		tracerDebugMode: c.JavaAgentDebug,
+		tracerArguments: c.JavaAgentArgs,
+		tracerJarPath:   javaUSMAgentJarPath,
+	}
+
 	if c.JavaAgentAllowRegex != "" {
-		javaAgentAllowRegex, err = regexp.Compile(c.JavaAgentAllowRegex)
+		res.injectionAllowRegex, err = regexp.Compile(c.JavaAgentAllowRegex)
 		if err != nil {
-			javaAgentAllowRegex = nil
 			log.Errorf("allow regex can't be compiled %s", err)
 		}
 	}
 	if c.JavaAgentBlockRegex != "" {
-		javaAgentBlockRegex, err = regexp.Compile(c.JavaAgentBlockRegex)
+		res.injectionBlockRegex, err = regexp.Compile(c.JavaAgentBlockRegex)
 		if err != nil {
-			javaAgentBlockRegex = nil
 			log.Errorf("block regex can't be compiled %s", err)
 		}
 	}
 
-	// Randomizing the seed to ensure we get a truly random number.
-	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
-	res = &javaTLSProgram{
-		cfg:                 c,
-		processMonitor:      monitor.GetProcessMonitor(),
-		authID:              rand.Int63(),
-		tracerDebugMode:     c.JavaAgentDebug,
-		tracerArguments:     c.JavaAgentArgs,
-		injectionAllowRegex: javaAgentAllowRegex,
-		injectionBlockRegex: javaAgentBlockRegex,
-	}
 	return res
 }
 
