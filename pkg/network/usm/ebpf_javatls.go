@@ -71,7 +71,7 @@ var (
 	javaAgentBlockRegex *regexp.Regexp
 )
 
-type JavaTLSProgram struct {
+type javaTLSProgram struct {
 	cfg            *config.Config
 	manager        *nettelemetry.Manager
 	processMonitor *monitor.ProcessMonitor
@@ -79,7 +79,7 @@ type JavaTLSProgram struct {
 }
 
 // Static evaluation to make sure we are not breaking the interface.
-var _ subprogram = &JavaTLSProgram{}
+var _ subprogram = &javaTLSProgram{}
 
 func GetJavaTlsTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
@@ -129,7 +129,7 @@ func IsJavaSubprogramEnabled(c *config.Config) bool {
 	return true
 }
 
-func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
+func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 	var err error
 
 	if !IsJavaSubprogramEnabled(c) {
@@ -158,21 +158,21 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	}
 
 	mon := monitor.GetProcessMonitor()
-	return &JavaTLSProgram{
+	return &javaTLSProgram{
 		cfg:            c,
 		processMonitor: mon,
 	}
 }
 
-func (p *JavaTLSProgram) Name() string {
+func (p *javaTLSProgram) Name() string {
 	return "java-tls"
 }
 
-func (p *JavaTLSProgram) IsBuildModeSupported(buildMode) bool {
+func (p *javaTLSProgram) IsBuildModeSupported(buildMode) bool {
 	return true
 }
 
-func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
+func (p *javaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
 		{Name: javaTLSConnectionsMap},
@@ -190,7 +190,7 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 	authID = rand.Int63()
 }
 
-func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
+func (p *javaTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
@@ -211,7 +211,7 @@ func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {
 		})
 }
 
-func (p *JavaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+func (p *javaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	return []manager.ProbeIdentificationPair{
 		{EBPFFuncName: "kprobe__do_vfs_ioctl"},
 		{EBPFFuncName: "kprobe_handle_sync_payload"},
@@ -308,11 +308,11 @@ func newJavaProcess(pid int) {
 	}
 }
 
-func (p *JavaTLSProgram) Start() {
+func (p *javaTLSProgram) Start() {
 	p.cleanupExec = p.processMonitor.SubscribeExec(newJavaProcess)
 }
 
-func (p *JavaTLSProgram) Stop() {
+func (p *javaTLSProgram) Stop() {
 	if p.cleanupExec != nil {
 		p.cleanupExec()
 	}
