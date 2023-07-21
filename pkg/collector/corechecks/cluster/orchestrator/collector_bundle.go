@@ -24,7 +24,7 @@ import (
 
 const (
 	defaultExtraSyncTimeout = 60 * time.Second
-	defaultMaximumCRDs      = 1000
+	defaultMaximumCRDs      = 100
 )
 
 // CollectorBundle is a container for a group of collectors. It provides a way
@@ -202,7 +202,7 @@ func (cb *CollectorBundle) importCRDCollectorsFromCheckConfig() bool {
 	crdCollectors := cb.check.instance.CRDCollectors
 	if len(cb.check.instance.CRDCollectors) > defaultMaximumCRDs {
 		crdCollectors = cb.check.instance.CRDCollectors[:defaultMaximumCRDs]
-		cb.check.Warnf("Too many crd collectors are configured, only collect first %s collectors", defaultMaximumCRDs)
+		cb.check.Warnf("Too many crd collectors are configured, only collect first %d collectors", defaultMaximumCRDs)
 	}
 
 	for _, c := range crdCollectors {
