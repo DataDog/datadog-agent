@@ -2,16 +2,21 @@
 #define _CONSTANTS_SYSCALL_MACRO_H_
 
 #if defined(__x86_64__)
-  #define SYSCALL64_PREFIX "__x64_"
-  #define SYSCALL32_PREFIX "__ia32_"
+  #if USE_SYSCALL_WRAPPER == 1
+    #define SYSCALL64_PREFIX "__x64_"
+    #define SYSCALL32_PREFIX "__ia32_"
+  #else
+    #define SYSCALL32_PREFIX ""
+    #define SYSCALL64_PREFIX ""
+  #endif
 
   #define SYSCALL64_PT_REGS_PARM1(x) ((x)->di)
   #define SYSCALL64_PT_REGS_PARM2(x) ((x)->si)
   #define SYSCALL64_PT_REGS_PARM3(x) ((x)->dx)
   #if USE_SYSCALL_WRAPPER == 1
-   #define SYSCALL64_PT_REGS_PARM4(x) ((x)->r10)
+    #define SYSCALL64_PT_REGS_PARM4(x) ((x)->r10)
   #else
-  #define SYSCALL64_PT_REGS_PARM4(x) ((x)->cx)
+    #define SYSCALL64_PT_REGS_PARM4(x) ((x)->cx)
   #endif
   #define SYSCALL64_PT_REGS_PARM5(x) ((x)->r8)
   #define SYSCALL64_PT_REGS_PARM6(x) ((x)->r9)
@@ -24,8 +29,13 @@
   #define SYSCALL32_PT_REGS_PARM6(x) ((x)->bp)
 
 #elif defined(__aarch64__)
-  #define SYSCALL64_PREFIX "__arm64_"
-  #define SYSCALL32_PREFIX "__arm32_"
+  #if USE_SYSCALL_WRAPPER == 1
+    #define SYSCALL64_PREFIX "__arm64_"
+    #define SYSCALL32_PREFIX "__arm32_"
+  #else
+    #define SYSCALL32_PREFIX ""
+    #define SYSCALL64_PREFIX ""
+  #endif
 
   #define SYSCALL64_PT_REGS_PARM1(x) PT_REGS_PARM1(x)
   #define SYSCALL64_PT_REGS_PARM2(x) PT_REGS_PARM2(x)
@@ -75,6 +85,8 @@
 #define __SC_DECL(t, a) t a
 #define __SC_PASS(t, a) a
 
+#define SYSCALL_PREFIX "sys"
+
 #define SYSCALL_ABI_HOOKx(x,word_size,type,TYPE,prefix,syscall,suffix,...) \
     int __attribute__((always_inline)) type##__##sys##syscall(struct pt_regs *ctx __JOIN(x,__SC_DECL,__VA_ARGS__)); \
     SEC(#type "/" SYSCALL##word_size##_PREFIX #prefix SYSCALL_PREFIX #syscall #suffix) \
@@ -84,16 +96,15 @@
     }
 
 #define SYSCALL_HOOK_COMMON(x,type,syscall,...) int __attribute__((always_inline)) type##__sys##syscall(struct pt_regs *ctx __JOIN(x,__SC_DECL,__VA_ARGS__))
+#define SYSCALL_KRETPROBE_PROLOG(...)
 
 #if USE_SYSCALL_WRAPPER == 1
-  #define SYSCALL_PREFIX "sys"
   #define __SC_64_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL64_PT_REGS_PARM##n(rctx));
   #define __SC_32_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL32_PT_REGS_PARM##n(rctx));
   #define SYSCALL_KPROBE_PROLOG(x,m,syscall,...) \
     struct pt_regs *rctx = (struct pt_regs *) PT_REGS_PARM1(ctx); \
     if (!rctx) return 0; \
     __MAP(x,m,__VA_ARGS__)
-  #define SYSCALL_KRETPROBE_PROLOG(...)
   #define SYSCALL_HOOKx(x,type,TYPE,prefix,name,...) \
     SYSCALL_ABI_HOOKx(x,32,type,TYPE,prefix,name,,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \
@@ -109,18 +120,12 @@
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,_time32,__VA_ARGS__) \
     SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
 #else
-  #undef SYSCALL32_PREFIX
-  #undef SYSCALL64_PREFIX
-  #define SYSCALL32_PREFIX ""
-  #define SYSCALL64_PREFIX ""
-  #define SYSCALL_PREFIX "sys"
   #define __SC_64_PARAM(n, t, a) t a = (t) SYSCALL64_PT_REGS_PARM##n(ctx);
   #define __SC_32_PARAM(n, t, a) t a = (t) SYSCALL32_PT_REGS_PARM##n(ctx);
   #define SYSCALL_KPROBE_PROLOG(x,m,syscall,...) \
     struct pt_regs *rctx = ctx; \
     if (!rctx) return 0; \
     __MAP(x,m,__VA_ARGS__)
-  #define SYSCALL_KRETPROBE_PROLOG(...)
   #define SYSCALL_HOOKx(x,type,TYPE,prefix,name,...) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,compat_,name,,__VA_ARGS__) \
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,,__VA_ARGS__) \

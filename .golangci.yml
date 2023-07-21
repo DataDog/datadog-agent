@@ -3,6 +3,9 @@ run:
     - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
     - pkg/util/intern/string.go # TODO: fix govet 'unsafeptr' error
     - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
+  skip-dirs:
+    - pkg/proto/patches
+
 
 issues:
   exclude-use-default: false

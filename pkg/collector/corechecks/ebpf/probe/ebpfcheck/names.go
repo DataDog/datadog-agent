@@ -8,9 +8,13 @@
 package ebpfcheck
 
 import (
+	"sync"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 )
+
+var mappingLock sync.RWMutex
 
 var mapNameMapping = make(map[uint32]string)
 var mapModuleMapping = make(map[uint32]string)
@@ -20,6 +24,9 @@ var progModuleMapping = make(map[uint32]string)
 
 // AddProgramNameMapping manually adds a program name mapping
 func AddProgramNameMapping(progid uint32, name string, module string) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
 	progNameMapping[progid] = name
 	progModuleMapping[progid] = module
 }
@@ -30,6 +37,10 @@ func AddNameMappings(mgr *manager.Manager, module string) {
 	if err != nil {
 		return
 	}
+
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
 	iterateMaps(maps, func(mapid uint32, name string) {
 		mapNameMapping[mapid] = name
 		mapModuleMapping[mapid] = module
@@ -47,6 +58,9 @@ func AddNameMappings(mgr *manager.Manager, module string) {
 
 // AddNameMappingsCollection adds the full name mappings for ebpf maps in the collection
 func AddNameMappingsCollection(coll *ebpf.Collection, module string) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
 	iterateMaps(coll.Maps, func(mapid uint32, name string) {
 		mapNameMapping[mapid] = name
 		mapModuleMapping[mapid] = module
@@ -63,6 +77,10 @@ func RemoveNameMappings(mgr *manager.Manager) {
 	if err != nil {
 		return
 	}
+
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
 	iterateMaps(maps, func(mapid uint32, name string) {
 		delete(mapNameMapping, mapid)
 		delete(mapModuleMapping, mapid)
@@ -86,6 +104,9 @@ func RemoveNameMappings(mgr *manager.Manager) {
 
 // RemoveNameMappingsCollection removes the full name mappings for ebpf maps in the collection
 func RemoveNameMappingsCollection(coll *ebpf.Collection) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
 	iterateMaps(coll.Maps, func(mapid uint32, name string) {
 		delete(mapNameMapping, mapid)
 		delete(mapModuleMapping, mapid)

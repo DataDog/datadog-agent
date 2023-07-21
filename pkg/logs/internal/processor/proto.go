@@ -8,7 +8,7 @@ package processor
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/pb"
+	"github.com/DataDog/agent-payload/pb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
