@@ -517,7 +517,8 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		return err
 	}
 
-	_, err = fmt.Fprintf(writer, "%s\n", report.String())
+	content, _ := json.MarshalIndent(report, "", "\t")
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
 	if err != nil {
 		return fmt.Errorf("unable to write out report: %w", err)
 	}

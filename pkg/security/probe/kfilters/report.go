@@ -8,7 +8,6 @@
 package kfilters
 
 import (
-	"encoding/json"
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -84,46 +83,4 @@ func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRule
 	}
 
 	return &ApplyRuleSetReport{Policies: policies}, nil
-}
-
-func NewPolicyReportToPrint() PolicyReportToPrint {
-	var flags []string
-	return PolicyReportToPrint{
-		Mode:      "",
-		Flags:     flags,
-		Approvers: make(ReportApprovers),
-	}
-}
-
-func (r *ApplyRuleSetReport) String() string {
-	policies := make(map[eval.EventType]*PolicyReportToPrint)
-
-	for eventType, policy := range r.Policies {
-		policyReportToPrint := PolicyReportToPrint{
-			Mode:  policy.Mode.String(),
-			Flags: policy.Flags.StringArray(),
-		}
-
-		approversToPrint := make(map[eval.Field][]ApproverToPrint)
-
-		for evalField, filterValues := range policy.Approvers {
-
-			for _, filterValue := range filterValues {
-				approversToPrint[evalField] = append(approversToPrint[evalField],
-					ApproverToPrint{
-						Field: filterValue.Field,
-						Value: filterValue.Value,
-						Type:  filterValue.Type.String(),
-					},
-				)
-			}
-		}
-		policyReportToPrint.Approvers = approversToPrint
-		policies[eventType] = &policyReportToPrint
-	}
-
-	wholeReport := &ApplyRuleSetReportToPrint{Policies: policies}
-
-	content, _ := json.MarshalIndent(wholeReport, "", "\t")
-	return string(content)
 }
