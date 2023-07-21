@@ -43,6 +43,18 @@ func TestExtractor(t *testing.T) {
 		proc4 = testProc(Pid4, []string{"python", "test.py"})
 	)
 
+	// Silly test container id's for fun, doesn't matter what they are they just have to be unique.
+	var (
+		ctrId1 = "containers-are-awesome"
+		ctrId2 = "we-all-live-in-a-yellow-container"
+	)
+	extractor.SetLastPidToCid(map[int]string{
+		Pid1: ctrId1,
+		Pid2: ctrId1,
+		Pid3: ctrId1,
+		Pid4: ctrId2,
+	})
+
 	// Assert that first run generates creation events for all processes
 	extractor.Extract(map[int32]*procutil.Process{
 		Pid1: proc1,
@@ -58,12 +70,14 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc1.NsPid,
 			CreationTime: proc1.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
+			ContainerId:  ctrId1,
 		},
 		hashProcess(Pid2, proc2.Stats.CreateTime): {
 			Pid:          proc2.Pid,
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
+			ContainerId:  ctrId1,
 		},
 	}, procs)
 
@@ -77,12 +91,14 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc1.NsPid,
 			CreationTime: proc1.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
+			ContainerId:  ctrId1,
 		},
 		{
 			Pid:          proc2.Pid,
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
+			ContainerId:  ctrId1,
 		},
 	}, diff.creation)
 	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
@@ -101,12 +117,14 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc1.NsPid,
 			CreationTime: proc1.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
+			ContainerId:  ctrId1,
 		},
 		hashProcess(Pid2, proc2.Stats.CreateTime): {
 			Pid:          proc2.Pid,
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
+			ContainerId:  ctrId1,
 		},
 	}, procs)
 
@@ -125,6 +143,7 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
+			ContainerId:  ctrId1,
 		},
 	}, procs)
 
@@ -137,6 +156,7 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc1.NsPid,
 			CreationTime: proc1.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
+			ContainerId:  ctrId1,
 		},
 	}, diff.deletion)
 
@@ -154,12 +174,14 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
+			ContainerId:  ctrId1,
 		},
 		hashProcess(Pid3, proc3.Stats.CreateTime): {
 			Pid:          proc3.Pid,
 			NsPid:        proc3.NsPid,
 			CreationTime: proc3.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
+			ContainerId:  ctrId1,
 		},
 	}, procs)
 
@@ -171,6 +193,7 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc3.NsPid,
 			CreationTime: proc3.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
+			ContainerId:  ctrId1,
 		},
 	}, diff.creation)
 	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
@@ -189,12 +212,14 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc3.NsPid,
 			CreationTime: proc3.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
+			ContainerId:  ctrId1,
 		},
 		hashProcess(Pid4, proc4.Stats.CreateTime): {
 			Pid:          proc4.Pid,
 			NsPid:        proc4.NsPid,
 			CreationTime: proc4.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
+			ContainerId:  ctrId2,
 		},
 	}, procs)
 
@@ -206,6 +231,7 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc4.NsPid,
 			CreationTime: proc4.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
+			ContainerId:  ctrId2,
 		},
 	}, diff.creation)
 	assert.ElementsMatch(t, []*ProcessEntity{
@@ -214,6 +240,7 @@ func TestExtractor(t *testing.T) {
 			NsPid:        proc2.NsPid,
 			CreationTime: proc2.Stats.CreateTime,
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
+			ContainerId:  ctrId1,
 		},
 	}, diff.deletion)
 }
@@ -233,4 +260,56 @@ func BenchmarkHashProcess(b *testing.B) {
 			hashProcess(0, 0)
 		}
 	})
+}
+
+// Occasionally, WorkloadMeta will not have the ContainerID by the first time a process collection is executed. This test
+// asserts that the extractor is able to properly handle updating a ContainerID from "" to a valid cid, and
+// will re-generate the EventSet for that process once the pidToCid mapping is up-to-date.
+func TestLateContainerId(t *testing.T) {
+	extractor := NewWorkloadMetaExtractor(config.Mock(t))
+
+	var (
+		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
+	)
+
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1,
+	})
+	assert.EqualValues(t, &ProcessCacheDiff{
+		cacheVersion: 1,
+		creation: []*ProcessEntity{
+			{
+				Pid:          proc1.Pid,
+				ContainerId:  "",
+				NsPid:        proc1.NsPid,
+				CreationTime: proc1.Stats.CreateTime,
+				Language:     &languagemodels.Language{Name: languagemodels.Java},
+			},
+		},
+		deletion: []*ProcessEntity{},
+	}, <-extractor.ProcessCacheDiff())
+
+	var (
+		ctrId1 = "containers-are-awesome"
+	)
+	extractor.SetLastPidToCid(map[int]string{
+		Pid1: ctrId1,
+	})
+
+	extractor.Extract(map[int32]*procutil.Process{
+		Pid1: proc1,
+	})
+	assert.EqualValues(t, &ProcessCacheDiff{
+		cacheVersion: 2,
+		creation: []*ProcessEntity{
+			{
+				Pid:          proc1.Pid,
+				ContainerId:  ctrId1,
+				NsPid:        proc1.NsPid,
+				CreationTime: proc1.Stats.CreateTime,
+				Language:     &languagemodels.Language{Name: languagemodels.Java},
+			},
+		},
+		deletion: []*ProcessEntity{},
+	}, <-extractor.ProcessCacheDiff())
 }

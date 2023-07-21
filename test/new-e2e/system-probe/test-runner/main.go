@@ -47,6 +47,7 @@ const (
 )
 
 var BaseEnv = map[string]interface{}{
+	"GITLAB_CI":                "true", // force color output support to be detected
 	"DD_SYSTEM_PROBE_BPF_DIR":  filepath.Join(TestDirRoot, "pkg/ebpf/bytecode/build"),
 	"DD_SYSTEM_PROBE_JAVA_DIR": filepath.Join(TestDirRoot, "pkg/network/protocols/tls/java"),
 }

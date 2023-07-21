@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -199,6 +199,7 @@ func processEntityToEventSet(proc *ProcessEntity) *pbgo.ProcessEventSet {
 
 	return &pbgo.ProcessEventSet{
 		Pid:          proc.Pid,
+		ContainerId:  proc.ContainerId,
 		Nspid:        proc.NsPid,
 		CreationTime: proc.CreationTime,
 		Language:     language,

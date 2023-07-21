@@ -69,12 +69,12 @@ func (h *Handler) GetConfigs(identifier string) (types.ConfigResponse, error) {
 }
 
 // PostStatus handles status reports from the node agents
-func (h *Handler) PostStatus(identifier, clientIP string, status types.NodeStatus) (types.StatusResponse, error) {
-	upToDate, err := h.dispatcher.processNodeStatus(identifier, clientIP, status)
+func (h *Handler) PostStatus(identifier, clientIP string, status types.NodeStatus) types.StatusResponse {
+	upToDate := h.dispatcher.processNodeStatus(identifier, clientIP, status)
 	response := types.StatusResponse{
 		IsUpToDate: upToDate,
 	}
-	return response, err
+	return response
 }
 
 // GetEndpointsConfigs returns endpoints configurations dispatched to a given node

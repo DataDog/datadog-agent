@@ -10,12 +10,20 @@ COLORS = [
 
 class KernelOut
   @@release = `uname -r`.strip
-  color_idx = File.read('/tmp/color_idx').strip.to_i - 1
-  @@color = COLORS[color_idx]
+  if File.exist?('/tmp/color_idx')
+    color_idx = File.read('/tmp/color_idx').strip.to_i - 1
+    @@color = COLORS[color_idx]
+  else
+    @@color = :no_format
+  end
 
   def self.format(text, tag="")
     tag = "[#{tag}]" if tag != ""
-    RSpec::Core::Formatters::ConsoleCodes.wrap("[#{@@release}]#{tag} #{text}", @@color)
+    if @@color != :no_format
+      return RSpec::Core::Formatters::ConsoleCodes.wrap("[#{@@release}]#{tag} #{text}", @@color)
+    else
+      return "[#{@@release}]#{tag} #{text}"
+    end
   end
 end
 

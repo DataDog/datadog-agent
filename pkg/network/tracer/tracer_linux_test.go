@@ -336,7 +336,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	assert.NotZero(t, connection.ConnTracerTelemetry.TcpSentMiscounts.Load())
+	assert.NotZero(t, connection.ConnTracerTelemetry.LastTcpSentMiscounts.Load())
 }
 
 func (s *TracerSuite) TestConnectionExpirationRegression() {
