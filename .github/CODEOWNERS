@@ -356,6 +356,7 @@
 /pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
+/pkg/network/telemetry/                 @DataDog/ebpf-platform
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/bytecode/runtime/usm.go       @DataDog/Networks @DataDog/universal-service-monitoring
