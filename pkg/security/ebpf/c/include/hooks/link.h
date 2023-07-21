@@ -151,6 +151,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/do_linkat")
 int kretprobe_do_linkat(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

@@ -43,6 +43,28 @@ func kprobeOrFentry(funcName string, fentry bool, options ...psbOption) *manager
 	}
 }
 
+func kretprobeOrFexit(funcName string, fentry bool, options ...psbOption) *manager.ProbeSelector {
+	psb := &probeSelectorBuilder{
+		uid:          SecurityAgentUID,
+		skipIfFentry: false,
+	}
+
+	for _, opt := range options {
+		opt(psb)
+	}
+
+	if fentry && psb.skipIfFentry {
+		return nil
+	}
+
+	return &manager.ProbeSelector{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          psb.uid,
+			EBPFFuncName: fmt.Sprintf("rethook_%s", funcName),
+		},
+	}
+}
+
 func withSkipIfFentry(skip bool) psbOption {
 	return func(psb *probeSelectorBuilder) {
 		psb.skipIfFentry = skip

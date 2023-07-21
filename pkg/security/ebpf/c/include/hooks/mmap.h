@@ -72,6 +72,7 @@ SYSCALL_KRETPROBE(mmap) {
     return sys_mmap_ret(ctx, (int)PT_REGS_RC(ctx), (u64)PT_REGS_RC(ctx));
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/fget")
 int kretprobe_fget(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
