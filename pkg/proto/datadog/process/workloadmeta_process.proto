@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package datadog.process;
 
-option go_package = "pkg/proto/pbgo"; // golang
+option go_package = "pkg/proto/pbgo/process"; // golang
 
 message ProcessStreamResponse {
   int32 eventID = 1;

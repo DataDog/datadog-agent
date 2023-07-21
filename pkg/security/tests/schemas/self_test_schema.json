@@ -1,0 +1,84 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "self_test.json",
+    "type": "object",
+    "properties": {
+        "agent": {
+            "type": "object",
+            "properties": {
+                "rule_id": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            },
+            "required": ["rule_id", "version"]
+        },
+        "date": {
+            "$ref": "/schemas/datetime.json"
+        },
+        "hostname": {
+            "type": "string"
+        },
+        "service": {
+            "type": "string"
+        },
+        "status": {
+            "type": "string"
+        },
+        "succeeded_tests": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "failed_tests": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "timestamp": {
+            "type": "number"
+        },
+        "title": {
+            "type": "string"
+        },
+        "test_events": {
+            "type": "object",
+            "properties": {
+                "datadog_agent_cws_self_test_rule_open": {
+                    "$ref": "/schemas/open.json"
+                },
+                "datadog_agent_cws_self_test_rule_chmod": {
+                    "$ref": "/schemas/chmod.json"
+                },
+                "datadog_agent_cws_self_test_rule_chown": {
+                    "$ref": "/schemas/chown.json"
+                }
+            }
+        }
+    },
+    "required": [
+        "agent",
+        "date",
+        "hostname",
+        "service",
+        "status",
+        "timestamp",
+        "title",
+        "test_events"
+    ],
+    "oneOf": [
+        {
+            "required": ["succeeded_tests"]
+        },
+        {
+            "required": ["failed_tests"]
+        },
+        {
+            "required": ["succeeded_tests", "failed_tests"]
+        }
+    ]
+}

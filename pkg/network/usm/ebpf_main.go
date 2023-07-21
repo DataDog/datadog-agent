@@ -145,7 +145,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 	if javaTLSProg != nil {
 		subprograms = append(subprograms, javaTLSProg)
 	}
-	openSSLProg := newSSLProgram(c, sockFD)
+	openSSLProg := newSSLProgram(c, mgr, sockFD, bpfTelemetry)
 	subprogramProbesResolvers = append(subprogramProbesResolvers, openSSLProg)
 	if openSSLProg != nil {
 		subprograms = append(subprograms, openSSLProg)

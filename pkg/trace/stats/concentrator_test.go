@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
@@ -27,7 +27,7 @@ var (
 )
 
 func NewTestConcentrator(now time.Time) *Concentrator {
-	statsChan := make(chan pb.StatsPayload)
+	statsChan := make(chan *pb.StatsPayload)
 	cfg := config.AgentConfig{
 		BucketInterval: time.Duration(testBucketInterval),
 		AgentVersion:   "0.99.0",
@@ -79,9 +79,9 @@ func spansToTraceChunk(spans []*pb.Span) *pb.TraceChunk {
 }
 
 // assertCountsEqual is a test utility function to assert expected == actual for count aggregations.
-func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []pb.ClientGroupedStats) {
-	expectedM := make(map[BucketsAggregationKey]pb.ClientGroupedStats)
-	actualM := make(map[BucketsAggregationKey]pb.ClientGroupedStats)
+func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual []*pb.ClientGroupedStats) {
+	expectedM := make(map[BucketsAggregationKey]*pb.ClientGroupedStats)
+	actualM := make(map[BucketsAggregationKey]*pb.ClientGroupedStats)
 	for _, e := range expected {
 		e.ErrorSummary = nil
 		e.OkSummary = nil
@@ -153,7 +153,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates old past time buckets, so each count
 		// should be an aggregated total across the spans.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -190,7 +190,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates, it should have it all except the
 		// last four spans that have offset of 0.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -210,7 +210,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		}
 
 		// Stats of the last four spans.
-		expected = []pb.ClientGroupedStats{
+		expected = []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -317,9 +317,9 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		testSpan(now, 6, 0, 24, 0, "A1", "resource2", 0, nil),
 	}
 
-	expectedCountValByKeyByTime := make(map[int64][]pb.ClientGroupedStats)
+	expectedCountValByKeyByTime := make(map[int64][]*pb.ClientGroupedStats)
 	// 2-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -374,7 +374,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		},
 	}
 	// 1-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -427,7 +427,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		},
 	}
 	// last bucket to be flushed
-	expectedCountValByKeyByTime[alignedNow] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource2",
@@ -439,7 +439,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Errors:       0,
 		},
 	}
-	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []pb.ClientGroupedStats{}
+	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "")
