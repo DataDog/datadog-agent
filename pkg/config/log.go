@@ -550,6 +550,25 @@ func ChangeLogLevel(level string) error {
 	return log.ChangeLogLevel(logger, seelogLogLevel)
 }
 
+// ChangeLogLevel immediately changes the log level to the given one.
+func ChangeSource(source log.LogLevelSource) error {
+	// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
+	seelogConfig.SetSource(source)
+	configTemplate, err := seelogConfig.Render()
+	if err != nil {
+		return err
+	}
+
+	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
+	if err != nil {
+		return err
+	}
+	seelog.ReplaceLogger(logger) //nolint:errcheck
+
+	// We wire the new logger with the Datadog logic
+	return log.ChangeSource(logger, source)
+}
+
 func validateLogLevel(logLevel string) (string, error) {
 	seelogLogLevel := strings.ToLower(logLevel)
 	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
