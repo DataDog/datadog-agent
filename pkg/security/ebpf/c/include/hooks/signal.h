@@ -46,9 +46,9 @@ int hook_kill_pid_info(ctx_t *ctx) {
 
 
 /* hook here to grab the EPERM retval */
-SEC("kretprobe/check_kill_permission")
-int kretprobe_check_kill_permission(struct pt_regs* ctx) {
-    int retval = (int)PT_REGS_RC(ctx);
+HOOK_EXIT("check_kill_permission")
+int rethook_check_kill_permission(ctx_t* ctx) {
+    int retval = (int)CTX_PARMRET(ctx, 3);
 
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SIGNAL);
     if (!syscall) {
