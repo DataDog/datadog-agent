@@ -15,6 +15,14 @@ import (
 	"go.uber.org/atomic"
 )
 
+type telemetryJoiner struct {
+	requests       *libtelemetry.Metric
+	responses      *libtelemetry.Metric
+	requestDropped *libtelemetry.Metric
+	requestJoined  *libtelemetry.Metric
+	agedRequest    *libtelemetry.Metric
+}
+
 type Telemetry struct {
 	LastCheck                                   *atomic.Int64
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
@@ -24,11 +32,17 @@ type Telemetry struct {
 	rejected     *libtelemetry.Metric // this happens when an user-defined reject-filter matches a request
 	malformed    *libtelemetry.Metric // this happens when the request doesn't have the expected format
 	aggregations *libtelemetry.Metric
+
+	joiner telemetryJoiner
 }
 
 func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(
 		"usm.http",
+		libtelemetry.OptExpvar,
+		libtelemetry.OptMonotonic,
+	)
+	metricGroupJoiner := libtelemetry.NewMetricGroup("usm.http.joiner",
 		libtelemetry.OptExpvar,
 		libtelemetry.OptMonotonic,
 	)
@@ -47,6 +61,14 @@ func NewTelemetry() *Telemetry {
 		dropped:   metricGroup.NewMetric("dropped", libtelemetry.OptStatsd),
 		rejected:  metricGroup.NewMetric("rejected", libtelemetry.OptStatsd),
 		malformed: metricGroup.NewMetric("malformed", libtelemetry.OptStatsd),
+
+		joiner: telemetryJoiner{
+			requests:       metricGroupJoiner.NewMetric("requests", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+			responses:      metricGroupJoiner.NewMetric("responses", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+			requestDropped: metricGroupJoiner.NewMetric("dropped", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+			requestJoined:  metricGroupJoiner.NewMetric("joined", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+			agedRequest:    metricGroupJoiner.NewMetric("aged", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+		},
 	}
 
 	t.LastCheck.Store(time.Now().Unix())
