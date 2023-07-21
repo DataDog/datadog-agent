@@ -39,14 +39,20 @@ relative_path "openscap-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
+  # Fixes since release 1.3.8
+  patch source: "0005-Fix-leak-of-filename-in-oval_agent_new_session.patch", env: env
+  patch source: "0006-Fix-leak-of-item-in-probe_item_collect.patch", env: env
+
   patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
   patch source: "session_result_reset.patch", env: env # add a function to reset results from session
+  patch source: "session_reset_syschar.patch", env: env # also reset system characteristics
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
   patch source: "dpkginfo-init.patch", env: env # fix memory leak of pkgcache in dpkginfo probe
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
+  patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 

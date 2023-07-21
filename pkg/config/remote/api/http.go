@@ -18,14 +18,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	pollEndpoint    = "/api/v0.1/configurations"
-	orgDataEndpoint = "/api/v0.1/org"
+	pollEndpoint      = "/api/v0.1/configurations"
+	orgDataEndpoint   = "/api/v0.1/org"
+	orgStatusEndpoint = "/api/v0.1/status"
 )
 
 var (
@@ -44,6 +45,7 @@ var (
 type API interface {
 	Fetch(context.Context, *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error)
 	FetchOrgData(context.Context) (*pbgo.OrgDataResponse, error)
+	FetchOrgStatus(context.Context) (*pbgo.OrgStatusResponse, error)
 }
 
 type Auth struct {
@@ -114,17 +116,6 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	}
 	defer resp.Body.Close()
 
-	// Specific case: authentication method is wrong
-	// we want to be descriptive about what can be done
-	// to fix this as the error is pretty common
-	if resp.StatusCode == 401 {
-		return nil, ErrUnauthorized
-	}
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 499 {
-		return nil, fmt.Errorf("%w: %d", ErrProxy, resp.StatusCode)
-	}
-
 	// Any other error will have a generic message
 	if resp.StatusCode != 200 {
 		body, err = io.ReadAll(resp.Body)
@@ -133,6 +124,11 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 		}
 		log.Debugf("Got a %d response code. Response body: %s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
+	}
+
+	err = checkStatusCode(resp)
+	if err != nil {
+		return nil, err
 	}
 
 	body, err = io.ReadAll(resp.Body)
@@ -166,23 +162,12 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 	}
 	defer resp.Body.Close()
 
+	err = checkStatusCode(resp)
+	if err != nil {
+		return nil, err
+	}
+
 	var body []byte
-	// Specific case: authentication method is wrong
-	// we want to be descriptive about what can be done
-	// to fix this as the error is pretty common
-	if resp.StatusCode == 401 {
-		return nil, ErrUnauthorized
-	}
-
-	if resp.StatusCode >= 400 && resp.StatusCode <= 499 {
-		return nil, fmt.Errorf("%w: %d", ErrProxy, resp.StatusCode)
-	}
-
-	// Any other error will have a generic message
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
-	}
-
 	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
@@ -196,4 +181,61 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 	}
 
 	return response, err
+}
+
+// FetchOrgStatus returns the org and key status
+func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusResponse, error) {
+	url := c.baseURL + orgStatusEndpoint
+	log.Debugf("Querying url %s", url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, &bytes.Buffer{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create org data request: %w", err)
+	}
+	req.Header = c.header
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to issue org data request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	err = checkStatusCode(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	var body []byte
+	body, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	response := &pbgo.OrgStatusResponse{}
+	err = proto.Unmarshal(body, response)
+	if err != nil {
+		log.Debugf("Error decoding response, %v, response body: %s", err, string(body))
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return response, err
+}
+
+func checkStatusCode(resp *http.Response) error {
+	// Specific case: authentication method is wrong
+	// we want to be descriptive about what can be done
+	// to fix this as the error is pretty common
+	if resp.StatusCode == 401 {
+		return ErrUnauthorized
+	}
+
+	if resp.StatusCode >= 400 && resp.StatusCode <= 499 {
+		return fmt.Errorf("%w: %d", ErrProxy, resp.StatusCode)
+	}
+
+	// Any other error will have a generic message
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("non-200 response code: %d", resp.StatusCode)
+	}
+
+	return nil
 }

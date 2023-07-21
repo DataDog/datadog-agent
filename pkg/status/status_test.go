@@ -19,13 +19,15 @@ func Test_convertExpvarRunnerStats(t *testing.T) {
 	}{
 		{
 			name:      "no error present",
-			inputJSON: []byte(`{"Checks": {"foo": {"id1": {"AverageExecutionTime": 42, "MetricSamples": 100, "LastError": ""}}}}`),
+			inputJSON: []byte(`{"Checks": {"foo": {"id1": {"AverageExecutionTime": 42, "MetricSamples": 100, "HistogramBuckets": 50, "Events": 200, "LastError": ""}}}}`),
 			want: CLCChecks{
 				Checks: map[string]map[string]CLCStats{
 					"foo": {
 						"id1": {
 							AverageExecutionTime: 42,
 							MetricSamples:        100,
+							HistogramBuckets:     50,
+							Events:               200,
 							LastExecFailed:       false,
 						},
 					},
@@ -35,13 +37,15 @@ func Test_convertExpvarRunnerStats(t *testing.T) {
 		},
 		{
 			name:      "error present",
-			inputJSON: []byte(`{"Checks": {"foo": {"id1": {"AverageExecutionTime": 42, "MetricSamples": 100, "LastError": "this is an error"}}}}`),
+			inputJSON: []byte(`{"Checks": {"foo": {"id1": {"AverageExecutionTime": 42, "MetricSamples": 100, "HistogramBuckets": 50, "Events": 200, "LastError": "this is an error"}}}}`),
 			want: CLCChecks{
 				Checks: map[string]map[string]CLCStats{
 					"foo": {
 						"id1": {
 							AverageExecutionTime: 42,
 							MetricSamples:        100,
+							HistogramBuckets:     50,
+							Events:               200,
 							LastExecFailed:       true,
 						},
 					},

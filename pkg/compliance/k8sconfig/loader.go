@@ -113,15 +113,15 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	return resourceType, &node
 }
 
-func (l *loader) loadMeta(name string, loadContent bool) (os.FileInfo, []byte, bool) {
+func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, []byte, bool) {
 	name = filepath.Join(l.hostroot, name)
 	info, err := os.Stat(name)
 	if err != nil {
 		l.pushError(err)
-		return nil, nil, false
+		return name, nil, nil, false
 	}
 	if loadContent && info.IsDir() {
-		return nil, nil, false
+		return name, nil, nil, false
 	}
 	var b []byte
 	const maxSize = 64 * 1024
@@ -136,11 +136,11 @@ func (l *loader) loadMeta(name string, loadContent bool) (os.FileInfo, []byte, b
 			}
 		}
 	}
-	return info, b, true
+	return name, info, b, true
 }
 
 func (l *loader) loadDirMeta(name string) *K8sDirMeta {
-	info, _, ok := l.loadMeta(name, false)
+	_, info, _, ok := l.loadMeta(name, false)
 	if !ok {
 		return nil
 	}
@@ -163,7 +163,7 @@ func (l *loader) loadServiceFileMeta(names []string) *K8sConfigFileMeta {
 }
 
 func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
-	info, b, ok := l.loadMeta(name, true)
+	_, info, b, ok := l.loadMeta(name, true)
 	if !ok {
 		return nil
 	}
@@ -193,7 +193,7 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 }
 
 func (l *loader) loadAdmissionConfigFileMeta(name string) *K8sAdmissionConfigFileMeta {
-	info, b, ok := l.loadMeta(name, true)
+	_, info, b, ok := l.loadMeta(name, true)
 	if !ok {
 		return nil
 	}
@@ -220,7 +220,7 @@ func (l *loader) loadAdmissionConfigFileMeta(name string) *K8sAdmissionConfigFil
 }
 
 func (l *loader) loadEncryptionProviderConfigFileMeta(name string) *K8sEncryptionProviderConfigFileMeta {
-	info, b, ok := l.loadMeta(name, true)
+	_, info, b, ok := l.loadMeta(name, true)
 	if ok {
 		return nil
 	}
@@ -237,7 +237,7 @@ func (l *loader) loadEncryptionProviderConfigFileMeta(name string) *K8sEncryptio
 }
 
 func (l *loader) loadTokenFileMeta(name string) *K8sTokenFileMeta {
-	info, _, ok := l.loadMeta(name, false)
+	_, info, _, ok := l.loadMeta(name, false)
 	if ok {
 		return nil
 	}
@@ -250,7 +250,7 @@ func (l *loader) loadTokenFileMeta(name string) *K8sTokenFileMeta {
 }
 
 func (l *loader) loadKeyFileMeta(name string) *K8sKeyFileMeta {
-	info, _, ok := l.loadMeta(name, false)
+	_, info, _, ok := l.loadMeta(name, false)
 	if !ok {
 		return nil
 	}
@@ -264,15 +264,24 @@ func (l *loader) loadKeyFileMeta(name string) *K8sKeyFileMeta {
 
 // https://github.com/kubernetes/kubernetes/blob/ad18954259eae3db51bac2274ed4ca7304b923c4/cmd/kubeadm/test/kubeconfig/util.go#L77-L87
 func (l *loader) loadCertFileMeta(name string) *K8sCertFileMeta {
-	info, certData, ok := l.loadMeta(name, true)
+	name, info, certData, ok := l.loadMeta(name, true)
 	if !ok {
 		return nil
 	}
 	meta := l.extractCertData(certData)
+	if meta == nil {
+		return nil
+	}
 	meta.Path = name
 	meta.User = utils.GetFileUser(info)
 	meta.Group = utils.GetFileGroup(info)
 	meta.Mode = uint32(info.Mode())
+	dir := filepath.Dir(name)
+	if dirInfo, err := os.Stat(dir); err == nil {
+		meta.DirMode = uint32(dirInfo.Mode())
+		meta.DirUser = utils.GetFileUser(dirInfo)
+		meta.DirGroup = utils.GetFileGroup(dirInfo)
+	}
 	return meta
 }
 
@@ -315,7 +324,7 @@ func (l *loader) extractCertData(certData []byte) *K8sCertFileMeta {
 }
 
 func (l *loader) loadKubeconfigMeta(name string) *K8sKubeconfigMeta {
-	info, b, ok := l.loadMeta(name, true)
+	_, info, b, ok := l.loadMeta(name, true)
 	if !ok {
 		return nil
 	}

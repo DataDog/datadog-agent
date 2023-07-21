@@ -15,7 +15,7 @@ go_deps:
   stage: deps_fetch
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: []
+  needs: ["setup_agent_version"]
   script:
     - source /root/.bashrc
     - inv -e deps --verbose
@@ -30,7 +30,7 @@ go_tools_deps:
   stage: deps_fetch
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: []
+  needs: ["setup_agent_version"]
   script:
     - source /root/.bashrc
     - inv -e download-tools

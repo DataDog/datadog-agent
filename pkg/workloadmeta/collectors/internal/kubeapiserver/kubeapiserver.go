@@ -18,7 +18,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -37,11 +39,12 @@ func init() {
 }
 
 func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) error {
+	var objectStores []*reflectorStore
+
 	apiserverClient, err := apiserver.GetAPIClient()
 	if err != nil {
 		return err
 	}
-
 	client := apiserverClient.Cl
 
 	nodeListerWatcher := &cache.ListWatch{
@@ -53,14 +56,15 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) e
 		},
 	}
 
+	nodeStore := newNodeReflectorStore(wlmetaStore)
+	objectStores = append(objectStores, nodeStore)
 	nodeReflector := cache.NewNamedReflector(
 		componentName,
 		nodeListerWatcher,
 		&corev1.Node{},
-		newNodeReflectorStore(wlmetaStore),
+		nodeStore,
 		noResync,
 	)
-
 	go nodeReflector.Run(ctx.Done())
 
 	if config.Datadog.GetBool("cluster_agent.collect_kubernetes_tags") {
@@ -73,20 +77,70 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Store) e
 			},
 		}
 
+		podStore := newPodReflectorStore(wlmetaStore)
+		objectStores = append(objectStores, podStore)
 		podReflector := cache.NewNamedReflector(
 			componentName,
 			podListerWatcher,
 			&corev1.Pod{},
-			newPodReflectorStore(wlmetaStore),
+			podStore,
 			noResync,
 		)
 
 		go podReflector.Run(ctx.Done())
 	}
 
+	go startReadiness(ctx, objectStores)
 	return nil
 }
 
 func (c *collector) Pull(_ context.Context) error {
 	return nil
+}
+
+func startReadiness(ctx context.Context, stores []*reflectorStore) {
+	log.Infof("Starting readiness waiting for %d k8s reflectors to sync", len(stores))
+
+	// There is no way to ensure liveness correctly as it would need to be plugged inside the
+	// inner loop of Reflector.
+	// However we add Readiness when we got at least some data.
+	health := health.RegisterReadiness(componentName)
+	defer func() {
+		err := health.Deregister()
+		log.Criticalf("Unable to deregister component: %s, readiness will likely fail until POD is replaced err: %v", componentName, err)
+	}()
+
+	// Checked synced, in its own scope to cleanly unreference the syncTimer
+	{
+		syncTimer := time.NewTicker(time.Second)
+	OUTER:
+		for {
+			select {
+			case <-ctx.Done():
+				break OUTER
+
+			case <-syncTimer.C:
+				allSynced := true
+				for _, store := range stores {
+					allSynced = allSynced && store.HasSynced()
+				}
+
+				if allSynced {
+					break OUTER
+				}
+			}
+		}
+		syncTimer.Stop()
+	}
+
+	// Once synced, start answering to readiness probe
+	log.Infof("All (%d) K8S reflectors synced to workloadmeta", len(stores))
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-health.C:
+		}
+	}
 }

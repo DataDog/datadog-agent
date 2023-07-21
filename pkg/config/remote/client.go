@@ -15,12 +15,14 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -158,7 +160,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	//
 	// The following values mean each range will always be [pollInterval*2^<NumErrors-1>, min(maxBackoffTime, pollInterval*2^<NumErrors>)].
 	// Every success will cause numErrors to shrink by 2.
-	backoffPolicy := backoff.NewPolicy(minBackoffFactor, pollInterval.Seconds(),
+	backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, pollInterval.Seconds(),
 		maximalMaxBackoffTime.Seconds(), recoveryInterval, false)
 
 	// If we're the cluster agent, we want to report our cluster name and cluster ID in order to allow products
@@ -251,17 +253,37 @@ func (c *Client) startFn() {
 // pollLoop should never be called manually and only be called via the client's `sync.Once`
 // structure in startFn.
 func (c *Client) pollLoop() {
+	successfulFirstRun := false
 	for {
 		interval := c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
 		select {
 		case <-c.ctx.Done():
 			return
 		case <-time.After(c.pollInterval + interval):
-			c.lastUpdateError = c.update()
-			if c.lastUpdateError != nil {
-				c.backoffPolicy.IncError(c.backoffErrorCount)
-				log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
+			err := c.update()
+			if err != nil {
+				if status.Code(err) == codes.Unimplemented {
+					// Remote Configuration is disabled as the server isn't initialized
+					//
+					// As this is not a transient error (that would be codes.Unavailable),
+					// stop the client: it shouldn't keep contacting a server that doesn't
+					// exist.
+					log.Debugf("remote configuration isn't enabled, disabling client")
+					return
+				}
+
+				if !successfulFirstRun {
+					// As some clients may start before the core-agent server is up, we log the first error
+					// as a debug log as the race is expected. If the error persists, we log with error logs
+					log.Infof("retrying the first update of remote-config state (%v)", err)
+				} else {
+					c.lastUpdateError = err
+					c.backoffPolicy.IncError(c.backoffErrorCount)
+					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
+				}
 			} else {
+				c.lastUpdateError = nil
+				successfulFirstRun = true
 				c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
 		}

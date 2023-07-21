@@ -476,12 +476,10 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 					},
 				},
 			},
-			expectedErrors: []string{
-				"`metric_type` cannot be used outside table symbols and metrics root",
-			},
+			expectedErrors: []string{},
 		},
 		{
-			name: "metric_type usage in metric_tags",
+			name: "ERROR metric_type usage in metric_tags",
 			metrics: []MetricsConfig{
 				{
 					Symbols: []SymbolConfig{
@@ -503,7 +501,7 @@ func Test_ValidateEnrichMetrics(t *testing.T) {
 				},
 			},
 			expectedErrors: []string{
-				"`metric_type` cannot be used outside table symbols and metrics root",
+				"`metric_type` cannot be used outside scalar/table metric symbols and metrics root",
 			},
 		},
 		{

@@ -10,6 +10,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ import (
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -44,6 +45,11 @@ func (m *mockAPI) Fetch(ctx context.Context, request *pbgo.LatestConfigsRequest)
 func (m *mockAPI) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(*pbgo.OrgDataResponse), args.Error(1)
+}
+
+func (m *mockAPI) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusResponse, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(*pbgo.OrgStatusResponse), args.Error(1)
 }
 
 type mockUptane struct {
@@ -497,23 +503,23 @@ func TestServiceClientPredicates(t *testing.T) {
 	wrongServiceName := "wrong-service"
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{}, 0)}},
-		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
+		"datadog/2/APM_SAMPLING/id/1": {Custom: customMeta([]*pbgo.TracerPredicateV1{}, 0)},
+		"datadog/2/APM_SAMPLING/id/2": {Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				RuntimeID: runtimeID,
 			},
-		}, 0)}},
+		}, 0)},
 		// must not be delivered
-		"datadog/2/TESTING1/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
+		"datadog/2/TESTING1/id/1": {Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				RuntimeID: runtimeIDFail,
 			},
-		}, 0)}},
-		"datadog/2/APPSEC/id/1": {FileMeta: data.FileMeta{Custom: customMeta([]*pbgo.TracerPredicateV1{
+		}, 0)},
+		"datadog/2/APPSEC/id/1": {Custom: customMeta([]*pbgo.TracerPredicateV1{
 			{
 				Service: wrongServiceName,
 			},
-		}, 0)}},
+		}, 0)},
 	},
 		nil,
 	)
@@ -783,9 +789,9 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.On("TargetsCustom").Return([]byte(`{"opaque_backend_state":"dGVzdF9zdGF0ZQ=="}`), nil)
 	uptaneClient.On("Targets").Return(data.TargetFiles{
 		// must be delivered
-		"datadog/2/APM_SAMPLING/id/1": {FileMeta: data.FileMeta{Custom: customMeta(nil, 0)}},
+		"datadog/2/APM_SAMPLING/id/1": {Custom: customMeta(nil, 0)},
 		// must not be delivered - expiration date is 9/21/2022
-		"datadog/2/APM_SAMPLING/id/2": {FileMeta: data.FileMeta{Custom: customMeta(nil, 1663732800)}},
+		"datadog/2/APM_SAMPLING/id/2": {Custom: customMeta(nil, 1663732800)},
 	},
 		nil,
 	)
@@ -827,4 +833,34 @@ func TestConfigExpiration(t *testing.T) {
 
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
+}
+
+func TestOrgStatus(t *testing.T) {
+	api := &mockAPI{}
+	clock := clock.NewMock()
+	uptaneClient := &mockUptane{}
+	service := newTestService(t, api, uptaneClient, clock)
+
+	response := &pbgo.OrgStatusResponse{
+		Enabled:    true,
+		Authorized: true,
+	}
+
+	assert.Nil(t, service.previousOrgStatus)
+	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
+
+	service.pollOrgStatus()
+	assert.True(t, service.previousOrgStatus.Enabled)
+	assert.True(t, service.previousOrgStatus.Authorized)
+
+	api.On("FetchOrgStatus", mock.Anything).Return(nil, fmt.Errorf("Error"))
+	service.pollOrgStatus()
+	assert.True(t, service.previousOrgStatus.Enabled)
+	assert.True(t, service.previousOrgStatus.Authorized)
+
+	response.Authorized = false
+	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
+	service.pollOrgStatus()
+	assert.True(t, service.previousOrgStatus.Enabled)
+	assert.False(t, service.previousOrgStatus.Authorized)
 }

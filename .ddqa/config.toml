@@ -109,6 +109,9 @@ jira_statuses = [
 ]
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
+exclude_members = [
+  "hithwen",
+]
 
 [teams."Platform Integrations"]
 jira_project = "PINT"
@@ -120,6 +123,9 @@ jira_statuses = [
 ]
 github_team = "platform-integrations"
 github_labels = ["team/platform-integrations"]
+exclude_members = [
+  "hithwen",
+]
 
 [teams."APM"]
 jira_project = "AIT"
@@ -154,6 +160,7 @@ jira_statuses = [
 ]
 github_team = "container-integrations"
 github_labels = ["team/containers"]
+exclude_members = ["vboulineau"]
 
 [teams."Container Ecosystems"]
 jira_project = "CONTECO"
@@ -165,7 +172,6 @@ jira_statuses = [
 ]
 github_team = "container-ecosystems"
 github_labels = ["team/container-ecosystems"]
-exclude_members = ["davidor"]
 
 [teams."Security And Compliance Agent"]
 jira_project = "SEC"

@@ -69,12 +69,9 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 }
 
 // Listen start the remote config client to listen to AGENT_TASK configurations
-func (rc rcClient) Listen() error {
+func (rc rcClient) Listen(clientName string, products []data.Product) error {
 	c, err := remote.NewUnverifiedGRPCClient(
-		"core-agent", version.AgentVersion, []data.Product{
-			data.ProductAgentTask,
-			data.ProductAgentConfig,
-		}, 1*time.Second,
+		clientName, version.AgentVersion, products, 5*time.Second,
 	)
 	if err != nil {
 		return err
@@ -83,8 +80,18 @@ func (rc rcClient) Listen() error {
 	rc.client = c
 	rc.taskProcessed = map[string]bool{}
 
-	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
-	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
+	for _, product := range products {
+		switch product {
+		case state.ProductAgentTask:
+			rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
+			break
+		case state.ProductAgentConfig:
+			rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
+			break
+		default:
+			pkglog.Infof("remote config client %s started unsupported product: %s", clientName, product)
+		}
+	}
 
 	rc.client.Start()
 
@@ -164,7 +171,11 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig) {
 				// Check if the task was processed at least once
 				processed = oneProcessed || processed
 				if oneErr != nil {
-					err = errors.Wrap(err, oneErr.Error())
+					if err == nil {
+						err = oneErr
+					} else {
+						err = errors.Wrap(oneErr, err.Error())
+					}
 				}
 			}
 			if processed && err != nil {

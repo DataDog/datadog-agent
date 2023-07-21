@@ -18,7 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 /*
@@ -91,6 +92,13 @@ void cancel_check(rtloader_t *s, rtloader_pyobject_t *check) {
 	cancel_check_instance = check;
 	cancel_check_calls++;
 	return;
+}
+
+char *get_check_diagnoses_return = NULL;
+int get_check_diagnoses_calls = 0;
+char *get_check_diagnoses(rtloader_t *s, rtloader_pyobject_t *check) {
+	get_check_diagnoses_calls++;
+	return get_check_diagnoses_return;
 }
 
 //
@@ -184,6 +192,8 @@ void reset_check_mock() {
 	get_check_deprecated_agent_config = NULL;
 	get_check_deprecated_check = NULL;
 
+	get_check_diagnoses_return = NULL;
+	get_check_diagnoses_calls = 0;
 }
 */
 import "C"
@@ -481,7 +491,7 @@ func testRunErrorReturn(t *testing.T) {
 }
 
 func testRun(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
 	rtloader = newMockRtLoaderPtr()
@@ -493,7 +503,7 @@ func testRun(t *testing.T) {
 	}
 
 	c.instance = newMockPyObjectPtr()
-	c.id = check.ID("testID")
+	c.id = checkid.ID("testID")
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
@@ -514,7 +524,7 @@ func testRun(t *testing.T) {
 }
 
 func testRunSimple(t *testing.T) {
-	sender := mocksender.NewMockSender(check.ID("testID"))
+	sender := mocksender.NewMockSender(checkid.ID("testID"))
 	sender.SetupAcceptAll()
 
 	rtloader = newMockRtLoaderPtr()
@@ -526,7 +536,7 @@ func testRunSimple(t *testing.T) {
 	}
 
 	c.instance = newMockPyObjectPtr()
-	c.id = check.ID("testID")
+	c.id = checkid.ID("testID")
 
 	C.reset_check_mock()
 	C.run_check_return = C.CString("")
@@ -614,6 +624,61 @@ func testConfigureDeprecated(t *testing.T) {
 	require.NotNil(t, C.get_check_deprecated_agent_config)
 	assert.NotEqual(t, "", C.GoString(C.get_check_deprecated_agent_config))
 	assert.Equal(t, c.instance, C.get_check_deprecated_check)
+}
+
+func testGetDiagnoses(t *testing.T) {
+	C.reset_check_mock()
+
+	rtloader = newMockRtLoaderPtr()
+	defer func() { rtloader = nil }()
+
+	check, err := NewPythonFakeCheck()
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	check.instance = newMockPyObjectPtr()
+
+	C.get_check_diagnoses_return = C.CString(`[
+		{
+			"result": 0,
+			"name": "foo_check_instance_a",
+			"diagnosis": "All looks good",
+			"category": "foo_check",
+			"description": "This is description of the diagnose 1",
+			"remediation": "No need to fix"
+		},
+		{
+			"result": 1,
+			"name": "foo_check_instance_b",
+			"diagnosis": "All looks bad",
+			"rawerror": "Strange error 2"
+		}
+	]`)
+
+	diagnoses, err := check.GetDiagnoses()
+
+	assert.Equal(t, C.int(1), C.get_check_diagnoses_calls)
+	assert.Nil(t, err)
+	assert.NotNil(t, diagnoses)
+	assert.Equal(t, 2, len(diagnoses))
+
+	assert.Nil(t, diagnoses[0].RawError)
+	assert.NotNil(t, diagnoses[1].RawError)
+
+	assert.Equal(t, diagnoses[0].Result, diagnosis.DiagnosisSuccess)
+	assert.NotZero(t, len(diagnoses[0].Name))
+	assert.NotZero(t, len(diagnoses[0].Diagnosis))
+	assert.NotZero(t, len(diagnoses[0].Category))
+	assert.NotZero(t, len(diagnoses[0].Description))
+	assert.NotZero(t, len(diagnoses[0].Remediation))
+
+	assert.Equal(t, diagnoses[1].Result, diagnosis.DiagnosisFail)
+	assert.NotZero(t, len(diagnoses[1].Name))
+	assert.NotZero(t, len(diagnoses[1].Diagnosis))
+	assert.Zero(t, len(diagnoses[1].Category))
+	assert.Zero(t, len(diagnoses[1].Description))
+	assert.Zero(t, len(diagnoses[1].Remediation))
 }
 
 func NewPythonFakeCheck() (*PythonCheck, error) {
