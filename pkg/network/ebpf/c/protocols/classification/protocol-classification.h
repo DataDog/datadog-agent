@@ -76,6 +76,7 @@ static __always_inline void classify_api_protocols(usm_context_t *usm_ctx, proto
     switch (status) {
     case GRPC_STATUS_GRPC:
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_GRPC);
+        // If we found GRPC, we fallthrough to mark the stack as fully classified
     case GRPC_STATUS_NOT_GRPC:
         mark_as_fully_classified(protocol_stack);
     case GRPC_STATUS_UNKNOWN:
@@ -188,8 +189,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
             mark_as_fully_classified(protocol_stack);
             return;
         }
-
-        log_debug("Found HTTP2\n");
 
         // If we found HTTP2, then we try to classify its content.
         classify_api_protocols(usm_ctx, protocol_stack, skb, &skb_info);

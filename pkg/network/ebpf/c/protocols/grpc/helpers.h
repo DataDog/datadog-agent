@@ -3,140 +3,122 @@
 
 #include "bpf_builtins.h"
 
+#include "protocols/http2/helpers.h"
 #include "protocols/grpc/defs.h"
 #include "protocols/grpc/maps_defs.h"
-#include "protocols/http2/helpers.h"
 
-#define GRPC_MAX_FRAMES_TO_PROCESS 5
-#define GRPC_MAX_HEADERS_TO_PROCESS 5
+#define CONTENT_TYPE_IDX 31
+#define GRPC_MAX_FRAMES_TO_PROCESS 10
+#define GRPC_MAX_HEADERS_TO_PROCESS 10
 #define GRPC_CONTENT_TYPE_LEN 11
 #define GRPC_ENCODED_CONTENT_TYPE "\x1d\x75\xd0\x62\x0d\x26\x3d\x4c\x4d\x65\x64"
 
+#define IS_GET(Idx) ((Idx) == 2)
+
 static __always_inline bool is_encoded_grpc_content_type(const char *content_type_buf) {
     return !bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, sizeof(GRPC_ENCODED_CONTENT_TYPE) - 1);
-
-    //return (buf[0] == 0x1d
-         //&& buf[1] == 0x75
-         //&& buf[2] == 0xd0
-         //&& buf[3] == 0x62
-         //&& buf[4] == 0x0d
-         //&& buf[5] == 0x26
-         //&& buf[6] == 0x3d
-         //&& buf[7] == 0x4c
-         //&& buf[8] == 0x65
-         //&& buf[9] == 0x64
-         //&& buf[10] == 0x75
 }
 
-static __always_inline grpc_status_t check_literal(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
-    // Indexed name
-    if (idx) {
-        log_debug("[grpc] indexed name: %d\n", idx); // 31 == Content-type
-
-        struct hpack_length len;
-        if (skb_info->data_off + sizeof(len) >= frame_end) {
-            return GRPC_STATUS_UNKNOWN;
-        }
-
-        bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
-        skb_info->data_off += sizeof(len);
-        log_debug("[grpc] value length = %lu\n", len.length);
-
-        if (len.length < GRPC_CONTENT_TYPE_LEN) {
-            log_debug("[grpc] value length too small\n");
-            return GRPC_STATUS_UNKNOWN;
-        }
-
-        //if (skb_info->data_off + GRPC_CONTENT_TYPE_LEN >= frame_end) {
-            //log_debug("[grpc] content type length too big for load bytes\n");
-            //return GRPC_STATUS_UNKNOWN;
-        //}
-
-        char content_type_buf[GRPC_CONTENT_TYPE_LEN];
-        bpf_skb_load_bytes(skb, skb_info->data_off, content_type_buf, GRPC_CONTENT_TYPE_LEN);
-        skb_info->data_off += len.length;
-
-        bool is_grpc = is_encoded_grpc_content_type(content_type_buf);
-
-        if (is_grpc) {
-            log_debug("[grpc] found grpc content-type!\n");
-            return GRPC_STATUS_GRPC;
-        } else {
-            log_debug("[grpc] not found grpc content-type :(\n");
-        }
+static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
+    // We only care about indexed names
+    if (!idx || idx != CONTENT_TYPE_IDX) {
+        return GRPC_STATUS_UNKNOWN;
     }
 
-    return GRPC_STATUS_UNKNOWN;
+    struct hpack_length len;
+    if (skb_info->data_off + sizeof(len) >= frame_end) {
+        return GRPC_STATUS_UNKNOWN;
+    }
+
+    bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
+    skb_info->data_off += sizeof(len);
+    if (len.length < GRPC_CONTENT_TYPE_LEN) {
+        return GRPC_STATUS_NOT_GRPC;
+    }
+
+    char content_type_buf[GRPC_CONTENT_TYPE_LEN];
+    bpf_skb_load_bytes(skb, skb_info->data_off, content_type_buf, GRPC_CONTENT_TYPE_LEN);
+    skb_info->data_off += len.length;
+
+    return is_encoded_grpc_content_type(content_type_buf) ? GRPC_STATUS_GRPC : GRPC_STATUS_NOT_GRPC;
 }
 
-static __always_inline grpc_status_t process_headers(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
+// Scan headers goes through the headers in a frame, and tries to find a
+// content-type header or a GET method.
+static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
     union field_index idx;
-    grpc_status_t status;
+    grpc_status_t status = GRPC_STATUS_UNKNOWN;
 
-    const __u32 frame_end = skb_info->data_off + frame_length;
-    const __u32 end = frame_end < skb->len + 1 ? frame_end : skb->len + 1;
+    __u32 frame_end = skb_info->data_off + frame_length;
+    // Check that frame_end does not go beyond the skb
+    frame_end = frame_end < skb->len + 1 ? frame_end : skb->len + 1;
 
 #pragma unroll (GRPC_MAX_HEADERS_TO_PROCESS)
     for (__u8 i = 0; i < GRPC_MAX_HEADERS_TO_PROCESS; ++i) {
-        if (skb_info->data_off >= end) {
+        if (skb_info->data_off >= frame_end) {
             break;
         }
 
         bpf_skb_load_bytes(skb, skb_info->data_off, &idx.raw, sizeof(idx.raw));
-        skb_info->data_off++;
+        skb_info->data_off += sizeof(idx.raw);
 
-         if (is_indexed(idx.raw)) {
-            log_debug("[grpc] found indexed header; idx=%lu\n", idx.indexed.index);
-            // TODO: Check if POST or GET
-            // Size: 1; no change to buf and size here
-            continue;
-        } else if (is_literal(idx.raw)) {
-            log_debug("[grpc] found literal header; idx=%lu\n", idx.literal.index);
-            status = check_literal(skb, skb_info, frame_end, idx.literal.index);
-            if (status) {
-              return status;
+        if (is_literal(idx.raw)) {
+            status = is_content_type_grpc(skb, skb_info, frame_end, idx.literal.index);
+            if (status != GRPC_STATUS_UNKNOWN) {
+                break;
             }
+
+            continue;
         }
-    }
 
-   return GRPC_STATUS_UNKNOWN;
-}
-
-static __always_inline grpc_status_t is_grpc(struct __sk_buff *skb, skb_info_t *skb_info) {
-    grpc_status_t status;
-    char frame_buf[HTTP2_FRAME_HEADER_SIZE];
-    struct http2_frame current_frame;
-
-    log_debug("[grpc] ENTRY: skb len = %lu; skb data off = %lu\n", skb->len, skb_info->data_off);
-
-#pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
-    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS; ++i) {
-        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
+        // GRPC only uses POST requests
+        if (is_indexed(idx.raw) && IS_GET(idx.indexed.index)) {
+            status = GRPC_STATUS_NOT_GRPC;
             break;
         }
 
-        bpf_skb_load_bytes(skb, skb_info->data_off, frame_buf, HTTP2_FRAME_HEADER_SIZE);
-        skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
+    }
+
+   return status;
+}
+
+// is_grpc tries to determine if the packet in `skb` holds GRPC traffic. To do
+// that, it goes through the HTTP2 frames looking for headers frames, then goes
+// through the headers of those frames looking for:
+// - a "Content-type" header. If so, try to see if it begins with "application/grpc"
+//.- a GET method. GRPC only uses POST methods, the presence of any other methods
+//   means this is not GRPC.
+static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const skb_info_t *skb_info) {
+    grpc_status_t status = GRPC_STATUS_UNKNOWN;
+    char frame_buf[HTTP2_FRAME_HEADER_SIZE];
+    struct http2_frame current_frame;
+
+    // Make a mutable copy of skb_info
+    skb_info_t info = *skb_info;
+
+    // Loop through the HTTP2 frames in the packet
+#pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
+    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS && status == GRPC_STATUS_UNKNOWN; ++i) {
+        if (info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
+            break;
+        }
+
+        bpf_skb_load_bytes(skb, info.data_off, frame_buf, HTTP2_FRAME_HEADER_SIZE);
+        info.data_off += HTTP2_FRAME_HEADER_SIZE;
 
         if (!read_http2_frame_header(frame_buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)) {
-            log_debug("[grpc] unable to read http2 frame header\n");
             break;
         }
 
         if (current_frame.type != kHeadersFrame) {
-            log_debug("[grpc] not a headers frame; frame length = %lu\n", current_frame.length);
-            skb_info->data_off += current_frame.length;
+            info.data_off += current_frame.length;
             continue;
         }
 
-        log_debug("[grpc] headers frame; data_off = %lu, frame length = %lu\n", skb_info->data_off, current_frame.length);
-        status = process_headers(skb, skb_info, current_frame.length);
-        if (status != GRPC_STATUS_UNKNOWN) {
-            return status;
-        }
+        status = scan_headers(skb, &info, current_frame.length);
     }
 
-    return GRPC_STATUS_UNKNOWN;
+    return status;
 }
 
 #endif
