@@ -377,3 +377,13 @@ func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIde
 
 	return nil
 }
+
+func EBPFTelemetrySupported() bool {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. EBPF telemetry disabled.")
+		return false
+	}
+
+	return kversion >= kernel.VersionCode(4, 14, 0)
+}
