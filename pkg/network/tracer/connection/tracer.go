@@ -494,6 +494,7 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 // Describe returns all descriptions of the collector
 func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ConnTracerTelemetry.UdpDroppedConns
+	ch <- ConnTracerTelemetry.TcpDroppedConns
 }
 
 // Collect returns the current state of all metrics of the collector
