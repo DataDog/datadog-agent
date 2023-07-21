@@ -10,6 +10,7 @@ package http
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -128,9 +129,13 @@ func (tx *EbpfTx) DynamicTags() []string {
 func (tx *EbpfTx) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfTx{")
+	output.WriteString("Started: '" + strconv.FormatUint(tx.Request_started, 10) + "', ")
+	output.WriteString("LastSeen: '" + strconv.FormatUint(tx.Response_last_seen, 10) + "', ")
+	output.WriteString("ResponseStatusCode: '" + strconv.FormatUint(uint64(tx.Response_status_code), 10) + "', ")
 	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(tx.Tags, 16) + "', ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(tx.Request_fragment[:]) + "', ")
+	output.WriteString("Tuple: '" + fmt.Sprintf("%#+v", tx.ConnTuple()) + "', ")
 	output.WriteString("}")
 	return output.String()
 }
