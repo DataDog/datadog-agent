@@ -173,7 +173,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					kprobeOrFentry("io_allocate_scq_urings", fentry),
 					kprobeOrFentry("io_sq_offload_start", fentry, withSkipIfFentry(true)),
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "kretprobe_io_ring_ctx_alloc"}},
+					kretprobeOrFexit("io_ring_ctx_alloc", fentry),
 				}},
 			}},
 
