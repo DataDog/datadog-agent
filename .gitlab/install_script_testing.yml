@@ -13,7 +13,7 @@ test_install_script:
     - export YUM_VERSION_PATH_AGENT6="testing/pipeline-$CI_PIPELINE_ID-a6/6"
     - export APT_REPO_VERSION_AGENT7="pipeline-$CI_PIPELINE_ID-a7 7"
     - export YUM_VERSION_PATH_AGENT7="testing/pipeline-$CI_PIPELINE_ID-a7/7"
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-linux-install-script" --git-ref "feat/install-script-test-on-release" --variables "APT_URL,YUM_URL,APT_REPO_VERSION_AGENT6,APT_REPO_VERSION_AGENT7,YUM_VERSION_PATH_AGENT6,YUM_VERSION_PATH_AGENT7"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-linux-install-script" --git-ref "main" --variables "APT_URL,YUM_URL,APT_REPO_VERSION_AGENT6,APT_REPO_VERSION_AGENT7,YUM_VERSION_PATH_AGENT6,YUM_VERSION_PATH_AGENT7"
   needs: ["deploy_deb_testing-a6_x64", "deploy_rpm_testing-a6_x64", "deploy_deb_testing-a7_x64", "deploy_rpm_testing-a7_x64"]
   rules:
     !reference [.on_deploy]

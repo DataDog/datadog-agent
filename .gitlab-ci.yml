@@ -67,7 +67,6 @@ stages:
   - package_build
   - kitchen_deploy
   - kitchen_testing
-  - install_script_testing
   - pkg_metrics
   - container_build
   - container_scan
@@ -80,6 +79,7 @@ stages:
   - choco_build
   - choco_deploy
   - internal_image_deploy
+  - install_script_testing 
   - e2e
   - kitchen_cleanup
   - functional_test
