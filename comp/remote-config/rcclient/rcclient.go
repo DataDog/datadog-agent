@@ -104,25 +104,70 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		return
 	}
 
-	// TODO RCM-1064: implement priority between CLI and remote-config
-	// If there is no error, override the configs
-	if len(mergedConfig.LogLevel) > 0 && mergedConfig.LogLevel != rc.configState.LatestLogLevel {
-		pkglog.Infof("Changing log level to %s through remote config", mergedConfig.LogLevel)
+	// Checks who (the source: rc, cli, or default) is responsible for the last logLevel change
+	// If the logLevel has been set by "cli", we do NOT change anything
+	// If the logLevel has been set by "default", we need to save the current logLevel as a fallback, then change the logLevel to the desired state
+	// If the logLevel has been set by "rc", we need to change the logLevel back to the fallback
+	source, err := pkglog.GetSource()
+	if err != nil {
+		return
+	}
+
+	switch source {
+	case pkglog.LogLevelSourceDefault:
+		// If the log level had been set by default
+		// and if we receive an empty value for log level in the config
+		// then there is nothing to do
+		if len(mergedConfig.LogLevel) == 0 {
+			return
+		}
+
 		// Get the current log level
 		var newFallback seelog.LogLevel
 		newFallback, err = pkglog.GetLogLevel()
-		if err == nil {
-			rc.configState.FallbackLogLevel = newFallback.String()
-			err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel)
-			rc.configState.LatestLogLevel = mergedConfig.LogLevel
+		if err != nil {
+			return
 		}
-	} else {
-		var currentLogLevel seelog.LogLevel
-		currentLogLevel, err = pkglog.GetLogLevel()
-		if err == nil && currentLogLevel.String() == rc.configState.LatestLogLevel {
-			pkglog.Infof("Removing remote-config log level override, falling back to %s", rc.configState.FallbackLogLevel)
-			err = settings.SetRuntimeSetting("log_level", rc.configState.FallbackLogLevel)
+
+		logLevelStatus := settings.LogLevelStatus{
+			Level:  mergedConfig.LogLevel,
+			Source: pkglog.LogLevelSourceRC,
 		}
+
+		pkglog.Infof("Changing log level to %s through remote config", logLevelStatus.Level)
+		rc.configState.FallbackLogLevel = newFallback.String()
+		// Need to update the log level even if the level stays the same because we need to update the source
+		// Might be possible to add a check in deeper functions to avoid unnecessary work
+		err = settings.SetRuntimeSetting("log_level", logLevelStatus)
+		rc.configState.LatestLogLevel = logLevelStatus.Level
+
+	case pkglog.LogLevelSourceRC:
+		// 2 possible situations:
+		//     - we want to change (once again) the log level through RC
+		//     - we want to fall back to the log level we had saved as fallback (in taht case mergedConfig.LogLevel == "")
+		var logLevelStatus settings.LogLevelStatus
+		if len(mergedConfig.LogLevel) == 0 {
+			logLevelStatus = settings.LogLevelStatus{
+				Level:  rc.configState.FallbackLogLevel,
+				Source: pkglog.LogLevelSourceDefault,
+			}
+			pkglog.Infof("Removing remote-config log level override, falling back to %s", logLevelStatus.Level)
+		} else {
+			logLevelStatus = settings.LogLevelStatus{
+				Level:  mergedConfig.LogLevel,
+				Source: pkglog.LogLevelSourceRC,
+			}
+			pkglog.Infof("Changing log level to %s through remote config", logLevelStatus.Level)
+		}
+		err = settings.SetRuntimeSetting("log_level", logLevelStatus)
+
+	case pkglog.LogLevelSourceCLI:
+		pkglog.Infof("Remote config could not change the log level due to CLI override")
+		return
+
+	default:
+		pkglog.Errorf("Unknown source changed the log level")
+		return
 	}
 
 	// Apply the new status to all configs

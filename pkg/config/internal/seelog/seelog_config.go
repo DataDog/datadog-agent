@@ -10,6 +10,8 @@ import (
 	"html/template"
 	"strings"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Config abstracts seelog XML configuration definition
@@ -66,6 +68,11 @@ func (c *Config) EnableConsoleLog(v bool) {
 // SetLogLevel configures the loglevel
 func (c *Config) SetLogLevel(l string) {
 	c.setValue("logLevel", l)
+}
+
+// SetLogLevel configures the loglevel
+func (c *Config) SetSource(s log.LogLevelSource) {
+	c.setValue("source", s)
 }
 
 // EnableFileLogging enables and configures file logging if the filename is not empty
