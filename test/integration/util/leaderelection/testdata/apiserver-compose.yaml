@@ -12,7 +12,7 @@ services:
       retries: 30
 
   apiserver:
-    image: registry.k8s.io/hyperkube:v1.18.20
+    image: registry.k8s.io/hyperkube:APIVERSION_PLACEHOLDER
     command: "kube-apiserver
         --apiserver-count=1
         --insecure-bind-address=0.0.0.0

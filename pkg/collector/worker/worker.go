@@ -16,6 +16,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -150,7 +151,7 @@ func (w *Worker) Run() {
 		if err != nil {
 			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 		}
-		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String())}
+		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
 		serviceCheckStatus := servicecheck.ServiceCheckOK
 
 		hname, _ := hostname.Get(context.TODO())
@@ -167,7 +168,12 @@ func (w *Worker) Run() {
 		}
 
 		if sender != nil && !longRunning {
-			sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+			if config.Datadog.GetBool("integration_check_status_enabled") {
+				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+			}
+			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
+			// it here for now to make sure it's not breaking any historical behavior
+			// with the shared default sender.
 			sender.Commit()
 		}
 

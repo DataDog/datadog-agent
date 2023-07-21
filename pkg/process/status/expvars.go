@@ -20,10 +20,10 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -248,7 +248,7 @@ type StatusInfo struct {
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
 }
 
-func InitExpvars(config ddconfig.ConfigReader, hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(config ddconfig.ConfigReader, telemetry telemetry.Component, hostname string, processModuleEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		expvar.NewString("host").Set(hostname)
 		expvar.NewInt("pid").Set(int64(os.Getpid()))

@@ -24,7 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -181,7 +182,7 @@ func (c *ProcessAgentCheck) Configure(integrationConfigDigest uint64, data integ
 	}
 
 	c.source = source
-	c.telemetry = telemetry_utils.IsCheckEnabled("process_agent")
+	c.telemetry = utils.IsCheckTelemetryEnabled("process_agent")
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil
@@ -223,6 +224,11 @@ func (c *ProcessAgentCheck) Cancel() {}
 // GetSenderStats returns the stats from the last run of the check, but there aren't any yet
 func (c *ProcessAgentCheck) GetSenderStats() (stats.SenderStats, error) {
 	return stats.NewSenderStats(), nil
+}
+
+// GetDiagnoses returns the diagnoses of the check
+func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }
 
 func init() {

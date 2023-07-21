@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Azure Metadata availability", diagnose)
+	diagnosis.RegisterMetadataAvail("Azure Metadata availability", diagnose)
 }
 
 // diagnose the azure metadata API availability

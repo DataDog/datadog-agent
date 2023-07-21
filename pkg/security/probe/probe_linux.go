@@ -29,6 +29,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -283,6 +284,7 @@ func (p *Probe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
+	ebpfcheck.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 
@@ -815,7 +817,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
-			if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
+			if errors.Is(err, model.ErrDNSNameMalformatted) {
+				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Name)
+			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
 				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
 			} else {
 				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
@@ -928,7 +932,7 @@ func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Policy
 		return fmt.Errorf("unable to find policy table: %w", err)
 	}
 
-	et := model.ParseEvalEventType(eventType)
+	et := config.ParseEvalEventType(eventType)
 	if et == model.UnknownEventType {
 		return errors.New("unable to parse the eval event type")
 	}
@@ -1021,6 +1025,17 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	return false
 }
 
+func (p *Probe) isNeededForSecurityProfile(eventType eval.EventType) bool {
+	if p.Config.RuntimeSecurity.SecurityProfileEnabled {
+		for _, e := range p.Config.RuntimeSecurity.AnomalyDetectionEventTypes {
+			if e.String() == eventType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (p *Probe) validEventTypeForConfig(eventType string) bool {
 	if eventType == "dns" && !p.Config.Probe.NetworkEnabled {
 		return false
@@ -1050,7 +1065,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
-		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType)) && p.validEventTypeForConfig(eventType) {
+		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType)) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
@@ -1092,7 +1107,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	enabledEvents := uint64(0)
 	for _, eventName := range eventTypes {
 		if eventName != "*" {
-			eventType := model.ParseEvalEventType(eventName)
+			eventType := config.ParseEvalEventType(eventName)
 			if eventType == model.UnknownEventType {
 				return fmt.Errorf("unknown event type '%s'", eventName)
 			}
@@ -1200,6 +1215,7 @@ func (p *Probe) Close() error {
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
+	ebpfcheck.RemoveNameMappings(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
 		return err

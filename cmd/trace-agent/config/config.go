@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -87,7 +87,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
-	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote.NewGRPCClient(
 			rcClientName,
 			version.AgentVersion,

@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+// +build !windows
+
 package main
 
 import (
@@ -47,7 +50,6 @@ func main() {
 	sshKeyName := flag.String("ssh-key-name", "", "name of ssh key pair to use for ec2 instances")
 	infraEnv := flag.String("infra-env", "", "name of infra env to use")
 	dependenciesDirectoryPtr := flag.String("dependencies-dir", DD_AGENT_TESTING_DIR, "directory where dependencies package is present")
-	subnetsPtr := flag.String("subnets", "", "list of subnets to use")
 	vmconfigPathPtr := flag.String("vmconfig", defaultVMConfigPath, "vmconfig path")
 	local := flag.Bool("local", false, "is scenario running locally")
 
@@ -68,7 +70,6 @@ func main() {
 		SSHKeyName:            *sshKeyName,
 		InfraEnv:              *infraEnv,
 		DependenciesDirectory: *dependenciesDirectoryPtr,
-		Subnets:               *subnetsPtr,
 		VMConfigPath:          *vmconfigPathPtr,
 		Local:                 *local,
 	}

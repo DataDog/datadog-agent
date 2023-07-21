@@ -97,6 +97,7 @@ TOOL_LIST_PROTO = [
     'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
     'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
+    'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
     'github.com/tinylib/msgp',
 ]
 
@@ -133,7 +134,7 @@ def invoke_unit_tests(ctx):
     for _, _, files in os.walk("tasks/unit-tests/"):
         for file in files:
             if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
-                ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
+                ctx.run(f"{sys.executable} -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
 
 
 def test_core(
