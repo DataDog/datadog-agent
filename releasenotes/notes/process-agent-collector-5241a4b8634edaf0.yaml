@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Added a new collector in the process agent in workloadmeta.
+    This collector allows for collecting processes when the process check is disabled.
