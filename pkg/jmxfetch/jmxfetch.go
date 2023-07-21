@@ -444,7 +444,6 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 	if j.JavaToolsJarPath == "" {
 		if instanceConf.ToolsJarPath != "" {
 			j.JavaToolsJarPath = instanceConf.ToolsJarPath
-			log.Infof("tools_jar_path set")
 		}
 	}
 
