@@ -39,14 +39,14 @@ const (
 )
 
 const (
-	// SyncPayload is the key to the program that handles the SYNCHRONOUS_PAYLOAD eRPC operation
-	SyncPayload uint32 = iota
-	// CloseConnection is the key to the program that handles the CLOSE_CONNECTION eRPC operation
-	CloseConnection
-	// ConnectionByPeer is the key to the program that handles the CONNECTION_BY_PEER eRPC operation
-	ConnectionByPeer
-	// AsyncPayload is the key to the program that handles the ASYNC_PAYLOAD eRPC operation
-	AsyncPayload
+	// syncPayload is the key to the program that handles the SYNCHRONOUS_PAYLOAD eRPC operation
+	syncPayload uint32 = iota
+	// closeConnection is the key to the program that handles the CLOSE_CONNECTION eRPC operation
+	closeConnection
+	// connectionByPeer is the key to the program that handles the CONNECTION_BY_PEER eRPC operation
+	connectionByPeer
+	// asyncPayload is the key to the program that handles the ASYNC_PAYLOAD eRPC operation
+	asyncPayload
 )
 
 var (
@@ -85,28 +85,28 @@ func getJavaTlsTailCallRoutes() []manager.TailCallRoute {
 	return []manager.TailCallRoute{
 		{
 			ProgArrayName: eRPCHandlersMap,
-			Key:           SyncPayload,
+			Key:           syncPayload,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_handle_sync_payload",
 			},
 		},
 		{
 			ProgArrayName: eRPCHandlersMap,
-			Key:           CloseConnection,
+			Key:           closeConnection,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_handle_close_connection",
 			},
 		},
 		{
 			ProgArrayName: eRPCHandlersMap,
-			Key:           ConnectionByPeer,
+			Key:           connectionByPeer,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_handle_connection_by_peer",
 			},
 		},
 		{
 			ProgArrayName: eRPCHandlersMap,
-			Key:           AsyncPayload,
+			Key:           asyncPayload,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "kprobe_handle_async_payload",
 			},
