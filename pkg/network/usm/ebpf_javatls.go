@@ -74,6 +74,8 @@ type javaTLSProgram struct {
 	injectionAllowRegex *regexp.Regexp
 	// injectionAllowRegex is matched against /proc/pid/cmdline, to determine if we should deny attachment to the process.
 	injectionBlockRegex *regexp.Regexp
+
+	procRoot string
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -140,6 +142,7 @@ func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 		tracerJarPath:       javaUSMAgentJarPath,
 		injectionAllowRegex: buildRegex(c.JavaAgentAllowRegex, "allow"),
 		injectionBlockRegex: buildRegex(c.JavaAgentBlockRegex, "block"),
+		procRoot:            util.GetProcRoot(),
 	}
 
 	return res
@@ -201,8 +204,8 @@ func (p *javaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPa
 
 // isJavaProcess checks if the given PID comm's name is java.
 // The method is much faster and efficient that using process.NewProcess(pid).Name().
-func isJavaProcess(pid int) bool {
-	filePath := filepath.Join(util.GetProcRoot(), strconv.Itoa(pid), "comm")
+func (p *javaTLSProgram) isJavaProcess(pid int) bool {
+	filePath := filepath.Join(p.procRoot, strconv.Itoa(pid), "comm")
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		// Waiting a bit, as we might get the event of process creation before the directory was created.
@@ -265,7 +268,7 @@ func (p *javaTLSProgram) isAttachmentAllowed(pid int) bool {
 }
 
 func (p *javaTLSProgram) newJavaProcess(pid int) {
-	if !isJavaProcess(pid) {
+	if !p.isJavaProcess(pid) {
 		return
 	}
 	if !p.isAttachmentAllowed(pid) {
