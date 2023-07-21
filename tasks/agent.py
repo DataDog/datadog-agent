@@ -278,6 +278,20 @@ def run(
     config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
     ctx.run(f"{agent_bin} run -c {config_path}")
 
+@task
+def status(
+    ctx,
+    config_path=None,
+):
+    """
+    Execute 'agent status' against the currently running Agent.
+
+    This works against an agent run via `inv agent.run`.
+    """
+    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
+    ctx.run(f"{agent_bin} status -c {config_path}")
+
 
 @task
 def system_tests(_):
