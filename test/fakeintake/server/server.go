@@ -24,16 +24,18 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/benbjohnson/clock"
 )
 
 type Server struct {
-	mu     sync.RWMutex
-	server http.Server
-	ready  chan bool
-	clock  clock.Clock
+	mu        sync.RWMutex
+	server    http.Server
+	ready     chan bool
+	clock     clock.Clock
+	retention time.Duration
 
 	url string
 
@@ -66,6 +68,8 @@ func NewServer(options ...func(*Server)) *Server {
 	for _, opt := range options {
 		opt(fi)
 	}
+
+	go fi.cleanUpPayloads()
 
 	return fi
 }
@@ -100,6 +104,16 @@ func WithClock(clock clock.Clock) func(*Server) {
 			return
 		}
 		fi.clock = clock
+	}
+}
+
+func WithRetention(retention time.Duration) func(*Server) {
+	return func(fi *Server) {
+		if fi.URL() != "" {
+			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
+			return
+		}
+		fi.retention = retention
 	}
 }
 
@@ -162,6 +176,25 @@ type postPayloadResponse struct {
 	Errors []string `json:"errors"`
 }
 
+func (fi *Server) cleanUpPayloads() {
+	for {
+		now := fi.clock.Now()
+		fi.mu.Lock()
+		for route, payloads := range fi.payloadStore {
+			n := 0
+			for _, payload := range payloads {
+				if now.Before(payload.Timestamp.Add(fi.retention)) {
+					fi.payloadStore[route][n] = payload
+					n++
+				}
+			}
+			fi.payloadStore[route] = fi.payloadStore[route][:n]
+		}
+
+		fi.mu.Unlock()
+		fi.clock.Sleep(1 * time.Minute)
+	}
+}
 func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {
 	if req == nil {
 		response := buildPostResponse(errors.New("invalid request, nil request"))

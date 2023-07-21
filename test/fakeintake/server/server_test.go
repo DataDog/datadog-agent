@@ -24,7 +24,6 @@ import (
 
 func TestServer(t *testing.T) {
 	t.Skip("unstable on windows unit test")
-
 	t.Run("should accept payloads on any route", func(t *testing.T) {
 		fi := NewServer(WithClock(clock.NewMock()))
 
@@ -243,6 +242,25 @@ func TestServer(t *testing.T) {
 
 		fi.handleFlushPayloads(response, request)
 		assert.Equal(t, http.StatusAccepted, response.Code, "unexpected code")
+	})
+
+	t.Run("should clean payloads older than 15 minutes", func(t *testing.T) {
+		clock := clock.NewMock()
+		fi := NewServer(WithClock(clock), WithRetention(15*time.Minute))
+
+		fi.payloadStore["/test"] = []api.Payload{
+			{
+				Timestamp: clock.Now(),
+				Data:      []byte("test"),
+			},
+		}
+		clock.Add(10 * time.Minute)
+
+		assert.Len(t, fi.payloadStore["/test"], 1, "should contain one element before cleanup")
+
+		clock.Add(10 * time.Minute)
+
+		assert.Empty(t, fi.payloadStore["/test"], "should be empty after cleanup")
 	})
 }
 
