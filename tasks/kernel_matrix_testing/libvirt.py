@@ -71,7 +71,8 @@ def delete_networks(conn, stack):
 
     for network in networks:
         name = network.name()
-        network.destroy()
+        if network.isActive():
+            network.destroy()
         network.undefine()
         info(f"[+] Network {name} deleted")
 
