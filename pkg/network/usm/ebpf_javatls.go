@@ -55,7 +55,6 @@ var (
 
 type javaTLSProgram struct {
 	cfg            *config.Config
-	manager        *nettelemetry.Manager
 	processMonitor *monitor.ProcessMonitor
 	cleanupExec    func()
 
@@ -185,12 +184,11 @@ func (p *javaTLSProgram) IsBuildModeSupported(buildMode) bool {
 }
 
 func (p *javaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
-	p.manager = m
-	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
+	m.Maps = append(m.Maps, []*manager.Map{
 		{Name: javaTLSConnectionsMap},
 	}...)
 
-	p.manager.Probes = append(m.Probes,
+	m.Probes = append(m.Probes,
 		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			EBPFFuncName: "kprobe__do_vfs_ioctl",
 			UID:          probeUID,
