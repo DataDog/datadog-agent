@@ -156,8 +156,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	timeWindow := 24 * time.Hour
 	totalBucket := 24
 	bucketSize := timeWindow / time.Duration(totalBucket)
-	movingSum := *util.NewMovingSum(timeWindow, bucketSize, getCurrentTime)
-	opts.Info.Register(&movingSum)
+	movingSum := util.NewMovingSum(timeWindow, bucketSize, getCurrentTime)
+	opts.Info.Register(movingSum)
 
 	t := &Tailer{
 		file:                   opts.File,
@@ -177,7 +177,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		didFileRotate:          atomic.NewBool(false),
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
-		movingSum:              &movingSum,
+		movingSum:              movingSum,
 	}
 
 	if fileRotated {

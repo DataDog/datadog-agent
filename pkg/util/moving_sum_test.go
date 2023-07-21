@@ -44,4 +44,39 @@ func TestMovingSum(t *testing.T) {
 	ms.AddBytes(20)
 	sum = ms.CalculateMovingSum()
 	assert.Equal(t, int64(20), sum, "Expected sum to be 20")
+
+}
+
+func TestMovingSumBigBucket(t *testing.T) {
+	mockClock := clock.NewMock()
+
+	getTimeFunc := func() time.Time {
+		return mockClock.Now()
+	}
+
+	timeWindow := 24 * time.Hour
+	totalBuckets := 100
+	bucketSize := timeWindow / time.Duration(totalBuckets)
+
+	ms := NewMovingSum(timeWindow, bucketSize, getTimeFunc)
+	sum := ms.CalculateMovingSum()
+	assert.Equal(t, int64(0), sum, "Expected sum to be 0")
+
+	ms.AddBytes(5)
+	ms.AddBytes(10)
+	ms.AddBytes(15)
+	sum = ms.CalculateMovingSum()
+	assert.Equal(t, int64(30), sum, "Expected sum to be 30")
+
+	// Advance the clock by 30 hours
+	mockClock.Add(30 * time.Hour)
+	sum = ms.CalculateMovingSum()
+	assert.Equal(t, int64(0), sum, "Expected sum to be 0")
+
+	//Advance the clock by 24 hour
+	mockClock.Add(24 * time.Hour)
+	ms.AddBytes(20)
+	sum = ms.CalculateMovingSum()
+	assert.Equal(t, int64(20), sum, "Expected sum to be 20")
+
 }
