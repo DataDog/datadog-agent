@@ -63,19 +63,19 @@ type javaTLSProgram struct {
 	// between the injected java process and the ebpf ioctl that receive the payload.
 	authID int64
 
-	// enable debug output in the injected agent-usm.jar
-	javaUSMAgentDebug bool
+	// tracerDebugMode determines if the tracer should print debug output in the injected agent-usm.jar.
+	tracerDebugMode bool
 
-	// path to our java USM agent TLS tracer
-	javaUSMAgentJarPath string
+	// tracerJarPath path to the USM agent TLS tracer.
+	tracerJarPath string
 
-	// default arguments passed to the injected agent-usm.jar
-	javaUSMAgentArgs string
+	// tracerArguments default arguments passed to the injected agent-usm.jar
+	tracerArguments string
 
-	// The regex is matching against /proc/pid/cmdline
-	// if matching the agent-usm.jar would or not injected
-	javaAgentAllowRegex *regexp.Regexp
-	javaAgentBlockRegex *regexp.Regexp
+	// injectionAllowRegex is matched against /proc/pid/cmdline, to determine if we should attach to the process.
+	injectionAllowRegex *regexp.Regexp
+	// injectionAllowRegex is matched against /proc/pid/cmdline, to determine if we should deny attachment to the process.
+	injectionBlockRegex *regexp.Regexp
 }
 
 // Static evaluation to make sure we are not breaking the interface.
@@ -115,10 +115,10 @@ func getJavaTlsTailCallRoutes() []manager.TailCallRoute {
 }
 
 func (p *javaTLSProgram) isJavaSubprogramEnabled(c *config.Config) bool {
-	p.javaUSMAgentJarPath = filepath.Join(c.JavaDir, agentUSMJar)
-	jar, err := os.Open(p.javaUSMAgentJarPath)
+	p.tracerJarPath = filepath.Join(c.JavaDir, agentUSMJar)
+	jar, err := os.Open(p.tracerJarPath)
 	if err != nil {
-		log.Errorf("java TLS can't access java tracer payload %s : %s", p.javaUSMAgentJarPath, err)
+		log.Errorf("java TLS can't access java tracer payload %s : %s", p.tracerJarPath, err)
 		return false
 	}
 	jar.Close()
@@ -168,10 +168,10 @@ func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 		cfg:                 c,
 		processMonitor:      monitor.GetProcessMonitor(),
 		authID:              rand.Int63(),
-		javaUSMAgentDebug:   c.JavaAgentDebug,
-		javaUSMAgentArgs:    c.JavaAgentArgs,
-		javaAgentAllowRegex: javaAgentAllowRegex,
-		javaAgentBlockRegex: javaAgentBlockRegex,
+		tracerDebugMode:     c.JavaAgentDebug,
+		tracerArguments:     c.JavaAgentArgs,
+		injectionAllowRegex: javaAgentAllowRegex,
+		injectionBlockRegex: javaAgentBlockRegex,
 	}
 	return res
 }
@@ -256,16 +256,16 @@ func isJavaProcess(pid int) bool {
 }
 
 // isAttachmentAllowed will return true if the pid can be attached
-// The filter is based on the process command line matching javaAgentAllowRegex and javaAgentBlockRegex regex
-// javaAgentAllowRegex has a higher priority
+// The filter is based on the process command line matching injectionAllowRegex and injectionBlockRegex regex
+// injectionAllowRegex has a higher priority
 //
 // # In case of only one regex (allow or block) is set, the regex will be evaluated as exclusive filter
 // /                 match  | not match
 // allowRegex only    true  | false
 // blockRegex only    false | true
 func (p *javaTLSProgram) isAttachmentAllowed(pid int) bool {
-	allowIsSet := p.javaAgentAllowRegex != nil
-	blockIsSet := p.javaAgentBlockRegex != nil
+	allowIsSet := p.injectionAllowRegex != nil
+	blockIsSet := p.injectionBlockRegex != nil
 	// filter is disabled (default configuration)
 	if !allowIsSet && !blockIsSet {
 		return true
@@ -280,10 +280,10 @@ func (p *javaTLSProgram) isAttachmentAllowed(pid int) bool {
 	fullCmdline := strings.ReplaceAll(string(cmd), "\000", " ") // /proc/pid/cmdline format : arguments are separated by '\0'
 
 	// Allow to have a higher priority
-	if allowIsSet && p.javaAgentAllowRegex.MatchString(fullCmdline) {
+	if allowIsSet && p.injectionAllowRegex.MatchString(fullCmdline) {
 		return true
 	}
-	if blockIsSet && p.javaAgentBlockRegex.MatchString(fullCmdline) {
+	if blockIsSet && p.injectionBlockRegex.MatchString(fullCmdline) {
 		return false
 	}
 
@@ -306,14 +306,14 @@ func (p *javaTLSProgram) newJavaProcess(pid int) {
 	}
 
 	allArgs := []string{
-		p.javaUSMAgentArgs,
+		p.tracerArguments,
 		"dd.usm.authID=" + strconv.FormatInt(p.authID, 10),
 	}
-	if p.javaUSMAgentDebug {
+	if p.tracerDebugMode {
 		allArgs = append(allArgs, "dd.trace.debug=true")
 	}
 	args := strings.Join(allArgs, ",")
-	if err := java.InjectAgent(pid, p.javaUSMAgentJarPath, args); err != nil {
+	if err := java.InjectAgent(pid, p.tracerJarPath, args); err != nil {
 		log.Error(err)
 	}
 }
