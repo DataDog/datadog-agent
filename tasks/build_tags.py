@@ -41,6 +41,9 @@ ALL_TAGS = {
     "secrets",
     "systemd",
     "trivy",
+    "yq_noxml",
+    "yq_notml",
+    "yq_nojson",
     "zk",
     "zlib",
     "test",  # used for unit-tests
