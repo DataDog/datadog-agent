@@ -128,9 +128,13 @@ func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 	}
 
 	javaUSMAgentJarPath := filepath.Join(c.JavaDir, agentUSMJar)
-	if _, err := os.Stat(javaUSMAgentJarPath); err != nil {
+	// We tried switching os.Open to os.Stat, but it seems it does not guarantee we'll be able to copy the file.
+	if f, err := os.Open(javaUSMAgentJarPath); err != nil {
 		log.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
 		return nil
+	} else {
+		// If we managed to open the file, then we close it, as we just needed to check if the file exists.
+		_ = f.Close()
 	}
 
 	log.Info("java tls is enabled")
@@ -192,7 +196,7 @@ func (p *javaTLSProgram) ConfigureOptions(options *manager.Options) {
 		})
 }
 
-func (p *javaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+func (*javaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	return []manager.ProbeIdentificationPair{
 		{EBPFFuncName: doVfsIoctlKprobeName},
 		{EBPFFuncName: handleSyncPayloadKprobeName},
