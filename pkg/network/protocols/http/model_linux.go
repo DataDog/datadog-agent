@@ -30,7 +30,7 @@ func PacketNow() int64 {
 	return now
 }
 func (tx *EbpfTx) Protocol() protocols.ProtocolType {
-	return protocols.HTTP2
+	return protocols.HTTP
 }
 
 // Path returns the URL from the request fragment captured in eBPF with
