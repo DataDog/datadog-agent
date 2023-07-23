@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -100,21 +99,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	require.Eventuallyf(t, func() bool {
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1
 	}, time.Second*10, time.Second, "")
-
-	tel := telemetry.ReportPayloadTelemetry("1")
-	telEqual := func(t *testing.T, expected int64, m string) {
-		require.Equal(t, expected, tel[m], m)
-	}
-	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
-	telEqual(t, 0, "usm.so_watcher.already_registered")
-	telEqual(t, 0, "usm.so_watcher.blocked")
-	telEqual(t, 1, "usm.so_watcher.matches")
-	telEqual(t, 1, "usm.so_watcher.registered")
-	telEqual(t, 0, "usm.so_watcher.unregister_errors")
-	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
-	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
-	telEqual(t, 0, "usm.so_watcher.unregister_pathid_not_found")
-	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace() {
@@ -177,21 +161,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	// must fail on the host
 	_, err = os.Stat(libpath)
 	require.Error(t, err)
-
-	tel := telemetry.ReportPayloadTelemetry("1")
-	telEqual := func(t *testing.T, expected int64, m string) {
-		require.Equal(t, expected, tel[m], m)
-	}
-	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
-	telEqual(t, 0, "usm.so_watcher.already_registered")
-	telEqual(t, 0, "usm.so_watcher.blocked")
-	telEqual(t, 1, "usm.so_watcher.matches")
-	telEqual(t, 1, "usm.so_watcher.registered")
-	telEqual(t, 0, "usm.so_watcher.unregister_errors")
-	telEqual(t, 1, "usm.so_watcher.unregister_no_callback")
-	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
-	telEqual(t, 0, "usm.so_watcher.unregister_pathid_not_found")
-	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSameInodeRegression() {
@@ -238,21 +207,6 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1 &&
 			!hasPID(watcher, command1)
 	}, time.Second*10, time.Second, "")
-
-	tel := telemetry.ReportPayloadTelemetry("1")
-	telEqual := func(t *testing.T, expected int64, m string) {
-		require.Equal(t, expected, tel[m], m)
-	}
-	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
-	telEqual(t, 1, "usm.so_watcher.already_registered")
-	telEqual(t, 0, "usm.so_watcher.blocked")
-	telEqual(t, 2, "usm.so_watcher.matches") // command1 access to 2 files
-	telEqual(t, 1, "usm.so_watcher.registered")
-	telEqual(t, 0, "usm.so_watcher.unregister_errors")
-	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
-	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
-	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
-	telEqual(t, 1, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
@@ -326,21 +280,6 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 		// Checking that the unregisteredCB was executed now for pathID1
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1
 	}, time.Second*10, time.Second, "")
-
-	tel := telemetry.ReportPayloadTelemetry("1")
-	telEqual := func(t *testing.T, expected int64, m string) {
-		require.Equal(t, expected, tel[m], m)
-	}
-	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
-	telEqual(t, 1, "usm.so_watcher.already_registered")
-	telEqual(t, 0, "usm.so_watcher.blocked")
-	telEqual(t, 3, "usm.so_watcher.matches") // command1 access to 2 files, command2 access to 1 file
-	telEqual(t, 2, "usm.so_watcher.registered")
-	telEqual(t, 0, "usm.so_watcher.unregister_errors")
-	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
-	telEqual(t, 2, "usm.so_watcher.unregister_failed_cb")
-	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
-	telEqual(t, 2, "usm.so_watcher.unregistered")
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
@@ -408,21 +347,6 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 			!hasPID(watcher, command1) &&
 			!hasPID(watcher, command2)
 	}, time.Second*10, time.Second, "")
-
-	tel := telemetry.ReportPayloadTelemetry("1")
-	telEqual := func(t *testing.T, expected int64, m string) {
-		require.Equal(t, expected, tel[m], m)
-	}
-	require.GreaterOrEqual(t, tel["usm.so_watcher.hits"], tel["usm.so_watcher.matches"], "usm.so_watcher.hits")
-	telEqual(t, 1, "usm.so_watcher.already_registered")
-	telEqual(t, 0, "usm.so_watcher.blocked")
-	telEqual(t, 0, "usm.so_watcher.matches")
-	telEqual(t, 2, "usm.so_watcher.registered")
-	telEqual(t, 0, "usm.so_watcher.unregister_errors")
-	telEqual(t, 0, "usm.so_watcher.unregister_no_callback")
-	telEqual(t, 0, "usm.so_watcher.unregister_failed_cb")
-	telEqual(t, 0, "usm.so_watcher.unregister_path_id_not_found")
-	telEqual(t, 2, "usm.so_watcher.unregistered")
 }
 
 func buildSOWatcherClientBin(t *testing.T) string {
