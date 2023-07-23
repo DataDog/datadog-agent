@@ -91,7 +91,7 @@
     int __attribute__((always_inline)) type##__##sys##syscall(struct pt_regs *ctx __JOIN(x,__SC_DECL,__VA_ARGS__)); \
     SEC(#type "/" SYSCALL##word_size##_PREFIX #prefix SYSCALL_PREFIX #syscall #suffix) \
     int type##__ ##word_size##_##prefix ##sys##syscall##suffix(struct pt_regs *ctx) { \
-        SYSCALL_##TYPE##_PROLOG(x,__SC_##word_size##_PARAM,syscall,__VA_ARGS__) \
+        SYSCALL_##TYPE##_PROLOG(x,__SC_##word_size##_##TYPE##_PARAM,syscall,__VA_ARGS__) \
         return type##__sys##syscall(ctx __JOIN(x,__SC_PASS,__VA_ARGS__)); \
     }
 
@@ -99,13 +99,16 @@
 #define SYSCALL_KRETPROBE_PROLOG(...)
 
 #define SYSCALL_FENTRY_PROLOG(x,m,syscall,...) \
-  struct pt_regs *rctx = ctx; \
+  ctx_t *rctx = (ctx_t*)ctx; \
   if (!rctx) return 0; \
   __MAP(x,m,__VA_ARGS__)
 
+#define __SC_64_FENTRY_PARAM(n, t, a) t a = (t) rctx[n];
+#define __SC_32_FENTRY_PARAM(n, t, a) t a = (t) rctx[n];
+
 #if USE_SYSCALL_WRAPPER == 1
-  #define __SC_64_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL64_PT_REGS_PARM##n(rctx));
-  #define __SC_32_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL32_PT_REGS_PARM##n(rctx));
+  #define __SC_64_KPROBE_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL64_PT_REGS_PARM##n(rctx));
+  #define __SC_32_KPROBE_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL32_PT_REGS_PARM##n(rctx));
   #define SYSCALL_KPROBE_PROLOG(x,m,syscall,...) \
     struct pt_regs *rctx = (struct pt_regs *) PT_REGS_PARM1(ctx); \
     if (!rctx) return 0; \
@@ -125,8 +128,8 @@
     SYSCALL_ABI_HOOKx(x,64,type,TYPE,,name,_time32,__VA_ARGS__) \
     SYSCALL_HOOK_COMMON(x,type,name,__VA_ARGS__)
 #else
-  #define __SC_64_PARAM(n, t, a) t a = (t) SYSCALL64_PT_REGS_PARM##n(ctx);
-  #define __SC_32_PARAM(n, t, a) t a = (t) SYSCALL32_PT_REGS_PARM##n(ctx);
+  #define __SC_64_KPROBE_PARAM(n, t, a) t a = (t) SYSCALL64_PT_REGS_PARM##n(ctx);
+  #define __SC_32_KPROBE_PARAM(n, t, a) t a = (t) SYSCALL32_PT_REGS_PARM##n(ctx);
   #define SYSCALL_KPROBE_PROLOG(x,m,syscall,...) \
     struct pt_regs *rctx = ctx; \
     if (!rctx) return 0; \
