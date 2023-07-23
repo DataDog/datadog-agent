@@ -39,6 +39,32 @@ func (_m *SysProbeUtil) GetConnections(clientID string) (*process.Connections, e
 	return r0, r1
 }
 
+// GetConnectionsGRPC provides a mock function with given fields: clientID, unixPath
+func (_m *SysProbeUtil) GetConnectionsGRPC(clientID string, unixPath string) (*process.Connections, error) {
+	ret := _m.Called(clientID, unixPath)
+
+	var r0 *process.Connections
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string, string) (*process.Connections, error)); ok {
+		return rf(clientID, unixPath)
+	}
+	if rf, ok := ret.Get(0).(func(string, string) *process.Connections); ok {
+		r0 = rf(clientID, unixPath)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*process.Connections)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string, string) error); ok {
+		r1 = rf(clientID, unixPath)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetProcStats provides a mock function with given fields: pids
 func (_m *SysProbeUtil) GetProcStats(pids []int32) (*process.ProcStatsWithPermByPID, error) {
 	ret := _m.Called(pids)

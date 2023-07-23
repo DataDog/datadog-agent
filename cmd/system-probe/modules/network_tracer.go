@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -78,11 +80,50 @@ type networkTracer struct {
 	tracer       *tracer.Tracer
 	done         chan struct{}
 	restartTimer *time.Timer
+
+	connectionserver.UnsafeSystemProbeServer
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
+}
+
+func getConnectionsFromMarshaler(marshaler encoding.Marshaler, cs *network.Connections) ([]byte, error) {
+	defer network.Reclaim(cs)
+
+	buf, err := marshaler.Marshal(cs)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Tracef("GetConnections: %d connections, %d bytes", len(cs.Conns), len(buf))
+	return buf, nil
+}
+
+func (nt *networkTracer) GetConnections(req *connectionserver.GetConnectionsRequest, s2 connectionserver.SystemProbe_GetConnectionsServer) error {
+	start := time.Now()
+	runCounter := atomic.NewUint64(0)
+	id := req.GetClientID()
+	cs, err := nt.tracer.GetActiveConnections(id)
+	if err != nil {
+		return err
+	}
+
+	marshaler := encoding.GetMarshaler(encoding.ContentTypeProtobuf)
+	conns, err := getConnectionsFromMarshaler(marshaler, cs)
+	if err != nil {
+		return err
+	}
+
+	if nt.restartTimer != nil {
+		nt.restartTimer.Reset(inactivityRestartDuration)
+	}
+	count := runCounter.Inc()
+	logRequests(id, count, len(cs.Conns), start)
+
+	// iterate over all the connections
+	return s2.Send(&connectionserver.Connection{Data: conns})
 }
 
 // Register all networkTracer endpoints
@@ -260,6 +301,12 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		})
 	}
 
+	return nil
+}
+
+func (nt *networkTracer) RegisterGRPC(server *grpc.Server) error {
+	connectionserver.RegisterSystemProbeServer(server, nt)
+	log.Infof("gRPC server listening on unix socket")
 	return nil
 }
 

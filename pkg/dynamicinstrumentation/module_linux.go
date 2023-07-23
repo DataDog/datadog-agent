@@ -6,9 +6,10 @@
 package dynamicinstrumentation
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type Module struct{}
@@ -28,5 +29,9 @@ func (m *Module) GetStats() map[string]interface{} {
 
 func (m *Module) Register(_ *module.Router) error {
 	log.Info("Registering dynamic instrumentation module")
+	return nil
+}
+
+func (m *Module) RegisterGRPC(_ *grpc.Server) error {
 	return nil
 }

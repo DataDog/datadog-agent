@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"google.golang.org/grpc"
 	"io"
 	"net"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
+	"github.com/DataDog/datadog-agent/pkg/proto/connectionserver"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -155,7 +157,38 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("[HTTP-connections] we are in the http mode, found %d conns with the grpc server\n", len(conns.Conns))
 
+	return conns, nil
+}
+
+func (r *RemoteSysProbeUtil) GetConnectionsGRPC(clientID, unixPath string) (*model.Connections, error) {
+	// Create a context with a timeout of 10 seconds
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conn, err := grpc.Dial("unix://"+unixPath, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+	client := connectionserver.NewSystemProbeClient(conn)
+
+	response, err := client.GetConnections(ctx, &connectionserver.GetConnectionsRequest{ClientID: clientID})
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := response.Recv()
+	if err != nil {
+		return nil, err
+	}
+
+	conns, err := netEncoding.GetUnmarshaler("application/protobuf").Unmarshal(res.Data)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("[Getconnections-rpc] we are in the grpc mode, found %d conns with the grpc server\n", len(conns.Conns))
 	return conns, nil
 }
 
