@@ -24,7 +24,7 @@ import (
 func PacketNow() int64 {
 	now, err := ebpf.NowNanoseconds()
 	if err != nil {
-		log.Errorf("statkeeper ebpf.NowNanoseconds() failed %s", err)
+		log.Errorf("PacketNow ebpf.NowNanoseconds() failed %s", err)
 		return 0
 	}
 	return now
