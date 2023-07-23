@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package httpsec_test
+package httpsec
 
 import (
 	"bytes"
@@ -13,15 +13,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLifecycleSubProcessor(t *testing.T) {
+func TestProxyLifecycleProcessor(t *testing.T) {
 	test := func(t *testing.T, appsecEnabled bool) {
 		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", strconv.FormatBool(appsecEnabled))
 		asm, _, err := appsec.New()
@@ -105,20 +103,4 @@ func getEventFromFile(filename string) []byte {
 	buf.Write(event)
 	buf.WriteString("0")
 	return buf.Bytes()
-}
-
-func TestInvocationSubProcessorNilInterface(t *testing.T) {
-	lp := &invocationlifecycle.LifecycleProcessor{
-		DetectLambdaLibrary: func() bool { return true },
-		SubProcessor:        (*httpsec.InvocationSubProcessor)(nil),
-	}
-
-	assert.True(t, lp.SubProcessor != nil)
-
-	lp.OnInvokeStart(&invocationlifecycle.InvocationStartDetails{
-		InvokeEventRawPayload: []byte(
-			`{"requestcontext":{"stage":"purple"},"httpmethod":"purple","resource":"purple"}`),
-	})
-
-	lp.OnInvokeEnd(&invocationlifecycle.InvocationEndDetails{})
 }

@@ -14,12 +14,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/aws/aws-lambda-go/events"
 )
 
 // Monitorer is the interface type expected by the httpsec invocation
@@ -27,126 +21,6 @@ import (
 // the security events that matched.
 type Monitorer interface {
 	Monitor(addresses map[string]interface{}) (events []byte)
-}
-
-// InvocationSubProcessor type allows to monitor lamdba invocations receiving
-// HTTP-based events.
-type InvocationSubProcessor struct {
-	appsec Monitorer
-}
-
-// NewInvocationSubProcessor returns a new httpsec invocation subprocessor
-// monitored with the given Monitorer.
-func NewInvocationSubProcessor(appsec Monitorer) *InvocationSubProcessor {
-	return &InvocationSubProcessor{
-		appsec: appsec,
-	}
-}
-
-func (p *InvocationSubProcessor) OnInvokeStart(_ *invocationlifecycle.InvocationStartDetails, _ *invocationlifecycle.RequestHandler) {
-	// In monitoring-only mode - without blocking - we can wait until the request's end to monitor it
-
-	// XXX: Because this *InvocationSubProcessor is referenced as an interface,
-	// a nil check like (*myInterface)(nil) != nil will return true.
-	// See https://go.dev/tour/methods/12
-	if p == nil {
-		return
-	}
-}
-
-func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails, invocCtx *invocationlifecycle.RequestHandler) {
-	if p == nil {
-		return
-	}
-	span := invocCtx
-	// Set the span tags that are always expected to be there when appsec is enabled
-	setAppSecEnabledTags(span)
-
-	var ctx context
-	switch event := invocCtx.Event().(type) {
-	case events.APIGatewayProxyRequest:
-		makeContext(
-			&ctx,
-			&event.Path,
-			event.MultiValueHeaders,
-			event.MultiValueQueryStringParameters,
-			event.PathParameters,
-			event.RequestContext.Identity.SourceIP,
-			&event.Body,
-		)
-
-	case events.APIGatewayV2HTTPRequest:
-		makeContext(
-			&ctx,
-			&event.RawPath,
-			toMultiValueMap(event.Headers),
-			toMultiValueMap(event.QueryStringParameters),
-			event.PathParameters,
-			event.RequestContext.HTTP.SourceIP,
-			&event.Body,
-		)
-
-	case events.APIGatewayWebsocketProxyRequest:
-		makeContext(
-			&ctx,
-			&event.Path,
-			event.MultiValueHeaders,
-			event.MultiValueQueryStringParameters,
-			event.PathParameters,
-			event.RequestContext.Identity.SourceIP,
-			&event.Body,
-		)
-
-	case events.ALBTargetGroupRequest:
-		makeContext(
-			&ctx,
-			&event.Path,
-			event.MultiValueHeaders,
-			event.MultiValueQueryStringParameters,
-			nil,
-			"",
-			&event.Body,
-		)
-
-	case events.LambdaFunctionURLRequest:
-		makeContext(
-			&ctx,
-			&event.RawPath,
-			toMultiValueMap(event.Headers),
-			toMultiValueMap(event.QueryStringParameters),
-			nil,
-			event.RequestContext.HTTP.SourceIP,
-			&event.Body,
-		)
-
-	default:
-		if event == nil {
-			log.Debug("appsec: ignoring unsupported lamdba event")
-		} else {
-			log.Debugf("appsec: ignoring unsupported lamdba event type %T", event)
-		}
-		return
-	}
-
-	reqHeaders := ctx.requestHeaders
-	setClientIPTags(span, ctx.requestSourceIP, reqHeaders)
-
-	respHeaders, err := parseResponseHeaders(endDetails.ResponseRawPayload)
-	if err != nil {
-		log.Debugf("appsec: couldn't parse the response payload headers: %v", err)
-	}
-
-	if status, ok := span.GetMetaTag("http.status_code"); ok {
-		ctx.responseStatus = &status
-	}
-	if ip, ok := span.GetMetaTag("http.client_ip"); ok {
-		ctx.requestClientIP = &ip
-	}
-
-	if events := p.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
-		setSecurityEventsTags(span, events, reqHeaders, respHeaders)
-		invocCtx.SetSamplingPriority(sampler.PriorityUserKeep)
-	}
 }
 
 // AppSec monitoring context including the full list of monitored HTTP values
