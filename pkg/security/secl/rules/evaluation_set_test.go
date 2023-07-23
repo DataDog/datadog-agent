@@ -10,13 +10,17 @@ package rules
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func newEvaluationSet(tagValues []eval.RuleSetTagValue) (*EvaluationSet, error) {
+// Test Utilities
+func newTestEvaluationSet(tagValues []eval.RuleSetTagValue) (*EvaluationSet, error) {
 	var ruleSetsToInclude []*RuleSet
 	if len(tagValues) > 0 {
 		for _, tagValue := range tagValues {
@@ -46,7 +50,7 @@ func loadPolicyIntoProbeEvaluationRuleSet(t *testing.T, testPolicy *PolicyDef, p
 
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet([]eval.RuleSetTagValue{})
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{})
 	return evaluationSet, evaluationSet.LoadPolicies(loader, policyOpts)
 }
 
@@ -64,9 +68,53 @@ func loadPolicySetup(t *testing.T, testPolicy *PolicyDef, tagValues []eval.RuleS
 
 	loader := NewPolicyLoader(provider)
 
-	evaluationSet, _ := newEvaluationSet(tagValues)
+	evaluationSet, _ := newTestEvaluationSet(tagValues)
 	return loader, evaluationSet
 }
+
+func rulesEqual(expected map[eval.RuleID]*Rule, got map[eval.RuleID]*Rule) (bool, string) {
+	for expectedRuleID, expectedRule := range expected {
+		if rule, ok := got[expectedRuleID]; ok {
+			if rule.Rule == nil && expectedRule.Rule != nil || rule.Rule != nil && expectedRule.Rule == nil {
+				return false, fmt.Sprintf("Expected rule: %+v\nGot rule:%+v", expectedRule.Rule, rule.Rule)
+			}
+			if rule.Definition.Expression != expectedRule.Definition.Expression {
+				return false, fmt.Sprintf("Expected expression: %s\nGot expression:%s", expectedRule.Definition.Expression, rule.Definition.Expression)
+			}
+		}
+		return false, fmt.Sprintf("Expected rule ID %s but did not receive", expectedRuleID)
+	}
+	return true, ""
+}
+
+// FROM https://pkg.go.dev/github.com/google/go-cmp@v0.5.9/cmp#example-Reporter
+// DiffReporter is a simple custom reporter that only records differences
+// detected during comparison.
+type DiffReporter struct {
+	path  cmp.Path
+	diffs []string
+}
+
+func (r *DiffReporter) PushStep(ps cmp.PathStep) {
+	r.path = append(r.path, ps)
+}
+
+func (r *DiffReporter) Report(rs cmp.Result) {
+	if !rs.Equal() {
+		vx, vy := r.path.Last().Values()
+		r.diffs = append(r.diffs, fmt.Sprintf("%#v:\n\t-: %+v\n\t+: %+v\n", r.path, vx, vy))
+	}
+}
+
+func (r *DiffReporter) PopStep() {
+	r.path = r.path[:len(r.path)-1]
+}
+
+func (r *DiffReporter) String() string {
+	return strings.Join(r.diffs, "\n")
+}
+
+// Tests
 
 func TestEvaluationSet_GetPolicies(t *testing.T) {
 	type fields struct {
@@ -117,7 +165,622 @@ func TestEvaluationSet_GetPolicies(t *testing.T) {
 	}
 }
 
-func TestEvaluationSet_LoadPolicies(t *testing.T) {
+// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestEvaluationSet_LoadPoliciesOverriding"
+func TestEvaluationSet_LoadPoliciesOverriding(t *testing.T) {
+	type fields struct {
+		Providers []PolicyProvider
+		TagValues []eval.RuleSetTagValue
+	}
+	tests := []struct {
+		name      string
+		fields    fields
+		want      func(t assert.TestingT, fields fields, got *EvaluationSet, msgs ...interface{}) bool
+		wantErr   func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool
+		wantRules map[eval.RuleID]*Rule
+	}{
+		{
+			name: "duplicate IDs",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyDirProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:    "default.policy",
+								Source:  PolicySourceDir,
+								Version: "",
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/local-default/shadow\"",
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/local-default/file\"",
+									},
+								},
+								Macros: nil,
+							}}, nil
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:   "myRC.policy",
+								Source: PolicySourceRC,
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+									},
+								},
+							}}, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, fields fields, got *EvaluationSet, msgs ...interface{}) bool {
+				gotNumberOfRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
+				assert.Equal(t, 2, gotNumberOfRules)
+
+				expectedRules := map[eval.RuleID]*Rule{
+					"foo": {Definition: &RuleDefinition{
+						ID:         "foo",
+						Expression: "open.file.path == \"/etc/local-default/shadow\"",
+					}},
+					"bar": {Definition: &RuleDefinition{
+						ID:         "bar",
+						Expression: "open.file.path == \"/etc/local-default/file\"",
+					}},
+				}
+
+				rulesEqual, msg := rulesEqual(got.RuleSets[DefaultRuleSetTagValue].rules, expectedRules)
+				return assert.True(t, true, rulesEqual, msg)
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.ErrorContains(t, err, "rule `foo` error: multiple definition with the same ID", fmt.Sprintf("Errors are: %+v", err.Errors))
+			},
+		},
+		{
+			name: "disabling a default rule via a different file",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyDirProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:    "default.policy",
+								Source:  PolicySourceDir,
+								Version: "",
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/local-default/shadow\"",
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/local-default/file\"",
+									},
+								},
+								Macros: nil,
+							}}, nil
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:   "myRC.policy",
+								Source: PolicySourceRC,
+								Rules: []*RuleDefinition{
+									{
+										ID:       "foo",
+										Disabled: true,
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/rc-custom/file\"",
+									},
+								},
+							}}, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, fields fields, got *EvaluationSet, msgs ...interface{}) bool {
+				gotNumberOfRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
+				assert.Equal(t, 1, gotNumberOfRules)
+
+				expectedRules := map[eval.RuleID]*Rule{
+					"bar": {
+						Rule: &eval.Rule{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						}},
+				}
+
+				var r DiffReporter
+				// TODO: Use custom cmp.Comparer instead of ignoring unexported fields
+				if !cmp.Equal(expectedRules, got.RuleSets[DefaultRuleSetTagValue].rules, cmp.Reporter(&r), cmpopts.IgnoreFields(Rule{}, "Opts", "Model"), cmpopts.IgnoreFields(RuleDefinition{}, "Policy"), cmpopts.IgnoreUnexported(eval.Rule{})) {
+					assert.Fail(t, fmt.Sprintf("Diff: %s)", r.String()))
+				}
+
+				return true
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.ErrorContains(t, err, "rule `bar` error: multiple definition with the same ID", fmt.Sprintf("Errors are: %+v", err.Errors))
+			},
+		},
+		{
+			name: "disabling a default rule including ignored expression",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyDirProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:    "default.policy",
+								Source:  PolicySourceDir,
+								Version: "",
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/local-default/shadow\"",
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/local-default/file\"",
+									},
+								},
+								Macros: nil,
+							}}, nil
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:   "myRC.policy",
+								Source: PolicySourceRC,
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+										Disabled:   true,
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/rc-custom/file\"",
+									},
+								},
+							}}, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, fields fields, got *EvaluationSet, msgs ...interface{}) bool {
+				assert.Equal(t, 1, len(got.RuleSets))
+				if _, ok := got.RuleSets[DefaultRuleSetTagValue]; !ok {
+					t.Errorf("Missing %s rule set", DefaultRuleSetTagValue)
+				}
+
+				gotNumberOfRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
+				assert.Equal(t, 1, gotNumberOfRules)
+
+				expectedRules := map[eval.RuleID]*Rule{
+					"bar": {
+						Rule: &eval.Rule{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						}},
+				}
+
+				var r DiffReporter
+				// TODO: Use custom cmp.Comparer instead of ignoring unexported fields
+				if !cmp.Equal(expectedRules, got.RuleSets[DefaultRuleSetTagValue].rules, cmp.Reporter(&r),
+					cmpopts.IgnoreFields(Rule{}, "Opts", "Model"), cmpopts.IgnoreFields(RuleDefinition{}, "Policy"),
+					cmpopts.IgnoreFields(RuleSet{}, "opts", "evalOpts", "eventRuleBuckets", "fieldEvaluators", "model",
+						"eventCtor", "listenersLock", "listeners", "globalVariables", "scopedVariables", "fields", "logger", "pool"),
+					cmpopts.IgnoreUnexported(eval.Rule{})) {
+					assert.Fail(t, fmt.Sprintf("Diff: %s)", r.String()))
+				}
+
+				return true
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.ErrorContains(t, err, "rule `bar` error: multiple definition with the same ID", fmt.Sprintf("Errors are: %+v", err.Errors))
+			},
+		},
+		{
+			name: "disabling a default rule and creating a custom rule with same ID",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyDirProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:    "default.policy",
+								Source:  PolicySourceDir,
+								Version: "",
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/local-default/shadow\"",
+										Disabled:   true,
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/local-default/file\"",
+									},
+								},
+								Macros: nil,
+							}}, nil
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:   "myRC.policy",
+								Source: PolicySourceRC,
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/rc-custom/file\"",
+									},
+								},
+							}}, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, fields fields, got *EvaluationSet, msgs ...interface{}) bool {
+				assert.Equal(t, 1, len(got.RuleSets))
+				if _, ok := got.RuleSets[DefaultRuleSetTagValue]; !ok {
+					t.Errorf("Missing %s rule set", DefaultRuleSetTagValue)
+				}
+
+				gotNumberOfRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
+				assert.Equal(t, 1, gotNumberOfRules)
+
+				expectedRules := map[eval.RuleID]*Rule{
+					"foo": {
+						Rule: &eval.Rule{
+							ID:         "foo",
+							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "foo",
+							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+						},
+					},
+					"bar": {
+						Rule: &eval.Rule{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						}},
+				}
+
+				var r DiffReporter
+				// TODO: Use custom cmp.Comparer instead of ignoring unexported fields
+				if !cmp.Equal(expectedRules, got.RuleSets[DefaultRuleSetTagValue].rules, cmp.Reporter(&r),
+					cmpopts.IgnoreFields(Rule{}, "Opts", "Model"), cmpopts.IgnoreFields(RuleDefinition{}, "Policy"),
+					cmpopts.IgnoreFields(RuleSet{}, "opts", "evalOpts", "eventRuleBuckets", "fieldEvaluators", "model",
+						"eventCtor", "listenersLock", "listeners", "globalVariables", "scopedVariables", "fields", "logger", "pool"),
+					cmpopts.IgnoreUnexported(eval.Rule{})) {
+					assert.Fail(t, fmt.Sprintf("Diff: %s)", r.String()))
+				}
+
+				return true
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				assert.Equal(t, 1, err.Len(), fmt.Sprintf("Errors are: %s", err.Errors))
+				return assert.ErrorContains(t, err, "rule `bar` error: multiple definition with the same ID")
+			},
+		},
+		{
+			name: "combine:override", // TODO: CURRENTLY PASSING
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyDirProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:    "default.policy",
+								Source:  PolicySourceDir,
+								Version: "",
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/local-default/shadow\"",
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/local-default/file\"",
+									},
+								},
+								Macros: nil,
+							}}, nil
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:   "myRC.policy",
+								Source: PolicySourceRC,
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+										Combine:    OverridePolicy,
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/rc-custom/file\"",
+									},
+								},
+							}}, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, fields fields, got *EvaluationSet, msgs ...interface{}) bool {
+				assert.Equal(t, 1, len(got.RuleSets))
+				if _, ok := got.RuleSets[DefaultRuleSetTagValue]; !ok {
+					t.Errorf("Missing %s rule set", DefaultRuleSetTagValue)
+				}
+
+				assert.Equal(t, 2, len(got.RuleSets[DefaultRuleSetTagValue].rules))
+
+				expectedRules := map[eval.RuleID]*Rule{
+					"foo": {
+						Rule: &eval.Rule{
+							ID:         "foo",
+							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "foo",
+							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
+						}},
+					"bar": {
+						Rule: &eval.Rule{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/local-default/file\"",
+						},
+					},
+				}
+
+				var r DiffReporter
+				// TODO: Use custom cmp.Comparer instead of ignoring unexported fields
+				if !cmp.Equal(expectedRules, got.RuleSets[DefaultRuleSetTagValue].rules, cmp.Reporter(&r),
+					cmpopts.IgnoreFields(Rule{}, "Opts", "Model"), cmpopts.IgnoreFields(RuleDefinition{}, "Policy"),
+					cmpopts.IgnoreFields(RuleSet{}, "opts", "evalOpts", "eventRuleBuckets", "fieldEvaluators", "model",
+						"eventCtor", "listenersLock", "listeners", "globalVariables", "scopedVariables", "fields", "logger", "pool"),
+					cmpopts.IgnoreUnexported(eval.Rule{})) {
+					assert.Fail(t, fmt.Sprintf("Diff: %s)", r.String()))
+				}
+
+				return true
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				return assert.ErrorContains(t, err, "rule `bar` error: multiple definition with the same ID", fmt.Sprintf("Errors are: %+v", err.Errors))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			p := &PolicyLoader{
+				Providers: tt.fields.Providers,
+			}
+
+			policyLoaderOpts := PolicyLoaderOpts{}
+			es, _ := newTestEvaluationSet(tt.fields.TagValues)
+
+			err := es.LoadPolicies(p, policyLoaderOpts)
+
+			tt.want(t, tt.fields, es)
+			tt.wantErr(t, err)
+		})
+	}
+}
+
+func TestEvaluationSet_LoadPolicies_PolicyPrecedence(t *testing.T) {
+	type fields struct {
+		Providers []PolicyProvider
+		TagValues []eval.RuleSetTagValue
+	}
+	type args struct {
+		loader *PolicyLoader
+		opts   PolicyLoaderOpts
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    func(t assert.TestingT, fields fields, got *EvaluationSet, msgs ...interface{}) bool
+		wantErr func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool
+	}{
+		{
+			name: "RC Default replaces Local Default and overrides all else, and RC Custom overrides Local Custom",
+			fields: fields{
+				Providers: []PolicyProvider{
+					dummyDirProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:   "myLocal.policy",
+								Source: PolicySourceDir,
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/local-custom/foo\"",
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/local-custom/bar\"",
+									},
+									{
+										ID:         "baz",
+										Expression: "open.file.path == \"/etc/local-custom/baz\"",
+									},
+									{
+										ID:         "alpha",
+										Expression: "open.file.path == \"/etc/local-custom/alpha\"",
+									},
+								},
+							}, {
+								Name:   DefaultPolicyName,
+								Source: PolicySourceDir,
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/local-default/foo\"",
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/local-default/bar\"",
+									},
+									{
+										ID:         "baz",
+										Expression: "open.file.path == \"/etc/local-default/baz\"",
+									},
+									{
+										ID:         "alpha",
+										Expression: "open.file.path == \"/etc/local-default/alpha\"",
+									},
+								},
+							}}, nil
+						},
+					},
+					dummyRCProvider{
+						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+							return []*Policy{{
+								Name:   "myRC.policy",
+								Source: PolicySourceRC,
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/rc-custom/foo\"",
+									},
+									{
+										ID:         "bar",
+										Expression: "open.file.path == \"/etc/rc-custom/bar\"",
+									},
+									{
+										ID:         "baz",
+										Expression: "open.file.path == \"/etc/rc-custom/baz\"",
+									},
+								},
+							}, {
+								Name:   DefaultPolicyName,
+								Source: PolicySourceRC,
+								Rules: []*RuleDefinition{
+									{
+										ID:         "foo",
+										Expression: "open.file.path == \"/etc/rc-default/foo\"",
+									},
+								},
+							}}, nil
+						},
+					},
+				},
+			},
+			want: func(t assert.TestingT, fields fields, got *EvaluationSet, msgs ...interface{}) bool {
+				gotNumberOfRules := len(got.RuleSets[DefaultRuleSetTagValue].rules)
+				assert.Equal(t, 4, gotNumberOfRules)
+
+				expectedRules := map[eval.RuleID]*Rule{
+					"foo": {
+						Rule: &eval.Rule{
+							ID:         "foo",
+							Expression: "open.file.path == \"/etc/rc-default/foo\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "foo",
+							Expression: "open.file.path == \"/etc/rc-default/foo\"",
+						}},
+					"bar": {
+						Rule: &eval.Rule{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/rc-custom/bar\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "bar",
+							Expression: "open.file.path == \"/etc/rc-custom/bar\"",
+						}},
+					"baz": {
+						Rule: &eval.Rule{
+							ID:         "baz",
+							Expression: "open.file.path == \"/etc/rc-custom/baz\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "baz",
+							Expression: "open.file.path == \"/etc/rc-custom/baz\"",
+						}},
+					"alpha": {
+						Rule: &eval.Rule{
+							ID:         "alpha",
+							Expression: "open.file.path == \"/etc/local-custom/alpha\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "alpha",
+							Expression: "open.file.path == \"/etc/local-custom/alpha\"",
+						}},
+				}
+
+				var r DiffReporter
+
+				// TODO: Use custom cmp.Comparer instead of ignoring unexported fields
+				if !cmp.Equal(expectedRules, got.RuleSets[DefaultRuleSetTagValue].rules, cmp.Reporter(&r),
+					cmpopts.IgnoreFields(Rule{}, "Opts", "Model"), cmpopts.IgnoreFields(RuleDefinition{}, "Policy"),
+					cmpopts.IgnoreFields(RuleSet{}, "opts", "evalOpts", "eventRuleBuckets", "fieldEvaluators", "model",
+						"eventCtor", "listenersLock", "listeners", "globalVariables", "scopedVariables", "fields", "logger", "pool"),
+					cmpopts.IgnoreUnexported(eval.Rule{})) {
+					assert.Fail(t, fmt.Sprintf("Diff: %s)", r.String()))
+				}
+
+				return true
+			},
+			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+				assert.Equal(t, err.Len(), 4, "Expected %d errors, got %d: %+v", 1, err.Len(), err)
+				assert.ErrorContains(t, err, "rule `foo` error: multiple definition with the same ID", fmt.Sprintf("Errors are: %+v", err.Errors))
+				assert.ErrorContains(t, err, "rule `bar` error: multiple definition with the same ID", fmt.Sprintf("Errors are: %+v", err.Errors))
+				return assert.ErrorContains(t, err, "rule `baz` error: multiple definition with the same ID", fmt.Sprintf("Errors are: %+v", err.Errors))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &PolicyLoader{
+				Providers: tt.fields.Providers,
+			}
+
+			policyLoaderOpts := PolicyLoaderOpts{}
+			es, _ := newTestEvaluationSet(tt.fields.TagValues)
+
+			err := es.LoadPolicies(p, policyLoaderOpts)
+
+			tt.want(t, tt.fields, es)
+			tt.wantErr(t, err)
+		})
+	}
+}
+
+func TestEvaluationSet_LoadPolicies_RuleSetTags(t *testing.T) {
 	type args struct {
 		policy    *PolicyDef
 		tagValues []eval.RuleSetTagValue

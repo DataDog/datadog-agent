@@ -52,7 +52,7 @@ func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierr
 		defaultPolicy *Policy
 	)
 
-	// use the provider in the order of insertion, keep the very last default policy
+	// use the providers in the order of insertion, keep the very last default policy
 	p.remoteConfigProvidersFirst()
 	for _, provider := range p.Providers {
 		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters)
