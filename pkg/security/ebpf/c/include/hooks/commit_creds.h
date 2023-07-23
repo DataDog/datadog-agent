@@ -76,7 +76,7 @@ int __attribute__((always_inline)) kprobe_credentials_update_ret(struct pt_regs 
     return credentials_update_ret(ctx, retval);
 }
 
-HOOK_SYSCALL_ENTRY(setuid) {
+HOOK_SYSCALL_ENTRY0(setuid) {
     return credentials_update(EVENT_SETUID);
 }
 
