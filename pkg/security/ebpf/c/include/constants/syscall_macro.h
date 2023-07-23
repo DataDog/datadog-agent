@@ -103,8 +103,8 @@
   if (!rctx) return 0; \
   __MAP(x,m,__VA_ARGS__)
 
-#define __SC_64_FENTRY_PARAM(n, t, a) t a = (t) rctx[n];
-#define __SC_32_FENTRY_PARAM(n, t, a) t a = (t) rctx[n];
+#define __SC_64_FENTRY_PARAM(n, t, a) t a = (t) rctx[n-1];
+#define __SC_32_FENTRY_PARAM(n, t, a) t a = (t) rctx[n-1];
 
 #if USE_SYSCALL_WRAPPER == 1
   #define __SC_64_KPROBE_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL64_PT_REGS_PARM##n(rctx));
