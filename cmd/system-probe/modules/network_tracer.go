@@ -321,6 +321,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 func (nt *networkTracer) RegisterGRPC(server *grpc.Server) error {
 	connectionserver.RegisterSystemProbeServer(server, nt)
+	log.Infof("gRPC server listening on unix socket")
 	return nil
 }
 
