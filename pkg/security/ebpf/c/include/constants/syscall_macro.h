@@ -99,12 +99,12 @@
 #define SYSCALL_KRETPROBE_PROLOG(...)
 
 #define SYSCALL_FENTRY_PROLOG(x,m,syscall,...) \
-  ctx_t *rctx = (ctx_t*)ctx; \
+  struct pt_regs *rctx = (struct pt_regs *) ((ctx_t *)ctx)[0]; \
   if (!rctx) return 0; \
   __MAP(x,m,__VA_ARGS__)
 
-#define __SC_64_FENTRY_PARAM(n, t, a) t a = (t) rctx[n-1];
-#define __SC_32_FENTRY_PARAM(n, t, a) t a = (t) rctx[n-1];
+#define __SC_64_FENTRY_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL64_PT_REGS_PARM##n(rctx));
+#define __SC_32_FENTRY_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL32_PT_REGS_PARM##n(rctx));
 
 #if USE_SYSCALL_WRAPPER == 1
   #define __SC_64_KPROBE_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL64_PT_REGS_PARM##n(rctx));
