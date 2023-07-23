@@ -154,7 +154,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 		tags := []string{
 			"target_service:" + c.config.TargetService,
 			"agent_host:" + hname,
-			"destination_host:" + destinationHost,
+			"target:" + destinationHost,
 			"hop_ip_address:" + ip,
 			"hop_host:" + hop.HostOrAddressString(),
 			"ttl:" + strconv.Itoa(hop.TTL),
