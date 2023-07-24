@@ -285,9 +285,7 @@ class Gitlab(RemoteAPI):
         """
         Adds "PRIVATE-TOKEN: {self.api_token}" to the headers to be able to authenticate ourselves to GitLab.
         """
-        return {
-            "PRIVATE-TOKEN": self.api_token
-        }
+        return {"PRIVATE-TOKEN": self.api_token}
 
 
 def get_gitlab_token():
