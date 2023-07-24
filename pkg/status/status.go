@@ -309,6 +309,14 @@ func getRemoteConfigStatus() map[string]interface{} {
 	if config.IsRemoteConfigEnabled(config.Datadog) && expvar.Get("remoteConfigStatus") != nil {
 		remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
 		json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
+	} else {
+		if !config.Datadog.GetBool("remote_configuration.enabled") {
+			status["disabledReason"] = "`remote_configuration.enabled` is set to false"
+		} else if config.Datadog.GetBool("fips.enabled") {
+			status["disabledReason"] = "`fips.enabled` is set to true"
+		} else if config.Datadog.GetString("site") == "ddog-gov.com" {
+			status["disabledReason"] = "the agent runs on govcloud"
+		}
 	}
 
 	return status
