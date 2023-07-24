@@ -11,6 +11,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
@@ -40,7 +43,7 @@ var (
 	pipelineError = atomic.NewError(nil)
 )
 
-func getComponents(s serializer.MetricSerializer) (
+func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (
 	otelcol.Factories,
 	error,
 ) {
@@ -59,11 +62,17 @@ func getComponents(s serializer.MetricSerializer) (
 		errs = append(errs, err)
 	}
 
-	exporters, err := exporter.MakeFactoryMap(
+	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s),
 		loggingexporter.NewFactory(),
-	)
+	}
+
+	if logsAgentChannel != nil {
+		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel))
+	}
+
+	exporters, err := exporter.MakeFactoryMap(exporterFactories...)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -154,13 +163,17 @@ type CollectorStatus struct {
 }
 
 // NewPipeline defines a new OTLP pipeline.
-func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer) (*Pipeline, error) {
+func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build info: %w", err)
 	}
 
-	factories, err := getComponents(s)
+	if cfg.LogsEnabled && logsAgentChannel == nil {
+		return nil, fmt.Errorf("failed to get logsAgentChannel")
+	}
+
+	factories, err := getComponents(s, logsAgentChannel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get components: %w", err)
 	}
@@ -207,8 +220,8 @@ func (p *Pipeline) Stop() {
 }
 
 // BuildAndStart builds and starts an OTLP pipeline
-func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
-	p, err := NewPipelineFromAgentConfig(cfg, s)
+func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
+	p, err := NewPipelineFromAgentConfig(cfg, s, logsAgentChannel)
 	if err != nil {
 		return nil, err
 	}
@@ -222,14 +235,19 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 	return p, nil
 }
 
-func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer) (*Pipeline, error) {
+func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()
 	}
 
-	p, err := NewPipeline(pcfg, s)
+	if pcfg.LogsEnabled && logsAgentChannel == nil {
+		pipelineError.Store(fmt.Errorf("failed to get logsAgentChannel"))
+		return nil, pipelineError.Load()
+	}
+
+	p, err := NewPipeline(pcfg, s, logsAgentChannel)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("failed to build pipeline: %w", err))
 		return nil, pipelineError.Load()

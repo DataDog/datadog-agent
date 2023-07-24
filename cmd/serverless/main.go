@@ -15,9 +15,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
@@ -26,12 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -232,20 +234,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
-	// starts otlp agent
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if !otlp.IsEnabled() {
-			log.Debug("otlp endpoint disabled")
-			return
-		}
-		otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
-		otlpAgent.Start()
-		serverlessDaemon.SetOTLPAgent(otlpAgent)
-	}()
-
 	// enable telemetry collection
+	var logsAgentChannel chan *message.Message
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -271,7 +262,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+			logsAgent := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+			logsAgentChannel = logsAgent.GetPipelineProvider().NextPipelineChan()
 		}
 	}()
 
@@ -295,6 +287,16 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	wg.Wait()
+
+	// starts otlp agent
+	// TODO: OTLP agent setup should only wait for logs-agent if logs are enabled. Otherwise, should start in goroutine
+	if !otlp.IsEnabled() {
+		log.Debug("otlp endpoint disabled")
+	} else {
+		otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer(), logsAgentChannel)
+		otlpAgent.Start()
+		serverlessDaemon.SetOTLPAgent(otlpAgent)
+	}
 
 	coldStartSpanCreator := &trace.ColdStartSpanCreator{
 		LambdaSpanChan:       lambdaSpanChan,
