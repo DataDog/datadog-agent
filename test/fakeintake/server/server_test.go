@@ -23,7 +23,7 @@ import (
 )
 
 func TestServer(t *testing.T) {
-	t.Skip("unstable on windows unit test")
+	// t.Skip("unstable on windows unit test")
 	t.Run("should accept payloads on any route", func(t *testing.T) {
 		fi := NewServer(WithClock(clock.NewMock()))
 
@@ -247,6 +247,7 @@ func TestServer(t *testing.T) {
 	t.Run("should clean payloads older than 15 minutes", func(t *testing.T) {
 		clock := clock.NewMock()
 		fi := NewServer(WithClock(clock), WithRetention(15*time.Minute))
+		fi.Start()
 
 		fi.payloadStore["/test"] = []api.Payload{
 			{
@@ -261,6 +262,38 @@ func TestServer(t *testing.T) {
 		clock.Add(10 * time.Minute)
 
 		assert.Empty(t, fi.payloadStore["/test"], "should be empty after cleanup")
+		fi.Stop()
+	})
+
+	t.Run("should clean payloads older than 15 minutes and keep recent payloads", func(t *testing.T) {
+		clock := clock.NewMock()
+		fi := NewServer(WithClock(clock), WithRetention(15*time.Minute))
+		fi.Start()
+
+		fi.payloadStore["/test"] = []api.Payload{
+			{
+				Timestamp: clock.Now(),
+				Data:      []byte("test"),
+			},
+		}
+		clock.Add(10 * time.Minute)
+
+		fi.payloadStore["/test_new"] = []api.Payload{
+			{
+				Timestamp: clock.Now(),
+				Data:      []byte("test"),
+			},
+		}
+
+		assert.Len(t, fi.payloadStore["/test"], 1, "should contain one element before cleanup")
+		assert.Len(t, fi.payloadStore["/test_new"], 1, "should contain one element before cleanup")
+
+		clock.Add(10 * time.Minute)
+
+		assert.Empty(t, fi.payloadStore["/test"], "should be empty after cleanup")
+		assert.Len(t, fi.payloadStore["/test_new"], 1, "should contain one element after 10 minutes")
+
+		fi.Stop()
 	})
 }
 
