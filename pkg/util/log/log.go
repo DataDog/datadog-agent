@@ -457,7 +457,12 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(stri
 		addLogToBuffer(bufferFunc)
 	}
 	err := formatError(v...)
-	if fallbackStderr {
+
+	// Originally (PR 6436) fallbackStderr check had been added to handle a small window
+	// where error messages had been lost before Logger had been initialized. Adjusting
+	// just for that case because if the error log should not be logged - because it has
+	// been suppressed then it should be taken into account.
+	if fallbackStderr && (Logger == nil || Logger.inner == nil) {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err
@@ -482,7 +487,12 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc fun
 		addLogToBuffer(bufferFunc)
 	}
 	err := formatErrorf(format, params...)
-	if fallbackStderr {
+
+	// Originally (PR 6436) fallbackStderr check had been added to handle a small window
+	// where error messages had been lost before Logger had been initialized. Adjusting
+	// just for that case because if the error log should not be logged - because it has
+	// been suppressed then it should be taken into account.
+	if fallbackStderr && (Logger == nil || Logger.inner == nil) {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err

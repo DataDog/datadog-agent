@@ -18,6 +18,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -270,4 +271,9 @@ func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 		return stats.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
 	}
 	return sender.GetSenderStats(), nil
+}
+
+// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
+func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	return nil, nil
 }

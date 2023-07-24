@@ -48,20 +48,14 @@ func ReportPrometheus() {
 
 func metricToPrometheus(m metric) any {
 	base := m.base()
-	subsystem := ""
-	name := base.name
 
 	// Parse subsystem and name following convention used in the codebase
 	//
 	// Example: a metric with name `usm.http.hits` will be converted into
 	// subsystem: "usm__http"
 	// name: "hits"
-	separatorPos := strings.LastIndex(name, ".")
-	if separatorPos > 0 && separatorPos < len(name)-1 {
-		subsystem = name[:separatorPos]
-		name = name[separatorPos+1:]
-		subsystem = strings.ReplaceAll(subsystem, ".", "__")
-	}
+	subsystem, name := splitName(m)
+	subsystem = strings.ReplaceAll(subsystem, ".", "__")
 
 	keys := tagKeys(base)
 	if _, ok := m.(*Counter); ok {

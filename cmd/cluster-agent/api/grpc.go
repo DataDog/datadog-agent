@@ -8,7 +8,7 @@ package api
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 )

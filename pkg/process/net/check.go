@@ -15,6 +15,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 )
 
 const (
@@ -51,6 +52,13 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{},
 		return stats, nil
 	} else if module == sysconfig.OOMKillProbeModule {
 		var stats []probe.OOMKillStats
+		err = json.Unmarshal(body, &stats)
+		if err != nil {
+			return nil, err
+		}
+		return stats, nil
+	} else if module == sysconfig.EBPFModule {
+		var stats ebpfcheck.EBPFStats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err
