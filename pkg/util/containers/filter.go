@@ -215,13 +215,25 @@ func GetFilterErrors() map[string]struct{} {
 // the following format: "field:pattern" where field can be: [image, name, kube_namespace].
 // An error is returned if any of the expression don't compile.
 func NewFilter(ft FilterType, includeList, excludeList []string) (*Filter, error) {
+	// clean up entries in exclude/include list
+	// This fixes issue where `DD_CONTAINER_EXCLUDE="name:datadog-agent"` creates an invalid list item
+	for i := range includeList {
+		if strings.HasPrefix(includeList[i], "\"") {
+			includeList[i] = strings.Trim(includeList[i], "\"")
+		}
+	}
+	for i := range excludeList {
+		if strings.HasPrefix(excludeList[i], "\"") {
+			excludeList[i] = strings.Trim(excludeList[i], "\"")
+		}
+	}
 	imgIncl, nameIncl, nsIncl, filterErrsIncl, errIncl := parseFilters(includeList)
 	imgExcl, nameExcl, nsExcl, filterErrsExcl, errExcl := parseFilters(excludeList)
 
-	errors := append(filterErrsIncl, filterErrsExcl...)
+	filterErrs := append(filterErrsIncl, filterErrsExcl...)
 	errorsMap := make(map[string]struct{})
-	if len(errors) > 0 {
-		for _, err := range errors {
+	if len(filterErrs) > 0 {
+		for _, err := range filterErrs {
 			errorsMap[err] = struct{}{}
 		}
 	}

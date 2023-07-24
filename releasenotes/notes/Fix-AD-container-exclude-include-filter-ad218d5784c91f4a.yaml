@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    When following the documentation for `Docker Log collection <https://docs.datadoghq.com/containers/docker/log/?tab=containerinstallation>`,
+    the `DD_CONTAINER_EXCLUDE` or `DD_CONTAINER_INCLUDE` environment variable would not work as Agent would not trim `"` from the variable
+    resulting in the following warning in the logs `Container filter "\"name:datadog-agent\"" is unknown, ignoring it. The supported filters are 'image', 'name' and '
+  kube_namespace'`.
