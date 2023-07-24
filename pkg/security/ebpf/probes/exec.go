@@ -7,7 +7,11 @@
 
 package probes
 
-import manager "github.com/DataDog/ebpf-manager"
+import (
+	"strings"
+
+	manager "github.com/DataDog/ebpf-manager"
+)
 
 func getExecProbes(fentry bool) []*manager.Probe {
 	var execProbes = []*manager.Probe{
@@ -194,12 +198,17 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		"setresgid16",
 		"capset",
 	} {
+		flags := EntryAndExit
+		if !strings.HasSuffix(name, "16") {
+			flags |= SupportFentry
+		}
+
 		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID: SecurityAgentUID,
 			},
 			SyscallFuncName: name,
-		}, fentry, EntryAndExit|SupportFentry)...)
+		}, fentry, flags)...)
 	}
 
 	return execProbes
