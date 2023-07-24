@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -38,15 +38,6 @@ func launchProcessMonitor(t *testing.T) {
 	pm := monitor.GetProcessMonitor()
 	t.Cleanup(pm.Stop)
 	require.NoError(t, pm.Initialize())
-}
-
-func registerProcessTerminationUponCleanup(t *testing.T, cmd *exec.Cmd) {
-	t.Cleanup(func() {
-		if cmd.Process == nil {
-			return
-		}
-		_ = cmd.Process.Kill()
-	})
 }
 
 type SharedLibrarySuite struct {
@@ -85,10 +76,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	launchProcessMonitor(t)
 
 	// create files
-	clientBin := buildSOWatcherClientBin(t)
-	command1 := exec.Command(clientBin, fooPath1)
-	require.NoError(t, command1.Start())
-	registerProcessTerminationUponCleanup(t, command1)
+	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1)
 
 	require.Eventuallyf(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1
@@ -191,10 +179,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
-	clientBin := buildSOWatcherClientBin(t)
-	command1 := exec.Command(clientBin, fooPath1, fooPath2)
-	require.NoError(t, command1.Start())
-	registerProcessTerminationUponCleanup(t, command1)
+	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 
 	require.Eventuallyf(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&
@@ -241,12 +226,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	t.Cleanup(watcher.Stop)
 	launchProcessMonitor(t)
 
-	// create files
-	clientBin := buildSOWatcherClientBin(t)
-
-	command1 := exec.Command(clientBin, fooPath1, fooPath2)
-	require.NoError(t, command1.Start())
-	registerProcessTerminationUponCleanup(t, command1)
+	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 
 	require.Eventuallyf(t, func() bool {
 		// Checking register callback was executed once for each library
@@ -256,9 +236,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 			hasPID(watcher, command1)
 	}, time.Second*10, time.Second, "")
 
-	command2 := exec.Command(clientBin, fooPath1)
-	require.NoError(t, command2.Start())
-	registerProcessTerminationUponCleanup(t, command2)
+	command2 := fileopener.OpenFromAnotherProcess(t, fooPath1)
 
 	require.Eventuallyf(t, func() bool {
 		// Check that no more callbacks were executed, but we're tracking two PIDs now
@@ -308,15 +286,8 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	)
 	require.NoError(t, err)
 
-	// create files
-	clientBin := buildSOWatcherClientBin(t)
-
-	command1 := exec.Command(clientBin, fooPath1, fooPath2)
-	require.NoError(t, command1.Start())
-	registerProcessTerminationUponCleanup(t, command1)
-	command2 := exec.Command(clientBin, fooPath1)
-	require.NoError(t, command2.Start())
-	registerProcessTerminationUponCleanup(t, command1)
+	command1 := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
+	command2 := fileopener.OpenFromAnotherProcess(t, fooPath1)
 	time.Sleep(time.Second)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
@@ -347,40 +318,6 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 			!hasPID(watcher, command1) &&
 			!hasPID(watcher, command2)
 	}, time.Second*10, time.Second, "")
-}
-
-func buildSOWatcherClientBin(t *testing.T) string {
-	const ClientSrcPath = "sowatcher_client"
-	const ClientBinaryPath = "testutil/sowatcher_client/sowatcher_client"
-
-	t.Helper()
-
-	cur, err := testutil.CurDir()
-	require.NoError(t, err)
-
-	clientBinary := fmt.Sprintf("%s/%s", cur, ClientBinaryPath)
-
-	// If there is a compiled binary already, skip the compilation.
-	// Meant for the CI.
-	if _, err = os.Stat(clientBinary); err == nil {
-		return clientBinary
-	}
-
-	clientSrcDir := fmt.Sprintf("%s/testutil/%s", cur, ClientSrcPath)
-	clientBuildDir, err := os.MkdirTemp("", "sowatcher_client_build-")
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		os.RemoveAll(clientBuildDir)
-	})
-
-	clientBinPath := fmt.Sprintf("%s/sowatcher_client", clientBuildDir)
-
-	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", clientBinPath, clientSrcDir)
-	out, err := c.CombinedOutput()
-	require.NoError(t, err, "could not build client test binary: %s\noutput: %s", err, string(out))
-
-	return clientBinPath
 }
 
 func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
