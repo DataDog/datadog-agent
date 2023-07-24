@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package grpc
+package http2
 
 import (
 	"context"
@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -46,8 +45,8 @@ func testGRPCScenarios(t *testing.T) {
 		t.Skipf("USM can not run on kernel before %v", http.MinimumKernelVersion)
 	}
 
-	if currKernelVersion < http2.MinimumKernelVersion {
-		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)
+	if currKernelVersion < MinimumKernelVersion {
+		t.Skipf("HTTP2 monitoring can not run on kernel before %v", MinimumKernelVersion)
 	}
 
 	s, err := grpc.NewServer(srvAddr)
@@ -595,7 +594,7 @@ func testGRPCScenarios(t *testing.T) {
 				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
-				defer monitor.Stop()
+				t.Cleanup(monitor.Stop)
 
 				tt.runClients(t, val)
 
