@@ -410,6 +410,7 @@ func (d *Daemon) StartLogCollection() {
 // setTraceTags tries to set extra tags to the Trace agent.
 // setTraceTags returns a boolean which indicate whether or not the operation succeed for testing purpose.
 func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
+	// might be able to call AddColdStartTag here and have it work ootb
 	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
 		d.TraceAgent.SetTags(tags.BuildTracerTags(tagMap))
 		return true
