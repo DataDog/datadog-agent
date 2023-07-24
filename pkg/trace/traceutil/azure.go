@@ -86,6 +86,9 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 		}
 	}
 
+	// Same as setting DD_HOSTNAME=none
+	tags["hostname"] = ""
+
 	return tags
 }
 

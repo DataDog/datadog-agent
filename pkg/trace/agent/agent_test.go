@@ -337,15 +337,19 @@ func TestProcess(t *testing.T) {
 
 		for _, chunk := range tp.Chunks {
 			for i, span := range chunk.Spans {
-				if i == 0 {
-					// root span should contain all aas tags
-					for tag := range traceutil.GetAppServicesTags() {
+				for tag := range traceutil.GetAppServicesTags() {
+					if i == 0 || tag == "aas.site.name" || tag == "aas.site.type" {
+						// root span should contain all aas tags
 						assert.Contains(t, span.Meta, tag)
+
+						// hostname should be none for billing
+						if tag == "hostname" {
+							assert.Equal(t, span.Meta[tag], "")
+						}
+					} else {
+						// other spans should only contain site name and type
+						assert.NotContains(t, span.Meta, tag)
 					}
-				} else {
-					// other spans should only contain site name and type
-					assert.Contains(t, span.Meta, "aas.site.name")
-					assert.Contains(t, span.Meta, "aas.site.type")
 				}
 			}
 		}
