@@ -543,15 +543,14 @@ int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
     return fetch_interpreter(ctx, bprm);
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/setup_new_exec")
-int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
+HOOK_ENTRY("setup_new_exec")
+int hook_setup_new_exec_args_envs(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
 
-    void *bprm = (void *)PT_REGS_PARM1(ctx);
+    void *bprm = (void *)CTX_PARM1(ctx);
 
     int argc = 0;
     u64 argc_offset;
