@@ -155,25 +155,25 @@ func getExecProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "fork",
-	}, fentry, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "vfork",
-	}, fentry, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "clone",
-	}, fentry, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "clone3",
-	}, fentry, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 
 	for _, name := range []string{
 		"setuid",
