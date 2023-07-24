@@ -724,6 +724,21 @@ func TestLoadPolicy(t *testing.T) {
 			},
 		},
 		{
+			name: "empty yaml file with new line char",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicySourceRC,
+				fileContent: `
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: nil,
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+			},
+		},
+		{
 			name: "no rules in yaml file",
 			args: args{
 				name:   "myLocal.policy",
@@ -740,6 +755,22 @@ rules:
 				Rules:  nil,
 			},
 			wantErr: assert.NoError,
+		},
+		{
+			name: "broken yaml file",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicySourceRC,
+				fileContent: `
+broken
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: nil,
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
+			},
 		},
 	}
 	for _, tt := range tests {
