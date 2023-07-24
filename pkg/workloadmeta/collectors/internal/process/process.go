@@ -7,7 +7,6 @@ package process
 
 import (
 	"context"
-	"time"
 
 	"github.com/benbjohnson/clock"
 
@@ -20,8 +19,6 @@ import (
 )
 
 const collectorId = "local-process"
-
-const collectionInterval = 1 * time.Minute
 
 // Used for testing
 var c *collector
