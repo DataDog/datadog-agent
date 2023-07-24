@@ -76,19 +76,11 @@ int __attribute__((always_inline)) kprobe_credentials_update_ret(struct pt_regs 
     return credentials_update_ret(ctx, retval);
 }
 
-SYSCALL_KPROBE0(setuid) {
+HOOK_SYSCALL_ENTRY0(setuid) {
     return credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setuid) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
-SYSCALL_KPROBE0(seteuid) {
-    return credentials_update(EVENT_SETUID);
-}
-
-SYSCALL_KRETPROBE(seteuid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
@@ -124,14 +116,6 @@ SYSCALL_KRETPROBE(setuid16) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SYSCALL_KPROBE0(seteuid16) {
-    return credentials_update(EVENT_SETUID);
-}
-
-SYSCALL_KRETPROBE(seteuid16) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
 SYSCALL_KPROBE0(setfsuid16) {
     return credentials_update(EVENT_SETUID);
 }
@@ -164,14 +148,6 @@ SYSCALL_KRETPROBE(setgid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SYSCALL_KPROBE0(setegid) {
-    return credentials_update(EVENT_SETGID);
-}
-
-SYSCALL_KRETPROBE(setegid) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
 SYSCALL_KPROBE0(setfsgid) {
     return credentials_update(EVENT_SETGID);
 }
@@ -201,14 +177,6 @@ SYSCALL_KPROBE0(setgid16) {
 }
 
 SYSCALL_KRETPROBE(setgid16) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
-SYSCALL_KPROBE0(setegid16) {
-    return credentials_update(EVENT_SETGID);
-}
-
-SYSCALL_KRETPROBE(setegid16) {
     return kprobe_credentials_update_ret(ctx);
 }
 

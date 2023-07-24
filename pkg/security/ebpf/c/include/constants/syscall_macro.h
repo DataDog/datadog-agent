@@ -98,6 +98,11 @@
 #define SYSCALL_HOOK_COMMON(x,type,syscall,...) int __attribute__((always_inline)) type##__sys##syscall(struct pt_regs *ctx __JOIN(x,__SC_DECL,__VA_ARGS__))
 #define SYSCALL_KRETPROBE_PROLOG(...)
 
+#define SYSCALL_FENTRY_PROLOG(x,m,syscall,...) \
+  struct pt_regs *rctx = (struct pt_regs *) ((ctx_t *)ctx)[0]; \
+  if (!rctx) return 0; \
+  __MAP(x,m,__VA_ARGS__)
+
 #if USE_SYSCALL_WRAPPER == 1
   #define __SC_64_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL64_PT_REGS_PARM##n(rctx));
   #define __SC_32_PARAM(n, t, a) t a; bpf_probe_read(&a, sizeof(t), (void*) &SYSCALL32_PT_REGS_PARM##n(rctx));
@@ -147,6 +152,9 @@
 #define SYSCALL_KPROBE4(name, ...) SYSCALL_HOOKx(4,kprobe,KPROBE,,_##name,__VA_ARGS__)
 #define SYSCALL_KPROBE5(name, ...) SYSCALL_HOOKx(5,kprobe,KPROBE,,_##name,__VA_ARGS__)
 #define SYSCALL_KPROBE6(name, ...) SYSCALL_HOOKx(6,kprobe,KPROBE,,_##name,__VA_ARGS__)
+
+#define SYSCALL_FENTRY0(name, ...) SYSCALL_HOOKx(0,fentry,FENTRY,,_##name,__VA_ARGS__)
+#define SYSCALL_FENTRY1(name, ...) SYSCALL_HOOKx(1,fentry,FENTRY,,_##name,__VA_ARGS__)
 
 #define SYSCALL_KRETPROBE(name, ...) SYSCALL_HOOKx(0,kretprobe,KRETPROBE,,_##name)
 
