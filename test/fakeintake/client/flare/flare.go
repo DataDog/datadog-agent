@@ -7,8 +7,10 @@ package flare
 
 import (
 	"archive/zip"
+	"fmt"
 	"io"
 	"io/fs"
+	"os"
 	"path/filepath"
 )
 
@@ -41,29 +43,55 @@ func (flare *Flare) GetHostname() string {
 	return flare.hostname
 }
 
-// getFile returns a *zip.File whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
-func (flare *Flare) getFile(path string) *zip.File {
-	return flare.zipFiles[filepath.Clean(path)]
+// GetFile returns a *zip.File whose name is 'path' or 'path/'. Returns an error if the file does not exist
+func (flare *Flare) GetFile(path string) (*zip.File, error) {
+	cleanPath := filepath.Clean(path)
+	file, found := flare.zipFiles[cleanPath]
+
+	if !found {
+		return nil, fmt.Errorf("Could not find %v file in flare archive", cleanPath)
+	}
+
+	return file, nil
 }
 
-// getFileInfo returns a fs.FileInfo associated to the file whose name is 'path' or 'path/'. It's expected that the caller has verified that 'path' exists before calling this function.
-func (flare *Flare) getFileInfo(path string) fs.FileInfo {
-	return flare.getFile(path).FileInfo()
+// GetFileInfo returns a fs.FileInfo associated to the file whose name is 'path' or 'path/'. Returns an error if the file does not exist
+func (flare *Flare) GetFileInfo(path string) (fs.FileInfo, error) {
+	file, err := flare.GetFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return file.FileInfo(), nil
 }
 
-// getFileContent gets the content from a file and returns it as a string
-func (flare *Flare) getFileContent(path string) string {
-	file := flare.getFile(path)
+// GetPermission returns a fs.FileMode associated to the file whose name is 'path' or 'path/'. Returns an error if the file does not exist
+func (flare *Flare) GetPermission(path string) (os.FileMode, error) {
+	fileInfo, err := flare.GetFileInfo(path)
+	if err != nil {
+		return 0, err
+	}
+
+	return fileInfo.Mode(), nil
+}
+
+// GetFileContent gets the content from a file and returns it as a string. Returns an error if the file does not exist
+func (flare *Flare) GetFileContent(path string) (string, error) {
+	file, err := flare.GetFile(path)
+	if err != nil {
+		return "", err
+	}
+
 	fileReader, err := file.Open()
 	if err != nil {
-		return ""
+		return "", nil
 	}
 
 	fileContent := make([]byte, file.UncompressedSize64)
 	_, err = io.ReadFull(fileReader, fileContent)
 	if err != nil {
-		return ""
+		return "", nil
 	}
 
-	return string(fileContent)
+	return string(fileContent), nil
 }
