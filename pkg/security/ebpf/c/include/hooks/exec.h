@@ -335,8 +335,8 @@ int hook_security_bprm_check(ctx_t *ctx) {
 }
 
 // fentry blocked by: tail call
-SEC("kprobe/get_envs_offset")
-int kprobe_get_envs_offset(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("get_envs_offset")
+int tail_call_target_get_envs_offset(void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -452,9 +452,8 @@ void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct 
     }
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/parse_args_envs_split")
-int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("parse_args_envs_split")
+int tail_call_target_parse_args_envs_split(void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -482,9 +481,8 @@ int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/parse_args_envs")
-int kprobe_parse_args_envs(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("parse_args_envs")
+int tail_call_target_parse_args_envs(void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
