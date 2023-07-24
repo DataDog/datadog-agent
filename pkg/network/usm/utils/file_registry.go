@@ -65,6 +65,7 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 	path := fmt.Sprintf("%s/%d/root%s", procRoot, pid, namespacedPath)
 	pathID, err := NewPathIdentifier(path)
 	if err != nil {
+		fmt.Println("couldn't find file at", path)
 		return FilePath{}, err
 	}
 
@@ -85,15 +86,15 @@ func NewFileRegistry() *FileRegistry {
 		byPID:         make(map[uint32]pathIdentifierSet),
 		blocklistByID: make(pathIdentifierSet),
 		telemetry: registryTelemetry{
-			libHookFailed:               metricGroup.NewCounter("hook_failed"),
-			libRegistered:               metricGroup.NewCounter("registered"),
-			libAlreadyRegistered:        metricGroup.NewCounter("already_registered"),
-			libBlocked:                  metricGroup.NewCounter("blocked"),
-			libUnregistered:             metricGroup.NewCounter("unregistered"),
-			libUnregisterNoCB:           metricGroup.NewCounter("unregister_no_callback"),
-			libUnregisterErrors:         metricGroup.NewCounter("unregister_errors"),
-			libUnregisterFailedCB:       metricGroup.NewCounter("unregister_failed_cb"),
-			libUnregisterPathIDNotFound: metricGroup.NewCounter("unregister_path_id_not_found"),
+			fileHookFailed:               metricGroup.NewCounter("hook_failed"),
+			fileRegistered:               metricGroup.NewCounter("registered"),
+			fileAlreadyRegistered:        metricGroup.NewCounter("already_registered"),
+			fileBlocked:                  metricGroup.NewCounter("blocked"),
+			fileUnregistered:             metricGroup.NewCounter("unregistered"),
+			fileUnregisterNoCB:           metricGroup.NewCounter("unregister_no_callback"),
+			fileUnregisterErrors:         metricGroup.NewCounter("unregister_errors"),
+			fileUnregisterFailedCB:       metricGroup.NewCounter("unregister_failed_cb"),
+			fileUnregisterPathIDNotFound: metricGroup.NewCounter("unregister_path_id_not_found"),
 		},
 	}
 }
@@ -122,7 +123,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	}
 
 	if _, found := r.blocklistByID[pathID]; found {
-		r.telemetry.libBlocked.Add(1)
+		r.telemetry.fileBlocked.Add(1)
 		return
 	}
 
@@ -135,7 +136,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 			}
 			r.byPID[pid][pathID] = struct{}{}
 		}
-		r.telemetry.libAlreadyRegistered.Add(1)
+		r.telemetry.fileAlreadyRegistered.Add(1)
 		return
 	}
 
@@ -145,7 +146,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		// add `pathID` to blocklist so we don't attempt to re-register files
 		// that are problematic for some reason
 		r.blocklistByID[pathID] = struct{}{}
-		r.telemetry.libHookFailed.Add(1)
+		r.telemetry.fileHookFailed.Add(1)
 		return
 	}
 
@@ -156,7 +157,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	}
 	r.byPID[pid][pathID] = struct{}{}
 	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
-	r.telemetry.libRegistered.Add(1)
+	r.telemetry.fileRegistered.Add(1)
 }
 
 // Unregister a PID if it exists
@@ -184,7 +185,7 @@ func (r *FileRegistry) Unregister(pid uint32) {
 	for pathID := range paths {
 		reg, found := r.byID[pathID]
 		if !found {
-			r.telemetry.libUnregisterPathIDNotFound.Add(1)
+			r.telemetry.fileUnregisterPathIDNotFound.Add(1)
 			continue
 		}
 		if reg.unregisterPath(pathID) {
@@ -273,7 +274,7 @@ func (r *registration) unregisterPath(pathID PathIdentifier) bool {
 	}
 	if currentUniqueProcessesCount < 0 {
 		log.Errorf("unregistered %+v too much (current counter %v)", pathID, currentUniqueProcessesCount)
-		r.telemetry.libUnregisterErrors.Add(1)
+		r.telemetry.fileUnregisterErrors.Add(1)
 		return true
 	}
 
@@ -283,33 +284,33 @@ func (r *registration) unregisterPath(pathID PathIdentifier) bool {
 			// Even if we fail here, we have to return true, as best effort methodology.
 			// We cannot handle the failure, and thus we should continue.
 			log.Errorf("error while unregistering %s : %s", pathID.String(), err)
-			r.telemetry.libUnregisterFailedCB.Add(1)
+			r.telemetry.fileUnregisterFailedCB.Add(1)
 		}
 	} else {
-		r.telemetry.libUnregisterNoCB.Add(1)
+		r.telemetry.fileUnregisterNoCB.Add(1)
 	}
-	r.telemetry.libUnregistered.Add(1)
+	r.telemetry.fileUnregistered.Add(1)
 	return true
 }
 
 type registryTelemetry struct {
-	// a library can be :
-	//  o Registered : it's a new library
-	//  o AlreadyRegistered : we have already hooked (uprobe) this library (unique by pathID)
-	//  o HookFailed : uprobe registration failed for one library
+	// a file can be :
+	//  o Registered : it's a new file
+	//  o AlreadyRegistered : we have already hooked (uprobe) this file (unique by pathID)
+	//  o HookFailed : uprobe registration failed for one file
 	//  o Blocked : previous uprobe registration failed, so we block further call
-	//  o Unregistered : a library hook is unregistered, meaning there are no more refcount to the corresponding pathID
+	//  o Unregistered : a file hook is unregistered, meaning there are no more refcount to the corresponding pathID
 	//  o UnregisterNoCB : unregister event has been done but the rule doesn't have an unregister callback
 	//  o UnregisterErrors : we encounter an error during the unregistration, looks at the logs for further details
 	//  o UnregisterFailedCB : we encounter an error during the callback unregistration, looks at the logs for further details
 	//  o UnregisterPathIDNotFound : we can't find the pathID registration, it's a bug, this value should be always 0
-	libRegistered               *telemetry.Counter
-	libAlreadyRegistered        *telemetry.Counter
-	libHookFailed               *telemetry.Counter
-	libBlocked                  *telemetry.Counter
-	libUnregistered             *telemetry.Counter
-	libUnregisterNoCB           *telemetry.Counter
-	libUnregisterErrors         *telemetry.Counter
-	libUnregisterFailedCB       *telemetry.Counter
-	libUnregisterPathIDNotFound *telemetry.Counter
+	fileRegistered               *telemetry.Counter
+	fileAlreadyRegistered        *telemetry.Counter
+	fileHookFailed               *telemetry.Counter
+	fileBlocked                  *telemetry.Counter
+	fileUnregistered             *telemetry.Counter
+	fileUnregisterNoCB           *telemetry.Counter
+	fileUnregisterErrors         *telemetry.Counter
+	fileUnregisterFailedCB       *telemetry.Counter
+	fileUnregisterPathIDNotFound *telemetry.Counter
 }
