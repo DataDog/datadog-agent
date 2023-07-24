@@ -127,11 +127,11 @@ func TestProcessCollector(t *testing.T) {
 	c.setupProcs()
 
 	// Fast-forward through sync message
-	resp, err := c.stream.Recv()
+	_, err := c.stream.Recv()
 	require.NoError(t, err)
 
 	c.tick()
-	resp, err = c.stream.Recv()
+	resp, err := c.stream.Recv()
 	assert.NoError(t, err)
 
 	require.Len(t, resp.SetEvents, 1)
