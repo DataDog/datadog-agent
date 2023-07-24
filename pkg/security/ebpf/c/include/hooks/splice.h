@@ -40,6 +40,7 @@ int hook_get_pipe_info(ctx_t *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/get_pipe_info")
 int kretprobe_get_pipe_info(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SPLICE);

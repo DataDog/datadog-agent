@@ -13,6 +13,7 @@ include:
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
+  - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
   - /.gitlab/container_scan.yml
@@ -80,6 +81,7 @@ stages:
   - choco_build
   - choco_deploy
   - internal_image_deploy
+  - install_script_testing 
   - e2e
   - e2e_test_junit_upload
   - kitchen_cleanup
@@ -186,8 +188,8 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-08d9716d20480186e"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-044d1c0f7ab0e3537"
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-098ea4991ff2d244c"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-04493daab2918046c"
 
 #
 # Condition mixins for simplification of rules

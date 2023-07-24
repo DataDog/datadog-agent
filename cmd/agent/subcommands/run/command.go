@@ -45,6 +45,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/metadata"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -55,12 +57,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/logs"
-	"github.com/DataDog/datadog-agent/pkg/metadata"
+	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/netflow"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -104,7 +107,6 @@ import (
 
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
-	_ "github.com/DataDog/datadog-agent/pkg/metadata"
 )
 
 // demux is shared between StartAgent and StopAgent.
@@ -167,6 +169,9 @@ func run(log log.Component,
 	serverDebug dogstatsdDebug.Component,
 	forwarder defaultforwarder.Component,
 	rcclient rcclient.Component,
+	metadataRunner runner.Component,
+	demux *aggregator.AgentDemultiplexer,
+	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 ) error {
 	defer func() {
@@ -209,7 +214,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder, sharedSerializer); err != nil {
 		return err
 	}
 
@@ -233,10 +238,12 @@ func StartAgentWithDefaults() (dogstatsdServer.Component, error) {
 		capture replay.Component,
 		rcclient rcclient.Component,
 		forwarder defaultforwarder.Component,
+		metadataRunner runner.Component,
+		sharedSerializer serializer.MetricSerializer,
 	) error {
 		dsdServer = server
 
-		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder)
+		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, forwarder, sharedSerializer)
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
@@ -276,6 +283,27 @@ func getSharedFxOption() fx.Option {
 		}),
 		dogstatsd.Bundle,
 		rcclient.Module,
+		metadata.Bundle,
+		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
+		// other already migrated components to request it.
+		fx.Provide(func(config config.Component, log log.Component, sharedForwarder defaultforwarder.Component) (*aggregator.AgentDemultiplexer, error) {
+			opts := aggregator.DefaultAgentDemultiplexerOptions()
+			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+			opts.UseDogstatsdContextLimiter = true
+			opts.DogstatsdMaxMetricsTags = config.GetInt("dogstatsd_max_metrics_tags")
+			hostnameDetected, err := hostname.Get(context.TODO())
+			if err != nil {
+				return nil, log.Errorf("Error while getting hostname, exiting: %v", err)
+			}
+			// demux is currently a global used by start/stop. It will need to be migrated at some point
+			demux = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hostnameDetected)
+			return demux, nil
+		}),
+		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
+		// already migrated components to request it.
+		fx.Provide(func(demux *aggregator.AgentDemultiplexer) serializer.MetricSerializer {
+			return demux.Serializer()
+		}),
 	)
 }
 
@@ -290,7 +318,9 @@ func startAgent(
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
 	rcclient rcclient.Component,
-	sharedForwarder defaultforwarder.Component) error {
+	sharedForwarder defaultforwarder.Component,
+	sharedSerializer serializer.MetricSerializer,
+) error {
 
 	var err error
 
@@ -447,12 +477,6 @@ func startAgent(
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
-	opts.UseDogstatsdContextLimiter = true
-	opts.DogstatsdMaxMetricsTags = pkgconfig.Datadog.GetInt("dogstatsd_max_metrics_tags")
-	demux = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, hostnameDetected)
-
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
 		// TODO: to be removed when default telemetry is enabled.
@@ -464,7 +488,7 @@ func startAgent(
 	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
 	if otlpEnabled {
 		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, demux.Serializer())
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer)
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
 		} else {
@@ -531,12 +555,12 @@ func startAgent(
 	misconfig.ToLog(misconfig.CoreAgent)
 
 	// setup the metadata collector
-	common.MetadataScheduler = metadata.NewScheduler(demux)
-	if err := metadata.SetupMetadataCollection(common.MetadataScheduler, metadata.AllDefaultCollectors); err != nil {
+	common.MetadataScheduler = pkgMetadata.NewScheduler(demux)
+	if err := pkgMetadata.SetupMetadataCollection(common.MetadataScheduler, pkgMetadata.AllDefaultCollectors); err != nil {
 		return err
 	}
 
-	if err := metadata.SetupInventories(common.MetadataScheduler, common.Coll); err != nil {
+	if err := pkgMetadata.SetupInventories(common.MetadataScheduler, common.Coll); err != nil {
 		return err
 	}
 
