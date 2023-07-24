@@ -2,6 +2,12 @@ init_config:
 
 instances:
 
+    ## the Windows crash detection check will send an event if a system crash is detected
+    ## since the last time the agent is run.  It will send a single event for a given crash;
+    ## if the system is rebooted and the crash file is still present it will not send another event.
+    ##
+    ## The Windows crash detection check uses data from the crash dump file to notify when the 
+    ## crash occurred, and attempts to display which module caused the crash.
     -
 
     ## @param enabled - boolean - optional - default: true

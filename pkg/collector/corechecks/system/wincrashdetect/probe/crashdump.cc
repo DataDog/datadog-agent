@@ -74,7 +74,6 @@ READ_CRASH_DUMP_ERROR readCrashDump(char *fname, void *ctx, long * extendedError
         goto rcd_release_client;
     }    
     
-    
     hr = iClient->SetOutputCallbacks(&iOutputCb);
     if(S_OK != hr) {
         *extendedError = hr;
@@ -109,6 +108,5 @@ rcd_release_client:
         iClient->Release();
     }
 rcd_end:
-    return ret;
-   
+    return ret;   
 }
