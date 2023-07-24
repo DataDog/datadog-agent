@@ -60,10 +60,10 @@ func TestServer(t *testing.T) {
 		fi.handleGetPayloads(response, request)
 		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 
-		expectedResponse := api.APIFakeIntakePayloadsGETResponse{
+		expectedResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: nil,
 		}
-		actualResponse := api.APIFakeIntakePayloadsGETResponse{}
+		actualResponse := api.APIFakeIntakePayloadsRawGETResponse{}
 		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading response")
 		json.Unmarshal(body, &actualResponse)
@@ -97,7 +97,7 @@ func TestServer(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, getResponse.Code)
 
-		expectedGETResponse := api.APIFakeIntakePayloadsGETResponse{
+		expectedGETResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: []api.Payload{
 				{
 					Timestamp: clock.Now(),
@@ -111,7 +111,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
-		actualGETResponse := api.APIFakeIntakePayloadsGETResponse{}
+		actualGETResponse := api.APIFakeIntakePayloadsRawGETResponse{}
 		body, err := io.ReadAll(getResponse.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
