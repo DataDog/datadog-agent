@@ -334,7 +334,6 @@ int hook_security_bprm_check(ctx_t *ctx) {
     return fill_exec_context();
 }
 
-// fentry blocked by: tail call
 TAIL_CALL_TARGET("get_envs_offset")
 int tail_call_target_get_envs_offset(void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
@@ -382,7 +381,7 @@ int tail_call_target_get_envs_offset(void *ctx) {
     return 0;
 }
 
-void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs) {
+void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs) {
     const char *args_start = args_envs_ctx->args_start;
     int offset = args_envs_ctx->parsing_offset;
 
@@ -583,7 +582,6 @@ int hook_setup_new_exec_args_envs(ctx_t *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
 HOOK_ENTRY("setup_arg_pages")
 int hook_setup_arg_pages(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
