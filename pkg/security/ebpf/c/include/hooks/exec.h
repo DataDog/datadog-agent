@@ -585,8 +585,8 @@ int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
 }
 
 // fentry blocked by: tail call
-SEC("kprobe/setup_arg_pages")
-int kprobe_setup_arg_pages(struct pt_regs *ctx) {
+HOOK_ENTRY("setup_arg_pages")
+int hook_setup_arg_pages(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
