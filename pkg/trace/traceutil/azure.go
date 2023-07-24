@@ -10,21 +10,11 @@ import (
 	"os"
 	"runtime"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 )
 
 const (
-	aasInstanceID       = "aas.environment.instance_id"
-	aasInstanceName     = "aas.environment.instance_name"
-	aasOperatingSystem  = "aas.environment.os"
-	aasRuntime          = "aas.environment.runtime"
-	aasExtensionVersion = "aas.environment.extension_version"
-	aasResourceGroup    = "aas.resource.group"
-	aasResourceID       = "aas.resource.id"
-	aasSiteKind         = "aas.site.kind"
-	aasSiteName         = "aas.site.name"
-	aasSiteType         = "aas.site.type"
-	aasSubscriptionID   = "aas.subscription.id"
-
 	dotnetFramework    = ".NET"
 	nodeFramework      = "Node.js"
 	javaFramework      = "Java"
@@ -63,28 +53,31 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	resourceID := compileAzureResourceID(subscriptionID, resourceGroup, siteName)
 
 	tags := map[string]string{
-		aasInstanceID:      instanceID,
-		aasInstanceName:    computerName,
-		aasOperatingSystem: websiteOS,
-		aasRuntime:         currentRuntime,
-		aasResourceGroup:   resourceGroup,
-		aasResourceID:      resourceID,
-		aasSiteKind:        appService,
-		aasSiteName:        siteName,
-		aasSiteType:        appService,
-		aasSubscriptionID:  subscriptionID,
+		cloudservice.AasInstanceID:      instanceID,
+		cloudservice.AasInstanceName:    computerName,
+		cloudservice.AasOperatingSystem: websiteOS,
+		cloudservice.AasRuntime:         currentRuntime,
+		cloudservice.AasResourceGroup:   resourceGroup,
+		cloudservice.AasResourceID:      resourceID,
+		cloudservice.AasSiteKind:        appService,
+		cloudservice.AasSiteName:        siteName,
+		cloudservice.AasSiteType:        appService,
+		cloudservice.AasSubscriptionID:  subscriptionID,
 	}
 
 	// Remove the Java and .NET logic once non-universal extensions are deprecated
 	if websiteOS == "windows" {
 		if extensionVersion != "" {
-			tags[aasExtensionVersion] = extensionVersion
+			tags[cloudservice.AasExtensionVersion] = extensionVersion
 		} else if val := getenv("DD_AAS_JAVA_EXTENSION_VERSION"); val != "" {
-			tags[aasExtensionVersion] = val
+			tags[cloudservice.AasExtensionVersion] = val
 		} else if val := getenv("DD_AAS_DOTNET_EXTENSION_VERSION"); val != "" {
-			tags[aasExtensionVersion] = val
+			tags[cloudservice.AasExtensionVersion] = val
 		}
 	}
+
+	// DD_HOSTNAME=none for billing
+	tags["hostname"] = "none"
 
 	return tags
 }

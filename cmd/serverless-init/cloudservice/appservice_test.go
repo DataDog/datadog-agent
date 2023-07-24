@@ -14,59 +14,59 @@ import (
 func TestGetLinuxAppServiceTags(t *testing.T) {
 	service := &AppService{}
 
-	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
-	t.Setenv("REGION_NAME", "eastus")
-	t.Setenv("APPSVC_RUN_ZIP", "false")
+	t.Setenv(cloudservice.WebsiteName, "test_site_name")
+	t.Setenv(cloudservice.RegionName, "eastus")
+	t.Setenv(cloudservice.RunZip, "false")
 
 	tags := service.GetTags()
-	tags["aas.environment.os"] = "linux"
-	tags["aas.environment.runtime"] = "test_runtime"
-	tags["aas.environment.instance_name"] = "test_instance_name"
+	tags[cloudservice.AasOperatingSystem] = "linux"
+	tags[cloudservice.AasRuntime] = "test_runtime"
+	tags[cloudservice.AasInstanceName] = "test_instance_name"
 
 	assert.Equal(t, map[string]string{
-		"app_name":                      "test_site_name",
-		"origin":                        "appservice",
-		"region":                        "eastus",
-		"_dd.origin":                    "appservice",
-		"aas.environment.instance_id":   "unknown",
-		"aas.environment.instance_name": "test_instance_name",
-		"aas.environment.os":            "linux",
-		"aas.environment.runtime":       "test_runtime",
-		"aas.resource.group":            "",
-		"aas.resource.id":               "",
-		"aas.site.kind":                 "app",
-		"aas.site.name":                 "test_site_name",
-		"aas.site.type":                 "app",
-		"aas.subscription.id":           "",
+		"app_name":                "test_site_name",
+		"origin":                  "appservice",
+		"region":                  "eastus",
+		"_dd.origin":              "appservice",
+		cloudservice.AasInstanceID:      "unknown",
+		cloudservice.AasInstanceName:    "test_instance_name",
+		cloudservice.AasOperatingSystem: "linux",
+		cloudservice.AasRuntime:         "test_runtime",
+		cloudservice.AasResourceGroup:   "",
+		cloudservice.AasResourceID:      "",
+		cloudservice.AasSiteKind:        "app",
+		cloudservice.AasSiteName:        "test_site_name",
+		cloudservice.AasSiteType:        "app",
+		cloudservice.AasSubscriptionID:  "",
 	}, tags)
 }
 
 func TestGetWindowsAppServiceTags(t *testing.T) {
 	service := &AppService{}
 
-	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
-	t.Setenv("REGION_NAME", "eastus")
-	t.Setenv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED", "false")
+	t.Setenv(cloudservice.WebsiteName, "test_site_name")
+	t.Setenv(cloudservice.RegionName, "eastus")
+	t.Setenv(cloudservice.AppLogsTrace, "false")
 
 	tags := service.GetTags()
-	tags["aas.environment.os"] = "windows"
-	tags["aas.environment.runtime"] = "test_runtime"
-	tags["aas.environment.instance_name"] = "test_instance_name"
+	tags[cloudservice.AasOperatingSystem] = "windows"
+	tags[cloudservice.AasRuntime] = "test_runtime"
+	tags[cloudservice.AasInstanceName] = "test_instance_name"
 
 	assert.Equal(t, map[string]string{
-		"app_name":                      "test_site_name",
-		"origin":                        "appservice",
-		"region":                        "eastus",
-		"_dd.origin":                    "appservice",
-		"aas.environment.instance_id":   "unknown",
-		"aas.environment.instance_name": "test_instance_name",
-		"aas.environment.os":            "windows",
-		"aas.environment.runtime":       "test_runtime",
-		"aas.resource.group":            "",
-		"aas.resource.id":               "",
-		"aas.site.kind":                 "app",
-		"aas.site.name":                 "test_site_name",
-		"aas.site.type":                 "app",
-		"aas.subscription.id":           "",
+		"app_name":                "test_site_name",
+		"origin":                  "appservice",
+		"region":                  "eastus",
+		"_dd.origin":              "appservice",
+		cloudservice.AasInstanceID:      "unknown",
+		cloudservice.AasInstanceName:    "test_instance_name",
+		cloudservice.AasOperatingSystem: "windows",
+		cloudservice.AasRuntime:         "test_runtime",
+		cloudservice.AasResourceGroup:   "",
+		cloudservice.AasResourceID:      "",
+		cloudservice.AasSiteKind:        "app",
+		cloudservice.AasSiteName:        "test_site_name",
+		cloudservice.AasSiteType:        "app",
+		cloudservice.AasSubscriptionID:  "",
 	}, tags)
 }

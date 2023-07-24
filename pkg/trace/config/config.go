@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -35,10 +36,6 @@ type Endpoint struct {
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
-
-// App Services env vars
-const RunZip = "APPSVC_RUN_ZIP"
-const AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -600,7 +597,7 @@ func (c *AgentConfig) AllFeatures() []string {
 }
 
 func InAzureAppServices() bool {
-	_, existsLinux := os.LookupEnv(RunZip)
-	_, existsWin := os.LookupEnv(AppLogsTrace)
+	_, existsLinux := os.LookupEnv(cloudservice.RunZip)
+	_, existsWin := os.LookupEnv(cloudservice.AppLogsTrace)
 	return existsLinux || existsWin
 }
