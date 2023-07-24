@@ -278,6 +278,7 @@ def run(
     config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
     ctx.run(f"{agent_bin} run -c {config_path}")
 
+
 @task
 def exec(
     ctx,
