@@ -167,7 +167,7 @@ SYSCALL_KRETPROBE(finit_module) {
     return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx), NULL);
 }
 
-SYSCALL_KPROBE1(delete_module, const char *, name_user) {
+HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
     struct policy_t policy = fetch_policy(EVENT_DELETE_MODULE);
     if (is_discarded_by_process(policy.mode, EVENT_DELETE_MODULE)) {
         return 0;

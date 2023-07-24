@@ -25,42 +25,42 @@ var xattrProbes = []*manager.Probe{
 	},
 }
 
-func getXattrProbes() []*manager.Probe {
+func getXattrProbes(fentry bool) []*manager.Probe {
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "setxattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "fsetxattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "lsetxattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "removexattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "fremovexattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	xattrProbes = append(xattrProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "lremovexattr",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	return xattrProbes
 }
