@@ -8,8 +8,10 @@
 package rules
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 
@@ -690,4 +692,67 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			t.Log(err)
 		}
 	})
+}
+
+// go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestLoadPolicy"
+func TestLoadPolicy(t *testing.T) {
+	type args struct {
+		name         string
+		source       string
+		fileContent  string
+		macroFilters []MacroFilter
+		ruleFilters  []RuleFilter
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *Policy
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "empty yaml file",
+			args: args{
+				name:         "myLocal.policy",
+				source:       PolicySourceRC,
+				fileContent:  ``,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: nil,
+			wantErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+			},
+		},
+		{
+			name: "no rules in yaml file",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicySourceRC,
+				fileContent: `
+rules:
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: &Policy{
+				Name:   "myLocal.policy",
+				Source: PolicySourceRC,
+				Rules:  nil,
+			},
+			wantErr: assert.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := strings.NewReader(tt.args.fileContent)
+
+			got, err := LoadPolicy(tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+
+			if !tt.wantErr(t, err, fmt.Sprintf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)) {
+				return
+			}
+
+			assert.Equalf(t, tt.want, got, "LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+		})
+	}
 }
