@@ -6,6 +6,10 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
+SYSCALL_KPROBE0(umount) {
+    return 0;
+}
+
 HOOK_ENTRY("security_sb_umount")
 int hook_security_sb_umount(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
