@@ -195,7 +195,7 @@ def download_artifacts_with_retry(run_id, destination=".", retry_count=3, retry_
             print(f'Connectivity issue while downloading the artifact, retrying... {retry} attempts left')
             sleep(retry_interval)
         except Exception as e:
-            print("Exception that is not a connectivity issue: ", e)
+            print("Exception that is not a connectivity issue: ", type(e).__name__, " - ", e)
             raise e
     print(f'Download failed {retry_count} times, stop retry and exit')
     raise Exit(code=os.EX_TEMPFAIL)
