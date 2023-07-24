@@ -7,6 +7,7 @@
 #include "ip.h"
 
 #include "protocols/http2/decoding-defs.h"
+#include "protocols/http2/helpers.h"
 #include "protocols/http2/maps-defs.h"
 #include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
@@ -305,6 +306,16 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
 }
 
 static __always_inline bool http2_entrypoint(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx) {
+    // Checking for preface
+    if (skb_info->data_off + HTTP2_MARKER_SIZE <= skb->len) {
+        char preface[HTTP2_MARKER_SIZE];
+        bpf_memset((char*)preface, 0, HTTP2_MARKER_SIZE);
+        bpf_skb_load_bytes(skb, skb_info->data_off, preface, HTTP2_MARKER_SIZE);
+        if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
+            skb_info->data_off += HTTP2_MARKER_SIZE;
+        }
+    }
+
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
     if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
         return false;
