@@ -665,7 +665,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		}
 
 		client.CloseIdleConnections()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, protocols.HTTP, tlsNotExpected)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, tlsNotExpected, protocols.HTTP)
 		HTTPServer.Shutdown()
 
 		gRPCServer, err := grpc.NewServer(HTTPServer.address)
@@ -679,7 +679,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
 		gRPCServer.Stop()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, protocols.HTTP2, tlsNotExpected)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, tlsNotExpected, protocols.HTTP2)
 	})
 }
 
@@ -1342,7 +1342,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 					client.CloseIdleConnections()
 				}
 
-				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, protocols.HTTP, tlsExpected)
+				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, tlsExpected, protocols.HTTP)
 			},
 		},
 	}
