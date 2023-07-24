@@ -7,7 +7,6 @@ package aggregator
 
 import (
 	_ "embed"
-	"log"
 	"sort"
 	"testing"
 
@@ -29,7 +28,6 @@ func TestNewMetricPayloads(t *testing.T) {
 	})
 
 	t.Run("parseMetricSeries valid body should parse metrics", func(t *testing.T) {
-		log.Println(metricsData)
 		metrics, err := ParseMetricSeries(api.Payload{Data: metricsData, Encoding: encodingDeflate})
 		assert.NoError(t, err)
 		assert.Equal(t, 151, len(metrics))

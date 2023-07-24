@@ -13,7 +13,7 @@ type Payload struct {
 	Encoding  string    `json:"encoding"`
 }
 
-type ServerSidePayload struct {
+type ParsedPayload struct {
 	Timestamp time.Time `json:"timestamp"`
 	Data      string    `json:"data"`
 	Encoding  string    `json:"encoding"`
@@ -24,7 +24,7 @@ type APIFakeIntakePayloadsRawGETResponse struct {
 }
 
 type APIFakeIntakePayloadsJsonGETResponse struct {
-	Payloads []ServerSidePayload `json:"payloads"`
+	Payloads []ParsedPayload `json:"payloads"`
 }
 
 type RouteStat struct {

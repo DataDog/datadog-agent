@@ -42,7 +42,7 @@ type Server struct {
 	url string
 
 	payloadStore     map[string][]api.Payload
-	payloadJsonStore map[string][]api.ServerSidePayload
+	payloadJsonStore map[string][]api.ParsedPayload
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
@@ -53,7 +53,7 @@ func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
 		mu:                 sync.RWMutex{},
 		payloadStore:       map[string][]api.Payload{},
-		payloadJsonStore:   map[string][]api.ServerSidePayload{},
+		payloadJsonStore:   map[string][]api.ParsedPayload{},
 		clock:              clock.New(),
 		logAggregator:      aggregator.NewLogAggregator(),
 		metricAggregator:   aggregator.NewMetricAggregator(),
@@ -317,7 +317,7 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 		Data:      data,
 		Encoding:  encoding,
 	}
-	ServerPayload := api.ServerSidePayload{
+	parsedPayload := api.ParsedPayload{
 		Timestamp: newPayload.Timestamp,
 		Data:      "",
 		Encoding:  encoding,
@@ -325,13 +325,13 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 	fi.payloadStore[route] = append(fi.payloadStore[route], newPayload)
 
 	if route == "/api/v2/logs" {
-		ServerPayload.Data = fi.getLogPayLoadData(newPayload)
+		parsedPayload.Data = fi.getLogPayLoadData(newPayload)
 	} else if route == "/api/v2/series" {
-		ServerPayload.Data = fi.getMetricPayLoadData(newPayload)
+		parsedPayload.Data = fi.getMetricPayLoadData(newPayload)
 	} else if route == "/api/v1/check_run" {
-		ServerPayload.Data = fi.getCheckRunPayLoadData(newPayload)
+		parsedPayload.Data = fi.getCheckRunPayLoadData(newPayload)
 	}
-	fi.payloadJsonStore[route] = append(fi.payloadJsonStore[route], ServerPayload)
+	fi.payloadJsonStore[route] = append(fi.payloadJsonStore[route], parsedPayload)
 }
 
 func (fi *Server) getLogPayLoadData(payload api.Payload) string {
@@ -381,10 +381,10 @@ func (fi *Server) safeGetRawPayloads(route string) []api.Payload {
 	return payloads
 }
 
-func (fi *Server) safeGetJsonPayloads(route string) []api.ServerSidePayload {
+func (fi *Server) safeGetJsonPayloads(route string) []api.ParsedPayload {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
-	payloads := make([]api.ServerSidePayload, 0, len(fi.payloadJsonStore[route]))
+	payloads := make([]api.ParsedPayload, 0, len(fi.payloadJsonStore[route]))
 	payloads = append(payloads, fi.payloadJsonStore[route]...)
 	return payloads
 }
