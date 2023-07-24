@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
-// consumeLogs is implementation of consumer.ConsumeLogsFunc
+// createConsumeLogsFunc returns an implementation of consumer.ConsumeLogsFunc
 func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, logsAgentChannel chan *message.Message) func(context.Context, plog.Logs) error {
 
 	return func(_ context.Context, ld plog.Logs) (err error) {

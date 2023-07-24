@@ -122,33 +122,3 @@ func fillLogTwo(log plog.LogRecord) {
 
 	log.Body().SetStr("something happened")
 }
-
-func fillLogThree(log plog.LogRecord) {
-	log.SetTimestamp(TestLogTimestamp)
-	log.SetDroppedAttributesCount(1)
-	log.SetSeverityNumber(plog.SeverityNumberWarn)
-	log.SetSeverityText("Warning")
-
-	log.Body().SetStr("something else happened")
-}
-
-func GenerateLogsManyLogRecordsSameResource(count int) plog.Logs {
-	ld := GenerateLogsOneEmptyLogRecord()
-	logs := ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords()
-	logs.EnsureCapacity(count)
-	for i := 0; i < count; i++ {
-		var l plog.LogRecord
-		if i < logs.Len() {
-			l = logs.At(i)
-		} else {
-			l = logs.AppendEmpty()
-		}
-
-		if i%2 == 0 {
-			fillLogOne(l)
-		} else {
-			fillLogTwo(l)
-		}
-	}
-	return ld
-}

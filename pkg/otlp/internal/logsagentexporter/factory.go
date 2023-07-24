@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	// TypeStr defines the serializer exporter type string.
+	// TypeStr defines the logsagent exporter type string.
 	TypeStr       = "logsagent"
 	stability     = component.StabilityLevelStable
 	logSourceName = "OTLP log ingestion"
