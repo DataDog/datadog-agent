@@ -88,6 +88,7 @@ func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 
 	t.aggregator.Count("datadog.snmp_traps.received", 1, "", tags)
 	t.receivedTrapsCount.Inc()
+	time.Sleep(21 * time.Millisecond) //JMWREPRO receivePacket() ticker case returning nil after receivedTrapsCount is incremented but before trap is sent
 
 	if err := validatePacket(p, t.config); err != nil {
 		log.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
