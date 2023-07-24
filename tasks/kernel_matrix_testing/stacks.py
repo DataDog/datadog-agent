@@ -185,7 +185,7 @@ def destroy_ec2_instances(ctx, stack):
         ips.append(o.split(' ')[1])
 
     if len(ips) == 0:
-        info(f"[+] No ec2 instance to terminate in stack")
+        info("[+] No ec2 instance to terminate in stack")
         return
 
     instance_ids = ec2_instance_ids(ctx, ips)

@@ -132,7 +132,7 @@ def get_instance_ip(stack, arch):
 
 
 @task
-def sync(ctx, stack=None):
+def sync(ctx, stack=None, vms="", ssh_key=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
