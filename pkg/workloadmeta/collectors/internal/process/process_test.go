@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -30,11 +31,11 @@ import (
 const testCid = "containersAreAwesome"
 
 type collectorTest struct {
-	probe       *mocks.Probe
-	collectChan chan<- time.Time
-	collector   *collector
-	store       *workloadmeta.MockStore
-	stream      pbgo.ProcessEntityStream_StreamEntitiesClient
+	probe     *mocks.Probe
+	clock     *clock.Mock
+	collector *collector
+	store     *workloadmeta.MockStore
+	stream    pbgo.ProcessEntityStream_StreamEntitiesClient
 }
 
 func acquireStream(t *testing.T, port int) pbgo.ProcessEntityStream_StreamEntitiesClient {
@@ -59,6 +60,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
 	cfg.Set("process_config.language_detection.grpc_port", port)
+	cfg.Set("workloadmeta.remote_process_collector.enabled", true)
 
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(cfg)
 	grpcServer := workloadmetaExtractor.NewGRPCServer(cfg, wlmExtractor)
@@ -71,28 +73,28 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		c = oldCollector
 	})
 
-	collectChan := make(chan time.Time)
-
 	store := workloadmeta.NewMockStore()
 
+	mockClock := clock.NewMock()
+
 	c := &collector{
-		ddConfig:         cfg,
-		processData:      mockProcessData,
-		wlmExtractor:     wlmExtractor,
-		grpcServer:       grpcServer,
-		pidToCid:         make(map[int]string),
-		collectionTicker: collectChan,
+		ddConfig:        cfg,
+		processData:     mockProcessData,
+		wlmExtractor:    wlmExtractor,
+		grpcServer:      grpcServer,
+		pidToCid:        make(map[int]string),
+		collectionClock: mockClock,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	require.NoError(t, c.Start(ctx, store))
 	t.Cleanup(cancel)
 
 	return &collectorTest{
-		collector:   c,
-		probe:       probe,
-		collectChan: collectChan,
-		store:       store,
-		stream:      acquireStream(t, port),
+		collector: c,
+		probe:     probe,
+		clock:     mockClock,
+		store:     store,
+		stream:    acquireStream(t, port),
 	}
 }
 
@@ -123,8 +125,7 @@ func TestProcessCollector(t *testing.T) {
 	resp, err := c.stream.Recv()
 	require.NoError(t, err)
 
-	c.collectChan <- time.Now()
-
+	c.clock.Add(collectionInterval)
 	resp, err = c.stream.Recv()
 	assert.NoError(t, err)
 
@@ -141,8 +142,8 @@ func TestProcessCollector(t *testing.T) {
 		},
 		PID: 1,
 	})
-	c.collectChan <- time.Now()
 
+	c.clock.Add(collectionInterval)
 	resp, err = c.stream.Recv()
 	assert.NoError(t, err)
 

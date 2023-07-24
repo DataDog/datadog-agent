@@ -9,6 +9,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -40,12 +42,12 @@ func newProcessCollector() workloadmeta.Collector {
 	processData.Register(wlmExtractor)
 
 	c = &collector{
-		ddConfig:         ddConfig,
-		wlmExtractor:     wlmExtractor,
-		grpcServer:       workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
-		processData:      processData,
-		collectionTicker: time.Tick(collectionInterval),
-		pidToCid:         make(map[int]string),
+		ddConfig:        ddConfig,
+		wlmExtractor:    wlmExtractor,
+		grpcServer:      workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
+		processData:     processData,
+		collectionClock: clock.New(),
+		pidToCid:        make(map[int]string),
 	}
 	return c
 }
@@ -62,7 +64,7 @@ type collector struct {
 
 	pidToCid map[int]string
 
-	collectionTicker <-chan time.Time
+	collectionClock clock.Clock
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
@@ -75,22 +77,26 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
+	collectionTicker := c.collectionClock.Ticker(collectionInterval)
+
 	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, workloadmeta.SourceAll, workloadmeta.EventTypeAll)
 	containerEvt := store.Subscribe(collectorId, workloadmeta.NormalPriority, filter)
 	go func() {
+		defer c.grpcServer.Stop()
+		defer store.Unsubscribe(containerEvt)
+		defer collectionTicker.Stop()
+
 		for {
 			select {
 			case evt := <-containerEvt:
 				c.handleContainerEvent(evt)
-			case <-c.collectionTicker:
+			case <-collectionTicker.C:
 				err := c.processData.Fetch()
 				if err != nil {
 					_ = log.Error("Error fetching process data:", err)
 				}
 			case <-ctx.Done():
 				log.Infof("The %s collector has stopped", collectorId)
-				c.grpcServer.Stop()
-				store.Unsubscribe(containerEvt)
 				return
 			}
 		}
