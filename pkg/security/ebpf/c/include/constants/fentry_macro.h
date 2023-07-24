@@ -14,7 +14,7 @@ typedef unsigned long long ctx_t;
 #define HOOK_SYSCALL_ENTRY4(name, ...) SYSCALL_FENTRY4(name, __VA_ARGS__)
 #define HOOK_SYSCALL_ENTRY5(name, ...) SYSCALL_FENTRY5(name, __VA_ARGS__)
 #define HOOK_SYSCALL_ENTRY6(name, ...) SYSCALL_FENTRY6(name, __VA_ARGS__)
-#define TAIL_CALL_TARGET(_name) SEC("kprobe/start_kernel") // `start_kernel` is only used at boot time, the hook should never be hit
+#define TAIL_CALL_TARGET(_name) SEC("fentry/start_kernel") // `start_kernel` is only used at boot time, the hook should never be hit
 
 #define CTX_PARM1(ctx) (u64)(ctx[0])
 #define CTX_PARM2(ctx) (u64)(ctx[1])
