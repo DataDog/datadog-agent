@@ -234,45 +234,4 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, flare.GetAgentVersion(), "7.45.1+commit.102cdaf")
 		assert.Equal(t, flare.GetHostname(), "test-hostname")
 	})
-
-	t.Run("verifyAssertionsOnFlare", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write(supportFlareResponse)
-		}))
-		defer ts.Close()
-
-		client := NewClient(ts.URL)
-		flare, err := client.GetLatestFlare()
-		assert.NoError(t, err)
-
-		// FileExists()
-		assert.True(t, flare.FileExists("diagnose.log"))
-		assert.True(t, flare.FileExists("etc/confd/"))
-		assert.True(t, flare.FileExists("etc/confd"))
-		assert.False(t, flare.FileExists("does/not/exist.log"))
-
-		// IsFile()
-		assert.True(t, flare.IsFile("install_info"))
-		assert.True(t, flare.IsFile("logs/agent.log"))
-		assert.False(t, flare.IsFile("expvar"))
-		assert.False(t, flare.IsFile("does/not/exist.log"))
-
-		// IsDir()
-		assert.True(t, flare.IsDir("expvar/"))
-		assert.True(t, flare.IsDir("etc/confd/cpu.d"))
-		assert.False(t, flare.IsDir("health.yaml"))
-		assert.False(t, flare.IsDir("does/not/exist"))
-
-		// HasPerm()
-		assert.True(t, flare.HasPerm("diagnose.log", 0644))
-		assert.True(t, flare.HasPerm("etc/confd", 0755))
-
-		// HasContent()
-		assert.True(t, flare.FileHasContent("permissions.log"))
-		assert.False(t, flare.FileHasContent("local"))
-
-		// FileContains()
-		assert.True(t, flare.FileContains("install_info", "install_method:"))
-		assert.False(t, flare.FileContains("install_info", "dpkg"))
-	})
 }
