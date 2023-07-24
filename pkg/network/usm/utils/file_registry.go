@@ -224,32 +224,6 @@ func (r *FileRegistry) Clear() {
 	r.stopped = true
 }
 
-// This method will be removed from the the public API and it's just here to ensure
-// that we're not breaking anything during the refactoring since the sharedlibraries.Watcher
-// tests are currently very tied to internal state of the registry
-func (r *FileRegistry) PathIDExists(pathID PathIdentifier) bool {
-	r.m.RLock()
-	defer r.m.RUnlock()
-
-	_, ok := r.byID[pathID]
-	return ok
-}
-
-// This method will be removed from the the public API and it's just here to ensure
-// that we're not breaking anything during the refactoring since the sharedlibraries.Watcher
-// tests are currently very tied to internal state of the registry
-func (r *FileRegistry) IsPIDAssociatedToPathID(pid uint32, pathID PathIdentifier) bool {
-	r.m.RLock()
-	defer r.m.RUnlock()
-
-	value, ok := r.byPID[pid]
-	if !ok {
-		return false
-	}
-	_, ok = value[pathID]
-	return ok
-}
-
 func (r *FileRegistry) newRegistration(deactivationCB callback) *registration {
 	return &registration{
 		deactivationCB:       deactivationCB,
