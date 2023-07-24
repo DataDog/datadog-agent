@@ -74,13 +74,7 @@ static void *(*bpf_map_lookup_elem)(void *map, const void *key) = (void *) 1;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-
-// The return value of `bpf_map_update_elem` is changed from `long` to `int` purposefully.
-// On kernels uptil 6.3 the underlying function signature of the helper operation returns an `int`.
-// Specifying `long` as the return type here caused the compiler to omit sign extension code,
-// which is required for correctly interpreting a negative return value.
-// More details in this PR: https://github.com/DataDog/datadog-agent/pull/18247
-static int (*bpf_map_update_elem)(void *map, const void *key, const void *value, __u64 flags) = (void *) 2;
+static long (*bpf_map_update_elem)(void *map, const void *key, const void *value, __u64 flags) = (void *) 2;
 
 /*
  * bpf_map_delete_elem
@@ -90,13 +84,7 @@ static int (*bpf_map_update_elem)(void *map, const void *key, const void *value,
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-
-// The return value of `bpf_map_delete_elem` is changed from `long` to `int` purposefully.
-// On kernels uptil 6.3 the underlying function signature of the helper operation returns an `int`.
-// Specifying `long` as the return type here caused the compiler to omit sign extension code,
-// which is required for correctly interpreting a negative return value.
-// More details in this PR: https://github.com/DataDog/datadog-agent/pull/18247
-static int (*bpf_map_delete_elem)(void *map, const void *key) = (void *) 3;
+static long (*bpf_map_delete_elem)(void *map, const void *key) = (void *) 3;
 
 /*
  * bpf_probe_read
@@ -2280,13 +2268,7 @@ static long (*bpf_sk_release)(void *sock) = (void *) 86;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-
-// The return value of `bpf_map_push_elem` is changed from `long` to `int` purposefully.
-// On kernels uptil 6.3 the underlying function signature of the helper operation returns an `int`.
-// Specifying `long` as the return type here caused the compiler to omit sign extension code,
-// which is required for correctly interpreting a negative return value.
-// More details in this PR: https://github.com/DataDog/datadog-agent/pull/18247
-static int (*bpf_map_push_elem)(void *map, const void *value, __u64 flags) = (void *) 87;
+static long (*bpf_map_push_elem)(void *map, const void *value, __u64 flags) = (void *) 87;
 
 /*
  * bpf_map_pop_elem
@@ -2296,13 +2278,7 @@ static int (*bpf_map_push_elem)(void *map, const void *value, __u64 flags) = (vo
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-
-// The return value of `bpf_map_pop_elem` is changed from `long` to `int` purposefully.
-// On kernels uptil 6.3 the underlying function signature of the helper operation returns an `int`.
-// Specifying `long` as the return type here caused the compiler to omit sign extension code,
-// which is required for correctly interpreting a negative return value.
-// More details in this PR: https://github.com/DataDog/datadog-agent/pull/18247
-static int (*bpf_map_pop_elem)(void *map, void *value) = (void *) 88;
+static long (*bpf_map_pop_elem)(void *map, void *value) = (void *) 88;
 
 /*
  * bpf_map_peek_elem
@@ -2312,13 +2288,7 @@ static int (*bpf_map_pop_elem)(void *map, void *value) = (void *) 88;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-
-// The return value of `bpf_map_peek_elem` is changed from `long` to `int` purposefully.
-// On kernels uptil 6.3 the underlying function signature of the helper operation returns an `int`.
-// Specifying `long` as the return type here caused the compiler to omit sign extension code,
-// which is required for correctly interpreting a negative return value.
-// More details in this PR: https://github.com/DataDog/datadog-agent/pull/18247
-static int (*bpf_map_peek_elem)(void *map, void *value) = (void *) 89;
+static long (*bpf_map_peek_elem)(void *map, void *value) = (void *) 89;
 
 /*
  * bpf_msg_push_data

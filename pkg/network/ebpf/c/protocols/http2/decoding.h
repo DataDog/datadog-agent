@@ -360,28 +360,32 @@ int socket__http2_filter(struct __sk_buff *skb) {
         log_debug("http2_filter failed to fetch arguments for tail call\n");
         return 0;
     }
-    dispatcher_arguments_t iterations_key;
-    bpf_memcpy(&iterations_key, args, sizeof(dispatcher_arguments_t));
+    dispatcher_arguments_t dispatcher_args_copy;
+    bpf_memcpy(&dispatcher_args_copy, args, sizeof(dispatcher_arguments_t));
 
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
     // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
     // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
+    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &dispatcher_args_copy);
     if (tail_call_state == NULL) {
         http2_tail_call_state_t iteration_value = {};
-        iteration_value.offset = iterations_key.skb_info.data_off;
-        bpf_map_update_elem(&http2_iterations, &iterations_key, &iteration_value, BPF_NOEXIST);
-        tail_call_state = bpf_map_lookup_elem(&http2_iterations, &iterations_key);
+        iteration_value.offset = dispatcher_args_copy.skb_info.data_off;
+        bpf_map_update_elem(&http2_iterations, &dispatcher_args_copy, &iteration_value, BPF_NOEXIST);
+        tail_call_state = bpf_map_lookup_elem(&http2_iterations, &dispatcher_args_copy);
         if (tail_call_state == NULL) {
             return 0;
         }
     }
 
+    // Some functions might change and override fields in dispatcher_args_copy.skb_info. Since it is used as a key in
+    // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
+    skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
+
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
-    if (is_tcp_termination(&iterations_key.skb_info)) {
-        bpf_map_delete_elem(&http2_dynamic_counter_table, &iterations_key.tup);
+    if (is_tcp_termination(&local_skb_info)) {
+        bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
         goto delete_iteration;
     }
 
@@ -392,28 +396,29 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     // create the http2 ctx for the current http2 frame.
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = iterations_key.tup;
+    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = iterations_key.tup;
-    iterations_key.skb_info.data_off = tail_call_state->offset;
+    http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
+    local_skb_info.data_off = tail_call_state->offset;
 
     // perform the http2 decoding part.
-    if (!http2_entrypoint(skb, &iterations_key.skb_info, &iterations_key.tup, http2_ctx)) {
+    if (!http2_entrypoint(skb, &local_skb_info, &dispatcher_args_copy.tup, http2_ctx)) {
         goto delete_iteration;
     }
-    if (iterations_key.skb_info.data_off >= skb->len) {
+
+    if (local_skb_info.data_off >= skb->len) {
         goto delete_iteration;
     }
 
     // update the tail calls state when the http2 decoding part was completed successfully.
     tail_call_state->iteration += 1;
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS) {
-        tail_call_state->offset = iterations_key.skb_info.data_off;
+        tail_call_state->offset = local_skb_info.data_off;
         bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2);
     }
 
 delete_iteration:
-    bpf_map_delete_elem(&http2_iterations, &iterations_key);
+    bpf_map_delete_elem(&http2_iterations, &dispatcher_args_copy);
 
     return 0;
 }

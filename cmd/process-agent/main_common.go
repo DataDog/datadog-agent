@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -59,6 +60,8 @@ Exiting.`
 
 // main is the main application entry point
 func main() {
+	flavor.SetFlavor(flavor.ProcessAgent)
+
 	os.Args = command.FixDeprecatedFlags(os.Args, os.Stdout)
 
 	rootCmd := command.MakeCommand(subcommands.ProcessAgentSubcommands(), useWinParams, rootCmdRun)
