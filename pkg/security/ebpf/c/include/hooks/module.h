@@ -22,11 +22,11 @@ int __attribute__((always_inline)) trace_init_module(u32 loaded_from_memory) {
     return 0;
 }
 
-SYSCALL_KPROBE0(init_module) {
+HOOK_SYSCALL_ENTRY0(init_module) {
     return trace_init_module(1);
 }
 
-SYSCALL_KPROBE0(finit_module) {
+HOOK_SYSCALL_ENTRY0(finit_module) {
     return trace_init_module(0);
 }
 

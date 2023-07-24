@@ -82,19 +82,19 @@ int __attribute__((always_inline)) handle_sys_fork(struct pt_regs *ctx) {
     return 0;
 }
 
-SYSCALL_KPROBE0(fork) {
+HOOK_SYSCALL_ENTRY0(fork) {
     return handle_sys_fork(ctx);
 }
 
-SYSCALL_KPROBE0(clone) {
+HOOK_SYSCALL_ENTRY0(clone) {
     return handle_sys_fork(ctx);
 }
 
-SYSCALL_KPROBE0(clone3) {
+HOOK_SYSCALL_ENTRY0(clone3) {
     return handle_sys_fork(ctx);
 }
 
-SYSCALL_KPROBE0(vfork) {
+HOOK_SYSCALL_ENTRY0(vfork) {
     return handle_sys_fork(ctx);
 }
 
