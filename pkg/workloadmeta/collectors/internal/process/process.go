@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-const collectorId = "process-agent"
+const collectorId = "local-process"
 
 const collectionInterval = 1 * time.Minute
 
@@ -52,6 +52,7 @@ func newProcessCollector() workloadmeta.Collector {
 	return c
 }
 
+// Compile time check to ensure that `collector` implements `workloadmeta.Collector`.
 var _ workloadmeta.Collector = (*collector)(nil)
 
 type collector struct {
@@ -77,31 +78,37 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
-	collectionTicker := c.collectionClock.Ticker(collectionInterval)
+	collectionTicker := c.collectionClock.Ticker(
+		c.ddConfig.GetDuration("workloadmeta.local_process_collector.collection_interval"),
+	)
 
 	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, workloadmeta.SourceAll, workloadmeta.EventTypeAll)
 	containerEvt := store.Subscribe(collectorId, workloadmeta.NormalPriority, filter)
-	go func() {
-		defer c.grpcServer.Stop()
-		defer store.Unsubscribe(containerEvt)
-		defer collectionTicker.Stop()
 
-		for {
-			select {
-			case evt := <-containerEvt:
-				c.handleContainerEvent(evt)
-			case <-collectionTicker.C:
-				err := c.processData.Fetch()
-				if err != nil {
-					_ = log.Error("Error fetching process data:", err)
-				}
-			case <-ctx.Done():
-				log.Infof("The %s collector has stopped", collectorId)
-				return
-			}
-		}
-	}()
+	go c.run(ctx, store, containerEvt, collectionTicker)
+
 	return nil
+}
+
+func (c *collector) run(ctx context.Context, store workloadmeta.Store, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
+	defer c.grpcServer.Stop()
+	defer store.Unsubscribe(containerEvt)
+	defer collectionTicker.Stop()
+
+	for {
+		select {
+		case evt := <-containerEvt:
+			c.handleContainerEvent(evt)
+		case <-collectionTicker.C:
+			err := c.processData.Fetch()
+			if err != nil {
+				_ = log.Error("Error fetching process data:", err)
+			}
+		case <-ctx.Done():
+			log.Infof("The %s collector has stopped", collectorId)
+			return
+		}
+	}
 }
 
 // Pull is unused at the moment used due to the short frequency in which it is called.

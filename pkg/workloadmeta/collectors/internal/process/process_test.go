@@ -117,6 +117,11 @@ func (c *collectorTest) waitForContainerUpdate(t *testing.T, cont *workloadmeta.
 	}, 5*time.Second, 1*time.Second)
 }
 
+// Tick sets up the collector to collect processes by advancing the clock
+func (c *collectorTest) tick() {
+	c.clock.Add(config.DefaultLocalProcessCollectorInterval)
+}
+
 func TestProcessCollector(t *testing.T) {
 	c := setUpCollectorTest(t)
 	c.setupProcs()
@@ -125,7 +130,7 @@ func TestProcessCollector(t *testing.T) {
 	resp, err := c.stream.Recv()
 	require.NoError(t, err)
 
-	c.clock.Add(collectionInterval)
+	c.tick()
 	resp, err = c.stream.Recv()
 	assert.NoError(t, err)
 
@@ -143,7 +148,7 @@ func TestProcessCollector(t *testing.T) {
 		PID: 1,
 	})
 
-	c.clock.Add(collectionInterval)
+	c.tick()
 	resp, err = c.stream.Recv()
 	assert.NoError(t, err)
 
@@ -154,35 +159,50 @@ func TestProcessCollector(t *testing.T) {
 	assert.Equal(t, testCid, evt.ContainerId)
 }
 
-// Assert that the collector is only Enabled if the process check is disabled and
-// the remote process collector is Enabled.
-func TestEnabled(t *testing.T) {
-	t.Run("process check Enabled", func(t *testing.T) {
-		cfg := config.Mock(t)
-		cfg.Set("process_config.process_collection.Enabled", true)
+// Assert that the collector is only enabled if the process check is disabled and
+// the remote process collector is enabled.
+func TestEnabledTable(t *testing.T) {
+	type testCase struct {
+		name                                                    string
+		processCollectionEnabled, remoteProcessCollectorEnabled bool
+		shouldExpectEnabled                                     bool
+	}
 
-		enabled, err := Enabled(cfg)
-		assert.False(t, enabled)
-		assert.Error(t, err)
-	})
+	testCases := []testCase{
+		{
+			name:                          "process check enabled",
+			processCollectionEnabled:      true,
+			remoteProcessCollectorEnabled: false,
+			shouldExpectEnabled:           false,
+		},
+		{
+			name:                          "remote collector disabled",
+			processCollectionEnabled:      false,
+			remoteProcessCollectorEnabled: false,
+			shouldExpectEnabled:           false,
+		},
+		{
+			name:                          "collector enabled",
+			processCollectionEnabled:      false,
+			remoteProcessCollectorEnabled: true,
+			shouldExpectEnabled:           true,
+		},
+	}
 
-	t.Run("remote collector disabled", func(t *testing.T) {
-		cfg := config.Mock(t)
-		cfg.Set("process_config.process_collection.Enabled", false)
-		cfg.Set("workloadmeta.remote_process_collector.Enabled", false)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.Mock(t)
+			cfg.Set("process_config.process_collection.enabled", tc.processCollectionEnabled)
+			cfg.Set("workloadmeta.remote_process_collector.Enabled", tc.remoteProcessCollectorEnabled)
 
-		enabled, err := Enabled(cfg)
-		assert.False(t, enabled)
-		assert.Error(t, err)
-	})
-
-	t.Run("Enabled", func(t *testing.T) {
-		cfg := config.Mock(t)
-		cfg.Set("process_config.process_collection.Enabled", false)
-		cfg.Set("workloadmeta.remote_process_collector.Enabled", true)
-
-		enabled, err := Enabled(cfg)
-		assert.True(t, enabled)
-		assert.NoError(t, err)
-	})
+			enabled, err := Enabled(cfg)
+			if tc.shouldExpectEnabled {
+				assert.True(t, enabled)
+				assert.NoError(t, err)
+			} else {
+				assert.False(t, enabled)
+				assert.Error(t, err)
+			}
+		})
+	}
 }
