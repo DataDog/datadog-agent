@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/proto"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/remote"
@@ -170,7 +170,8 @@ func TestCollection(t *testing.T) {
 	}
 
 	mockClientStore := workloadmeta.NewMockStore()
-	err = collector.Start(context.TODO(), mockClientStore)
+	ctx, cancel := context.WithCancel(context.TODO())
+	err = collector.Start(ctx, mockClientStore)
 	require.NoError(t, err)
 
 	// Start straming entites
@@ -213,6 +214,7 @@ func TestCollection(t *testing.T) {
 	)
 
 	time.Sleep(2 * time.Second)
+	cancel()
 
 	container, err := mockClientStore.GetContainer("ctr-id")
 	require.NoError(t, err)

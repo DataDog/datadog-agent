@@ -44,3 +44,12 @@ func TestNewValueFrom(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 42, val)
 }
+
+func TestError(t *testing.T) {
+	value := NewValue(1)
+	require.NoError(t, value.Error())
+
+	myerr := fmt.Errorf("again an error !?")
+	errorValue := NewErrorValue[int](myerr)
+	require.ErrorIs(t, myerr, errorValue.Error())
+}

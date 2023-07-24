@@ -5,6 +5,8 @@
 
 package cloudservice
 
+import "github.com/DataDog/datadog-agent/pkg/trace/config"
+
 // CloudService implements getting tags from each Cloud Provider.
 type CloudService interface {
 	// GetTags returns a map of tags for a given cloud service. These tags are then attached to
@@ -56,7 +58,7 @@ func GetCloudServiceType() CloudService {
 		return NewContainerApp()
 	}
 
-	if isAppService() {
+	if config.InAzureAppServices() {
 		return &AppService{}
 	}
 

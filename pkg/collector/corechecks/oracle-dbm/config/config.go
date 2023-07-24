@@ -29,8 +29,10 @@ type QuerySamplesConfig struct {
 }
 
 type QueryMetricsConfig struct {
-	Enabled               bool `yaml:"enabled"`
-	IncludeDatadogQueries bool `yaml:"include_datadog_queries"`
+	Enabled            bool  `yaml:"enabled"`
+	CollectionInterval int64 `yaml:"collection_interval"`
+	DBRowsLimit        int   `yaml:"db_rows_limit"`
+	PlanCacheRetention int   `yaml:"plan_cache_retention"`
 }
 
 type SysMetricsConfig struct {
@@ -60,6 +62,19 @@ type AgentSQLTrace struct {
 	TracedRuns int  `yaml:"traced_runs"`
 }
 
+type CustomQueryColumns struct {
+	Name string `yaml:"name"`
+	Type string `yaml:"type"`
+}
+
+type CustomQuery struct {
+	MetricPrefix string               `yaml:"metric_prefix"`
+	Pdb          string               `yaml:"pdb"`
+	Query        string               `yaml:"query"`
+	Columns      []CustomQueryColumns `yaml:"columns"`
+	Tags         []string             `yaml:"tags"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
 	Server                 string               `yaml:"server"`
@@ -85,6 +100,7 @@ type InstanceConfig struct {
 	SharedMemory           SharedMemoryConfig   `yaml:"shared_memory"`
 	ExecutionPlans         ExecutionPlansConfig `yaml:"execution_plans"`
 	AgentSQLTrace          AgentSQLTrace        `yaml:"agent_sql_trace"`
+	CustomQueries          []CustomQuery        `yaml:"custom_queries"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -114,7 +130,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ObfuscatorOptions.CollectComments = true
 
 	instance.QuerySamples.Enabled = true
+
 	instance.QueryMetrics.Enabled = true
+	instance.QueryMetrics.CollectionInterval = 60
+	instance.QueryMetrics.DBRowsLimit = 10000
+	instance.QueryMetrics.PlanCacheRetention = 15
 
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true

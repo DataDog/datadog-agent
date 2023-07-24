@@ -2,6 +2,40 @@
 Release Notes
 =============
 
+.. _Release Notes_7.46.0:
+
+7.46.0 / 6.46.0
+======
+
+.. _Release Notes_7.46.0_New Features:
+
+New Features
+------------
+
+- Enable collection of Vertical Pod Autoscalers by default in the orchestrator check.
+
+
+.. _Release Notes_7.46.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Collect conditions for a variety of Kubernetes resources.
+
+- Collect persistent volume source in the orchestrator check.
+
+
+.. _Release Notes_7.46.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the timeout for idle HTTP connections.
+
+- When the cluster-agent is started with ``hostNetwork: true``, the leader election mechanism was using a node name instead of the pod name. This was breaking the “follower to leader” forwarding mechanism.
+  This change introduce the ``DD_POD_NAME`` environment variable as a more reliable way to set the cluster-agent pod name. It is supposed to be filled by the Kubernetes downward API.
+
+
 .. _Release Notes_7.45.0:
 
 7.45.0 / 6.45.0
