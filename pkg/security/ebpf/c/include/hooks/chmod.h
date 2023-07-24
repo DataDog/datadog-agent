@@ -25,11 +25,11 @@ int __attribute__((always_inline)) trace__sys_chmod(umode_t mode) {
     return 0;
 }
 
-SYSCALL_KPROBE2(chmod, const char*, filename, umode_t, mode) {
+HOOK_SYSCALL_ENTRY2(chmod, const char*, filename, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 
-SYSCALL_KPROBE2(fchmod, int, fd, umode_t, mode) {
+HOOK_SYSCALL_ENTRY2(fchmod, int, fd, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 

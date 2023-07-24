@@ -39,7 +39,7 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
     return trace__sys_openat2(async, flags, mode, 0);
 }
 
-SYSCALL_KPROBE2(creat, const char *, filename, umode_t, mode) {
+HOOK_SYSCALL_ENTRY2(creat, const char *, filename, umode_t, mode) {
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
