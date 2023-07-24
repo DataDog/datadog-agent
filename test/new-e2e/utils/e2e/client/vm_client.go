@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/utils/clients"
 	"github.com/DataDog/test-infra-definitions/common/utils"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -43,6 +44,7 @@ func (vmClient *vmClient) ExecuteWithError(command string) (string, error) {
 
 // Execute executes a command and returns its output.
 func (vmClient *vmClient) Execute(command string) string {
-	output, _ := vmClient.ExecuteWithError(command)
+	output, err := vmClient.ExecuteWithError(command)
+	require.NoError(vmClient.t, err)
 	return output
 }
