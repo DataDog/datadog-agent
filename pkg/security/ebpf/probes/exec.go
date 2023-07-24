@@ -194,8 +194,6 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		"setgid16",
 		"seteuid",
 		"seteuid16",
-		"setegid",
-		"setegid16",
 		"setfsuid",
 		"setfsuid16",
 		"setfsgid",
