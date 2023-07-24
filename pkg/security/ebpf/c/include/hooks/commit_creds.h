@@ -164,14 +164,6 @@ SYSCALL_KRETPROBE(setgid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SYSCALL_KPROBE0(setegid) {
-    return credentials_update(EVENT_SETGID);
-}
-
-SYSCALL_KRETPROBE(setegid) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
 SYSCALL_KPROBE0(setfsgid) {
     return credentials_update(EVENT_SETGID);
 }
@@ -201,14 +193,6 @@ SYSCALL_KPROBE0(setgid16) {
 }
 
 SYSCALL_KRETPROBE(setgid16) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
-SYSCALL_KPROBE0(setegid16) {
-    return credentials_update(EVENT_SETGID);
-}
-
-SYSCALL_KRETPROBE(setegid16) {
     return kprobe_credentials_update_ret(ctx);
 }
 
