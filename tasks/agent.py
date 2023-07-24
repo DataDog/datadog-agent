@@ -279,18 +279,20 @@ def run(
     ctx.run(f"{agent_bin} run -c {config_path}")
 
 @task
-def status(
+def exec(
     ctx,
+    subcommand,
     config_path=None,
 ):
     """
-    Execute 'agent status' against the currently running Agent.
+    Execute 'agent <subcommand>' against the currently running Agent.
 
     This works against an agent run via `inv agent.run`.
+    Basically this just simplifies creating the path for both the agent binary and config.
     """
     agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
     config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
-    ctx.run(f"{agent_bin} status -c {config_path}")
+    ctx.run(f"{agent_bin} -c {config_path} {subcommand}")
 
 
 @task
