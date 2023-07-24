@@ -84,14 +84,6 @@ SYSCALL_KRETPROBE(setuid) {
     return kprobe_credentials_update_ret(ctx);
 }
 
-SYSCALL_KPROBE0(seteuid) {
-    return credentials_update(EVENT_SETUID);
-}
-
-SYSCALL_KRETPROBE(seteuid) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
 SYSCALL_KPROBE0(setfsuid) {
     return credentials_update(EVENT_SETUID);
 }
@@ -121,14 +113,6 @@ SYSCALL_KPROBE0(setuid16) {
 }
 
 SYSCALL_KRETPROBE(setuid16) {
-    return kprobe_credentials_update_ret(ctx);
-}
-
-SYSCALL_KPROBE0(seteuid16) {
-    return credentials_update(EVENT_SETUID);
-}
-
-SYSCALL_KRETPROBE(seteuid16) {
     return kprobe_credentials_update_ret(ctx);
 }
 
