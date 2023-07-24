@@ -3,11 +3,10 @@
 
 #include "bpf_builtins.h"
 
+#include "protocols/http2/decoding-defs.h"
 #include "protocols/http2/helpers.h"
 #include "protocols/grpc/defs.h"
-#include "protocols/grpc/maps_defs.h"
 
-#define CONTENT_TYPE_IDX 31
 #define GRPC_MAX_FRAMES_TO_PROCESS 10
 #define GRPC_MAX_HEADERS_TO_PROCESS 10
 #define GRPC_CONTENT_TYPE_LEN 11
@@ -21,7 +20,7 @@ static __always_inline bool is_encoded_grpc_content_type(const char *content_typ
 
 static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
     // We only care about indexed names
-    if (!idx || idx != CONTENT_TYPE_IDX) {
+    if (!idx || idx != kContentType) {
         return GRPC_STATUS_UNKNOWN;
     }
 
@@ -63,6 +62,13 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
         skb_info->data_off += sizeof(idx.raw);
 
         if (is_literal(idx.raw)) {
+            // Having a literal, with an index pointing to a ":method" key means a
+            // non POST request method, which is an indicator of non-GRPC content
+            if (idx.literal.index == kMethod) {
+                status = GRPC_STATUS_NOT_GRPC;
+                break;
+            }
+
             status = is_content_type_grpc(skb, skb_info, frame_end, idx.literal.index);
             if (status != GRPC_STATUS_UNKNOWN) {
                 break;

@@ -42,6 +42,7 @@ typedef enum {
     kMethod = 2,
     kPath = 4,
     kStatus = 9,
+    kContentType = 31,
 } static_table_key_t;
 
 typedef enum {
