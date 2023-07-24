@@ -175,20 +175,8 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		SyscallFuncName: "clone3",
 	}, fentry, Entry)...)
 
-	// with fentry support
 	for _, name := range []string{
 		"setuid",
-	} {
-		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID: SecurityAgentUID,
-			},
-			SyscallFuncName: name,
-		}, fentry, EntryAndExit|SupportFentry)...)
-	}
-
-	// only kprobes
-	for _, name := range []string{
 		"setuid16",
 		"setgid",
 		"setgid16",
@@ -211,7 +199,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 				UID: SecurityAgentUID,
 			},
 			SyscallFuncName: name,
-		}, fentry, EntryAndExit)...)
+		}, fentry, EntryAndExit|SupportFentry)...)
 	}
 
 	return execProbes
