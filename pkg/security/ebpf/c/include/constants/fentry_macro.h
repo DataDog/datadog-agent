@@ -9,6 +9,11 @@ typedef unsigned long long ctx_t;
 #define HOOK_EXIT(func_name) SEC("fexit/" func_name)
 #define HOOK_SYSCALL_ENTRY0(name, ...) SYSCALL_FENTRY0(name, __VA_ARGS__)
 #define HOOK_SYSCALL_ENTRY1(name, ...) SYSCALL_FENTRY1(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY2(name, ...) SYSCALL_FENTRY2(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY3(name, ...) SYSCALL_FENTRY3(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY4(name, ...) SYSCALL_FENTRY4(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY5(name, ...) SYSCALL_FENTRY5(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY6(name, ...) SYSCALL_FENTRY6(name, __VA_ARGS__)
 
 #define CTX_PARM1(ctx) (u64)(ctx[0])
 #define CTX_PARM2(ctx) (u64)(ctx[1])
@@ -24,6 +29,11 @@ typedef struct pt_regs ctx_t;
 #define HOOK_EXIT(func_name) SEC("kretprobe/" func_name)
 #define HOOK_SYSCALL_ENTRY0(name, ...) SYSCALL_KPROBE0(name, __VA_ARGS__)
 #define HOOK_SYSCALL_ENTRY1(name, ...) SYSCALL_KPROBE1(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY2(name, ...) SYSCALL_KPROBE2(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY3(name, ...) SYSCALL_KPROBE3(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY4(name, ...) SYSCALL_KPROBE4(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY5(name, ...) SYSCALL_KPROBE5(name, __VA_ARGS__)
+#define HOOK_SYSCALL_ENTRY6(name, ...) SYSCALL_KPROBE6(name, __VA_ARGS__)
 
 #define CTX_PARM1(ctx) PT_REGS_PARM1(ctx)
 #define CTX_PARM2(ctx) PT_REGS_PARM2(ctx)

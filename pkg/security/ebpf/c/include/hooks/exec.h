@@ -36,11 +36,11 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
     return 0;
 }
 
-SYSCALL_KPROBE3(execve, const char *, filename, const char **, argv, const char **, env) {
+HOOK_SYSCALL_ENTRY3(execve, const char *, filename, const char **, argv, const char **, env) {
     return trace__sys_execveat(ctx, argv, env);
 }
 
-SYSCALL_KPROBE4(execveat, int, fd, const char *, filename, const char **, argv, const char **, env) {
+HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, argv, const char **, env) {
     return trace__sys_execveat(ctx, argv, env);
 }
 
@@ -86,11 +86,11 @@ SYSCALL_KPROBE0(fork) {
     return handle_sys_fork(ctx);
 }
 
-SYSCALL_KPROBE0(clone) {
+HOOK_SYSCALL_ENTRY0(clone) {
     return handle_sys_fork(ctx);
 }
 
-SYSCALL_KPROBE0(clone3) {
+HOOK_SYSCALL_ENTRY0(clone3) {
     return handle_sys_fork(ctx);
 }
 
