@@ -31,6 +31,6 @@ type Counter interface {
 	DeleteWithTags(tags map[string]string)
 	// WithValues returns SimpleCounter for this metric with the given tag values.
 	WithValues(tagsValue ...string) SimpleCounter
-	// WithTags returns SimpleCounter for this metric with the given tqg values.
+	// WithTags returns SimpleCounter for this metric with the given tag values.
 	WithTags(tags map[string]string) SimpleCounter
 }
