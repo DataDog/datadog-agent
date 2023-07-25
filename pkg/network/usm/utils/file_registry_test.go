@@ -27,7 +27,7 @@ func TestRegister(t *testing.T) {
 	pid := uint32(cmd.Process.Pid)
 
 	r := newFileRegistry()
-	r.Register(path, pid, registerRecorder.Fn(), nil)
+	r.Register(path, pid, registerRecorder.Callback(), IgnoreCB)
 
 	assert.Equal(t, 1, registerRecorder.CallsForPathID((pathID)))
 	assert.Contains(t, r.GetRegisteredProcesses(), pid)
@@ -36,10 +36,10 @@ func TestRegister(t *testing.T) {
 
 func TestMultiplePIDsSharingSameFile(t *testing.T) {
 	registerRecorder := new(CallbackRecorder)
-	registerCallback := registerRecorder.Fn()
+	registerCallback := registerRecorder.Callback()
 
 	unregisterRecorder := new(CallbackRecorder)
-	unregisterCallback := unregisterRecorder.Fn()
+	unregisterCallback := unregisterRecorder.Callback()
 
 	r := newFileRegistry()
 	path, pathID := createTempTestFile(t, "foobar")
@@ -61,8 +61,8 @@ func TestMultiplePIDsSharingSameFile(t *testing.T) {
 	assert.Contains(t, r.GetRegisteredProcesses(), pid1)
 	assert.Contains(t, r.GetRegisteredProcesses(), pid2)
 
-	// Assert that the first call to `Unregister` (from PID 10) doesn't trigger
-	// the callback but removes the PID 10 from the list
+	// Assert that the first call to `Unregister` (from pid1) doesn't trigger
+	// the callback but removes pid1 from the list
 	r.Unregister(pid1)
 	assert.Equal(t, 0, unregisterRecorder.CallsForPathID((pathID)))
 	assert.NotContains(t, r.GetRegisteredProcesses(), pid1)
@@ -83,10 +83,10 @@ func TestMultiplePIDsSharingSameFile(t *testing.T) {
 
 func TestRepeatedRegistrationsFromSamePID(t *testing.T) {
 	registerRecorder := new(CallbackRecorder)
-	registerCallback := registerRecorder.Fn()
+	registerCallback := registerRecorder.Callback()
 
 	unregisterRecorder := new(CallbackRecorder)
-	unregisterCallback := unregisterRecorder.Fn()
+	unregisterCallback := unregisterRecorder.Callback()
 
 	r := newFileRegistry()
 	path, pathID := createTempTestFile(t, "foobar")

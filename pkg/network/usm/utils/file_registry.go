@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 )
 
 // FileRegistry is responsible for tracking open files and executing callbacks
@@ -57,7 +58,7 @@ type FilePath struct {
 }
 
 func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) {
-	// usw cwd of the process as root if the namespacedPath is relative
+	// Use cwd of the process as root if the namespacedPath is relative
 	if namespacedPath[0] != '/' {
 		namespacedPath = "/cwd" + namespacedPath
 	}
@@ -65,7 +66,6 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 	path := fmt.Sprintf("%s/%d/root%s", procRoot, pid, namespacedPath)
 	pathID, err := NewPathIdentifier(path)
 	if err != nil {
-		fmt.Println("couldn't find file at", path)
 		return FilePath{}, err
 	}
 
@@ -91,7 +91,6 @@ func NewFileRegistry() *FileRegistry {
 			fileAlreadyRegistered:        metricGroup.NewCounter("already_registered"),
 			fileBlocked:                  metricGroup.NewCounter("blocked"),
 			fileUnregistered:             metricGroup.NewCounter("unregistered"),
-			fileUnregisterNoCB:           metricGroup.NewCounter("unregister_no_callback"),
 			fileUnregisterErrors:         metricGroup.NewCounter("unregister_errors"),
 			fileUnregisterFailedCB:       metricGroup.NewCounter("unregister_failed_cb"),
 			fileUnregisterPathIDNotFound: metricGroup.NewCounter("unregister_path_id_not_found"),
@@ -105,13 +104,18 @@ func NewFileRegistry() *FileRegistry {
 // its *activation* callback. Otherwise, we increment the reference counter for
 // the existing registration if and only if `pid` is new;
 func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB callback) {
-	if activationCB == nil && deactivationCB == nil {
-		// if *both* callbacks are nil, there is no point in proceeding
+	if activationCB == nil || deactivationCB == nil {
+		log.Errorf("activationCB and deactivationCB must be both non-nil")
 		return
 	}
 
 	path, err := NewFilePath(r.procRoot, namespacedPath, pid)
 	if err != nil {
+		// short living process can hit here
+		// as we receive the openat() syscall info after receiving the EXIT netlink process
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("can't create path identifier %s", err)
+		}
 		return
 	}
 
@@ -158,6 +162,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	r.byPID[pid][pathID] = struct{}{}
 	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
 	r.telemetry.fileRegistered.Add(1)
+	return
 }
 
 // Unregister a PID if it exists
@@ -170,11 +175,6 @@ func (r *FileRegistry) Unregister(pid uint32) {
 	r.m.Lock()
 	defer r.m.Unlock()
 	if r.stopped {
-		return
-	}
-
-	_, found := r.byPID[pid]
-	if !found {
 		return
 	}
 
@@ -253,15 +253,11 @@ func (r *registration) unregisterPath(pathID PathIdentifier) bool {
 	}
 
 	// currentUniqueProcessesCount is 0, thus we should unregister.
-	if r.deactivationCB != nil {
-		if err := r.deactivationCB(FilePath{ID: pathID}); err != nil {
-			// Even if we fail here, we have to return true, as best effort methodology.
-			// We cannot handle the failure, and thus we should continue.
-			log.Errorf("error while unregistering %s : %s", pathID.String(), err)
-			r.telemetry.fileUnregisterFailedCB.Add(1)
-		}
-	} else {
-		r.telemetry.fileUnregisterNoCB.Add(1)
+	if err := r.deactivationCB(FilePath{ID: pathID}); err != nil {
+		// Even if we fail here, we have to return true, as best effort methodology.
+		// We cannot handle the failure, and thus we should continue.
+		log.Errorf("error while unregistering %s : %s", pathID.String(), err)
+		r.telemetry.fileUnregisterFailedCB.Add(1)
 	}
 	r.telemetry.fileUnregistered.Add(1)
 	return true
@@ -274,7 +270,6 @@ type registryTelemetry struct {
 	//  o HookFailed : uprobe registration failed for one file
 	//  o Blocked : previous uprobe registration failed, so we block further call
 	//  o Unregistered : a file hook is unregistered, meaning there are no more refcount to the corresponding pathID
-	//  o UnregisterNoCB : unregister event has been done but the rule doesn't have an unregister callback
 	//  o UnregisterErrors : we encounter an error during the unregistration, looks at the logs for further details
 	//  o UnregisterFailedCB : we encounter an error during the callback unregistration, looks at the logs for further details
 	//  o UnregisterPathIDNotFound : we can't find the pathID registration, it's a bug, this value should be always 0
@@ -283,7 +278,6 @@ type registryTelemetry struct {
 	fileHookFailed               *telemetry.Counter
 	fileBlocked                  *telemetry.Counter
 	fileUnregistered             *telemetry.Counter
-	fileUnregisterNoCB           *telemetry.Counter
 	fileUnregisterErrors         *telemetry.Counter
 	fileUnregisterFailedCB       *telemetry.Counter
 	fileUnregisterPathIDNotFound *telemetry.Counter

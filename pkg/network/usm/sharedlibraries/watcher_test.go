@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/stretchr/testify/require"
@@ -66,8 +67,8 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
-			RegisterCB:   registerRecorder.Fn(),
-			UnregisterCB: unregisterRecorder.Fn(),
+			RegisterCB:   registerRecorder.Callback(),
+			UnregisterCB: unregisterRecorder.Callback(),
 		},
 	)
 	require.NoError(t, err)
@@ -123,8 +124,9 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	watcher, err := NewWatcher(config.New(),
 		nil,
 		Rule{
-			Re:         regexp.MustCompile(`fooroot-crypto.so`),
-			RegisterCB: callback,
+			Re:           regexp.MustCompile(`fooroot-crypto.so`),
+			RegisterCB:   callback,
+			UnregisterCB: utils.IgnoreCB,
 		},
 	)
 	require.NoError(t, err)
@@ -161,7 +163,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	require.NoError(t, os.Link(fooPath1, fooPath2))
 	fooPathID2, err := utils.NewPathIdentifier(fooPath2)
 	require.NoError(t, err)
-	require.True(t, fooPathID1 == fooPathID2)
+	require.Equal(t, fooPathID1, fooPathID2)
 
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
@@ -170,8 +172,8 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
-			RegisterCB:   registerRecorder.Fn(),
-			UnregisterCB: unregisterRecorder.Fn(),
+			RegisterCB:   registerRecorder.Callback(),
+			UnregisterCB: unregisterRecorder.Callback(),
 		},
 	)
 	require.NoError(t, err)
@@ -205,8 +207,8 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 		ReturnError: errors.New("fake unregisterCB error"),
 	}
 
-	registerCB := registerRecorder.Fn()
-	unregisterCB := unregisterRecorder.Fn()
+	registerCB := registerRecorder.Callback()
+	unregisterCB := unregisterRecorder.Callback()
 
 	watcher, err := NewWatcher(config.New(),
 		nil,
@@ -258,6 +260,9 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 		// Checking that the unregisteredCB was executed now for pathID1
 		return unregisterRecorder.CallsForPathID(fooPathID1) == 1
 	}, time.Second*10, time.Second, "")
+
+	// Check there are no more processes registered
+	assert.Len(t, watcher.registry.GetRegisteredProcesses(), 0)
 }
 
 func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
@@ -268,8 +273,8 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 
 	registerRecorder := new(utils.CallbackRecorder)
 	unregisterRecorder := new(utils.CallbackRecorder)
-	registerCB := registerRecorder.Fn()
-	unregisterCB := unregisterRecorder.Fn()
+	registerCB := registerRecorder.Callback()
+	unregisterCB := unregisterRecorder.Callback()
 
 	watcher, err := NewWatcher(config.New(),
 		nil,
