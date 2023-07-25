@@ -121,3 +121,16 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestLogsAgentChannelIsNil(t *testing.T) {
+	pcfg := PipelineConfig{
+		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
+		TracePort:          5003,
+		MetricsEnabled:     true,
+		TracesEnabled:      true,
+		LogsEnabled:        true,
+		Metrics:            map[string]interface{}{},
+	}
+	_, err := NewPipeline(pcfg, &serializer.MockSerializer{}, nil)
+	assert.ErrorContains(t, err, "OTLP logs is enabled but logs agent is not enabled")
+}

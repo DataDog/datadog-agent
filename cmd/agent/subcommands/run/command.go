@@ -18,8 +18,6 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
@@ -59,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
@@ -537,7 +536,7 @@ func startAgent(
 	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, otlpEnabled)
 	if otlpEnabled {
 		var err error
-		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, demux.Serializer(), logsAgentChannel)
+		common.OTLP, err = otlp.BuildAndStart(common.MainCtx, pkgconfig.Datadog, sharedSerializer, logsAgentChannel)
 		if err != nil {
 			log.Errorf("Could not start OTLP: %s", err)
 		} else {

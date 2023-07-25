@@ -11,9 +11,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter"
-
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
@@ -30,6 +27,8 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -62,17 +61,12 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 		errs = append(errs, err)
 	}
 
-	exporterFactories := []exporter.Factory{
+	exporters, err := exporter.MakeFactoryMap(
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s),
 		loggingexporter.NewFactory(),
-	}
-
-	if logsAgentChannel != nil {
-		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel))
-	}
-
-	exporters, err := exporter.MakeFactoryMap(exporterFactories...)
+		logsagentexporter.NewFactory(logsAgentChannel),
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -170,7 +164,7 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 	}
 
 	if cfg.LogsEnabled && logsAgentChannel == nil {
-		return nil, fmt.Errorf("failed to get logsAgentChannel")
+		return nil, fmt.Errorf("OTLP logs is enabled but logs agent is not enabled")
 	}
 
 	factories, err := getComponents(s, logsAgentChannel)
@@ -239,11 +233,6 @@ func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
-		return nil, pipelineError.Load()
-	}
-
-	if pcfg.LogsEnabled && logsAgentChannel == nil {
-		pipelineError.Store(fmt.Errorf("failed to get logsAgentChannel"))
 		return nil, pipelineError.Load()
 	}
 
