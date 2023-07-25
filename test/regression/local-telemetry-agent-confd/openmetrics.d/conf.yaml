@@ -1,0 +1,14 @@
+
+init_config:
+instances:
+  - metrics: [ '*' ]
+    prometheus_url: http://localhost:5000/telemetry
+    namespace: datadog.agent
+    send_distribution_buckets: true
+    service: dd-agent
+  - metrics: [ '*' ]
+    prometheus_url: http://localhost:9000
+    namespace: lading
+    send_distribution_buckets: true
+    service: lading
+

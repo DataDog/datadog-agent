@@ -28,6 +28,7 @@ from . import (
     rtloader,
     security_agent,
     selinux,
+    smp,
     system_probe,
     systray,
     trace_agent,
@@ -134,6 +135,7 @@ ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(pylauncher)
 ns.add_collection(selinux)
+ns.add_collection(smp)
 ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(rtloader)
