@@ -55,7 +55,6 @@ func TestMovingSumOverloadedBuckets(t *testing.T) {
 
 	//Creating 100 buckets
 	mockClock.Add(24 * time.Hour)
-	buckNum := 0
 
 	// For loop that adds 2 on even iterations and add 1 on odd iterations. After the MovingSum reaches maximum bucket, the moving sum should remains the same number.
 	// At 10th loop the sum will remain 15
@@ -65,12 +64,8 @@ func TestMovingSumOverloadedBuckets(t *testing.T) {
 		oddNum := 1
 		if i%2 == 0 {
 			ms.AddBytes(int64(evenNum))
-			buckNum += i
-			sum = ms.CalculateMovingSum()
 		} else {
 			ms.AddBytes(int64(oddNum))
-			buckNum += i
-			sum = ms.CalculateMovingSum()
 		}
 	}
 	sum = ms.CalculateMovingSum()
