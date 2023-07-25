@@ -47,7 +47,7 @@ type LogLevelSource string
 
 const (
 	LogLevelSourceCLI     LogLevelSource = "cli"
-	LogLevelSourceRC      LogLevelSource = "rc"
+	LogLevelSourceRC      LogLevelSource = "remote-config"
 	LogLevelSourceDefault LogLevelSource = "default"
 )
 
