@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package testinfradefinition
+package subcommands
 
 import (
 	"fmt"
@@ -149,7 +149,6 @@ func (v *agentSuite) TestDefaultInstalledChecks() {
 	}
 
 	output := v.Env().Agent.ConfigCheck()
-	fmt.Println(output)
 
 	for _, testCheck := range testChecks {
 		v.T().Run(fmt.Sprintf("default - %s test", testCheck.CheckName), func(t *testing.T) {
@@ -171,7 +170,6 @@ func (v *agentSuite) TestWithBadConfigCheck() {
 	v.UpdateEnv(e2e.AgentStackDef(nil, integration))
 
 	output := v.Env().Agent.ConfigCheck()
-	fmt.Println(output)
 
 	assert.Contains(v.T(), output, "http_check: yaml: line 2: found character that cannot start any token")
 }
@@ -185,7 +183,6 @@ func (v *agentSuite) TestWithAddedIntegrationsCheck() {
 	v.UpdateEnv(e2e.AgentStackDef(nil, integration))
 
 	output := v.Env().Agent.ConfigCheck()
-	fmt.Println(output)
 
 	result, err := MatchCheckToTemplate("http_check", output)
 	assert.NoError(v.T(), err)
