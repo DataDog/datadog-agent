@@ -167,6 +167,10 @@ new-e2e-containers-dev:
 new-e2e-containers-main:
   extends: .new_e2e_template
   rules: !reference [.on_main]
+  needs:
+    - qa_agent
+    - qa_dca
+    - qa_dogstatsd
   variables:
     TARGETS: ./containers
     CONFIGPARAMS: "-c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
