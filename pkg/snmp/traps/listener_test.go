@@ -26,7 +26,7 @@ func TestListenV1GenericTrap(t *testing.T) {
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "totoro"}
 	Configure(t, config)
 
-	packetOutChan := make(PacketsChannel)
+	packetOutChan := make(PacketsChannel, packetsChanSize)
 	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan)
 	require.NoError(t, err)
 	defer trapListener.Stop()
@@ -45,7 +45,7 @@ func TestServerV1SpecificTrap(t *testing.T) {
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
-	packetOutChan := make(PacketsChannel)
+	packetOutChan := make(PacketsChannel, packetsChanSize)
 	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan)
 	require.NoError(t, err)
 	defer trapListener.Stop()
@@ -64,7 +64,7 @@ func TestServerV2(t *testing.T) {
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}}
 	Configure(t, config)
 
-	packetOutChan := make(PacketsChannel)
+	packetOutChan := make(PacketsChannel, packetsChanSize)
 	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan)
 	require.NoError(t, err)
 	defer trapListener.Stop()
@@ -83,7 +83,7 @@ func TestServerV2BadCredentials(t *testing.T) {
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "totoro"}
 	Configure(t, config)
 
-	packetOutChan := make(PacketsChannel)
+	packetOutChan := make(PacketsChannel, packetsChanSize)
 	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan)
 	require.NoError(t, err)
 	defer trapListener.Stop()
@@ -104,7 +104,7 @@ func TestServerV3(t *testing.T) {
 	config := Config{Port: serverPort, Users: []UserV3{userV3}}
 	Configure(t, config)
 
-	packetOutChan := make(PacketsChannel)
+	packetOutChan := make(PacketsChannel, packetsChanSize)
 	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan)
 	require.NoError(t, err)
 	defer trapListener.Stop()
@@ -130,7 +130,7 @@ func TestServerV3BadCredentials(t *testing.T) {
 	config := Config{Port: serverPort, Users: []UserV3{userV3}}
 	Configure(t, config)
 
-	packetOutChan := make(PacketsChannel)
+	packetOutChan := make(PacketsChannel, packetsChanSize)
 	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan)
 	require.NoError(t, err)
 	defer trapListener.Stop()
@@ -153,7 +153,7 @@ func TestListenerTrapsReceivedTelemetry(t *testing.T) {
 	config := Config{Port: serverPort, CommunityStrings: []string{"public"}, Namespace: "totoro"}
 	Configure(t, config)
 
-	packetOutChan := make(PacketsChannel)
+	packetOutChan := make(PacketsChannel, packetsChanSize)
 	trapListener, err := startSNMPTrapListener(config, mockSender, packetOutChan)
 	require.NoError(t, err)
 	defer trapListener.Stop()
