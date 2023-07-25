@@ -35,6 +35,7 @@ const (
 	EventMonitorModule           ModuleName = "event_monitor"
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 	EBPFModule                   ModuleName = "ebpf"
+	LanguageDetectionModule      ModuleName = "language_detection"
 )
 
 // Config represents the configuration options for the system-probe
