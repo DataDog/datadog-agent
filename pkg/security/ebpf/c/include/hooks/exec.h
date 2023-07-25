@@ -36,11 +36,11 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
     return 0;
 }
 
-SYSCALL_KPROBE3(execve, const char *, filename, const char **, argv, const char **, env) {
+HOOK_SYSCALL_ENTRY3(execve, const char *, filename, const char **, argv, const char **, env) {
     return trace__sys_execveat(ctx, argv, env);
 }
 
-SYSCALL_KPROBE4(execveat, int, fd, const char *, filename, const char **, argv, const char **, env) {
+HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, argv, const char **, env) {
     return trace__sys_execveat(ctx, argv, env);
 }
 
@@ -86,11 +86,11 @@ SYSCALL_KPROBE0(fork) {
     return handle_sys_fork(ctx);
 }
 
-SYSCALL_KPROBE0(clone) {
+HOOK_SYSCALL_ENTRY0(clone) {
     return handle_sys_fork(ctx);
 }
 
-SYSCALL_KPROBE0(clone3) {
+HOOK_SYSCALL_ENTRY0(clone3) {
     return handle_sys_fork(ctx);
 }
 
@@ -334,9 +334,8 @@ int hook_security_bprm_check(ctx_t *ctx) {
     return fill_exec_context();
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/get_envs_offset")
-int kprobe_get_envs_offset(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("get_envs_offset")
+int tail_call_target_get_envs_offset(void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -382,7 +381,7 @@ int kprobe_get_envs_offset(struct pt_regs *ctx) {
     return 0;
 }
 
-void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs) {
+void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs) {
     const char *args_start = args_envs_ctx->args_start;
     int offset = args_envs_ctx->parsing_offset;
 
@@ -452,9 +451,8 @@ void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct 
     }
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/parse_args_envs_split")
-int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("parse_args_envs_split")
+int tail_call_target_parse_args_envs_split(void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -482,9 +480,8 @@ int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/parse_args_envs")
-int kprobe_parse_args_envs(struct pt_regs *ctx) {
+TAIL_CALL_TARGET("parse_args_envs")
+int tail_call_target_parse_args_envs(void *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -545,15 +542,14 @@ int kprobe_setup_new_exec_interp(struct pt_regs *ctx) {
     return fetch_interpreter(ctx, bprm);
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/setup_new_exec")
-int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
+HOOK_ENTRY("setup_new_exec")
+int hook_setup_new_exec_args_envs(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
 
-    void *bprm = (void *)PT_REGS_PARM1(ctx);
+    void *bprm = (void *)CTX_PARM1(ctx);
 
     int argc = 0;
     u64 argc_offset;
@@ -586,9 +582,8 @@ int kprobe_setup_new_exec_args_envs(struct pt_regs *ctx) {
     return 0;
 }
 
-// fentry blocked by: tail call
-SEC("kprobe/setup_arg_pages")
-int kprobe_setup_arg_pages(struct pt_regs *ctx) {
+HOOK_ENTRY("setup_arg_pages")
+int hook_setup_arg_pages(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;

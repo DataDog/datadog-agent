@@ -155,6 +155,11 @@
 
 #define SYSCALL_FENTRY0(name, ...) SYSCALL_HOOKx(0,fentry,FENTRY,,_##name,__VA_ARGS__)
 #define SYSCALL_FENTRY1(name, ...) SYSCALL_HOOKx(1,fentry,FENTRY,,_##name,__VA_ARGS__)
+#define SYSCALL_FENTRY2(name, ...) SYSCALL_HOOKx(2,fentry,FENTRY,,_##name,__VA_ARGS__)
+#define SYSCALL_FENTRY3(name, ...) SYSCALL_HOOKx(3,fentry,FENTRY,,_##name,__VA_ARGS__)
+#define SYSCALL_FENTRY4(name, ...) SYSCALL_HOOKx(4,fentry,FENTRY,,_##name,__VA_ARGS__)
+#define SYSCALL_FENTRY5(name, ...) SYSCALL_HOOKx(5,fentry,FENTRY,,_##name,__VA_ARGS__)
+#define SYSCALL_FENTRY6(name, ...) SYSCALL_HOOKx(6,fentry,FENTRY,,_##name,__VA_ARGS__)
 
 #define SYSCALL_KRETPROBE(name, ...) SYSCALL_HOOKx(0,kretprobe,KRETPROBE,,_##name)
 

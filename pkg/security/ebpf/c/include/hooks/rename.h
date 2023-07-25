@@ -18,15 +18,15 @@ int __attribute__((always_inline)) trace__sys_rename(u8 async) {
     return 0;
 }
 
-SYSCALL_KPROBE0(rename) {
+HOOK_SYSCALL_ENTRY0(rename) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat) {
+HOOK_SYSCALL_ENTRY0(renameat) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat2) {
+HOOK_SYSCALL_ENTRY0(renameat2) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 

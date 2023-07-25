@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.47.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v1.0.3
-	github.com/DataDog/ebpf-manager v0.2.10
+	github.com/DataDog/ebpf-manager v0.2.11
 	github.com/DataDog/go-libddwaf v1.0.0
 	github.com/DataDog/go-tuf v1.0.1-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
@@ -568,6 +568,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.47.0-rc.3.0.20230717151521-271965684571
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.5.2
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
@@ -580,6 +581,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect

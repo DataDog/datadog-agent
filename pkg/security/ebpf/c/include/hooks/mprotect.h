@@ -6,7 +6,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE0(mprotect) {
+HOOK_SYSCALL_ENTRY0(mprotect) {
     struct policy_t policy = fetch_policy(EVENT_MPROTECT);
     if (is_discarded_by_process(policy.mode, EVENT_MPROTECT)) {
         return 0;

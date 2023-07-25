@@ -183,6 +183,9 @@ def download_artifacts(run_id, destination="."):
 
 
 def download_artifacts_with_retry(run_id, destination=".", retry_count=3, retry_interval=10):
+
+    import requests
+
     retry = retry_count
 
     while retry > 0:
@@ -190,11 +193,12 @@ def download_artifacts_with_retry(run_id, destination=".", retry_count=3, retry_
             download_artifacts(run_id, destination)
             print(color_message(f"Successfully downloaded artifacts for run {run_id} to {destination}", "blue"))
             return
-        except ConnectionResetError:
+        except requests.exceptions.RequestException:
             retry -= 1
             print(f'Connectivity issue while downloading the artifact, retrying... {retry} attempts left')
             sleep(retry_interval)
         except Exception as e:
+            print("Exception that is not a connectivity issue: ", type(e).__name__, " - ", e)
             raise e
     print(f'Download failed {retry_count} times, stop retry and exit')
     raise Exit(code=os.EX_TEMPFAIL)
