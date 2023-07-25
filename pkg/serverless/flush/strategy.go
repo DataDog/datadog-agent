@@ -7,6 +7,7 @@ package flush
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"math"
 	"math/rand"
 	"strconv"
@@ -69,33 +70,33 @@ func StrategyFromString(str string) (Strategy, error) {
 
 // AtTheEnd strategy is the simply flushing the data at the end of the execution of the function.
 type AtTheEnd struct {
-	lastFailedAttempt lastFailedAttempts
+	lastFailure failedAttempt
 }
 
 func (s *AtTheEnd) String() string { return "end" }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
-	if !s.lastFailedAttempt.tooManyFailure(t) {
-		return moment == Stopping
-	} else {
+	if s.lastFailure.tooEarly(t) {
 		return false
+	} else {
+		return moment == Stopping
 	}
 }
 
 func (s *AtTheEnd) Failure(t time.Time) {
-	s.lastFailedAttempt.incrementFailure(t)
+	s.lastFailure.incrementFailure(t)
 }
 func (s *AtTheEnd) Success() {
-	s.lastFailedAttempt.success()
+	s.lastFailure.reset()
 }
 
 // Periodically is the strategy flushing at least every N [nano/micro/milli]seconds
 // at the start of the function.
 type Periodically struct {
-	interval          time.Duration
-	lastFlush         time.Time
-	lastFailedAttempt lastFailedAttempts
+	interval    time.Duration
+	lastFlush   time.Time
+	lastFailure failedAttempt
 }
 
 // NewPeriodically returns an initialized Periodically flush strategy.
@@ -109,7 +110,7 @@ func (s *Periodically) String() string {
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
-	if !s.lastFailedAttempt.tooManyFailure(t) && moment == Starting {
+	if moment == Starting && !s.lastFailure.tooEarly(t) {
 		if s.lastFlush.Add(s.interval).Before(t) {
 			s.lastFlush = t
 			return true
@@ -119,35 +120,36 @@ func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
 }
 
 func (s *Periodically) Failure(t time.Time) {
-	s.lastFailedAttempt.incrementFailure(t)
+	s.lastFailure.incrementFailure(t)
 }
 
 func (s *Periodically) Success() {
-	s.lastFailedAttempt.success()
+	s.lastFailure.reset()
 }
 
-type lastFailedAttempts struct {
-	time         time.Time
-	backoffRetry int
+type failedAttempt struct {
+	lastFail time.Time
+	retries  int
 }
 
-func (f *lastFailedAttempts) tooManyFailure(now time.Time) bool {
-	if f.backoffRetry > 0 {
+func (f *failedAttempt) tooEarly(now time.Time) bool {
+	if f.retries > 0 {
 		spreadRetrySeconds := float64(rand.Int31n(1_000)) / 1_000
-		ignoreWindowSeconds := int(math.Min(math.Pow(2, float64(f.backoffRetry))+spreadRetrySeconds, maxBackoffRetrySeconds))
-		return now.Before(f.time.Add(time.Duration(ignoreWindowSeconds * 1e9)))
+		ignoreWindowSeconds := int(math.Min(math.Pow(2, float64(f.retries))+spreadRetrySeconds, maxBackoffRetrySeconds))
+		log.Debug("Flush failed, retry number %s will happen in %s seconds", f.retries, ignoreWindowSeconds)
+		return now.Before(f.lastFail.Add(time.Duration(ignoreWindowSeconds * 1e9)))
 	} else {
 		return false
 	}
 }
 
-func (f *lastFailedAttempts) incrementFailure(t time.Time) {
-	if f.backoffRetry < 10 { // no need to go higher and risk overflow in the power op when calculating backoff
-		f.backoffRetry += 1
+func (f *failedAttempt) incrementFailure(t time.Time) {
+	if f.retries < 10 { // no need to go higher and risk overflow in the power op when calculating backoff
+		f.retries += 1
 	}
-	f.time = t
+	f.lastFail = t
 }
 
-func (f *lastFailedAttempts) success() {
-	f.backoffRetry = 0
+func (f *failedAttempt) reset() {
+	f.retries = 0
 }

@@ -96,7 +96,7 @@ func TestSkipAfterFailure(t *testing.T) {
 
 }
 
-func TestSkipMaxBackoff(t *testing.T) {
+func TestMaxBackoff(t *testing.T) {
 	assert := assert.New(t)
 
 	now := time.Now()
@@ -109,6 +109,6 @@ func TestSkipMaxBackoff(t *testing.T) {
 		sEnd.Failure(now)
 	}
 	assert.False(sEnd.ShouldFlush(Stopping, afterLessThanRetryTimeout), "it should not flush because it failed right away")
-	assert.True(sEnd.ShouldFlush(Stopping, afterMoreThanRetryTimeout), "it flush because enough time has passed since failure")
+	assert.True(sEnd.ShouldFlush(Stopping, afterMoreThanRetryTimeout), "it flush because more than max backoff passed")
 
 }
