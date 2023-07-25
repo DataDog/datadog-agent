@@ -26,54 +26,25 @@ import (
  * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
  * For such statements, we will have to get the text from v$sql which has the complete text.
  */
-const STATEMENT_METRICS_QUERY = `SELECT /* DD */
-	c.name as pdb_name,
-	%s,
-	plan_hash_value,
-	max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text,
-	length(max(sql_text)) sql_text_length,
-	max(sql_id) random_sql_id,
-	sum(parse_calls) as parse_calls,
-	sum(disk_reads) as disk_reads,
-	sum(direct_writes) as direct_writes,
-	sum(direct_reads) as direct_reads,
-	sum(buffer_gets) as buffer_gets,
-	sum(rows_processed) as rows_processed,
-	sum(serializable_aborts) as serializable_aborts,
-	sum(fetches) as fetches,
-	sum(executions) as executions,
-	sum(end_of_fetch_count) as end_of_fetch_count,
-	sum(loads) as loads,
-	sum(version_count) as version_count,
-	sum(invalidations) as invalidations,
-	sum(px_servers_executions) as px_servers_executions,
-	sum(cpu_time) as cpu_time,
-	sum(elapsed_time) as elapsed_time,
-	sum(application_wait_time) as application_wait_time,
-	sum(concurrency_wait_time) as concurrency_wait_time,
-	sum(cluster_wait_time) as cluster_wait_time,
-	sum(user_io_wait_time) as user_io_wait_time,
-	sum(plsql_exec_time) as plsql_exec_time,
-	sum(java_exec_time) as java_exec_time,
-	sum(sorts) as sorts,
-	sum(sharable_mem) as sharable_mem,
-	sum(typecheck_mem) as typecheck_mem,
-	sum(io_cell_offload_eligible_bytes) as io_cell_offload_eligible_bytes,
-	sum(io_interconnect_bytes) as io_interconnect_bytes,
-	sum(physical_read_requests) as physical_read_requests,
-	sum(physical_read_bytes) as physical_read_bytes,
-	sum(physical_write_requests) as physical_write_requests,
-	sum(physical_write_bytes) as physical_write_bytes,
-	sum(io_cell_uncompressed_bytes) as io_cell_uncompressed_bytes,
-	sum(io_cell_offload_returned_bytes) as io_cell_offload_returned_bytes,
-	sum(avoided_executions) as avoided_executions
-FROM v$sqlstats s, v$containers c
-WHERE 
-	s.con_id = c.con_id(+)
-	AND force_matching_signature %s= 0
-GROUP BY c.name, %s, plan_hash_value
-HAVING MAX(last_active_time) > sysdate - :seconds/24/60/60
-FETCH FIRST :limit ROWS ONLY`
+const SELECT_FMS = `SELECT /* DD */ c.name pdb_name, s.force_matching_signature, plan_hash_value, 
+max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length,`
+
+const LAST_ACTIVE_FMS = `( 
+    SELECT * FROM 
+    (
+      SELECT 
+        force_matching_signature, sql_id,
+        row_number() over (partition by force_matching_signature order by last_active_time DESC) as ROWNO
+      FROM v$sqlstats WHERE last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature != 0
+    ) WHERE rowno = 1
+  ) sq`
+const GROUP_BY_FMS = `GROUP BY c.name, s.force_matching_signature, plan_hash_value`
+
+const FROM = `FROM v$sqlstats s, v$containers c`
+const WHERE = `WHERE s.con_id = c.con_id(+)`
+const FETCH = `FETCH FIRST :limit ROWS ONLY`
+
+const SELECT_SQLID = `SELECT /* DD */ c.name pdb_name, sql_id, plan_hash_value, sql_fulltext sql_text, length(sql_fulltext) sql_text_length, `
 
 // including sql_id for indexed access
 const PLAN_QUERY = `SELECT /* DD */
@@ -170,7 +141,7 @@ type StatementMetricsDB struct {
 	StatementMetricsKeyDB
 	SQLText       string `db:"SQL_TEXT"`
 	SQLTextLength int16  `db:"SQL_TEXT_LENGTH"`
-	RandomSQLID   string `db:"RANDOM_SQL_ID"`
+	SQLID         string `db:"SQL_ID"`
 	StatementMetricsMonotonicCountDB
 	StatementMetricsGaugeDB
 }
@@ -399,13 +370,50 @@ type PlanRows struct {
 	PlanStepRows
 }
 
-func GetStatementsMetricsForKeys(c *Check, key string, negator string) ([]StatementMetricsDB, error) {
-	var statementMetrics []StatementMetricsDB
-	err := selectWrapper(c, &statementMetrics, fmt.Sprintf(STATEMENT_METRICS_QUERY, key, negator, key), 2*c.config.QueryMetrics.CollectionInterval, c.config.QueryMetrics.DBRowsLimit)
-	if err != nil {
-		return nil, fmt.Errorf("error executing statement metrics query: %w", err)
+func getStatisticsColumns() []string {
+	return []string{"parse_calls",
+		"disk_reads",
+		"direct_writes",
+		"direct_reads",
+		"buffer_gets",
+		"rows_processed",
+		"serializable_aborts",
+		"fetches",
+		"executions",
+		"end_of_fetch_count",
+		"loads",
+		"version_count",
+		"invalidations",
+		"px_servers_executions",
+		"cpu_time",
+		"elapsed_time",
+		"application_wait_time",
+		"concurrency_wait_time",
+		"cluster_wait_time",
+		"user_io_wait_time",
+		"plsql_exec_time",
+		"java_exec_time",
+		"sorts",
+		"sharable_mem",
+		"typecheck_mem",
+		"io_cell_offload_eligible_bytes",
+		"io_interconnect_bytes",
+		"physical_read_requests",
+		"physical_read_bytes",
+		"physical_write_requests",
+		"physical_write_bytes",
+		"io_cell_uncompressed_bytes",
+		"io_cell_offload_returned_bytes",
+		"avoided_executions",
 	}
-	return statementMetrics, nil
+}
+
+func getColumnSums() string {
+	var sums []string
+	for _, column := range getStatisticsColumns() {
+		sums = append(sums, fmt.Sprintf("sum(%s) as %s", column, column))
+	}
+	return strings.Join(sums, ",")
 }
 
 func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB) {
@@ -432,16 +440,55 @@ func (c *Check) StatementMetrics() (int, error) {
 	var oracleRows []OracleRow
 	var planErrors uint16
 	if c.config.QueryMetrics.Enabled {
-		statementMetrics, err := GetStatementsMetricsForKeys(c, "force_matching_signature", "!")
+		var statementMetrics []StatementMetricsDB
+		var SQLID string
+		if c.config.QueryMetrics.DisableLastActive {
+			SQLID = "max(sql_id)"
+		} else {
+			SQLID = "sq.sql_id"
+		}
+		sql := fmt.Sprintf("%s %s as sql_id, %s %s", SELECT_FMS, SQLID, getColumnSums(), FROM)
+		if !c.config.QueryMetrics.DisableLastActive {
+			sql = fmt.Sprintf("%s, %s", sql, LAST_ACTIVE_FMS)
+		}
+		sql = fmt.Sprintf("%s %s", sql, WHERE)
+		if !c.config.QueryMetrics.DisableLastActive {
+			sql = fmt.Sprintf("%s AND sq.force_matching_signature = s.force_matching_signature", sql)
+		}
+		sql = fmt.Sprintf("%s %s", sql, GROUP_BY_FMS)
+		if !c.config.QueryMetrics.DisableLastActive {
+			sql = fmt.Sprintf("%s, %s", sql, SQLID)
+		} else {
+			sql = fmt.Sprintf("%s %s", sql, "HAVING MAX ( last_active_time ) > sysdate - :seconds/24/60/60")
+		}
+		sql = fmt.Sprintf("%s %s", sql, FETCH)
+		err := selectWrapper(
+			c,
+			&statementMetrics,
+			sql,
+			2*c.config.QueryMetrics.CollectionInterval,
+			c.config.QueryMetrics.DBRowsLimit,
+		)
 		if err != nil {
-			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w", err)
+			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w %s", err, sql)
 		}
 		log.Tracef("number of collected metrics with force_matching_signature %+v", len(statementMetrics))
+
 		statementMetricsAll := statementMetrics
-		statementMetrics, err = GetStatementsMetricsForKeys(c, "sql_id", "")
+
+		sql = fmt.Sprintf("%s %s", SELECT_SQLID, strings.Join(getStatisticsColumns(), ","))
+		sql = fmt.Sprintf("%s %s %s %s %s", sql, FROM, WHERE, "AND last_active_time > sysdate - :seconds/24/60/60", FETCH)
+		err = selectWrapper(
+			c,
+			&statementMetrics,
+			sql,
+			2*c.config.QueryMetrics.CollectionInterval,
+			c.config.QueryMetrics.DBRowsLimit,
+		)
 		if err != nil {
-			return 0, fmt.Errorf("error collecting statement metrics for SQL_IDs: %w", err)
+			return 0, fmt.Errorf("error collecting statement metrics for SQL_IDs: %w %s", err, sql)
 		}
+		log.Tracef("number of collected metrics with SQL_ID %+v", len(statementMetrics))
 		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
 		SQLCount = len(statementMetricsAll)
 		sender.Count("dd.oracle.statements_metrics.sql_count", float64(SQLCount), "", c.tags)
@@ -566,9 +613,9 @@ func (c *Check) StatementMetrics() (int, error) {
 			var SQLStatement string
 
 			if statementMetricRow.SQLTextLength == 1000 {
-				err := getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.RandomSQLID)
+				err := getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.SQLID)
 				if err != nil {
-					log.Errorf("failed to get the full text %s for sql_id %s", err, statementMetricRow.RandomSQLID)
+					log.Errorf("failed to get the full text %s for sql_id %s", err, statementMetricRow.SQLID)
 				}
 				if SQLStatement == "" && statementMetricRow.ForceMatchingSignature != "" {
 					err := getFullSQLText(c, &SQLStatement, "force_matching_signature", statementMetricRow.ForceMatchingSignature)
@@ -639,169 +686,173 @@ func (c *Check) StatementMetrics() (int, error) {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
-					err = selectWrapper(c, &planStepsDB, PLAN_QUERY, statementMetricRow.RandomSQLID, statementMetricRow.PlanHashValue)
+					err = selectWrapper(c, &planStepsDB, PLAN_QUERY, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 
 					if err == nil {
-						for _, stepRow := range planStepsDB {
-							var stepPayload PlanDefinition
-							if stepRow.Operation.Valid {
-								stepPayload.Operation = stepRow.Operation.String
-							}
-							if stepRow.Options.Valid {
-								stepPayload.Options = stepRow.Options.String
-							}
-							if stepRow.ObjectOwner.Valid {
-								stepPayload.ObjectOwner = stepRow.ObjectOwner.String
-							}
-							if stepRow.ObjectName.Valid {
-								stepPayload.ObjectName = stepRow.ObjectName.String
-							}
-							if stepRow.ObjectAlias.Valid {
-								stepPayload.ObjectAlias = stepRow.ObjectAlias.String
-							}
-							if stepRow.ObjectType.Valid {
-								stepPayload.ObjectType = stepRow.ObjectType.String
-							}
-							if stepRow.PlanStepId.Valid {
-								stepPayload.PlanStepId = stepRow.PlanStepId.Int64
-							}
-							if stepRow.ParentId.Valid {
-								stepPayload.ParentId = stepRow.ParentId.Int64
-							}
-							if stepRow.Depth.Valid {
-								stepPayload.Depth = stepRow.Depth.Int64
-							}
-							if stepRow.Position.Valid {
-								stepPayload.Position = stepRow.Position.Int64
-							}
-							if stepRow.SearchColumns.Valid {
-								stepPayload.SearchColumns = stepRow.SearchColumns.Int64
-							}
-							if stepRow.Cost.Valid {
-								stepPayload.Cost = stepRow.Cost.Float64
-							}
-							if stepRow.Cardinality.Valid {
-								stepPayload.Cardinality = stepRow.Cardinality.Float64
-							}
-							if stepRow.Bytes.Valid {
-								stepPayload.Bytes = stepRow.Bytes.Float64
-							}
-							if stepRow.PartitionStart.Valid {
-								stepPayload.PartitionStart = stepRow.PartitionStart.String
-							}
-							if stepRow.PartitionStop.Valid {
-								stepPayload.PartitionStop = stepRow.PartitionStop.String
-							}
-							if stepRow.CPUCost.Valid {
-								stepPayload.CPUCost = stepRow.CPUCost.Float64
-							}
-							if stepRow.IOCost.Valid {
-								stepPayload.IOCost = stepRow.IOCost.Float64
-							}
-							if stepRow.TempSpace.Valid {
-								stepPayload.TempSpace = stepRow.TempSpace.Float64
-							}
-							if stepRow.AccessPredicates.Valid {
-								obfuscated, err := o.ObfuscateSQLString(stepRow.AccessPredicates.String)
-								if err == nil {
-									stepPayload.AccessPredicates = obfuscated.Query
-								} else {
-									stepPayload.AccessPredicates = "obfuscation error"
-									log.Errorf("Access obfuscation error")
+						if len(planStepsDB) > 0 {
+							for _, stepRow := range planStepsDB {
+								var stepPayload PlanDefinition
+								if stepRow.Operation.Valid {
+									stepPayload.Operation = stepRow.Operation.String
 								}
-							}
-							if stepRow.FilterPredicates.Valid {
-								obfuscated, err := o.ObfuscateSQLString(stepRow.FilterPredicates.String)
-								if err == nil {
-									stepPayload.FilterPredicates = obfuscated.Query
-								} else {
-									stepPayload.FilterPredicates = "obfuscation error"
-									log.Errorf("Filter obfuscation error")
+								if stepRow.Options.Valid {
+									stepPayload.Options = stepRow.Options.String
 								}
-							}
-							if stepRow.Projection.Valid {
-								stepPayload.Projection = stepRow.Projection.String
-							}
-							if stepRow.LastStarts != nil {
-								stepPayload.LastStarts = *stepRow.LastStarts
-							}
-							if stepRow.LastOutputRows != nil {
-								stepPayload.LastOutputRows = *stepRow.LastOutputRows
-							}
-							if stepRow.LastCRBufferGets != nil {
-								stepPayload.LastCRBufferGets = *stepRow.LastCRBufferGets
-							}
-							if stepRow.LastDiskReads != nil {
-								stepPayload.LastDiskReads = *stepRow.LastDiskReads
-							}
-							if stepRow.LastDiskWrites != nil {
-								stepPayload.LastDiskWrites = *stepRow.LastDiskWrites
-							}
-							if stepRow.LastElapsedTime != nil {
-								stepPayload.LastElapsedTime = *stepRow.LastElapsedTime
-							}
-							if stepRow.LastMemoryUsed != nil {
-								stepPayload.LastMemoryUsed = *stepRow.LastMemoryUsed
-							}
-							if stepRow.LastDegree != nil {
-								stepPayload.LastDegree = *stepRow.LastDegree
-							}
-							if stepRow.LastTempsegSize != nil {
-								stepPayload.LastTempsegSize = *stepRow.LastTempsegSize
-							}
-							if stepRow.PlanCreated.Valid && stepRow.PlanCreated.String != "" {
-								oraclePlan.Timestamp = stepRow.PlanCreated.String
-							}
-							if stepRow.OptimizerMode.Valid && stepRow.OptimizerMode.String != "" {
-								oraclePlan.OptimizerMode = stepRow.OptimizerMode.String
-							}
-							if stepRow.Other.Valid && stepRow.Other.String != "" {
-								oraclePlan.Other = stepRow.Other.String
-							}
-							if stepRow.PDBName.Valid && stepRow.PDBName.String != "" {
-								oraclePlan.PDBName = stepRow.PDBName.String
-							}
-							oraclePlan.SQLID = stepRow.SQLID
+								if stepRow.ObjectOwner.Valid {
+									stepPayload.ObjectOwner = stepRow.ObjectOwner.String
+								}
+								if stepRow.ObjectName.Valid {
+									stepPayload.ObjectName = stepRow.ObjectName.String
+								}
+								if stepRow.ObjectAlias.Valid {
+									stepPayload.ObjectAlias = stepRow.ObjectAlias.String
+								}
+								if stepRow.ObjectType.Valid {
+									stepPayload.ObjectType = stepRow.ObjectType.String
+								}
+								if stepRow.PlanStepId.Valid {
+									stepPayload.PlanStepId = stepRow.PlanStepId.Int64
+								}
+								if stepRow.ParentId.Valid {
+									stepPayload.ParentId = stepRow.ParentId.Int64
+								}
+								if stepRow.Depth.Valid {
+									stepPayload.Depth = stepRow.Depth.Int64
+								}
+								if stepRow.Position.Valid {
+									stepPayload.Position = stepRow.Position.Int64
+								}
+								if stepRow.SearchColumns.Valid {
+									stepPayload.SearchColumns = stepRow.SearchColumns.Int64
+								}
+								if stepRow.Cost.Valid {
+									stepPayload.Cost = stepRow.Cost.Float64
+								}
+								if stepRow.Cardinality.Valid {
+									stepPayload.Cardinality = stepRow.Cardinality.Float64
+								}
+								if stepRow.Bytes.Valid {
+									stepPayload.Bytes = stepRow.Bytes.Float64
+								}
+								if stepRow.PartitionStart.Valid {
+									stepPayload.PartitionStart = stepRow.PartitionStart.String
+								}
+								if stepRow.PartitionStop.Valid {
+									stepPayload.PartitionStop = stepRow.PartitionStop.String
+								}
+								if stepRow.CPUCost.Valid {
+									stepPayload.CPUCost = stepRow.CPUCost.Float64
+								}
+								if stepRow.IOCost.Valid {
+									stepPayload.IOCost = stepRow.IOCost.Float64
+								}
+								if stepRow.TempSpace.Valid {
+									stepPayload.TempSpace = stepRow.TempSpace.Float64
+								}
+								if stepRow.AccessPredicates.Valid {
+									obfuscated, err := o.ObfuscateSQLString(stepRow.AccessPredicates.String)
+									if err == nil {
+										stepPayload.AccessPredicates = obfuscated.Query
+									} else {
+										stepPayload.AccessPredicates = "obfuscation error"
+										log.Errorf("Access obfuscation error")
+									}
+								}
+								if stepRow.FilterPredicates.Valid {
+									obfuscated, err := o.ObfuscateSQLString(stepRow.FilterPredicates.String)
+									if err == nil {
+										stepPayload.FilterPredicates = obfuscated.Query
+									} else {
+										stepPayload.FilterPredicates = "obfuscation error"
+										log.Errorf("Filter obfuscation error")
+									}
+								}
+								if stepRow.Projection.Valid {
+									stepPayload.Projection = stepRow.Projection.String
+								}
+								if stepRow.LastStarts != nil {
+									stepPayload.LastStarts = *stepRow.LastStarts
+								}
+								if stepRow.LastOutputRows != nil {
+									stepPayload.LastOutputRows = *stepRow.LastOutputRows
+								}
+								if stepRow.LastCRBufferGets != nil {
+									stepPayload.LastCRBufferGets = *stepRow.LastCRBufferGets
+								}
+								if stepRow.LastDiskReads != nil {
+									stepPayload.LastDiskReads = *stepRow.LastDiskReads
+								}
+								if stepRow.LastDiskWrites != nil {
+									stepPayload.LastDiskWrites = *stepRow.LastDiskWrites
+								}
+								if stepRow.LastElapsedTime != nil {
+									stepPayload.LastElapsedTime = *stepRow.LastElapsedTime
+								}
+								if stepRow.LastMemoryUsed != nil {
+									stepPayload.LastMemoryUsed = *stepRow.LastMemoryUsed
+								}
+								if stepRow.LastDegree != nil {
+									stepPayload.LastDegree = *stepRow.LastDegree
+								}
+								if stepRow.LastTempsegSize != nil {
+									stepPayload.LastTempsegSize = *stepRow.LastTempsegSize
+								}
+								if stepRow.PlanCreated.Valid && stepRow.PlanCreated.String != "" {
+									oraclePlan.Timestamp = stepRow.PlanCreated.String
+								}
+								if stepRow.OptimizerMode.Valid && stepRow.OptimizerMode.String != "" {
+									oraclePlan.OptimizerMode = stepRow.OptimizerMode.String
+								}
+								if stepRow.Other.Valid && stepRow.Other.String != "" {
+									oraclePlan.Other = stepRow.Other.String
+								}
+								if stepRow.PDBName.Valid && stepRow.PDBName.String != "" {
+									oraclePlan.PDBName = stepRow.PDBName.String
+								}
+								oraclePlan.SQLID = stepRow.SQLID
 
-							planStepsPayload = append(planStepsPayload, stepPayload)
-						}
-						oraclePlan.PlanHashValue = statementMetricRow.PlanHashValue
-						planStatementMetadata := PlanStatementMetadata{
-							Tables:   queryRow.Tables,
-							Commands: queryRow.Commands,
-						}
-						planPlanDB := PlanPlanDB{
-							Definition: planStepsPayload,
-							Signature:  strconv.FormatUint(statementMetricRow.PlanHashValue, 10),
-						}
-						planDB := PlanDB{
-							Instance:       c.cdbName,
-							Plan:           planPlanDB,
-							QuerySignature: queryRow.QuerySignature,
-							Statement:      SQLStatement,
-							Metadata:       planStatementMetadata,
-						}
-						planPayload := PlanPayload{
-							Timestamp:    float64(time.Now().UnixMilli()),
-							Host:         c.dbHostname,
-							AgentVersion: c.agentVersion,
-							Source:       common.IntegrationName,
-							Tags:         strings.Join(c.tags, ","),
-							DBMType:      "plan",
-							PlanDB:       planDB,
-							OraclePlan:   oraclePlan,
-						}
-						planPayloadBytes, err := json.Marshal(planPayload)
-						if err != nil {
-							log.Errorf("Error marshalling plan payload: %s", err)
-						}
+								planStepsPayload = append(planStepsPayload, stepPayload)
+							}
+							oraclePlan.PlanHashValue = statementMetricRow.PlanHashValue
+							planStatementMetadata := PlanStatementMetadata{
+								Tables:   queryRow.Tables,
+								Commands: queryRow.Commands,
+							}
+							planPlanDB := PlanPlanDB{
+								Definition: planStepsPayload,
+								Signature:  strconv.FormatUint(statementMetricRow.PlanHashValue, 10),
+							}
+							planDB := PlanDB{
+								Instance:       c.cdbName,
+								Plan:           planPlanDB,
+								QuerySignature: queryRow.QuerySignature,
+								Statement:      SQLStatement,
+								Metadata:       planStatementMetadata,
+							}
+							planPayload := PlanPayload{
+								Timestamp:    float64(time.Now().UnixMilli()),
+								Host:         c.dbHostname,
+								AgentVersion: c.agentVersion,
+								Source:       common.IntegrationName,
+								Tags:         strings.Join(c.tags, ","),
+								DBMType:      "plan",
+								PlanDB:       planDB,
+								OraclePlan:   oraclePlan,
+							}
+							planPayloadBytes, err := json.Marshal(planPayload)
+							if err != nil {
+								log.Errorf("Error marshalling plan payload: %s", err)
+							}
 
-						sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
-						log.Tracef("Plan payload %+v", string(planPayloadBytes))
-						c.planEmitted.Set(planCacheKey, "1", cache.DefaultExpiration)
+							sender.EventPlatformEvent(planPayloadBytes, "dbm-samples")
+							log.Tracef("Plan payload %+v", string(planPayloadBytes))
+							c.planEmitted.Set(planCacheKey, "1", cache.DefaultExpiration)
+						} else {
+							log.Infof("Plan for SQL_ID %s and plan_hash_value: %d not found", statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+						}
 					} else {
 						planErrors++
-						log.Errorf("failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", err, statementMetricRow.RandomSQLID, statementMetricRow.PlanHashValue)
+						log.Errorf("failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 					}
 				}
 			}
