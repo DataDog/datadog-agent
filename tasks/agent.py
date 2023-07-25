@@ -382,6 +382,7 @@ ENV DELVE_PAGER=less
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent /opt/datadog-agent/bin/agent/agent
+COPY dev/lib/libdatadog-agent-rtloader.so* /opt/datadog-agent/embedded/lib/
 RUN agent completion bash > /usr/share/bash-completion/completions/agent
 
 ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
