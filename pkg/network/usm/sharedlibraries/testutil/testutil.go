@@ -42,10 +42,10 @@ func OpenFromAnotherProcess(t *testing.T, paths ...string) *exec.Cmd {
 	return cmd
 }
 
-// prebuiltExecutable returns the path of the prebuilt fmapper program when applicable.
+// getPrebuiltExecutable returns the path of the prebuilt fmapper program when applicable.
 //
 // When running tests via CI, the fmapper program is prebuilt by running `inv -e system-probe.kitchen-prepare`
-// in which case we return the path of the executable. case we're not running in
+// in which case we return the path of the executable. In case we're not running in
 // CI context an empty string is returned.
 func getPrebuiltExecutable(t *testing.T) string {
 	mux.Lock()
