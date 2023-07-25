@@ -661,8 +661,9 @@ func TestParseStatContent(t *testing.T) {
 	now := time.Now()
 
 	for _, tc := range []struct {
-		line     []byte
-		expected *statInfo
+		line           []byte
+		expected       *statInfo
+		isKernelThread bool
 	}{
 		// standard content
 		{
@@ -677,6 +678,7 @@ func TestParseStatContent(t *testing.T) {
 				},
 				flags: 4194560,
 			},
+			isKernelThread: false,
 		},
 		// command line has brackets around
 		{
@@ -691,6 +693,7 @@ func TestParseStatContent(t *testing.T) {
 				},
 				flags: 4194560,
 			},
+			isKernelThread: false,
 		},
 		// fields are separated by multiple white spaces
 		{
@@ -705,6 +708,22 @@ func TestParseStatContent(t *testing.T) {
 				},
 				flags: 69238880,
 			},
+			isKernelThread: true,
+		},
+		// flags are greater than int32
+		{
+			line: []byte("44 (kintegrityd/0) S 2 0 0 0 -1 2216722496 0 0 0 0 0 0 0 0 20 0 1 0 31 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 18446744071579499573 0 0 17 0 0 0 0 0 0"),
+			expected: &statInfo{
+				ppid:       2,
+				createTime: 1606181252000,
+				cpuStat: &CPUTimesStat{
+					User:      0,
+					System:    0,
+					Timestamp: now.Unix(),
+				},
+				flags: 2216722496,
+			},
+			isKernelThread: true,
 		},
 	} {
 
@@ -712,6 +731,7 @@ func TestParseStatContent(t *testing.T) {
 		// nice value is fetched at the run time so we just assign the actual value for the sake for comparison
 		tc.expected.nice = actual.nice
 		assert.EqualValues(t, tc.expected, actual)
+		assert.Equal(t, tc.isKernelThread, isKernelThread(actual.flags))
 	}
 }
 

@@ -611,9 +611,12 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 		sInfo.ppid = int32(ppid)
 	}
 
-	flags, err := strconv.ParseInt(flagStr, 10, 32)
+	flags, err := strconv.ParseUint(flagStr, 10, 32)
 	if err == nil {
 		sInfo.flags = uint32(flags)
+	}
+	if sInfo.flags == 0 {
+		log.Warnf("unable to parse flags for pid %d", pid)
 	}
 
 	utime, err := strconv.ParseFloat(utimeStr, 64)
