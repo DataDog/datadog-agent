@@ -355,8 +355,9 @@ func (s *Service) pollOrgStatus() {
 			} else {
 				log.Infof(
 					"Remote Configuration is enabled for this organization but disabled for this agent. " +
-					"Add the Remote Configuration Read permission to its API key to enable it for this agent.",
+						"Add the Remote Configuration Read permission to its API key to enable it for this agent.",
 				)
+			}
 		} else {
 			if response.Authorized {
 				log.Infof("Remote Configuration is disabled for this organization.")
