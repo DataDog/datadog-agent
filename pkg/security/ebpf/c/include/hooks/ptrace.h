@@ -5,7 +5,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE3(ptrace, u32, request, pid_t, pid, void *, addr) {
+HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
     struct policy_t policy = fetch_policy(EVENT_PTRACE);
     if (is_discarded_by_process(policy.mode, EVENT_PTRACE)) {
         return 0;

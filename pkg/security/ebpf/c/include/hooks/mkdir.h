@@ -32,7 +32,7 @@ HOOK_SYSCALL_ENTRY2(mkdir, const char*, filename, umode_t, mode)
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
-SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
+HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }

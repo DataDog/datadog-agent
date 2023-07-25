@@ -63,7 +63,7 @@ SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, um
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_KPROBE4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
+HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
     return trace__sys_openat(SYNC_SYSCALL, how.flags, how.mode);

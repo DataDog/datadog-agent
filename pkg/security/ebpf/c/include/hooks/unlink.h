@@ -27,7 +27,7 @@ HOOK_SYSCALL_ENTRY0(unlink) {
     return trace__sys_unlink(SYNC_SYSCALL, 0);
 }
 
-SYSCALL_KPROBE3(unlinkat, int, dirfd, const char*, filename, int, flags) {
+HOOK_SYSCALL_ENTRY3(unlinkat, int, dirfd, const char*, filename, int, flags) {
     return trace__sys_unlink(SYNC_SYSCALL, flags);
 }
 
