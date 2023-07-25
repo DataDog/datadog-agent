@@ -7,10 +7,10 @@ package telemetry
 
 // Counter tracks how many times something is happening.
 type Counter interface {
-	// Initialize creates the counter with the given tags and initializes it to 0.
+	// InitializeToZero creates the counter with the given tags and initializes it to 0.
 	// This method is intended to be used when the counter value is important to
 	// send even before any incrementing/addition is done on it.
-	Initialize(tagsValue ...string)
+	InitializeToZero(tagsValue ...string)
 	// Inc increments the counter with the given tags value.
 	Inc(tagsValue ...string)
 	// Add adds the given value to the counter with the given tags value.
