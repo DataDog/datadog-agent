@@ -83,7 +83,8 @@ def pause_domains(conn, stack):
 
     for domain in domains:
         name = domain.name()
-        domain.destroy()
+        if domain.isActive():
+            domain.destroy()
         info(f"[+] VM {name} is paused")
 
 
@@ -93,5 +94,6 @@ def resume_domains(conn, stack):
 
     for domain in domains:
         name = domain.name()
-        domain.create()
+        if not domain.isActive()
+            domain.create()
         info(f"[+] VM {name} is resumed")
