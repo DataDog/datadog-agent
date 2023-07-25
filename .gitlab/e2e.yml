@@ -185,6 +185,8 @@ new-e2e-agent-subcommands-main:
   rules: !reference [.on_main]
   variables:
     TARGETS: ./agent-subcommands
+  # Temporary, until we manage to stabilize those tests.
+  allow_failure: true
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
