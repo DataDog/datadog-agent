@@ -21,7 +21,9 @@ func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries can be joined even after flushing", func(t *testing.T) {
 		now := time.Now()
 		tel := NewTelemetry()
-		buffer := newIncompleteBuffer(config.New(), tel)
+		cfg := config.New()
+		cfg.EnableHTTPIncompleteBuffer = true
+		buffer := newIncompleteBuffer(cfg, tel)
 		request := &EbpfTx{
 			Request_fragment: requestFragment([]byte("GET /foo/bar")),
 			Request_started:  uint64(now.UnixNano()),
@@ -50,7 +52,9 @@ func TestOrphanEntries(t *testing.T) {
 
 	t.Run("orphan entries are not kept indefinitely", func(t *testing.T) {
 		tel := NewTelemetry()
-		buffer := newIncompleteBuffer(config.New(), tel)
+		cfg := config.New()
+		cfg.EnableHTTPIncompleteBuffer = true
+		buffer := newIncompleteBuffer(cfg, tel)
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
 		request := &EbpfTx{
@@ -63,6 +67,23 @@ func TestOrphanEntries(t *testing.T) {
 		assert.True(t, len(buffer.data) > 0)
 		now = now.Add(35 * time.Second)
 		_ = buffer.Flush(now)
+		assert.True(t, len(buffer.data) == 0)
+	})
+
+	t.Run("incompleteBuffer disabled", func(t *testing.T) {
+		tel := NewTelemetry()
+		cfg := config.New()
+		cfg.EnableHTTPIncompleteBuffer = false
+		buffer := newIncompleteBuffer(cfg, tel)
+		now := time.Now()
+		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
+		request := &EbpfTx{
+			Request_fragment: requestFragment([]byte("GET /foo/bar")),
+			Request_started:  uint64(now.UnixNano()),
+		}
+		buffer.Add(request)
+		_ = buffer.Flush(now)
+
 		assert.True(t, len(buffer.data) == 0)
 	})
 }

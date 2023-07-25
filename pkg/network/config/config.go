@@ -247,6 +247,9 @@ type Config struct {
 	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
+
+	// EnableHTTPIncompleteBuffer specifies if the HTTP incomplete buffer need to be enable to associate orphan requests and responses due to NAT
+	EnableHTTPIncompleteBuffer bool
 }
 
 func join(pieces ...string) string {
@@ -296,11 +299,12 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
-		EnableHTTPMonitoring:  cfg.GetBool(join(smNS, "enable_http_monitoring")),
-		EnableHTTP2Monitoring: cfg.GetBool(join(smNS, "enable_http2_monitoring")),
-		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		MaxHTTPStatsBuffered:  cfg.GetInt(join(smNS, "max_http_stats_buffered")),
-		MaxKafkaStatsBuffered: cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
+		EnableHTTPMonitoring:       cfg.GetBool(join(smNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring:      cfg.GetBool(join(smNS, "enable_http2_monitoring")),
+		EnableHTTPSMonitoring:      cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		EnableHTTPIncompleteBuffer: cfg.GetBool(join(smNS, "enable_http_incomplete_buffer")),
+		MaxHTTPStatsBuffered:       cfg.GetInt(join(smNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered:      cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
