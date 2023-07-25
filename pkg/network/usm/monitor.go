@@ -43,7 +43,7 @@ var (
 	state        = Disabled
 	startupError error
 
-	// knownProtocols maps individual protocol types, to their specification,
+	// knownProtocols maps individual protocol names, to their specification,
 	// for the Monitor to use during its initialisation.
 	knownProtocols = map[string]protocols.ProtocolSpec{
 		protocols.HTTP.String():  http.Spec,
