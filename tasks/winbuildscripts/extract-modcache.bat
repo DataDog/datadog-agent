@@ -1,8 +1,12 @@
 REM don't let variables escape
 @echo off
 @setlocal
-set DEFAULT_MODCACHE_ROOT="c:\mnt"
-set MODCACHE_ROOT=%DEFAULT_MODCACHE_ROOT%
+
+REM as defined in the usage block, expected parameters are
+REM %1 is the root of the build filesystem, which determines the location of the tar.gz
+REM %2 is the base name (without extension) of the file to be expanded.  expected values right now
+REM    are `modcache` and `modcache_tools`
+
 if "%1" == "" (
     goto :usage
 )
