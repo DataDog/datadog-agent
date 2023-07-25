@@ -3,7 +3,7 @@
 docker_build_agent6_windows1809_core:
   extends:
     - .docker_build_agent6_windows_servercore_common
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:1809_test"]
   variables:
     VARIANT: 1809
     TAG_SUFFIX: -6

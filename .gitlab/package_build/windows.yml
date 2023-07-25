@@ -1,7 +1,7 @@
 ---
 .windows_msi_base:
   stage: package_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:1809_test"]
   needs: ["go_mod_tidy_check", "go_deps", "build_vcpkg_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
@@ -83,7 +83,7 @@ windows_zip_agent_binaries_x64-a7:
   rules:
     !reference [.on_a7]
   stage: package_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:1809_test"]
   needs: ["go_mod_tidy_check", "go_deps", "build_vcpkg_deps"]
   variables:
     ARCH: "x64"

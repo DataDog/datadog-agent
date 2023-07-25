@@ -7,7 +7,7 @@ publish_winget_7_x64:
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
   stage: deploy7
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:1809_test"]
   variables:
     ARCH: "x64"
   before_script:

@@ -87,7 +87,7 @@ build_clang_arm64:
 
 build_vcpkg_deps:
   stage: deps_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:1809_test"]
   variables:
     ARCH: "x64"
   before_script:

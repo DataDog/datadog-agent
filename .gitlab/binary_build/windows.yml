@@ -3,7 +3,7 @@
 build_windows_container_entrypoint:
   rules:
   stage: binary_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["runner:windows-docker", "windowsversion:1809_test"]
   needs: ["lint_windows-x64", "tests_windows-x64"]
   variables:
     ARCH: "x64"
