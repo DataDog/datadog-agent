@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -156,8 +157,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	timeWindow := 24 * time.Hour
 	totalBucket := 24
 	bucketSize := timeWindow / time.Duration(totalBucket)
-	movingSum := *util.NewMovingSum(timeWindow, bucketSize, getCurrentTime)
-	opts.Info.Register(&movingSum)
+	movingSum := util.NewMovingSum(timeWindow, bucketSize, getCurrentTime())
+	opts.Info.Register(movingSum)
 
 	t := &Tailer{
 		file:                   opts.File,
@@ -177,7 +178,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		didFileRotate:          atomic.NewBool(false),
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
-		movingSum:              &movingSum,
+		movingSum:              movingSum,
 	}
 
 	if fileRotated {
@@ -370,8 +371,8 @@ func getFormattedTime() string {
 }
 
 // getCurrentTime returns current timestamp
-func getCurrentTime() time.Time {
-	return time.Now()
+func getCurrentTime() clock.Clock {
+	return clock.New()
 }
 
 // GetDetectedPattern returns the decoder's detected pattern.
