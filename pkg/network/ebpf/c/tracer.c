@@ -980,6 +980,19 @@ int kretprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
     return 0;
 }
 
+static __always_inline u16 sockaddr_sin_port(struct sockaddr *addr) {
+    u16 sin_port = 0;
+    sa_family_t family = 0;
+    bpf_probe_read_kernel_with_telemetry(&family, sizeof(sa_family_t), &addr->sa_family);
+    if (family == AF_INET) {
+        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in *)addr)->sin_port));
+    } else if (family == AF_INET6) {
+        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in6 *)addr)->sin6_port));
+    }
+
+    return bpf_ntohs(sin_port);
+}
+
 static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *addr) {
     __u64 tid = bpf_get_current_pid_tgid();
 
@@ -991,6 +1004,13 @@ static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *
 
     if (addr == NULL) {
         log_debug("sys_enter_bind: could not read sockaddr, sock=%llx, tid=%u\n", sock, tid);
+        return 0;
+    }
+
+    // ignore binds to port 0, as these are most
+    // likely from clients, not servers
+    if (sockaddr_sin_port(addr) == 0) {
+        log_debug("sys_enter_bind: ignoring bind to 0 port, sock=%llx\n", sock);
         return 0;
     }
 
@@ -1047,16 +1067,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
         return 0;
     }
 
-    u16 sin_port = 0;
-    sa_family_t family = 0;
-    bpf_probe_read_kernel_with_telemetry(&family, sizeof(sa_family_t), &addr->sa_family);
-    if (family == AF_INET) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in *)addr)->sin_port));
-    } else if (family == AF_INET6) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in6 *)addr)->sin6_port));
-    }
-
-    sin_port = bpf_ntohs(sin_port);
+    u16 sin_port = sockaddr_sin_port(addr);
     if (sin_port == 0) {
         sin_port = read_sport(sk);
     }

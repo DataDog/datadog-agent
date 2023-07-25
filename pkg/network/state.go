@@ -937,10 +937,10 @@ func fixConnectionDirection(c *ConnectionStats) {
 		return
 	}
 
-	sourceEphemeral := IsEphemeralPort(int(c.SPort))
+	sourceEphemeral := IsPortInEphemeralRange(c.SPort) == EphemeralTrue
 	var destNotEphemeral bool
 	if c.IntraHost {
-		destNotEphemeral = !IsEphemeralPort(int(c.DPort))
+		destNotEphemeral = IsPortInEphemeralRange(c.DPort) != EphemeralTrue
 	} else {
 		// use a much more restrictive range
 		// for non-ephemeral ports if the

@@ -580,6 +580,13 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to get UDP port binding map: %w", err)
 	}
 	for p, count := range udpPorts {
+		// ignore ephemeral port binds as they are more likely to be from
+		// clients calling bind with port 0
+		if network.IsPortInEphemeralRange(p.Port) == network.EphemeralTrue {
+			log.Debugf("ignoring initial ephemeral UDP port bind to %d", p)
+			continue
+		}
+
 		log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
 		pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
 		err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
