@@ -5,7 +5,6 @@ import zipfile
 from datetime import datetime, timedelta
 from time import sleep
 
-import requests
 from invoke.exceptions import Exit
 
 from ..utils import DEFAULT_BRANCH
@@ -184,6 +183,9 @@ def download_artifacts(run_id, destination="."):
 
 
 def download_artifacts_with_retry(run_id, destination=".", retry_count=3, retry_interval=10):
+
+    import requests
+
     retry = retry_count
 
     while retry > 0:
