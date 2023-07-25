@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,7 +77,8 @@ func (agent *Agent) Config(commandArgs ...AgentArgsOption) string {
 }
 
 func (agent *Agent) Hostname(commandArgs ...AgentArgsOption) string {
-	return agent.executeCommand("hostname", commandArgs...)
+	output := agent.executeCommand("hostname", commandArgs...)
+	return strings.Trim(output, "\n")
 }
 
 type Status struct {

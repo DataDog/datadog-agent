@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package testinfradefinition
+package subcommands
 
 import (
 	"fmt"
@@ -35,7 +35,7 @@ func (v *agentSuite) TestAgentHostnameDefaultsToResourceId() {
 
 	// Default configuration of hostname for EC2 instances is the resource-id
 	resourceId := metadata.Get("instance-id")
-	assert.Contains(v.T(), hostname, resourceId)
+	assert.Equal(v.T(), hostname, resourceId)
 }
 
 func (v *agentSuite) TestAgentConfigHostnameVarOverride() {
@@ -44,7 +44,7 @@ func (v *agentSuite) TestAgentConfigHostnameVarOverride() {
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
-	assert.Contains(v.T(), hostname, "hostname.from.var")
+	assert.Equal(v.T(), hostname, "hostname.from.var")
 }
 
 func (v *agentSuite) TestAgentConfigHostnameFileOverride() {
@@ -56,7 +56,7 @@ func (v *agentSuite) TestAgentConfigHostnameFileOverride() {
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
-	assert.Contains(v.T(), hostname, fileContent)
+	assert.Equal(v.T(), hostname, fileContent)
 }
 
 // hostname_force_config_as_canonical stops throwing a warning but doesn't change behavior
@@ -69,7 +69,7 @@ hostname_force_config_as_canonical: true`
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
-	assert.Contains(v.T(), hostname, "ip-172-29-113-35.ec2.internal")
+	assert.Equal(v.T(), hostname, "ip-172-29-113-35.ec2.internal")
 }
 
 func (v *agentSuite) TestAgentConfigPrioritizeEC2Id() {
@@ -82,7 +82,7 @@ ec2_prioritize_instance_id_as_hostname: true`
 	assert.NoError(v.T(), err)
 
 	hostname := v.Env().Agent.Hostname()
-	assert.Contains(v.T(), hostname, "hostname.from.var")
+	assert.Equal(v.T(), hostname, "hostname.from.var")
 }
 
 func (v *agentSuite) TestAgentConfigPreferImdsv2() {
@@ -96,5 +96,5 @@ func (v *agentSuite) TestAgentConfigPreferImdsv2() {
 
 	hostname := v.Env().Agent.Hostname()
 	resourceId := metadata.Get("instance-id")
-	assert.Contains(v.T(), hostname, resourceId)
+	assert.Equal(v.T(), hostname, resourceId)
 }
