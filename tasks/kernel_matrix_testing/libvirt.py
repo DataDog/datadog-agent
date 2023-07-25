@@ -94,6 +94,6 @@ def resume_domains(conn, stack):
 
     for domain in domains:
         name = domain.name()
-        if not domain.isActive()
+        if not domain.isActive():
             domain.create()
         info(f"[+] VM {name} is resumed")
