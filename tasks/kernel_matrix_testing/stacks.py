@@ -75,6 +75,30 @@ def ask_for_ssh():
         != "y"
     )
 
+def kvm_ok(ctx):
+    ctx.run("kvm-ok")
+    info("[+] Kvm available on system")
+
+def check_user_in_group(ctx, group):
+    ctx.run(f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)")
+    info(f"[+] User '{os.getlogin()}' in group '{group}'")
+
+def check_user_in_kvm(ctx):
+    check_user_in_group(ctx, "kvm")
+
+def check_user_in_libvirt(ctx):
+    check_user_in_group(ctx, "libvirt")
+
+def check_libvirt_sock_perms():
+    read_libvirt_sock()
+    write_libvirt_sock()
+    info(f"[+] User '{os.getlogin()}' has read/write permissions on libvirt sock")
+
+def check_env(ctx):
+    kvm_ok(ctx)
+    check_user_in_kvm(ctx)
+    check_user_in_libvirt(ctx)
+    check_libvirt_sock_perms()
 
 def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
     stack = check_and_get_stack(stack)
@@ -114,6 +138,7 @@ def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
         prefix = "aws-vault exec sandbox-account-admin --"
 
     if local_vms_in_config(vm_config):
+        check_env(ctx)
         local = "--local"
 
     env_vars = ' '.join(env)
@@ -206,6 +231,8 @@ def destroy_ec2_instances(ctx, stack):
 
 def destroy_stack_force(ctx, stack):
     conn = libvirt.open("qemu:///system")
+    if not conn:
+        raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
     delete_domains(conn, stack)
     delete_volumes(conn, stack)
     delete_pools(conn, stack)
@@ -265,4 +292,41 @@ def resume_stack(stack=None):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
     conn = libvirt.open("qemu:///system")
     resume_domains(conn, stack)
+    conn.close()
+
+def read_libvirt_sock():
+    conn = libvirt.open("qemu:///system")
+    if not conn:
+        raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
+    conn.listAllDomains()
+    conn.close()
+
+
+testPoolXML = """
+<pool type="dir">
+  <name>mypool</name>
+  <uuid>8c79f996-cb2a-d24d-9822-ac7547ab2d01</uuid>
+  <capacity unit="bytes">100</capacity>
+  <allocation unit="bytes">100</allocation>
+  <available unit="bytes">100</available>
+  <source>
+  </source>
+  <target>
+    <path>/tmp</path>
+    <permissions>
+      <mode>0755</mode>
+      <owner>-1</owner>
+      <group>-1</group>
+    </permissions>
+  </target>
+</pool>"""
+
+def write_libvirt_sock():
+    conn = libvirt.open("qemu:///system")
+    if not conn:
+        raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")
+    pool = conn.storagePoolDefineXML(testPoolXML, 0)
+    if not pool:
+        raise Exit("write_libvirt_sock: Failed to create StoragePool object.")
+    pool.undefine()
     conn.close()
