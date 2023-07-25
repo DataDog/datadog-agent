@@ -101,7 +101,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
             additional_tags.remove("upload_option.os_version_from_name")
             additional_tags.append("--tags")
             version_match = re.search(r"kitchen-rspec-([a-zA-Z0-9]+)-?([0-9-]*)-.*\.xml", xmlfile_name)
-            exact_version = version_match.group(1) + version_match.group(2).replace("-",".")
+            exact_version = version_match.group(1) + version_match.group(2).replace("-", ".")
             additional_tags.append(f"version:{exact_version}")
             print(additional_tags)
 
