@@ -177,11 +177,11 @@ func (o *OrchestratorCheck) Run() error {
 		leader, errLeader := cluster.RunLeaderElection()
 		if errLeader != nil {
 			if errLeader == apiserver.ErrNotLeader {
-				log.Debugf("Not leader (leader is %q). Skipping the Orchestrator check", leader)
+				log.Debugfc(orchestrator.ExtraLogContext, "Not leader (leader is %q). Skipping the Orchestrator check", leader)
 				return nil
 			}
 
-			_ = o.Warnc("Leader Election error. Not running the Orchestrator check.", orchestrator.ExtraLogContext...)
+			_ = o.Warnc(nil, "Leader Election error. Not running the Orchestrator check.")
 			return err
 		}
 
@@ -196,7 +196,7 @@ func (o *OrchestratorCheck) Run() error {
 
 // Cancel cancels the orchestrator check
 func (o *OrchestratorCheck) Cancel() {
-	log.Infof("Shutting down informers used by the check '%s'", o.ID())
+	log.Infofc(orchestrator.ExtraLogContext, "Shutting down informers used by the check '%s'", o.ID())
 	close(o.stopCh)
 }
 

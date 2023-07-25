@@ -572,6 +572,11 @@ func Debugc(message string, context ...interface{}) {
 	DebugcStackDepth(message, 1, context...)
 }
 
+// Debugfc logs at the debug level with context
+func Debugfc(context []interface{}, message string, params ...interface{}) {
+	DebugcStackDepth(fmt.Sprintf(message, params...), 1, context...)
+}
+
 // DebugFunc calls and logs the result of 'logFunc' if and only if Debug (or more verbose) logs are enabled
 func DebugFunc(logFunc func() string) {
 	currentLevel, _ := GetLogLevel()
@@ -598,6 +603,11 @@ func InfocStackDepth(message string, depth int, context ...interface{}) {
 // Infoc logs at the info level with context
 func Infoc(message string, context ...interface{}) {
 	InfocStackDepth(message, 1, context...)
+}
+
+// Infofc logs at the info level with context
+func Infofc(context []interface{}, message string, params ...interface{}) {
+	InfocStackDepth(fmt.Sprintf(message, params...), 1, context...)
 }
 
 // InfoFunc calls and logs the result of 'logFunc' if and only if Info (or more verbose) logs are enabled
@@ -628,6 +638,11 @@ func Warnc(message string, context ...interface{}) error {
 	return WarncStackDepth(message, 1, context...)
 }
 
+// Warnfc logs at the warn level with context and returns an error containing the formatted log message
+func Warnfc(context []interface{}, message string, params ...interface{}) error {
+	return WarncStackDepth(fmt.Sprintf(message, params...), 1, context...)
+}
+
 // WarnFunc calls and logs the result of 'logFunc' if and only if Warn (or more verbose) logs are enabled
 func WarnFunc(logFunc func() string) {
 	currentLevel, _ := GetLogLevel()
@@ -654,6 +669,11 @@ func ErrorcStackDepth(message string, depth int, context ...interface{}) error {
 // Errorc logs at the error level with context and returns an error containing the formated log message
 func Errorc(message string, context ...interface{}) error {
 	return ErrorcStackDepth(message, 1, context...)
+}
+
+// Errorfc logs at the error level with context and returns an error containing the formatted log message
+func Errorfc(context []interface{}, message string, params ...interface{}) error {
+	return ErrorcStackDepth(fmt.Sprintf(message, params...), 1, context...)
 }
 
 // ErrorFunc calls and logs the result of 'logFunc' if and only if Error (or more verbose) logs are enabled

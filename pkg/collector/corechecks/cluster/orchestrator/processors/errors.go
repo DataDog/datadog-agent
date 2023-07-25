@@ -8,8 +8,6 @@
 package processors
 
 import (
-	"fmt"
-
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -25,6 +23,6 @@ func newMarshallingError(cause error) error {
 // RecoverOnPanic is used to recover panics triggered by processors.
 func RecoverOnPanic() {
 	if r := recover(); r != nil {
-		log.Errorc(fmt.Sprintf("unable to process resources (panic!): %s", r), orchestrator.ExtraLogContext...)
+		log.Errorfc(orchestrator.ExtraLogContext, "unable to process resources (panic!): %s", r)
 	}
 }

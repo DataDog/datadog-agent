@@ -30,8 +30,8 @@ var (
 	manifestFlushed         = &expvar.Int{}
 	bufferFlushedTotal      = &expvar.Int{}
 	tlmBufferedManifest     = telemetry.NewCounter("orchestrator", "manifest_buffered", []string{"orchestrator", "resource"}, "Number of manifest buffered")
-	tlmManifestFlushed      = telemetry.NewCounter("orchestrator", "manifest_flushed", []string{"orchestrator"}, "Number of manifest flushed")
-	tlmManifestFlushedTotal = telemetry.NewCounter("orchestrator", "manifest_flushed_total", []string{"orchestrator"}, "Number of times the buffer is flushed")
+	tlmManifestFlushed      = telemetry.NewCounter("orchestrator", "manifest_flushed", nil, "Number of manifest flushed")
+	tlmManifestFlushedTotal = telemetry.NewCounter("orchestrator", "manifest_flushed_total", nil, "Number of times the buffer is flushed")
 )
 
 func init() {
@@ -161,11 +161,11 @@ func BufferManifestProcessResult(messages []model.MessageBody, buffer *ManifestB
 func setManifestStats(manifests []interface{}) {
 	// Number of manifests flushed
 	manifestFlushed.Set(int64(len(manifests)))
-	tlmManifestFlushed.Add(float64(len(manifests)), "orchestrator:k8s")
+	tlmManifestFlushed.Add(float64(len(manifests)))
 
 	// Number of times the buffer is flushed
 	bufferFlushedTotal.Add(1)
-	tlmManifestFlushedTotal.Inc("orchestrator:k8s")
+	tlmManifestFlushedTotal.Inc()
 	// Number of manifests flushed per resource in total
 	for _, m := range manifests {
 		nodeType := orchestrator.NodeType(m.(*model.Manifest).Type)

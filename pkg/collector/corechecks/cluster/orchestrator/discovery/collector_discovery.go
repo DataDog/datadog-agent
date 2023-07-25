@@ -84,7 +84,7 @@ func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error
 		// even though it might be incomplete due to discovery failures on other
 		// groups.
 		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-			log.Warnc(fmt.Sprintf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr), orchestrator.ExtraLogContext...)
+			log.Warnfc(orchestrator.ExtraLogContext, "Resources for API group version %s could not be discovered: %s", group, apiGroupErr)
 		}
 	}
 	return groups, resources, nil
@@ -98,7 +98,7 @@ func (p *APIServerDiscoveryProvider) addCollector(collector collectors.Collector
 
 	p.result = append(p.result, collector)
 	p.seen[collector.Metadata().Name] = struct{}{}
-	log.Debugc(fmt.Sprintf("Discovered collector %s", collector.Metadata().FullName()), orchestrator.ExtraLogContext...)
+	log.Debugfc(orchestrator.ExtraLogContext, "Discovered collector %s", collector.Metadata().FullName())
 }
 
 func (p *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.CollectorInventory, resources []*v1.APIResourceList) {

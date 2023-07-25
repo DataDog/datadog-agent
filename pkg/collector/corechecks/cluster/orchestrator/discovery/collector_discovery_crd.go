@@ -41,7 +41,7 @@ func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 	}
 	err := dc.fillCache()
 	if err != nil {
-		log.Errorc(fmt.Sprintf("Fail to init discovery collector : %s", err.Error()), orchestrator.ExtraLogContext...)
+		log.Errorfc(orchestrator.ExtraLogContext, "Fail to init discovery collector : %s", err.Error())
 	}
 	return dc
 }

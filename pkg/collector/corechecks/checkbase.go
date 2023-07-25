@@ -177,8 +177,9 @@ func (c *CheckBase) Warnf(format string, params ...interface{}) error {
 }
 
 // Warnc sends an integration warning to logs + agent status.
-func (c *CheckBase) Warnc(message string, context ...interface{}) error {
-	w := log.Warnc(message, context...)
+func (c *CheckBase) Warnc(context []interface{}, message string, params ...interface{}) error {
+	context = append(context, "check", c.checkName)
+	w := log.Warnc(fmt.Sprintf(message, params...), context...)
 	c.latestWarnings = append(c.latestWarnings, w)
 
 	return w
