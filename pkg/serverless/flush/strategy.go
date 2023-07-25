@@ -7,16 +7,21 @@ package flush
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
 )
 
+const maxBackoffRetrySeconds = 5 * 60
+
 // Strategy is deciding whether the data should be flushed or not at the given moment.
 type Strategy interface {
 	String() string
 	ShouldFlush(moment Moment, t time.Time) bool
-	IncrementFailure(t time.Time)
+	Failure(t time.Time)
+	Success()
 }
 
 // Moment represents at which moment we're asking the flush strategy if we
@@ -78,8 +83,11 @@ func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
 	}
 }
 
-func (s *AtTheEnd) IncrementFailure(t time.Time) {
+func (s *AtTheEnd) Failure(t time.Time) {
 	s.lastFailedAttempt.incrementFailure(t)
+}
+func (s *AtTheEnd) Success() {
+	s.lastFailedAttempt.success()
 }
 
 // Periodically is the strategy flushing at least every N [nano/micro/milli]seconds
@@ -110,20 +118,36 @@ func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
 	return false
 }
 
-func (s *Periodically) IncrementFailure(t time.Time) {
+func (s *Periodically) Failure(t time.Time) {
 	s.lastFailedAttempt.incrementFailure(t)
 }
 
+func (s *Periodically) Success() {
+	s.lastFailedAttempt.success()
+}
+
 type lastFailedAttempts struct {
-	time                time.Time
-	consecutiveFailures int
+	time         time.Time
+	backoffRetry int
 }
 
 func (f *lastFailedAttempts) tooManyFailure(now time.Time) bool {
-	return f.consecutiveFailures > 3 && now.Before(f.time.Add(1*time.Minute))
+	if f.backoffRetry > 0 {
+		spreadRetrySeconds := float64(rand.Int31n(1_000)) / 1_000
+		ignoreWindowSeconds := int(math.Min(math.Pow(2, float64(f.backoffRetry))+spreadRetrySeconds, maxBackoffRetrySeconds))
+		return now.Before(f.time.Add(time.Duration(ignoreWindowSeconds * 1e9)))
+	} else {
+		return false
+	}
 }
 
 func (f *lastFailedAttempts) incrementFailure(t time.Time) {
-	f.consecutiveFailures += 1
+	if f.backoffRetry < 10 { // no need to go higher and risk overflow in the power op when calculating backoff
+		f.backoffRetry += 1
+	}
 	f.time = t
+}
+
+func (f *lastFailedAttempts) success() {
+	f.backoffRetry = 0
 }
