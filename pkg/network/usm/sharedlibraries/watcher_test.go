@@ -83,6 +83,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	}
 
 	watcher, err := NewWatcher(config.New(),
+		nil,
 		Rule{
 			Re:         regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB: callback,
@@ -164,6 +165,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDandRootNameSpace()
 	}
 
 	watcher, err := NewWatcher(config.New(),
+		nil,
 		Rule{
 			Re:         regexp.MustCompile(`fooroot-crypto.so`),
 			RegisterCB: callback,
@@ -226,6 +228,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	}
 
 	watcher, err := NewWatcher(config.New(),
+		nil,
 		Rule{
 			Re:         regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB: callback,
@@ -287,6 +290,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	unregisterCB := func(id utils.PathIdentifier) error { return errors.New("fake unregisterCB error") }
 
 	watcher, err := NewWatcher(config.New(),
+		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -385,6 +389,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	unregisterCB := func(id utils.PathIdentifier) error { return nil }
 
 	watcher, err := NewWatcher(config.New(),
+		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -534,6 +539,7 @@ func checkWatcherStateIsClean(t *testing.T, watcher *Watcher) {
 
 func BenchmarkScanSOWatcherNew(b *testing.B) {
 	w, _ := NewWatcher(config.New(),
+		nil,
 		Rule{
 			Re: regexp.MustCompile(`libssl.so`),
 		},
