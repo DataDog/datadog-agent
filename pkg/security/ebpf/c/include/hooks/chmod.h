@@ -33,7 +33,7 @@ HOOK_SYSCALL_ENTRY2(fchmod, int, fd, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 
-SYSCALL_KPROBE3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
+HOOK_SYSCALL_ENTRY3(fchmodat, int, dirfd, const char*, filename, umode_t, mode) {
     return trace__sys_chmod(mode);
 }
 

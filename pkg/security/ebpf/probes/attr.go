@@ -38,7 +38,7 @@ func getAttrProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "fchmodat",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 
 	// chown
 	attrProbes = append(attrProbes, ExpandSyscallProbes(&manager.Probe{
