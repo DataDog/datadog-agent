@@ -39,6 +39,9 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
     u64 key = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 
+    // force refresh this key
+    bpf_map_lookup_elem(&syscalls, &key);
+
     monitor_syscalls(syscall->type, 1);
 }
 
