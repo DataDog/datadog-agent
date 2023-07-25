@@ -63,7 +63,7 @@ type collector struct {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
-	if enabled, err := Enabled(c.ddConfig); !enabled {
+	if err := Enabled(c.ddConfig); err != nil {
 		return err
 	}
 
@@ -96,7 +96,7 @@ func (c *collector) run(ctx context.Context, store workloadmeta.Store, container
 		case <-collectionTicker.C:
 			err := c.processData.Fetch()
 			if err != nil {
-				_ = log.Error("Error fetching process data:", err)
+				log.Error("Error fetching process data:", err)
 			}
 		case <-ctx.Done():
 			log.Infof("The %s collector has stopped", collectorId)
@@ -106,7 +106,7 @@ func (c *collector) run(ctx context.Context, store workloadmeta.Store, container
 }
 
 // Pull is unused at the moment used due to the short frequency in which it is called.
-// In the future, we should use it to locally in workload-meta.
+// In the future, we should use it to poll for processes that have been collected and store them in workload-meta.
 func (c *collector) Pull(_ context.Context) error {
 	return nil
 }
@@ -130,17 +130,21 @@ func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 	c.wlmExtractor.SetLastPidToCid(c.pidToCid)
 }
 
-func Enabled(cfg config.ConfigReader) (bool, error) {
+// Enabled checks to see if we should enable the local process collector.
+// Since it's job is to collect processes when the process check is disabled, we only enable it when `process_config.process_collection.enabled` == false
+// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `workloadmeta.remote_process_collector.enabled`
+// Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
+func Enabled(cfg config.ConfigReader) error {
 	if flavor.GetFlavor() != flavor.ProcessAgent {
-		return false, dderrors.NewDisabled(collectorId, "the local process collector can only run in the process agent")
+		return dderrors.NewDisabled(collectorId, "the local process collector can only run in the process agent")
 	}
 
 	if cfg.GetBool("process_config.process_collection.enabled") {
-		return false, dderrors.NewDisabled(collectorId, "the process check is enabled")
+		return dderrors.NewDisabled(collectorId, "the process check is enabled")
 	}
 
 	if !cfg.GetBool("workloadmeta.remote_process_collector.enabled") {
-		return false, dderrors.NewDisabled(collectorId, "the process collector is disabled")
+		return dderrors.NewDisabled(collectorId, "the process collector is disabled")
 	}
-	return true, nil
+	return nil
 }

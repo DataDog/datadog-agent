@@ -214,12 +214,10 @@ func TestEnabled(t *testing.T) {
 			cfg.Set("process_config.process_collection.enabled", tc.processCollectionEnabled)
 			cfg.Set("workloadmeta.remote_process_collector.Enabled", tc.remoteProcessCollectorEnabled)
 
-			enabled, err := Enabled(cfg)
+			err := Enabled(cfg)
 			if tc.shouldExpectEnabled {
-				assert.True(t, enabled)
 				assert.NoError(t, err)
 			} else {
-				assert.False(t, enabled)
 				assert.Error(t, err)
 			}
 		})

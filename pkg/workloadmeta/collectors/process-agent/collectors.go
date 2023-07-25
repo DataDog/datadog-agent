@@ -13,6 +13,6 @@ import (
 )
 
 func AnyCollectorsEnabled(reader config.ConfigReader) bool {
-	enabled, _ := process.Enabled(reader)
-	return enabled
+	localProcessCollectorEnabled := process.Enabled(reader) != nil
+	return localProcessCollectorEnabled
 }
