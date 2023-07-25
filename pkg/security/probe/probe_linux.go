@@ -1848,6 +1848,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
 	}
+
+	// load module event
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameModuleStructName, "struct module", "name", "linux/module.h")
 }
 
 func (p *Probe) IsNetworkEnabled() bool {

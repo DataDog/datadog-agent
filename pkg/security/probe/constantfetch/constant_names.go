@@ -69,4 +69,7 @@ const (
 
 	// iouring constants
 	OffsetNameIoKiocbStructCtx = "iokiocb_ctx_offset"
+
+	// module constants
+	OffsetNameModuleStructName = "module_name_offset"
 )

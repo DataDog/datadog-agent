@@ -126,6 +126,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
 	case OffsetNameVmAreaStructFlags:
 		value = getVmAreaStructFlagsOffset(f.kernelVersion)
+	case OffsetNameModuleStructName:
+		value = getModuleNameOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -931,4 +933,8 @@ func getPIDLinkPIDOffset(kv *kernel.Version) uint64 {
 		offset = uint64(16)
 	}
 	return offset
+}
+
+func getModuleNameOffset(kv *kernel.Version) uint64 {
+	return 24
 }

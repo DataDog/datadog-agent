@@ -2,6 +2,7 @@
 #define _HOOKS_MODULE_H_
 
 #include "constants/syscall_macro.h"
+#include "constants/offsets/module.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
@@ -56,7 +57,7 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
 
 // fentry blocked by: parse args special bug
 SEC("kprobe/parse_args")
-int kprobe_parse_args(struct pt_regs *ctx){
+int kprobe_parse_args(struct pt_regs *ctx) {
     char *args = (char *) PT_REGS_PARM2(ctx);
     struct syscall_cache_t *syscall = peek_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
@@ -89,7 +90,7 @@ int __attribute__((always_inline)) trace_module(struct module *mod) {
         return 0;
     }
 
-    bpf_probe_read_str(&syscall->init_module.name, sizeof(syscall->init_module.name), &mod->name[0]);
+    read_module_name(&syscall->init_module.name, sizeof(syscall->init_module.name), mod);
     return 0;
 }
 
