@@ -16,6 +16,7 @@ import (
 type Strategy interface {
 	String() string
 	ShouldFlush(moment Moment, t time.Time) bool
+	IncrementFailure(t time.Time)
 }
 
 // Moment represents at which moment we're asking the flush strategy if we
@@ -62,20 +63,31 @@ func StrategyFromString(str string) (Strategy, error) {
 // -----
 
 // AtTheEnd strategy is the simply flushing the data at the end of the execution of the function.
-type AtTheEnd struct{}
+type AtTheEnd struct {
+	lastFailedAttempt lastFailedAttempts
+}
 
 func (s *AtTheEnd) String() string { return "end" }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
-func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool { //nolint:revive // TODO fix revive unused-parameter
-	return moment == Stopping
+func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
+	if !s.lastFailedAttempt.tooManyFailure(t) {
+		return moment == Stopping
+	} else {
+		return false
+	}
+}
+
+func (s *AtTheEnd) IncrementFailure(t time.Time) {
+	s.lastFailedAttempt.incrementFailure(t)
 }
 
 // Periodically is the strategy flushing at least every N [nano/micro/milli]seconds
 // at the start of the function.
 type Periodically struct {
-	interval  time.Duration
-	lastFlush time.Time
+	interval          time.Duration
+	lastFlush         time.Time
+	lastFailedAttempt lastFailedAttempts
 }
 
 // NewPeriodically returns an initialized Periodically flush strategy.
@@ -88,13 +100,30 @@ func (s *Periodically) String() string {
 }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
-func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool { //nolint:revive // TODO fix revive unused-parameter
-	if moment == Starting {
-		now := time.Now()
-		if s.lastFlush.Add(s.interval).Before(now) {
-			s.lastFlush = now
+func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
+	if !s.lastFailedAttempt.tooManyFailure(t) && moment == Starting {
+		if s.lastFlush.Add(s.interval).Before(t) {
+			s.lastFlush = t
 			return true
 		}
 	}
 	return false
+}
+
+func (s *Periodically) IncrementFailure(t time.Time) {
+	s.lastFailedAttempt.incrementFailure(t)
+}
+
+type lastFailedAttempts struct {
+	time                time.Time
+	consecutiveFailures int
+}
+
+func (f *lastFailedAttempts) tooManyFailure(now time.Time) bool {
+	return f.consecutiveFailures > 3 && now.Before(f.time.Add(1*time.Minute))
+}
+
+func (f *lastFailedAttempts) incrementFailure(t time.Time) {
+	f.consecutiveFailures += 1
+	f.time = t
 }
