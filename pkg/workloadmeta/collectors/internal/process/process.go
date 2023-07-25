@@ -14,14 +14,12 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const collectorId = "local-process"
-
-// Used for testing
-var c *collector
 
 func init() {
 	// The process collector can run either when workloadmeta is in local or remote collector mode.
@@ -38,7 +36,7 @@ func newProcessCollector() workloadmeta.Collector {
 	processData := checks.NewProcessData(ddConfig)
 	processData.Register(wlmExtractor)
 
-	c = &collector{
+	return &collector{
 		ddConfig:        ddConfig,
 		wlmExtractor:    wlmExtractor,
 		grpcServer:      workloadmetaExtractor.NewGRPCServer(ddConfig, wlmExtractor),
@@ -46,7 +44,6 @@ func newProcessCollector() workloadmeta.Collector {
 		collectionClock: clock.New(),
 		pidToCid:        make(map[int]string),
 	}
-	return c
 }
 
 // Compile time check to ensure that `collector` implements `workloadmeta.Collector`.
@@ -134,6 +131,10 @@ func (c *collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 }
 
 func Enabled(cfg config.ConfigReader) (bool, error) {
+	if flavor.GetFlavor() != flavor.ProcessAgent {
+		return false, dderrors.NewDisabled(collectorId, "the local process collector can only run in the process agent")
+	}
+
 	if cfg.GetBool("process_config.process_collection.enabled") {
 		return false, dderrors.NewDisabled(collectorId, "the process check is enabled")
 	}

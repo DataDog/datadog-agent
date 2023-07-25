@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -53,8 +54,18 @@ func acquireStream(t *testing.T, port int) pbgo.ProcessEntityStream_StreamEntiti
 	return stream
 }
 
+func setFlavor(t *testing.T, newFlavor string) {
+	t.Helper()
+
+	oldFlavor := flavor.GetFlavor()
+	flavor.SetFlavor(newFlavor)
+	t.Cleanup(func() { flavor.SetFlavor(oldFlavor) })
+}
+
 func setUpCollectorTest(t *testing.T) *collectorTest {
 	t.Helper()
+
+	setFlavor(t, flavor.ProcessAgent)
 
 	cfg := config.Mock(t)
 	port, err := testutil.FindTCPPort()
@@ -67,11 +78,6 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 
 	mockProcessData, probe := checks.NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)
-
-	oldCollector := c
-	t.Cleanup(func() {
-		c = oldCollector
-	})
 
 	store := workloadmeta.NewMockStore()
 
@@ -161,36 +167,49 @@ func TestProcessCollector(t *testing.T) {
 
 // Assert that the collector is only enabled if the process check is disabled and
 // the remote process collector is enabled.
-func TestEnabledTable(t *testing.T) {
+func TestEnabled(t *testing.T) {
 	type testCase struct {
 		name                                                    string
 		processCollectionEnabled, remoteProcessCollectorEnabled bool
 		shouldExpectEnabled                                     bool
+		flavor                                                  string
 	}
 
 	testCases := []testCase{
 		{
+			name:                          "not process agent",
+			processCollectionEnabled:      false,
+			remoteProcessCollectorEnabled: true,
+			flavor:                        flavor.SecurityAgent,
+			shouldExpectEnabled:           false,
+		},
+		{
 			name:                          "process check enabled",
 			processCollectionEnabled:      true,
 			remoteProcessCollectorEnabled: false,
+			flavor:                        flavor.ProcessAgent,
 			shouldExpectEnabled:           false,
 		},
 		{
 			name:                          "remote collector disabled",
 			processCollectionEnabled:      false,
 			remoteProcessCollectorEnabled: false,
+			flavor:                        flavor.ProcessAgent,
 			shouldExpectEnabled:           false,
 		},
 		{
 			name:                          "collector enabled",
 			processCollectionEnabled:      false,
 			remoteProcessCollectorEnabled: true,
+			flavor:                        flavor.ProcessAgent,
 			shouldExpectEnabled:           true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			setFlavor(t, tc.flavor)
+
 			cfg := config.Mock(t)
 			cfg.Set("process_config.process_collection.enabled", tc.processCollectionEnabled)
 			cfg.Set("workloadmeta.remote_process_collector.Enabled", tc.remoteProcessCollectorEnabled)
