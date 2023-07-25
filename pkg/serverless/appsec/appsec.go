@@ -28,9 +28,7 @@ func New() (*httpsec.ProxyLifecycleProcessor, error) {
 	}
 
 	// AppSec monitors the invocations by acting as a proxy of the AWS Lambda Runtime API.
-	lp := &httpsec.ProxyLifecycleProcessor{
-		SubProcessor: httpsec.NewProxyProcessor(appsecInstance),
-	}
+	lp := httpsec.NewProxyLifecycleProcessor(appsecInstance)
 	proxy.Start(
 		"127.0.0.1:9000",
 		"127.0.0.1:9001",

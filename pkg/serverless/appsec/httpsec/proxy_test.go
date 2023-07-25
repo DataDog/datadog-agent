@@ -3,92 +3,90 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package httpsec
+package httpsec_test
 
 import (
 	"bytes"
+	"math/rand"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
-	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProxyLifecycleProcessor(t *testing.T) {
-	test := func(t *testing.T, appsecEnabled bool) {
-		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", strconv.FormatBool(appsecEnabled))
-		asm, _, err := appsec.New()
-		if err != nil {
-			t.Skipf("appsec disabled: %v", err)
-		}
+	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
+	lp, err := appsec.New()
+	if err != nil {
+		t.Skipf("appsec disabled: %v", err)
+	}
+	require.NotNil(t, lp)
 
-		var sp invocationlifecycle.InvocationSubProcessor
-		if appsecEnabled {
-			require.NotNil(t, asm)
-			sp = asm
-		} else {
-			require.Nil(t, asm)
-		}
+	execCtx := &executioncontext.ExecutionContext{}
+	spanModifier := lp.WrapSpanModifier(execCtx, nil)
 
-		var tracedPayload *api.Payload
-		testProcessor := &invocationlifecycle.LifecycleProcessor{
-			DetectLambdaLibrary: func() bool { return false },
-			ProcessTrace: func(payload *api.Payload) {
-				tracedPayload = payload
-			},
-			SubProcessor: sp,
-		}
-
-		t.Run("api-gateway", func(t *testing.T) {
-			// First invocation without any attack
-			testProcessor.OnInvokeStart(&invocationlifecycle.InvocationStartDetails{
-				InvokeEventRawPayload: getEventFromFile("api-gateway.json"),
-				InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
-			})
-			testProcessor.OnInvokeEnd(&invocationlifecycle.InvocationEndDetails{
-				EndTime: time.Now(),
-				IsError: false,
-			})
-			tags := testProcessor.GetTags()
-			require.Equal(t, "api-gateway", tags["function_trigger.event_source"])
-			require.Equal(t, "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod", tags["function_trigger.event_source_arn"])
-			require.Equal(t, "POST", tags["http.method"])
-			require.Equal(t, "70ixmpl4fl.execute-api.us-east-2.amazonaws.com", tags["http.url"])
-
-			// Second invocation containing attacks
-			testProcessor.OnInvokeStart(&invocationlifecycle.InvocationStartDetails{
-				InvokeEventRawPayload: getEventFromFile("api-gateway-appsec.json"),
-				InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
-			})
-			testProcessor.OnInvokeEnd(&invocationlifecycle.InvocationEndDetails{
-				EndTime: time.Now(),
-				IsError: false,
-			})
-			tags = testProcessor.GetTags()
-			require.Equal(t, "api-gateway", tags["function_trigger.event_source"])
-			require.Equal(t, "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod", tags["function_trigger.event_source_arn"])
-			require.Equal(t, "POST", tags["http.method"])
-			require.Equal(t, "70ixmpl4fl.execute-api.us-east-2.amazonaws.com", tags["http.url"])
-
-			if appsecEnabled {
-				require.Contains(t, tags, "_dd.appsec.json")
-				require.Equal(t, int32(sampler.PriorityUserKeep), tracedPayload.TracerPayload.Chunks[0].Priority)
-				require.Equal(t, 1.0, tracedPayload.TracerPayload.Chunks[0].Spans[0].Metrics["_dd.appsec.enabled"])
-			}
+	// Helper function to run the proxy monitoring function in the expected order when integrated
+	runAppSec := func(requestId string, start invocationlifecycle.InvocationStartDetails) *pb.TraceChunk {
+		// Update the execution context with the data AppSec uses: the request id
+		execCtx.SetFromInvocation(start.InvokedFunctionARN, requestId)
+		// Run OnInvokeStart to mock the runtime API proxy calling it
+		lp.OnInvokeStart(&start)
+		// Run OnInvokeEnd to mock the runtime API proxy calling it
+		lp.OnInvokeEnd(&invocationlifecycle.InvocationEndDetails{
+			EndTime: start.StartTime.Add(time.Minute),
+			IsError: false,
 		})
+		// Run the span modifier to mock the trace-agent calling it when receiving a trace from the tracer
+		spanId := rand.Uint64()
+		chunk := &pb.TraceChunk{
+			Spans: []*pb.Span{
+				{
+					Name:     "aws.lambda",
+					Type:     "serverless",
+					Resource: "GET /",
+					Service:  "my-service",
+					TraceID:  spanId,
+					SpanID:   spanId,
+					Start:    start.StartTime.Unix(),
+					Duration: int64(time.Minute),
+					Meta: map[string]string{
+						"request_id":       requestId,
+						"http.status_code": "200",
+					},
+					Metrics: map[string]float64{},
+				},
+			},
+		}
+		spanModifier(chunk, chunk.Spans[0])
+		return chunk
 	}
 
-	t.Run("appsec-enabled", func(t *testing.T) {
-		test(t, true)
-	})
+	t.Run("api-gateway", func(t *testing.T) {
+		// First invocation without any attack
+		chunk := runAppSec("request 1", invocationlifecycle.InvocationStartDetails{
+			InvokeEventRawPayload: getEventFromFile("api-gateway.json"),
+			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		})
+		span := chunk.Spans[0]
+		tags := span.Meta
+		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
 
-	t.Run("appsec-disabled", func(t *testing.T) {
-		test(t, false)
+		// Second invocation containing attacks
+		chunk = runAppSec("request 2", invocationlifecycle.InvocationStartDetails{
+			InvokeEventRawPayload: getEventFromFile("api-gateway-appsec.json"),
+			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		})
+		span = chunk.Spans[0]
+		tags = span.Meta
+		require.Contains(t, tags, "_dd.appsec.json")
+		require.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
+		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
 	})
 }
 
