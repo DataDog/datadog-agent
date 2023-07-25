@@ -76,8 +76,9 @@ func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetAncestor(pc)
 
-	// use exec time a exit time
+	// use exec time as exit time
 	pc.Exit(entry.ExecTime)
+	entry.Process.IsExecChild = true
 
 	// keep some context
 	copyProcessContext(pc, entry)
@@ -217,7 +218,7 @@ func (p *EnvsEntry) Get(key string) string {
 func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 	if p == o {
 		return true
-	} else if o == nil {
+	} else if p == nil || o == nil {
 		return false
 	}
 

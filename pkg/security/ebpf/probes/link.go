@@ -31,18 +31,18 @@ var linkProbes = []*manager.Probe{
 	},
 }
 
-func getLinkProbe() []*manager.Probe {
+func getLinkProbe(fentry bool) []*manager.Probe {
 	linkProbes = append(linkProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "link",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	linkProbes = append(linkProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "linkat",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	return linkProbes
 }

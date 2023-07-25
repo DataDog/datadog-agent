@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Datadog.CustomActions;
 using WixSharp;
 using WixSetup.Datadog;
@@ -24,12 +25,18 @@ namespace WixSetup
 #endif
 
             project
-                .BuildMsi();
+                .BuildMsiCmd();
         }
 
         private static void Main()
         {
-            Compiler.LightOptions += "-sval -reusecab -cc \"cabcache\"";
+            string cabcachedir = "cabcache";
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR")))
+            {
+                // Set custom output directory (WixSharp defaults to current directory)
+                cabcachedir = Path.Combine(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR"), cabcachedir);
+            }
+            Compiler.LightOptions += $"-sval -reusecab -cc \"{cabcachedir}\"";
             // ServiceConfig functionality is documented in the Windows Installer SDK to "not [work] as expected." Consider replacing ServiceConfig with the WixUtilExtension ServiceConfig element.
             Compiler.CandleOptions += "-sw1150";
 

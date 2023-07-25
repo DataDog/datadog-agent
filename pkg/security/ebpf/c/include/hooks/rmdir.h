@@ -101,6 +101,9 @@ int kprobe_security_inode_rmdir(struct pt_regs *ctx) {
         syscall->resolver.ret = 0;
 
         resolve_dentry(ctx, DR_KPROBE);
+
+        // if the tail call fails, we need to pop the syscall cache entry
+        pop_syscall_with(rmdir_predicate);
     }
     return 0;
 }
@@ -152,6 +155,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/do_rmdir")
 int kretprobe_do_rmdir(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

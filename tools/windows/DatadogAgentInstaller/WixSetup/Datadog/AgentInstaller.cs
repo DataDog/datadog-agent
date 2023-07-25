@@ -38,7 +38,6 @@ namespace WixSetup.Datadog
         private readonly AgentFeatures _agentFeatures = new();
         private readonly AgentPython _agentPython = new();
         private readonly AgentVersion _agentVersion;
-        private readonly AgentSignature _agentSignature;
         private readonly AgentCustomActions _agentCustomActions = new();
         private readonly AgentInstallerUI _agentInstallerUi;
 
@@ -54,7 +53,6 @@ namespace WixSetup.Datadog
             }
 
             _agentBinaries = new AgentBinaries(BinSource, InstallerSource);
-            _agentSignature = new AgentSignature(this, _agentPython, _agentBinaries);
             _agentInstallerUi = new AgentInstallerUI(this, _agentCustomActions);
         }
 
@@ -198,8 +196,12 @@ namespace WixSetup.Datadog
             project.Codepage = "1252";
             project.InstallPrivileges = InstallPrivileges.elevated;
             project.LocalizationFile = "localization-en-us.wxl";
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR")))
+            {
+                // Set custom output directory (WixSharp defaults to current directory)
+                project.OutDir = Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR");
+            }
             project.OutFileName = $"datadog-agent-ng-{_agentVersion.PackageVersion}-1-x86_64";
-            project.DigitalSignature = _agentSignature.Signature;
             project.Package.AttributesDefinition = $"Comments={ProductComment}";
 
             // clear default media as we will add it via MediaTemplate

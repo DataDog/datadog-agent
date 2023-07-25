@@ -15,6 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/runner/parameters"
 )
 
+const (
+	defaultLocalEnvironments string = "aws/agent-sandbox"
+)
+
 func NewLocalProfile() (Profile, error) {
 	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
@@ -30,13 +34,18 @@ func NewLocalProfile() (Profile, error) {
 	if configPath != "" {
 		configFileValueStore, err := parameters.NewConfigFileValueStore(configPath)
 		if err != nil {
-			return nil, fmt.Errorf("error when reading the config file %v: %v", configPath, err)
+			return nil, fmt.Errorf("error when reading the config file %v: %v.", configPath, err)
 		}
 		store = parameters.NewCascadingStore(envValueStore, configFileValueStore)
 	} else {
 		store = parameters.NewCascadingStore(envValueStore)
 	}
-	return localProfile{baseProfile: newProfile("e2elocal", []string{"aws/agent-sandbox"}, store, nil)}, nil
+	// inject default params
+	environments, err := store.GetWithDefault(parameters.Environments, defaultLocalEnvironments)
+	if err != nil {
+		return nil, err
+	}
+	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil)}, nil
 }
 
 func getConfigFilePath() (string, error) {

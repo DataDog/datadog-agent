@@ -47,6 +47,10 @@ int __attribute__((always_inline)) trace_kernel_file(struct pt_regs *ctx, struct
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_INIT_MODULE);
+
     return 0;
 }
 
@@ -163,7 +167,7 @@ SYSCALL_KRETPROBE(finit_module) {
     return trace_init_module_ret(ctx, (int)PT_REGS_RC(ctx), NULL);
 }
 
-SYSCALL_KPROBE1(delete_module, const char *, name_user) {
+HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
     struct policy_t policy = fetch_policy(EVENT_DELETE_MODULE);
     if (is_discarded_by_process(policy.mode, EVENT_DELETE_MODULE)) {
         return 0;

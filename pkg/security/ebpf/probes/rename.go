@@ -31,24 +31,24 @@ var renameProbes = []*manager.Probe{
 	},
 }
 
-func getRenameProbes() []*manager.Probe {
+func getRenameProbes(fentry bool) []*manager.Probe {
 	renameProbes = append(renameProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "rename",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	renameProbes = append(renameProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "renameat",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	renameProbes = append(renameProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "renameat2",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	return renameProbes
 }

@@ -84,6 +84,7 @@ const (
 	AgentInstallMethodTool               AgentMetadataName = "install_method_tool"
 	AgentInstallMethodToolVersion        AgentMetadataName = "install_method_tool_version"
 	AgentLogsTransport                   AgentMetadataName = "logs_transport"
+	AgentFIPSEnabled                     AgentMetadataName = "feature_fips_enabled"
 	AgentCWSEnabled                      AgentMetadataName = "feature_cws_enabled"
 	AgentCWSNetworkEnabled               AgentMetadataName = "feature_cws_network_enabled"
 	AgentCWSSecurityProfilesEnabled      AgentMetadataName = "feature_cws_security_profiles_enabled"
@@ -95,6 +96,7 @@ const (
 	AgentNetworksHTTPEnabled             AgentMetadataName = "feature_networks_http_enabled"
 	AgentNetworksHTTPSEnabled            AgentMetadataName = "feature_networks_https_enabled"
 	AgentRemoteConfigEnabled             AgentMetadataName = "feature_remote_configuration_enabled"
+	AgentUSMEnabled                      AgentMetadataName = "feature_usm_enabled"
 	AgentUSMKafkaEnabled                 AgentMetadataName = "feature_usm_kafka_enabled"
 	AgentUSMJavaTLSEnabled               AgentMetadataName = "feature_usm_java_tls_enabled"
 	AgentUSMHTTP2Enabled                 AgentMetadataName = "feature_usm_http2_enabled"
@@ -107,14 +109,21 @@ const (
 	AgentIMDSv2Enabled                   AgentMetadataName = "feature_imdsv2_enabled"
 
 	// System Probe general config values
-	AgentSPOOMKillEnabled               AgentMetadataName = "feature_oom_kill_enabled"
-	AgentSPTCPQueueLengthEnabled        AgentMetadataName = "feature_tcp_queue_length_enabled"
-	AgentSPTelemetryEnabled             AgentMetadataName = "system_probe_telemetry_enabled"
-	AgentSPCOREEnabled                  AgentMetadataName = "system_probe_core_enabled"
-	AgentSPRuntimeCompilationEnabled    AgentMetadataName = "system_probe_runtime_compilation_enabled"
-	AgentSPKernelHeadersDownloadEnabled AgentMetadataName = "system_probe_kernel_headers_download_enabled"
-	AgentSPPrebuiltFallbackEnabled      AgentMetadataName = "system_probe_prebuilt_fallback_enabled"
-	AgentSPMaxConnectionPerMessage      AgentMetadataName = "system_probe_max_connections_per_message"
+	AgentSPOOMKillEnabled                AgentMetadataName = "feature_oom_kill_enabled"
+	AgentSPTCPQueueLengthEnabled         AgentMetadataName = "feature_tcp_queue_length_enabled"
+	AgentSPTelemetryEnabled              AgentMetadataName = "system_probe_telemetry_enabled"
+	AgentSPCOREEnabled                   AgentMetadataName = "system_probe_core_enabled"
+	AgentSPRuntimeCompilationEnabled     AgentMetadataName = "system_probe_runtime_compilation_enabled"
+	AgentSPKernelHeadersDownloadEnabled  AgentMetadataName = "system_probe_kernel_headers_download_enabled"
+	AgentSPPrebuiltFallbackEnabled       AgentMetadataName = "system_probe_prebuilt_fallback_enabled"
+	AgentSPMaxConnectionPerMessage       AgentMetadataName = "system_probe_max_connections_per_message"
+	AgentSPTrackTCP4Connections          AgentMetadataName = "system_probe_track_tcp_4_connections"
+	AgentSPTrackTCP6Connections          AgentMetadataName = "system_probe_track_tcp_6_connections"
+	AgentSPTrackUDP4Connections          AgentMetadataName = "system_probe_track_udp_4_connections"
+	AgentSPTrackUDP6Connections          AgentMetadataName = "system_probe_track_udp_6_connections"
+	AgentSPProtocolClassificationEnabled AgentMetadataName = "system_probe_protocol_classification_enabled"
+	AgentSPGatewayLookupEnabled          AgentMetadataName = "system_probe_gateway_lookup_enabled"
+	AgentSPRootNamespaceEnabled          AgentMetadataName = "system_probe_root_namespace_enabled"
 
 	// Those are reserved fields for the agentMetadata payload.
 	agentProvidedConf AgentMetadataName = "provided_configuration"
@@ -435,6 +444,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentConfigProcessDDURL, clean(cfg.GetString("process_config.process_dd_url")))
 	SetAgentMetadata(AgentConfigProxyHTTP, clean(cfg.GetString("proxy.http")))
 	SetAgentMetadata(AgentConfigProxyHTTPS, clean(cfg.GetString("proxy.https")))
+	SetAgentMetadata(AgentFIPSEnabled, config.Datadog.GetBool("fips.enabled"))
 	SetAgentMetadata(AgentCWSEnabled, config.SystemProbe.GetBool("runtime_security_config.enabled"))
 	SetAgentMetadata(AgentCWSNetworkEnabled, config.SystemProbe.GetBool("event_monitoring_config.network.enabled"))
 	SetAgentMetadata(AgentCWSSecurityProfilesEnabled, config.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"))
@@ -444,7 +454,8 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentNetworksEnabled, config.SystemProbe.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.SystemProbe.GetBool("network_config.enable_https_monitoring"))
-	SetAgentMetadata(AgentUSMKafkaEnabled, config.Datadog.GetBool("data_streams_config.enabled"))
+	SetAgentMetadata(AgentUSMEnabled, config.SystemProbe.GetBool("service_monitoring_config.enabled"))
+	SetAgentMetadata(AgentUSMKafkaEnabled, config.SystemProbe.GetBool("data_streams_config.enabled"))
 	SetAgentMetadata(AgentRemoteConfigEnabled, config.Datadog.GetBool("remote_configuration.enabled"))
 	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.SystemProbe.GetBool("service_monitoring_config.enable_java_tls_support"))
 	SetAgentMetadata(AgentUSMHTTP2Enabled, config.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring"))
@@ -459,8 +470,7 @@ func initializeConfig(cfg config.Config) {
 	// Also note we can't import OTLP here, as it would trigger an import loop - if we see another
 	// case like that, we should move otlp.IsEnabled to pkg/config/otlp
 
-	// SystemProbe module level configuration,
-	// configuration knobs for specific products running in SystemProbe (USM, NPM, CWS, etc...) are NOT included
+	// SystemProbe module level configuration
 	SetAgentMetadata(AgentSPTCPQueueLengthEnabled, config.SystemProbe.GetBool("system_probe_config.enable_tcp_queue_length"))
 	SetAgentMetadata(AgentSPOOMKillEnabled, config.SystemProbe.GetBool("system_probe_config.enable_oom_kill"))
 	SetAgentMetadata(AgentSPCOREEnabled, config.SystemProbe.GetBool("system_probe_config.enable_co_re"))
@@ -469,4 +479,11 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentSPPrebuiltFallbackEnabled, config.SystemProbe.GetBool("system_probe_config.allow_precompiled_fallback"))
 	SetAgentMetadata(AgentSPTelemetryEnabled, config.SystemProbe.GetBool("system_probe_config.telemetry_enabled"))
 	SetAgentMetadata(AgentSPMaxConnectionPerMessage, config.SystemProbe.GetInt("system_probe_config.max_conns_per_message"))
+	SetAgentMetadata(AgentSPTrackTCP4Connections, config.SystemProbe.GetBool("network_config.collect_tcp_v4"))
+	SetAgentMetadata(AgentSPTrackTCP6Connections, config.SystemProbe.GetBool("network_config.collect_tcp_v6"))
+	SetAgentMetadata(AgentSPTrackUDP4Connections, config.SystemProbe.GetBool("network_config.collect_udp_v4"))
+	SetAgentMetadata(AgentSPTrackUDP6Connections, config.SystemProbe.GetBool("network_config.collect_udp_v6"))
+	SetAgentMetadata(AgentSPProtocolClassificationEnabled, config.SystemProbe.GetBool("network_config.enable_protocol_classification"))
+	SetAgentMetadata(AgentSPGatewayLookupEnabled, config.SystemProbe.GetBool("network_config.enable_gateway_lookup"))
+	SetAgentMetadata(AgentSPRootNamespaceEnabled, config.SystemProbe.GetBool("network_config.enable_root_netns"))
 }

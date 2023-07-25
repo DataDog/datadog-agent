@@ -31,6 +31,10 @@ Package log implements a component to handle logging internal to the agent.
 Package sysprobeconfig implements a component to handle system-probe configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/telemetry)
+
+Package telemetry implements a component for all agent telemetry.
+
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
@@ -58,6 +62,21 @@ Package forwarder implements the "forwarder" bundle
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder/defaultforwarder)
 
 Package defaultForwarder implements a component to send payloads to the backend
+
+## [comp/metadata](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
+by the Agent.
+
+### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
+
+Package runner implements a component to generate the 'resources' metadata payload.
+
+### [comp/metadata/runner](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/runner)
+
+Package runner implements a component to generate metadata payload at the right interval.
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/process) (Component Bundle)
 

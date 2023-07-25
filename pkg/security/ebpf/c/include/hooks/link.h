@@ -93,6 +93,10 @@ int kprobe_vfs_link(struct pt_regs *ctx) {
     syscall->resolver.ret = 0;
 
     resolve_dentry(ctx, DR_KPROBE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_LINK);
+
     return 0;
 }
 
@@ -114,6 +118,7 @@ int __attribute__((always_inline)) kprobe_dr_link_src_callback(struct pt_regs *c
 
 int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall(EVENT_LINK);
         return 0;
     }
 
@@ -146,6 +151,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/do_linkat")
 int kretprobe_do_linkat(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
