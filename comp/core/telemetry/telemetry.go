@@ -56,18 +56,6 @@ func newTelemetry() Component {
 	}
 }
 
-// Same as `newTelemetry“ without the global.
-// Can be merged with `newTelemetry` when the global is removed
-func newMock() Component {
-	reg := prometheus.NewRegistry()
-	provider := newProvider(reg)
-
-	return &telemetryImpl{
-		registry:      reg,
-		meterProvider: provider,
-	}
-}
-
 // TODO (components): Remove this when all telemetry is migrated to the component
 func GetCompatComponent() Component {
 	return newTelemetry()
