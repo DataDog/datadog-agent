@@ -55,25 +55,25 @@ var mountProbes = []*manager.Probe{
 	},
 }
 
-func getMountProbes() []*manager.Probe {
+func getMountProbes(fentry bool) []*manager.Probe {
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mount",
-	}, EntryAndExit, true)...)
+	}, fentry, EntryAndExit, true)...)
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "umount",
-	}, EntryAndExit)...)
+	}, fentry, Exit)...)
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unshare",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 
 	return mountProbes
 }
