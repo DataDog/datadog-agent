@@ -80,35 +80,18 @@ func TestSkipAfterFailure(t *testing.T) {
 
 	sEnd := &AtTheEnd{}
 	assert.True(sEnd.ShouldFlush(Stopping, now), "it should flush because it's not the end of the function invocation")
-	for i := 1; i <= 5; i++ {
-		sEnd.Failure(now)
+	for i := 1; i <= 10; i++ {
+		sEnd.IncrementFailure(now)
 	}
 	assert.False(sEnd.ShouldFlush(Stopping, afterLessThanRetryTimeout), "it should not flush because it failed right away")
 	assert.True(sEnd.ShouldFlush(Stopping, afterMoreThanRetryTimeout), "it flush because enough time has passed since failure")
 
 	sPeriodic := &Periodically{}
 	assert.True(sPeriodic.ShouldFlush(Starting, now), "it should flush because it's not the end of the function invocation")
-	for i := 1; i <= 5; i++ {
-		sPeriodic.Failure(now)
+	for i := 1; i <= 10; i++ {
+		sPeriodic.IncrementFailure(now)
 	}
 	assert.False(sPeriodic.ShouldFlush(Starting, afterLessThanRetryTimeout), "it should not flush because it failed right away")
 	assert.True(sPeriodic.ShouldFlush(Starting, afterMoreThanRetryTimeout), "it flush because enough time has passed since failure")
-
-}
-
-func TestMaxBackoff(t *testing.T) {
-	assert := assert.New(t)
-
-	now := time.Now()
-	afterLessThanRetryTimeout := now.Add(4 * time.Minute)
-	afterMoreThanRetryTimeout := now.Add(maxBackoffRetrySeconds * time.Second)
-
-	sEnd := &AtTheEnd{}
-	assert.True(sEnd.ShouldFlush(Stopping, now), "it should flush because it's not the end of the function invocation")
-	for i := 1; i <= 500; i++ {
-		sEnd.Failure(now)
-	}
-	assert.False(sEnd.ShouldFlush(Stopping, afterLessThanRetryTimeout), "it should not flush because it failed right away")
-	assert.True(sEnd.ShouldFlush(Stopping, afterMoreThanRetryTimeout), "it flush because more than max backoff passed")
 
 }
