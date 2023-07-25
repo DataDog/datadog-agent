@@ -38,6 +38,7 @@ func TestGetLinuxAppServiceTags(t *testing.T) {
 		"aas.site.name":                 "test_site_name",
 		"aas.site.type":                 "app",
 		"aas.subscription.id":           "",
+		"hostname":                      "",
 	}, tags)
 }
 
@@ -68,5 +69,6 @@ func TestGetWindowsAppServiceTags(t *testing.T) {
 		"aas.site.name":                 "test_site_name",
 		"aas.site.type":                 "app",
 		"aas.subscription.id":           "",
+		"hostname":                      "",
 	}, tags)
 }

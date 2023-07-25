@@ -37,12 +37,7 @@ const (
 	appService = "app"
 )
 
-var appServicesTags map[string]string
-
 func GetAppServicesTags() map[string]string {
-	if appServicesTags != nil {
-		return appServicesTags
-	}
 	return getAppServicesTags(os.Getenv)
 }
 
@@ -52,7 +47,6 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	resourceGroup := getenv("WEBSITE_RESOURCE_GROUP")
 	instanceID := getEnvOrUnknown("WEBSITE_INSTANCE_ID", getenv)
 	computerName := getEnvOrUnknown("COMPUTERNAME", getenv)
-	extensionVersion := getenv("DD_AAS_EXTENSION_VERSION")
 
 	// Windows and linux environments provide the OS differently
 	// We should grab it from GO's builtin runtime pkg
@@ -77,7 +71,7 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 
 	// Remove the Java and .NET logic once non-universal extensions are deprecated
 	if websiteOS == "windows" {
-		if extensionVersion != "" {
+		if extensionVersion := getenv("DD_AAS_EXTENSION_VERSION"); extensionVersion != "" {
 			tags[aasExtensionVersion] = extensionVersion
 		} else if val := getenv("DD_AAS_JAVA_EXTENSION_VERSION"); val != "" {
 			tags[aasExtensionVersion] = val
@@ -86,7 +80,7 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 		}
 	}
 
-	// Same as setting DD_HOSTNAME=none
+	// Equivalent to DD_HOSTNAME=none, needed for billing
 	tags["hostname"] = ""
 
 	return tags
