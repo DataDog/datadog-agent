@@ -67,7 +67,7 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "creat",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	openProbes = append(openProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
@@ -91,6 +91,6 @@ func getOpenProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "openat2",
-	}, fentry, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	return openProbes
 }
