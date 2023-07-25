@@ -2344,7 +2344,6 @@ var activityTreeInsertExecEventTestCases = []struct {
 										{
 											Process: model.Process{
 												IsExecChild: true,
-												ExecTime:    time.Date(2023, 06, 23, 1, 2, 3, 4, time.UTC),
 												FileEvent: model.FileEvent{
 													PathnameStr: "/bin/wc",
 												},
@@ -3297,6 +3296,252 @@ var activityTreeInsertExecEventTestCases = []struct {
 													},
 												},
 											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/20
+	// ---------------
+	//
+	//      /bin/1--------         +       systemd                 ==>>   /bin/1 -------     /bin/4
+	//         |         |                 |- /bin/4                         |         |        |
+	//      /bin/2    /bin/3               |- /bin/2                       /bin/2    /bin/3   /bin/2
+	{
+		name: "exec/20",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/1",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/2",
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/3",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/4",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 4,
+						},
+					},
+				},
+			},
+			{
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+				},
+			},
+		},
+		wantNewEntry: true,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						ExecTime: time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/1",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								ExecTime: time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/2",
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								ExecTime: time.Date(2023, 06, 21, 1, 2, 3, 4, time.UTC),
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/3",
+								},
+							},
+						},
+					},
+				},
+				{
+					Process: model.Process{
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/4",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/2",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	// exec/21
+	// ---------------
+	//
+	// (exec)bin/1--------         +       systemd -> /bin/4 -> /bin/2  ==>>   (exec) /bin/4
+	//         | (exec)  | (exec)                                                       | (exec)
+	//      /bin/2    /bin/3                                                          /bin/1 -------
+	//                                                                                  | (exec)  | (exec)
+	//                                                                                /bin/2    /bin/3
+	//
+	//
+	//
+	//
+	{
+		name: "exec/21",
+		tree: &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						IsExecChild: true,
+						ExecTime:    time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/1",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								IsExecChild: true,
+								ExecTime:    time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/2",
+								},
+							},
+						},
+						{
+							Process: model.Process{
+								IsExecChild: true,
+								ExecTime:    time.Date(2023, 06, 21, 1, 2, 3, 4, time.UTC),
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/3",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		inputEvent: newExecTestEventWithAncestors([]model.Process{
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/4",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 4,
+						},
+					},
+				},
+			},
+			{
+				IsExecChild: true,
+				ContainerID: "123",
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+					FileFields: model.FileFields{
+						PathKey: model.PathKey{
+							Inode: 2,
+						},
+					},
+				},
+			},
+		}),
+		wantNode: &ProcessNode{
+			Process: model.Process{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/bin/2",
+				},
+			},
+		},
+		wantNewEntry: true,
+		wantTree: &ActivityTree{
+			ProcessNodes: []*ProcessNode{
+				{
+					Process: model.Process{
+						IsExecChild: true,
+						ExecTime:    time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
+						FileEvent: model.FileEvent{
+							PathnameStr: "/bin/4",
+						},
+					},
+					Children: []*ProcessNode{
+						{
+							Process: model.Process{
+								IsExecChild: true,
+								ExecTime:    time.Date(2023, 06, 19, 1, 2, 3, 4, time.UTC),
+								FileEvent: model.FileEvent{
+									PathnameStr: "/bin/1",
+								},
+							},
+							Children: []*ProcessNode{
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										ExecTime:    time.Date(2023, 06, 20, 1, 2, 3, 4, time.UTC),
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/2",
+										},
+									},
+								},
+								{
+									Process: model.Process{
+										IsExecChild: true,
+										ExecTime:    time.Date(2023, 06, 21, 1, 2, 3, 4, time.UTC),
+										FileEvent: model.FileEvent{
+											PathnameStr: "/bin/3",
 										},
 									},
 								},
