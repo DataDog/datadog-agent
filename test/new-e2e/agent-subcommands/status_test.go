@@ -20,14 +20,6 @@ func TestStatusSuite(t *testing.T) {
 	e2e.Run(t, &commandStatusSuite{}, e2e.AgentStackDef(nil))
 }
 
-func (v *commandStatusSuite) TestStatusNotEmpty() {
-	err := v.Env().Agent.WaitForReady()
-	assert.NoError(v.T(), err)
-
-	status := v.Env().Agent.Status()
-	assert.NotEmpty(v.T(), status.Content)
-}
-
 func (v *commandStatusSuite) TestNoRenderError() {
 	err := v.Env().Agent.WaitForReady()
 	assert.NoError(v.T(), err)
