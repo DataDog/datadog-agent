@@ -247,7 +247,9 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 
 	for _, protocol := range m.enabledProtocols {
 		ps := protocol.GetStats()
-		ret[ps.Type] = ps.Stats
+		if ps != nil {
+			ret[ps.Type] = ps.Stats
+		}
 	}
 
 	return ret
