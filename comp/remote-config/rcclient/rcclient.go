@@ -104,13 +104,11 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		return
 	}
 
-	// Checks who (the source: rc, cli, or default) is responsible for the last logLevel change
-	// If the logLevel has been set by "cli", we do NOT change anything
-	// If the logLevel has been set by "default", we need to save the current logLevel as a fallback, then change the logLevel to the desired state
-	// If the logLevel has been set by "rc", we need to change the logLevel back to the fallback
+	// Checks who (the source) is responsible for the last logLevel change
+	// The priority between sources is: CLI > RC > Default
 	source, err := pkglog.GetSource()
 	if err != nil {
-		return
+		pkglog.Infof(err.Error())
 	}
 
 	switch source {
@@ -126,7 +124,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		var newFallback seelog.LogLevel
 		newFallback, err = pkglog.GetLogLevel()
 		if err != nil {
-			return
+			break
 		}
 
 		logLevelStatus := settings.LogLevelStatus{
@@ -144,7 +142,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 	case pkglog.LogLevelSourceRC:
 		// 2 possible situations:
 		//     - we want to change (once again) the log level through RC
-		//     - we want to fall back to the log level we had saved as fallback (in taht case mergedConfig.LogLevel == "")
+		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		var logLevelStatus settings.LogLevelStatus
 		if len(mergedConfig.LogLevel) == 0 {
 			logLevelStatus = settings.LogLevelStatus{
@@ -166,8 +164,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		return
 
 	default:
-		pkglog.Errorf("Unknown source changed the log level")
-		return
+		pkglog.Warnf("Unknown source changed the log level")
 	}
 
 	// Apply the new status to all configs

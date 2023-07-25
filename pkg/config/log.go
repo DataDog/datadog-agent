@@ -550,7 +550,7 @@ func ChangeLogLevel(level string) error {
 	return log.ChangeLogLevel(logger, seelogLogLevel)
 }
 
-// ChangeLogLevel immediately changes the log level to the given one.
+// ChangeSource immediately changes the source to the given one.
 func ChangeSource(source log.LogLevelSource) error {
 	// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
 	seelogConfig.SetSource(source)

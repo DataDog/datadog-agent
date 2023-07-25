@@ -43,22 +43,11 @@ func (l LogLevelRuntimeSetting) Get() (interface{}, error) {
 	if err != nil {
 		return "", err
 	}
-
-	var source log.LogLevelSource
-	source, err = log.GetSource()
-	if err != nil {
-		return "", err
-	}
-
-	logLevelStatus := LogLevelStatus{
-		Level:  level.String(),
-		Source: source,
-	}
-	return logLevelStatus.Level, nil
+	return level.String(), nil
 }
 
 // Set changes the value of the runtime setting.
-// The input interface is either a simple string or a settings.LogLevelStatus
+// The input interface is either a string or a settings.LogLevelStatus
 func (l LogLevelRuntimeSetting) Set(v interface{}) error {
 	// This function can be called 2 different ways:
 	//     - the "standard" way, by inputing a string
@@ -72,7 +61,7 @@ func (l LogLevelRuntimeSetting) Set(v interface{}) error {
 	logLevelStatus, ok := v.(LogLevelStatus)
 	if !ok {
 		// If the input is a string it means this function has been called in the "standard way"
-		// Therefore we can assume that the change is comming from the CLI
+		// Therefore we can assume that the change is coming from the CLI
 		lvl := v.(string)
 		// Doesn't check for casting errors as they were none before
 		logLevelStatus = LogLevelStatus{

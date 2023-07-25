@@ -25,6 +25,7 @@ import (
 type mockLogLevelRuntimeSettings struct {
 	expectedError error
 	logLevel      string
+	source        pkglog.LogLevelSource
 }
 
 func (m *mockLogLevelRuntimeSettings) Get() (interface{}, error) {
@@ -35,7 +36,8 @@ func (m *mockLogLevelRuntimeSettings) Set(v interface{}) error {
 	if m.expectedError != nil {
 		return m.expectedError
 	}
-	m.logLevel = v.(string)
+	m.logLevel = v.(settings.LogLevelStatus).Level
+	m.source = v.(settings.LogLevelStatus).Source
 	return nil
 }
 
@@ -53,7 +55,7 @@ func (m *mockLogLevelRuntimeSettings) Hidden() bool {
 
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
-	mockSettings := &mockLogLevelRuntimeSettings{}
+	mockSettings := &mockLogLevelRuntimeSettings{source: pkglog.LogLevelSourceDefault}
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
@@ -71,10 +73,13 @@ func TestAgentConfigCallback(t *testing.T) {
 		1*time.Hour,
 	)
 
+	assert.Equal(t, pkglog.LogLevelSourceDefault, mockSettings.source)
+
 	// Set log level to debug
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layer,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	})
 	assert.Equal(t, "debug", mockSettings.logLevel)
+	assert.Equal(t, pkglog.LogLevelSourceRC, mockSettings.source)
 }
