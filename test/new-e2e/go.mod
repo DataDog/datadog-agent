@@ -23,7 +23,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/fatih/color v1.13.0
 	github.com/pulumi/pulumi-command/sdk v0.7.2 // indirect
-	github.com/pulumi/pulumi/sdk/v3 v3.76.0
+	github.com/pulumi/pulumi/sdk/v3 v3.73.0
 	github.com/samber/lo v1.38.1
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.8.4
