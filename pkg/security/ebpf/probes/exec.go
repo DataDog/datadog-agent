@@ -72,13 +72,13 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID + "_a",
-				EBPFFuncName: "kprobe_setup_new_exec_args_envs",
+				EBPFFuncName: "hook_setup_new_exec_args_envs",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "kprobe_setup_arg_pages",
+				EBPFFuncName: "hook_setup_arg_pages",
 			},
 		},
 		{
@@ -220,21 +220,21 @@ func getExecTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecGetEnvsOffsetKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_get_envs_offset",
+				EBPFFuncName: "tail_call_target_get_envs_offset",
 			},
 		},
 		{
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecParseArgsEnvsSplitKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_parse_args_envs_split",
+				EBPFFuncName: "tail_call_target_parse_args_envs_split",
 			},
 		},
 		{
 			ProgArrayName: "args_envs_progs",
 			Key:           ExecParseArgsEnvsKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe_parse_args_envs",
+				EBPFFuncName: "tail_call_target_parse_args_envs",
 			},
 		},
 	}
