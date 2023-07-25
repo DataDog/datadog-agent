@@ -1,4 +1,5 @@
 ---
 fixes:
   - |
-    Accommodate cases where stat flags of ``/proc/<pid>/stat`` exceed int32.
+    Fix to the process-agent from picking up processes which are kernel
+    threads due integer overflow when parsing ``/proc/<pid>/stat``.
