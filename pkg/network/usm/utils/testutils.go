@@ -19,7 +19,6 @@ var IgnoreCB = func(FilePath) error { return nil }
 // counts the number of callback executions and returns an injected error when needed.
 type CallbackRecorder struct {
 	mux           sync.Mutex
-	once          sync.Once
 	ReturnError   error
 	callsByPathID map[PathIdentifier]int
 }
