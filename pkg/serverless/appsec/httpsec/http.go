@@ -159,38 +159,6 @@ func parseCookies(rawCookies []string) map[string][]string {
 	return cookies
 }
 
-// Parses the given raw response payload as an HTTP response payload in order
-// to retrieve its status code and response headers if any.
-// This function merges the single- and multi-value headers the response may
-// contain into a multi-value map of headers. A single-value header is ignored
-// if it already exists in the map of multi-value headers.
-// TODO: write unit-tests
-func parseResponseHeaders(rawPayload []byte) (headers map[string][]string, err error) {
-	var res struct {
-		Headers           map[string]string   `json:"headers"`
-		MultiValueHeaders map[string][]string `json:"multiValueHeaders"`
-	}
-
-	if err := json.Unmarshal(rawPayload, &res); err != nil {
-		return nil, err
-	}
-
-	if len(res.Headers) == 0 && len(res.MultiValueHeaders) == 0 {
-		return nil, nil
-	}
-
-	headers = res.MultiValueHeaders
-	if headers == nil {
-		headers = make(map[string][]string, len(res.Headers))
-	}
-	for k, v := range res.Headers {
-		if _, exists := res.MultiValueHeaders[k]; !exists {
-			headers[k] = []string{v}
-		}
-	}
-	return headers, nil
-}
-
 // Helper function to convert a single-value map of event values into a
 // multi-value one.
 func toMultiValueMap(m map[string]string) map[string][]string {
