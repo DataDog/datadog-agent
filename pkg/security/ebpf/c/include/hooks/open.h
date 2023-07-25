@@ -49,7 +49,7 @@ SYSCALL_COMPAT_KPROBE3(open_by_handle_at, int, mount_fd, struct file_handle *, h
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE0(truncate) {
+HOOK_SYSCALL_COMPAT_ENTRY0(truncate) {
     int flags = O_CREAT|O_WRONLY|O_TRUNC;
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
