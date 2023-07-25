@@ -131,12 +131,6 @@ func PrometheusScrapeChecksTransformer(in string) interface{} {
 	return promChecks
 }
 
-// MetadataProviders helps unmarshalling `metadata_providers` config param
-type MetadataProviders struct {
-	Name     string        `mapstructure:"name"`
-	Interval time.Duration `mapstructure:"interval"`
-}
-
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
 	Name                    string `mapstructure:"name"`

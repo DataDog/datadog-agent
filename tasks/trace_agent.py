@@ -42,10 +42,10 @@ def build(
         maj_ver, min_ver, patch_ver = ver.split(".")
 
         ctx.run(
-            f"windmc --target {windres_target}  -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc"
+            f"windmc --target {windres_target}  -r cmd/trace-agent/windows/resources cmd/trace-agent/windows/resources/trace-agent-msg.mc"
         )
         ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/trace-agent/windows_resources/trace-agent.rc --target {windres_target} -O coff -o cmd/trace-agent/rsrc.syso"
+            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/trace-agent/windows/resources/trace-agent.rc --target {windres_target} -O coff -o cmd/trace-agent/rsrc.syso"
         )
 
     build_include = (

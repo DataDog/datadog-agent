@@ -31,18 +31,18 @@ var unlinkProbes = []*manager.Probe{
 	},
 }
 
-func getUnlinkProbes() []*manager.Probe {
+func getUnlinkProbes(fentry bool) []*manager.Probe {
 	unlinkProbes = append(unlinkProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unlink",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	unlinkProbes = append(unlinkProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unlinkat",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	return unlinkProbes
 }

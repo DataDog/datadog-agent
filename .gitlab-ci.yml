@@ -13,6 +13,7 @@ include:
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
+  - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
   - /.gitlab/container_scan.yml
@@ -80,6 +81,7 @@ stages:
   - choco_build
   - choco_deploy
   - internal_image_deploy
+  - install_script_testing 
   - e2e
   - e2e_test_junit_upload
   - kitchen_cleanup
