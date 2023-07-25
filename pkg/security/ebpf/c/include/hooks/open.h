@@ -242,6 +242,7 @@ int tracepoint_handle_sys_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *a
     return sys_open_ret(args, args->ret, DR_TRACEPOINT);
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/io_openat2")
 int kretprobe_io_openat2(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

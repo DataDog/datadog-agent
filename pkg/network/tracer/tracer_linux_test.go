@@ -15,6 +15,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1780,6 +1781,52 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
+}
+
+func (s *TracerSuite) TestUDPIncomingDirectionFix() {
+	t := s.T()
+
+	server := &UDPServer{
+		network: "udp",
+		address: "localhost:8125",
+		onMessage: func(b []byte, n int) []byte {
+			return b
+		},
+	}
+
+	cfg := testConfig()
+	cfg.ProtocolClassificationEnabled = false
+	tr := setupTracer(t, cfg)
+
+	err := server.Run(64)
+	require.NoError(t, err)
+	t.Cleanup(server.Shutdown)
+
+	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+
+	err = syscall.Bind(sfd, &syscall.SockaddrInet4{Addr: netip.MustParseAddr("127.0.0.1").As4()})
+	require.NoError(t, err)
+
+	err = syscall.Sendto(sfd, []byte("foo"), 0, &syscall.SockaddrInet4{Port: 8125, Addr: netip.MustParseAddr("127.0.0.1").As4()})
+	require.NoError(t, err)
+
+	_sa, err := syscall.Getsockname(sfd)
+	require.NoError(t, err)
+	sa := _sa.(*syscall.SockaddrInet4)
+	ap := netip.AddrPortFrom(netip.AddrFrom4(sa.Addr), uint16(sa.Port))
+	raddr, err := net.ResolveUDPAddr("udp", server.address)
+	require.NoError(t, err)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		conn, _ = findConnection(net.UDPAddrFromAddrPort(ap), raddr, conns)
+		return conn != nil
+	}, 3*time.Second, 500*time.Millisecond)
+
+	assert.Equal(t, network.OUTGOING, conn.Direction)
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {

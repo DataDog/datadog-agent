@@ -34,6 +34,10 @@ type dependencies struct {
 	Params Params
 }
 
+func setupConfig(deps dependencies) (*sysconfig.Config, error) {
+	return sysconfig.New(deps.Params.sysProbeConfFilePath)
+}
+
 func newConfig(deps dependencies) (Component, error) {
 	syscfg, err := setupConfig(deps)
 	if err != nil {
