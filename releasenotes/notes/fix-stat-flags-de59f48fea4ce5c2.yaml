@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Accommodate cases where stat flags of ``/proc/<pid>/stat`` exceed int32.
