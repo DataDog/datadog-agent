@@ -55,7 +55,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.35 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.36 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.28.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.29 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.13 // indirect
@@ -112,15 +112,11 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/pulumi/pulumi-aws/sdk/v5 v5.42.0 // indirect
+	github.com/pulumi/pulumi-aws/sdk/v5 v5.41.0 // indirect
 	github.com/pulumi/pulumi-awsx/sdk v1.0.2 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk v1.104.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute v1.104.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice v1.104.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network v1.104.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk v1.0.2 // indirect
-	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2 // indirect
+	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.2 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
