@@ -212,7 +212,7 @@ func newSSLProgram(c *config.Config, m *manager.Manager, sockFDMap *ebpf.Map, bp
 		return nil
 	}
 
-	watcher, err := sharedlibraries.NewWatcher(c,
+	watcher, err := sharedlibraries.NewWatcher(c, bpfTelemetry,
 		sharedlibraries.Rule{
 			Re:           regexp.MustCompile(`libssl.so`),
 			RegisterCB:   addHooks(m, openSSLProbes),

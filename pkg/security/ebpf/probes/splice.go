@@ -25,12 +25,12 @@ var spliceProbes = []*manager.Probe{
 	},
 }
 
-func getSpliceProbes() []*manager.Probe {
+func getSpliceProbes(fentry bool) []*manager.Probe {
 	spliceProbes = append(spliceProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "splice",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit)...)
 	return spliceProbes
 }

@@ -19,13 +19,13 @@ var signalProbes = []*manager.Probe{
 	},
 }
 
-func getSignalProbes() []*manager.Probe {
+func getSignalProbes(fentry bool) []*manager.Probe {
 	signalProbes = append(signalProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "kill",
-	}, Entry)...)
+	}, fentry, Entry)...)
 	signalProbes = append(signalProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,

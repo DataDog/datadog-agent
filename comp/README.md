@@ -70,6 +70,10 @@ Package defaultForwarder implements a component to send payloads to the backend
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.
 
+### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
+
+Package runner implements a component to generate the 'resources' metadata payload.
+
 ### [comp/metadata/runner](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/runner)
 
 Package runner implements a component to generate metadata payload at the right interval.
