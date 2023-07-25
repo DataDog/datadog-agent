@@ -57,6 +57,7 @@ var (
 // ContainerProvider defines the interface for a container metrics provider
 type ContainerProvider interface {
 	GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error)
+	GetExitedContainers(lastRun time.Time)
 }
 
 // GetSharedContainerProvider returns a shared ContainerProvider
@@ -91,6 +92,20 @@ func NewDefaultContainerProvider() ContainerProvider {
 	}
 
 	return NewContainerProvider(metrics.GetProvider(), workloadmeta.GetGlobalStore(), containerFilter)
+}
+
+func (p *containerProvider) GetExitedContainers(lastRun time.Time) {
+	containersMetadata := p.metadataStore.ListContainersWithFilter(
+		func(c *workloadmeta.Container) bool {
+			if c.State.Running {
+				return false
+			}
+			return lastRun.Before(c.State.FinishedAt)
+		},
+	)
+	for _, container := range containersMetadata {
+		log.Infof("exited container: %+v", container)
+	}
 }
 
 // GetContainers returns containers found on the machine

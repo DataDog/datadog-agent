@@ -235,6 +235,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		cacheValidity = cacheValidityRT
 	}
 
+	p.containerProvider.GetExitedContainers(p.lastRun)
 	containers, lastContainerRates, pidToCid, err = p.containerProvider.GetContainers(cacheValidity, p.lastContainerRates)
 	if err == nil {
 		p.lastContainerRates = lastContainerRates
