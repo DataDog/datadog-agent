@@ -48,7 +48,7 @@ func build(t *testing.T) {
 
 	// Write go source to a file
 	srcPath := filepath.Join(tmpDir, "source.go")
-	os.WriteFile(srcPath, []byte(programSrc), 0755)
+	require.NoError(t, os.WriteFile(srcPath, []byte(programSrc), 0755))
 
 	// Compile program
 	artifactPath := filepath.Join(tmpDir, "file_opener")
