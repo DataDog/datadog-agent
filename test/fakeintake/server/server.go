@@ -312,24 +312,24 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 	if _, found := fi.payloadStore[route]; !found {
 		fi.payloadStore[route] = []api.Payload{}
 	}
-	newPayload := api.Payload{
+	rawPayload := api.Payload{
 		Timestamp: fi.clock.Now(),
 		Data:      data,
 		Encoding:  encoding,
 	}
 	parsedPayload := api.ParsedPayload{
-		Timestamp: newPayload.Timestamp,
+		Timestamp: rawPayload.Timestamp,
 		Data:      "",
 		Encoding:  encoding,
 	}
-	fi.payloadStore[route] = append(fi.payloadStore[route], newPayload)
+	fi.payloadStore[route] = append(fi.payloadStore[route], rawPayload)
 
 	if route == "/api/v2/logs" {
-		parsedPayload.Data = fi.getLogPayLoadData(newPayload)
+		parsedPayload.Data = fi.getLogPayLoadData(rawPayload)
 	} else if route == "/api/v2/series" {
-		parsedPayload.Data = fi.getMetricPayLoadData(newPayload)
+		parsedPayload.Data = fi.getMetricPayLoadData(rawPayload)
 	} else if route == "/api/v1/check_run" {
-		parsedPayload.Data = fi.getCheckRunPayLoadData(newPayload)
+		parsedPayload.Data = fi.getCheckRunPayLoadData(rawPayload)
 	}
 	fi.payloadJsonStore[route] = append(fi.payloadJsonStore[route], parsedPayload)
 }
@@ -337,12 +337,12 @@ func (fi *Server) safeAppendPayload(route string, data []byte, encoding string) 
 func (fi *Server) getLogPayLoadData(payload api.Payload) string {
 	logs, err := aggregator.ParseLogPayload(payload)
 	if err != nil {
-		return "ERROR"
+		return err.Error()
 	}
 
 	output, er := json.Marshal(logs)
 	if er != nil {
-		return "ERROR"
+		return er.Error()
 	}
 	return string(output)
 }
@@ -350,12 +350,12 @@ func (fi *Server) getLogPayLoadData(payload api.Payload) string {
 func (fi *Server) getMetricPayLoadData(payload api.Payload) string {
 	MetricOutput, err := aggregator.ParseMetricSeries(payload)
 	if err != nil {
-		return "1- ERROR : " + err.Error()
+		return err.Error()
 	}
 
 	output, er := json.Marshal(MetricOutput)
 	if er != nil {
-		return "2- ERROR : " + er.Error()
+		return er.Error()
 	}
 	return string(output)
 }
@@ -363,12 +363,12 @@ func (fi *Server) getMetricPayLoadData(payload api.Payload) string {
 func (fi *Server) getCheckRunPayLoadData(payload api.Payload) string {
 	MetricOutput, err := aggregator.ParseCheckRunPayload(payload)
 	if err != nil {
-		return "ERROR"
+		return err.Error()
 	}
 
 	output, er := json.Marshal(MetricOutput)
 	if er != nil {
-		return "ERROR"
+		return er.Error()
 	}
 	return string(output)
 }
