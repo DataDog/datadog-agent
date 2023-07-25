@@ -19,7 +19,17 @@ func TestDiagnoseCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose"},
-		runAll,
+		cmdAll,
+		func(cliParams *cliParams, coreParams core.BundleParams) {
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+		})
+}
+
+func TestDiagnoseAllCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "all"},
+		cmdAll,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
@@ -29,7 +39,7 @@ func TestMetadataAvailabilityCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "metadata-availability"},
-		runAll,
+		runMetadataAvailability,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})

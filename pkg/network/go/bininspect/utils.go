@@ -54,7 +54,7 @@ func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
 // https://cs.opensource.google/go/go/+/refs/tags/go1.17.2:src/cmd/go/internal/version/version.go
 // The main logic was pulled out to a sub-package, `binversion`
 func FindGoVersion(elfFile *elf.File) (goversion.GoVersion, error) {
-	version, _, err := binversion.ReadElfBuildInfo(elfFile)
+	version, err := binversion.ReadElfBuildInfo(elfFile)
 	if err != nil {
 		return goversion.GoVersion{}, fmt.Errorf("could not get Go toolchain version from ELF binary file: %w", err)
 	}

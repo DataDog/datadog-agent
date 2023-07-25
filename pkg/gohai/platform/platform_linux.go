@@ -71,14 +71,33 @@ func getHardwarePlatform(machine string) string {
 	return machine
 }
 
-func updateArchInfo(archInfo map[string]string, uname *unix.Utsname) {
-	archInfo["kernel_name"] = utils.StringFromBytes(uname.Sysname[:])
-	archInfo["hostname"] = utils.StringFromBytes(uname.Nodename[:])
-	archInfo["kernel_release"] = utils.StringFromBytes(uname.Release[:])
+func updateUnameInfo(platformInfo *Info, uname *unix.Utsname) {
+	platformInfo.KernelName = utils.NewValue(utils.StringFromBytes(uname.Sysname[:]))
+	platformInfo.Hostname = utils.NewValue(utils.StringFromBytes(uname.Nodename[:]))
+	platformInfo.KernelRelease = utils.NewValue(utils.StringFromBytes(uname.Release[:]))
 	machine := utils.StringFromBytes(uname.Machine[:])
-	archInfo["machine"] = machine
-	archInfo["processor"] = getProcessorType(machine)
-	archInfo["hardware_platform"] = getHardwarePlatform(machine)
-	archInfo["os"] = getOperatingSystem()
-	archInfo["kernel_version"] = utils.StringFromBytes(uname.Version[:])
+	platformInfo.Machine = utils.NewValue(machine)
+	platformInfo.Processor = utils.NewValue(getProcessorType(machine))
+	platformInfo.HardwarePlatform = utils.NewValue(getHardwarePlatform(machine))
+	platformInfo.KernelVersion = utils.NewValue(utils.StringFromBytes(uname.Version[:]))
+}
+
+func (platformInfo *Info) fillPlatformInfo() {
+	platformInfo.Family = utils.NewErrorValue[string](utils.ErrNotCollectable)
+	platformInfo.OS = utils.NewValue(getOperatingSystem())
+
+	var uname unix.Utsname
+	unameErr := unix.Uname(&uname)
+	if unameErr == nil {
+		updateUnameInfo(platformInfo, &uname)
+	} else {
+		failedFields := []*utils.Value[string]{
+			&platformInfo.KernelName, &platformInfo.Hostname, &platformInfo.KernelRelease,
+			&platformInfo.Machine, &platformInfo.Processor, &platformInfo.HardwarePlatform,
+			&platformInfo.KernelVersion,
+		}
+		for _, field := range failedFields {
+			(*field) = utils.NewErrorValue[string](unameErr)
+		}
+	}
 }

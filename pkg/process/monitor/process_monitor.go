@@ -330,6 +330,8 @@ func (pm *ProcessMonitor) Stop() {
 	// that's being done for testing purposes.
 	// As tests are running altogether, initOne and processMonitor are being created only once per compilation unit
 	// thus, the first test works without an issue, but the second test has troubles.
+	pm.processMonitorWG = sync.WaitGroup{}
+	pm.callbackRunnersWG = sync.WaitGroup{}
 	pm.initOnce = sync.Once{}
 	pm.processExecCallbacksMutex.Lock()
 	pm.processExecCallbacks = make(map[*ProcessCallback]struct{})

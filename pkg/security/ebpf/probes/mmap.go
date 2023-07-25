@@ -25,12 +25,12 @@ var mmapProbes = []*manager.Probe{
 	},
 }
 
-func getMMapProbes() []*manager.Probe {
+func getMMapProbes(fentry bool) []*manager.Probe {
 	mmapProbes = append(mmapProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mmap",
-	}, Exit)...)
+	}, fentry, Exit)...)
 	return mmapProbes
 }
