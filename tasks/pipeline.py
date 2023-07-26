@@ -741,20 +741,19 @@ def update_circleci_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
     """
-    image_name = "datadog/datadog-agent-runner-circle"
+    image_name = "datadog/agent-buildimages-circleci-runner"
     with open(file_path, "r") as circle:
         circle_ci = circle.read()
-    if test_version:
-        image_tag += "_test_only"
-    match = re.search(rf"{image_name}:(\w+)\n", circle_ci)
+    match = re.search(rf"{image_name}:([a-zA-Z0-9_-]+)\n", circle_ci)
     if not match:
         raise RuntimeError(f"Impossible to find the version of image {image_name} in circleci configuration file")
+    image = f"{image_name}_test_only" if test_version else image_name
     with open(file_path, "w") as circle:
-        circle.write(circle_ci.replace(match.group(1), image_tag))
+        circle.write(circle_ci.replace(f"{image_name}:{match.group(1)}", f"{image}:{image_tag}"))
 
 
 def commit_and_push(ctx, branch_name=None):
     ctx.run(f"git checkout -b {branch_name}")
-    ctx.run("git add .gitlab-ci.yaml .circleci/config.yaml")
+    ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
     ctx.run("git commit -m 'Update buildimages version'")
     ctx.run(f"git push origin {branch_name}")

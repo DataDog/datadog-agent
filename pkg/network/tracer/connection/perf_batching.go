@@ -153,7 +153,7 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 
 		conn := buffer.Next()
 		populateConnStats(conn, &ct.Tup, &ct.Conn_stats, p.ch)
-		updateTCPStats(conn, &ct.Tcp_stats)
+		updateTCPStats(conn, &ct.Tcp_stats, ct.Tcp_retransmits)
 	}
 }
 

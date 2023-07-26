@@ -57,6 +57,44 @@ func (suite *clusterAgentSuite) TestClusterChecksNominal() {
 	assert.Equal(suite.T(), "two", configs.Configs[1].Name)
 }
 
+// Regression test. ServiceID was not propagated to the runners and as a
+// consequence, the cluster checks rebalancing algorithm wasn't working
+// properly.
+func (suite *clusterAgentSuite) TestClusterChecksWithServiceID() {
+	ctx := context.Background()
+	dca, err := newDummyClusterAgent()
+	require.NoError(suite.T(), err)
+
+	dca.rawResponses["/api/v1/clusterchecks/status/mynode"] = dummyStatusResponse
+	dca.rawResponses["/api/v1/clusterchecks/configs/mynode"] = `{
+"last_change": 42,
+"configs": [
+  {
+    "check_name": "one",
+    "service_id": "kube_service://namespace_1/service_1"
+  }
+]
+}`
+
+	ts, p, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+	mockConfig.Set("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+
+	ca, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+
+	response, err := ca.PostClusterCheckStatus(ctx, "mynode", types.NodeStatus{})
+	require.NoError(suite.T(), err)
+	assert.True(suite.T(), response.IsUpToDate)
+
+	configs, err := ca.GetClusterCheckConfigs(ctx, "mynode")
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), int64(42), configs.LastChange)
+	assert.Equal(suite.T(), "one", configs.Configs[0].Name)
+	assert.Equal(suite.T(), "kube_service://namespace_1/service_1", configs.Configs[0].ServiceID)
+}
+
 func (suite *clusterAgentSuite) TestClusterChecksRedirect() {
 	ctx := context.Background()
 

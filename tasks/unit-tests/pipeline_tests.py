@@ -44,7 +44,7 @@ class TestUpdateGitlabCI(unittest.TestCase):
     erroneous_file = "tasks/unit-tests/testdata/erroneous_gitlab-ci.yml"
 
     def tearDown(self) -> None:
-        subprocess.run(f"git checkout -- {self.gitlabci_file}".split())
+        subprocess.run(f"git checkout -- {self.gitlabci_file} {self.erroneous_file}".split())
         return super().tearDown()
 
     def test_nominal(self):
@@ -73,23 +73,25 @@ class TestUpdateCircleCI(unittest.TestCase):
     erroneous_file = "tasks/unit-tests/testdata/erroneous_circleci_config.yml"
 
     def tearDown(self) -> None:
-        subprocess.run(f"git checkout -- {self.circleci_file}".split())
+        subprocess.run(f"git checkout -- {self.circleci_file} {self.erroneous_file}".split())
         return super().tearDown()
 
     def test_nominal(self):
         pipeline.update_circleci_config(self.circleci_file, "1m4g3", test_version=True)
         with open(self.circleci_file, "r") as gl:
             circle_ci = yaml.safe_load(gl)
-        image = circle_ci['templates']['job_template']['docker'][0]['image']
-        version = image.split(":")[-1]
-        self.assertEqual("1m4g3_test_only", version)
+        full_image = circle_ci['templates']['job_template']['docker'][0]['image']
+        image, version = full_image.split(":")
+        self.assertTrue(image.endswith("_test_only"))
+        self.assertEqual("1m4g3", version)
 
     def test_update_no_test(self):
         pipeline.update_circleci_config(self.circleci_file, "1m4g3", test_version=False)
         with open(self.circleci_file, "r") as gl:
             circle_ci = yaml.safe_load(gl)
-        image = circle_ci['templates']['job_template']['docker'][0]['image']
-        version = image.split(":")[-1]
+        full_image = circle_ci['templates']['job_template']['docker'][0]['image']
+        image, version = full_image.split(":")
+        self.assertFalse(image.endswith("_test_only"))
         self.assertEqual("1m4g3", version)
 
     def test_raise(self):

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,6 +40,7 @@ var stateTelemetry = struct {
 	http2StatsDropped     *nettelemetry.StatCounterWrapper
 	kafkaStatsDropped     *nettelemetry.StatCounterWrapper
 	dnsPidCollisions      *nettelemetry.StatCounterWrapper
+	udpDirectionFixes     telemetry.Counter
 }{
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{}, "Counter measuring the number of dropped closed connections"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
@@ -50,6 +52,7 @@ var stateTelemetry = struct {
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	telemetry.NewCounter(stateModuleName, "udp_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes"),
 }
 
 const (
@@ -875,6 +878,8 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 			_, conn.IntraHost = lAddrs[keyWithRAddr]
 		}
 
+		fixConnectionDirection(conn)
+
 		if conn.IntraHost &&
 			conn.Direction == INCOMING &&
 			conn.IPTranslation != nil {
@@ -904,6 +909,47 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 				conn.IPTranslation = nil
 			}
 		}
+	}
+}
+
+// fixConnectionDirection fixes connection direction
+// for UDP incoming connections.
+//
+// Some UDP connections can be assigned an incoming
+// direction incorrectly since we cannot reliably
+// distinguish between a server and client for UDP
+// in eBPF. Both clients and servers can call
+// the system call bind() for source ports, but
+// UDP servers don't call listen() or accept()
+// like TCP.
+//
+// This function fixes only a very specific case:
+// incoming UDP connections, when the source
+// port is ephemeral but the destination port is not.
+// This is the only case where we can be sure the
+// connection has the incorrect direction of
+// incoming. For remote connections, only
+// destination ports < 1024 are considered
+// non-ephemeral.
+func fixConnectionDirection(c *ConnectionStats) {
+	// fix only incoming UDP connections
+	if c.Direction != INCOMING || c.Type != UDP {
+		return
+	}
+
+	sourceEphemeral := IsEphemeralPort(int(c.SPort))
+	var destNotEphemeral bool
+	if c.IntraHost {
+		destNotEphemeral = !IsEphemeralPort(int(c.DPort))
+	} else {
+		// use a much more restrictive range
+		// for non-ephemeral ports if the
+		// connection is not local
+		destNotEphemeral = c.DPort < 1024
+	}
+	if sourceEphemeral && destNotEphemeral {
+		c.Direction = OUTGOING
+		stateTelemetry.udpDirectionFixes.Inc()
 	}
 }
 

@@ -56,7 +56,6 @@ typedef enum
 } conn_flags_t;
 
 typedef struct {
-    __u32 retransmits;
     __u32 rtt;
     __u32 rtt_var;
 
@@ -69,6 +68,7 @@ typedef struct {
     conn_tuple_t tup;
     conn_stats_ts_t conn_stats;
     tcp_stats_t tcp_stats;
+    __u32 tcp_retransmits;
 } conn_t;
 
 // Must match the number of conn_t objects embedded in the batch_t struct
@@ -96,6 +96,7 @@ typedef struct {
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;
+    __u64 tcp_dropped_conns;
 } telemetry_t;
 
 typedef struct {
