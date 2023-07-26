@@ -1,0 +1,3 @@
+features:
+  - |
+    Tag lambda cold starts and proactive initializations on traces
