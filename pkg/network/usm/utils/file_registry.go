@@ -77,7 +77,7 @@ type callback func(FilePath) error
 func NewFileRegistry() *FileRegistry {
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.so_watcher",
-		telemetry.OptPayloadTelemetry,
+		telemetry.OptPrometheus,
 	)
 
 	return &FileRegistry{
