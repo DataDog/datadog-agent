@@ -35,8 +35,7 @@ func MatchCheckToTemplate(checkname, input string) (*CheckConfigOutput, error) {
 		"Configuration provider: file\n" +
 		"Configuration source: (?P<filepath>.*)\n" +
 		"Config for instance ID: (?P<instance>.*)\n" +
-		"(?P<settings>(?:[^~]*\n)+)" + // non-capturing group to get all settings
-		"~\n" +
+		"(?P<settings>(?m:^[^=].*\n)+)" + // non-capturing group to get all settings
 		"==="
 	re := regexp.MustCompile(regexTemplate)
 	matches := re.FindStringSubmatch(input)
@@ -74,6 +73,14 @@ Configuration source: file:/etc/datadog-agent/conf.d/npt.d/conf.yaml.default
 Config for instance ID: npt:c72f390abdefdf1a
 {}
 ~
+===
+
+=== cpu check ===
+Configuration provider: file
+Configuration source: file:/etc/datadog-agent/conf.d/cpu.d/conf.yaml.default
+Config for instance ID: cpu:e331d61ed1323219
+{}
+~
 ===`
 
 	result, err := MatchCheckToTemplate("uptime", sampleCheck)
@@ -85,6 +92,14 @@ Config for instance ID: npt:c72f390abdefdf1a
 	assert.Contains(v.T(), result.Settings, "key: value")
 	assert.Contains(v.T(), result.Settings, "path: http://example.com/foo")
 	assert.NotContains(v.T(), result.Settings, "{}")
+
+	result, err = MatchCheckToTemplate("cpu", sampleCheck)
+	assert.NoError(v.T(), err)
+
+	assert.Contains(v.T(), result.CheckName, "cpu")
+	assert.Contains(v.T(), result.Filepath, "file:/etc/datadog-agent/conf.d/cpu.d/conf.yaml.default")
+	assert.Contains(v.T(), result.InstanceId, "cpu:e331d61ed1323219")
+	assert.Contains(v.T(), result.Settings, "{}")
 }
 
 // cpu, disk, file_handle, io, load, memory, network, ntp, uptime
