@@ -27,12 +27,12 @@ long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
     return 0;
 }
 
-SYSCALL_KPROBE2(mkdir, const char*, filename, umode_t, mode)
+HOOK_SYSCALL_ENTRY2(mkdir, const char*, filename, umode_t, mode)
 {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
-SYSCALL_KPROBE3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
+HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
 {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
@@ -102,6 +102,7 @@ int kprobe_do_mkdirat(ctx_t *ctx) {
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/do_mkdirat")
 int kretprobe_do_mkdirat(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);

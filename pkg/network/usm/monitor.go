@@ -43,12 +43,13 @@ var (
 	state        = Disabled
 	startupError error
 
-	// knownProtocols maps individual protocol types, to their specification,
+	// knownProtocols maps individual protocol names, to their specification,
 	// for the Monitor to use during its initialisation.
-	knownProtocols = map[protocols.ProtocolType]protocols.ProtocolSpec{
-		protocols.HTTP:  http.Spec,
-		protocols.HTTP2: http2.Spec,
-		protocols.Kafka: kafka.Spec,
+	knownProtocols = map[string]protocols.ProtocolSpec{
+		protocols.HTTP.String():  http.Spec,
+		protocols.HTTP2.String(): http2.Spec,
+		protocols.Kafka.String(): kafka.Spec,
+		javaTLSProgramName:       javaTLSSpec,
 	}
 )
 
@@ -59,7 +60,7 @@ var errNoProtocols = errors.New("no protocol monitors were initialised")
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
-	enabledProtocols map[protocols.ProtocolType]protocols.Protocol
+	enabledProtocols map[string]protocols.Protocol
 
 	ebpfProgram *ebpfProgram
 
@@ -246,7 +247,9 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 
 	for _, protocol := range m.enabledProtocols {
 		ps := protocol.GetStats()
-		ret[ps.Type] = ps.Stats
+		if ps != nil {
+			ret[ps.Type] = ps.Stats
+		}
 	}
 
 	return ret
@@ -289,8 +292,8 @@ func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 // - a slice containing instances of the Protocol interface for each enabled protocol support
 // - a slice containing pointers to the protocol specs of disabled protocols.
 // - an error value, which is non-nil if an error occurred while initialising a protocol
-func initProtocols(c *config.Config, mgr *ebpfProgram) (map[protocols.ProtocolType]protocols.Protocol, []*protocols.ProtocolSpec, error) {
-	enabledProtocols := make(map[protocols.ProtocolType]protocols.Protocol)
+func initProtocols(c *config.Config, mgr *ebpfProgram) (map[string]protocols.Protocol, []*protocols.ProtocolSpec, error) {
+	enabledProtocols := make(map[string]protocols.Protocol)
 	disabledProtocols := make([]*protocols.ProtocolSpec, 0)
 
 	for proto, spec := range knownProtocols {
@@ -302,11 +305,12 @@ func initProtocols(c *config.Config, mgr *ebpfProgram) (map[protocols.ProtocolTy
 		if protocol != nil {
 			// Configure the manager
 			mgr.Maps = append(mgr.Maps, spec.Maps...)
+			mgr.Probes = append(mgr.Probes, spec.Probes...)
 			mgr.tailCallRouter = append(mgr.tailCallRouter, spec.TailCalls...)
 
 			enabledProtocols[proto] = protocol
 
-			log.Infof("%v monitoring enabled", proto.String())
+			log.Infof("%v monitoring enabled", proto)
 		} else {
 			// As we're keeping pointers to the disables specs, we're suffering from a common golang-gotcha
 			// Assuming we have http and kafka, http is disabled, kafka is not. Without the following line we'll end up

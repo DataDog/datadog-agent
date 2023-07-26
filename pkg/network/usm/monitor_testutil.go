@@ -72,7 +72,7 @@ func (p *protocolMock) GetStats() *protocols.ProtocolStats                      
 func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType, spec protocolMockSpec) {
 	t.Helper()
 
-	p, present := knownProtocols[protocolType]
+	p, present := knownProtocols[protocolType.String()]
 	require.True(t, present, "trying to patch non-existing protocol")
 
 	innerFactory := p.Factory
@@ -80,7 +80,7 @@ func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType, spec p
 	// Restore the old protocol factory at end of test
 	t.Cleanup(func() {
 		p.Factory = innerFactory
-		knownProtocols[protocolType] = p
+		knownProtocols[protocolType.String()] = p
 	})
 
 	p.Factory = func(c *config.Config) (protocols.Protocol, error) {
@@ -95,5 +95,5 @@ func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType, spec p
 		}, nil
 	}
 
-	knownProtocols[protocolType] = p
+	knownProtocols[protocolType.String()] = p
 }

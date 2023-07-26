@@ -125,7 +125,7 @@ SYSCALL_COMPAT_KPROBE3(mount, const char*, source, const char*, target, const ch
     return 0;
 }
 
-SYSCALL_KPROBE1(unshare, unsigned long, flags) {
+HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNSHARE_MNTNS,
         .unshare_mntns = {

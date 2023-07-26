@@ -221,6 +221,7 @@ func (k *EBPFProbe) getProgramStats(stats *EBPFStats) error {
 			continue
 		}
 
+		mappingLock.RLock()
 		name := unix.ByteSliceToString(info.Name[:])
 		if pn, ok := progNameMapping[uint32(progid)]; ok {
 			name = pn
@@ -233,6 +234,7 @@ func (k *EBPFProbe) getProgramStats(stats *EBPFStats) error {
 		if mod, ok := progModuleMapping[uint32(progid)]; ok {
 			module = mod
 		}
+		mappingLock.RUnlock()
 
 		tag := hex.EncodeToString(info.Tag[:])
 		ps := EBPFProgramStats{
@@ -283,6 +285,7 @@ func (k *EBPFProbe) getMapStats(stats *EBPFStats) error {
 			continue
 		}
 		name := info.Name
+		mappingLock.RLock()
 		if mn, ok := mapNameMapping[uint32(mapid)]; ok {
 			name = mn
 		}
@@ -293,6 +296,7 @@ func (k *EBPFProbe) getMapStats(stats *EBPFStats) error {
 		if mod, ok := mapModuleMapping[uint32(mapid)]; ok {
 			module = mod
 		}
+		mappingLock.RUnlock()
 
 		baseMapStats := EBPFMapStats{
 			id:         uint32(mapid),

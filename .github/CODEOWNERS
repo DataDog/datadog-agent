@@ -9,6 +9,9 @@
 # Rules are matched bottom-to-top, so one team can own subdirectories
 # and another the rest of the directory.
 
+# When adding a new team to this file, don't forget to assign it
+# a slack channel in tasks/libs/pipeline_notifications.py
+
 # Config files for various CI systems / tasks
 /.*                                     @DataDog/agent-platform
 
@@ -186,7 +189,7 @@
 
 /omnibus/                               @DataDog/agent-platform
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
-/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations @DataDog/software-integrity-and-trust
+/omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-platform
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
 /omnibus/config/software/snmp-traps.rb                    @DataDog/network-device-monitoring
@@ -202,6 +205,7 @@
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
 /comp/systray @DataDog/windows-agent
+/comp/trace @DataDog/agent-apm
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 # END COMPONENTS
 
@@ -332,6 +336,9 @@
 /pkg/network/driver/                    @DataDog/windows-kernel-integrations
 /pkg/network/ebpf/c/prebuilt/usm*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/usm*       @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/prebuilt/shared-libraries*  @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/runtime/shared-libraries*   @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/shared-libraries/           @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
