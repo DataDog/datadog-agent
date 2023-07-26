@@ -68,21 +68,19 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
     return 0;
 }
 
-int __attribute__((always_inline)) kprobe_sys_chmod_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(chmod) {
+    int retval = CTX_PARMRET(ctx, 2);
     return sys_chmod_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(chmod) {
-    return kprobe_sys_chmod_ret(ctx);
+HOOK_SYSCALL_EXIT(fchmod) {
+    int retval = CTX_PARMRET(ctx, 2);
+    return sys_chmod_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(fchmod) {
-    return kprobe_sys_chmod_ret(ctx);
-}
-
-SYSCALL_KRETPROBE(fchmodat) {
-    return kprobe_sys_chmod_ret(ctx);
+HOOK_SYSCALL_EXIT(fchmodat) {
+    int retval = CTX_PARMRET(ctx, 3);
+    return sys_chmod_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_chmod_exit")
