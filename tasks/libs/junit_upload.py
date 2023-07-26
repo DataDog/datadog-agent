@@ -142,6 +142,9 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
         xmls = 0
         for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
+            if not os.path.isfile(xmlfile):
+                print(f"[WARN] Matched folder named {xmlfile}")
+                continue
             xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)

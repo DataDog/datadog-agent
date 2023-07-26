@@ -8,7 +8,7 @@
     - echo -n "${CI_JOB_URL}" > $CI_PROJECT_DIR/test/kitchen/job_url.txt
     - kitchen_files=$(find $CI_PROJECT_DIR -name "kitchen-rspec-*.xml" -exec basename {} \;)
     - find $CI_PROJECT_DIR -name "kitchen-rspec-*.xml" -exec $CI_PROJECT_DIR/test/kitchen/tasks/kitchen_rspec_xml_update.sh {} "${CI_JOB_NAME}" \;
-    - tar -czvf kitchen-rspec-common-${CI_JOB_NAME}.tar.gz -C $CI_PROJECT_DIR/test/kitchen/ ./job_url.txt ./tags.txt "$kitchen_files"
+    - tar -czvf kitchen-rspec-common-${CI_JOB_NAME}.tar.gz -C $CI_PROJECT_DIR/test/kitchen/ ./job_url.txt ./tags.txt $kitchen_files
   artifacts:
     expire_in: 2 weeks
     when: always
