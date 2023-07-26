@@ -169,7 +169,8 @@ func TestSetTraceTagOk(t *testing.T) {
 	agent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
 	defer agent.Stop()
 	d := Daemon{
-		TraceAgent: agent,
+		TraceAgent:       agent,
+		ExecutionContext: &executioncontext.ExecutionContext{}, // Add this line
 	}
 	assert.True(t, d.setTraceTags(tagsMap))
 }
