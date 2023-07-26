@@ -9,18 +9,19 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCounterInitializer(t *testing.T) {
 
-	telemetry := newMock().(*telemetryImpl)
+	telemetry := fxutil.Test[Mock](t, MockModule)
 
 	counter := telemetry.NewCounter("subsystem", "test", []string{"check_name", "state"}, "help docs")
 
 	// Sanity check that we don't have any metrics
-	startMetrics, err := telemetry.registry.Gather()
+	startMetrics, err := telemetry.GetRegistry().Gather()
 	assert.NoError(t, err)
 	if err != nil {
 		return
@@ -30,9 +31,9 @@ func TestCounterInitializer(t *testing.T) {
 	assert.Equal(t, 1, len(startMetrics))
 
 	// Set some values and ensure that we have those counters
-	counter.Initialize("mycheck", "mystate")
+	counter.InitializeToZero("mycheck", "mystate")
 
-	endMetrics, err := telemetry.registry.Gather()
+	endMetrics, err := telemetry.GetRegistry().Gather()
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -65,7 +66,7 @@ func TestCounterInitializer(t *testing.T) {
 }
 
 func TestGetCounterValue(t *testing.T) {
-	telemetry := newMock().(*telemetryImpl)
+	telemetry := fxutil.Test[Mock](t, MockModule)
 
 	counter := telemetry.NewCounter("subsystem", "test", []string{"state"}, "help docs")
 	assert.Equal(t, counter.WithValues("ok").Get(), 0.0)
@@ -80,7 +81,7 @@ func TestGetCounterValue(t *testing.T) {
 }
 
 func TestGetGaugeValue(t *testing.T) {
-	telemetry := newMock().(*telemetryImpl)
+	telemetry := fxutil.Test[Mock](t, MockModule)
 
 	gauge := telemetry.NewGauge("subsystem", "test", []string{"state"}, "help docs")
 	assert.Equal(t, gauge.WithValues("ok").Get(), 0.0)
@@ -95,7 +96,7 @@ func TestGetGaugeValue(t *testing.T) {
 }
 
 func TestGetSimpleHistogramValue(t *testing.T) {
-	telemetry := newMock().(*telemetryImpl)
+	telemetry := fxutil.Test[Mock](t, MockModule)
 
 	hist := telemetry.NewSimpleHistogram("subsystem", "test", "help docs", []float64{1, 2, 3, 4})
 
@@ -118,7 +119,7 @@ func TestGetSimpleHistogramValue(t *testing.T) {
 }
 
 func TestGetHistogramValue(t *testing.T) {
-	telemetry := newMock().(*telemetryImpl)
+	telemetry := fxutil.Test[Mock](t, MockModule)
 
 	hist := telemetry.NewHistogram("subsystem", "test", []string{"state"}, "help docs", []float64{1, 2, 3, 4})
 
@@ -139,14 +140,14 @@ func TestGetHistogramValue(t *testing.T) {
 
 func TestMeterProvider(t *testing.T) {
 
-	telemetry := newMock().(*telemetryImpl)
+	telemetry := fxutil.Test[Mock](t, MockModule)
 
 	counter, _ := telemetry.Meter("foo").Int64Counter("bar")
 	counter.Add(context.TODO(), 123)
 
-	_ = telemetry.meterProvider.ForceFlush(context.TODO())
+	_ = telemetry.GetMeterProvider().ForceFlush(context.TODO())
 
-	metrics, err := telemetry.registry.Gather()
+	metrics, err := telemetry.GetRegistry().Gather()
 	assert.NoError(t, err)
 
 	var metricFamily *dto.MetricFamily

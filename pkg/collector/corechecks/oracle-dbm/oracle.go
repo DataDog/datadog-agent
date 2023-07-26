@@ -377,7 +377,7 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 	if err == nil {
 		return common.ObfuscatedStatement{
 			Statement:      obfuscatedStatement.Query,
-			QuerySignature: common.GetQuerySignature(statement),
+			QuerySignature: common.GetQuerySignature(obfuscatedStatement.Query),
 			Commands:       obfuscatedStatement.Metadata.Commands,
 			Tables:         strings.Split(obfuscatedStatement.Metadata.TablesCSV, ","),
 			Comments:       obfuscatedStatement.Metadata.Comments,
