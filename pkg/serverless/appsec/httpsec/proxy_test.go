@@ -74,7 +74,6 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		})
 		span := chunk.Spans[0]
-		tags := span.Meta
 		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
 
 		// Second invocation containing attacks
@@ -83,8 +82,7 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		})
 		span = chunk.Spans[0]
-		tags = span.Meta
-		require.Contains(t, tags, "_dd.appsec.json")
+		require.Contains(t, span.Meta, "_dd.appsec.json")
 		require.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
 		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
 	})
