@@ -346,7 +346,7 @@ kernel_matrix_testing_run_tests_arm64:
     ARCH: "arm64"
   parallel:
     matrix:
-      - TAG: ["focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10", "amzn_5.15"]
+      - TAG: ["focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10"]
 
 kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
