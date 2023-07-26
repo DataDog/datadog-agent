@@ -275,11 +275,11 @@ func (o *sslProgram) Stop() {
 	o.watcher.Stop()
 }
 
-func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.PathIdentifier, string, string) error {
-	return func(id utils.PathIdentifier, root string, path string) error {
-		uid := getUID(id)
+func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.FilePath) error {
+	return func(fpath utils.FilePath) error {
+		uid := getUID(fpath.ID)
 
-		elfFile, err := elf.Open(root + path)
+		elfFile, err := elf.Open(fpath.HostPath)
 		if err != nil {
 			return err
 		}
@@ -348,7 +348,7 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.Pa
 
 				newProbe := &manager.Probe{
 					ProbeIdentificationPair: identifier,
-					BinaryPath:              root + path,
+					BinaryPath:              fpath.HostPath,
 					UprobeOffset:            uint64(offset),
 					HookFuncName:            symbol,
 				}
@@ -365,9 +365,9 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.Pa
 	}
 }
 
-func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.PathIdentifier) error {
-	return func(lib utils.PathIdentifier) error {
-		uid := getUID(lib)
+func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.FilePath) error {
+	return func(fpath utils.FilePath) error {
+		uid := getUID(fpath.ID)
 		for _, singleProbe := range probes {
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				identifier := manager.ProbeIdentificationPair{
