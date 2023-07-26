@@ -26,25 +26,32 @@ import (
  * sql_fulltext, despite "full" in its name, truncates the text after the first 1000 characters.
  * For such statements, we will have to get the text from v$sql which has the complete text.
  */
-const SELECT_FMS = `SELECT /* DD */ c.name pdb_name, s.force_matching_signature, plan_hash_value, 
-max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length,`
 
-const LAST_ACTIVE_FMS = `( 
-    SELECT * FROM 
-    (
-      SELECT 
-        force_matching_signature, sql_id,
-        row_number() over (partition by force_matching_signature order by last_active_time DESC) as ROWNO
-      FROM v$sqlstats WHERE last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature != 0
-    ) WHERE rowno = 1
-  ) sq`
-const GROUP_BY_FMS = `GROUP BY c.name, s.force_matching_signature, plan_hash_value`
+const QUERY_FMS_RANDOM = `SELECT /* DD_QM_FMS */ c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, max(s.sql_id) sql_id, %s
+FROM v$sqlstats s, v$containers c 
+WHERE s.con_id = c.con_id (+) AND force_matching_signature != 0
+GROUP BY c.name, force_matching_signature, plan_hash_value 
+HAVING MAX (last_active_time) > sysdate - :seconds/24/60/60
+FETCH FIRST :limit ROWS ONLY`
 
-const FROM = `FROM v$sqlstats s, v$containers c`
-const WHERE = `WHERE s.con_id = c.con_id(+)`
-const FETCH = `FETCH FIRST :limit ROWS ONLY`
+const QUERY_FMS_LAST_ACTIVE = `SELECT /* DD_QM_FMS */ c.name pdb_name, s.force_matching_signature, plan_hash_value, max(dbms_lob.substr(sql_fulltext, 1000, 1)) sql_text, max(length(sql_text)) sql_text_length, sq.sql_id, %s
+FROM v$sqlstats s, v$containers c, ( 
+    SELECT * 
+    FROM ( 
+        SELECT force_matching_signature, sql_id, row_number ( ) over ( partition by force_matching_signature ORDER BY last_active_time DESC ) rowno
+    FROM v$sqlstats 
+    WHERE last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature != 0
+) 
+WHERE rowno = 1
+) sq 
+WHERE s.con_id = c.con_id (+) AND sq.force_matching_signature = s.force_matching_signature 
+GROUP BY c.name, s.force_matching_signature, plan_hash_value, sq.sql_id 
+FETCH FIRST :limit ROWS ONLY`
 
-const SELECT_SQLID = `SELECT /* DD */ c.name pdb_name, sql_id, plan_hash_value, sql_fulltext sql_text, length(sql_fulltext) sql_text_length, `
+const QUERY_SQLID = `SELECT /* DD_QM_SQLID */ c.name pdb_name, sql_id, plan_hash_value, sql_fulltext sql_text, length (sql_fulltext) sql_text_length, %s
+FROM v$sqlstats s, v$containers c 
+WHERE s.con_id = c.con_id (+) AND last_active_time > sysdate - :seconds/24/60/60 AND force_matching_signature = 0
+FETCH FIRST :limit ROWS ONLY`
 
 // including sql_id for indexed access
 const PLAN_QUERY = `SELECT /* DD */
@@ -441,27 +448,13 @@ func (c *Check) StatementMetrics() (int, error) {
 	var planErrors uint16
 	if c.config.QueryMetrics.Enabled {
 		var statementMetrics []StatementMetricsDB
-		var SQLID string
+		var sql string
 		if c.config.QueryMetrics.DisableLastActive {
-			SQLID = "max(sql_id)"
+			sql = QUERY_FMS_RANDOM
 		} else {
-			SQLID = "sq.sql_id"
+			sql = QUERY_FMS_LAST_ACTIVE
 		}
-		sql := fmt.Sprintf("%s %s as sql_id, %s %s", SELECT_FMS, SQLID, getColumnSums(), FROM)
-		if !c.config.QueryMetrics.DisableLastActive {
-			sql = fmt.Sprintf("%s, %s", sql, LAST_ACTIVE_FMS)
-		}
-		sql = fmt.Sprintf("%s %s", sql, WHERE)
-		if !c.config.QueryMetrics.DisableLastActive {
-			sql = fmt.Sprintf("%s AND sq.force_matching_signature = s.force_matching_signature", sql)
-		}
-		sql = fmt.Sprintf("%s %s", sql, GROUP_BY_FMS)
-		if !c.config.QueryMetrics.DisableLastActive {
-			sql = fmt.Sprintf("%s, %s", sql, SQLID)
-		} else {
-			sql = fmt.Sprintf("%s %s", sql, "HAVING MAX ( last_active_time ) > sysdate - :seconds/24/60/60")
-		}
-		sql = fmt.Sprintf("%s %s", sql, FETCH)
+		sql = fmt.Sprintf(sql, getColumnSums())
 		err := selectWrapper(
 			c,
 			&statementMetrics,
@@ -474,10 +467,10 @@ func (c *Check) StatementMetrics() (int, error) {
 		}
 		log.Tracef("number of collected metrics with force_matching_signature %+v", len(statementMetrics))
 
-		statementMetricsAll := statementMetrics
+		statementMetricsAll := make([]StatementMetricsDB, len(statementMetrics))
+		copy(statementMetricsAll, statementMetrics)
 
-		sql = fmt.Sprintf("%s %s", SELECT_SQLID, strings.Join(getStatisticsColumns(), ","))
-		sql = fmt.Sprintf("%s %s %s %s %s", sql, FROM, WHERE, "AND last_active_time > sysdate - :seconds/24/60/60", FETCH)
+		sql = fmt.Sprintf(QUERY_SQLID, strings.Join(getStatisticsColumns(), ","))
 		err = selectWrapper(
 			c,
 			&statementMetrics,
