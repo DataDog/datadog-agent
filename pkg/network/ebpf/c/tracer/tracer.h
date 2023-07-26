@@ -30,7 +30,7 @@ typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
     __u64 timestamp;
-    __u64 created_at;
+    __u64 duration;
     __u32 flags;
     // "cookie" that uniquely identifies
     // a conn_stas_ts_t. This is used

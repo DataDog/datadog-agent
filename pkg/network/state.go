@@ -14,7 +14,6 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -434,13 +433,8 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 
 // storeClosedConnection stores the given connection for every client
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
-	now, _ := ebpf.NowNanoseconds()
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			c.Duration = 0
-			if now > 0 {
-				c.Duration = uint64(now) - c.CreatedAt
-			}
 			if i, ok := client.closedConnectionsKeys[c.Cookie]; ok {
 				if ns.mergeConnectionStats(&client.closedConnections[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
@@ -935,26 +929,28 @@ func newConnectionAggregator(size int) *connectionAggregator {
 }
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key string, rolledUp bool) {
-	isShortLived := c.Duration > 0 && c.Duration < uint64((2*time.Minute)/time.Nanosecond)
-	ephemeralDport := c.SPort < 1024
+	isShortLived := c.Duration < uint64((2*time.Minute)/time.Nanosecond)
+	ephemeralSport := IsPortInEphemeralRange(c.SPort) == EphemeralTrue
 
 	if c.Type != UDP ||
 		!isShortLived ||
-		!ephemeralDport {
+		!ephemeralSport {
 		return string(c.ByteKey(a.buf)), false
 	}
 
-	// drop the ephemeral destination port in the key
-	dport := c.DPort
-	c.DPort = 0
-	defer func() {
-		// we only want to not use the dport
-		// for key generation, so restore
-		// it here
-		c.DPort = dport
-	}()
+	if ephemeralSport {
+		sport := c.SPort
+		c.SPort = 0
+		defer func() {
+			c.SPort = sport
+		}()
+	}
 
-	return string(c.ByteKey(a.buf)), true
+	var containerID string
+	if c.ContainerID != nil {
+		containerID = *c.ContainerID
+	}
+	return string(c.ByteKey(a.buf)) + containerID, true
 }
 
 // Aggregate aggregates a connection. The connection is only
@@ -1003,10 +999,10 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	if rolledUp {
 		// more than one connection with
 		// source port dropped in key,
-		// so set destination port to 0
-		aggrConn.DPort = 0
+		// so set source port to 0
+		aggrConn.SPort = 0
 		if aggrConn.IPTranslation != nil {
-			aggrConn.IPTranslation.ReplSrcPort = 0
+			aggrConn.IPTranslation.ReplDstPort = 0
 		}
 	}
 

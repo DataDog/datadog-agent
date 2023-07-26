@@ -246,7 +246,6 @@ type ConnectionStats struct {
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
-	CreatedAt       uint64
 	Duration        uint64
 
 	RTT    uint32 // Stored in µs

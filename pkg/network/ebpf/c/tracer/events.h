@@ -71,6 +71,8 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         conn.conn_stats.cookie = get_sk_cookie(sk);
     }
 
+    conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
+
     // Batch TCP closed connections before generating a perf event
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (batch_ptr == NULL) {

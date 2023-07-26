@@ -25,7 +25,7 @@ type ConnStats struct {
 	Sent_bytes     uint64
 	Recv_bytes     uint64
 	Timestamp      uint64
-	Created_at     uint64
+	Duration       uint64
 	Flags          uint32
 	Cookie         uint32
 	Sent_packets   uint64

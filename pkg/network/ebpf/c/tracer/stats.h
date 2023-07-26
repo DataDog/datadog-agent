@@ -32,7 +32,7 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.cookie = get_sk_cookie(sk);
-    empty.created_at = bpf_ktime_get_ns();
+    empty.duration = bpf_ktime_get_ns();
     bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);
 }
