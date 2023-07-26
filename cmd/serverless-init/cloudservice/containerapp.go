@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 )
@@ -88,13 +89,13 @@ func (c *ContainerApp) Init() error {
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
 		c.SubscriptionId = subscriptionId
 	} else {
-		return fmt.Errorf("must set %v", AzureSubscriptionIdEnvVar)
+		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
 	}
 
 	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
 		c.ResourceGroup = resourceGroup
 	} else {
-		return fmt.Errorf("must set %v", AzureResourceGroupEnvVar)
+		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
 	}
 
 	return nil

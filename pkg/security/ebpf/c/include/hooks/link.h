@@ -24,11 +24,11 @@ int __attribute__((always_inline)) trace__sys_link(u8 async) {
     return 0;
 }
 
-SYSCALL_KPROBE0(link) {
+HOOK_SYSCALL_ENTRY0(link) {
     return trace__sys_link(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(linkat) {
+HOOK_SYSCALL_ENTRY0(linkat) {
     return trace__sys_link(SYNC_SYSCALL);
 }
 

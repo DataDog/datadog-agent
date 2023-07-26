@@ -21,10 +21,12 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
+from .process_agent import build as process_agent_build
 from .rtloader import clean as rtloader_clean
 from .rtloader import install as rtloader_install
 from .rtloader import make as rtloader_make
 from .ssm import get_pfx_pass, get_signing_cert
+from .trace_agent import build as trace_agent_build
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -280,6 +282,23 @@ def run(
 
 
 @task
+def exec(
+    ctx,
+    subcommand,
+    config_path=None,
+):
+    """
+    Execute 'agent <subcommand>' against the currently running Agent.
+
+    This works against an agent run via `inv agent.run`.
+    Basically this just simplifies creating the path for both the agent binary and config.
+    """
+    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
+    ctx.run(f"{agent_bin} -c {config_path} {subcommand}")
+
+
+@task
 def system_tests(_):
     """
     Run the system testsuite.
@@ -326,9 +345,15 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
 
 @task
-def hacky_dev_image_build(ctx, base_image=None, target_image="agent", push=False, signed_pull=False):
+def hacky_dev_image_build(
+    ctx, base_image=None, target_image="agent", process_agent=False, trace_agent=False, push=False, signed_pull=False
+):
     os.environ["DELVE"] = "1"
     build(ctx)
+    if process_agent:
+        process_agent_build(ctx)
+    if trace_agent:
+        trace_agent_build(ctx)
 
     if base_image is None:
         import requests
@@ -346,6 +371,12 @@ def hacky_dev_image_build(ctx, base_image=None, target_image="agent", push=False
             if ver > latest_release:
                 latest_release = ver
         base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+
+    copy_extra_agents = ""
+    if process_agent:
+        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+    if trace_agent:
+        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -382,6 +413,8 @@ ENV DELVE_PAGER=less
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent /opt/datadog-agent/bin/agent/agent
+COPY dev/lib/libdatadog-agent-* /opt/datadog-agent/embedded/lib/
+{copy_extra_agents}
 RUN agent completion bash > /usr/share/bash-completion/completions/agent
 
 ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt

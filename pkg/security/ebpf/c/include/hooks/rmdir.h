@@ -19,7 +19,7 @@ int __attribute__((always_inline)) trace__sys_rmdir(u8 async, int flags) {
     return 0;
 }
 
-SYSCALL_KPROBE0(rmdir) {
+HOOK_SYSCALL_ENTRY0(rmdir) {
     return trace__sys_rmdir(SYNC_SYSCALL, 0);
 }
 

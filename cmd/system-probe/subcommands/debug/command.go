@@ -60,7 +60,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
-	cfg := sysprobeconfig.Object()
+	cfg := sysprobeconfig.SysProbeObject()
 	client := api.GetClient(cfg.SocketAddress)
 
 	var path string

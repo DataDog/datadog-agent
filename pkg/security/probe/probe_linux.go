@@ -77,7 +77,7 @@ var (
 	defaultEventTypes = []eval.EventType{
 		model.ForkEventType.String(),
 		model.ExecEventType.String(),
-		model.ExecEventType.String(),
+		model.ExitEventType.String(),
 	}
 )
 
@@ -299,11 +299,7 @@ func (p *Probe) Start() error {
 		return err
 	}
 
-	return p.updateProbes([]eval.EventType{
-		model.ForkEventType.String(),
-		model.ExecEventType.String(),
-		model.ExecEventType.String(),
-	})
+	return p.updateProbes(nil)
 }
 
 func (p *Probe) PlaySnapshot() {
