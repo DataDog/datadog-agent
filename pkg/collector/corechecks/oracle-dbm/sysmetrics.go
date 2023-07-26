@@ -11,7 +11,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -20,7 +20,6 @@ const SYSMETRICS_QUERY = `SELECT
 	metric_name,
 	value, 
 	metric_unit, 
-	--(end_time - begin_time)*24*3600 interval_length,
 	name pdb_name 
   FROM %s s, v$containers c 
   WHERE s.con_id = c.con_id(+)`
@@ -111,7 +110,7 @@ var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"User Rollbacks Per Sec":                   {DDmetric: "user_rollbacks"},
 }
 
-func (c *Check) sendMetric(s aggregator.Sender, r SysmetricsRowDB, seen map[string]bool) {
+func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]bool) {
 	if metric, ok := SYSMETRICS_COLS[r.MetricName]; ok {
 		value := r.Value
 		if r.MetricUnit == "CentiSeconds Per Second" {

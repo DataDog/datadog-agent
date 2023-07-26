@@ -7,8 +7,7 @@ package status
 
 import (
 	"encoding/json"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 )
 
 // CLCChecks is used to unmarshall the runner expvar payload for CLC Runner
@@ -27,7 +26,7 @@ type CLCStats struct {
 
 // UnmarshalJSON overwrites the unmarshall method for CLCStats
 func (d *CLCStats) UnmarshalJSON(data []byte) error {
-	var stats check.Stats
+	var stats stats.Stats
 	if err := json.Unmarshal(data, &stats); err != nil {
 		return err
 	}

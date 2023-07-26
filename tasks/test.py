@@ -97,6 +97,7 @@ TOOL_LIST_PROTO = [
     'github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway',
     'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
+    'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
     'github.com/tinylib/msgp',
 ]
 
@@ -133,7 +134,7 @@ def invoke_unit_tests(ctx):
     for _, _, files in os.walk("tasks/unit-tests/"):
         for file in files:
             if file[-3:] == ".py" and file != "__init__.py" and not bool(UNIT_TEST_FILE_FORMAT.search(file[:-3])):
-                ctx.run(f"python3 -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
+                ctx.run(f"{sys.executable} -m tasks.unit-tests.{file[:-3]}", env={"GITLAB_TOKEN": "fake_token"})
 
 
 def test_core(
@@ -301,6 +302,31 @@ def lint_flavor(
         module_results.append(module_result)
 
     return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
+
+
+def build_stdlib(
+    ctx,
+    build_tags: List[str],
+    cmd: str,
+    env: Dict[str, str],
+    args: Dict[str, str],
+    test_profiler: TestProfiler,
+):
+    """
+    Builds the stdlib with the same build flags as the tests.
+
+    Since Go 1.20, standard library is not pre-compiled anymore but is built as needed and cached in the build cache.
+    To avoid a perfomance overhead when running tests, we pre-compile the standard library and cache it.
+    We must use the same build flags as the one we are using when compiling tests to not invalidate the cache.
+    """
+    args["go_build_tags"] = " ".join(build_tags)
+
+    ctx.run(
+        cmd.format(**args),
+        env=env,
+        out_stream=test_profiler,
+        warn=True,
+    )
 
 
 def test_flavor(
@@ -596,6 +622,8 @@ def test(
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
+    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {nocache} std cmd'
     cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
     args = {
@@ -616,6 +644,14 @@ def test(
 
     # Test
     for flavor, build_tags in unit_tests_tags.items():
+        build_stdlib(
+            ctx,
+            build_tags=build_tags,
+            cmd=stdlib_build_cmd,
+            env=env,
+            args=args,
+            test_profiler=test_profiler,
+        )
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,

@@ -6,7 +6,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
+HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr*, addr, unsigned int, addr_len) {
     if (!addr) {
         return 0;
     }

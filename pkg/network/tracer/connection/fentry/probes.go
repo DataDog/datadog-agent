@@ -30,9 +30,6 @@ const (
 	tcpSendPageReturn = "tcp_sendpage_exit"
 	udpSendPageReturn = "udp_sendpage_exit"
 
-	// tcpSetState traces the tcp_set_state() kernel function
-	tcpSetState = "tcp_set_state"
-
 	// tcpRecvMsgReturn traces the return value for the tcp_recvmsg() system call
 	tcpRecvMsgReturn        = "tcp_recvmsg_exit"
 	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
@@ -98,7 +95,6 @@ var programs = map[string]struct{}{
 	tcpRetransmitRet:          {},
 	tcpSendMsgReturn:          {},
 	tcpSendPageReturn:         {},
-	tcpSetState:               {},
 	udpDestroySock:            {},
 	udpDestroySockReturn:      {},
 	udpRecvMsg:                {},
@@ -145,7 +141,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, inetCskAcceptReturn)
 		enableProgram(enabled, inetCskListenStop)
-		enableProgram(enabled, tcpSetState)
 		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
 

@@ -1,5 +1,5 @@
 {
-	"commit": "977506513b79e60337258d142bbb80b026fc7d85",
+	"commit": "4add4a824e23c8f2f5c366f3a3608fd7b254d9d6",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -12408,6 +12408,13 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "arm64",
+			"uname_release": "4.14.35-2047.528.1.el7uek.aarch64",
+			"cindex": 77
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "arm64",
 			"uname_release": "4.14.35-2048.el7uek.aarch64",
 			"cindex": 76
 		},
@@ -14740,6 +14747,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.1.12-124.75.3.el7uek.x86_64",
+			"cindex": 82
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.1.12-124.76.2.el7uek.x86_64",
 			"cindex": 82
 		},
 		{
@@ -17211,6 +17225,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.14.35-2047.527.2.el7uek.x86_64",
+			"cindex": 85
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.528.1.el7uek.x86_64",
 			"cindex": 85
 		},
 		{
@@ -26100,6 +26121,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "arm64",
+			"uname_release": "4.15.0-1158-aws",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
 			"uname_release": "4.15.0-117-generic",
 			"cindex": 96
 		},
@@ -26514,6 +26542,13 @@
 			"version": "18.04",
 			"arch": "arm64",
 			"uname_release": "4.15.0-212-generic",
+			"cindex": 129
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "arm64",
+			"uname_release": "4.15.0-213-generic",
 			"cindex": 129
 		},
 		{
@@ -29565,6 +29600,13 @@
 			"distrib": "ubuntu",
 			"version": "18.04",
 			"arch": "x86_64",
+			"uname_release": "4.15.0-1158-aws",
+			"cindex": 115
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
 			"uname_release": "4.15.0-1158-azure",
 			"cindex": 140
 		},
@@ -29615,6 +29657,13 @@
 			"version": "18.04",
 			"arch": "x86_64",
 			"uname_release": "4.15.0-1166-azure",
+			"cindex": 140
+		},
+		{
+			"distrib": "ubuntu",
+			"version": "18.04",
+			"arch": "x86_64",
+			"uname_release": "4.15.0-1167-azure",
 			"cindex": 140
 		},
 		{

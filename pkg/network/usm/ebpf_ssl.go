@@ -10,21 +10,21 @@ package usm
 import (
 	"debug/elf"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -196,38 +196,48 @@ var gnuTLSProbes = []manager.ProbesSelector{
 const (
 	sslSockByCtxMap        = "ssl_sock_by_ctx"
 	sharedLibrariesPerfMap = "shared_libraries"
-
-	// probe used for streaming shared library events
-	openatSysCall  = "openat"
-	openat2SysCall = "openat2"
-)
-
-var (
-	traceTypes = []string{"enter", "exit"}
 )
 
 type sslProgram struct {
-	cfg                     *config.Config
-	sockFDMap               *ebpf.Map
-	perfHandler             *ddebpf.PerfHandler
-	perfMap                 *manager.PerfMap
-	watcher                 *soWatcher
-	manager                 *errtelemetry.Manager
-	sysOpenHooksIdentifiers []manager.ProbeIdentificationPair
+	cfg       *config.Config
+	sockFDMap *ebpf.Map
+	manager   *errtelemetry.Manager
+	watcher   *sharedlibraries.Watcher
 }
 
 var _ subprogram = &sslProgram{}
 
-func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
+func newSSLProgram(c *config.Config, m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) *sslProgram {
 	if !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
 		return nil
 	}
 
+	watcher, err := sharedlibraries.NewWatcher(c, bpfTelemetry,
+		sharedlibraries.Rule{
+			Re:           regexp.MustCompile(`libssl.so`),
+			RegisterCB:   addHooks(m, openSSLProbes),
+			UnregisterCB: removeHooks(m, openSSLProbes),
+		},
+		sharedlibraries.Rule{
+			Re:           regexp.MustCompile(`libcrypto.so`),
+			RegisterCB:   addHooks(m, cryptoProbes),
+			UnregisterCB: removeHooks(m, cryptoProbes),
+		},
+		sharedlibraries.Rule{
+			Re:           regexp.MustCompile(`libgnutls.so`),
+			RegisterCB:   addHooks(m, gnuTLSProbes),
+			UnregisterCB: removeHooks(m, gnuTLSProbes),
+		},
+	)
+	if err != nil {
+		log.Errorf("error initializating shared library watcher: %s", err)
+		return nil
+	}
+
 	return &sslProgram{
-		cfg:                     c,
-		sockFDMap:               sockFDMap,
-		perfHandler:             ddebpf.NewPerfHandler(100),
-		sysOpenHooksIdentifiers: getSysOpenHooksIdentifiers(),
+		cfg:       c,
+		sockFDMap: sockFDMap,
+		watcher:   watcher,
 	}
 }
 
@@ -241,28 +251,6 @@ func (o *sslProgram) IsBuildModeSupported(_ buildMode) bool {
 
 func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 	o.manager = m
-
-	o.perfMap = &manager.PerfMap{
-		Map: manager.Map{Name: sharedLibrariesPerfMap},
-		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: 8 * os.Getpagesize(),
-			Watermark:          1,
-			RecordHandler:      o.perfHandler.RecordHandler,
-			LostHandler:        o.perfHandler.LostHandler,
-			RecordGetter:       o.perfHandler.RecordGetter,
-		},
-	}
-
-	m.PerfMaps = append(m.PerfMaps, o.perfMap)
-
-	for _, identifier := range o.sysOpenHooksIdentifiers {
-		m.Probes = append(m.Probes,
-			&manager.Probe{
-				ProbeIdentificationPair: identifier,
-				KProbeMaxActive:         maxActive,
-			},
-		)
-	}
 }
 
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
@@ -270,14 +258,6 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 		Type:       ebpf.Hash,
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
-	}
-
-	for _, identifier := range o.sysOpenHooksIdentifiers {
-		options.ActivatedProbes = append(options.ActivatedProbes,
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: identifier,
-			},
-		)
 	}
 
 	if options.MapEditors == nil {
@@ -288,54 +268,15 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 }
 
 func (o *sslProgram) Start() {
-	// Setup shared library watcher and configure the appropriate callbacks
-	o.watcher = newSOWatcher(o.perfHandler,
-		soRule{
-			re:           regexp.MustCompile(`libssl.so`),
-			registerCB:   addHooks(o.manager, openSSLProbes),
-			unregisterCB: removeHooks(o.manager, openSSLProbes),
-		},
-		soRule{
-			re:           regexp.MustCompile(`libcrypto.so`),
-			registerCB:   addHooks(o.manager, cryptoProbes),
-			unregisterCB: removeHooks(o.manager, cryptoProbes),
-		},
-		soRule{
-			re:           regexp.MustCompile(`libgnutls.so`),
-			registerCB:   addHooks(o.manager, gnuTLSProbes),
-			unregisterCB: removeHooks(o.manager, gnuTLSProbes),
-		},
-	)
-
 	o.watcher.Start()
 }
 
 func (o *sslProgram) Stop() {
-	// Detaching the sys-open hooks, as they are feeding the perf map we're going to close next.
-	for _, identifier := range o.sysOpenHooksIdentifiers {
-		probe, found := o.manager.GetProbe(identifier)
-		if !found {
-			continue
-		}
-		if err := probe.Stop(); err != nil {
-			log.Errorf("Failed to stop hook %q. Error: %s", identifier.EBPFFuncName, err)
-		}
-	}
-
-	if o.perfMap != nil {
-		if err := o.perfMap.Stop(manager.CleanAll); err != nil {
-			log.Errorf("Failed to stop perf map. Error: %s", err)
-		}
-	}
-
-	// We must stop the watcher first, as we can read from the perfHandler, before terminating the perfHandler, otherwise
-	// we might try to send events over the perfHandler.
 	o.watcher.Stop()
-	o.perfHandler.Stop()
 }
 
-func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pathIdentifier, string, string) error {
-	return func(id pathIdentifier, root string, path string) error {
+func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.PathIdentifier, string, string) error {
+	return func(id utils.PathIdentifier, root string, path string) error {
 		uid := getUID(id)
 
 		elfFile, err := elf.Open(root + path)
@@ -411,9 +352,11 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 					UprobeOffset:            uint64(offset),
 					HookFuncName:            symbol,
 				}
-				_ = m.AddHook("", newProbe)
+				if err := m.AddHook("", newProbe); err == nil {
+					ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, identifier.UID), "usm_tls")
+				}
 			}
-			if err := singleProbe.RunValidator(m.Manager); err != nil {
+			if err := singleProbe.RunValidator(m); err != nil {
 				return err
 			}
 		}
@@ -422,8 +365,8 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 	}
 }
 
-func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pathIdentifier) error {
-	return func(lib pathIdentifier) error {
+func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.PathIdentifier) error {
+	return func(lib utils.PathIdentifier) error {
 		uid := getUID(lib)
 		for _, singleProbe := range probes {
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
@@ -460,7 +403,7 @@ func removeHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(
 //	fmt.Sprintf("%s_%.*s_%s_%s", probeType, maxFuncNameLen, functionName, UID, attachPIDstr)
 //
 // functionName is variable but with a minimum guarantee of 10 chars
-func getUID(lib pathIdentifier) string {
+func getUID(lib utils.PathIdentifier) string {
 	return lib.Key()[:5]
 }
 
@@ -477,47 +420,5 @@ func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 		}
 	}
 
-	for _, hook := range []string{openatSysCall, openat2SysCall} {
-		for _, traceType := range traceTypes {
-			probeList = append(probeList, manager.ProbeIdentificationPair{
-				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, hook),
-			})
-		}
-	}
-
 	return probeList
-}
-
-func sysOpenAt2Supported() bool {
-	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
-	if err == nil && len(missing) == 0 {
-		return true
-	}
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
-}
-
-// getSysOpenHooksIdentifiers returns the enter and exit tracepoints for openat and openat2 (if supported).
-func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
-	openatProbes := []string{openatSysCall}
-	if sysOpenAt2Supported() {
-		openatProbes = append(openatProbes, openat2SysCall)
-	}
-
-	res := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
-	for _, probe := range openatProbes {
-		for _, traceType := range traceTypes {
-			res = append(res, manager.ProbeIdentificationPair{
-				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
-				UID:          probeUID,
-			})
-		}
-	}
-
-	return res
 }

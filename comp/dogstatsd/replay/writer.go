@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
@@ -44,6 +44,8 @@ type CaptureBuffer struct {
 }
 
 // for testing purposes
+//
+//nolint:unused
 type backendFs struct {
 	fs afero.Fs
 
@@ -51,6 +53,8 @@ type backendFs struct {
 }
 
 // captureFs, used exclusively for testing purposes
+//
+//nolint:unused
 var captureFs = backendFs{
 	fs: afero.NewOsFs(),
 }

@@ -60,7 +60,7 @@ class GithubWorkflows(RemoteAPI):
         """
         path = f"/repos/{self.repository}/actions/artifacts/{artifact_id}/zip"
         content = self.make_request(path, method="GET", raw_output=True)
-
+        print("Downloaded artifact with id: ", artifact_id, "content length is: ", len(content))
         zip_target_path = os.path.join(destination_dir, f"{artifact_id}.zip")
         with open(zip_target_path, "wb") as f:
             f.write(content)

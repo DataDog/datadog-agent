@@ -14,12 +14,16 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/usm.o $CI_PROJECT_DIR/.tmp/binary-ebpf/usm.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/usm-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/usm-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/shared-libraries.o $CI_PROJECT_DIR/.tmp/binary-ebpf/shared-libraries.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/shared-libraries-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/shared-libraries-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/usm-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/usm-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/usm.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/usm.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/shared-libraries-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/shared-libraries-debug.o
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/shared-libraries.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/shared-libraries.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/oom-kill.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tcp-queue-length.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tcp-queue-length.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-fentry.o
@@ -28,6 +32,7 @@
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/usm.c $CI_PROJECT_DIR/.tmp/binary-ebpf/usm.c
+  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/shared-libraries.c $CI_PROJECT_DIR/.tmp/binary-ebpf/shared-libraries.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c
@@ -57,7 +62,7 @@
     - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
-      -m 8192M
+      -m 16384M
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}

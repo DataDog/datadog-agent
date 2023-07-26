@@ -191,7 +191,9 @@ sleep "$LOGS_WAIT_MINUTES"m
 
 failed_functions=()
 
-RAWLOGS_DIR=$(mktemp -d)
+if [ -z $RAWLOGS_DIR ]; then
+    RAWLOGS_DIR=$(mktemp -d)
+fi
 echo "Raw logs will be written to ${RAWLOGS_DIR}"
 
 for function_name in "${all_functions[@]}"; do
@@ -278,6 +280,8 @@ if [ ${#failed_functions[@]} -gt 0 ]; then
     for function_name in "${failed_functions[@]}"; do
         echo "- $function_name"
     done
+    echo
+    echo "+++ Need help with failures?  Check https://datadoghq.atlassian.net/l/cp/H7CdziU9 for a list of known issues and suggested next steps +++"
     echo
     exit 1
 fi

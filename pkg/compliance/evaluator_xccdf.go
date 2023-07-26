@@ -65,6 +65,7 @@ type oscapIO struct {
 	RuleCh   chan *oscapIORule
 	ResultCh chan *oscapIOResult
 	ErrorCh  chan error
+	DoneCh   chan bool
 }
 
 // From pkg/collector/corechecks/embed/process_agent.go.
@@ -83,6 +84,7 @@ func newOSCAPIO(file string) *oscapIO {
 		RuleCh:   make(chan *oscapIORule, 0),
 		ResultCh: make(chan *oscapIOResult, 0),
 		ErrorCh:  make(chan error, 0),
+		DoneCh:   make(chan bool, 0),
 	}
 }
 
@@ -196,17 +198,31 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Stop oscap-io process after 60 minutes of inactivity.
+	timeout := 60 * time.Minute
+
 	go func() {
+		t := time.NewTimer(timeout)
 		for {
-			rule := <-p.RuleCh
-			if rule == nil {
+			select {
+			case <-t.C:
+				log.Warnf("oscap-io has been inactive for %s; exiting", timeout)
+				err := p.Kill()
+				if err != nil {
+					log.Warnf("failed to kill process: %v", err)
+				}
 				return
-			}
-			log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
-			_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
-			if err != nil {
-				log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
-				return
+			case rule := <-p.RuleCh:
+				if rule == nil {
+					return
+				}
+				log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
+				_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
+				if err != nil {
+					log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
+					return
+				}
+				t.Reset(timeout)
 			}
 		}
 	}()
@@ -223,9 +239,14 @@ func (p *oscapIO) Stop() {
 	oscapIOsMu.Lock()
 	defer oscapIOsMu.Unlock()
 	oscapIOs[p.File] = nil
-	close(p.RuleCh)
-	close(p.ResultCh)
-	close(p.ErrorCh)
+	close(p.DoneCh)
+}
+
+func (p *oscapIO) Kill() error {
+	if err := p.cmd.Process.Kill(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {
@@ -266,6 +287,13 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 		select {
 		case <-ctx.Done():
 			return nil
+		case <-p.DoneCh:
+			// The oscap-io process has been terminated.
+			for _, req := range reqs {
+				log.Warnf("dropping rule '%s %s'", req.Profile, req.Rule)
+			}
+			close(p.RuleCh)
+			return nil
 		case p.RuleCh <- req:
 		}
 	}
@@ -277,7 +305,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 		case <-ctx.Done():
 			return nil
 		case <-c:
-			log.Warnf("timed out waiting for expected results")
+			log.Warnf("timed out waiting for expected results for rule %s", reqs[i].Rule)
 		case err := <-p.ErrorCh:
 			log.Warnf("error: %v", err)
 			events = append(events, NewCheckError(XCCDFEvaluator, err, hostname, "host", rule, benchmark))
