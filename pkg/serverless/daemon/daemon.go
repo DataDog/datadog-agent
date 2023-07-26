@@ -424,4 +424,3 @@ func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
 	}
 	return false
 }
-
