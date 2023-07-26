@@ -32,8 +32,6 @@ import (
 )
 
 const (
-	javaTLSProgramName = "Java-TLS"
-
 	agentUSMJar                 = "agent-usm.jar"
 	javaTLSConnectionsMap       = "java_tls_connections"
 	javaDomainsToConnectionsMap = "java_conn_tuple_by_peer"
