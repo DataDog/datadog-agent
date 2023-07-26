@@ -69,17 +69,17 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
 }
 
 HOOK_SYSCALL_EXIT(chmod) {
-    int retval = CTX_PARMRET(ctx, 1);
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_chmod_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_EXIT(fchmod) {
-    int retval = CTX_PARMRET(ctx, 1);
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_chmod_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_EXIT(fchmodat) {
-    int retval = CTX_PARMRET(ctx, 1);
+    int retval = SYSCALL_PARMRET(ctx);
     return sys_chmod_ret(ctx, retval);
 }
 

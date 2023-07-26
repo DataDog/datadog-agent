@@ -89,7 +89,7 @@ __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
 }
 
 HOOK_SYSCALL_EXIT(bpf) {
-    return sys_bpf_ret(ctx, (int)CTX_PARMRET(ctx, 1));
+    return sys_bpf_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
 HOOK_ENTRY("security_bpf_map")
