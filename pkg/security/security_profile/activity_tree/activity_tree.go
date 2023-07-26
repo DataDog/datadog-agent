@@ -107,6 +107,7 @@ type ActivityTree struct {
 	treeType          string
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
+	mergeExecChilds   bool
 
 	validator    ActivityTreeOwner
 	pathsReducer *PathsReducer
@@ -209,6 +210,11 @@ func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.Resolver) {
 // DifferentiateArgs enables the args differentiation feature
 func (at *ActivityTree) DifferentiateArgs() {
 	at.differentiateArgs = true
+}
+
+// MergeExecChilds enables the mering of exec childs mechanism
+func (at *ActivityTree) MergeExecChilds() {
+	at.mergeExecChilds = true
 }
 
 // isEventValid evaluates if the provided event is valid
@@ -402,7 +408,11 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, branch
 		}
 	}()
 
-	branch = append([]*model.ProcessCacheEntry{entry}, branch...)
+	if at.mergeExecChilds {
+		branch = append([]*model.ProcessCacheEntry{entry}, branch...)
+	} else {
+		branch = []*model.ProcessCacheEntry{entry}
+	}
 
 	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
@@ -499,7 +509,7 @@ func (at *ActivityTree) findBranch(children *[]*ProcessNode, siblings *[]*Proces
 
 			// we need to return the node that matched branch[0]
 			return newNodesRoot, true
-		} else {
+		} else if at.mergeExecChilds {
 			// are we looking for an exec child ?
 			if branchCursor.IsExecChild && siblings != nil {
 				// if yes, then look for branchCursor in the siblings of the parent of children

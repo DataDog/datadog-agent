@@ -380,6 +380,9 @@ func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie u
 			ad.Metadata.DifferentiateArgs = true
 			ad.ActivityTree.DifferentiateArgs()
 		}
+		if adm.config.RuntimeSecurity.ActivityDumpMergeExecEnable {
+			ad.ActivityTree.MergeExecChilds()
+		}
 	})
 
 	// add local storage requests
@@ -491,6 +494,9 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 		if params.GetDifferentiateArgs() {
 			ad.Metadata.DifferentiateArgs = true
 			ad.ActivityTree.DifferentiateArgs()
+		}
+		if adm.config.RuntimeSecurity.ActivityDumpMergeExecEnable {
+			ad.ActivityTree.MergeExecChilds()
 		}
 	})
 
