@@ -92,17 +92,17 @@ int __attribute__((always_inline)) kprobe_sys_chown_ret(struct pt_regs *ctx) {
 }
 
 HOOK_SYSCALL_EXIT(lchown) {
-    int retval = CTX_PARMRET(ctx, 3);
+    int retval = CTX_PARMRET(ctx, 1);
     return sys_chown_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_EXIT(fchown) {
-    int retval = CTX_PARMRET(ctx, 3);
+    int retval = CTX_PARMRET(ctx, 1);
     return sys_chown_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_EXIT(chown) {
-    int retval = CTX_PARMRET(ctx, 3);
+    int retval = CTX_PARMRET(ctx, 1);
     return sys_chown_ret(ctx, retval);
 }
 
