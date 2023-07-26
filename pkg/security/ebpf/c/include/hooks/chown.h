@@ -119,7 +119,7 @@ SYSCALL_KRETPROBE(chown16) {
 }
 
 HOOK_SYSCALL_EXIT(fchownat) {
-    int retval = CTX_PARMRET(ctx, 4);
+    int retval = CTX_PARMRET(ctx, 1);
     return sys_chown_ret(ctx, retval);
 }
 
