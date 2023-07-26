@@ -96,7 +96,7 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
 //.- a GET method. GRPC only uses POST methods, the presence of any other methods
 //   means this is not GRPC.
 static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const skb_info_t *skb_info) {
-    grpc_status_t status = GRPC_STATUS_UNKNOWN;
+    grpc_status_t status = PAYLOAD_UNDETERMINED;
     char frame_buf[HTTP2_FRAME_HEADER_SIZE];
     struct http2_frame current_frame;
 
@@ -105,7 +105,7 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
 
     // Loop through the HTTP2 frames in the packet
 #pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
-    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS && status == GRPC_STATUS_UNKNOWN; ++i) {
+    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS && status == PAYLOAD_UNDETERMINED; ++i) {
         if (info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
             break;
         }
