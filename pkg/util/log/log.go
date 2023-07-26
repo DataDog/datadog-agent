@@ -43,21 +43,12 @@ var (
 	defaultStackDepth    = 3
 )
 
-type LogLevelSource string
-
-const (
-	LogLevelSourceCLI     LogLevelSource = "cli"
-	LogLevelSourceRC      LogLevelSource = "remote-config"
-	LogLevelSourceDefault LogLevelSource = "default"
-)
-
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
-	inner  seelog.LoggerInterface
-	level  seelog.LogLevel
-	extra  map[string]seelog.LoggerInterface
-	l      sync.RWMutex
-	source LogLevelSource
+	inner seelog.LoggerInterface
+	level seelog.LogLevel
+	extra map[string]seelog.LoggerInterface
+	l     sync.RWMutex
 }
 
 // SetupLogger setup agent wide logger
@@ -81,9 +72,8 @@ func SetupJMXLogger(i seelog.LoggerInterface, level string) {
 
 func setupCommonLogger(i seelog.LoggerInterface, level string) *DatadogLogger {
 	l := &DatadogLogger{
-		inner:  i,
-		extra:  make(map[string]seelog.LoggerInterface),
-		source: LogLevelSourceDefault,
+		inner: i,
+		extra: make(map[string]seelog.LoggerInterface),
 	}
 
 	lvl, ok := seelog.LogLevelFromString(level)
@@ -131,12 +121,6 @@ func (sw *DatadogLogger) changeLogLevel(level string) error {
 	}
 	Logger.level = lvl
 	return nil
-}
-
-func (sw *DatadogLogger) changeSource(source LogLevelSource) {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-	Logger.source = source
 }
 
 func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
@@ -399,14 +383,6 @@ func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
 	defer sw.l.RUnlock()
 
 	return sw.level
-}
-
-// getSource returns the current source
-func (sw *DatadogLogger) getSource() LogLevelSource {
-	sw.l.RLock()
-	defer sw.l.RUnlock()
-
-	return sw.source
 }
 
 func buildLogEntry(v ...interface{}) string {
@@ -914,29 +890,4 @@ func ChangeLogLevel(l seelog.LoggerInterface, level string) error {
 	}
 	// need to return something, just set to Info (expected default)
 	return errors.New("cannot change loglevel: logger not initialized")
-}
-
-func GetSource() (LogLevelSource, error) {
-	if Logger != nil && Logger.inner != nil {
-		return Logger.getSource(), nil
-	}
-
-	// need to return something, just set to Info (expected default)
-	return LogLevelSourceDefault, errors.New("cannot get source of loglevel: logger not initialized")
-}
-
-func ChangeSource(l seelog.LoggerInterface, source LogLevelSource) error {
-	if Logger != nil && Logger.inner != nil {
-		Logger.changeSource(source)
-		// See detailed explanation in SetupLogger(...)
-		err := l.SetAdditionalStackDepth(defaultStackDepth)
-		if err != nil {
-			return err
-		}
-
-		Logger.replaceInnerLogger(l)
-		return nil
-	}
-	// need to return something, just set to Info (expected default)
-	return errors.New("cannot change source of loglevel: logger not initialized")
 }

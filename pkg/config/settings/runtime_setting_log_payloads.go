@@ -13,30 +13,31 @@ import (
 
 // LogPayloadsRuntimeSetting wraps operations to start logging aggregator payload at runtime.
 type LogPayloadsRuntimeSetting struct {
+	Source LogLevelSource
 }
 
 // Description returns the runtime setting's description
-func (l LogPayloadsRuntimeSetting) Description() string {
+func (l *LogPayloadsRuntimeSetting) Description() string {
 	return "Enable logging payloads at runtime."
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
-func (l LogPayloadsRuntimeSetting) Hidden() bool {
+func (l *LogPayloadsRuntimeSetting) Hidden() bool {
 	return true
 }
 
 // Name returns the name of the runtime setting
-func (l LogPayloadsRuntimeSetting) Name() string {
+func (l *LogPayloadsRuntimeSetting) Name() string {
 	return "log_payloads"
 }
 
 // Get returns the current value of the runtime setting
-func (l LogPayloadsRuntimeSetting) Get() (interface{}, error) {
+func (l *LogPayloadsRuntimeSetting) Get() (interface{}, error) {
 	return config.Datadog.GetBool("log_payloads"), nil
 }
 
 // Set changes the value of the runtime setting
-func (l LogPayloadsRuntimeSetting) Set(v interface{}) error {
+func (l *LogPayloadsRuntimeSetting) Set(v interface{}, source LogLevelSource) error {
 	var newValue bool
 	var err error
 
@@ -45,5 +46,10 @@ func (l LogPayloadsRuntimeSetting) Set(v interface{}) error {
 	}
 
 	config.Datadog.Set("log_payloads", newValue)
+	l.Source = source
 	return nil
+}
+
+func (l *LogPayloadsRuntimeSetting) GetSource() LogLevelSource {
+	return l.Source
 }
