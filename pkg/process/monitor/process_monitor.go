@@ -44,7 +44,6 @@ type processMonitorTelemertry struct {
 	//  o exit process netlink events
 	//  o restart the netlink connection
 	//
-	//  o events_channel_size is the queue length of netlink messages channel
 	//  o reinit_failed is the number of failed re-initialisation after a netlink restart due to an error
 	//  o process_scan_failed would be > 0 if initial process scan failed
 	//  o callback_called numbers of callback called
@@ -60,7 +59,7 @@ type processMonitorTelemertry struct {
 
 func (pmt *processMonitorTelemertry) initialize() {
 	metricGroup := telemetry.NewMetricGroup(
-		"process.monitor",
+		"usm.process.monitor",
 		telemetry.OptPayloadTelemetry,
 	)
 	pmt.events = metricGroup.NewCounter("events")
