@@ -53,6 +53,9 @@ func initializeMaps(bpfTelemetry *EBPFTelemetry, opts *manager.Options) {
 		if opts.MapEditors == nil {
 			opts.MapEditors = make(map[string]*ebpf.Map)
 		}
+		if opts.MapSpecEditors == nil {
+			opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+		}
 	}
 	if bpfTelemetry.MapErrMap != nil {
 		opts.MapEditors[probes.MapErrTelemetryMap] = bpfTelemetry.MapErrMap

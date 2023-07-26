@@ -181,6 +181,15 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, perfHandlerTCP *dde
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
+func perCPUSupported() bool {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return false
+	}
+
+	return kv >= kernel.VersionCode(4, 7, 0)
+}
+
 func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
 	m := &manager.Manager{}
 	if err := initManager(m, config, perfHandlerTCP, runtimeTracer); err != nil {
@@ -223,6 +232,21 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 				Type:       ebpf.Array,
 				EditorFlag: manager.EditType,
 			}
+		}
+	}
+
+	// Replace ebpf telemetry maps with Percpu maps if kernel supports
+	if perCPUSupported() {
+		if mgrOpts.MapSpecEditors == nil {
+			mgrOpts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+		}
+		mgrOpts.MapSpecEditors[probes.MapErrTelemetryMap] = manager.MapSpecEditor{
+			Type:       ebpf.PerCPUHash,
+			EditorFlag: manager.EditType,
+		}
+		mgrOpts.MapSpecEditors[probes.HelperErrTelemetryMap] = manager.MapSpecEditor{
+			Type:       ebpf.PerCPUHash,
+			EditorFlag: manager.EditType,
 		}
 	}
 
