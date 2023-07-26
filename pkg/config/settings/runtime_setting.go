@@ -33,10 +33,11 @@ func (e *SettingNotFoundError) Error() string {
 // RuntimeSetting represents a setting that can be changed and read at runtime.
 type RuntimeSetting interface {
 	Get() (interface{}, error)
-	Set(v interface{}) error
+	Set(v interface{}, source LogLevelSource) error
 	Name() string
 	Description() string
 	Hidden() bool
+	GetSource() LogLevelSource
 }
 
 // RegisterRuntimeSetting keeps track of configurable settings
@@ -54,13 +55,13 @@ func RuntimeSettings() map[string]RuntimeSetting {
 }
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
-func SetRuntimeSetting(setting string, value interface{}) error {
+func SetRuntimeSetting(setting string, value interface{}, source LogLevelSource) error {
 	runtimeSettingsLock.Lock()
 	defer runtimeSettingsLock.Unlock()
 	if _, ok := runtimeSettings[setting]; !ok {
 		return &SettingNotFoundError{name: setting}
 	}
-	return runtimeSettings[setting].Set(value)
+	return runtimeSettings[setting].Set(value, source)
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
@@ -73,6 +74,15 @@ func GetRuntimeSetting(setting string) (interface{}, error) {
 		return nil, err
 	}
 	return value, nil
+}
+
+// GetRuntimeSetting returns the source of the last change of a runtime configurable setting
+func GetRuntimeSettingSource(setting string) (LogLevelSource, error) {
+	if _, ok := runtimeSettings[setting]; !ok {
+		return LogLevelSourceUnknown, &SettingNotFoundError{name: setting}
+	}
+	source := runtimeSettings[setting].GetSource()
+	return source, nil
 }
 
 // GetBool returns the bool value contained in value.

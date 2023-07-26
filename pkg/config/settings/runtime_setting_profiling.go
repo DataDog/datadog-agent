@@ -21,25 +21,26 @@ type ProfilingRuntimeSetting struct {
 
 	Config       config.ConfigReaderWriter
 	ConfigPrefix string
+	Source       LogLevelSource
 }
 
 // Description returns the runtime setting's description
-func (l ProfilingRuntimeSetting) Description() string {
+func (l *ProfilingRuntimeSetting) Description() string {
 	return "Enable/disable profiling on the agent, valid values are: true, false, restart"
 }
 
 // Hidden returns whether this setting is hidden from the list of runtime settings
-func (l ProfilingRuntimeSetting) Hidden() bool {
+func (l *ProfilingRuntimeSetting) Hidden() bool {
 	return true
 }
 
 // Name returns the name of the runtime setting
-func (l ProfilingRuntimeSetting) Name() string {
+func (l *ProfilingRuntimeSetting) Name() string {
 	return l.SettingName
 }
 
 // Get returns the current value of the runtime setting
-func (l ProfilingRuntimeSetting) Get() (interface{}, error) {
+func (l *ProfilingRuntimeSetting) Get() (interface{}, error) {
 	var cfg config.ConfigReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
@@ -48,15 +49,15 @@ func (l ProfilingRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (l ProfilingRuntimeSetting) Set(v interface{}) error {
+func (l *ProfilingRuntimeSetting) Set(v interface{}, source LogLevelSource) error {
 	var profile bool
 	var err error
 
 	if v, ok := v.(string); ok && strings.ToLower(v) == "restart" {
-		if err := l.Set(false); err != nil {
+		if err := l.Set(false, source); err != nil {
 			return err
 		}
-		return l.Set(true)
+		return l.Set(true, source)
 	}
 
 	profile, err = GetBool(v)
@@ -108,5 +109,10 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false)
 	}
 
+	l.Source = source
 	return nil
+}
+
+func (l *ProfilingRuntimeSetting) GetSource() LogLevelSource {
+	return l.Source
 }

@@ -22,36 +22,37 @@ const (
 // ActivityDumpRuntimeSetting wraps operations to change activity dumps settings at runtime
 type ActivityDumpRuntimeSetting struct {
 	ConfigKey string
+	Source    LogLevelSource
 }
 
 // Description returns the runtime setting's description
-func (l ActivityDumpRuntimeSetting) Description() string {
+func (l *ActivityDumpRuntimeSetting) Description() string {
 	return "Set/get the corresponding field."
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
-func (l ActivityDumpRuntimeSetting) Hidden() bool {
+func (l *ActivityDumpRuntimeSetting) Hidden() bool {
 	return false
 }
 
 // Name returns the name of the runtime setting
-func (l ActivityDumpRuntimeSetting) Name() string {
+func (l *ActivityDumpRuntimeSetting) Name() string {
 	return l.ConfigKey
 }
 
 // Get returns the current value of the runtime setting
-func (l ActivityDumpRuntimeSetting) Get() (interface{}, error) {
+func (l *ActivityDumpRuntimeSetting) Get() (interface{}, error) {
 	val := config.SystemProbe.Get(l.ConfigKey)
 	return val, nil
 }
 
-func (l ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}) {
+func (l *ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}) {
 	intVar, _ := strconv.Atoi(v.(string))
 	config.SystemProbe.Set(l.ConfigKey, intVar)
 }
 
 // Set changes the value of the runtime setting
-func (l ActivityDumpRuntimeSetting) Set(v interface{}) error {
+func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source LogLevelSource) error {
 	val := v.(string)
 	log.Infof("ActivityDumpRuntimeSetting Set %s = %s\n", l.ConfigKey, val)
 
@@ -61,8 +62,13 @@ func (l ActivityDumpRuntimeSetting) Set(v interface{}) error {
 	default:
 		return fmt.Errorf("Field %s does not exist", l.ConfigKey)
 	}
+	l.Source = source
 
 	// we trigger a new inventory metadata payload since the configuration was updated by the user.
 	inventories.Refresh()
 	return nil
+}
+
+func (l *ActivityDumpRuntimeSetting) GetSource() LogLevelSource {
+	return l.Source
 }
