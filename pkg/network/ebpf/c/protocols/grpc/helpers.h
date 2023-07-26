@@ -9,23 +9,21 @@
 
 #define GRPC_MAX_FRAMES_TO_PROCESS 10
 #define GRPC_MAX_HEADERS_TO_PROCESS 10
-#define GRPC_CONTENT_TYPE_LEN 11
 #define GRPC_ENCODED_CONTENT_TYPE "\x1d\x75\xd0\x62\x0d\x26\x3d\x4c\x4d\x65\x64"
-
-#define IS_GET(Idx) ((Idx) == 2)
+#define GRPC_CONTENT_TYPE_LEN (sizeof(GRPC_ENCODED_CONTENT_TYPE) - 1)
 
 static __always_inline bool is_encoded_grpc_content_type(const char *content_type_buf) {
-    return !bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, sizeof(GRPC_ENCODED_CONTENT_TYPE) - 1);
+    return !bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN);
 }
 
 static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
     // We only care about indexed names
-    if (!idx || idx != kContentType) {
+    if (idx != kContentType) {
         return GRPC_STATUS_UNKNOWN;
     }
 
     struct hpack_length len;
-    if (skb_info->data_off + sizeof(len) >= frame_end) {
+    if (skb_info->data_off + sizeof(len) > frame_end) {
         return GRPC_STATUS_UNKNOWN;
     }
 
@@ -78,7 +76,7 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
         }
 
         // GRPC only uses POST requests
-        if (is_indexed(idx.raw) && IS_GET(idx.indexed.index)) {
+        if (is_indexed(idx.raw) && idx.indexed.index == kGET) {
             status = GRPC_STATUS_NOT_GRPC;
             break;
         }

@@ -9,7 +9,6 @@ type ProtocolType uint16
 
 const (
 	Unknown ProtocolType = iota
-	GRPC
 	HTTP
 	HTTP2
 	Kafka
@@ -19,14 +18,13 @@ const (
 	AMQP
 	Redis
 	MySQL
+	GRPC
 )
 
 func (p ProtocolType) String() string {
 	switch p {
 	case Unknown:
 		return "Unknown"
-	case GRPC:
-		return "gRPC"
 	case HTTP:
 		return "HTTP"
 	case HTTP2:
@@ -45,6 +43,8 @@ func (p ProtocolType) String() string {
 		return "Redis"
 	case MySQL:
 		return "MySQL"
+	case GRPC:
+		return "gRPC"
 	default:
 		// shouldn't happen
 		return "Invalid"

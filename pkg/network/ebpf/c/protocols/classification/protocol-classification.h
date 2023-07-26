@@ -14,6 +14,7 @@
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/classification/usm-context.h"
 #include "protocols/classification/routing.h"
+#include "protocols/grpc/defs.h"
 #include "protocols/grpc/helpers.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
@@ -71,17 +72,20 @@ static __always_inline void update_protocol_information(usm_context_t *usm_ctx, 
     usm_ctx->routing_skip_layers |= proto;
 }
 
-static __always_inline void classify_api_protocols(usm_context_t *usm_ctx, protocol_stack_t *protocol_stack, struct __sk_buff *skb, skb_info_t *skb_info) {
+// Check if the connections is used for gRPC traffic.
+static __always_inline void classify_grpc(usm_context_t *usm_ctx, protocol_stack_t *protocol_stack, struct __sk_buff *skb, skb_info_t *skb_info) {
     grpc_status_t status = is_grpc(skb, skb_info);
-    switch (status) {
-    case GRPC_STATUS_GRPC:
-        update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_GRPC);
-        // If we found GRPC, we fallthrough to mark the stack as fully classified
-    case GRPC_STATUS_NOT_GRPC:
-        mark_as_fully_classified(protocol_stack);
-    case GRPC_STATUS_UNKNOWN:
+    if (status == GRPC_STATUS_UNKNOWN) {
         return;
-;    }
+    }
+
+    if (status == GRPC_STATUS_GRPC) {
+        update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_GRPC);
+    }
+
+    // Whether the traffic is gRPC or not, we can mark the stack as fully
+    // classified now.
+    mark_as_fully_classified(protocol_stack);
 }
 
 // Checks if a given buffer is http, http2, gRPC.
@@ -182,16 +186,14 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     if (app_layer_proto != PROTOCOL_UNKNOWN) {
         update_protocol_information(usm_ctx, protocol_stack, app_layer_proto);
-    }
 
-    if (app_layer_proto != PROTOCOL_UNKNOWN) {
         if (app_layer_proto != PROTOCOL_HTTP2) {
             mark_as_fully_classified(protocol_stack);
             return;
         }
 
         // If we found HTTP2, then we try to classify its content.
-        classify_api_protocols(usm_ctx, protocol_stack, skb, &skb_info);
+        classify_grpc(usm_ctx, protocol_stack, skb, &skb_info);
     }
 
  next_program:
