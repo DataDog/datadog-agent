@@ -75,11 +75,11 @@ static __always_inline void update_protocol_information(usm_context_t *usm_ctx, 
 // Check if the connections is used for gRPC traffic.
 static __always_inline void classify_grpc(usm_context_t *usm_ctx, protocol_stack_t *protocol_stack, struct __sk_buff *skb, skb_info_t *skb_info) {
     grpc_status_t status = is_grpc(skb, skb_info);
-    if (status == GRPC_STATUS_UNKNOWN) {
+    if (status == PAYLOAD_UNDETERMINED) {
         return;
     }
 
-    if (status == GRPC_STATUS_GRPC) {
+    if (status == PAYLOAD_GRPC) {
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_GRPC);
     }
 

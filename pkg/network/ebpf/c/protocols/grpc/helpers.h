@@ -19,32 +19,32 @@ static __always_inline bool is_encoded_grpc_content_type(const char *content_typ
 static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
     // We only care about indexed names
     if (idx != kContentType) {
-        return GRPC_STATUS_UNKNOWN;
+        return PAYLOAD_UNDETERMINED;
     }
 
     struct hpack_length len;
     if (skb_info->data_off + sizeof(len) > frame_end) {
-        return GRPC_STATUS_UNKNOWN;
+        return PAYLOAD_UNDETERMINED;
     }
 
     bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
     skb_info->data_off += sizeof(len);
     if (len.length < GRPC_CONTENT_TYPE_LEN) {
-        return GRPC_STATUS_NOT_GRPC;
+        return PAYLOAD_NOT_GRPC;
     }
 
     char content_type_buf[GRPC_CONTENT_TYPE_LEN];
     bpf_skb_load_bytes(skb, skb_info->data_off, content_type_buf, GRPC_CONTENT_TYPE_LEN);
     skb_info->data_off += len.length;
 
-    return is_encoded_grpc_content_type(content_type_buf) ? GRPC_STATUS_GRPC : GRPC_STATUS_NOT_GRPC;
+    return is_encoded_grpc_content_type(content_type_buf) ? PAYLOAD_GRPC : PAYLOAD_NOT_GRPC;
 }
 
 // Scan headers goes through the headers in a frame, and tries to find a
 // content-type header or a method header.
 static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
     union field_index idx;
-    grpc_status_t status = GRPC_STATUS_UNKNOWN;
+    grpc_status_t status = PAYLOAD_UNDETERMINED;
 
     __u32 frame_end = skb_info->data_off + frame_length;
     // Check that frame_end does not go beyond the skb
@@ -64,12 +64,12 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
             // request method that is not POST or GET. gRPC only uses POST, so 
             // finding a :method here is an indicator of non-GRPC content.
             if (idx.literal.index == kMethod) {
-                status = GRPC_STATUS_NOT_GRPC;
+                status = PAYLOAD_NOT_GRPC;
                 break;
             }
 
             status = is_content_type_grpc(skb, skb_info, frame_end, idx.literal.index);
-            if (status != GRPC_STATUS_UNKNOWN) {
+            if (status != PAYLOAD_UNDETERMINED) {
                 break;
             }
 
@@ -80,7 +80,7 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
         // which case we can tell that this is not gRPC, as it uses only POST
         // requests.
         if (is_indexed(idx.raw) && idx.indexed.index == kGET) {
-            status = GRPC_STATUS_NOT_GRPC;
+            status = PAYLOAD_NOT_GRPC;
             break;
         }
 

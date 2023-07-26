@@ -2,9 +2,9 @@
 #define __GRPC_DEFS_H
 
 typedef enum {
-  GRPC_STATUS_UNKNOWN,
-  GRPC_STATUS_GRPC,
-  GRPC_STATUS_NOT_GRPC,
+  PAYLOAD_UNDETERMINED,
+  PAYLOAD_GRPC,
+  PAYLOAD_NOT_GRPC,
 } grpc_status_t;
 
 /* Header parsing helper macros */
