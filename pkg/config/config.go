@@ -131,12 +131,6 @@ func PrometheusScrapeChecksTransformer(in string) interface{} {
 	return promChecks
 }
 
-// MetadataProviders helps unmarshalling `metadata_providers` config param
-type MetadataProviders struct {
-	Name     string        `mapstructure:"name"`
-	Interval time.Duration `mapstructure:"interval"`
-}
-
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
 	Name                    string `mapstructure:"name"`
@@ -1207,6 +1201,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
+	config.BindEnvAndSetDefault("serverless.constant_backoff_interval", 100*time.Millisecond)
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")

@@ -13,7 +13,6 @@
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
 #include "protocols/tls/https.h"
-#include "protocols/tls/sowatcher.h"
 #include "protocols/tls/tags-types.h"
 
 SEC("socket/protocol_dispatcher")

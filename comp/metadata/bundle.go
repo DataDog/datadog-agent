@@ -8,13 +8,18 @@
 package metadata
 
 import (
+	"github.com/DataDog/datadog-agent/comp/metadata/resources"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle()
+var Bundle = fxutil.Bundle(
+	runner.Module,
+	resources.Module,
+)
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle()

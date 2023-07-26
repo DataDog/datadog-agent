@@ -18,15 +18,15 @@ int __attribute__((always_inline)) trace__sys_rename(u8 async) {
     return 0;
 }
 
-SYSCALL_KPROBE0(rename) {
+HOOK_SYSCALL_ENTRY0(rename) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat) {
+HOOK_SYSCALL_ENTRY0(renameat) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
-SYSCALL_KPROBE0(renameat2) {
+HOOK_SYSCALL_ENTRY0(renameat2) {
     return trace__sys_rename(SYNC_SYSCALL);
 }
 
@@ -161,6 +161,7 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     return 0;
 }
 
+// fentry blocked by: tail call
 SEC("kretprobe/do_renameat2")
 int kretprobe_do_renameat2(struct pt_regs *ctx) {
     int retval = PT_REGS_RC(ctx);
