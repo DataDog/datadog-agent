@@ -7,7 +7,7 @@
 #include "helpers/syscalls.h"
 #include "constants/fentry_macro.h"
 
-int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, const char **argv, const char **env) {
+int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **argv, const char **env) {
     struct syscall_cache_t syscall = {
         .type = EVENT_EXEC,
         .exec = {
@@ -72,7 +72,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(struct pt_regs 
     return 0;
 }
 
-int __attribute__((always_inline)) handle_sys_fork(struct pt_regs *ctx) {
+int __attribute__((always_inline)) handle_sys_fork() {
     struct syscall_cache_t syscall = {
         .type = EVENT_FORK,
     };
@@ -83,19 +83,19 @@ int __attribute__((always_inline)) handle_sys_fork(struct pt_regs *ctx) {
 }
 
 SYSCALL_KPROBE0(fork) {
-    return handle_sys_fork(ctx);
+    return handle_sys_fork();
 }
 
 HOOK_SYSCALL_ENTRY0(clone) {
-    return handle_sys_fork(ctx);
+    return handle_sys_fork();
 }
 
 HOOK_SYSCALL_ENTRY0(clone3) {
-    return handle_sys_fork(ctx);
+    return handle_sys_fork();
 }
 
 SYSCALL_KPROBE0(vfork) {
-    return handle_sys_fork(ctx);
+    return handle_sys_fork();
 }
 
 #define DO_FORK_STRUCT_INPUT 1
