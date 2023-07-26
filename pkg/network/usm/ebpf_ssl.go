@@ -83,6 +83,21 @@ var openSSLProbes = []manager.ProbesSelector{
 					EBPFFuncName: sslWriteExRetprobe,
 				},
 			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslConnectProbe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslConnectRetprobe,
+				},
+			},
+			&manager.ProbeSelector{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sslSetFDProbe,
+				},
+			},
 		},
 	},
 	&manager.AllOf{
@@ -99,22 +114,7 @@ var openSSLProbes = []manager.ProbesSelector{
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslConnectProbe,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslConnectRetprobe,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: sslSetBioProbe,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslSetFDProbe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -378,9 +378,10 @@ var opensslSpec = &protocols.ProtocolSpec{
 }
 
 type sslProgram struct {
-	cfg       *config.Config
-	sockFDMap *ebpf.Map
-	watcher   *sharedlibraries.Watcher
+	cfg          *config.Config
+	sockFDMap    *ebpf.Map
+	watcher      *sharedlibraries.Watcher
+	istioMonitor *istioMonitor
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) protocols.ProtocolFactory {
@@ -411,9 +412,10 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 		}
 
 		return &sslProgram{
-			cfg:       c,
-			watcher:   watcher,
-			sockFDMap: sockFDMap,
+			cfg:          c,
+			watcher:      watcher,
+			sockFDMap:    sockFDMap,
+			istioMonitor: newIstioMonitor(m),
 		}, nil
 	}
 }
@@ -437,6 +439,7 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 
 func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
+	o.istioMonitor.Start()
 	return nil
 }
 
@@ -446,6 +449,7 @@ func (o *sslProgram) PostStart(*manager.Manager) error {
 
 func (o *sslProgram) Stop(*manager.Manager) {
 	o.watcher.Stop()
+	o.istioMonitor.Stop()
 }
 
 func (o *sslProgram) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
