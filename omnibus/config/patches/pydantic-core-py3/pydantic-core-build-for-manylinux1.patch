@@ -1,3 +1,14 @@
+diff --git a/.cargo/config.toml b/.cargo/config.toml
+index f0ba8af..4d1bdb0 100644
+--- a/.cargo/config.toml
++++ b/.cargo/config.toml
+@@ -13,3 +13,6 @@ rustflags = [
+   "-C", "link-arg=-undefined",
+   "-C", "link-arg=dynamic_lookup",
+ ]
++
++[patch.crates-io]
++speedate = { git = 'https://github.com/DataDog/speedate.git', branch = 'support-old-nightly' }
 diff --git a/Cargo.toml b/Cargo.toml
 index 20130ab..0c8f467 100644
 --- a/Cargo.toml
@@ -7,7 +18,7 @@ index 20130ab..0c8f467 100644
  # must be enabled when building with `cargo build`, maturin enables this automatically
  extension-module = ["pyo3/extension-module"]
 -default = ["mimalloc"]
-
+ 
  [profile.release]
  lto = "fat"
 diff --git a/pyproject.toml b/pyproject.toml
@@ -27,6 +38,6 @@ index 44f074a..a233ce8 100644
  bindings = 'pyo3'
  features = ["pyo3/extension-module"]
 +compatibility = "manylinux1"
-
+ 
  [tool.ruff]
  line-length = 120
