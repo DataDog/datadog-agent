@@ -163,14 +163,13 @@ func (m *Monitor) Start() error {
 	// we'll keep it in a temporary copy, and in case of a mismatch (a.k.a., we have a failed protocols) between
 	// enabledProtocolsTmp to m.enabledProtocols, we'll use the enabledProtocolsTmp.
 	enabledProtocolsTmp := m.enabledProtocols[:0]
-	for protocolType, protocol := range m.enabledProtocols {
+	for _, protocol := range m.enabledProtocols {
 		startErr := protocol.PreStart(m.ebpfProgram.Manager.Manager)
 		if startErr != nil {
-			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocolType, startErr)
+			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocol.Name(), startErr)
 			continue
-		} else {
-			enabledProtocolsTmp = append(enabledProtocolsTmp, protocol)
 		}
+		enabledProtocolsTmp = append(enabledProtocolsTmp, protocol)
 	}
 
 	// No protocols could be enabled, abort.
@@ -186,7 +185,7 @@ func (m *Monitor) Start() error {
 	}
 
 	enabledProtocolsTmp = m.enabledProtocols[:0]
-	for protocolType, protocol := range m.enabledProtocols {
+	for _, protocol := range m.enabledProtocols {
 		startErr := protocol.PostStart(m.ebpfProgram.Manager.Manager)
 		if startErr != nil {
 			// Cleanup the protocol. Note that at this point we can't unload the
@@ -195,8 +194,10 @@ func (m *Monitor) Start() error {
 			protocol.Stop(m.ebpfProgram.Manager.Manager)
 
 			// Log and reset the error value
-			log.Errorf("could not complete post-start phase of %s monitoring: %s", protocolType, startErr)
+			log.Errorf("could not complete post-start phase of %s monitoring: %s", protocol.Name(), startErr)
+			continue
 		}
+		enabledProtocolsTmp = append(enabledProtocolsTmp, protocol)
 	}
 
 	// We check again if there are protocols that could be enabled, and abort if

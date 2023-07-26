@@ -11,8 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
