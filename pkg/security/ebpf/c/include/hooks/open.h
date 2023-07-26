@@ -44,7 +44,7 @@ HOOK_SYSCALL_ENTRY2(creat, const char *, filename, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
+HOOK_SYSCALL_COMPAT_ENTRY3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
@@ -55,11 +55,11 @@ HOOK_SYSCALL_COMPAT_ENTRY0(truncate) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE3(open, const char*, filename, int, flags, umode_t, mode) {
+HOOK_SYSCALL_COMPAT_ENTRY3(open, const char*, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-SYSCALL_COMPAT_KPROBE4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
+HOOK_SYSCALL_COMPAT_ENTRY4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
