@@ -109,8 +109,10 @@ func expandKprobeOrFentry(hookpoint string, fentry bool, flag int) []string {
 func expandSyscallSections(syscallName string, fentry bool, flag int, compat ...bool) []string {
 	sections := expandKprobeOrFentry(getSyscallFnName(syscallName), fentry, flag)
 
+	shouldUseCompat := len(compat) > 0 && compat[0] && !(fentry && flag&SupportFentry == SupportFentry)
+
 	if RuntimeArch == "x64" {
-		if len(compat) > 0 && compat[0] && syscallPrefix != "sys_" {
+		if shouldUseCompat && syscallPrefix != "sys_" {
 			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, flag)...)
 		} else {
 			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, flag)...)
