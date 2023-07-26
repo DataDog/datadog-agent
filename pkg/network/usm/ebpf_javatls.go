@@ -153,6 +153,10 @@ func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+func (p *javaTLSProgram) Name() string {
+	return "Java TLS"
+}
+
 func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,

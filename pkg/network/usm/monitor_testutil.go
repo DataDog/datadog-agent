@@ -11,10 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cilium/ebpf"
-	"github.com/stretchr/testify/require"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -34,6 +32,10 @@ type protocolMockSpec struct {
 	preStartFn  func(*manager.Manager) error
 	postStartFn func(*manager.Manager) error
 	stopFn      func(*manager.Manager)
+}
+
+func (p *protocolMock) Name() string {
+	return "mock"
 }
 
 func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Options) {
@@ -64,23 +66,21 @@ func (p *protocolMock) Stop(mgr *manager.Manager) {
 	}
 }
 
-func (p *protocolMock) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {}
-func (p *protocolMock) GetStats() *protocols.ProtocolStats                                     { return nil }
+func (p *protocolMock) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
+func (p *protocolMock) GetStats() *protocols.ProtocolStats           { return nil }
 
 // patchProtocolMock updates the map of known protocols to replace the mock
 // factory in place of the HTTP protocol factory
-func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType, spec protocolMockSpec) {
+func patchProtocolMock(t *testing.T, spec protocolMockSpec) {
 	t.Helper()
 
-	p, present := knownProtocols[protocolType.String()]
-	require.True(t, present, "trying to patch non-existing protocol")
-
+	p := knownProtocols[0]
 	innerFactory := p.Factory
 
 	// Restore the old protocol factory at end of test
 	t.Cleanup(func() {
 		p.Factory = innerFactory
-		knownProtocols[protocolType.String()] = p
+		knownProtocols[0] = p
 	})
 
 	p.Factory = func(c *config.Config) (protocols.Protocol, error) {
@@ -95,5 +95,5 @@ func patchProtocolMock(t *testing.T, protocolType protocols.ProtocolType, spec p
 		}, nil
 	}
 
-	knownProtocols[protocolType.String()] = p
+	knownProtocols[0] = p
 }
