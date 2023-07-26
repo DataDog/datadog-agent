@@ -1,19 +1,20 @@
 diff --git a/.cargo/config.toml b/.cargo/config.toml
-index f0ba8af..4d1bdb0 100644
+index f0ba8af..f0601ff 100644
 --- a/.cargo/config.toml
 +++ b/.cargo/config.toml
-@@ -13,3 +13,6 @@ rustflags = [
+@@ -13,3 +13,7 @@ rustflags = [
    "-C", "link-arg=-undefined",
    "-C", "link-arg=dynamic_lookup",
  ]
 +
 +[patch.crates-io]
 +speedate = { git = 'https://github.com/DataDog/speedate.git', branch = 'support-old-nightly' }
++pyo3 = { git = 'https://github.com/DataDog/pyo3.git', branch = 'support-old-nightly' }
 diff --git a/Cargo.toml b/Cargo.toml
-index 20130ab..0c8f467 100644
+index 1cfdba5..058325c 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
-@@ -50,7 +50,6 @@ crate-type = ["cdylib", "rlib"]
+@@ -52,7 +52,6 @@ crate-type = ["cdylib", "rlib"]
  [features]
  # must be enabled when building with `cargo build`, maturin enables this automatically
  extension-module = ["pyo3/extension-module"]
@@ -22,7 +23,7 @@ index 20130ab..0c8f467 100644
  [profile.release]
  lto = "fat"
 diff --git a/pyproject.toml b/pyproject.toml
-index 44f074a..a233ce8 100644
+index 1602e32..0278c38 100644
 --- a/pyproject.toml
 +++ b/pyproject.toml
 @@ -1,6 +1,6 @@
@@ -30,10 +31,10 @@ index 44f074a..a233ce8 100644
  requires = [
 -    'maturin>=1,<2',
 +    'maturin[zig]>=1,<2',
-     'typing-extensions >=4.6.0; platform_python_implementation != "PyPy"',
-     'typing-extensions >=4.6.0,<4.7.0; platform_python_implementation == "PyPy"'
+     'typing-extensions >=4.6.0,!=4.7.0'
  ]
-@@ -53,6 +53,7 @@ python-source = "python"
+ build-backend = 'maturin'
+@@ -52,6 +52,7 @@ python-source = "python"
  module-name = "pydantic_core._pydantic_core"
  bindings = 'pyo3'
  features = ["pyo3/extension-module"]
