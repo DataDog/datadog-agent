@@ -75,8 +75,8 @@ HOOK_SYSCALL_ENTRY0(setuid) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setuid) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setuid) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
@@ -84,8 +84,8 @@ HOOK_SYSCALL_ENTRY0(setfsuid) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setfsuid) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setfsuid) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
@@ -93,8 +93,8 @@ HOOK_SYSCALL_ENTRY0(setreuid) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setreuid) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setreuid) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
@@ -102,8 +102,8 @@ HOOK_SYSCALL_ENTRY0(setresuid) {
     return credentials_update(EVENT_SETUID);
 }
 
-SYSCALL_KRETPROBE(setresuid) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setresuid) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
@@ -147,8 +147,8 @@ HOOK_SYSCALL_ENTRY0(setgid) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setgid) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setgid) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
@@ -156,8 +156,8 @@ HOOK_SYSCALL_ENTRY0(setfsgid) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setfsgid) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setfsgid) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
@@ -165,8 +165,8 @@ HOOK_SYSCALL_ENTRY0(setregid) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setregid) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setregid) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
@@ -174,8 +174,8 @@ HOOK_SYSCALL_ENTRY0(setresgid) {
     return credentials_update(EVENT_SETGID);
 }
 
-SYSCALL_KRETPROBE(setresgid) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(setresgid) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
@@ -219,8 +219,8 @@ HOOK_SYSCALL_ENTRY0(capset) {
     return credentials_update(EVENT_CAPSET);
 }
 
-SYSCALL_KRETPROBE(capset) {
-    int retval = PT_REGS_RC(ctx);
+HOOK_SYSCALL_EXIT(capset) {
+    int retval = SYSCALL_PARMRET(ctx);
     return credentials_update_ret(ctx, retval);
 }
 
