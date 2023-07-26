@@ -88,8 +88,8 @@ __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
     return 0;
 }
 
-SYSCALL_KRETPROBE(bpf) {
-    return sys_bpf_ret(ctx, (int)PT_REGS_RC(ctx));
+HOOK_SYSCALL_EXIT(bpf) {
+    return sys_bpf_ret(ctx, (int)CTX_PARMRET(ctx, 3));
 }
 
 HOOK_ENTRY("security_bpf_map")
