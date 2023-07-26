@@ -9,6 +9,8 @@ package rules
 
 import (
 	"fmt"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"os"
 	"path/filepath"
 	"strings"
@@ -772,6 +774,65 @@ broken
 				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
 			},
 		},
+		{
+			name: "disabled tag",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicySourceRC,
+				fileContent: `rules:
+ - id: rule_test
+   disabled: true
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: &Policy{
+				Name:   "myLocal.policy",
+				Source: PolicySourceRC,
+				Rules: []*RuleDefinition{
+					{
+						ID:         "rule_test",
+						Expression: "",
+						Disabled:   true,
+						Policy: &Policy{
+							Name:   "myLocal.policy",
+							Source: PolicySourceRC,
+						},
+					},
+				},
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "combine:override tag",
+			args: args{
+				name:   "myLocal.policy",
+				source: PolicySourceRC,
+				fileContent: `rules:
+ - id: rule_test
+   expression: open.file.path == "/etc/gshadow"
+   combine: override
+`,
+				macroFilters: nil,
+				ruleFilters:  nil,
+			},
+			want: &Policy{
+				Name:   "myLocal.policy",
+				Source: PolicySourceRC,
+				Rules: []*RuleDefinition{
+					{
+						ID:         "rule_test",
+						Expression: "open.file.path == \"/etc/gshadow\"",
+						Combine:    OverridePolicy,
+						Policy: &Policy{
+							Name:   "myLocal.policy",
+							Source: PolicySourceRC,
+						},
+					},
+				},
+			},
+			wantErr: assert.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -783,7 +844,9 @@ broken
 				return
 			}
 
-			assert.Equalf(t, tt.want, got, "LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+			if !cmp.Equal(tt.want, got, cmpopts.IgnoreFields(RuleDefinition{}, "Policy")) {
+				t.Errorf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
+			}
 		})
 	}
 }
