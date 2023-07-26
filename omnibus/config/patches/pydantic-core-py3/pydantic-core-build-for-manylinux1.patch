@@ -12,7 +12,7 @@ index f0ba8af..274db88 100644
 +pyo3 = { git = 'https://github.com/DataDog/pyo3.git', branch = 'support-old-nightly' }
 +indexmap = { git = 'https://github.com/DataDog/indexmap.git', branch = 'support-old-nightly' }
 diff --git a/Cargo.lock b/Cargo.lock
-index 3f685e6..e1ebadb 100644
+index 3f685e6..d637b37 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -62,15 +62,9 @@ dependencies = [
@@ -95,15 +95,6 @@ index 3f685e6..e1ebadb 100644
  dependencies = [
   "unicode-ident",
  ]
-@@ -270,7 +263,7 @@ dependencies = [
-  "mimalloc",
-  "num-bigint",
-  "pyo3",
-- "pyo3-build-config",
-+ "pyo3-build-config 0.19.1 (registry+https://github.com/rust-lang/crates.io-index)",
-  "python3-dll-a",
-  "regex",
-  "serde",
 @@ -286,8 +279,7 @@ dependencies = [
  [[package]]
  name = "pyo3"
@@ -114,32 +105,17 @@ index 3f685e6..e1ebadb 100644
  dependencies = [
   "cfg-if",
   "indoc",
-@@ -295,7 +287,7 @@ dependencies = [
-  "memoffset",
-  "num-bigint",
-  "parking_lot",
-- "pyo3-build-config",
-+ "pyo3-build-config 0.19.1 (git+https://github.com/DataDog/pyo3.git?branch=support-old-nightly)",
-  "pyo3-ffi",
-  "pyo3-macros",
-  "unindent",
-@@ -306,6 +298,15 @@ name = "pyo3-build-config"
+@@ -304,8 +296,7 @@ dependencies = [
+ [[package]]
+ name = "pyo3-build-config"
  version = "0.19.1"
- source = "registry+https://github.com/rust-lang/crates.io-index"
- checksum = "554db24f0b3c180a9c0b1268f91287ab3f17c162e15b54caaae5a6b3773396b0"
-+dependencies = [
-+ "once_cell",
-+ "target-lexicon",
-+]
-+
-+[[package]]
-+name = "pyo3-build-config"
-+version = "0.19.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "554db24f0b3c180a9c0b1268f91287ab3f17c162e15b54caaae5a6b3773396b0"
 +source = "git+https://github.com/DataDog/pyo3.git?branch=support-old-nightly#782dcfa95ce95ef6306cd9c777ca3aee86b79fcc"
  dependencies = [
   "once_cell",
   "python3-dll-a",
-@@ -315,18 +316,16 @@ dependencies = [
+@@ -315,8 +306,7 @@ dependencies = [
  [[package]]
  name = "pyo3-ffi"
  version = "0.19.1"
@@ -148,10 +124,8 @@ index 3f685e6..e1ebadb 100644
 +source = "git+https://github.com/DataDog/pyo3.git?branch=support-old-nightly#782dcfa95ce95ef6306cd9c777ca3aee86b79fcc"
  dependencies = [
   "libc",
-- "pyo3-build-config",
-+ "pyo3-build-config 0.19.1 (git+https://github.com/DataDog/pyo3.git?branch=support-old-nightly)",
- ]
- 
+  "pyo3-build-config",
+@@ -325,8 +315,7 @@ dependencies = [
  [[package]]
  name = "pyo3-macros"
  version = "0.19.1"
@@ -161,7 +135,7 @@ index 3f685e6..e1ebadb 100644
  dependencies = [
   "proc-macro2",
   "pyo3-macros-backend",
-@@ -337,8 +336,7 @@ dependencies = [
+@@ -337,8 +326,7 @@ dependencies = [
  [[package]]
  name = "pyo3-macros-backend"
  version = "0.19.1"
@@ -171,7 +145,7 @@ index 3f685e6..e1ebadb 100644
  dependencies = [
   "proc-macro2",
   "quote",
-@@ -356,9 +354,9 @@ dependencies = [
+@@ -356,9 +344,9 @@ dependencies = [
  
  [[package]]
  name = "quote"
@@ -183,7 +157,7 @@ index 3f685e6..e1ebadb 100644
  dependencies = [
   "proc-macro2",
  ]
-@@ -386,9 +384,9 @@ dependencies = [
+@@ -386,9 +374,9 @@ dependencies = [
  
  [[package]]
  name = "regex-automata"
@@ -195,7 +169,7 @@ index 3f685e6..e1ebadb 100644
  dependencies = [
   "aho-corasick",
   "memchr",
-@@ -403,21 +401,21 @@ checksum = "e5ea92a5b6195c6ef2a0295ea818b312502c6fc94dde986c5553242e18fd4ce2"
+@@ -403,47 +391,47 @@ checksum = "e5ea92a5b6195c6ef2a0295ea818b312502c6fc94dde986c5553242e18fd4ce2"
  
  [[package]]
  name = "rustversion"
@@ -223,7 +197,22 @@ index 3f685e6..e1ebadb 100644
  
  [[package]]
  name = "serde"
-@@ -436,14 +434,14 @@ checksum = "b23f7ade6f110613c0d63858ddb8b94c1041f550eab58a16b371bdf2c9c80ab4"
+-version = "1.0.175"
++version = "1.0.176"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5d25439cd7397d044e2748a6fe2432b5e85db703d6d097bd014b3c0ad1ebff0b"
++checksum = "76dc28c9523c5d70816e393136b86d48909cfb27cecaa902d338c19ed47164dc"
+ dependencies = [
+  "serde_derive",
+ ]
+ 
+ [[package]]
+ name = "serde_derive"
+-version = "1.0.175"
++version = "1.0.176"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b23f7ade6f110613c0d63858ddb8b94c1041f550eab58a16b371bdf2c9c80ab4"
++checksum = "a4e7b8c5dc823e3b90651ff1d3808419cd14e5ad76de04feaf37da114e7a306f"
  dependencies = [
   "proc-macro2",
   "quote",
@@ -241,7 +230,7 @@ index 3f685e6..e1ebadb 100644
  dependencies = [
   "indexmap",
   "itoa",
-@@ -460,8 +458,7 @@ checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
+@@ -460,8 +448,7 @@ checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
  [[package]]
  name = "speedate"
  version = "0.11.0"
@@ -251,7 +240,7 @@ index 3f685e6..e1ebadb 100644
  dependencies = [
   "strum",
   "strum_macros",
-@@ -486,7 +483,7 @@ dependencies = [
+@@ -486,7 +473,7 @@ dependencies = [
   "proc-macro2",
   "quote",
   "rustversion",
@@ -260,7 +249,7 @@ index 3f685e6..e1ebadb 100644
  ]
  
  [[package]]
-@@ -502,9 +499,9 @@ dependencies = [
+@@ -502,9 +489,9 @@ dependencies = [
  
  [[package]]
  name = "syn"
@@ -272,7 +261,7 @@ index 3f685e6..e1ebadb 100644
  dependencies = [
   "proc-macro2",
   "quote",
-@@ -513,9 +510,9 @@ dependencies = [
+@@ -513,9 +500,9 @@ dependencies = [
  
  [[package]]
  name = "target-lexicon"
@@ -284,7 +273,7 @@ index 3f685e6..e1ebadb 100644
  
  [[package]]
  name = "tinyvec"
-@@ -540,9 +537,9 @@ checksum = "92888ba5573ff080736b3648696b70cafad7d250551175acbaa4e0385b3e1460"
+@@ -540,9 +527,9 @@ checksum = "92888ba5573ff080736b3648696b70cafad7d250551175acbaa4e0385b3e1460"
  
  [[package]]
  name = "unicode-ident"
@@ -297,7 +286,7 @@ index 3f685e6..e1ebadb 100644
  [[package]]
  name = "unicode-normalization"
 diff --git a/Cargo.toml b/Cargo.toml
-index 1cfdba5..e3a362c 100644
+index 1cfdba5..dee86c7 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -30,7 +30,7 @@ pyo3 = { version = "0.19.1", features = ["generate-import-lib", "num-bigint"] }
@@ -317,6 +306,12 @@ index 1cfdba5..e3a362c 100644
  
  [profile.release]
  lto = "fat"
+@@ -69,4 +68,4 @@ pyo3 = { version = "0.19.0", features = ["auto-initialize"] }
+ [build-dependencies]
+ version_check = "0.9.4"
+ # used where logic has to be version/distribution specific, e.g. pypy
+-pyo3-build-config = "0.19.0"
++pyo3-build-config = { git = 'https://github.com/DataDog/pyo3.git', branch = 'support-old-nightly' }
 diff --git a/pyproject.toml b/pyproject.toml
 index 1602e32..0278c38 100644
 --- a/pyproject.toml
