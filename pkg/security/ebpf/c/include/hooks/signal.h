@@ -5,7 +5,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-SYSCALL_KPROBE2(kill, int, pid, int, type) {
+HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
     struct policy_t policy = fetch_policy(EVENT_SIGNAL);
     if (is_discarded_by_process(policy.mode, EVENT_SIGNAL)) {
         return 0;
@@ -46,9 +46,9 @@ int hook_kill_pid_info(ctx_t *ctx) {
 
 
 /* hook here to grab the EPERM retval */
-SEC("kretprobe/check_kill_permission")
-int kretprobe_check_kill_permission(struct pt_regs* ctx) {
-    int retval = (int)PT_REGS_RC(ctx);
+HOOK_EXIT("check_kill_permission")
+int rethook_check_kill_permission(ctx_t* ctx) {
+    int retval = (int)CTX_PARMRET(ctx, 3);
 
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SIGNAL);
     if (!syscall) {

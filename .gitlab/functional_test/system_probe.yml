@@ -28,6 +28,7 @@
     when: always
     paths:
       - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
+      - $DD_AGENT_TESTING_DIR/testjson
       - $CI_PROJECT_DIR/kitchen_logs
 
 .retrieve_test_dockers:
@@ -61,6 +62,7 @@ kitchen_test_system_probe_linux_x64_ec2:
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
   needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
+  retry: 0
   variables:
     ARCH: amd64
     KITCHEN_ARCH: x86_64
@@ -124,6 +126,7 @@ kitchen_test_system_probe_linux_arm64:
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
   needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64", "pull_test_dockers_arm64" ]
+  retry: 0
   variables:
     ARCH: arm64
     KITCHEN_ARCH: arm64

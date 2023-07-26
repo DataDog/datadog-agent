@@ -158,6 +158,19 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
 }
 
+func (suite *AgentTestSuite) TestGetPipelineProvider() {
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, _, _ := createAgent(endpoints)
+	agent.Start()
+
+	assert.NotNil(suite.T(), agent.GetPipelineProvider())
+}
+
 func TestAgentTestSuite(t *testing.T) {
 	suite.Run(t, new(AgentTestSuite))
 }
