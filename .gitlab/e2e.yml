@@ -36,9 +36,10 @@ k8s-e2e-main:
   extends: .k8s_e2e_template
   allow_failure: true # temporary while investigating
   rules: !reference [.on_main]
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
+  needs:
+    - dev_master-a6
+    - dev_master-a7
+    - dca_dev_master
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
