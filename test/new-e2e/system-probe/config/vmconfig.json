@@ -19,6 +19,26 @@
                     "dir": "focal-server-cloudimg-amd64.qcow2",
                     "tag": "focal",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/focal-server-cloudimg-amd64.qcow2"
+                },
+                {
+                    "dir": "amzn2-kvm-2.0-amd64-4.14.qcow2",
+                    "tag": "amzn_4.14",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/amzn2-kvm-2.0-amd64-4.14.qcow2"
+                },
+                {
+                    "dir": "amzn2-kvm-2.0-amd64-5.4.qcow2",
+                    "tag": "amzn_5.4",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/amzn2-kvm-2.0-amd64-5.4.qcow2"
+                },
+                {
+                    "dir": "amzn2-kvm-2.0-amd64-5.10.qcow2",
+                    "tag": "amzn_5.10",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/amzn2-kvm-2.0-amd64-5.10.qcow2"
+                },
+                {
+                    "dir": "amzn2-kvm-2.0-amd64-5.15.qcow2",
+                    "tag": "amzn_5.15",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/amzn2-kvm-2.0-amd64-5.15.qcow2"
                 }
             ],
             "vcpu": [
@@ -42,6 +62,21 @@
                     "dir": "jammy-server-cloudimg-arm64.qcow2",
                     "tag": "jammy",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/jammy-server-cloudimg-arm64.qcow2"
+                },
+                {
+                    "dir": "amzn2-kvm-2.0-arm64-4.14.qcow2",
+                    "tag": "amzn_4.14",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/amzn2-kvm-2.0-arm64-4.14.qcow2"
+                },
+                {
+                    "dir": "amzn2-kvm-2.0-arm64-5.4.qcow2",
+                    "tag": "amzn_5.4",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/amzn2-kvm-2.0-arm64-5.4.qcow2"
+                },
+                {
+                    "dir": "amzn2-kvm-2.0-arm64-5.10.qcow2",
+                    "tag": "amzn_5.10",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/amzn2-kvm-2.0-arm64-5.10.qcow2"
                 }
             ],
             "machine": "virt",
