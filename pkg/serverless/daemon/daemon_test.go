@@ -170,7 +170,7 @@ func TestSetTraceTagOk(t *testing.T) {
 	defer agent.Stop()
 	d := Daemon{
 		TraceAgent:       agent,
-		ExecutionContext: &executioncontext.ExecutionContext{}, // Add this line
+		ExecutionContext: &executioncontext.ExecutionContext{},
 	}
 	assert.True(t, d.setTraceTags(tagsMap))
 }
