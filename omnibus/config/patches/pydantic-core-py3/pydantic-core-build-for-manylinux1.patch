@@ -1,8 +1,8 @@
 diff --git a/.cargo/config.toml b/.cargo/config.toml
-index f0ba8af..75f0cfc 100644
+index f0ba8af..274db88 100644
 --- a/.cargo/config.toml
 +++ b/.cargo/config.toml
-@@ -13,3 +13,9 @@ rustflags = [
+@@ -13,3 +13,8 @@ rustflags = [
    "-C", "link-arg=-undefined",
    "-C", "link-arg=dynamic_lookup",
  ]
@@ -10,13 +10,12 @@ index f0ba8af..75f0cfc 100644
 +[patch.crates-io]
 +speedate = { git = 'https://github.com/DataDog/speedate.git', branch = 'support-old-nightly' }
 +pyo3 = { git = 'https://github.com/DataDog/pyo3.git', branch = 'support-old-nightly' }
-+hashbrown = { git = 'https://github.com/DataDog/hashbrown.git', branch = 'support-old-nightly' }
 +indexmap = { git = 'https://github.com/DataDog/indexmap.git', branch = 'support-old-nightly' }
 diff --git a/Cargo.lock b/Cargo.lock
-index 3f685e6..23b85a6 100644
+index 3f685e6..e1ebadb 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
-@@ -62,7 +62,7 @@ dependencies = [
+@@ -62,15 +62,9 @@ dependencies = [
   "once_cell",
   "proc-macro2",
   "quote",
@@ -24,20 +23,28 @@ index 3f685e6..23b85a6 100644
 + "syn 2.0.27",
  ]
  
+-[[package]]
+-name = "equivalent"
+-version = "1.0.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
+-
  [[package]]
-@@ -93,9 +93,8 @@ dependencies = [
+ name = "form_urlencoded"
+ version = "1.2.0"
+@@ -93,9 +87,9 @@ dependencies = [
  
  [[package]]
  name = "hashbrown"
 -version = "0.14.0"
--source = "registry+https://github.com/rust-lang/crates.io-index"
++version = "0.12.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
 -checksum = "2c6201b9ff9fd90a5a3bac2e56a830d0caa509576f0e503818ee82c181b3437a"
-+version = "0.13.2"
-+source = "git+https://github.com/DataDog/hashbrown.git?branch=support-old-nightly#dcb854f861849e9ef23749601497242bdae276b5"
++checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
  
  [[package]]
  name = "heck"
-@@ -115,9 +114,8 @@ dependencies = [
+@@ -115,11 +109,10 @@ dependencies = [
  
  [[package]]
  name = "indexmap"
@@ -47,9 +54,12 @@ index 3f685e6..23b85a6 100644
 +version = "1.9.3"
 +source = "git+https://github.com/DataDog/indexmap.git?branch=support-old-nightly#861fad73de14b7f08d2dc56ed83607aef621b42e"
  dependencies = [
-  "equivalent",
+- "equivalent",
++ "autocfg",
   "hashbrown",
-@@ -131,9 +129,9 @@ checksum = "bfa799dd5ed20a7e349f3b4639aa80d74549c81716d9ec4f994c9b5815598306"
+ ]
+ 
+@@ -131,9 +124,9 @@ checksum = "bfa799dd5ed20a7e349f3b4639aa80d74549c81716d9ec4f994c9b5815598306"
  
  [[package]]
  name = "itoa"
@@ -61,7 +71,7 @@ index 3f685e6..23b85a6 100644
  
  [[package]]
  name = "libc"
-@@ -208,9 +206,9 @@ dependencies = [
+@@ -208,9 +201,9 @@ dependencies = [
  
  [[package]]
  name = "num-traits"
@@ -73,7 +83,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "autocfg",
  ]
-@@ -252,9 +250,9 @@ checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
+@@ -252,9 +245,9 @@ checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
  
  [[package]]
  name = "proc-macro2"
@@ -85,7 +95,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "unicode-ident",
  ]
-@@ -270,7 +268,7 @@ dependencies = [
+@@ -270,7 +263,7 @@ dependencies = [
   "mimalloc",
   "num-bigint",
   "pyo3",
@@ -94,7 +104,7 @@ index 3f685e6..23b85a6 100644
   "python3-dll-a",
   "regex",
   "serde",
-@@ -286,8 +284,7 @@ dependencies = [
+@@ -286,8 +279,7 @@ dependencies = [
  [[package]]
  name = "pyo3"
  version = "0.19.1"
@@ -104,7 +114,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "cfg-if",
   "indoc",
-@@ -295,7 +292,7 @@ dependencies = [
+@@ -295,7 +287,7 @@ dependencies = [
   "memoffset",
   "num-bigint",
   "parking_lot",
@@ -113,7 +123,7 @@ index 3f685e6..23b85a6 100644
   "pyo3-ffi",
   "pyo3-macros",
   "unindent",
-@@ -306,6 +303,15 @@ name = "pyo3-build-config"
+@@ -306,6 +298,15 @@ name = "pyo3-build-config"
  version = "0.19.1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "554db24f0b3c180a9c0b1268f91287ab3f17c162e15b54caaae5a6b3773396b0"
@@ -129,7 +139,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "once_cell",
   "python3-dll-a",
-@@ -315,18 +321,16 @@ dependencies = [
+@@ -315,18 +316,16 @@ dependencies = [
  [[package]]
  name = "pyo3-ffi"
  version = "0.19.1"
@@ -151,7 +161,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "proc-macro2",
   "pyo3-macros-backend",
-@@ -337,8 +341,7 @@ dependencies = [
+@@ -337,8 +336,7 @@ dependencies = [
  [[package]]
  name = "pyo3-macros-backend"
  version = "0.19.1"
@@ -161,7 +171,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "proc-macro2",
   "quote",
-@@ -356,9 +359,9 @@ dependencies = [
+@@ -356,9 +354,9 @@ dependencies = [
  
  [[package]]
  name = "quote"
@@ -173,7 +183,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "proc-macro2",
  ]
-@@ -386,9 +389,9 @@ dependencies = [
+@@ -386,9 +384,9 @@ dependencies = [
  
  [[package]]
  name = "regex-automata"
@@ -185,7 +195,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "aho-corasick",
   "memchr",
-@@ -403,21 +406,21 @@ checksum = "e5ea92a5b6195c6ef2a0295ea818b312502c6fc94dde986c5553242e18fd4ce2"
+@@ -403,21 +401,21 @@ checksum = "e5ea92a5b6195c6ef2a0295ea818b312502c6fc94dde986c5553242e18fd4ce2"
  
  [[package]]
  name = "rustversion"
@@ -213,7 +223,7 @@ index 3f685e6..23b85a6 100644
  
  [[package]]
  name = "serde"
-@@ -436,7 +439,7 @@ checksum = "b23f7ade6f110613c0d63858ddb8b94c1041f550eab58a16b371bdf2c9c80ab4"
+@@ -436,14 +434,14 @@ checksum = "b23f7ade6f110613c0d63858ddb8b94c1041f550eab58a16b371bdf2c9c80ab4"
  dependencies = [
   "proc-macro2",
   "quote",
@@ -222,7 +232,16 @@ index 3f685e6..23b85a6 100644
  ]
  
  [[package]]
-@@ -460,8 +463,7 @@ checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
+ name = "serde_json"
+-version = "1.0.103"
++version = "1.0.97"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d03b412469450d4404fe8499a268edd7f8b79fecb074b0d812ad64ca21f4031b"
++checksum = "bdf3bf93142acad5821c99197022e170842cdbc1c30482b98750c688c640842a"
+ dependencies = [
+  "indexmap",
+  "itoa",
+@@ -460,8 +458,7 @@ checksum = "62bb4feee49fdd9f707ef802e22365a35de4b7b299de4763d44bfea899442ff9"
  [[package]]
  name = "speedate"
  version = "0.11.0"
@@ -232,7 +251,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "strum",
   "strum_macros",
-@@ -486,7 +488,7 @@ dependencies = [
+@@ -486,7 +483,7 @@ dependencies = [
   "proc-macro2",
   "quote",
   "rustversion",
@@ -241,7 +260,7 @@ index 3f685e6..23b85a6 100644
  ]
  
  [[package]]
-@@ -502,9 +504,9 @@ dependencies = [
+@@ -502,9 +499,9 @@ dependencies = [
  
  [[package]]
  name = "syn"
@@ -253,7 +272,7 @@ index 3f685e6..23b85a6 100644
  dependencies = [
   "proc-macro2",
   "quote",
-@@ -513,9 +515,9 @@ dependencies = [
+@@ -513,9 +510,9 @@ dependencies = [
  
  [[package]]
  name = "target-lexicon"
@@ -265,7 +284,7 @@ index 3f685e6..23b85a6 100644
  
  [[package]]
  name = "tinyvec"
-@@ -540,9 +542,9 @@ checksum = "92888ba5573ff080736b3648696b70cafad7d250551175acbaa4e0385b3e1460"
+@@ -540,9 +537,9 @@ checksum = "92888ba5573ff080736b3648696b70cafad7d250551175acbaa4e0385b3e1460"
  
  [[package]]
  name = "unicode-ident"
@@ -278,9 +297,18 @@ index 3f685e6..23b85a6 100644
  [[package]]
  name = "unicode-normalization"
 diff --git a/Cargo.toml b/Cargo.toml
-index 1cfdba5..058325c 100644
+index 1cfdba5..e3a362c 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
+@@ -30,7 +30,7 @@ pyo3 = { version = "0.19.1", features = ["generate-import-lib", "num-bigint"] }
+ regex = "1.6.0"
+ strum = { version = "0.25.0", features = ["derive"] }
+ strum_macros = "0.25.1"
+-serde_json = {version = "1.0.103", features = ["arbitrary_precision", "preserve_order"]}
++serde_json = {version = "<1.0.98", features = ["arbitrary_precision", "preserve_order"]}
+ enum_dispatch = "0.3.8"
+ serde = { version = "1.0.175", features = ["derive"] }
+ # disabled for benchmarks since it makes microbenchmark performance more flakey
 @@ -52,7 +52,6 @@ crate-type = ["cdylib", "rlib"]
  [features]
  # must be enabled when building with `cargo build`, maturin enables this automatically
