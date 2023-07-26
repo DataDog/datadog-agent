@@ -92,12 +92,11 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	dnsFormatter.FormatConnectionDNS(conn, builder)
 
 	// TODO: optimize httpEncoder to take a writer and use gostreamer
-	httpStats, staticTags, dynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn)
-	if len(httpStats) != 0 {
-		builder.SetHttpAggregations(func(b *bytes.Buffer) {
-			b.Write(httpStats)
-		})
-	}
+	var (
+		staticTags  uint64
+		dynamicTags map[string]struct{}
+	)
+	staticTags, dynamicTags = httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
 
 	// TODO: optimize httpEncoder2 to take a writer and use gostreamer
 	http2Stats, _, _ := http2Encoder.GetHTTP2AggregationsAndTags(conn)

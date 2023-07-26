@@ -255,8 +255,12 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the HTTP stats
 	// object
-	httpBlob, _, _ := httpEncoder.GetHTTPAggregationsAndTags(connections[1])
-	assert.Nil(httpBlob)
+	streamer := NewProtoTestStreamer[*model.Connection]()
+	httpEncoder.GetHTTPAggregationsAndTags(connections[1], model.NewConnectionBuilder(streamer))
+
+	var conn model.Connection
+	streamer.Unwrap(t, &conn)
+	assert.Empty(conn.HttpAggregations)
 }
 
 func TestLocalhostScenario(t *testing.T) {
@@ -332,6 +336,7 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	// assert that both ends (client:server, server:client) of the connection
 	// will have HTTP stats
 	aggregations, _, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
+	fmt.Printf("%v", aggregations)
 	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
 	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(103))].Count)
 
@@ -341,14 +346,17 @@ func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
-	httpBlob, staticTags, dynamicTags := encoder.GetHTTPAggregationsAndTags(c)
-	require.NotNil(t, httpBlob)
+	streamer := NewProtoTestStreamer[*model.Connection]()
+	staticTags, dynamicTags := encoder.GetHTTPAggregationsAndTags(c, model.NewConnectionBuilder(streamer))
 
-	aggregations := new(model.HTTPAggregations)
-	err := proto.Unmarshal(httpBlob, aggregations)
+	var conn model.Connection
+	streamer.Unwrap(t, &conn)
+
+	var aggregations model.HTTPAggregations
+	err := proto.Unmarshal(conn.HttpAggregations, &aggregations)
 	require.NoError(t, err)
 
-	return aggregations, staticTags, dynamicTags
+	return &aggregations, staticTags, dynamicTags
 }
 
 func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
