@@ -23,15 +23,17 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
+	javaTLSProgramName = "Java-TLS"
+
 	agentUSMJar                 = "agent-usm.jar"
 	javaTLSConnectionsMap       = "java_tls_connections"
 	javaDomainsToConnectionsMap = "java_conn_tuple_by_peer"
@@ -78,11 +80,23 @@ type javaTLSProgram struct {
 	procRoot string
 }
 
-// Static evaluation to make sure we are not breaking the interface.
-var _ subprogram = &javaTLSProgram{}
-
-func getJavaTlsTailCallRoutes() []manager.TailCallRoute {
-	return []manager.TailCallRoute{
+var javaTLSSpec = protocols.ProtocolSpec{
+	Factory: newJavaTLSProgram,
+	Maps: []*manager.Map{
+		{
+			Name: javaTLSConnectionsMap,
+		},
+	},
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: doVfsIoctlKprobeName,
+				UID:          probeUID,
+			},
+			KProbeMaxActive: maxActive,
+		},
+	},
+	TailCalls: []manager.TailCallRoute{
 		{
 			ProgArrayName: eRPCHandlersMap,
 			Key:           syncPayload,
@@ -111,35 +125,24 @@ func getJavaTlsTailCallRoutes() []manager.TailCallRoute {
 				EBPFFuncName: handleAsyncPayloadKprobeName,
 			},
 		},
-	}
+	},
 }
 
-func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
-	var res *javaTLSProgram
-	defer func() {
-		// If we didn't set res, then java tls initialization failed.
-		if res == nil {
-			log.Info("java tls is not enabled")
-		}
-	}()
-
+func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
 	if !c.EnableJavaTLSSupport || !c.EnableHTTPSMonitoring || !http.HTTPSSupported(c) {
-		return nil
+		return nil, nil
 	}
 
 	javaUSMAgentJarPath := filepath.Join(c.JavaDir, agentUSMJar)
 	// We tried switching os.Open to os.Stat, but it seems it does not guarantee we'll be able to copy the file.
 	if f, err := os.Open(javaUSMAgentJarPath); err != nil {
-		log.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
-		return nil
+		return nil, fmt.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
 	} else {
 		// If we managed to open the file, then we close it, as we just needed to check if the file exists.
 		_ = f.Close()
 	}
 
-	log.Info("java tls is enabled")
-
-	res = &javaTLSProgram{
+	return &javaTLSProgram{
 		cfg:                 c,
 		processMonitor:      monitor.GetProcessMonitor(),
 		tracerArguments:     buildTracerArguments(c),
@@ -147,35 +150,10 @@ func newJavaTLSProgram(c *config.Config) *javaTLSProgram {
 		injectionAllowRegex: buildRegex(c.JavaAgentAllowRegex, "allow"),
 		injectionBlockRegex: buildRegex(c.JavaAgentBlockRegex, "block"),
 		procRoot:            util.GetProcRoot(),
-	}
-
-	return res
+	}, nil
 }
 
-func (p *javaTLSProgram) Name() string {
-	return "java-tls"
-}
-
-func (p *javaTLSProgram) IsBuildModeSupported(buildMode) bool {
-	return true
-}
-
-func (p *javaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
-	m.Maps = append(m.Maps, []*manager.Map{
-		{Name: javaTLSConnectionsMap},
-	}...)
-
-	m.Probes = append(m.Probes,
-		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: doVfsIoctlKprobeName,
-			UID:          probeUID,
-		},
-			KProbeMaxActive: maxActive,
-		},
-	)
-}
-
-func (p *javaTLSProgram) ConfigureOptions(options *manager.Options) {
+func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
 		MaxEntries: p.cfg.MaxTrackedConnections,
@@ -186,24 +164,14 @@ func (p *javaTLSProgram) ConfigureOptions(options *manager.Options) {
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
 	options.ActivatedProbes = append(options.ActivatedProbes,
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: doVfsIoctlKprobeName,
 				UID:          probeUID,
 			},
-		})
-}
-
-func (*javaTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
-	return []manager.ProbeIdentificationPair{
-		{EBPFFuncName: doVfsIoctlKprobeName},
-		{EBPFFuncName: handleSyncPayloadKprobeName},
-		{EBPFFuncName: handleCloseConnectionKprobeName},
-		{EBPFFuncName: handleConnectionByPeerKprobeName},
-		{EBPFFuncName: handleAsyncPayloadKprobeName},
-	}
+		},
+	)
 }
 
 // isJavaProcess checks if the given PID comm's name is java.
@@ -285,11 +253,16 @@ func (p *javaTLSProgram) newJavaProcess(pid int) {
 	}
 }
 
-func (p *javaTLSProgram) Start() {
+func (p *javaTLSProgram) PreStart(*manager.Manager) error {
 	p.cleanupExec = p.processMonitor.SubscribeExec(p.newJavaProcess)
+	return nil
 }
 
-func (p *javaTLSProgram) Stop() {
+func (p *javaTLSProgram) PostStart(*manager.Manager) error {
+	return nil
+}
+
+func (p *javaTLSProgram) Stop(*manager.Manager) {
 	if p.cleanupExec != nil {
 		p.cleanupExec()
 	}
@@ -297,6 +270,12 @@ func (p *javaTLSProgram) Stop() {
 	if p.processMonitor != nil {
 		p.processMonitor.Stop()
 	}
+}
+
+func (p *javaTLSProgram) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
+
+func (p *javaTLSProgram) GetStats() *protocols.ProtocolStats {
+	return nil
 }
 
 // buildRegex is similar to regexp.MustCompile, but without panic.
