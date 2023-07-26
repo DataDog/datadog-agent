@@ -104,7 +104,9 @@ func (b *EBPFTelemetry) getMapsTelemetry(ch chan<- prometheus.Metric) map[string
 	for m, k := range b.mapKeys {
 		if count, err := lookupPerCPUMapTelemetry(b.MapErrMap, k); err == nil && len(count) > 0 {
 			t[m] = count
+			// Emit telemetry as prometheus metrics.
 			for errStr, errCount := range count {
+				// Do not block when nil channel is provided
 				select {
 				case ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr):
 				default:
@@ -155,6 +157,8 @@ func (b *EBPFTelemetry) getHelpersTelemetry(ch chan<- prometheus.Metric) map[str
 		return nil
 	}
 
+	// Since helper telemetry is stored in per-cpu maps,
+	// we receive a list of `HelperErrTelemetry` objects per cpu.
 	var val []HelperErrTelemetry
 	helperTelemMap := make(map[string]interface{})
 
@@ -195,7 +199,7 @@ func getHelpersTelemetryForProbe(percpuTelemetry []HelperErrTelemetry, probeName
 			helper[helperName] = totalHelperErrCount
 		}
 
-		// Emit telemetry as prometheus metrics.
+		// Emit helper telemetry as prometheus metrics.
 		for errStr, errCount := range totalHelperErrCount {
 			// Do not block when nil channel is provided
 			select {
