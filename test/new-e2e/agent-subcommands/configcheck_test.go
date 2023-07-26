@@ -53,7 +53,7 @@ func MatchCheckToTemplate(checkname, input string) (*CheckConfigOutput, error) {
 		CheckName:  checkname,
 		Filepath:   matches[filepathIndex],
 		InstanceId: matches[instanceIndex],
-		Settings:   fmt.Sprintf("%s", matches[settingsIndex:]), // format to string for assertion
+		Settings:   fmt.Sprintf("%s", matches[settingsIndex]), // format to string for assertion
 	}, nil
 }
 
