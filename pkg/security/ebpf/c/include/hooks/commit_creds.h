@@ -71,17 +71,13 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
     return 0;
 }
 
-int __attribute__((always_inline)) kprobe_credentials_update_ret(struct pt_regs *ctx) {
-    int retval = PT_REGS_RC(ctx);
-    return credentials_update_ret(ctx, retval);
-}
-
 HOOK_SYSCALL_ENTRY0(setuid) {
     return credentials_update(EVENT_SETUID);
 }
 
 SYSCALL_KRETPROBE(setuid) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_ENTRY0(setfsuid) {
@@ -89,7 +85,8 @@ HOOK_SYSCALL_ENTRY0(setfsuid) {
 }
 
 SYSCALL_KRETPROBE(setfsuid) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_ENTRY0(setreuid) {
@@ -97,7 +94,8 @@ HOOK_SYSCALL_ENTRY0(setreuid) {
 }
 
 SYSCALL_KRETPROBE(setreuid) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_ENTRY0(setresuid) {
@@ -105,7 +103,8 @@ HOOK_SYSCALL_ENTRY0(setresuid) {
 }
 
 SYSCALL_KRETPROBE(setresuid) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SYSCALL_KPROBE0(setuid16) {
@@ -113,7 +112,8 @@ SYSCALL_KPROBE0(setuid16) {
 }
 
 SYSCALL_KRETPROBE(setuid16) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SYSCALL_KPROBE0(setfsuid16) {
@@ -121,7 +121,8 @@ SYSCALL_KPROBE0(setfsuid16) {
 }
 
 SYSCALL_KRETPROBE(setfsuid16) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SYSCALL_KPROBE0(setreuid16) {
@@ -129,7 +130,8 @@ SYSCALL_KPROBE0(setreuid16) {
 }
 
 SYSCALL_KRETPROBE(setreuid16) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SYSCALL_KPROBE0(setresuid16) {
@@ -137,7 +139,8 @@ SYSCALL_KPROBE0(setresuid16) {
 }
 
 SYSCALL_KRETPROBE(setresuid16) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_ENTRY0(setgid) {
@@ -145,7 +148,8 @@ HOOK_SYSCALL_ENTRY0(setgid) {
 }
 
 SYSCALL_KRETPROBE(setgid) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_ENTRY0(setfsgid) {
@@ -153,7 +157,8 @@ HOOK_SYSCALL_ENTRY0(setfsgid) {
 }
 
 SYSCALL_KRETPROBE(setfsgid) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_ENTRY0(setregid) {
@@ -161,7 +166,8 @@ HOOK_SYSCALL_ENTRY0(setregid) {
 }
 
 SYSCALL_KRETPROBE(setregid) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_ENTRY0(setresgid) {
@@ -169,7 +175,8 @@ HOOK_SYSCALL_ENTRY0(setresgid) {
 }
 
 SYSCALL_KRETPROBE(setresgid) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SYSCALL_KPROBE0(setgid16) {
@@ -177,7 +184,8 @@ SYSCALL_KPROBE0(setgid16) {
 }
 
 SYSCALL_KRETPROBE(setgid16) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SYSCALL_KPROBE0(setfsgid16) {
@@ -185,7 +193,8 @@ SYSCALL_KPROBE0(setfsgid16) {
 }
 
 SYSCALL_KRETPROBE(setfsgid16) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SYSCALL_KPROBE0(setregid16) {
@@ -193,7 +202,8 @@ SYSCALL_KPROBE0(setregid16) {
 }
 
 SYSCALL_KRETPROBE(setregid16) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SYSCALL_KPROBE0(setresgid16) {
@@ -201,7 +211,8 @@ SYSCALL_KPROBE0(setresgid16) {
 }
 
 SYSCALL_KRETPROBE(setresgid16) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 HOOK_SYSCALL_ENTRY0(capset) {
@@ -209,7 +220,8 @@ HOOK_SYSCALL_ENTRY0(capset) {
 }
 
 SYSCALL_KRETPROBE(capset) {
-    return kprobe_credentials_update_ret(ctx);
+    int retval = PT_REGS_RC(ctx);
+    return credentials_update_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_commit_creds_exit")
