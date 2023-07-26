@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -180,4 +181,50 @@ func TestOutOfOrderInvocations(t *testing.T) {
 
 	assert.NotPanics(t, d.TellDaemonRuntimeDone)
 	d.TellDaemonRuntimeStarted()
+}
+
+func TestSetTraceTagsWithProactiveInit(t *testing.T) {
+	d := &Daemon{
+		TraceAgent:       &trace.ServerlessTraceAgent{},
+		ExecutionContext: &executioncontext.ExecutionContext{},
+	}
+
+	// Ensure initTime is more than 10 seconds ago to trigger a proactive initialization.
+	d.ExecutionContext.SetInitializationTime(time.Now().Add(-15 * time.Second))
+	d.ExecutionContext.SetFromInvocation("arn:aws:lambda:us-east-1:123456789012:function:my-function", "id")
+
+	t.Setenv("DD_API_KEY", "x")
+	d.TraceAgent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
+	defer d.TraceAgent.Stop()
+
+	tagMap := map[string]string{
+		"key0": "value0",
+	}
+
+	assert.True(t, d.setTraceTags(tagMap))
+	assert.Equal(t, "false", tagMap["cold_start"])
+	assert.Equal(t, "true", tagMap["proactive_initialization"])
+}
+
+func TestSetTraceTagsWithColdstart(t *testing.T) {
+	d := &Daemon{
+		TraceAgent:       &trace.ServerlessTraceAgent{},
+		ExecutionContext: &executioncontext.ExecutionContext{},
+	}
+
+	// Ensure initTime is less than 10 seconds ago to trigger a cold start.
+	d.ExecutionContext.SetInitializationTime(time.Now().Add(-5 * time.Second))
+	d.ExecutionContext.SetFromInvocation("arn:aws:lambda:us-east-1:123456789012:function:my-function", "id")
+
+	t.Setenv("DD_API_KEY", "x")
+	d.TraceAgent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
+	defer d.TraceAgent.Stop()
+
+	tagMap := map[string]string{
+		"key0": "value0",
+	}
+
+	assert.True(t, d.setTraceTags(tagMap))
+	assert.Equal(t, "true", tagMap["cold_start"])
+	assert.Equal(t, "", tagMap["proactive_initialization"])
 }
