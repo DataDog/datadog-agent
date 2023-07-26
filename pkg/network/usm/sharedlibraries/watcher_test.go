@@ -323,6 +323,9 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 			!hasPID(watcher, command1) &&
 			!hasPID(watcher, command2)
 	}, time.Second*10, time.Second, "")
+
+	// Check there are no more processes registered
+	assert.Len(t, watcher.registry.GetRegisteredProcesses(), 0)
 }
 
 func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
