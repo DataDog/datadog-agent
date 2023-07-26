@@ -172,6 +172,9 @@
 #define SYSCALL_COMPAT_KPROBE6(name, ...) SYSCALL_COMPAT_HOOKx(6,kprobe,KPROBE,_##name,__VA_ARGS__)
 
 #define SYSCALL_COMPAT_FENTRY0(name, ...) SYSCALL_COMPAT_HOOKx(0,fentry,FENTRY,_##name,__VA_ARGS__)
+#define SYSCALL_COMPAT_FENTRY1(name, ...) SYSCALL_COMPAT_HOOKx(1,fentry,FENTRY,_##name,__VA_ARGS__)
+#define SYSCALL_COMPAT_FENTRY2(name, ...) SYSCALL_COMPAT_HOOKx(2,fentry,FENTRY,_##name,__VA_ARGS__)
+#define SYSCALL_COMPAT_FENTRY3(name, ...) SYSCALL_COMPAT_HOOKx(3,fentry,FENTRY,_##name,__VA_ARGS__)
 
 #define SYSCALL_COMPAT_KRETPROBE(name, ...) SYSCALL_COMPAT_HOOKx(0,kretprobe,KRETPROBE,_##name)
 
