@@ -171,12 +171,11 @@ func (m *Monitor) Start() error {
 		}
 		enabledProtocolsTmp = append(enabledProtocolsTmp, protocol)
 	}
+	m.enabledProtocols = enabledProtocolsTmp
 
 	// No protocols could be enabled, abort.
-	if len(enabledProtocolsTmp) == 0 {
+	if len(m.enabledProtocols) == 0 {
 		return errNoProtocols
-	} else if len(enabledProtocolsTmp) != len(m.enabledProtocols) {
-		m.enabledProtocols = enabledProtocolsTmp
 	}
 
 	err = m.ebpfProgram.Start()
@@ -199,18 +198,17 @@ func (m *Monitor) Start() error {
 		}
 		enabledProtocolsTmp = append(enabledProtocolsTmp, protocol)
 	}
+	m.enabledProtocols = enabledProtocolsTmp
 
 	// We check again if there are protocols that could be enabled, and abort if
 	// it is not the case.
-	if len(enabledProtocolsTmp) == 0 {
+	if len(m.enabledProtocols) == 0 {
 		err = m.ebpfProgram.Close()
 		if err != nil {
 			log.Errorf("error during USM shutdown: %s", err)
 		}
 
 		return errNoProtocols
-	} else if len(enabledProtocolsTmp) != len(m.enabledProtocols) {
-		m.enabledProtocols = enabledProtocolsTmp
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
