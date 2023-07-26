@@ -46,6 +46,8 @@ type incompleteBuffer struct {
 	maxEntries int
 	telemetry  *Telemetry
 	minAgeNano int64
+
+	enabled bool
 }
 
 type txParts struct {
@@ -66,10 +68,15 @@ func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuff
 		maxEntries: c.MaxHTTPStatsBuffered,
 		telemetry:  telemetry,
 		minAgeNano: defaultMinAge.Nanoseconds(),
+		enabled:    c.EnableHTTPIncompleteBuffer,
 	}
 }
 
 func (b *incompleteBuffer) Add(tx Transaction) {
+	if !b.enabled {
+		return
+	}
+
 	connTuple := tx.ConnTuple()
 	key := types.ConnectionKey{
 		SrcIPHigh: connTuple.SrcIPHigh,
