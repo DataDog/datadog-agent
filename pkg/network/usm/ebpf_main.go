@@ -49,7 +49,7 @@ type ebpfProgram struct {
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
-	enabledProtocols  map[protocols.ProtocolType]protocols.Protocol
+	enabledProtocols  map[string]protocols.Protocol
 	disabledProtocols []*protocols.ProtocolSpec
 
 	buildMode buildMode
@@ -140,12 +140,6 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, b
 	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
 	if goTLSProg != nil {
 		subprograms = append(subprograms, goTLSProg)
-	}
-	javaTLSProg := newJavaTLSProgram(c)
-	subprogramProbesResolvers = append(subprogramProbesResolvers, javaTLSProg)
-	if javaTLSProg != nil {
-		subprograms = append(subprograms, javaTLSProg)
-		tailCalls = append(tailCalls, getJavaTlsTailCallRoutes()...)
 	}
 	openSSLProg := newSSLProgram(c, mgr, sockFD, bpfTelemetry)
 	subprogramProbesResolvers = append(subprogramProbesResolvers, openSSLProg)
@@ -357,6 +351,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			}
 
 			log.Debugf("disabled map: %v", m.Name)
+		}
+
+		for _, probe := range p.Probes {
+			options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
 		}
 
 		for _, tc := range p.TailCalls {
