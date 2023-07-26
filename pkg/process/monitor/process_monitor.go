@@ -60,7 +60,7 @@ type processMonitorTelemertry struct {
 func (pmt *processMonitorTelemertry) initialize() {
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.process.monitor",
-		telemetry.OptPayloadTelemetry,
+		telemetry.OptPrometheus,
 	)
 	pmt.events = metricGroup.NewCounter("events")
 	pmt.exec = metricGroup.NewCounter("exec")
