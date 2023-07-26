@@ -582,7 +582,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	for p, count := range udpPorts {
 		// ignore ephemeral port binds as they are more likely to be from
 		// clients calling bind with port 0
-		if network.IsPortInEphemeralRange(p.Port) == network.EphemeralTrue {
+		if network.IsPortInEphemeralRange(network.AFINET, network.UDP, p.Port) == network.EphemeralTrue {
 			log.Debugf("ignoring initial ephemeral UDP port bind to %d", p)
 			continue
 		}
@@ -644,10 +644,9 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 			SentPackets: s.Sent_packets,
 			RecvPackets: s.Recv_packets,
 		},
-		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		LastUpdateEpoch:  s.Timestamp,
-		IsAssured:        s.IsAssured(),
-		Cookie:           network.StatCookie(s.Cookie),
+		LastUpdateEpoch: s.Timestamp,
+		IsAssured:       s.IsAssured(),
+		Cookie:          network.StatCookie(s.Cookie),
 	}
 
 	stats.ProtocolStack = protocols.Stack{
@@ -668,6 +667,8 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	case netebpf.IPv6:
 		stats.Family = network.AFINET6
 	}
+
+	stats.SPortIsEphemeral = network.IsPortInEphemeralRange(stats.Family, stats.Type, t.Sport)
 
 	switch s.ConnectionDirection() {
 	case netebpf.Incoming:
