@@ -91,16 +91,19 @@ int __attribute__((always_inline)) kprobe_sys_chown_ret(struct pt_regs *ctx) {
     return sys_chown_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(lchown) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(lchown) {
+    int retval = CTX_PARMRET(ctx, 3);
+    return sys_chown_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(fchown) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(fchown) {
+    int retval = CTX_PARMRET(ctx, 3);
+    return sys_chown_ret(ctx, retval);
 }
 
-SYSCALL_KRETPROBE(chown) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(chown) {
+    int retval = CTX_PARMRET(ctx, 3);
+    return sys_chown_ret(ctx, retval);
 }
 
 SYSCALL_KRETPROBE(lchown16) {
@@ -115,8 +118,9 @@ SYSCALL_KRETPROBE(chown16) {
     return kprobe_sys_chown_ret(ctx);
 }
 
-SYSCALL_KRETPROBE(fchownat) {
-    return kprobe_sys_chown_ret(ctx);
+HOOK_SYSCALL_EXIT(fchownat) {
+    int retval = CTX_PARMRET(ctx, 4);
+    return sys_chown_ret(ctx, retval);
 }
 
 SEC("tracepoint/handle_sys_chown_exit")
