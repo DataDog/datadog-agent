@@ -109,11 +109,25 @@ func expandKprobeOrFentry(hookpoint string, fentry bool, flag int) []string {
 func expandSyscallSections(syscallName string, fentry bool, flag int, compat ...bool) []string {
 	sections := expandKprobeOrFentry(getSyscallFnName(syscallName), fentry, flag)
 
+	shouldUseCompat := len(compat) > 0 && compat[0]
+	isFentryEntry := fentry && flag&SupportFentry == SupportFentry
+
 	if RuntimeArch == "x64" {
-		if len(compat) > 0 && compat[0] && syscallPrefix != "sys_" {
-			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, flag)...)
+		// HACK: split entry and exit because we currently do not support compat syscall ret hooks
+		// entry
+		entryFlag := flag & ^Exit
+		if shouldUseCompat && !isFentryEntry && syscallPrefix != "sys_" {
+			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, entryFlag)...)
 		} else {
-			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, flag)...)
+			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, entryFlag)...)
+		}
+
+		// exit
+		exitFlag := flag & ^Entry
+		if shouldUseCompat && syscallPrefix != "sys_" {
+			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, exitFlag)...)
+		} else {
+			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, exitFlag)...)
 		}
 	}
 
