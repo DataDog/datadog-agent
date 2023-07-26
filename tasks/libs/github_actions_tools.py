@@ -166,6 +166,8 @@ def download_artifacts(run_id, destination="."):
 
     github_workflows = create_or_refresh_macos_build_github_workflows()
     run_artifacts = github_workflows.workflow_run_artifacts(run_id)
+    print("Found the following artifacts: ", run_artifacts)
+
     if run_artifacts is None:
         print("Workflow run not found.")
         raise Exit(code=1)
@@ -176,6 +178,7 @@ def download_artifacts(run_id, destination="."):
             # Download artifact
             github_workflows = create_or_refresh_macos_build_github_workflows(github_workflows)
             zip_path = github_workflows.download_artifact(artifact["id"], tmpdir)
+            print("Downloading artifact: ", artifact)
 
             # Unzip it in the target destination
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
