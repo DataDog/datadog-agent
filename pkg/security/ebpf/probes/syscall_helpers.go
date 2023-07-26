@@ -100,7 +100,12 @@ func expandKprobeOrFentry(hookpoint string, fentry bool, flag int) []string {
 		sections = append(sections, fmt.Sprintf("%s/%s", prefix, hookpoint))
 	}
 	if flag&Exit == Exit && !ShouldUseSyscallExitTracepoints() {
-		sections = append(sections, "kretprobe/"+hookpoint)
+		prefix := "kretprobe"
+		if flag&SupportFexit == SupportFexit && fentry {
+			prefix = "fexit"
+		}
+
+		sections = append(sections, fmt.Sprintf("%s/%s", prefix, hookpoint))
 	}
 
 	return sections
@@ -143,6 +148,8 @@ const (
 	ExpandTime32 = 1 << 2
 	// SupportFentry indicates that this probe supports fentry expansion (instead of kprobe)
 	SupportFentry = 1 << 3
+	// SupportFentryExit indicates that this probe support fexit expansion (instead of kretprobe)
+	SupportFexit = 1 << 4
 
 	// EntryAndExit indicates that both the entry kprobe and exit kretprobe should be expanded
 	EntryAndExit = Entry | Exit
