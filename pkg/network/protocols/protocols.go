@@ -45,6 +45,9 @@ type EbpfProgram interface {
 	// DumpMaps dumps the content of the map represented by mapName &
 	// currentMap, if it used by the eBPF program, to output.
 	DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map)
+
+	// Name returns the protocol name.
+	Name() string
 }
 
 // ProtocolStats is a "tuple" struct that represents monitoring data from a
