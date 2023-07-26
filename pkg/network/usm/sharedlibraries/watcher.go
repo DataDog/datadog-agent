@@ -80,8 +80,8 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, ru
 		ebpfProgram:    ebpfProgram,
 		registry:       utils.NewFileRegistry(),
 
-		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPayloadTelemetry),
-		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPayloadTelemetry),
+		libHits:    telemetry.NewCounter("usm.so_watcher.hits", telemetry.OptPrometheus),
+		libMatches: telemetry.NewCounter("usm.so_watcher.matches", telemetry.OptPrometheus),
 	}, nil
 }
 
