@@ -118,7 +118,7 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.so_watcher",
 		telemetry.OptMonotonic,
-		telemetry.OptPayloadTelemetry,
+		telemetry.OptExpvar,
 	)
 	return &soWatcher{
 		wg:             sync.WaitGroup{},
