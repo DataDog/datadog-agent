@@ -75,30 +75,37 @@ def ask_for_ssh():
         != "y"
     )
 
+
 def kvm_ok(ctx):
     ctx.run("kvm-ok")
     info("[+] Kvm available on system")
+
 
 def check_user_in_group(ctx, group):
     ctx.run(f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)")
     info(f"[+] User '{os.getlogin()}' in group '{group}'")
 
+
 def check_user_in_kvm(ctx):
     check_user_in_group(ctx, "kvm")
 
+
 def check_user_in_libvirt(ctx):
     check_user_in_group(ctx, "libvirt")
+
 
 def check_libvirt_sock_perms():
     read_libvirt_sock()
     write_libvirt_sock()
     info(f"[+] User '{os.getlogin()}' has read/write permissions on libvirt sock")
 
+
 def check_env(ctx):
     kvm_ok(ctx)
     check_user_in_kvm(ctx)
     check_user_in_libvirt(ctx)
     check_libvirt_sock_perms()
+
 
 def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
     stack = check_and_get_stack(stack)
@@ -294,6 +301,7 @@ def resume_stack(stack=None):
     resume_domains(conn, stack)
     conn.close()
 
+
 def read_libvirt_sock():
     conn = libvirt.open("qemu:///system")
     if not conn:
@@ -320,6 +328,7 @@ testPoolXML = """
     </permissions>
   </target>
 </pool>"""
+
 
 def write_libvirt_sock():
     conn = libvirt.open("qemu:///system")
