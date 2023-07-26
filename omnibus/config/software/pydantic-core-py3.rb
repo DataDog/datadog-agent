@@ -3,12 +3,12 @@
 # manylinux2014 wheels (min. requirement: glibc 2.17) do not support CentOS 6 (glibc 2.12).
 
 name "pydantic-core-py3"
-default_version "2.4.0"
+default_version "2.1.2"
 
 dependency "pip3"
 
 source :url => "https://github.com/pydantic/pydantic-core/archive/refs/tags/v#{version}.tar.gz",
-       :sha256 => "94b4ef19df7e0ea5e9f32590afc3673dab0d9855ed786d3dc95513124d842874",
+       :sha256 => "63c12928b54c8eab426bcbd1d9af005a945ebf9010caa7a9f087ad69cf29cb07",
        :extract => :seven_zip
 
 relative_path "pydantic-core-#{version}"
