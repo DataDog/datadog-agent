@@ -48,15 +48,14 @@ type processMonitorTelemertry struct {
 	//  o reinit_failed is the number of failed re-initialisation after a netlink restart due to an error
 	//  o process_scan_failed would be > 0 if initial process scan failed
 	//  o callback_called numbers of callback called
-	events  *telemetry.Metric
-	exec    *telemetry.Metric
-	exit    *telemetry.Metric
-	restart *telemetry.Metric
+	events  *telemetry.Counter
+	exec    *telemetry.Counter
+	exit    *telemetry.Counter
+	restart *telemetry.Counter
 
-	eventsChannelSize *telemetry.Metric
-	reinitFailed      *telemetry.Metric
-	processScanFailed *telemetry.Metric
-	callbackCalled    *telemetry.Metric
+	reinitFailed      *telemetry.Counter
+	processScanFailed *telemetry.Counter
+	callbackExecuted  *telemetry.Counter
 }
 
 func (pmt *processMonitorTelemertry) initialize() {
@@ -64,15 +63,14 @@ func (pmt *processMonitorTelemertry) initialize() {
 		"process.monitor",
 		telemetry.OptPayloadTelemetry,
 	)
-	pmt.events = metricGroup.NewMetric("events", telemetry.OptMonotonic)
-	pmt.exec = metricGroup.NewMetric("exec", telemetry.OptMonotonic)
-	pmt.exit = metricGroup.NewMetric("exit", telemetry.OptMonotonic)
-	pmt.restart = metricGroup.NewMetric("restart", telemetry.OptMonotonic)
+	pmt.events = metricGroup.NewCounter("events")
+	pmt.exec = metricGroup.NewCounter("exec")
+	pmt.exit = metricGroup.NewCounter("exit")
+	pmt.restart = metricGroup.NewCounter("restart")
 
-	pmt.eventsChannelSize = metricGroup.NewMetric("events_channel_size", telemetry.OptGauge)
-	pmt.reinitFailed = metricGroup.NewMetric("reinit_failed", telemetry.OptMonotonic)
-	pmt.processScanFailed = metricGroup.NewMetric("process_scan_failed", telemetry.OptMonotonic)
-	pmt.callbackCalled = metricGroup.NewMetric("callback_called", telemetry.OptMonotonic)
+	pmt.reinitFailed = metricGroup.NewCounter("reinit_failed")
+	pmt.processScanFailed = metricGroup.NewCounter("process_scan_failed")
+	pmt.callbackExecuted = metricGroup.NewCounter("callback_executed")
 }
 
 // ProcessMonitor uses netlink process events like Exec and Exit and activate the registered callbacks for the relevant
@@ -189,7 +187,7 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 			defer pm.callbackRunnersWG.Done()
 			for call := range pm.callbackRunner {
 				if call != nil {
-					pm.tel.callbackCalled.Add(1)
+					pm.tel.callbackExecuted.Add(1)
 					call()
 				}
 			}
@@ -213,6 +211,7 @@ func (pm *ProcessMonitor) mainEventLoop() {
 		pm.processMonitorWG.Done()
 	}()
 
+	maxChannelSize := 0
 	for {
 		select {
 		case <-pm.done:
@@ -222,9 +221,11 @@ func (pm *ProcessMonitor) mainEventLoop() {
 				return
 			}
 
-			pm.tel.events.Add(1)
-			pm.tel.eventsChannelSize.Set(int64(len(pm.netlinkEventsChannel)))
+			if maxChannelSize < len(pm.netlinkEventsChannel) {
+				maxChannelSize = len(pm.netlinkEventsChannel)
+			}
 
+			pm.tel.events.Add(1)
 			switch ev := event.Msg.(type) {
 			case *netlink.ExecProcEvent:
 				pm.tel.exec.Add(1)
@@ -261,14 +262,14 @@ func (pm *ProcessMonitor) mainEventLoop() {
 				return
 			}
 		case <-logTicker.C:
-			tel := telemetry.ReportPayloadTelemetry("process_monitor")
-			log.Debugf("process monitor stats - total events: %d; exec events: %d; exit events: %d; Channel size: %d; restart counter: %d",
-				tel["process.monitor.events"],
-				tel["process.monitor.exec"],
-				tel["process.monitor.exit"],
-				tel["process.monitor.events_channel_size"],
-				tel["process.monitor.restart"],
+			log.Debugf("process monitor stats - total events: %d; exec events: %d; exit events: %d; restart counter: %d; max channel size: %d / 2 minutes)",
+				pm.tel.events.Get(),
+				pm.tel.exec.Get(),
+				pm.tel.exit.Get(),
+				pm.tel.restart.Get(),
+				maxChannelSize,
 			)
+			maxChannelSize = 0
 		}
 	}
 }

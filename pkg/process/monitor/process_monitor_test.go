@@ -93,7 +93,7 @@ func TestProcessMonitorSanity(t *testing.T) {
 	telEqual(t, 0, "process.monitor.restart")
 	telEqual(t, 0, "process.monitor.reinitFailed")
 	telEqual(t, 0, "process.monitor.process_scan_failed")
-	require.GreaterOrEqual(t, tel["process.monitor.callback_called"], int64(1), "process.monitor.callback_called")
+	require.GreaterOrEqual(t, tel["process.monitor.callback_executed"], int64(1), "process.monitor.callback_executed")
 }
 
 func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
@@ -160,7 +160,7 @@ func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
 	telEqual(t, 0, "process.monitor.restart")
 	telEqual(t, 0, "process.monitor.reinit_failed")
 	telEqual(t, 0, "process.monitor.process_scan_failed")
-	require.GreaterOrEqual(t, tel["process.monitor.callback_called"], int64(1), "process.monitor.callback_called")
+	require.GreaterOrEqual(t, tel["process.monitor.callback_executed"], int64(1), "process.monitor.callback_executed")
 }
 
 func TestProcessMonitorRefcount(t *testing.T) {
@@ -229,5 +229,5 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 	telEqual(t, 0, "process.monitor.restart")
 	telEqual(t, 0, "process.monitor.reinit_failed")
 	telEqual(t, 0, "process.monitor.process_scan_failed")
-	require.GreaterOrEqual(t, tel["process.monitor.callback_called"], int64(1), "process.monitor.callback_called")
+	require.GreaterOrEqual(t, tel["process.monitor.callback_executed"], int64(1), "process.monitor.callback_executed")
 }
