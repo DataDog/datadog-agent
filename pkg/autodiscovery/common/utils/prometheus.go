@@ -55,7 +55,7 @@ func buildInstances(pc *types.PrometheusCheck, annotations map[string]string, na
 				//     and everything is fine
 				// Or it comes from the `prometheus_scrape.checks` property inside the `datadog.yaml` file.
 				//   In this case, it has been parsed by YAML decoder
-				//     In this case, dictionaries have been decoded as `map[interface{}interface{}`
+				//     In this case, dictionaries have been decoded as `map[interface{}]interface{}`
 				//     and this will be problematic as this type cannot be encoded by a JSON encoder
 				//
 				// So, let’s convert all `map[interface{}]interface{}` to `map[string]interface{}`
