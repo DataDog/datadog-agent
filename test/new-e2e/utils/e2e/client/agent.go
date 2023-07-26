@@ -75,6 +75,10 @@ func (agent *Agent) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+func (agent *Agent) Health(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("health", commandArgs...)
+}
+
 type Status struct {
 	Content string
 }
@@ -98,26 +102,33 @@ func (a *Agent) IsReady() (bool, error) {
 	return a.Status().isReady()
 }
 
+func (a *Agent) IsHealthy() (bool, error) {
+	output := a.Health()
+	return regexp.MatchString("Agent health: PASS", output)
+}
+
 // WaitForReady blocks up to one minute waiting for agent to be ready.
 // Retries every 100 ms up to one minute.
 // Returns error on failure.
 func (a *Agent) WaitForReady() error {
-	return a.WaitForReadyTimeout(1 * time.Minute)
+	return a.WaitForWithTimeout(a.IsReady, 1*time.Minute)
+}
+
+// WaitForHealthy blocks up to one minute waiting for agent to be healthy.
+// Retries every 100 ms up to one minute.
+// Returns error on failure.
+func (a *Agent) WaitForHealthy() error {
+	return a.WaitForWithTimeout(a.IsHealthy, 1*time.Minute)
 }
 
 // WaitForReady blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
-func (a *Agent) WaitForReadyTimeout(timeout time.Duration) error {
+func (a *Agent) WaitForWithTimeout(f func() (bool, error), timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
-		statusOutput, err := a.vmClient.ExecuteWithError(a.GetCommand("status"))
-		if err != nil {
-			return err
-		}
-
-		isReady, err := newStatus(statusOutput).isReady()
+		isReady, err := f()
 		if err != nil {
 			return err
 		}
