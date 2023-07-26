@@ -32,8 +32,6 @@ import (
 )
 
 const (
-	javaTLSProgramName = "Java-TLS"
-
 	agentUSMJar                 = "agent-usm.jar"
 	javaTLSConnectionsMap       = "java_tls_connections"
 	javaDomainsToConnectionsMap = "java_conn_tuple_by_peer"
@@ -151,6 +149,10 @@ func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
 		injectionBlockRegex: buildRegex(c.JavaAgentBlockRegex, "block"),
 		procRoot:            util.GetProcRoot(),
 	}, nil
+}
+
+func (p *javaTLSProgram) Name() string {
+	return "Java TLS"
 }
 
 func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
