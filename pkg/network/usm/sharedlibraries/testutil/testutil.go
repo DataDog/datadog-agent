@@ -71,7 +71,7 @@ func build(t *testing.T) string {
 	cur, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	sourcePath := filepath.Join(cur, "fmapper/main.go")
+	sourcePath := filepath.Join(cur, "fmapper/fmapper.go")
 	// Note that t.TempDir() gets cleaned up automatically by the Go runtime
 	targetPath := filepath.Join(t.TempDir(), "fmapper")
 
