@@ -61,7 +61,8 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
 
         if (is_literal(idx.raw)) {
             // Having a literal, with an index pointing to a ":method" key means a
-            // non POST request method, which is an indicator of non-GRPC content
+            // request method that is not POST or GET. gRPC only uses POST, so 
+            // finding a :method here is an indicator of non-GRPC content.
             if (idx.literal.index == kMethod) {
                 status = GRPC_STATUS_NOT_GRPC;
                 break;
@@ -75,7 +76,9 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
             continue;
         }
 
-        // GRPC only uses POST requests
+        // The header is fully indexed, check if it is a :method GET header, in
+        // which case we can tell that this is not gRPC, as it uses only POST
+        // requests.
         if (is_indexed(idx.raw) && idx.indexed.index == kGET) {
             status = GRPC_STATUS_NOT_GRPC;
             break;
