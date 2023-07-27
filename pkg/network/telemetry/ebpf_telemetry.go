@@ -136,11 +136,7 @@ func lookupPerCPUMapTelemetry(mapErrMap *ebpf.Map, key uint64) (map[string]uint6
 	for _, v := range vals {
 		count := getMapErrCount(&v)
 		for errStr, cnt := range count {
-			if _, ok := totalCount[errStr]; ok {
-				totalCount[errStr] += cnt
-			} else {
-				totalCount[errStr] = cnt
-			}
+			totalCount[errStr] += cnt
 		}
 	}
 
@@ -185,13 +181,8 @@ func getHelpersTelemetryForProbe(percpuTelemetry []HelperErrTelemetry, probeName
 
 		for _, telemetry := range percpuTelemetry {
 			if count := getErrCount(&telemetry, indx); len(count) > 0 {
-
 				for errStr, errCount := range count {
-					if _, ok := totalHelperErrCount[errStr]; ok {
-						totalHelperErrCount[errStr] += errCount
-					} else {
-						totalHelperErrCount[errStr] = errCount
-					}
+					totalHelperErrCount[errStr] += errCount
 				}
 			}
 		}
