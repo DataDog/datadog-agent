@@ -7,7 +7,9 @@
 package filesystem
 
 import (
+	"errors"
 	"strconv"
+	"time"
 )
 
 type FileSystem struct{}
@@ -17,6 +19,9 @@ type MountInfo struct {
 	SizeKB    uint64 `json:"kb_size"`
 	MountedOn string `json:"mounted_on"`
 }
+
+var timeout = 2 * time.Second
+var ErrTimeoutExceeded = errors.New("timeout exceeded")
 
 const name = "filesystem"
 
@@ -44,5 +49,24 @@ func (fs *FileSystem) Collect() (interface{}, error) {
 }
 
 func (fs *FileSystem) Get() ([]MountInfo, error) {
-	return getFileSystemInfo()
+	mountInfoChan := make(chan []MountInfo, 1)
+	errChan := make(chan error, 1)
+
+	go func() {
+		mountInfo, err := getFileSystemInfo()
+		if err == nil {
+			mountInfoChan <- mountInfo
+		} else {
+			errChan <- err
+		}
+	}()
+
+	select {
+	case mountInfo := <-mountInfoChan:
+		return mountInfo, nil
+	case err := <-errChan:
+		return nil, err
+	case <-time.After(timeout):
+		return nil, ErrTimeoutExceeded
+	}
 }

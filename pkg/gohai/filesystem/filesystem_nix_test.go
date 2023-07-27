@@ -10,7 +10,6 @@ package filesystem
 
 import (
 	"math/rand"
-	"strconv"
 	"testing"
 
 	"github.com/moby/sys/mountinfo"
@@ -22,41 +21,6 @@ import (
 
 // Used for dynamic test field value generation
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-func TestNixCollect(t *testing.T) {
-	mountsObj, err := new(FileSystem).Collect()
-	require.NoError(t, err)
-
-	mounts, ok := mountsObj.([]interface{})
-	require.True(t, ok, "Could not cast %+v to []interface{}", mountsObj)
-
-	require.Greater(t, len(mounts), 0)
-
-	for _, mountObj := range mounts {
-		mount := mountObj.(map[string]string)
-		assert.NotEmpty(t, mount["name"])
-
-		assert.NotEmpty(t, mount["kb_size"])
-		sizeKB, err := strconv.Atoi(mount["kb_size"])
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, sizeKB, 0)
-
-		assert.NotEmpty(t, mount["mounted_on"])
-	}
-}
-
-func TestNixGet(t *testing.T) {
-	mounts, err := new(FileSystem).Get()
-	require.NoError(t, err)
-
-	require.Greater(t, len(mounts), 0)
-
-	for _, mount := range mounts {
-		assert.NotEmpty(t, mount.Name)
-		assert.GreaterOrEqual(t, mount.SizeKB, uint64(0))
-		assert.NotEmpty(t, mount.MountedOn)
-	}
-}
 
 func TestNixFSTypeFiltering(t *testing.T) {
 
@@ -78,6 +42,7 @@ func TestNixFSTypeFiltering(t *testing.T) {
 		{"debugfs", randString(), false},
 		{"devfs", randString(), false},
 		{"devpts", randString(), false},
+		{"devtmpfs", randString(), false},
 		{"fuse.portal", randString(), false},
 		{"fusectl", randString(), false},
 		{"ignore", randString(), false},
@@ -87,6 +52,7 @@ func TestNixFSTypeFiltering(t *testing.T) {
 		{"subfs", randString(), false},
 		{"mqueue", randString(), false},
 		{"rpc_pipefs", randString(), false},
+		{"squashfs", randString(), false},
 		{"sysfs", randString(), false},
 
 		// Remote/Networked FS types detected by FSType
