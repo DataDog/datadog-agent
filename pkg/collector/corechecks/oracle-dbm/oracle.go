@@ -91,8 +91,7 @@ func handleServiceCheck(c *Check, err error) {
 		status = servicecheck.ServiceCheckOK
 	} else {
 		status = servicecheck.ServiceCheckCritical
-		message = fmt.Sprintf("%s", err)
-		log.Errorf("connect error %s", message)
+		log.Errorf("failed to connect: %s", err)
 	}
 	sender.ServiceCheck("oracle.can_connect", status, "", c.tags, message)
 	sender.Commit()
