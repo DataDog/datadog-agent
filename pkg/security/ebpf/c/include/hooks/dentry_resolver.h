@@ -93,7 +93,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     return DR_MAX_ITERATION_DEPTH;
 }
 
-void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, int dr_type, void *callbacks_map) {
+void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, int dr_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall)
         return;
@@ -110,20 +110,27 @@ void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, int dr_type,
     }
 
     if (syscall->resolver.callback >= 0) {
-        bpf_tail_call_compat(ctx, callbacks_map, syscall->resolver.callback);
+        switch (dr_type) {
+        case DR_KPROBE:
+            bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_callbacks, syscall->resolver.callback);
+            break;
+        case DR_TRACEPOINT:
+            bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_callbacks, syscall->resolver.callback);
+            break;
+        }
     }
 }
 
 // fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_kern")
 int kprobe_dentry_resolver_kern(struct pt_regs *ctx) {
-    dentry_resolver_kern(ctx, DR_KPROBE, &dentry_resolver_kprobe_callbacks);
+    dentry_resolver_kern(ctx, DR_KPROBE);
     return 0;
 }
 
 SEC("tracepoint/dentry_resolver_kern")
 int tracepoint_dentry_resolver_kern(void *ctx) {
-    dentry_resolver_kern(ctx, DR_TRACEPOINT, &dentry_resolver_tracepoint_callbacks);
+    dentry_resolver_kern(ctx, DR_TRACEPOINT);
     return 0;
 }
 
