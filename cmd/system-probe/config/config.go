@@ -154,9 +154,11 @@ func load() (*Config, error) {
 	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
 		c.EnabledModules[EBPFModule] = struct{}{}
 	}
-	if cfg.GetBool("system_probe_config.language_detection.enabled") {
+	fmt.Println("language_detection.enabled:", cfg.GetBool("language_detection.enabled"))
+	if cfg.GetBool("language_detection.enabled") {
 		c.EnabledModules[LanguageDetectionModule] = struct{}{}
 	}
+	fmt.Println("enabledModules:", c.EnabledModules)
 
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function

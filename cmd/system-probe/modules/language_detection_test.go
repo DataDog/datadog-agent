@@ -1,10 +1,3 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
-//go:build linux
-
 package modules
 
 import (
@@ -41,24 +34,24 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 
 	detectLanguage(rec, httptest.NewRequest(http.MethodGet, "/", bytes.NewReader(reqBytes)))
 
-	resBody := rec.Result().Body
-	defer resBody.Close()
-
-	resBytes, err := io.ReadAll(resBody)
+	resBytes, err := io.ReadAll(rec.Result().Body)
 	require.NoError(t, err)
 
 	var detectLanguageResponse languageDetectionProto.DetectLanguageResponse
 	err = proto.Unmarshal(resBytes, &detectLanguageResponse)
 	require.NoError(t, err)
 
-	assert.True(t, proto.Equal(
-		&languageDetectionProto.DetectLanguageResponse{
-			Languages: []*languageDetectionProto.Language{{
-				Name:    string(mockGoLanguage.Name),
-				Version: mockGoLanguage.Version,
-			}}},
-		&detectLanguageResponse,
-	))
+	// Hacky workaround for the fact that EqualExportedValues doesn't support top level pointer equality.
+	type box struct {
+		r *languageDetectionProto.DetectLanguageResponse
+	}
+
+	assert.EqualExportedValues(t, box{&languageDetectionProto.DetectLanguageResponse{
+		Languages: []*languageDetectionProto.Language{{
+			Name:    string(mockGoLanguage.Name),
+			Version: mockGoLanguage.Version,
+		}}},
+	}, box{&detectLanguageResponse})
 }
 
 type mockDetector struct {
