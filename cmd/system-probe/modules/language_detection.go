@@ -37,7 +37,7 @@ func (l languageDetectionModule) GetStats() map[string]interface{} {
 }
 
 func (l languageDetectionModule) Register(router *module.Router) error {
-	router.HandleFunc("/lang/detect", detectLanguage)
+	router.HandleFunc("/detect", detectLanguage)
 	return nil
 }
 
