@@ -10,7 +10,7 @@ package otlp
 import (
 	"context"
 	"fmt"
-
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
@@ -28,7 +28,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/logsagentexporter"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -61,12 +60,17 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 		errs = append(errs, err)
 	}
 
-	exporters, err := exporter.MakeFactoryMap(
+	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s),
 		loggingexporter.NewFactory(),
-		logsagentexporter.NewFactory(logsAgentChannel),
-	)
+	}
+
+	if logsAgentChannel != nil {
+		exporterFactories = append(exporterFactories, logsagentexporter.NewFactory(logsAgentChannel))
+	}
+
+	exporters, err := exporter.MakeFactoryMap(exporterFactories...)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -211,7 +215,7 @@ func (p *Pipeline) Stop() {
 
 // BuildAndStart builds and starts an OTLP pipeline
 func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
-	p, err := NewPipelineFromAgentConfig(cfg, s, logsAgentChannel, false)
+	p, err := NewPipelineFromAgentConfig(cfg, s, logsAgentChannel)
 	if err != nil {
 		return nil, err
 	}
@@ -225,23 +229,14 @@ func BuildAndStart(ctx context.Context, cfg config.Config, s serializer.MetricSe
 	return p, nil
 }
 
-func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message, serverless bool) (*Pipeline, error) {
+func NewPipelineFromAgentConfig(cfg config.Config, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()
 	}
-	if serverless {
-		if HasLogsSection(cfg) {
-			pipelineError.Store(fmt.Errorf("Cannot enable OTLP log ingestion for serverless"))
-			return nil, pipelineError.Load()
-		}
-		pcfg.LogsEnabled = false
-	}
-
-	if pcfg.LogsEnabled && logsAgentChannel == nil {
-		pipelineError.Store(fmt.Errorf("OTLP logs is enabled but logs agent is not enabled"))
-		return nil, pipelineError.Load()
+	if err := checkAndUpdateCfg(cfg, &pcfg, logsAgentChannel); err != nil {
+		return nil, err
 	}
 
 	p, err := NewPipeline(pcfg, s, logsAgentChannel)
