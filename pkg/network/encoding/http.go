@@ -70,7 +70,10 @@ func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *ht
 
 			for code, stats := range stats.Data {
 				httpStatsBuilder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
-					w.SetKey(int32(code))
+
+					if code != 0 {
+						w.SetKey(int32(code))
+					}
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
 						if latencies := stats.Latencies; latencies != nil {
