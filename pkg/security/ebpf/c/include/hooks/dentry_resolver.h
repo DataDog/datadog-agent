@@ -93,36 +93,37 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     return DR_MAX_ITERATION_DEPTH;
 }
 
-#define dentry_resolver_kern(ctx, progs_map, callbacks_map, dentry_resolver_kern_key)                                  \
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);                                                         \
-    if (!syscall)                                                                                                      \
-        return 0;                                                                                                      \
-                                                                                                                       \
-    syscall->resolver.iteration++;                                                                                     \
-    syscall->resolver.ret = resolve_dentry_tail_call(ctx, &syscall->resolver);                                         \
-                                                                                                                       \
-    if (syscall->resolver.ret > 0) {                                                                                   \
-        if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {                        \
-            bpf_tail_call_compat(ctx, progs_map, dentry_resolver_kern_key);                                            \
-        }                                                                                                              \
-                                                                                                                       \
-        syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);                           \
-    }                                                                                                                  \
-                                                                                                                       \
-    if (syscall->resolver.callback >= 0) {                                                                             \
-        bpf_tail_call_compat(ctx, callbacks_map, syscall->resolver.callback);                                          \
-    }                                                                                                                  \
+void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, int dr_type, void *callbacks_map) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
+    if (!syscall)
+        return;
+
+    syscall->resolver.iteration++;
+    syscall->resolver.ret = resolve_dentry_tail_call(ctx, &syscall->resolver);
+
+    if (syscall->resolver.ret > 0) {
+        if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {
+            tail_call_dr_progs(ctx, dr_type, DR_DENTRY_RESOLVER_KERN_KEY);
+        }
+
+        syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);
+    }
+
+    if (syscall->resolver.callback >= 0) {
+        bpf_tail_call_compat(ctx, callbacks_map, syscall->resolver.callback);
+    }
+}
 
 // fentry blocked by: tail call
 SEC("kprobe/dentry_resolver_kern")
 int kprobe_dentry_resolver_kern(struct pt_regs *ctx) {
-    dentry_resolver_kern(ctx, &dentry_resolver_kprobe_progs, &dentry_resolver_kprobe_callbacks, DR_DENTRY_RESOLVER_KERN_KEY);
+    dentry_resolver_kern(ctx, DR_KPROBE, &dentry_resolver_kprobe_callbacks);
     return 0;
 }
 
 SEC("tracepoint/dentry_resolver_kern")
 int tracepoint_dentry_resolver_kern(void *ctx) {
-    dentry_resolver_kern(ctx, &dentry_resolver_tracepoint_progs, &dentry_resolver_tracepoint_callbacks, DR_DENTRY_RESOLVER_KERN_KEY);
+    dentry_resolver_kern(ctx, DR_TRACEPOINT, &dentry_resolver_tracepoint_callbacks);
     return 0;
 }
 
@@ -192,7 +193,7 @@ int kprobe_dentry_resolver_erpc_write_user(struct pt_regs *ctx) {
         }
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
-        dentry_resolver_progs_op(ctx, DR_KPROBE, DR_ERPC_KEY);
+        tail_call_dr_progs(ctx, DR_KPROBE, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
@@ -274,7 +275,7 @@ int kprobe_dentry_resolver_erpc_mmap(struct pt_regs *ctx) {
         }
     }
     if (state->iteration < DR_MAX_TAIL_CALL) {
-        dentry_resolver_progs_op(ctx, DR_KPROBE, DR_ERPC_KEY);
+        tail_call_dr_progs(ctx, DR_KPROBE, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
     }
 
@@ -486,7 +487,7 @@ int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
-    dentry_resolver_progs_op(ctx, DR_KPROBE, DR_DENTRY_RESOLVER_KERN_KEY);
+    tail_call_dr_progs(ctx, DR_KPROBE, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 
@@ -501,7 +502,7 @@ int tracepoint_dentry_resolver_ad_filter(void *ctx) {
         syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
     }
 
-    dentry_resolver_progs_op(ctx, DR_TRACEPOINT, DR_DENTRY_RESOLVER_KERN_KEY);
+    tail_call_dr_progs(ctx, DR_TRACEPOINT, DR_DENTRY_RESOLVER_KERN_KEY);
     return 0;
 }
 

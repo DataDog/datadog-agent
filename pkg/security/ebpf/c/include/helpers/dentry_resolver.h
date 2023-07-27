@@ -6,7 +6,7 @@
 
 #include "buffer_selector.h"
 
-int __attribute__((always_inline)) dentry_resolver_progs_op(void *ctx, int dr_type, int key) {
+int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, int dr_type, int key) {
     switch (dr_type) {
     case DR_KPROBE:
         bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_progs, key);
@@ -19,7 +19,7 @@ int __attribute__((always_inline)) dentry_resolver_progs_op(void *ctx, int dr_ty
 }
 
 int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
-    return dentry_resolver_progs_op(ctx, dr_type, DR_AD_FILTER_KEY);
+    return tail_call_dr_progs(ctx, dr_type, DR_AD_FILTER_KEY);
 }
 
 int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {
@@ -81,7 +81,7 @@ int __attribute__((always_inline)) handle_dr_request(struct pt_regs *ctx, void *
         goto exit;
     }
 
-    dentry_resolver_progs_op(ctx, DR_KPROBE, dr_erpc_key);
+    tail_call_dr_progs(ctx, DR_KPROBE, dr_erpc_key);
 
 exit:
     monitor_resolution_err(resolution_err);
