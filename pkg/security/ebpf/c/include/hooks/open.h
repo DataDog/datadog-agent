@@ -233,8 +233,9 @@ SYSCALL_COMPAT_KRETPROBE(openat) {
     return kprobe_sys_open_ret(ctx);
 }
 
-SYSCALL_KRETPROBE(openat2) {
-    return kprobe_sys_open_ret(ctx);
+HOOK_SYSCALL_EXIT(openat2) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
 SEC("tracepoint/handle_sys_open_exit")
