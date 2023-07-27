@@ -13,6 +13,8 @@ include:
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
+  - /.gitlab/kitchen_tests_upload.yml
+  - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
   - /.gitlab/container_scan.yml
@@ -68,6 +70,7 @@ stages:
   - package_build
   - kitchen_deploy
   - kitchen_testing
+  - kitchen_tests_upload
   - pkg_metrics
   - container_build
   - container_scan
@@ -80,6 +83,7 @@ stages:
   - choco_build
   - choco_deploy
   - internal_image_deploy
+  - install_script_testing 
   - e2e
   - e2e_test_junit_upload
   - kitchen_cleanup
@@ -163,7 +167,7 @@ variables:
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v18317357-9fd9ee0
   DATADOG_AGENT_BUILDERS: v16852259-65c480c
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: efed150be993
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f9dc8c42d94e
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
