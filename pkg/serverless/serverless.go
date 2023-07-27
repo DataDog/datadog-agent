@@ -50,8 +50,6 @@ const (
 	Invoke RuntimeEvent = "INVOKE"
 	// Shutdown event
 	Shutdown RuntimeEvent = "SHUTDOWN"
-	// Failure event
-	Failure RuntimeEvent = "FAILURE"
 
 	// Timeout is one of the possible ShutdownReasons
 	Timeout ShutdownReason = "timeout"
@@ -129,7 +127,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	if payload.EventType == Invoke {
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
-	} else if payload.EventType == Shutdown || payload.EventType == Failure {
+	} else if payload.EventType == Shutdown {
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {

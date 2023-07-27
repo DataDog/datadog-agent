@@ -14,18 +14,18 @@ var signalProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFFuncName: "kretprobe_check_kill_permission",
+			EBPFFuncName: "rethook_check_kill_permission",
 		},
 	},
 }
 
-func getSignalProbes() []*manager.Probe {
+func getSignalProbes(fentry bool) []*manager.Probe {
 	signalProbes = append(signalProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "kill",
-	}, Entry)...)
+	}, fentry, Entry|SupportFentry)...)
 	signalProbes = append(signalProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,

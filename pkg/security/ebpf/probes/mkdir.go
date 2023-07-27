@@ -31,18 +31,18 @@ var mkdirProbes = []*manager.Probe{
 	},
 }
 
-func getMkdirProbes() []*manager.Probe {
+func getMkdirProbes(fentry bool) []*manager.Probe {
 	mkdirProbes = append(mkdirProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mkdir",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	mkdirProbes = append(mkdirProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mkdirat",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	return mkdirProbes
 }

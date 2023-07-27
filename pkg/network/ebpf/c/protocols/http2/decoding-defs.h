@@ -18,8 +18,7 @@
 #define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 3
 
 // Maximum size for the path buffer.
-// NOTE: we may need to change the max size.
-#define HTTP2_MAX_PATH_LEN 30
+#define HTTP2_MAX_PATH_LEN 160
 
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
@@ -75,7 +74,7 @@ typedef struct {
 
 typedef struct {
     conn_tuple_t tup;
-    __u32  stream_id;
+    __u32 stream_id;
 } http2_stream_key_t;
 
 typedef struct {

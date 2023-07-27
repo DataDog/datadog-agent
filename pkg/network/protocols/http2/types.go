@@ -13,6 +13,10 @@ package http2
 */
 import "C"
 
+const (
+	maxHTTP2Path = C.HTTP2_MAX_PATH_LEN
+)
+
 type connTuple = C.conn_tuple_t
 type EbpfTx C.http2_stream_t
 

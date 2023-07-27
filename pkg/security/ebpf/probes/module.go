@@ -49,24 +49,24 @@ var moduleProbes = []*manager.Probe{
 	},
 }
 
-func getModuleProbes() []*manager.Probe {
+func getModuleProbes(fentry bool) []*manager.Probe {
 	moduleProbes = append(moduleProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "init_module",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	moduleProbes = append(moduleProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "finit_module",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	moduleProbes = append(moduleProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "delete_module",
-	}, EntryAndExit)...)
+	}, fentry, EntryAndExit|SupportFentry)...)
 	return moduleProbes
 }

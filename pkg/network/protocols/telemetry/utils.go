@@ -32,3 +32,15 @@ func splitTagsAndOptions(all []string) (tags, opts sets.String) {
 
 	return
 }
+
+// Example: given "usm.http.hits"
+// The return value will be: "usm.http" and "hits"
+func splitName(m metric) (namespace, name string) {
+	fullName := m.base().name
+	separatorPos := strings.LastIndex(fullName, ".")
+	if separatorPos < 0 {
+		return "", fullName
+	}
+
+	return fullName[:separatorPos], fullName[separatorPos+1:]
+}
