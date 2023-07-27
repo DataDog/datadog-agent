@@ -58,7 +58,7 @@ const kubeletConfigSchema = `{
 		"tlsCertFile": {
 			"$ref": "#/$defs/K8sCertFileMeta"
 		},
-		"privateKeyFile": {
+		"tlsPrivateKeyFile": {
 			"$ref": "#/$defs/K8sKeyFileMeta"
 		},
 		"rotateCertificates": {
@@ -80,7 +80,7 @@ const kubeletConfigSchema = `{
 			"type": "object"
 		}
 	},
-	"additionalProperties": true,
+	"additionalProperties": false,
 	"type": "object"
 }`
 
