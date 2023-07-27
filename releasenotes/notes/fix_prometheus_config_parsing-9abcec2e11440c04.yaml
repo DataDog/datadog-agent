@@ -9,6 +9,6 @@
 fixes:
   - |
     Fix a ``datadog.yaml`` configuration file parsing issue.
-    When the ``datadog.yaml`` configuration file contained a complex configuration under ``prometheus.checks[*].configurations[*].metrics``, a parsing error could lead to not have the openmetrics check properly scheduled. Instead, the agent logged the following error::
+    When the ``datadog.yaml`` configuration file contained a complex configuration under ``prometheus.checks[*].configurations[*].metrics``, a parsing error could lead to an OpenMetrics check not being properly scheduled. Instead, the Agent logged the following error::
 
       2023-07-26 14:09:23 UTC | CORE | WARN | (pkg/autodiscovery/common/utils/prometheus.go:77 in buildInstances) | Error processing prometheus configuration: json: unsupported type: map[interface {}]interface {}
