@@ -293,7 +293,7 @@ int fentry_dr_unshare_mntns_stage_one_callback(ctx_t *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE);
+    resolve_dentry(ctx, DR_FENTRY);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_UNSHARE_MNTNS);
