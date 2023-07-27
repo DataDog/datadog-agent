@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -51,7 +52,7 @@ func GetPayload(ctx context.Context, hostnameData hostname.Data) *Payload {
 	p := &Payload{
 		Os:            osName,
 		AgentFlavor:   flavor.GetFlavor(),
-		PythonVersion: GetPythonVersion(),
+		PythonVersion: python.GetPythonInfo(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      GetHostTags(ctx, false),
@@ -88,17 +89,6 @@ func GetMeta(ctx context.Context, hostnameData hostname.Data) *Meta {
 		return x.(*Meta)
 	}
 	return getMeta(ctx, hostnameData)
-}
-
-// GetPythonVersion returns the version string as provided by the embedded Python
-// interpreter.
-func GetPythonVersion() string {
-	// retrieve the Python version from the Agent cache
-	if x, found := cache.Cache.Get(cache.BuildAgentKey("pythonVersion")); found {
-		return x.(string)
-	}
-
-	return "n/a"
 }
 
 // getMeta grabs the information and refreshes the cache
