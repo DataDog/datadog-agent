@@ -224,8 +224,8 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		IsError:            false,
 		RequestID:          "test-request-id",
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
-		Coldstart: true,
-		ProactiveInit: false,
+		Coldstart:          true,
+		ProactiveInit:      false,
 	}
 
 	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
@@ -270,8 +270,8 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 		IsError:            false,
 		RequestID:          "test-request-id",
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
-		Coldstart: false,
-		ProactiveInit: true,
+		Coldstart:          false,
+		ProactiveInit:      true,
 	}
 
 	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
