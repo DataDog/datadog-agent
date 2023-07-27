@@ -59,19 +59,8 @@ func buildInstances(pc *types.PrometheusCheck, annotations map[string]string, na
 				//     and this will be problematic as this type cannot be encoded by a JSON encoder
 				//
 				// So, let’s convert all `map[interface{}]interface{}` to `map[string]interface{}`
-				for idx, metric := range instanceValues.Metrics {
-					if m, ok := metric.(map[interface{}]interface{}); ok {
-						newMetric := make(map[string]interface{})
-						for k, v := range m {
-							if s, ok := k.(string); ok {
-								newMetric[s] = v
-							} else {
-								log.Errorf("Error processing prometheus configuration: map keys should be string in %#v", metric)
-							}
-						}
-						instanceValues.Metrics[idx] = newMetric
-					}
-				}
+				instanceValues.Metrics = convertMap(instanceValues.Metrics).([]interface{})
+				instanceValues.IgnoreMetricsByLabels = convertMap(instanceValues.IgnoreMetricsByLabels).(map[string]interface{})
 				instanceJSON, err := json.Marshal(instanceValues)
 				if err != nil {
 					log.Warnf("Error processing prometheus configuration: %v", err)
@@ -84,4 +73,35 @@ func buildInstances(pc *types.PrometheusCheck, annotations map[string]string, na
 	}
 
 	return instances, false
+}
+
+func convertMap(x interface{}) interface{} {
+	switch elem := x.(type) {
+
+	case []interface{}:
+		for i, v := range elem {
+			elem[i] = convertMap(v)
+		}
+		return elem
+
+	case map[string]interface{}:
+		for k, v := range elem {
+			elem[k] = convertMap(v)
+		}
+		return elem
+
+	case map[interface{}]interface{}:
+		out := make(map[string]interface{})
+		for k, v := range elem {
+			if s, ok := k.(string); ok {
+				out[s] = convertMap(v)
+			} else {
+				log.Errorf("Error processing prometheus configuration: map keys should be strings in %#v", elem)
+			}
+		}
+		return out
+
+	default:
+		return elem
+	}
 }
