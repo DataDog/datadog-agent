@@ -5,6 +5,10 @@
 
 package host
 
+import (
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+)
+
 type systemStats struct {
 	CPUCores  int32     `json:"cpuCores"`
 	Machine   string    `json:"machine"`
@@ -42,12 +46,6 @@ type LogsMeta struct {
 	AutoMultilineEnabled bool   `json:"auto_multi_line_detection_enabled"`
 }
 
-// Tags contains the detected host tags
-type Tags struct {
-	System              []string `json:"system"`
-	GoogleCloudPlatform []string `json:"google cloud platform,omitempty"`
-}
-
 // InstallMethod is metadata about the agent's installation
 type InstallMethod struct {
 	Tool             *string `json:"tool"`
@@ -69,16 +67,16 @@ type OtlpMeta struct {
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Os            string            `json:"os"`
-	AgentFlavor   string            `json:"agent-flavor"`
-	PythonVersion string            `json:"python"`
-	SystemStats   *systemStats      `json:"systemStats"`
-	Meta          *Meta             `json:"meta"`
-	HostTags      *Tags             `json:"host-tags"`
-	ContainerMeta map[string]string `json:"container-meta,omitempty"`
-	NetworkMeta   *NetworkMeta      `json:"network"`
-	LogsMeta      *LogsMeta         `json:"logs"`
-	InstallMethod *InstallMethod    `json:"install-method"`
-	ProxyMeta     *ProxyMeta        `json:"proxy-info"`
-	OtlpMeta      *OtlpMeta         `json:"otlp"`
+	Os            string                  `json:"os"`
+	AgentFlavor   string                  `json:"agent-flavor"`
+	PythonVersion string                  `json:"python"`
+	SystemStats   *systemStats            `json:"systemStats"`
+	Meta          *Meta                   `json:"meta"`
+	HostTags      *hostMetadataUtils.Tags `json:"host-tags"`
+	ContainerMeta map[string]string       `json:"container-meta,omitempty"`
+	NetworkMeta   *NetworkMeta            `json:"network"`
+	LogsMeta      *LogsMeta               `json:"logs"`
+	InstallMethod *InstallMethod          `json:"install-method"`
+	ProxyMeta     *ProxyMeta              `json:"proxy-info"`
+	OtlpMeta      *OtlpMeta               `json:"otlp"`
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package host
+package utils
 
 import (
 	"context"
@@ -25,17 +25,47 @@ import (
 )
 
 var (
-	retrySleepTime              = time.Second
+	retrySleepTime              = 1 * time.Second
 	getProvidersDefinitionsFunc = getProvidersDefinitions
+
+	tagsCacheKey = cache.BuildAgentKey("host", "utils", "hostTags")
 )
+
+// Tags contains the detected host tags
+type Tags struct {
+	System              []string `json:"system"`
+	GoogleCloudPlatform []string `json:"google cloud platform,omitempty"`
+}
 
 type providerDef struct {
 	retries int
 	getTags func(context.Context) ([]string, error)
 }
 
-// this is a "low-tech" version of tagger/utils/taglist.go
-// but host tags are handled separately here for now
+func getProvidersDefinitions(conf config.ConfigReader) map[string]*providerDef {
+	providers := make(map[string]*providerDef)
+
+	if conf.GetBool("collect_gce_tags") {
+		providers["gce"] = &providerDef{1, gce.GetTags}
+	}
+
+	if conf.GetBool("collect_ec2_tags") {
+		// WARNING: if this config is enabled on a non-ec2 host, then its
+		// retries may time out, causing a 3s delay
+		providers["ec2"] = &providerDef{10, ec2.GetTags}
+	}
+
+	if config.IsFeaturePresent(config.Kubernetes) {
+		providers["kubernetes"] = &providerDef{10, k8s.GetTags}
+	}
+
+	if config.IsFeaturePresent(config.Docker) {
+		providers["docker"] = &providerDef{1, docker.GetTags}
+	}
+	return providers
+}
+
+// this is a "low-tech" version of tagger/utils/taglist.go but host tags are handled separately here for now
 func appendAndSplitTags(target []string, tags []string, splits map[string]string) []string {
 	if len(splits) == 0 {
 		return append(target, tags...)
@@ -60,7 +90,6 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 			target = append(target, fmt.Sprintf("%s:%s", name, elt))
 		}
 	}
-
 	return target
 }
 
@@ -69,47 +98,45 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 // - First one controlled by `cached` boolean, used for performances (cache all tags)
 // - Second one per provider, to avoid missing host tags for 30 minutes when a component fails (for instance, Cluster Agent).
 // This second layer is always on.
-func GetHostTags(ctx context.Context, cached bool) *Tags {
-	key := buildKey("hostTags")
+func GetHostTags(ctx context.Context, cached bool, conf config.ConfigReader) *Tags {
 	if cached {
-		if x, found := cache.Cache.Get(key); found {
+		if x, found := cache.Cache.Get(tagsCacheKey); found {
 			tags := x.(*Tags)
 			return tags
 		}
 	}
 
-	splits := config.Datadog.GetStringMapString("tag_value_split_separator")
+	splits := conf.GetStringMapString("tag_value_split_separator")
 	appendToHostTags := func(old, new []string) []string {
 		return appendAndSplitTags(old, new, splits)
 	}
 
-	rawHostTags := configUtils.GetConfiguredTags(config.Datadog, false)
-	hostTags := make([]string, 0, len(rawHostTags))
-	gceTags := []string{}
-	hostTags = appendToHostTags(hostTags, rawHostTags)
+	configTags := configUtils.GetConfiguredTags(conf, false)
+	hostTags := make([]string, 0, len(configTags))
+	hostTags = appendToHostTags(hostTags, configTags)
 
-	env := config.Datadog.GetString("env")
+	env := conf.GetString("env")
 	if env != "" {
 		hostTags = appendToHostTags(hostTags, []string{"env:" + env})
 	}
 
 	hname, _ := hostname.Get(ctx)
 	clusterName := clustername.GetClusterNameTagValue(ctx, hname)
-	if len(clusterName) != 0 {
+	if clusterName != "" {
 		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
-		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+		if !conf.GetBool("disable_cluster_name_tag_key") {
 			clusterNameTags = append(clusterNameTags, "cluster_name:"+clusterName)
 			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
 		}
 		hostTags = appendToHostTags(hostTags, clusterNameTags)
 	}
 
-	providers := getProvidersDefinitionsFunc()
-
+	gceTags := []string{}
+	providers := getProvidersDefinitionsFunc(conf)
 	for {
 		for name, provider := range providers {
 			provider.retries--
-			providerCacheKey := buildKey("provider-" + name)
+			providerCacheKey := cache.BuildAgentKey("provider-" + name)
 			tags, err := provider.getTags(ctx)
 			if err == nil {
 				cache.Cache.Set(providerCacheKey, tags, cache.NoExpiration)
@@ -154,30 +181,6 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 		GoogleCloudPlatform: gceTags,
 	}
 
-	cache.Cache.Set(key, t, cache.NoExpiration)
+	cache.Cache.Set(tagsCacheKey, t, cache.NoExpiration)
 	return t
-}
-
-func getProvidersDefinitions() map[string]*providerDef {
-	providers := make(map[string]*providerDef)
-
-	if config.Datadog.GetBool("collect_gce_tags") {
-		providers["gce"] = &providerDef{1, gce.GetTags}
-	}
-
-	if config.Datadog.GetBool("collect_ec2_tags") {
-		// WARNING: if this config is enabled on a non-ec2 host, then its
-		// retries may time out, causing a 3s delay
-		providers["ec2"] = &providerDef{10, ec2.GetTags}
-	}
-
-	if config.IsFeaturePresent(config.Kubernetes) {
-		providers["kubernetes"] = &providerDef{10, k8s.GetTags}
-	}
-
-	if config.IsFeaturePresent(config.Docker) {
-		providers["docker"] = &providerDef{1, docker.GetTags}
-	}
-
-	return providers
 }
