@@ -25,19 +25,19 @@ import (
 type mockLogLevelRuntimeSettings struct {
 	expectedError error
 	logLevel      string
-	Source        settings.SettingSource
+	source        settings.Source
 }
 
 func (m *mockLogLevelRuntimeSettings) Get() (interface{}, error) {
 	return m.logLevel, nil
 }
 
-func (m *mockLogLevelRuntimeSettings) Set(v interface{}, source settings.SettingSource) error {
+func (m *mockLogLevelRuntimeSettings) Set(v interface{}, source settings.Source) error {
 	if m.expectedError != nil {
 		return m.expectedError
 	}
 	m.logLevel = v.(string)
-	m.Source = source
+	m.source = source
 	return nil
 }
 
@@ -53,13 +53,13 @@ func (m *mockLogLevelRuntimeSettings) Hidden() bool {
 	return true
 }
 
-func (m *mockLogLevelRuntimeSettings) GetSource() settings.SettingSource {
-	return m.Source
+func (m *mockLogLevelRuntimeSettings) GetSource() settings.Source {
+	return m.source
 }
 
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
-	mockSettings := &mockLogLevelRuntimeSettings{logLevel: "info", Source: settings.SettingSourceDefault}
+	mockSettings := &mockLogLevelRuntimeSettings{logLevel: "info", source: settings.SourceDefault}
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
@@ -80,7 +80,7 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	// -----------------
 	// Test scenario #1: Agent Flare request by RC and the log level hadn't been changed by the user before
-	assert.Equal(t, settings.SettingSourceDefault, mockSettings.Source)
+	assert.Equal(t, settings.SourceDefault, mockSettings.source)
 
 	// Set log level to debug
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
@@ -88,7 +88,7 @@ func TestAgentConfigCallback(t *testing.T) {
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	})
 	assert.Equal(t, "debug", mockSettings.logLevel)
-	assert.Equal(t, settings.SettingSourceRC, mockSettings.Source)
+	assert.Equal(t, settings.SourceRC, mockSettings.source)
 
 	// Send an empty log level request, as RC would at the end of the Agent Flare request
 	// Should fallback to the default level
@@ -97,11 +97,11 @@ func TestAgentConfigCallback(t *testing.T) {
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	})
 	assert.Equal(t, "info", mockSettings.logLevel)
-	assert.Equal(t, settings.SettingSourceDefault, mockSettings.Source)
+	assert.Equal(t, settings.SourceDefault, mockSettings.source)
 
 	// -----------------
 	// Test scenario #2: log level was changed by the user BEFORE Agent Flare request
-	mockSettings.Source = settings.SettingSourceCLI
+	mockSettings.source = settings.SourceCLI
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
@@ -109,23 +109,23 @@ func TestAgentConfigCallback(t *testing.T) {
 	// Log level should still be "info" because it was enforced by the user
 	assert.Equal(t, "info", mockSettings.logLevel)
 	// Source should still be CLI as it has priority over RC
-	assert.Equal(t, settings.SettingSourceCLI, mockSettings.Source)
+	assert.Equal(t, settings.SourceCLI, mockSettings.source)
 
 	// -----------------
 	// Test scenario #3: log level is changed by the user DURING the Agent Flare request
-	mockSettings.Source = settings.SettingSourceDefault
+	mockSettings.source = settings.SourceDefault
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	})
 	assert.Equal(t, "debug", mockSettings.logLevel)
-	assert.Equal(t, settings.SettingSourceRC, mockSettings.Source)
+	assert.Equal(t, settings.SourceRC, mockSettings.source)
 
-	mockSettings.Source = settings.SettingSourceCLI
+	mockSettings.source = settings.SourceCLI
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	})
 	assert.Equal(t, "debug", mockSettings.logLevel)
-	assert.Equal(t, settings.SettingSourceCLI, mockSettings.Source)
+	assert.Equal(t, settings.SourceCLI, mockSettings.source)
 }

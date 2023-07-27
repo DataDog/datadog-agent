@@ -22,7 +22,7 @@ const (
 // ActivityDumpRuntimeSetting wraps operations to change activity dumps settings at runtime
 type ActivityDumpRuntimeSetting struct {
 	ConfigKey string
-	Source    SettingSource
+	source    Source
 }
 
 // Description returns the runtime setting's description
@@ -52,7 +52,7 @@ func (l *ActivityDumpRuntimeSetting) setMaxDumpSize(v interface{}) {
 }
 
 // Set changes the value of the runtime setting
-func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source SettingSource) error {
+func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source Source) error {
 	val := v.(string)
 	log.Infof("ActivityDumpRuntimeSetting Set %s = %s\n", l.ConfigKey, val)
 
@@ -62,13 +62,13 @@ func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source SettingSource) er
 	default:
 		return fmt.Errorf("Field %s does not exist", l.ConfigKey)
 	}
-	l.Source = source
+	l.source = source
 
 	// we trigger a new inventory metadata payload since the configuration was updated by the user.
 	inventories.Refresh()
 	return nil
 }
 
-func (l *ActivityDumpRuntimeSetting) GetSource() SettingSource {
-	return l.Source
+func (l *ActivityDumpRuntimeSetting) GetSource() Source {
+	return l.source
 }
