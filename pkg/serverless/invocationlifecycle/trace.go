@@ -113,8 +113,10 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 	}
 	executionSpan.Meta["request_id"] = endDetails.RequestID
 	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.Coldstart)
-	executionSpan.Meta["proactive_initialization"] = fmt.Sprintf("%t", endDetails.ProactiveInit)
-		
+	if endDetails.ProactiveInit {
+		executionSpan.Meta["proactive_initialization"] = fmt.Sprintf("%t", endDetails.ProactiveInit)
+	}
+
 
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
