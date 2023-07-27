@@ -19,86 +19,6 @@ import (
 	"testing"
 )
 
-// Test Utilities
-func newTestEvaluationSet(tagValues []eval.RuleSetTagValue) (*EvaluationSet, error) {
-	var ruleSetsToInclude []*RuleSet
-	if len(tagValues) > 0 {
-		for _, tagValue := range tagValues {
-			rs := newRuleSet()
-			rs.setRuleSetTagValue(tagValue)
-			ruleSetsToInclude = append(ruleSetsToInclude, rs)
-		}
-	} else {
-		rs := newRuleSet()
-		ruleSetsToInclude = append(ruleSetsToInclude, rs)
-	}
-
-	return NewEvaluationSet(ruleSetsToInclude)
-}
-
-func loadPolicyIntoProbeEvaluationRuleSet(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*EvaluationSet, *multierror.Error) {
-	tmpDir := t.TempDir()
-
-	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
-		t.Fatal(err)
-	}
-
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	loader := NewPolicyLoader(provider)
-
-	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{})
-	return evaluationSet, evaluationSet.LoadPolicies(loader, policyOpts)
-}
-
-func loadPolicySetup(t *testing.T, testPolicy *PolicyDef, tagValues []eval.RuleSetTagValue) (*PolicyLoader, *EvaluationSet) {
-	tmpDir := t.TempDir()
-
-	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
-		t.Fatal(err)
-	}
-
-	provider, err := NewPoliciesDirProvider(tmpDir, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	loader := NewPolicyLoader(provider)
-
-	evaluationSet, _ := newTestEvaluationSet(tagValues)
-	return loader, evaluationSet
-}
-
-// FROM https://pkg.go.dev/github.com/google/go-cmp@v0.5.9/cmp#example-Reporter
-// DiffReporter is a simple custom reporter that only records differences
-// detected during comparison.
-type DiffReporter struct {
-	path  cmp.Path
-	diffs []string
-}
-
-func (r *DiffReporter) PushStep(ps cmp.PathStep) {
-	r.path = append(r.path, ps)
-}
-
-func (r *DiffReporter) Report(rs cmp.Result) {
-	if !rs.Equal() {
-		vx, vy := r.path.Last().Values()
-		r.diffs = append(r.diffs, fmt.Sprintf("%#v:\n\t-: %+v\n\t+: %+v\n", r.path, vx, vy))
-	}
-}
-
-func (r *DiffReporter) PopStep() {
-	r.path = r.path[:len(r.path)-1]
-}
-
-func (r *DiffReporter) String() string {
-	return strings.Join(r.diffs, "\n")
-}
-
 // Tests
 
 func TestEvaluationSet_GetPolicies(t *testing.T) {
@@ -371,7 +291,7 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 							Expression: "open.file.path == \"/etc/local-default/file\"",
 						},
 						Definition: &RuleDefinition{
-							ID:         "bar",
+							ID:         "baz",
 							Expression: "open.file.path == \"/etc/local-default/file\"",
 						}},
 				}
@@ -973,4 +893,84 @@ func TestNewEvaluationSet(t *testing.T) {
 			tt.want(t, got, fmt.Sprintf("NewEvaluationSet(%v)", tt.args.ruleSetsToInclude))
 		})
 	}
+}
+
+// Test Utilities
+func newTestEvaluationSet(tagValues []eval.RuleSetTagValue) (*EvaluationSet, error) {
+	var ruleSetsToInclude []*RuleSet
+	if len(tagValues) > 0 {
+		for _, tagValue := range tagValues {
+			rs := newRuleSet()
+			rs.setRuleSetTagValue(tagValue)
+			ruleSetsToInclude = append(ruleSetsToInclude, rs)
+		}
+	} else {
+		rs := newRuleSet()
+		ruleSetsToInclude = append(ruleSetsToInclude, rs)
+	}
+
+	return NewEvaluationSet(ruleSetsToInclude)
+}
+
+func loadPolicyIntoProbeEvaluationRuleSet(t *testing.T, testPolicy *PolicyDef, policyOpts PolicyLoaderOpts) (*EvaluationSet, *multierror.Error) {
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loader := NewPolicyLoader(provider)
+
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{})
+	return evaluationSet, evaluationSet.LoadPolicies(loader, policyOpts)
+}
+
+func loadPolicySetup(t *testing.T, testPolicy *PolicyDef, tagValues []eval.RuleSetTagValue) (*PolicyLoader, *EvaluationSet) {
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loader := NewPolicyLoader(provider)
+
+	evaluationSet, _ := newTestEvaluationSet(tagValues)
+	return loader, evaluationSet
+}
+
+// The following is from https://pkg.go.dev/github.com/google/go-cmp@v0.5.9/cmp#example-Reporter
+// DiffReporter is a simple custom reporter that only records differences
+// detected during comparison.
+type DiffReporter struct {
+	path  cmp.Path
+	diffs []string
+}
+
+func (r *DiffReporter) PushStep(ps cmp.PathStep) {
+	r.path = append(r.path, ps)
+}
+
+func (r *DiffReporter) Report(rs cmp.Result) {
+	if !rs.Equal() {
+		vx, vy := r.path.Last().Values()
+		r.diffs = append(r.diffs, fmt.Sprintf("%#v:\n\t-: %+v\n\t+: %+v\n", r.path, vx, vy))
+	}
+}
+
+func (r *DiffReporter) PopStep() {
+	r.path = r.path[:len(r.path)-1]
+}
+
+func (r *DiffReporter) String() string {
+	return strings.Join(r.diffs, "\n")
 }
