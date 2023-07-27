@@ -11,25 +11,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type LogLevelSource string
-
-const (
-	LogLevelSourceCLI     LogLevelSource = "cli"
-	LogLevelSourceRC      LogLevelSource = "remote-config"
-	LogLevelSourceDefault LogLevelSource = "default"
-	LogLevelSourceUnknown LogLevelSource = "unknown"
-)
-
 // LogLevelRuntimeSetting wraps operations to change log level at runtime.
 type LogLevelRuntimeSetting struct {
 	Config    config.ConfigReaderWriter
 	ConfigKey string
-	Source    LogLevelSource
+	Source    SettingSource
 }
 
 type LogLevelStatus struct {
 	Level  string
-	Source LogLevelSource
+	Source SettingSource
 }
 
 // Description returns the runtime setting's description
@@ -56,12 +47,12 @@ func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
 	return level.String(), nil
 }
 
-func (l *LogLevelRuntimeSetting) GetSource() LogLevelSource {
+func (l *LogLevelRuntimeSetting) GetSource() SettingSource {
 	return l.Source
 }
 
 // Set changes the value of the runtime setting
-func (l *LogLevelRuntimeSetting) Set(v interface{}, source LogLevelSource) error {
+func (l *LogLevelRuntimeSetting) Set(v interface{}, source SettingSource) error {
 	level := v.(string)
 
 	err := config.ChangeLogLevel(level)

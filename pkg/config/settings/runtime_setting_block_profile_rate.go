@@ -14,7 +14,7 @@ import (
 type RuntimeBlockProfileRate struct {
 	Config       config.ConfigReaderWriter
 	ConfigPrefix string
-	Source       LogLevelSource
+	Source       SettingSource
 }
 
 // Name returns the name of the runtime setting
@@ -41,7 +41,7 @@ func (r *RuntimeBlockProfileRate) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (r *RuntimeBlockProfileRate) Set(value interface{}, source LogLevelSource) error {
+func (r *RuntimeBlockProfileRate) Set(value interface{}, source SettingSource) error {
 	rate, err := GetInt(value)
 	if err != nil {
 		return err
@@ -60,6 +60,6 @@ func (r *RuntimeBlockProfileRate) Set(value interface{}, source LogLevelSource) 
 	return err
 }
 
-func (r *RuntimeBlockProfileRate) GetSource() LogLevelSource {
+func (r *RuntimeBlockProfileRate) GetSource() SettingSource {
 	return r.Source
 }

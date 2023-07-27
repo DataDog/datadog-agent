@@ -145,7 +145,7 @@ func setConfigValue(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	value := html.UnescapeString(r.Form.Get("value"))
 
-	if err := settings.SetRuntimeSetting(setting, value, settings.LogLevelSourceCLI); err != nil {
+	if err := settings.SetRuntimeSetting(setting, value, settings.SettingSourceCLI); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
 		case *settings.SettingNotFoundError:

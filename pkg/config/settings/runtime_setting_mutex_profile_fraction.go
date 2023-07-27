@@ -14,7 +14,7 @@ import (
 type RuntimeMutexProfileFraction struct {
 	Config       config.ConfigReaderWriter
 	ConfigPrefix string
-	Source       LogLevelSource
+	Source       SettingSource
 }
 
 // Name returns the name of the runtime setting
@@ -41,7 +41,7 @@ func (r *RuntimeMutexProfileFraction) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (r *RuntimeMutexProfileFraction) Set(value interface{}, source LogLevelSource) error {
+func (r *RuntimeMutexProfileFraction) Set(value interface{}, source SettingSource) error {
 	rate, err := GetInt(value)
 	if err != nil {
 		return err
@@ -60,6 +60,6 @@ func (r *RuntimeMutexProfileFraction) Set(value interface{}, source LogLevelSour
 	return err
 }
 
-func (r *RuntimeMutexProfileFraction) GetSource() LogLevelSource {
+func (r *RuntimeMutexProfileFraction) GetSource() SettingSource {
 	return r.Source
 }

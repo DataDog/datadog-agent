@@ -13,7 +13,7 @@ import (
 
 // LogPayloadsRuntimeSetting wraps operations to start logging aggregator payload at runtime.
 type LogPayloadsRuntimeSetting struct {
-	Source LogLevelSource
+	Source SettingSource
 }
 
 // Description returns the runtime setting's description
@@ -37,7 +37,7 @@ func (l *LogPayloadsRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (l *LogPayloadsRuntimeSetting) Set(v interface{}, source LogLevelSource) error {
+func (l *LogPayloadsRuntimeSetting) Set(v interface{}, source SettingSource) error {
 	var newValue bool
 	var err error
 
@@ -50,6 +50,6 @@ func (l *LogPayloadsRuntimeSetting) Set(v interface{}, source LogLevelSource) er
 	return nil
 }
 
-func (l *LogPayloadsRuntimeSetting) GetSource() LogLevelSource {
+func (l *LogPayloadsRuntimeSetting) GetSource() SettingSource {
 	return l.Source
 }

@@ -111,7 +111,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 	}
 
 	switch source {
-	case settings.LogLevelSourceDefault:
+	case settings.SettingSourceDefault:
 		// If the log level had been set by default
 		// and if we receive an empty value for log level in the config
 		// then there is nothing to do
@@ -130,31 +130,32 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig)
 		rc.configState.FallbackLogLevel = newFallback.(string)
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
-		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, settings.LogLevelSourceRC)
+		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, settings.SettingSourceRC)
 
-	case settings.LogLevelSourceRC:
+	case settings.SettingSourceRC:
 		// 2 possible situations:
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		var newLevel string
-		var newSource settings.LogLevelSource
+		var newSource settings.SettingSource
 		if len(mergedConfig.LogLevel) == 0 {
 			newLevel = rc.configState.FallbackLogLevel
-			newSource = settings.LogLevelSourceDefault
+			newSource = settings.SettingSourceDefault
 			pkglog.Infof("Removing remote-config log level override, falling back to %s", newLevel)
 		} else {
 			newLevel = mergedConfig.LogLevel
-			newSource = settings.LogLevelSourceRC
+			newSource = settings.SettingSourceRC
 			pkglog.Infof("Changing log level to %s through remote config", newLevel)
 		}
 		err = settings.SetRuntimeSetting("log_level", newLevel, newSource)
 
-	case settings.LogLevelSourceCLI:
+	case settings.SettingSourceCLI:
 		pkglog.Infof("Remote config could not change the log level due to CLI override")
 		return
 
-	default: // case settings.LogLevelSourceUnknown
+	default: // case settings.SettingSourceUnknown
 		pkglog.Warnf("Unknown source changed the log level")
+		return
 	}
 
 	// Apply the new status to all configs

@@ -15,13 +15,13 @@ import (
 // DsdCaptureDurationRuntimeSetting wraps operations to change the duration, in seconds, of traffic captures
 type DsdCaptureDurationRuntimeSetting struct {
 	value  string
-	Source pkgsettings.LogLevelSource
+	Source pkgsettings.SettingSource
 }
 
 func NewDsdCaptureDurationRuntimeSetting(value string) *DsdCaptureDurationRuntimeSetting {
 	return &DsdCaptureDurationRuntimeSetting{
 		value:  value,
-		Source: pkgsettings.LogLevelSourceDefault,
+		Source: pkgsettings.SettingSourceDefault,
 	}
 }
 
@@ -47,7 +47,7 @@ func (l *DsdCaptureDurationRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (l *DsdCaptureDurationRuntimeSetting) Set(v interface{}, source pkgsettings.LogLevelSource) error {
+func (l *DsdCaptureDurationRuntimeSetting) Set(v interface{}, source pkgsettings.SettingSource) error {
 	var err error
 
 	s, ok := v.(string)
@@ -66,6 +66,6 @@ func (l *DsdCaptureDurationRuntimeSetting) Set(v interface{}, source pkgsettings
 	return nil
 }
 
-func (l *DsdCaptureDurationRuntimeSetting) GetSource() pkgsettings.LogLevelSource {
+func (l *DsdCaptureDurationRuntimeSetting) GetSource() pkgsettings.SettingSource {
 	return l.Source
 }
